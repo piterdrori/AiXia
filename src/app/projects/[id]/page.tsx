@@ -1,0 +1,415 @@
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useStore } from '@/lib/store';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  ArrowLeft,
+  Edit,
+  Trash2,
+  Plus,
+  CheckSquare,
+} from 'lucide-react';
+import { format } from 'date-fns';
+
+export default function ProjectDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { 
+    getProjectById, 
+    getTasksByProject, 
+    users, 
+    activities,
+    hasPermission,
+    deleteProject,
+    currentUser,
+  } = useStore();
+
+  const [activeTab, setActiveTab] = useState('overview');
+
+  const project = id ? getProjectById(id) : undefined;
+  const tasks = id ? getTasksByProject(id) : [];
+  const projectActivities = id ? activities.filter(a => a.projectId === id) : [];
+
+  useEffect(() => {
+    if (!project && id) {
+      navigate('/projects');
+    }
+  }, [project, id, navigate]);
+
+  if (!project) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'ACTIVE': return 'bg-green-500/20 text-green-400 border-green-500/30';
+      case 'PLANNING': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      case 'ON_HOLD': return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+      case 'COMPLETED': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+      case 'CANCELLED': return 'bg-red-500/20 text-red-400 border-red-500/30';
+      default: return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+    }
+  };
+
+  const getTaskStatusColor = (status: string) => {
+    switch (status) {
+      case 'DONE': return 'bg-green-500/20 text-green-400';
+      case 'IN_PROGRESS': return 'bg-blue-500/20 text-blue-400';
+      case 'IN_REVIEW': return 'bg-purple-500/20 text-purple-400';
+      default: return 'bg-slate-500/20 text-slate-400';
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'URGENT': return 'bg-red-500/20 text-red-400 border-red-500/30';
+      case 'HIGH': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+      case 'MEDIUM': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+      default: return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+    }
+  };
+
+  const handleDelete = () => {
+    if (confirm('Are you sure you want to delete this project?')) {
+      deleteProject(project.id);
+      navigate('/projects');
+    }
+  };
+
+  const taskStats = {
+    total: tasks.length,
+    todo: tasks.filter(t => t.status === 'TODO').length,
+    inProgress: tasks.filter(t => t.status === 'IN_PROGRESS').length,
+    inReview: tasks.filter(t => t.status === 'IN_REVIEW').length,
+    done: tasks.filter(t => t.status === 'DONE').length,
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => navigate('/projects')}
+            className="text-slate-400 hover:text-white"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-white">{project.name}</h1>
+              <Badge className={getStatusColor(project.status)}>
+                {project.status}
+              </Badge>
+            </div>
+            <p className="text-slate-400">{project.description || 'No description'}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {hasPermission('editAllProjects') && (
+            <Button 
+              variant="outline"
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              onClick={() => navigate(`/projects/${project.id}/edit`)}
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+          )}
+          {hasPermission('deleteProjects', { isOwner: project.createdBy === currentUser?.id }) && (
+            <Button 
+              variant="outline"
+              className="border-red-800 text-red-400 hover:bg-red-900/20"
+              onClick={handleDelete}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Progress Card */}
+      <Card className="bg-slate-900/50 border-slate-800">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-slate-400">Project Progress</span>
+            <span className="text-white font-medium">{project.progress}%</span>
+          </div>
+          <Progress value={project.progress} className="h-3 bg-slate-800" />
+          <div className="grid grid-cols-5 gap-4 mt-6">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-white">{taskStats.total}</p>
+              <p className="text-xs text-slate-500">Total</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-slate-400">{taskStats.todo}</p>
+              <p className="text-xs text-slate-500">To Do</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-blue-400">{taskStats.inProgress}</p>
+              <p className="text-xs text-slate-500">In Progress</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-purple-400">{taskStats.inReview}</p>
+              <p className="text-xs text-slate-500">In Review</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-green-400">{taskStats.done}</p>
+              <p className="text-xs text-slate-500">Done</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="bg-slate-900 border border-slate-800">
+          <TabsTrigger value="overview" className="data-[state=active]:bg-slate-800">Overview</TabsTrigger>
+          <TabsTrigger value="tasks" className="data-[state=active]:bg-slate-800">Tasks</TabsTrigger>
+          <TabsTrigger value="team" className="data-[state=active]:bg-slate-800">Team</TabsTrigger>
+          <TabsTrigger value="activity" className="data-[state=active]:bg-slate-800">Activity</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card className="bg-slate-900/50 border-slate-800">
+              <CardHeader>
+                <CardTitle className="text-white text-lg">Project Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Status</span>
+                  <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Health</span>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${
+                      project.health === 'GOOD' ? 'bg-green-500' :
+                      project.health === 'AT_RISK' ? 'bg-amber-500' : 'bg-red-500'
+                    }`} />
+                    <span className="text-white">{project.health}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Start Date</span>
+                  <span className="text-white">
+                    {project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : 'Not set'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">End Date</span>
+                  <span className="text-white">
+                    {project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : 'Not set'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Created</span>
+                  <span className="text-white">
+                    {format(new Date(project.createdAt), 'MMM d, yyyy')}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-slate-900/50 border-slate-800">
+              <CardHeader>
+                <CardTitle className="text-white text-lg">Team Members</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {project.members.map((member) => {
+                    const user = users.find(u => u.id === member.userId);
+                    return (
+                      <div key={member.userId} className="flex items-center gap-3">
+                        <Avatar className="w-8 h-8">
+                          <AvatarImage src={user?.avatar} />
+                          <AvatarFallback className="bg-indigo-600 text-white text-xs">
+                            {user?.fullName?.split(' ').map(n => n[0]).join('') || 'U'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <p className="text-white text-sm">{user?.fullName}</p>
+                          <p className="text-slate-500 text-xs">{member.role}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="tasks" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium text-white">Project Tasks</h3>
+            {hasPermission('createTasks') && (
+              <Button 
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={() => navigate(`/tasks/new?projectId=${project.id}`)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Task
+              </Button>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {tasks.map((task) => (
+              <Card 
+                key={task.id} 
+                className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/30 cursor-pointer transition-all"
+                onClick={() => navigate(`/tasks/${task.id}`)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <CheckSquare className={`w-5 h-5 ${
+                        task.status === 'DONE' ? 'text-green-400' : 'text-slate-500'
+                      }`} />
+                      <div>
+                        <p className={`font-medium ${
+                          task.status === 'DONE' ? 'text-slate-500 line-through' : 'text-white'
+                        }`}>
+                          {task.title}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge className={getTaskStatusColor(task.status)}>
+                            {task.status}
+                          </Badge>
+                          <Badge className={getPriorityColor(task.priority)}>
+                            {task.priority}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex -space-x-2">
+                        {task.assignees.slice(0, 3).map((userId) => {
+                          const user = users.find(u => u.id === userId);
+                          return (
+                            <Avatar key={userId} className="w-7 h-7 border-2 border-slate-900">
+                              <AvatarImage src={user?.avatar} />
+                              <AvatarFallback className="bg-indigo-600 text-white text-xs">
+                                {user?.fullName?.split(' ').map(n => n[0]).join('') || 'U'}
+                              </AvatarFallback>
+                            </Avatar>
+                          );
+                        })}
+                      </div>
+                      {task.dueDate && (
+                        <span className="text-sm text-slate-500">
+                          {format(new Date(task.dueDate), 'MMM d')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            {tasks.length === 0 && (
+              <div className="text-center py-12">
+                <CheckSquare className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+                <p className="text-slate-500">No tasks yet</p>
+                {hasPermission('createTasks') && (
+                  <Button 
+                    className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white"
+                    onClick={() => navigate(`/tasks/new?projectId=${project.id}`)}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add First Task
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="team" className="space-y-4">
+          <Card className="bg-slate-900/50 border-slate-800">
+            <CardHeader>
+              <CardTitle className="text-white">Team Members</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="divide-y divide-slate-800">
+                {project.members.map((member) => {
+                  const user = users.find(u => u.id === member.userId);
+                  return (
+                    <div key={member.userId} className="flex items-center gap-4 py-4">
+                      <Avatar className="w-10 h-10">
+                        <AvatarImage src={user?.avatar} />
+                        <AvatarFallback className="bg-indigo-600 text-white">
+                          {user?.fullName?.split(' ').map(n => n[0]).join('') || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="text-white font-medium">{user?.fullName}</p>
+                        <p className="text-slate-500 text-sm">{user?.email}</p>
+                      </div>
+                      <Badge className="bg-slate-800 text-slate-300">
+                        {member.role}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="activity" className="space-y-4">
+          <Card className="bg-slate-900/50 border-slate-800">
+            <CardHeader>
+              <CardTitle className="text-white">Activity History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[400px]">
+                <div className="space-y-4">
+                  {projectActivities.map((activity) => {
+                    const user = users.find(u => u.id === activity.userId);
+                    return (
+                      <div key={activity.id} className="flex items-start gap-3">
+                        <Avatar className="w-8 h-8">
+                          <AvatarImage src={user?.avatar} />
+                          <AvatarFallback className="bg-indigo-600 text-white text-xs">
+                            {user?.fullName?.split(' ').map(n => n[0]).join('') || 'U'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <p className="text-sm text-slate-300">
+                            <span className="text-white font-medium">{user?.fullName || 'Unknown'}</span>
+                            {' '}{activity.type.toLowerCase().replace(/_/g, ' ')}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {format(new Date(activity.createdAt), 'MMM d, h:mm a')}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {projectActivities.length === 0 && (
+                    <p className="text-slate-500 text-center py-8">No activity yet</p>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

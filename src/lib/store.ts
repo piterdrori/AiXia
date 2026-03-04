@@ -203,9 +203,14 @@ export const useStore = create<AppState & AppActions>()(
     },
 
     updateUserPermissions: (userId, permissions) => {
-      db.updateUser(userId, { permissions });
-      get().refreshData();
-    },
+  // Clone permissions to avoid passing frozen/shared references
+  const safePermissions = structuredClone
+    ? structuredClone(permissions)
+    : JSON.parse(JSON.stringify(permissions));
+
+  db.updateUser(userId, { permissions: safePermissions });
+  get().refreshData();
+},
 
     updateUser: (userId, data) => {
       db.updateUser(userId, data);

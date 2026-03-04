@@ -590,41 +590,24 @@ export const useStore = create<AppState & AppActions>()(
     },
 
     // Refresh data
-refreshData: () => {
-  const user = get().currentUser;
-  if (!user) return;
-
-  const clone = <T,>(data: T): T => {
-    // structuredClone exists in modern browsers
-    // fallback works for plain JSON data
-    // @ts-ignore
-    return typeof structuredClone === 'function'
-      // @ts-ignore
-      ? structuredClone(data)
-      : JSON.parse(JSON.stringify(data));
-  };
-
-  // IMPORTANT: clone DB data so Immer doesn't freeze DB's internal references
-  const users = clone(db.getUsers());
-  const projects = clone(db.getProjects());
-  const tasks = clone(db.getTasks());
-  const notifications = clone(db.getNotificationsByUser(user.id));
-  const calendarEvents = clone(db.getCalendarEvents());
-  const conversations = clone(db.getConversationsByUser(user.id));
-  const activities = clone(db.getActivities());
-
-  set(state => {
-    state.users = users;
-    state.projects = projects;
-    state.tasks = tasks;
-    state.notifications = notifications;
-    state.calendarEvents = calendarEvents;
-    state.conversations = conversations;
-    state.activities = activities;
-
-    // Load messages for each conversation (also clone)
-    state.conversations.forEach(conv => {
-      state.messages[conv.id] = clone(db.getMessagesByConversation(conv.id));
-    });
-  });
-},
+    refreshData: () => {
+      const user = get().currentUser;
+      if (!user) return;
+      
+      set(state => {
+        state.users = db.getUsers();
+        state.projects = db.getProjects();
+        state.tasks = db.getTasks();
+        state.notifications = db.getNotificationsByUser(user.id);
+        state.calendarEvents = db.getCalendarEvents();
+        state.conversations = db.getConversationsByUser(user.id);
+        state.activities = db.getActivities();
+        
+        // Load messages for each conversation
+        state.conversations.forEach(conv => {
+          state.messages[conv.id] = db.getMessagesByConversation(conv.id);
+        });
+      });
+    },
+  }))
+);

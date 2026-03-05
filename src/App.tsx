@@ -36,249 +36,92 @@ import SettingsPage from "@/app/settings/page";
 // Layout
 import DashboardLayout from "@/components/layout/DashboardLayout";
 
-function FullScreenLoader() {
+function FullscreenLoader() {
   return (
     <div className="flex items-center justify-center h-screen bg-slate-950">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500" />
     </div>
   );
 }
 
-// Protected Route component
+// Protected Route
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useStore();
 
-  if (isLoading) return <FullScreenLoader />;
+  if (isLoading) return <FullscreenLoader />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   return <>{children}</>;
 }
 
-// Public Route component (redirects to dashboard if authenticated)
+// Public Route
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useStore();
 
-  if (isLoading) return <FullScreenLoader />;
+  if (isLoading) return <FullscreenLoader />;
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 
   return <>{children}</>;
 }
 
-function ProtectedLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <ProtectedRoute>
-      <DashboardLayout>{children}</DashboardLayout>
-    </ProtectedRoute>
-  );
-}
-
-export default function App() {
-  const { restoreSession } = useStore();
+function App() {
+  const restoreSession = useStore((s) => s.restoreSession);
 
   useEffect(() => {
     restoreSession();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [restoreSession]);
+
+  const wrap = (page: React.ReactNode) => (
+    <ProtectedRoute>
+      <DashboardLayout>{page}</DashboardLayout>
+    </ProtectedRoute>
+  );
 
   return (
     <Router>
       <Routes>
         {/* Public */}
         <Route path="/" element={<LandingPage />} />
-        <Route
-          path="/login"
-          element={
-            <PublicRoute>
-              <LoginPage />
-            </PublicRoute>
-          }
-        />
-        <Route
-          path="/register"
-          element={
-            <PublicRoute>
-              <RegisterPage />
-            </PublicRoute>
-          }
-        />
+        <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+        <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
 
-        {/* Protected (Dashboard Layout) */}
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedLayout>
-              <DashboardPage />
-            </ProtectedLayout>
-          }
-        />
+        {/* Dashboard */}
+        <Route path="/dashboard" element={wrap(<DashboardPage />)} />
 
         {/* Projects */}
-        <Route
-          path="/projects"
-          element={
-            <ProtectedLayout>
-              <ProjectsPage />
-            </ProtectedLayout>
-          }
-        />
-        <Route
-          path="/projects/new"
-          element={
-            <ProtectedLayout>
-              <ProjectNewPage />
-            </ProtectedLayout>
-          }
-        />
-        <Route
-          path="/projects/:id"
-          element={
-            <ProtectedLayout>
-              <ProjectDetailPage />
-            </ProtectedLayout>
-          }
-        />
-        <Route
-          path="/projects/:id/edit"
-          element={
-            <ProtectedLayout>
-              <ProjectEditPage />
-            </ProtectedLayout>
-          }
-        />
+        <Route path="/projects" element={wrap(<ProjectsPage />)} />
+        <Route path="/projects/new" element={wrap(<ProjectNewPage />)} />
+        <Route path="/projects/:id" element={wrap(<ProjectDetailPage />)} />
+        <Route path="/projects/:id/edit" element={wrap(<ProjectEditPage />)} />
 
         {/* Tasks */}
-        <Route
-          path="/tasks"
-          element={
-            <ProtectedLayout>
-              <TasksPage />
-            </ProtectedLayout>
-          }
-        />
-        <Route
-          path="/tasks/new"
-          element={
-            <ProtectedLayout>
-              <TaskNewPage />
-            </ProtectedLayout>
-          }
-        />
-        <Route
-          path="/tasks/:id"
-          element={
-            <ProtectedLayout>
-              <TaskDetailPage />
-            </ProtectedLayout>
-          }
-        />
-        <Route
-          path="/tasks/:id/edit"
-          element={
-            <ProtectedLayout>
-              <TaskEditPage />
-            </ProtectedLayout>
-          }
-        />
+        <Route path="/tasks" element={wrap(<TasksPage />)} />
+        <Route path="/tasks/new" element={wrap(<TaskNewPage />)} />
+        <Route path="/tasks/:id" element={wrap(<TaskDetailPage />)} />
+        <Route path="/tasks/:id/edit" element={wrap(<TaskEditPage />)} />
 
         {/* Calendar */}
-        <Route
-          path="/calendar"
-          element={
-            <ProtectedLayout>
-              <CalendarPage />
-            </ProtectedLayout>
-          }
-        />
-        <Route
-          path="/calendar/day"
-          element={
-            <ProtectedLayout>
-              <CalendarDayPage />
-            </ProtectedLayout>
-          }
-        />
-        <Route
-          path="/calendar/new"
-          element={
-            <ProtectedLayout>
-              <CalendarNewPage />
-            </ProtectedLayout>
-          }
-        />
-        <Route
-          path="/calendar/:id/edit"
-          element={
-            <ProtectedLayout>
-              <CalendarEditPage />
-            </ProtectedLayout>
-          }
-        />
+        <Route path="/calendar" element={wrap(<CalendarPage />)} />
+        <Route path="/calendar/day" element={wrap(<CalendarDayPage />)} />
+        <Route path="/calendar/new" element={wrap(<CalendarNewPage />)} />
+        <Route path="/calendar/:id/edit" element={wrap(<CalendarEditPage />)} />
 
         {/* Chat */}
-        <Route
-          path="/chat"
-          element={
-            <ProtectedLayout>
-              <ChatPage />
-            </ProtectedLayout>
-          }
-        />
-        <Route
-          path="/chat/:id"
-          element={
-            <ProtectedLayout>
-              <ChatPage />
-            </ProtectedLayout>
-          }
-        />
+        <Route path="/chat" element={wrap(<ChatPage />)} />
+        <Route path="/chat/:id" element={wrap(<ChatPage />)} />
 
         {/* Inbox */}
-        <Route
-          path="/inbox"
-          element={
-            <ProtectedLayout>
-              <InboxPage />
-            </ProtectedLayout>
-          }
-        />
+        <Route path="/inbox" element={wrap(<InboxPage />)} />
 
         {/* Employees */}
-        <Route
-          path="/employees"
-          element={
-            <ProtectedLayout>
-              <EmployeesPage />
-            </ProtectedLayout>
-          }
-        />
-        <Route
-          path="/employees/:id"
-          element={
-            <ProtectedLayout>
-              <EmployeeDetailPage />
-            </ProtectedLayout>
-          }
-        />
-        <Route
-          path="/employees/:id/permissions"
-          element={
-            <ProtectedLayout>
-              <EmployeePermissionsPage />
-            </ProtectedLayout>
-          }
-        />
+        <Route path="/employees" element={wrap(<EmployeesPage />)} />
+        <Route path="/employees/:id" element={wrap(<EmployeeDetailPage />)} />
+        <Route path="/employees/:id/permissions" element={wrap(<EmployeePermissionsPage />)} />
 
         {/* Settings */}
-        <Route
-          path="/settings"
-          element={
-            <ProtectedLayout>
-              <SettingsPage />
-            </ProtectedLayout>
-          }
-        />
+        <Route path="/settings" element={wrap(<SettingsPage />)} />
 
-        {/* Catch-all */}
+        {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
@@ -286,3 +129,5 @@ export default function App() {
     </Router>
   );
 }
+
+export default App;

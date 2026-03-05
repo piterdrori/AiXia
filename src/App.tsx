@@ -1,5 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useStore } from "@/lib/store";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -36,46 +36,42 @@ import SettingsPage from "@/app/settings/page";
 // Layout
 import DashboardLayout from "@/components/layout/DashboardLayout";
 
-function FullscreenLoader() {
+function LoadingScreen() {
   return (
     <div className="flex items-center justify-center h-screen bg-slate-950">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500" />
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
     </div>
   );
 }
 
-// Protected Route
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useStore();
-
-  if (isLoading) return <FullscreenLoader />;
+  if (isLoading) return <LoadingScreen />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-
   return <>{children}</>;
 }
 
-// Public Route
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useStore();
-
-  if (isLoading) return <FullscreenLoader />;
+  if (isLoading) return <LoadingScreen />;
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
-
   return <>{children}</>;
 }
 
-function App() {
-  const restoreSession = useStore((s) => s.restoreSession);
+function AuthedLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <DashboardLayout>{children}</DashboardLayout>
+    </ProtectedRoute>
+  );
+}
+
+export default function App() {
+  const { restoreSession } = useStore();
 
   useEffect(() => {
     restoreSession();
   }, [restoreSession]);
-
-  const wrap = (page: React.ReactNode) => (
-    <ProtectedRoute>
-      <DashboardLayout>{page}</DashboardLayout>
-    </ProtectedRoute>
-  );
 
   return (
     <Router>
@@ -86,42 +82,42 @@ function App() {
         <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
 
         {/* Dashboard */}
-        <Route path="/dashboard" element={wrap(<DashboardPage />)} />
+        <Route path="/dashboard" element={<AuthedLayout><DashboardPage /></AuthedLayout>} />
 
         {/* Projects */}
-        <Route path="/projects" element={wrap(<ProjectsPage />)} />
-        <Route path="/projects/new" element={wrap(<ProjectNewPage />)} />
-        <Route path="/projects/:id" element={wrap(<ProjectDetailPage />)} />
-        <Route path="/projects/:id/edit" element={wrap(<ProjectEditPage />)} />
+        <Route path="/projects" element={<AuthedLayout><ProjectsPage /></AuthedLayout>} />
+        <Route path="/projects/new" element={<AuthedLayout><ProjectNewPage /></AuthedLayout>} />
+        <Route path="/projects/:id" element={<AuthedLayout><ProjectDetailPage /></AuthedLayout>} />
+        <Route path="/projects/:id/edit" element={<AuthedLayout><ProjectEditPage /></AuthedLayout>} />
 
         {/* Tasks */}
-        <Route path="/tasks" element={wrap(<TasksPage />)} />
-        <Route path="/tasks/new" element={wrap(<TaskNewPage />)} />
-        <Route path="/tasks/:id" element={wrap(<TaskDetailPage />)} />
-        <Route path="/tasks/:id/edit" element={wrap(<TaskEditPage />)} />
+        <Route path="/tasks" element={<AuthedLayout><TasksPage /></AuthedLayout>} />
+        <Route path="/tasks/new" element={<AuthedLayout><TaskNewPage /></AuthedLayout>} />
+        <Route path="/tasks/:id" element={<AuthedLayout><TaskDetailPage /></AuthedLayout>} />
+        <Route path="/tasks/:id/edit" element={<AuthedLayout><TaskEditPage /></AuthedLayout>} />
 
         {/* Calendar */}
-        <Route path="/calendar" element={wrap(<CalendarPage />)} />
-        <Route path="/calendar/day" element={wrap(<CalendarDayPage />)} />
-        <Route path="/calendar/new" element={wrap(<CalendarNewPage />)} />
-        <Route path="/calendar/:id/edit" element={wrap(<CalendarEditPage />)} />
+        <Route path="/calendar" element={<AuthedLayout><CalendarPage /></AuthedLayout>} />
+        <Route path="/calendar/day/:date" element={<AuthedLayout><CalendarDayPage /></AuthedLayout>} />
+        <Route path="/calendar/new" element={<AuthedLayout><CalendarNewPage /></AuthedLayout>} />
+        <Route path="/calendar/:id/edit" element={<AuthedLayout><CalendarEditPage /></AuthedLayout>} />
 
         {/* Chat */}
-        <Route path="/chat" element={wrap(<ChatPage />)} />
-        <Route path="/chat/:id" element={wrap(<ChatPage />)} />
+        <Route path="/chat" element={<AuthedLayout><ChatPage /></AuthedLayout>} />
+        <Route path="/chat/:id" element={<AuthedLayout><ChatPage /></AuthedLayout>} />
 
         {/* Inbox */}
-        <Route path="/inbox" element={wrap(<InboxPage />)} />
+        <Route path="/inbox" element={<AuthedLayout><InboxPage /></AuthedLayout>} />
 
         {/* Employees */}
-        <Route path="/employees" element={wrap(<EmployeesPage />)} />
-        <Route path="/employees/:id" element={wrap(<EmployeeDetailPage />)} />
-        <Route path="/employees/:id/permissions" element={wrap(<EmployeePermissionsPage />)} />
+        <Route path="/employees" element={<AuthedLayout><EmployeesPage /></AuthedLayout>} />
+        <Route path="/employees/:id" element={<AuthedLayout><EmployeeDetailPage /></AuthedLayout>} />
+        <Route path="/employees/:id/permissions" element={<AuthedLayout><EmployeePermissionsPage /></AuthedLayout>} />
 
         {/* Settings */}
-        <Route path="/settings" element={wrap(<SettingsPage />)} />
+        <Route path="/settings" element={<AuthedLayout><SettingsPage /></AuthedLayout>} />
 
-        {/* Catch all */}
+        {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
@@ -129,5 +125,3 @@ function App() {
     </Router>
   );
 }
-
-export default App;

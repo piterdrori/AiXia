@@ -1,159 +1,195 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, isSameMonth, isSameDay } from "date-fns";
-
+import { useStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
-import { useStore } from "@/lib/store";
+import { Badge } from "@/components/ui/badge";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
-type ViewMode = "month" | "week" | "day";
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function toYYYYMMDD(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function safeDate(input: any) {
+  if (!input) return null;
+  const d = new Date(input);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function isSameDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
 
 export default function CalendarPage() {
   const navigate = useNavigate();
-  const { calendarEvents } = useStore();
+  const { calendarEvents, tasks } = useStore();
 
-  const [viewMode, setViewMode] = useState<ViewMode>("month");
-  const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [cursor, setCursor] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
 
-  const monthLabel = useMemo(() => format(currentDate, "MMMM yyyy"), [currentDate]);
+  const monthLabel = cursor.toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
 
-  const days = useMemo(() => {
-    const start = viewMode === "month"
-      ? startOfWeek(startOfMonth(currentDate), { weekStartsOn: 0 })
-      : startOfWeek(currentDate, { weekStartsOn: 0 });
+  const gridDays = useMemo(() => {
+    const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+    const last = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
 
-    const end = viewMode === "month"
-      ? endOfWeek(endOfMonth(currentDate), { weekStartsOn: 0 })
-      : endOfWeek(currentDate, { weekStartsOn: 0 });
+    // Sunday-based grid
+    const start = new Date(first);
+    start.setDate(first.getDate() - first.getDay());
 
-    const out: Date[] = [];
-    let d = start;
+    const end = new Date(last);
+    end.setDate(last.getDate() + (6 - last.getDay()));
 
+    const days: Date[] = [];
+    const d = new Date(start);
     while (d <= end) {
-      out.push(d);
-      d = addDays(d, 1);
+      days.push(new Date(d));
+      d.setDate(d.getDate() + 1);
     }
-    return out;
-  }, [currentDate, viewMode]);
+    return days;
+  }, [cursor]);
 
-  const onPrev = () => {
-    if (viewMode === "month") setCurrentDate(subMonths(currentDate, 1));
-    else setCurrentDate(addDays(currentDate, -7));
+  const eventsByDay = useMemo(() => {
+    const map = new Map<string, any[]>();
+    (calendarEvents || []).forEach((ev: any) => {
+      const dt = safeDate(ev?.startDate ?? ev?.date);
+      if (!dt) return;
+      const key = toYYYYMMDD(dt);
+      map.set(key, [...(map.get(key) || []), ev]);
+    });
+    return map;
+  }, [calendarEvents]);
+
+  const tasksByDay = useMemo(() => {
+    const map = new Map<string, any[]>();
+    (tasks || []).forEach((t: any) => {
+      const dt = safeDate(t?.dueDate);
+      if (!dt) return;
+      const key = toYYYYMMDD(dt);
+      map.set(key, [...(map.get(key) || []), t]);
+    });
+    return map;
+  }, [tasks]);
+
+  const goPrevMonth = () =>
+    setCursor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+  const goNextMonth = () =>
+    setCursor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+  const goToday = () => {
+    const now = new Date();
+    setCursor(new Date(now.getFullYear(), now.getMonth(), 1));
   };
 
-  const onNext = () => {
-    if (viewMode === "month") setCurrentDate(addMonths(currentDate, 1));
-    else setCurrentDate(addDays(currentDate, 7));
-  };
-
-  const onToday = () => setCurrentDate(new Date());
-
-  const openDay = (date: Date) => {
-    const dateKey = format(date, "yyyy-MM-dd");
-    navigate(`/calendar/day?date=${dateKey}`);
-  };
-
-  const dayEventCount = (date: Date) => {
-    const list = (calendarEvents || []) as any[];
-    return list.filter((ev) => {
-      if (!ev?.date) return false;
-      const evDate = new Date(ev.date);
-      if (Number.isNaN(evDate.getTime())) return false;
-      return isSameDay(evDate, date);
-    }).length;
-  };
+  const now = new Date();
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Calendar</h1>
+          <h1 className="text-3xl font-bold text-white">Calendar</h1>
           <p className="text-slate-400">View and manage your schedule</p>
         </div>
 
         <Button
           className="bg-indigo-600 hover:bg-indigo-700 text-white"
-          onClick={() => navigate(`/calendar/new?date=${format(currentDate, "yyyy-MM-dd")}`)}
+          onClick={() => navigate("/calendar/new")}
         >
           <Plus className="w-4 h-4 mr-2" />
           New Event
         </Button>
       </div>
 
-      {/* Controls */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={onPrev}>
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
+      <div className="flex items-center gap-3">
+        <Button variant="outline" size="icon" onClick={goPrevMonth} className="border-slate-800 text-slate-300 hover:bg-slate-900">
+          <ChevronLeft className="w-4 h-4" />
+        </Button>
 
-          <div className="min-w-[170px] text-center text-white font-semibold">
-            {monthLabel}
-          </div>
+        <div className="text-white font-semibold text-xl min-w-[170px]">{monthLabel}</div>
 
-          <Button variant="outline" size="icon" onClick={onNext}>
-            <ChevronRight className="w-4 h-4" />
-          </Button>
+        <Button variant="outline" size="icon" onClick={goNextMonth} className="border-slate-800 text-slate-300 hover:bg-slate-900">
+          <ChevronRight className="w-4 h-4" />
+        </Button>
 
-          <Button variant="outline" onClick={onToday}>
-            Today
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant={viewMode === "month" ? "default" : "outline"} onClick={() => setViewMode("month")}>
-            Month
-          </Button>
-          <Button variant={viewMode === "week" ? "default" : "outline"} onClick={() => setViewMode("week")}>
-            Week
-          </Button>
-          <Button variant={viewMode === "day" ? "default" : "outline"} onClick={() => openDay(currentDate)}>
-            Day
-          </Button>
-        </div>
+        <Button variant="outline" onClick={goToday} className="border-slate-800 text-slate-300 hover:bg-slate-900">
+          Today
+        </Button>
       </div>
 
-      {/* Grid */}
       <Card className="bg-slate-900/40 border-slate-800 p-4">
         <div className="grid grid-cols-7 gap-3 text-slate-400 text-sm mb-3">
-          <div className="text-center">Sun</div>
-          <div className="text-center">Mon</div>
-          <div className="text-center">Tue</div>
-          <div className="text-center">Wed</div>
-          <div className="text-center">Thu</div>
-          <div className="text-center">Fri</div>
-          <div className="text-center">Sat</div>
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+            <div key={d} className="px-2">{d}</div>
+          ))}
         </div>
 
         <div className="grid grid-cols-7 gap-3">
-          {days.map((d) => {
-            const inMonth = viewMode !== "month" ? true : isSameMonth(d, currentDate);
-            const count = dayEventCount(d);
+          {gridDays.map((day) => {
+            const key = toYYYYMMDD(day);
+            const inMonth = day.getMonth() === cursor.getMonth();
+            const isToday = isSameDay(day, now);
+
+            const dayEvents = eventsByDay.get(key) || [];
+            const dayTasks = tasksByDay.get(key) || [];
 
             return (
               <button
-                key={d.toISOString()}
-                onClick={() => openDay(d)}
+                key={key}
+                type="button"
+                onClick={() => navigate(`/calendar/day/${key}`)}
                 className={[
-                  "h-[90px] rounded-xl border text-left p-3 transition",
-                  "bg-slate-950/40 border-slate-800 hover:border-indigo-500/60 hover:bg-slate-950/55",
-                  inMonth ? "" : "opacity-40",
+                  "text-left rounded-xl border p-3 min-h-[92px] transition",
+                  "bg-slate-950/30 border-slate-800 hover:border-indigo-500/40 hover:bg-slate-950/50",
+                  !inMonth ? "opacity-50" : "",
                 ].join(" ")}
               >
                 <div className="flex items-center justify-between">
-                  <div className="text-white text-sm font-semibold">{format(d, "d")}</div>
-                  {count > 0 ? (
-                    <div className="text-xs text-indigo-300 bg-indigo-500/15 px-2 py-0.5 rounded-full">
-                      {count}
-                    </div>
+                  <div className={["text-sm", isToday ? "text-indigo-300 font-semibold" : "text-white"].join(" ")}>
+                    {day.getDate()}
+                  </div>
+                  {isToday ? (
+                    <Badge className="bg-indigo-500/20 text-indigo-300">Today</Badge>
                   ) : null}
                 </div>
 
-                {/* Preview line */}
-                <div className="mt-3 text-xs text-slate-400">
-                  {count > 0 ? `${count} event${count === 1 ? "" : "s"}` : " "}
+                <div className="mt-2 space-y-1">
+                  {dayEvents.slice(0, 2).map((ev: any) => (
+                    <div
+                      key={ev.id}
+                      className="text-xs text-indigo-200 bg-indigo-500/10 border border-indigo-500/20 rounded-md px-2 py-1 truncate"
+                      title={ev.title}
+                    >
+                      {ev.title || "Event"}
+                    </div>
+                  ))}
+
+                  {dayTasks.slice(0, 2).map((t: any) => (
+                    <div
+                      key={t.id}
+                      className="text-xs text-slate-200 bg-slate-800/40 border border-slate-700 rounded-md px-2 py-1 truncate"
+                      title={t.title}
+                    >
+                      {t.title || "Task"}
+                    </div>
+                  ))}
+
+                  {(dayEvents.length + dayTasks.length) > 4 ? (
+                    <div className="text-xs text-slate-400 px-1">
+                      +{(dayEvents.length + dayTasks.length) - 4} more
+                    </div>
+                  ) : null}
                 </div>
               </button>
             );

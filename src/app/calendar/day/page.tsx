@@ -1,6 +1,7 @@
 import { useMemo } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useStore } from "@/lib/store";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,28 +15,47 @@ function isSameDay(dateA: Date, dateB: Date) {
   );
 }
 
-export default function CalendarDayPage() {
-  import { useLocation } from "react-router-dom";
+function parseYYYYMMDD(value?: string | null): Date | null {
+  if (!value) return null;
+  const parts = value.split("-").map(Number);
+  if (parts.length !== 3) return null;
 
-const location = useLocation();
-const date = new URLSearchParams(location.search).get("date") || undefined;
+  const [y, m, d] = parts;
+  if (!y || !m || !d) return null;
+
+  const dt = new Date(y, m - 1, d);
+
+  // validate it didn't overflow (e.g. 2026-02-30)
+  if (
+    dt.getFullYear() !== y ||
+    dt.getMonth() !== m - 1 ||
+    dt.getDate() !== d
+  ) {
+    return null;
+  }
+
+  return dt;
+}
+
+export default function CalendarDayPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { calendarEvents, tasks } = useStore();
 
-  // Parse date safely
-  const selectedDate = useMemo(() => {
-    if (!date) return null;
-    // Expecting YYYY-MM-DD
-    const [y, m, d] = date.split("-").map(Number);
-    if (!y || !m || !d) return null;
-    return new Date(y, m - 1, d);
-  }, [date]);
+  const dateStr = useMemo(() => {
+    const qs = new URLSearchParams(location.search);
+    return qs.get("date"); // expected YYYY-MM-DD
+  }, [location.search]);
+
+  const selectedDate = useMemo(() => parseYYYYMMDD(dateStr), [dateStr]);
 
   const dayEvents = useMemo(() => {
     if (!selectedDate) return [];
     return (calendarEvents || []).filter((ev: any) => {
-      if (!ev?.date) return false;
-      const evDate = new Date(ev.date);
+      const raw = ev?.date ?? ev?.startDate ?? ev?.start ?? null;
+      if (!raw) return false;
+      const evDate = new Date(raw);
+      if (Number.isNaN(evDate.getTime())) return false;
       return isSameDay(evDate, selectedDate);
     });
   }, [calendarEvents, selectedDate]);
@@ -43,8 +63,10 @@ const date = new URLSearchParams(location.search).get("date") || undefined;
   const dayTasks = useMemo(() => {
     if (!selectedDate) return [];
     return (tasks || []).filter((t: any) => {
-      if (!t?.dueDate) return false;
-      const tDate = new Date(t.dueDate);
+      const raw = t?.dueDate ?? t?.due ?? null;
+      if (!raw) return false;
+      const tDate = new Date(raw);
+      if (Number.isNaN(tDate.getTime())) return false;
       return isSameDay(tDate, selectedDate);
     });
   }, [tasks, selectedDate]);
@@ -57,9 +79,9 @@ const date = new URLSearchParams(location.search).get("date") || undefined;
             <CardTitle className="text-white">Invalid date</CardTitle>
           </CardHeader>
           <CardContent className="text-slate-300">
-            The URL date is invalid. Go back to the calendar.
-            <div className="mt-4">
-              <Button onClick={() => navigate("/calendar")}>Back</Button>
+            The calendar day URL is invalid.
+            <div className="mt-4 flex gap-2">
+              <Button onClick={() => navigate("/calendar")}>Back to calendar</Button>
             </div>
           </CardContent>
         </Card>
@@ -76,6 +98,7 @@ const date = new URLSearchParams(location.search).get("date") || undefined;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
+      {/* Header */}
       <div className="flex items-center gap-3">
         <Button
           variant="ghost"
@@ -93,14 +116,16 @@ const date = new URLSearchParams(location.search).get("date") || undefined;
 
         <Button
           className="bg-indigo-600 hover:bg-indigo-700 text-white"
-          onClick={() => navigate(`/calendar/new?date=${date}`)}
+          onClick={() => navigate(`/calendar/new?date=${dateStr}`)}
         >
           <Plus className="w-4 h-4 mr-2" />
           New Event
         </Button>
       </div>
 
+      {/* Content */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Events */}
         <Card className="bg-slate-900/50 border-slate-800">
           <CardHeader>
             <CardTitle className="text-white">Events</CardTitle>
@@ -114,24 +139,33 @@ const date = new URLSearchParams(location.search).get("date") || undefined;
                   key={ev.id}
                   className="p-3 rounded-lg border border-slate-800 bg-slate-950/40"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="text-white font-medium">{ev.title || "Untitled event"}</div>
-                    {ev.type && (
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-white font-medium truncate">
+                      {ev.title || "Untitled event"}
+                    </div>
+                    {ev.type ? (
                       <Badge className="bg-indigo-500/20 text-indigo-300">
                         {ev.type}
                       </Badge>
-                    )}
+                    ) : null}
                   </div>
-                  {ev.time && <div className="text-slate-400 text-sm mt-1">{ev.time}</div>}
-                  {ev.description && (
-                    <div className="text-slate-400 text-sm mt-1">{ev.description}</div>
-                  )}
+
+                  {ev.time ? (
+                    <div className="text-slate-400 text-sm mt-1">{ev.time}</div>
+                  ) : null}
+
+                  {ev.description ? (
+                    <div className="text-slate-400 text-sm mt-1">
+                      {ev.description}
+                    </div>
+                  ) : null}
                 </div>
               ))
             )}
           </CardContent>
         </Card>
 
+        {/* Tasks */}
         <Card className="bg-slate-900/50 border-slate-800">
           <CardHeader>
             <CardTitle className="text-white">Tasks Due</CardTitle>
@@ -145,17 +179,22 @@ const date = new URLSearchParams(location.search).get("date") || undefined;
                   key={t.id}
                   className="p-3 rounded-lg border border-slate-800 bg-slate-950/40"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="text-white font-medium">{t.title || "Untitled task"}</div>
-                    {t.status && (
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-white font-medium truncate">
+                      {t.title || "Untitled task"}
+                    </div>
+                    {t.status ? (
                       <Badge className="bg-slate-500/20 text-slate-300">
                         {t.status}
                       </Badge>
-                    )}
+                    ) : null}
                   </div>
-                  {t.projectName && (
-                    <div className="text-slate-400 text-sm mt-1">{t.projectName}</div>
-                  )}
+
+                  {t.projectName ? (
+                    <div className="text-slate-400 text-sm mt-1">
+                      {t.projectName}
+                    </div>
+                  ) : null}
                 </div>
               ))
             )}
@@ -164,5 +203,4 @@ const date = new URLSearchParams(location.search).get("date") || undefined;
       </div>
     </div>
   );
-
 }

@@ -15,7 +15,10 @@ function isSameDay(dateA: Date, dateB: Date) {
 }
 
 export default function CalendarDayPage() {
-  const { date } = useParams<{ date: string }>();
+  import { useLocation } from "react-router-dom";
+
+const location = useLocation();
+const date = new URLSearchParams(location.search).get("date") || undefined;
   const navigate = useNavigate();
   const { calendarEvents, tasks } = useStore();
 
@@ -161,4 +164,5 @@ export default function CalendarDayPage() {
       </div>
     </div>
   );
+
 }

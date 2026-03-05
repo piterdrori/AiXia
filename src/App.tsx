@@ -190,7 +190,7 @@ export default function App() {
           }
         />
         <Route
-          path="/calendar/day/:date"
+          path="/calendar/day"
           element={
             <ProtectedLayout>
               <CalendarDayPage />

@@ -8,23 +8,29 @@ import LandingPage from "@/app/page";
 import LoginPage from "@/app/login/page";
 import RegisterPage from "@/app/register/page";
 import DashboardPage from "@/app/dashboard/page";
+
 import ProjectsPage from "@/app/projects/page";
 import ProjectDetailPage from "@/app/projects/[id]/page";
 import ProjectNewPage from "@/app/projects/new/page";
 import ProjectEditPage from "@/app/projects/[id]/edit/page";
+
 import TasksPage from "@/app/tasks/page";
 import TaskDetailPage from "@/app/tasks/[id]/page";
 import TaskNewPage from "@/app/tasks/new/page";
 import TaskEditPage from "@/app/tasks/[id]/edit/page";
+
 import CalendarPage from "@/app/calendar/page";
 import CalendarDayPage from "@/app/calendar/day/page";
 import CalendarNewPage from "@/app/calendar/new/page";
 import CalendarEditPage from "@/app/calendar/[id]/edit/page";
+
 import ChatPage from "@/app/chat/page";
 import InboxPage from "@/app/inbox/page";
+
 import EmployeesPage from "@/app/employees/page";
 import EmployeeDetailPage from "@/app/employees/[id]/page";
 import EmployeePermissionsPage from "@/app/employees/[id]/permissions/page";
+
 import SettingsPage from "@/app/settings/page";
 
 // Layout
@@ -56,12 +62,22 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-export default function App() {
-  const { restoreSession } = useStore();
+function App() {
+  const { restoreSession, isAuthenticated, isLoading } = useStore();
 
   useEffect(() => {
     restoreSession();
-  }, [restoreSession]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Optional: better catch-all behavior
+  const fallback = isLoading ? (
+    <FullscreenLoader />
+  ) : isAuthenticated ? (
+    <Navigate to="/dashboard" replace />
+  ) : (
+    <Navigate to="/" replace />
+  );
 
   return (
     <Router>
@@ -71,8 +87,17 @@ export default function App() {
         <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
 
-        {/* Protected */}
-        <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout><DashboardPage /></DashboardLayout></ProtectedRoute>} />
+        {/* Dashboard */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <DashboardPage />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
 
         {/* Projects */}
         <Route path="/projects" element={<ProtectedRoute><DashboardLayout><ProjectsPage /></DashboardLayout></ProtectedRoute>} />
@@ -88,7 +113,7 @@ export default function App() {
 
         {/* Calendar */}
         <Route path="/calendar" element={<ProtectedRoute><DashboardLayout><CalendarPage /></DashboardLayout></ProtectedRoute>} />
-        <Route path="/calendar/day" element={<ProtectedRoute><DashboardLayout><CalendarDayPage /></DashboardLayout></ProtectedRoute>} />
+        <Route path="/calendar/day/:date" element={<ProtectedRoute><DashboardLayout><CalendarDayPage /></DashboardLayout></ProtectedRoute>} />
         <Route path="/calendar/new" element={<ProtectedRoute><DashboardLayout><CalendarNewPage /></DashboardLayout></ProtectedRoute>} />
         <Route path="/calendar/:id/edit" element={<ProtectedRoute><DashboardLayout><CalendarEditPage /></DashboardLayout></ProtectedRoute>} />
 
@@ -107,11 +132,13 @@ export default function App() {
         {/* Settings */}
         <Route path="/settings" element={<ProtectedRoute><DashboardLayout><SettingsPage /></DashboardLayout></ProtectedRoute>} />
 
-        {/* Catch all */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Catch-all */}
+        <Route path="*" element={fallback} />
       </Routes>
 
       <Toaster />
     </Router>
   );
 }
+
+export default App;

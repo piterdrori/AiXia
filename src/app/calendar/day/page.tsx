@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,39 +14,38 @@ function isSameDay(a: Date, b: Date) {
   );
 }
 
-function parseYYYYMMDD(value: string | null): Date | null {
-  if (!value) return null;
-  const [y, m, d] = value.split("-").map((n) => Number(n));
+function parseYYYYMMDD(s: string | undefined) {
+  if (!s) return null;
+  const [y, m, d] = s.split("-").map((n) => Number(n));
   if (!y || !m || !d) return null;
-
   const dt = new Date(y, m - 1, d);
-  // validate (guards 2026-99-99)
-  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
-  return dt;
+  return Number.isNaN(dt.getTime()) ? null : dt;
 }
 
 export default function CalendarDayPage() {
+  const { date } = useParams<{ date: string }>();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
   const { calendarEvents, tasks } = useStore();
 
-  const selectedDate = useMemo(() => parseYYYYMMDD(params.get("date")), [params]);
+  const selectedDate = useMemo(() => parseYYYYMMDD(date), [date]);
 
   const dayEvents = useMemo(() => {
     if (!selectedDate) return [];
     return (calendarEvents || []).filter((ev: any) => {
-      if (!ev?.date) return false;
-      const evDate = new Date(ev.date);
-      return !Number.isNaN(evDate.getTime()) && isSameDay(evDate, selectedDate);
+      const raw = ev?.startDate ?? ev?.date;
+      if (!raw) return false;
+      const dt = new Date(raw);
+      return !Number.isNaN(dt.getTime()) && isSameDay(dt, selectedDate);
     });
   }, [calendarEvents, selectedDate]);
 
   const dayTasks = useMemo(() => {
     if (!selectedDate) return [];
     return (tasks || []).filter((t: any) => {
-      if (!t?.dueDate) return false;
-      const tDate = new Date(t.dueDate);
-      return !Number.isNaN(tDate.getTime()) && isSameDay(tDate, selectedDate);
+      const raw = t?.dueDate;
+      if (!raw) return false;
+      const dt = new Date(raw);
+      return !Number.isNaN(dt.getTime()) && isSameDay(dt, selectedDate);
     });
   }, [tasks, selectedDate]);
 
@@ -58,9 +57,9 @@ export default function CalendarDayPage() {
             <CardTitle className="text-white">Invalid date</CardTitle>
           </CardHeader>
           <CardContent className="text-slate-300">
-            The URL is missing a valid <span className="text-white">?date=YYYY-MM-DD</span>.
+            The URL date is invalid.
             <div className="mt-4">
-              <Button onClick={() => navigate("/calendar")}>Back to Calendar</Button>
+              <Button onClick={() => navigate("/calendar")}>Back</Button>
             </div>
           </CardContent>
         </Card>
@@ -68,13 +67,14 @@ export default function CalendarDayPage() {
     );
   }
 
-  const dateKey = params.get("date")!;
   const dateLabel = selectedDate.toLocaleDateString(undefined, {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
   });
+
+  const dateStr = date || "";
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -95,7 +95,7 @@ export default function CalendarDayPage() {
 
         <Button
           className="bg-indigo-600 hover:bg-indigo-700 text-white"
-          onClick={() => navigate(`/calendar/new?date=${dateKey}`)}
+          onClick={() => navigate(`/calendar/new?date=${encodeURIComponent(dateStr)}`)}
         >
           <Plus className="w-4 h-4 mr-2" />
           New Event
@@ -117,16 +117,13 @@ export default function CalendarDayPage() {
                   className="p-3 rounded-lg border border-slate-800 bg-slate-950/40"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-white font-medium">
+                    <div className="text-white font-medium truncate">
                       {ev.title || "Untitled event"}
                     </div>
-                    {ev.type ? (
-                      <Badge className="bg-indigo-500/20 text-indigo-300">
-                        {ev.type}
-                      </Badge>
+                    {ev.allDay ? (
+                      <Badge className="bg-indigo-500/20 text-indigo-300">All Day</Badge>
                     ) : null}
                   </div>
-                  {ev.time ? <div className="text-slate-400 text-sm mt-1">{ev.time}</div> : null}
                   {ev.description ? (
                     <div className="text-slate-400 text-sm mt-1">{ev.description}</div>
                   ) : null}
@@ -150,7 +147,9 @@ export default function CalendarDayPage() {
                   className="p-3 rounded-lg border border-slate-800 bg-slate-950/40"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-white font-medium">{t.title || "Untitled task"}</div>
+                    <div className="text-white font-medium truncate">
+                      {t.title || "Untitled task"}
+                    </div>
                     {t.status ? (
                       <Badge className="bg-slate-500/20 text-slate-300">{t.status}</Badge>
                     ) : null}

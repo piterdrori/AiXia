@@ -1,31 +1,12 @@
 import { useMemo } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Plus } from "lucide-react";
 
-function parseYmd(ymd: string | undefined) {
-  if (!ymd) return null;
-  const parts = ymd.split("-").map((n) => Number(n));
-  if (parts.length !== 3) return null;
-  const [y, m, d] = parts;
-  if (!y || !m || !d) return null;
-
-  const dt = new Date(y, m - 1, d);
-  // Guard against invalid dates like 2026-02-30
-  if (
-    dt.getFullYear() !== y ||
-    dt.getMonth() !== m - 1 ||
-    dt.getDate() !== d
-  ) {
-    return null;
-  }
-  return dt;
-}
-
-function isSameDayLocal(a: Date, b: Date) {
+function isSameDay(a: Date, b: Date) {
   return (
     a.getFullYear() === b.getFullYear() &&
     a.getMonth() === b.getMonth() &&
@@ -33,54 +14,39 @@ function isSameDayLocal(a: Date, b: Date) {
   );
 }
 
-export default function CalendarDayPage() {
-  const { date } = useParams<{ date: string }>();
-  const navigate = useNavigate();
-  const { calendarEvents, tasks, projects } = useStore();
+function parseYYYYMMDD(value: string | null): Date | null {
+  if (!value) return null;
+  const [y, m, d] = value.split("-").map((n) => Number(n));
+  if (!y || !m || !d) return null;
 
-  const selectedDate = useMemo(() => parseYmd(date), [date]);
+  const dt = new Date(y, m - 1, d);
+  // validate (guards 2026-99-99)
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+  return dt;
+}
+
+export default function CalendarDayPage() {
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const { calendarEvents, tasks } = useStore();
+
+  const selectedDate = useMemo(() => parseYYYYMMDD(params.get("date")), [params]);
 
   const dayEvents = useMemo(() => {
     if (!selectedDate) return [];
-    const events = Array.isArray(calendarEvents) ? calendarEvents : [];
-    return events.filter((ev: any) => {
-      // Your events seem to use startDate/endDate (date-fns parseISO in month view)
-      // We'll support both:
-      const startRaw = ev?.startDate ?? ev?.date;
-      if (!startRaw) return false;
-
-      const start = new Date(startRaw);
-      if (Number.isNaN(start.getTime())) return false;
-
-      // If event spans multiple days using endDate:
-      const endRaw = ev?.endDate;
-      if (endRaw) {
-        const end = new Date(endRaw);
-        if (!Number.isNaN(end.getTime())) {
-          const day = new Date(
-            selectedDate.getFullYear(),
-            selectedDate.getMonth(),
-            selectedDate.getDate()
-          );
-          const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-          const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
-          return day >= startDay && day <= endDay;
-        }
-      }
-
-      return isSameDayLocal(start, selectedDate);
+    return (calendarEvents || []).filter((ev: any) => {
+      if (!ev?.date) return false;
+      const evDate = new Date(ev.date);
+      return !Number.isNaN(evDate.getTime()) && isSameDay(evDate, selectedDate);
     });
   }, [calendarEvents, selectedDate]);
 
   const dayTasks = useMemo(() => {
     if (!selectedDate) return [];
-    const allTasks = Array.isArray(tasks) ? tasks : [];
-    return allTasks.filter((t: any) => {
-      const due = t?.dueDate;
-      if (!due) return false;
-      const dueDt = new Date(due);
-      if (Number.isNaN(dueDt.getTime())) return false;
-      return isSameDayLocal(dueDt, selectedDate);
+    return (tasks || []).filter((t: any) => {
+      if (!t?.dueDate) return false;
+      const tDate = new Date(t.dueDate);
+      return !Number.isNaN(tDate.getTime()) && isSameDay(tDate, selectedDate);
     });
   }, [tasks, selectedDate]);
 
@@ -91,15 +57,18 @@ export default function CalendarDayPage() {
           <CardHeader>
             <CardTitle className="text-white">Invalid date</CardTitle>
           </CardHeader>
-          <CardContent className="text-slate-300 space-y-4">
-            <div>The URL date is invalid. Go back to the calendar.</div>
-            <Button onClick={() => navigate("/calendar")}>Back</Button>
+          <CardContent className="text-slate-300">
+            The URL is missing a valid <span className="text-white">?date=YYYY-MM-DD</span>.
+            <div className="mt-4">
+              <Button onClick={() => navigate("/calendar")}>Back to Calendar</Button>
+            </div>
           </CardContent>
         </Card>
       </div>
     );
   }
 
+  const dateKey = params.get("date")!;
   const dateLabel = selectedDate.toLocaleDateString(undefined, {
     weekday: "long",
     year: "numeric",
@@ -108,7 +77,7 @@ export default function CalendarDayPage() {
   });
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <Button
           variant="ghost"
@@ -126,7 +95,7 @@ export default function CalendarDayPage() {
 
         <Button
           className="bg-indigo-600 hover:bg-indigo-700 text-white"
-          onClick={() => navigate(`/calendar/new?date=${date}`)}
+          onClick={() => navigate(`/calendar/new?date=${dateKey}`)}
         >
           <Plus className="w-4 h-4 mr-2" />
           New Event
@@ -144,11 +113,11 @@ export default function CalendarDayPage() {
             ) : (
               dayEvents.map((ev: any) => (
                 <div
-                  key={ev.id ?? `${ev.title}-${ev.startDate ?? ev.date}`}
+                  key={ev.id}
                   className="p-3 rounded-lg border border-slate-800 bg-slate-950/40"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-white font-medium truncate">
+                    <div className="text-white font-medium">
                       {ev.title || "Untitled event"}
                     </div>
                     {ev.type ? (
@@ -157,29 +126,9 @@ export default function CalendarDayPage() {
                       </Badge>
                     ) : null}
                   </div>
-
-                  {(ev.startDate || ev.time) && (
-                    <div className="text-slate-400 text-sm mt-1">
-                      {ev.time ? ev.time : ""}
-                    </div>
-                  )}
-
+                  {ev.time ? <div className="text-slate-400 text-sm mt-1">{ev.time}</div> : null}
                   {ev.description ? (
-                    <div className="text-slate-400 text-sm mt-1">
-                      {ev.description}
-                    </div>
-                  ) : null}
-
-                  {ev.id ? (
-                    <div className="mt-3">
-                      <Button
-                        variant="outline"
-                        className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                        onClick={() => navigate(`/calendar/${ev.id}/edit`)}
-                      >
-                        Edit
-                      </Button>
-                    </div>
+                    <div className="text-slate-400 text-sm mt-1">{ev.description}</div>
                   ) : null}
                 </div>
               ))
@@ -195,49 +144,22 @@ export default function CalendarDayPage() {
             {dayTasks.length === 0 ? (
               <p className="text-slate-400">No tasks due on this day.</p>
             ) : (
-              dayTasks.map((t: any) => {
-                const projectName =
-                  t.projectName ||
-                  (t.projectId
-                    ? projects?.find?.((p: any) => p.id === t.projectId)?.name
-                    : "");
-
-                return (
-                  <div
-                    key={t.id ?? `${t.title}-${t.dueDate}`}
-                    className="p-3 rounded-lg border border-slate-800 bg-slate-950/40"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-white font-medium truncate">
-                        {t.title || "Untitled task"}
-                      </div>
-                      {t.status ? (
-                        <Badge className="bg-slate-500/20 text-slate-300">
-                          {t.status}
-                        </Badge>
-                      ) : null}
-                    </div>
-
-                    {projectName ? (
-                      <div className="text-slate-400 text-sm mt-1">
-                        {projectName}
-                      </div>
-                    ) : null}
-
-                    {t.id ? (
-                      <div className="mt-3">
-                        <Button
-                          variant="outline"
-                          className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                          onClick={() => navigate(`/tasks/${t.id}`)}
-                        >
-                          Open task
-                        </Button>
-                      </div>
+              dayTasks.map((t: any) => (
+                <div
+                  key={t.id}
+                  className="p-3 rounded-lg border border-slate-800 bg-slate-950/40"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-white font-medium">{t.title || "Untitled task"}</div>
+                    {t.status ? (
+                      <Badge className="bg-slate-500/20 text-slate-300">{t.status}</Badge>
                     ) : null}
                   </div>
-                );
-              })
+                  {t.projectName ? (
+                    <div className="text-slate-400 text-sm mt-1">{t.projectName}</div>
+                  ) : null}
+                </div>
+              ))
             )}
           </CardContent>
         </Card>

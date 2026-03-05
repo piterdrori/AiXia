@@ -1,60 +1,69 @@
-import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useStore } from '@/lib/store';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
+import { useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useStore } from "@/lib/store";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Loader2 } from 'lucide-react';
-import { Checkbox } from '@/components/ui/checkbox';
-import { format } from 'date-fns';
+} from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { format } from "date-fns";
+
+const NONE = "__none__";
 
 export default function CalendarNewPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const dateParam = searchParams.get('date');
-  
+  const dateParam = searchParams.get("date");
+
   const { createCalendarEvent, projects, tasks } = useStore();
-  
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [startDate, setStartDate] = useState(dateParam || format(new Date(), 'yyyy-MM-dd'));
-  const [startTime, setStartTime] = useState('09:00');
-  const [endDate, setEndDate] = useState(dateParam || format(new Date(), 'yyyy-MM-dd'));
-  const [endTime, setEndTime] = useState('10:00');
+
+  const today = format(new Date(), "yyyy-MM-dd");
+  const initialDate = dateParam || today;
+
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [startDate, setStartDate] = useState(initialDate);
+  const [startTime, setStartTime] = useState("09:00");
+  const [endDate, setEndDate] = useState(initialDate);
+  const [endTime, setEndTime] = useState("10:00");
   const [allDay, setAllDay] = useState(false);
-  const [projectId, setProjectId] = useState('');
-  const [taskId, setTaskId] = useState('');
-  const [error, setError] = useState('');
+
+  const [projectId, setProjectId] = useState<string>(NONE);
+  const [taskId, setTaskId] = useState<string>(NONE);
+
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const filteredTasks = useMemo(() => {
+    const list = tasks || [];
+    if (projectId === NONE) return list;
+    return list.filter((t: any) => t.projectId === projectId);
+  }, [tasks, projectId]);
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     if (!title.trim()) {
-      setError('Event title is required');
+      setError("Event title is required");
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const startDateTime = allDay 
-        ? `${startDate}T00:00:00`
-        : `${startDate}T${startTime}:00`;
-      const endDateTime = allDay
-        ? `${endDate}T23:59:59`
-        : `${endDate}T${endTime}:00`;
+      const startDateTime = allDay ? `${startDate}T00:00:00` : `${startDate}T${startTime}:00`;
+      const endDateTime = allDay ? `${endDate}T23:59:59` : `${endDate}T${endTime}:00`;
 
       createCalendarEvent({
         title: title.trim(),
@@ -62,28 +71,24 @@ export default function CalendarNewPage() {
         startDate: startDateTime,
         endDate: endDateTime,
         allDay,
-        projectId: projectId || undefined,
-        taskId: taskId || undefined,
+        projectId: projectId === NONE ? undefined : projectId,
+        taskId: taskId === NONE ? undefined : taskId,
       });
-      navigate('/calendar');
-    } catch (err) {
-      setError('Failed to create event');
+
+      navigate("/calendar");
+    } catch {
+      setError("Failed to create event");
       setIsLoading(false);
     }
   };
 
-  const filteredTasks = projectId 
-    ? tasks.filter(t => t.projectId === projectId)
-    : tasks;
-
   return (
     <div className="max-w-2xl mx-auto">
-      {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           size="icon"
-          onClick={() => navigate('/calendar')}
+          onClick={() => navigate("/calendar")}
           className="text-slate-400 hover:text-white"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -195,30 +200,34 @@ export default function CalendarNewPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="project" className="text-slate-300">Related Project</Label>
-              <Select value={projectId} onValueChange={setProjectId}>
+              <Label className="text-slate-300">Related Project</Label>
+              <Select value={projectId} onValueChange={(v) => { setProjectId(v); setTaskId(NONE); }}>
                 <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                   <SelectValue placeholder="Select project (optional)" />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-900 border-slate-800">
-                  <SelectItem value="">None</SelectItem>
-                  {projects.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  <SelectItem value={NONE}>None</SelectItem>
+                  {(projects || []).map((p: any) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="task" className="text-slate-300">Related Task</Label>
+              <Label className="text-slate-300">Related Task</Label>
               <Select value={taskId} onValueChange={setTaskId}>
                 <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                   <SelectValue placeholder="Select task (optional)" />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-900 border-slate-800">
-                  <SelectItem value="">None</SelectItem>
-                  {filteredTasks.map(t => (
-                    <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>
+                  <SelectItem value={NONE}>None</SelectItem>
+                  {filteredTasks.map((t: any) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.title}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -228,7 +237,7 @@ export default function CalendarNewPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate('/calendar')}
+                onClick={() => navigate("/calendar")}
                 className="border-slate-700 text-slate-300 hover:bg-slate-800"
               >
                 Cancel
@@ -244,7 +253,7 @@ export default function CalendarNewPage() {
                     Creating...
                   </>
                 ) : (
-                  'Create Event'
+                  "Create Event"
                 )}
               </Button>
             </div>

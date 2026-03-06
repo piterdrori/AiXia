@@ -73,9 +73,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  if (isLoading) {
-    return <FullScreenLoader />;
-  }
+  if (isLoading) return <FullScreenLoader />;
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -118,9 +116,7 @@ function PublicRoute({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  if (isLoading) {
-    return <FullScreenLoader />;
-  }
+  if (isLoading) return <FullScreenLoader />;
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
@@ -133,7 +129,7 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Public Routes */}
+        {/* Public */}
         <Route path="/" element={<LandingPage />} />
         <Route
           path="/login"
@@ -142,10 +138,12 @@ function App() {
               <LoginPage />
             </PublicRoute>
           }
-    
+        />
+
+        {/* Register is intentionally open for admin invite flow */}
         <Route path="/register" element={<RegisterPage />} />
 
-        {/* Protected Routes */}
+        {/* Protected */}
         <Route
           path="/dashboard"
           element={
@@ -157,7 +155,6 @@ function App() {
           }
         />
 
-        {/* Projects */}
         <Route
           path="/projects"
           element={
@@ -199,7 +196,6 @@ function App() {
           }
         />
 
-        {/* Tasks */}
         <Route
           path="/tasks"
           element={
@@ -241,7 +237,6 @@ function App() {
           }
         />
 
-        {/* Calendar */}
         <Route
           path="/calendar"
           element={
@@ -283,7 +278,6 @@ function App() {
           }
         />
 
-        {/* Chat */}
         <Route
           path="/chat"
           element={
@@ -305,7 +299,6 @@ function App() {
           }
         />
 
-        {/* Inbox */}
         <Route
           path="/inbox"
           element={
@@ -317,7 +310,6 @@ function App() {
           }
         />
 
-        {/* Employees */}
         <Route
           path="/employees"
           element={
@@ -349,7 +341,6 @@ function App() {
           }
         />
 
-        {/* Settings */}
         <Route
           path="/settings"
           element={
@@ -361,9 +352,9 @@ function App() {
           }
         />
 
-        {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
       <Toaster />
     </Router>
   );

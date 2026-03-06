@@ -77,33 +77,43 @@ export default function EmployeePermissionsPage() {
 
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
   const [user, setUser] = useState<ProfileRow | null>(null);
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (!id) {
-        navigate("/employees");
-        return;
-      }
+  const loadData = async () => {
+    if (!id) {
+      navigate("/employees");
+      return;
+    }
 
-      setIsLoading(true);
+    setIsLoading(true);
+    setSaveError("");
 
+    try {
       const {
         data: { user: authUser },
+        error: authError,
       } = await supabase.auth.getUser();
 
-      if (!authUser) {
+      if (authError || !authUser) {
         navigate("/login");
         return;
       }
 
-      const { data: me } = await supabase
+      const { data: me, error: meError } = await supabase
         .from("profiles")
         .select("role")
         .eq("user_id", authUser.id)
         .single();
+
+      if (meError) {
+        console.error("Failed to load current user role:", meError);
+        navigate("/employees");
+        return;
+      }
 
       const role = (me?.role as Role) || null;
       setCurrentUserRole(role);
@@ -113,22 +123,30 @@ export default function EmployeePermissionsPage() {
         return;
       }
 
-      const { data: targetUser, error } = await supabase
+      const { data: targetUser, error: targetUserError } = await supabase
         .from("profiles")
         .select("*")
         .eq("user_id", id)
         .single();
 
-      if (error || !targetUser) {
+      if (targetUserError || !targetUser) {
+        console.error("Failed to load target user:", targetUserError);
         navigate("/employees");
         return;
       }
 
-      setUser(targetUser as ProfileRow);
-      setPermissions(((targetUser as ProfileRow).permissions || {}) as Record<string, boolean>);
+      const typedUser = targetUser as ProfileRow;
+      setUser(typedUser);
+      setPermissions((typedUser.permissions || {}) as Record<string, boolean>);
+    } catch (err) {
+      console.error("Unexpected load error:", err);
+      setSaveError("Failed to load permissions page.");
+    } finally {
       setIsLoading(false);
-    };
+    }
+  };
 
+  useEffect(() => {
     loadData();
   }, [id, navigate]);
 
@@ -138,22 +156,49 @@ export default function EmployeePermissionsPage() {
       [permission]: !prev[permission],
     }));
     setSaved(false);
+    setSaveError("");
   };
 
   const handleSave = async () => {
     if (!id) return;
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        permissions,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", id);
+    setIsSaving(true);
+    setSaved(false);
+    setSaveError("");
 
-    if (!error) {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({
+          permissions,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", id)
+        .select();
+
+      console.log("SAVE PERMISSIONS RESULT:", {
+        id,
+        permissions,
+        data,
+        error,
+      });
+
+      if (error) {
+        setSaveError(error.message);
+        return;
+      }
+
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      await loadData();
+
+      setTimeout(() => {
+        setSaved(false);
+      }, 3000);
+    } catch (err) {
+      console.error("Unexpected save error:", err);
+      setSaveError("Unexpected error while saving permissions.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -161,11 +206,7 @@ export default function EmployeePermissionsPage() {
     if (!user) return null;
 
     if (user.role === "admin") {
-      return (
-        <>
-          <Badge className="bg-green-500/20 text-green-400">All Permissions</Badge>
-        </>
-      );
+      return <Badge className="bg-green-500/20 text-green-400">All Permissions</Badge>;
     }
 
     if (user.role === "manager") {
@@ -225,13 +266,21 @@ export default function EmployeePermissionsPage() {
 
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-white">Edit Permissions</h1>
-          <p className="text-slate-400">Manage permissions for {user.full_name || "Unnamed user"}</p>
+          <p className="text-slate-400">
+            Manage permissions for {user.full_name || "Unnamed user"}
+          </p>
         </div>
       </div>
 
       {saved && (
         <Alert className="bg-green-900/20 border-green-800 text-green-400">
           <AlertDescription>Permissions saved successfully!</AlertDescription>
+        </Alert>
+      )}
+
+      {saveError && (
+        <Alert className="bg-red-900/20 border-red-800 text-red-400">
+          <AlertDescription>{saveError}</AlertDescription>
         </Alert>
       )}
 
@@ -271,13 +320,18 @@ export default function EmployeePermissionsPage() {
               variant="outline"
               onClick={() => navigate("/employees")}
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              disabled={isSaving}
             >
               Cancel
             </Button>
 
-            <Button onClick={handleSave} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+            <Button
+              onClick={handleSave}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              disabled={isSaving}
+            >
               <Save className="w-4 h-4 mr-2" />
-              Save Permissions
+              {isSaving ? "Saving..." : "Save Permissions"}
             </Button>
           </div>
         </CardContent>
@@ -290,7 +344,8 @@ export default function EmployeePermissionsPage() {
 
         <CardContent>
           <p className="text-slate-400 mb-4">
-            This user has the <Badge className="mx-1">{user.role.toUpperCase()}</Badge> role which grants the following default permissions:
+            This user has the <Badge className="mx-1">{user.role.toUpperCase()}</Badge> role which
+            grants the following default permissions:
           </p>
           <div className="flex flex-wrap gap-2">{roleBadges}</div>
         </CardContent>

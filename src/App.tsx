@@ -142,15 +142,8 @@ function App() {
               <LoginPage />
             </PublicRoute>
           }
-        />
-        <Route
-          path="/register"
-          element={
-            <PublicRoute>
-              <RegisterPage />
-            </PublicRoute>
-          }
-        />
+    
+        <Route path="/register" element={<RegisterPage />} />
 
         {/* Protected Routes */}
         <Route

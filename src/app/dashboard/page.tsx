@@ -1,13 +1,11 @@
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useStore } from '@/lib/store';
-import { db } from '@/server/database';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Progress } from '@/components/ui/progress';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   FolderKanban,
   CheckSquare,
@@ -16,109 +14,232 @@ import {
   Plus,
   AlertCircle,
   ArrowRight,
-} from 'lucide-react';
-import { format, isBefore, addDays, parseISO } from 'date-fns';
+} from "lucide-react";
+import { format, isBefore, addDays, parseISO } from "date-fns";
+
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  role: "admin" | "manager" | "employee" | "guest";
+  status: "active" | "pending" | "inactive" | "denied";
+  created_at: string;
+};
+
+type ProjectRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string | null;
+  progress: number | null;
+  created_at: string;
+};
+
+type TaskRow = {
+  id: string;
+  title: string;
+  status: string | null;
+  priority: string | null;
+  due_date: string | null;
+  assignee_id: string | null;
+  created_at: string;
+};
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { 
-    currentUser, 
-    projects, 
-    tasks, 
-    activities, 
-    users,
-    hasPermission,
-    refreshData 
-  } = useStore();
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserName, setCurrentUserName] = useState<string>("");
+
+  const [projects, setProjects] = useState<ProjectRow[]>([]);
+  const [tasks, setTasks] = useState<TaskRow[]>([]);
+  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
 
   useEffect(() => {
-    refreshData();
-  }, []);
+    const loadDashboard = async () => {
+      setIsLoading(true);
 
-  const stats = db.getStats();
-  
-  // Get recent projects (last 5)
-  const recentProjects = [...projects]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 5);
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-  // Get my tasks
-  const myTasks = currentUser 
-    ? tasks.filter(t => t.assignees.includes(currentUser.id))
-    : [];
+        if (!user) {
+          navigate("/login");
+          return;
+        }
 
-  // Get upcoming deadlines (tasks due within 7 days)
-  const upcomingDeadlines = myTasks
-    .filter(t => t.status !== 'DONE' && t.dueDate)
-    .filter(t => {
-      const dueDate = parseISO(t.dueDate!);
-      const today = new Date();
-      const nextWeek = addDays(today, 7);
-      return isBefore(dueDate, nextWeek) || dueDate.getTime() === nextWeek.getTime();
-    })
-    .sort((a, b) => parseISO(a.dueDate!).getTime() - parseISO(b.dueDate!).getTime())
-    .slice(0, 5);
+        setCurrentUserId(user.id);
 
-  // Get recent activities
-  const recentActivities = activities.slice(0, 10);
+        const { data: myProfile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", user.id)
+          .single();
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'URGENT': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      case 'HIGH': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
-      case 'MEDIUM': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-      default: return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+        setCurrentUserName(myProfile?.full_name || "User");
+
+        const [{ data: projectsData }, { data: tasksData }, { data: profilesData }] =
+          await Promise.all([
+            supabase
+              .from("projects")
+              .select("id, name, description, status, progress, created_at")
+              .order("created_at", { ascending: false }),
+            supabase
+              .from("tasks")
+              .select("id, title, status, priority, due_date, assignee_id, created_at")
+              .order("created_at", { ascending: false }),
+            supabase
+              .from("profiles")
+              .select("user_id, full_name, role, status, created_at")
+              .order("created_at", { ascending: false }),
+          ]);
+
+        setProjects((projectsData || []) as ProjectRow[]);
+        setTasks((tasksData || []) as TaskRow[]);
+        setProfiles((profilesData || []) as ProfileRow[]);
+      } catch (error) {
+        console.error("Dashboard load error:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadDashboard();
+  }, [navigate]);
+
+  const activeProfiles = useMemo(
+    () => profiles.filter((p) => p.status === "active"),
+    [profiles]
+  );
+
+  const pendingProfiles = useMemo(
+    () => profiles.filter((p) => p.status === "pending"),
+    [profiles]
+  );
+
+  const activeProjects = useMemo(
+    () =>
+      projects.filter(
+        (p) => p.status && !["done", "completed", "cancelled"].includes(p.status.toLowerCase())
+      ),
+    [projects]
+  );
+
+  const activeTasks = useMemo(
+    () =>
+      tasks.filter(
+        (t) => t.status && !["done", "completed"].includes(t.status.toLowerCase())
+      ),
+    [tasks]
+  );
+
+  const completedTasks = useMemo(
+    () =>
+      tasks.filter(
+        (t) => t.status && ["done", "completed"].includes(t.status.toLowerCase())
+      ),
+    [tasks]
+  );
+
+  const recentProjects = useMemo(() => projects.slice(0, 5), [projects]);
+
+  const myTasks = useMemo(() => {
+    if (!currentUserId) return [];
+    return tasks.filter((t) => t.assignee_id === currentUserId);
+  }, [tasks, currentUserId]);
+
+  const upcomingDeadlines = useMemo(() => {
+    const today = new Date();
+    const nextWeek = addDays(today, 7);
+
+    return myTasks
+      .filter((t) => t.status && !["done", "completed"].includes(t.status.toLowerCase()))
+      .filter((t) => t.due_date)
+      .filter((t) => {
+        const dueDate = parseISO(t.due_date as string);
+        return isBefore(dueDate, nextWeek) || dueDate.getTime() === nextWeek.getTime();
+      })
+      .sort(
+        (a, b) =>
+          parseISO(a.due_date as string).getTime() - parseISO(b.due_date as string).getTime()
+      )
+      .slice(0, 5);
+  }, [myTasks]);
+
+  const completionRate =
+    tasks.length > 0 ? Math.round((completedTasks.length / tasks.length) * 100) : 0;
+
+  const getPriorityColor = (priority: string | null) => {
+    switch ((priority || "").toUpperCase()) {
+      case "URGENT":
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+      case "HIGH":
+        return "bg-orange-500/20 text-orange-400 border-orange-500/30";
+      case "MEDIUM":
+        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+      default:
+        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'DONE': return 'bg-green-500/20 text-green-400';
-      case 'IN_PROGRESS': return 'bg-blue-500/20 text-blue-400';
-      case 'IN_REVIEW': return 'bg-purple-500/20 text-purple-400';
-      default: return 'bg-slate-500/20 text-slate-400';
+  const getStatusColor = (status: string | null) => {
+    switch ((status || "").toUpperCase()) {
+      case "DONE":
+      case "COMPLETED":
+        return "bg-green-500/20 text-green-400";
+      case "IN_PROGRESS":
+        return "bg-blue-500/20 text-blue-400";
+      case "IN_REVIEW":
+        return "bg-purple-500/20 text-purple-400";
+      default:
+        return "bg-slate-500/20 text-slate-400";
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-slate-400">Welcome back, {currentUser?.fullName}</p>
+          <p className="text-slate-400">Welcome back, {currentUserName}</p>
         </div>
+
         <div className="flex items-center gap-2">
-          {hasPermission('createProjects') && (
-            <Button 
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              onClick={() => navigate('/projects/new')}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              New Project
-            </Button>
-          )}
-          {hasPermission('createTasks') && (
-            <Button 
-              variant="outline" 
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
-              onClick={() => navigate('/tasks/new')}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              New Task
-            </Button>
-          )}
+          <Button
+            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            onClick={() => navigate("/projects/new")}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New Project
+          </Button>
+
+          <Button
+            variant="outline"
+            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            onClick={() => navigate("/tasks/new")}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New Task
+          </Button>
         </div>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-slate-900/50 border-slate-800">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Total Projects</p>
-                <p className="text-2xl font-bold text-white">{stats.totalProjects}</p>
+                <p className="text-2xl font-bold text-white">{projects.length}</p>
               </div>
               <div className="w-12 h-12 rounded-lg bg-indigo-500/10 flex items-center justify-center">
                 <FolderKanban className="w-6 h-6 text-indigo-400" />
@@ -126,7 +247,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-1 mt-4 text-sm">
               <TrendingUp className="w-4 h-4 text-green-400" />
-              <span className="text-green-400">{stats.activeProjects}</span>
+              <span className="text-green-400">{activeProjects.length}</span>
               <span className="text-slate-500">active</span>
             </div>
           </CardContent>
@@ -137,7 +258,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Active Tasks</p>
-                <p className="text-2xl font-bold text-white">{stats.activeTasks}</p>
+                <p className="text-2xl font-bold text-white">{activeTasks.length}</p>
               </div>
               <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
                 <CheckSquare className="w-6 h-6 text-blue-400" />
@@ -145,7 +266,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-1 mt-4 text-sm">
               <TrendingUp className="w-4 h-4 text-green-400" />
-              <span className="text-green-400">{stats.completedTasks}</span>
+              <span className="text-green-400">{completedTasks.length}</span>
               <span className="text-slate-500">completed</span>
             </div>
           </CardContent>
@@ -156,19 +277,21 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Team Members</p>
-                <p className="text-2xl font-bold text-white">{stats.totalUsers}</p>
+                <p className="text-2xl font-bold text-white">{activeProfiles.length}</p>
               </div>
               <div className="w-12 h-12 rounded-lg bg-purple-500/10 flex items-center justify-center">
                 <Users className="w-6 h-6 text-purple-400" />
               </div>
             </div>
             <div className="flex items-center gap-1 mt-4 text-sm">
-              {stats.pendingUsers > 0 && (
+              {pendingProfiles.length > 0 ? (
                 <>
                   <AlertCircle className="w-4 h-4 text-amber-400" />
-                  <span className="text-amber-400">{stats.pendingUsers}</span>
+                  <span className="text-amber-400">{pendingProfiles.length}</span>
                   <span className="text-slate-500">pending</span>
                 </>
+              ) : (
+                <span className="text-slate-500">No pending approvals</span>
               )}
             </div>
           </CardContent>
@@ -179,37 +302,28 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Completion Rate</p>
-                <p className="text-2xl font-bold text-white">
-                  {stats.totalTasks > 0 
-                    ? Math.round((stats.completedTasks / stats.totalTasks) * 100) 
-                    : 0}%
-                </p>
+                <p className="text-2xl font-bold text-white">{completionRate}%</p>
               </div>
               <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center">
                 <TrendingUp className="w-6 h-6 text-green-400" />
               </div>
             </div>
             <div className="mt-4">
-              <Progress 
-                value={stats.totalTasks > 0 ? (stats.completedTasks / stats.totalTasks) * 100 : 0} 
-                className="h-2 bg-slate-800"
-              />
+              <Progress value={completionRate} className="h-2 bg-slate-800" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Main Content Grid */}
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Recent Projects */}
         <Card className="bg-slate-900/50 border-slate-800 lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-white">Recent Projects</CardTitle>
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               className="text-indigo-400 hover:text-indigo-300"
-              onClick={() => navigate('/projects')}
+              onClick={() => navigate("/projects")}
             >
               View All
               <ArrowRight className="w-4 h-4 ml-1" />
@@ -223,22 +337,28 @@ export default function DashboardPage() {
                 recentProjects.map((project) => (
                   <div
                     key={project.id}
-                    onClick={() => navigate(`/projects/${project.id}`)}
                     className="flex items-center gap-4 p-4 rounded-lg bg-slate-950/50 border border-slate-800 hover:border-indigo-500/30 cursor-pointer transition-all"
                   >
                     <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
                       <FolderKanban className="w-5 h-5 text-indigo-400" />
                     </div>
+
                     <div className="flex-1 min-w-0">
                       <h4 className="text-white font-medium truncate">{project.name}</h4>
-                      <p className="text-slate-500 text-sm truncate">{project.description || 'No description'}</p>
+                      <p className="text-slate-500 text-sm truncate">
+                        {project.description || "No description"}
+                      </p>
                     </div>
+
                     <div className="flex items-center gap-4">
                       <div className="hidden sm:block">
-                        <Progress value={project.progress} className="w-24 h-2 bg-slate-800" />
+                        <Progress
+                          value={project.progress || 0}
+                          className="w-24 h-2 bg-slate-800"
+                        />
                       </div>
                       <Badge className={getStatusColor(project.status)}>
-                        {project.status}
+                        {project.status || "UNKNOWN"}
                       </Badge>
                     </div>
                   </div>
@@ -248,7 +368,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Upcoming Deadlines */}
         <Card className="bg-slate-900/50 border-slate-800">
           <CardHeader>
             <CardTitle className="text-white">Upcoming Deadlines</CardTitle>
@@ -261,22 +380,23 @@ export default function DashboardPage() {
                 upcomingDeadlines.map((task) => (
                   <div
                     key={task.id}
-                    onClick={() => navigate(`/tasks/${task.id}`)}
                     className="flex items-center gap-3 p-3 rounded-lg bg-slate-950/50 border border-slate-800 hover:border-indigo-500/30 cursor-pointer transition-all"
                   >
-                    <div className={`w-2 h-2 rounded-full ${
-                      isBefore(parseISO(task.dueDate!), new Date()) 
-                        ? 'bg-red-500' 
-                        : 'bg-amber-500'
-                    }`} />
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        task.due_date && isBefore(parseISO(task.due_date), new Date())
+                          ? "bg-red-500"
+                          : "bg-amber-500"
+                      }`}
+                    />
                     <div className="flex-1 min-w-0">
                       <p className="text-white text-sm truncate">{task.title}</p>
                       <p className="text-slate-500 text-xs">
-                        Due {format(parseISO(task.dueDate!), 'MMM d')}
+                        Due {task.due_date ? format(parseISO(task.due_date), "MMM d") : "-"}
                       </p>
                     </div>
                     <Badge className={getPriorityColor(task.priority)}>
-                      {task.priority}
+                      {task.priority || "NORMAL"}
                     </Badge>
                   </div>
                 ))
@@ -286,17 +406,15 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* My Tasks & Activity Feed */}
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* My Tasks */}
         <Card className="bg-slate-900/50 border-slate-800">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-white">My Tasks</CardTitle>
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               className="text-indigo-400 hover:text-indigo-300"
-              onClick={() => navigate('/tasks')}
+              onClick={() => navigate("/tasks")}
             >
               View All
               <ArrowRight className="w-4 h-4 ml-1" />
@@ -307,21 +425,30 @@ export default function DashboardPage() {
               {myTasks.slice(0, 5).map((task) => (
                 <div
                   key={task.id}
-                  onClick={() => navigate(`/tasks/${task.id}`)}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-slate-950/50 border border-slate-800 hover:border-indigo-500/30 cursor-pointer transition-all"
+                  className="flex items-center gap-3 p-3 rounded-lg bg-slate-950/50 border border-slate-800"
                 >
-                  <CheckSquare className={`w-5 h-5 ${
-                    task.status === 'DONE' ? 'text-green-400' : 'text-slate-500'
-                  }`} />
+                  <CheckSquare
+                    className={`w-5 h-5 ${
+                      task.status &&
+                      ["done", "completed"].includes(task.status.toLowerCase())
+                        ? "text-green-400"
+                        : "text-slate-500"
+                    }`}
+                  />
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm truncate ${
-                      task.status === 'DONE' ? 'text-slate-500 line-through' : 'text-white'
-                    }`}>
+                    <p
+                      className={`text-sm truncate ${
+                        task.status &&
+                        ["done", "completed"].includes(task.status.toLowerCase())
+                          ? "text-slate-500 line-through"
+                          : "text-white"
+                      }`}
+                    >
                       {task.title}
                     </p>
                   </div>
                   <Badge className={getPriorityColor(task.priority)}>
-                    {task.priority}
+                    {task.priority || "NORMAL"}
                   </Badge>
                 </div>
               ))}
@@ -332,7 +459,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Activity Feed */}
         <Card className="bg-slate-900/50 border-slate-800">
           <CardHeader>
             <CardTitle className="text-white">Activity Feed</CardTitle>
@@ -340,32 +466,7 @@ export default function DashboardPage() {
           <CardContent>
             <ScrollArea className="h-[300px]">
               <div className="space-y-4">
-                {recentActivities.length === 0 ? (
-                  <p className="text-slate-500 text-center py-8">No recent activity</p>
-                ) : (
-                  recentActivities.map((activity) => {
-                    const user = users.find(u => u.id === activity.userId);
-                    return (
-                      <div key={activity.id} className="flex items-start gap-3">
-                        <Avatar className="w-8 h-8">
-                          <AvatarImage src={user?.avatar} />
-                          <AvatarFallback className="bg-indigo-600 text-white text-xs">
-                            {user?.fullName?.split(' ').map(n => n[0]).join('') || 'U'}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-slate-300">
-                            <span className="text-white font-medium">{user?.fullName || 'Unknown'}</span>
-                            {' '}{activity.type.toLowerCase().replace(/_/g, ' ')}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {format(new Date(activity.createdAt), 'MMM d, h:mm a')}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
+                <p className="text-slate-500 text-center py-8">Activity feed will be connected later</p>
               </div>
             </ScrollArea>
           </CardContent>

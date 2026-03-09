@@ -16,6 +16,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
+type Role = "admin" | "manager" | "employee" | "guest";
 type ProjectStatus = "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED";
 
 type ProjectRow = {
@@ -25,6 +26,7 @@ type ProjectRow = {
   status: string | null;
   start_date: string | null;
   end_date: string | null;
+  created_by: string | null;
 };
 
 export default function ProjectEditPage() {
@@ -61,9 +63,22 @@ export default function ProjectEditPage() {
           return;
         }
 
+        const { data: me, error: meError } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("user_id", user.id)
+          .single();
+
+        if (meError || !me) {
+          navigate("/projects");
+          return;
+        }
+
+        const currentUserRole = (me.role as Role) || null;
+
         const { data, error: projectError } = await supabase
           .from("projects")
-          .select("id, name, description, status, start_date, end_date")
+          .select("id, name, description, status, start_date, end_date, created_by")
           .eq("id", id)
           .single();
 
@@ -74,6 +89,14 @@ export default function ProjectEditPage() {
         }
 
         const project = data as ProjectRow;
+
+        const canEdit =
+          currentUserRole === "admin" || project.created_by === user.id;
+
+        if (!canEdit) {
+          navigate("/projects");
+          return;
+        }
 
         setName(project.name || "");
         setDescription(project.description || "");
@@ -106,6 +129,50 @@ export default function ProjectEditPage() {
     setIsSaving(true);
 
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        navigate("/login");
+        return;
+      }
+
+      const { data: me, error: meError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("user_id", user.id)
+        .single();
+
+      if (meError || !me) {
+        setError("Failed to validate your permissions.");
+        setIsSaving(false);
+        return;
+      }
+
+      const currentUserRole = (me.role as Role) || null;
+
+      const { data: existingProject, error: existingProjectError } = await supabase
+        .from("projects")
+        .select("id, created_by")
+        .eq("id", id)
+        .single();
+
+      if (existingProjectError || !existingProject) {
+        setError("Project not found.");
+        setIsSaving(false);
+        return;
+      }
+
+      const canEdit =
+        currentUserRole === "admin" || existingProject.created_by === user.id;
+
+      if (!canEdit) {
+        setError("You do not have permission to edit this project.");
+        setIsSaving(false);
+        return;
+      }
+
       const { error: updateError } = await supabase
         .from("projects")
         .update({

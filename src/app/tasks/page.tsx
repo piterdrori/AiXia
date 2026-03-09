@@ -34,7 +34,6 @@ import {
 import { format } from "date-fns";
 
 type TaskStatus = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
-type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 type Role = "admin" | "manager" | "employee" | "guest";
 
 type TaskRow = {
@@ -94,19 +93,14 @@ export default function TasksPage() {
 
         const [{ data: profileData }, { data: tasksData }, { data: projectsData }] =
           await Promise.all([
-            supabase
-              .from("profiles")
-              .select("role")
-              .eq("user_id", user.id)
-              .single(),
+            supabase.from("profiles").select("role").eq("user_id", user.id).single(),
             supabase
               .from("tasks")
-              .select("id, title, description, status, priority, due_date, project_id, assignee_id, created_at")
+              .select(
+                "id, title, description, status, priority, due_date, project_id, assignee_id, created_at"
+              )
               .order("created_at", { ascending: false }),
-            supabase
-              .from("projects")
-              .select("id, name")
-              .order("created_at", { ascending: false }),
+            supabase.from("projects").select("id, name").order("created_at", { ascending: false }),
           ]);
 
         setCurrentUserRole((profileData?.role as Role) || null);
@@ -170,12 +164,7 @@ export default function TasksPage() {
 
     if (!draggedTask) return;
 
-    const { error } = await supabase
-      .from("tasks")
-      .update({
-        status,
-      })
-      .eq("id", draggedTask);
+    const { error } = await supabase.from("tasks").update({ status }).eq("id", draggedTask);
 
     if (error) {
       console.error("Move task error:", error);
@@ -185,9 +174,7 @@ export default function TasksPage() {
     }
 
     setTasks((prev) =>
-      prev.map((task) =>
-        task.id === draggedTask ? { ...task, status } : task
-      )
+      prev.map((task) => (task.id === draggedTask ? { ...task, status } : task))
     );
     setDraggedTask(null);
   };
@@ -358,7 +345,10 @@ export default function TasksPage() {
                               </Button>
                             </DropdownMenuTrigger>
 
-                            <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800">
+                            <DropdownMenuContent
+                              align="end"
+                              className="bg-slate-900 border-slate-800"
+                            >
                               <DropdownMenuItem
                                 onClick={(e) => {
                                   e.stopPropagation();

@@ -59,7 +59,7 @@ export default function TaskNewPage() {
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+  const [, setCurrentUserRole] = useState<Role | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -122,8 +122,7 @@ export default function TaskNewPage() {
             : projectsData.filter((project) => {
                 const isCreator = project.created_by === user.id;
                 const isAssigned = membersData.some(
-                  (member) =>
-                    member.project_id === project.id && member.user_id === user.id
+                  (member) => member.project_id === project.id && member.user_id === user.id
                 );
                 return isCreator || isAssigned;
               });
@@ -220,6 +219,7 @@ export default function TaskNewPage() {
 
     try {
       const selectedProject = projects.find((project) => project.id === projectId);
+
       if (!selectedProject) {
         setError("Selected project is not available.");
         setIsSaving(false);

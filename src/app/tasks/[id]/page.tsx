@@ -21,7 +21,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type Role = "admin" | "manager" | "employee" | "guest";
 type TaskStatus = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
-type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
 type TaskRow = {
   id: string;
@@ -85,7 +84,6 @@ export default function TaskDetailPage() {
   const [project, setProject] = useState<ProjectRow | null>(null);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [taskMembers, setTaskMembers] = useState<TaskMemberRow[]>([]);
-  const [projectMembers, setProjectMembers] = useState<ProjectMemberRow[]>([]);
   const [comments, setComments] = useState<TaskCommentRow[]>([]);
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -200,7 +198,6 @@ export default function TaskDetailPage() {
         setProject((projectData || null) as ProjectRow | null);
         setProfiles((profilesData || []) as ProfileRow[]);
         setTaskMembers(loadedTaskMembers);
-        setProjectMembers(loadedProjectMembers);
         setComments((commentsData || []) as TaskCommentRow[]);
       } catch (err) {
         console.error("Load task detail error:", err);
@@ -526,9 +523,21 @@ export default function TaskDetailPage() {
               <CardTitle className="text-white">Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <InfoRow icon={<FolderKanban className="w-4 h-4 text-indigo-400" />} label="Project" value={project?.name || "No project"} />
-              <InfoRow icon={<Flag className="w-4 h-4 text-amber-400" />} label="Priority" value={task.priority || "LOW"} />
-              <InfoRow icon={<CheckSquare className="w-4 h-4 text-blue-400" />} label="Status" value={task.status || "TODO"} />
+              <InfoRow
+                icon={<FolderKanban className="w-4 h-4 text-indigo-400" />}
+                label="Project"
+                value={project?.name || "No project"}
+              />
+              <InfoRow
+                icon={<Flag className="w-4 h-4 text-amber-400" />}
+                label="Priority"
+                value={task.priority || "LOW"}
+              />
+              <InfoRow
+                icon={<CheckSquare className="w-4 h-4 text-blue-400" />}
+                label="Status"
+                value={task.status || "TODO"}
+              />
               <InfoRow
                 icon={<Calendar className="w-4 h-4 text-green-400" />}
                 label="Due Date"

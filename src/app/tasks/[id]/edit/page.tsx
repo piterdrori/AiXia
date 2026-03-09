@@ -78,8 +78,8 @@ export default function TaskEditPage() {
   const [existingTaskMembers, setExistingTaskMembers] = useState<TaskMemberRow[]>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
 
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+  const [, setCurrentUserId] = useState<string | null>(null);
+  const [, setCurrentUserRole] = useState<Role | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -212,7 +212,9 @@ export default function TaskEditPage() {
 
       const members = (data || []) as ProjectMemberRow[];
       setProjectMembers(members);
-      setSelectedAssignees((prev) => prev.filter((userId) => members.some((m) => m.user_id === userId)));
+      setSelectedAssignees((prev) =>
+        prev.filter((userId) => members.some((m) => m.user_id === userId))
+      );
     };
 
     reloadProjectMembers();

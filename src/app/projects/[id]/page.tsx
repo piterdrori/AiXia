@@ -1,48 +1,320 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { useStore } from '@/lib/store';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft,
   Edit,
   Trash2,
   Plus,
   CheckSquare,
-} from 'lucide-react';
-import { format } from 'date-fns';
+  Users,
+  Calendar,
+} from "lucide-react";
+import { format } from "date-fns";
+
+type Role = "admin" | "manager" | "employee" | "guest";
+
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  role: Role;
+  status: "active" | "pending" | "inactive" | "denied";
+};
+
+type ProjectRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string | null;
+  progress: number | null;
+  created_by: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  created_at: string;
+};
+
+type ProjectMemberRow = {
+  id: string;
+  project_id: string;
+  user_id: string;
+  role: string;
+  created_at: string;
+};
+
+type TaskRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string | null;
+  priority: string | null;
+  due_date: string | null;
+  project_id: string | null;
+  assignee_id: string | null;
+  created_by: string | null;
+  created_at: string;
+};
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { 
-    getProjectById, 
-    getTasksByProject, 
-    users, 
-    activities,
-    hasPermission,
-    deleteProject,
-    currentUser,
-  } = useStore();
 
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState("overview");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState("");
 
-  const project = id ? getProjectById(id) : undefined;
-  const tasks = id ? getTasksByProject(id) : [];
-  const projectActivities = id ? activities.filter(a => a.projectId === id) : [];
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+
+  const [project, setProject] = useState<ProjectRow | null>(null);
+  const [projectMembers, setProjectMembers] = useState<ProjectMemberRow[]>([]);
+  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [tasks, setTasks] = useState<TaskRow[]>([]);
 
   useEffect(() => {
-    if (!project && id) {
-      navigate('/projects');
-    }
-  }, [project, id, navigate]);
+    const loadProjectPage = async () => {
+      if (!id) {
+        navigate("/projects");
+        return;
+      }
 
-  if (!project) {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          navigate("/login");
+          return;
+        }
+
+        setCurrentUserId(user.id);
+
+        const [
+          { data: myProfile, error: myProfileError },
+          { data: projectData, error: projectError },
+          { data: membersData, error: membersError },
+          { data: profilesData, error: profilesError },
+          { data: tasksData, error: tasksError },
+        ] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("role")
+            .eq("user_id", user.id)
+            .single(),
+          supabase
+            .from("projects")
+            .select("id, name, description, status, progress, created_by, start_date, end_date, created_at")
+            .eq("id", id)
+            .single(),
+          supabase
+            .from("project_members")
+            .select("id, project_id, user_id, role, created_at")
+            .eq("project_id", id),
+          supabase
+            .from("profiles")
+            .select("user_id, full_name, role, status")
+            .eq("status", "active"),
+          supabase
+            .from("tasks")
+            .select("id, title, description, status, priority, due_date, project_id, assignee_id, created_by, created_at")
+            .eq("project_id", id)
+            .order("created_at", { ascending: false }),
+        ]);
+
+        if (myProfileError || !myProfile) {
+          navigate("/projects");
+          return;
+        }
+
+        const role = myProfile.role as Role;
+        setCurrentUserRole(role);
+
+        if (projectError || !projectData) {
+          setError("Project not found.");
+          setIsLoading(false);
+          return;
+        }
+
+        const loadedProject = projectData as ProjectRow;
+        const loadedMembers = (membersData || []) as ProjectMemberRow[];
+        const loadedProfiles = (profilesData || []) as ProfileRow[];
+        const loadedTasks = (tasksData || []) as TaskRow[];
+
+        const isAdmin = role === "admin";
+        const isCreator = loadedProject.created_by === user.id;
+        const isAssignedMember = loadedMembers.some((member) => member.user_id === user.id);
+
+        if (!isAdmin && !isCreator && !isAssignedMember) {
+          navigate("/projects");
+          return;
+        }
+
+        let calculatedProgress = 0;
+        if (loadedTasks.length > 0) {
+          const doneCount = loadedTasks.filter(
+            (task) => (task.status || "").toUpperCase() === "DONE"
+          ).length;
+          calculatedProgress = Math.round((doneCount / loadedTasks.length) * 100);
+        }
+
+        if ((loadedProject.progress || 0) !== calculatedProgress) {
+          await supabase
+            .from("projects")
+            .update({
+              progress: calculatedProgress,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", loadedProject.id);
+
+          loadedProject.progress = calculatedProgress;
+        }
+
+        setProject(loadedProject);
+        setProjectMembers(loadedMembers);
+        setProfiles(loadedProfiles);
+        setTasks(loadedTasks);
+      } catch (err) {
+        console.error("Load project page error:", err);
+        setError("Something went wrong while loading the project.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProjectPage();
+  }, [id, navigate]);
+
+  const canEdit = useMemo(() => {
+    if (!project || !currentUserId || !currentUserRole) return false;
+    return currentUserRole === "admin" || project.created_by === currentUserId;
+  }, [project, currentUserId, currentUserRole]);
+
+  const canDelete = useMemo(() => {
+    if (!project || !currentUserId || !currentUserRole) return false;
+    return currentUserRole === "admin" || project.created_by === currentUserId;
+  }, [project, currentUserId, currentUserRole]);
+
+  const getStatusColor = (status: string | null) => {
+    switch ((status || "").toUpperCase()) {
+      case "ACTIVE":
+        return "bg-green-500/20 text-green-400 border-green-500/30";
+      case "PLANNING":
+        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+      case "ON_HOLD":
+        return "bg-amber-500/20 text-amber-400 border-amber-500/30";
+      case "COMPLETED":
+        return "bg-purple-500/20 text-purple-400 border-purple-500/30";
+      case "CANCELLED":
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+      default:
+        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
+    }
+  };
+
+  const getTaskStatusColor = (status: string | null) => {
+    switch ((status || "").toUpperCase()) {
+      case "DONE":
+        return "bg-green-500/20 text-green-400";
+      case "IN_PROGRESS":
+        return "bg-blue-500/20 text-blue-400";
+      case "IN_REVIEW":
+        return "bg-purple-500/20 text-purple-400";
+      default:
+        return "bg-slate-500/20 text-slate-400";
+    }
+  };
+
+  const getPriorityColor = (priority: string | null) => {
+    switch ((priority || "").toUpperCase()) {
+      case "URGENT":
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+      case "HIGH":
+        return "bg-orange-500/20 text-orange-400 border-orange-500/30";
+      case "MEDIUM":
+        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+      default:
+        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
+    }
+  };
+
+  const getInitials = (fullName: string | null) => {
+    if (!fullName) return "U";
+    return fullName
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase();
+  };
+
+  const getProfileByUserId = (userId: string) => {
+    return profiles.find((profile) => profile.user_id === userId);
+  };
+
+  const handleDelete = async () => {
+    if (!project) return;
+
+    const confirmed = window.confirm("Are you sure you want to delete this project?");
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+
+    try {
+      const { error: deleteMembersError } = await supabase
+        .from("project_members")
+        .delete()
+        .eq("project_id", project.id);
+
+      if (deleteMembersError) {
+        console.error("Delete project members error:", deleteMembersError);
+      }
+
+      const { error: deleteTasksError } = await supabase
+        .from("tasks")
+        .delete()
+        .eq("project_id", project.id);
+
+      if (deleteTasksError) {
+        console.error("Delete tasks error:", deleteTasksError);
+      }
+
+      const { error: deleteProjectError } = await supabase
+        .from("projects")
+        .delete()
+        .eq("id", project.id);
+
+      if (deleteProjectError) {
+        setError(deleteProjectError.message || "Failed to delete project.");
+        setIsDeleting(false);
+        return;
+      }
+
+      navigate("/projects");
+    } catch (err) {
+      console.error("Delete project error:", err);
+      setError("Something went wrong while deleting the project.");
+      setIsDeleting(false);
+    }
+  };
+
+  const taskStats = {
+    total: tasks.length,
+    todo: tasks.filter((t) => (t.status || "").toUpperCase() === "TODO").length,
+    inProgress: tasks.filter((t) => (t.status || "").toUpperCase() === "IN_PROGRESS").length,
+    inReview: tasks.filter((t) => (t.status || "").toUpperCase() === "IN_REVIEW").length,
+    done: tasks.filter((t) => (t.status || "").toUpperCase() === "DONE").length,
+  };
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
@@ -50,76 +322,52 @@ export default function ProjectDetailPage() {
     );
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'PLANNING': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      case 'ON_HOLD': return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-      case 'COMPLETED': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
-      case 'CANCELLED': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      default: return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
-    }
-  };
-
-  const getTaskStatusColor = (status: string) => {
-    switch (status) {
-      case 'DONE': return 'bg-green-500/20 text-green-400';
-      case 'IN_PROGRESS': return 'bg-blue-500/20 text-blue-400';
-      case 'IN_REVIEW': return 'bg-purple-500/20 text-purple-400';
-      default: return 'bg-slate-500/20 text-slate-400';
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'URGENT': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      case 'HIGH': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
-      case 'MEDIUM': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-      default: return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
-    }
-  };
-
-  const handleDelete = () => {
-    if (confirm('Are you sure you want to delete this project?')) {
-      deleteProject(project.id);
-      navigate('/projects');
-    }
-  };
-
-  const taskStats = {
-    total: tasks.length,
-    todo: tasks.filter(t => t.status === 'TODO').length,
-    inProgress: tasks.filter(t => t.status === 'IN_PROGRESS').length,
-    inReview: tasks.filter(t => t.status === 'IN_REVIEW').length,
-    done: tasks.filter(t => t.status === 'DONE').length,
-  };
+  if (!project) {
+    return (
+      <div className="space-y-4">
+        {error && (
+          <Alert className="bg-red-900/20 border-red-800 text-red-300">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        <div className="text-center text-slate-400">Project not found.</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {error && (
+        <Alert className="bg-red-900/20 border-red-800 text-red-300">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             size="icon"
-            onClick={() => navigate('/projects')}
+            onClick={() => navigate("/projects")}
             className="text-slate-400 hover:text-white"
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
+
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-white">{project.name}</h1>
               <Badge className={getStatusColor(project.status)}>
-                {project.status}
+                {project.status || "UNKNOWN"}
               </Badge>
             </div>
-            <p className="text-slate-400">{project.description || 'No description'}</p>
+            <p className="text-slate-400">{project.description || "No description"}</p>
           </div>
         </div>
+
         <div className="flex items-center gap-2">
-          {hasPermission('editAllProjects') && (
-            <Button 
+          {canEdit && (
+            <Button
               variant="outline"
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
               onClick={() => navigate(`/projects/${project.id}/edit`)}
@@ -128,27 +376,30 @@ export default function ProjectDetailPage() {
               Edit
             </Button>
           )}
-          {hasPermission('deleteProjects', { isOwner: project.createdBy === currentUser?.id }) && (
-            <Button 
+
+          {canDelete && (
+            <Button
               variant="outline"
               className="border-red-800 text-red-400 hover:bg-red-900/20"
               onClick={handleDelete}
+              disabled={isDeleting}
             >
               <Trash2 className="w-4 h-4 mr-2" />
-              Delete
+              {isDeleting ? "Deleting..." : "Delete"}
             </Button>
           )}
         </div>
       </div>
 
-      {/* Progress Card */}
       <Card className="bg-slate-900/50 border-slate-800">
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
             <span className="text-slate-400">Project Progress</span>
-            <span className="text-white font-medium">{project.progress}%</span>
+            <span className="text-white font-medium">{project.progress || 0}%</span>
           </div>
-          <Progress value={project.progress} className="h-3 bg-slate-800" />
+
+          <Progress value={project.progress || 0} className="h-3 bg-slate-800" />
+
           <div className="grid grid-cols-5 gap-4 mt-6">
             <div className="text-center">
               <p className="text-2xl font-bold text-white">{taskStats.total}</p>
@@ -174,13 +425,17 @@ export default function ProjectDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-slate-900 border border-slate-800">
-          <TabsTrigger value="overview" className="data-[state=active]:bg-slate-800">Overview</TabsTrigger>
-          <TabsTrigger value="tasks" className="data-[state=active]:bg-slate-800">Tasks</TabsTrigger>
-          <TabsTrigger value="team" className="data-[state=active]:bg-slate-800">Team</TabsTrigger>
-          <TabsTrigger value="activity" className="data-[state=active]:bg-slate-800">Activity</TabsTrigger>
+          <TabsTrigger value="overview" className="data-[state=active]:bg-slate-800">
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="tasks" className="data-[state=active]:bg-slate-800">
+            Tasks
+          </TabsTrigger>
+          <TabsTrigger value="team" className="data-[state=active]:bg-slate-800">
+            Team
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -192,35 +447,39 @@ export default function ProjectDetailPage() {
               <CardContent className="space-y-4">
                 <div className="flex justify-between">
                   <span className="text-slate-400">Status</span>
-                  <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
+                  <Badge className={getStatusColor(project.status)}>
+                    {project.status || "UNKNOWN"}
+                  </Badge>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Health</span>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${
-                      project.health === 'GOOD' ? 'bg-green-500' :
-                      project.health === 'AT_RISK' ? 'bg-amber-500' : 'bg-red-500'
-                    }`} />
-                    <span className="text-white">{project.health}</span>
-                  </div>
-                </div>
+
                 <div className="flex justify-between">
                   <span className="text-slate-400">Start Date</span>
                   <span className="text-white">
-                    {project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : 'Not set'}
+                    {project.start_date
+                      ? format(new Date(project.start_date), "MMM d, yyyy")
+                      : "Not set"}
                   </span>
                 </div>
+
                 <div className="flex justify-between">
                   <span className="text-slate-400">End Date</span>
                   <span className="text-white">
-                    {project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : 'Not set'}
+                    {project.end_date
+                      ? format(new Date(project.end_date), "MMM d, yyyy")
+                      : "Not set"}
                   </span>
                 </div>
+
                 <div className="flex justify-between">
                   <span className="text-slate-400">Created</span>
                   <span className="text-white">
-                    {format(new Date(project.createdAt), 'MMM d, yyyy')}
+                    {format(new Date(project.created_at), "MMM d, yyyy")}
                   </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Assigned Members</span>
+                  <span className="text-white">{projectMembers.length}</span>
                 </div>
               </CardContent>
             </Card>
@@ -231,23 +490,30 @@ export default function ProjectDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {project.members.map((member) => {
-                    const user = users.find(u => u.id === member.userId);
-                    return (
-                      <div key={member.userId} className="flex items-center gap-3">
-                        <Avatar className="w-8 h-8">
-                          <AvatarImage src={user?.avatar} />
-                          <AvatarFallback className="bg-indigo-600 text-white text-xs">
-                            {user?.fullName?.split(' ').map(n => n[0]).join('') || 'U'}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <p className="text-white text-sm">{user?.fullName}</p>
-                          <p className="text-slate-500 text-xs">{member.role}</p>
+                  {projectMembers.length === 0 ? (
+                    <p className="text-slate-500">No team members assigned</p>
+                  ) : (
+                    projectMembers.map((member) => {
+                      const profile = getProfileByUserId(member.user_id);
+
+                      return (
+                        <div key={member.id} className="flex items-center gap-3">
+                          <Avatar className="w-8 h-8">
+                            <AvatarFallback className="bg-indigo-600 text-white text-xs">
+                              {getInitials(profile?.full_name || null)}
+                            </AvatarFallback>
+                          </Avatar>
+
+                          <div className="flex-1">
+                            <p className="text-white text-sm">
+                              {profile?.full_name || "Unnamed user"}
+                            </p>
+                            <p className="text-slate-500 text-xs">{member.role}</p>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -257,83 +523,94 @@ export default function ProjectDetailPage() {
         <TabsContent value="tasks" className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium text-white">Project Tasks</h3>
-            {hasPermission('createTasks') && (
-              <Button 
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                onClick={() => navigate(`/tasks/new?projectId=${project.id}`)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Task
-              </Button>
-            )}
+
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() => navigate(`/tasks/new?projectId=${project.id}`)}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Task
+            </Button>
           </div>
 
           <div className="space-y-3">
-            {tasks.map((task) => (
-              <Card 
-                key={task.id} 
-                className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/30 cursor-pointer transition-all"
-                onClick={() => navigate(`/tasks/${task.id}`)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <CheckSquare className={`w-5 h-5 ${
-                        task.status === 'DONE' ? 'text-green-400' : 'text-slate-500'
-                      }`} />
-                      <div>
-                        <p className={`font-medium ${
-                          task.status === 'DONE' ? 'text-slate-500 line-through' : 'text-white'
-                        }`}>
-                          {task.title}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge className={getTaskStatusColor(task.status)}>
-                            {task.status}
-                          </Badge>
-                          <Badge className={getPriorityColor(task.priority)}>
-                            {task.priority}
-                          </Badge>
+            {tasks.map((task) => {
+              const assignee = task.assignee_id ? getProfileByUserId(task.assignee_id) : null;
+
+              return (
+                <Card
+                  key={task.id}
+                  className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/30 cursor-pointer transition-all"
+                  onClick={() => navigate(`/tasks/${task.id}`)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <CheckSquare
+                          className={`w-5 h-5 ${
+                            (task.status || "").toUpperCase() === "DONE"
+                              ? "text-green-400"
+                              : "text-slate-500"
+                          }`}
+                        />
+
+                        <div className="min-w-0">
+                          <p
+                            className={`font-medium truncate ${
+                              (task.status || "").toUpperCase() === "DONE"
+                                ? "text-slate-500 line-through"
+                                : "text-white"
+                            }`}
+                          >
+                            {task.title}
+                          </p>
+
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <Badge className={getTaskStatusColor(task.status)}>
+                              {task.status || "TODO"}
+                            </Badge>
+                            <Badge className={getPriorityColor(task.priority)}>
+                              {task.priority || "LOW"}
+                            </Badge>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="flex -space-x-2">
-                        {task.assignees.slice(0, 3).map((userId) => {
-                          const user = users.find(u => u.id === userId);
-                          return (
-                            <Avatar key={userId} className="w-7 h-7 border-2 border-slate-900">
-                              <AvatarImage src={user?.avatar} />
+
+                      <div className="flex items-center gap-4">
+                        {assignee && (
+                          <div className="flex items-center gap-2">
+                            <Avatar className="w-7 h-7">
                               <AvatarFallback className="bg-indigo-600 text-white text-xs">
-                                {user?.fullName?.split(' ').map(n => n[0]).join('') || 'U'}
+                                {getInitials(assignee.full_name)}
                               </AvatarFallback>
                             </Avatar>
-                          );
-                        })}
+                          </div>
+                        )}
+
+                        {task.due_date && (
+                          <span className="text-sm text-slate-500 flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {format(new Date(task.due_date), "MMM d")}
+                          </span>
+                        )}
                       </div>
-                      {task.dueDate && (
-                        <span className="text-sm text-slate-500">
-                          {format(new Date(task.dueDate), 'MMM d')}
-                        </span>
-                      )}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
+
             {tasks.length === 0 && (
               <div className="text-center py-12">
                 <CheckSquare className="w-12 h-12 text-slate-600 mx-auto mb-4" />
                 <p className="text-slate-500">No tasks yet</p>
-                {hasPermission('createTasks') && (
-                  <Button 
-                    className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white"
-                    onClick={() => navigate(`/tasks/new?projectId=${project.id}`)}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add First Task
-                  </Button>
-                )}
+                <Button
+                  className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white"
+                  onClick={() => navigate(`/tasks/new?projectId=${project.id}`)}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add First Task
+                </Button>
               </div>
             )}
           </div>
@@ -346,66 +623,35 @@ export default function ProjectDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="divide-y divide-slate-800">
-                {project.members.map((member) => {
-                  const user = users.find(u => u.id === member.userId);
-                  return (
-                    <div key={member.userId} className="flex items-center gap-4 py-4">
-                      <Avatar className="w-10 h-10">
-                        <AvatarImage src={user?.avatar} />
-                        <AvatarFallback className="bg-indigo-600 text-white">
-                          {user?.fullName?.split(' ').map(n => n[0]).join('') || 'U'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <p className="text-white font-medium">{user?.fullName}</p>
-                        <p className="text-slate-500 text-sm">{user?.email}</p>
-                      </div>
-                      <Badge className="bg-slate-800 text-slate-300">
-                        {member.role}
-                      </Badge>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                {projectMembers.length === 0 ? (
+                  <p className="text-slate-500 py-4">No team members assigned</p>
+                ) : (
+                  projectMembers.map((member) => {
+                    const profile = getProfileByUserId(member.user_id);
 
-        <TabsContent value="activity" className="space-y-4">
-          <Card className="bg-slate-900/50 border-slate-800">
-            <CardHeader>
-              <CardTitle className="text-white">Activity History</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[400px]">
-                <div className="space-y-4">
-                  {projectActivities.map((activity) => {
-                    const user = users.find(u => u.id === activity.userId);
                     return (
-                      <div key={activity.id} className="flex items-start gap-3">
-                        <Avatar className="w-8 h-8">
-                          <AvatarImage src={user?.avatar} />
-                          <AvatarFallback className="bg-indigo-600 text-white text-xs">
-                            {user?.fullName?.split(' ').map(n => n[0]).join('') || 'U'}
+                      <div key={member.id} className="flex items-center gap-4 py-4">
+                        <Avatar className="w-10 h-10">
+                          <AvatarFallback className="bg-indigo-600 text-white">
+                            {getInitials(profile?.full_name || null)}
                           </AvatarFallback>
                         </Avatar>
+
                         <div className="flex-1">
-                          <p className="text-sm text-slate-300">
-                            <span className="text-white font-medium">{user?.fullName || 'Unknown'}</span>
-                            {' '}{activity.type.toLowerCase().replace(/_/g, ' ')}
+                          <p className="text-white font-medium">
+                            {profile?.full_name || "Unnamed user"}
                           </p>
-                          <p className="text-xs text-slate-500">
-                            {format(new Date(activity.createdAt), 'MMM d, h:mm a')}
+                          <p className="text-slate-500 text-sm">
+                            {profile?.role?.toUpperCase() || "USER"}
                           </p>
                         </div>
+
+                        <Badge className="bg-slate-800 text-slate-300">{member.role}</Badge>
                       </div>
                     );
-                  })}
-                  {projectActivities.length === 0 && (
-                    <p className="text-slate-500 text-center py-8">No activity yet</p>
-                  )}
-                </div>
-              </ScrollArea>
+                  })
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

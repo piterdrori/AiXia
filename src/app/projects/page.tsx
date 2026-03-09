@@ -1,20 +1,20 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useStore } from '@/lib/store';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Progress } from '@/components/ui/progress';
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+} from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   FolderKanban,
   Plus,
@@ -25,92 +25,187 @@ import {
   Edit,
   Trash2,
   Calendar,
-  CheckSquare,
-} from 'lucide-react';
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { format } from 'date-fns';
+} from "@/components/ui/dropdown-menu";
+import { format } from "date-fns";
+
+type Role = "admin" | "manager" | "employee" | "guest";
+
+type ProjectRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string | null;
+  progress: number | null;
+  created_by: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  created_at: string;
+};
+
+type ProfileRow = {
+  user_id: string;
+  role: Role;
+};
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
-  const { projects, users, tasks, hasPermission, deleteProject, refreshData } = useStore();
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [sortBy, setSortBy] = useState<string>('newest');
+
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [sortBy, setSortBy] = useState<string>("newest");
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [projects, setProjects] = useState<ProjectRow[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 
   useEffect(() => {
-    refreshData();
-  }, []);
+    const loadProjects = async () => {
+      setIsLoading(true);
 
-  const filteredProjects = projects
-    .filter(p => {
-      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.description.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === 'ALL' || p.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'newest':
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        case 'oldest':
-          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-        case 'name':
-          return a.name.localeCompare(b.name);
-        case 'progress':
-          return b.progress - a.progress;
-        default:
-          return 0;
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          navigate("/login");
+          return;
+        }
+
+        setCurrentUserId(user.id);
+
+        const { data: me } = await supabase
+          .from("profiles")
+          .select("user_id, role")
+          .eq("user_id", user.id)
+          .single();
+
+        setCurrentUserRole((me as ProfileRow | null)?.role || null);
+
+        const { data, error } = await supabase
+          .from("projects")
+          .select("id, name, description, status, progress, created_by, start_date, end_date, created_at")
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error("Load projects error:", error);
+          setProjects([]);
+        } else {
+          setProjects((data || []) as ProjectRow[]);
+        }
+      } catch (error) {
+        console.error("Projects page load error:", error);
+        setProjects([]);
+      } finally {
+        setIsLoading(false);
       }
-    });
+    };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'PLANNING': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      case 'ON_HOLD': return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-      case 'COMPLETED': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
-      case 'CANCELLED': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      default: return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+    loadProjects();
+  }, [navigate]);
+
+  const canCreateProjects =
+    currentUserRole === "admin" ||
+    currentUserRole === "manager" ||
+    currentUserRole === "guest";
+
+  const canDeleteProject = (project: ProjectRow) => {
+    if (currentUserRole === "admin") return true;
+    if (currentUserRole === "manager" && currentUserId && project.created_by === currentUserId) {
+      return true;
+    }
+    return false;
+  };
+
+  const filteredProjects = useMemo(() => {
+    return [...projects]
+      .filter((project) => {
+        const name = (project.name || "").toLowerCase();
+        const description = (project.description || "").toLowerCase();
+        const query = searchQuery.toLowerCase();
+
+        const matchesSearch = name.includes(query) || description.includes(query);
+        const matchesStatus =
+          statusFilter === "ALL" || (project.status || "").toUpperCase() === statusFilter;
+
+        return matchesSearch && matchesStatus;
+      })
+      .sort((a, b) => {
+        switch (sortBy) {
+          case "newest":
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          case "oldest":
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          case "name":
+            return a.name.localeCompare(b.name);
+          case "progress":
+            return (b.progress || 0) - (a.progress || 0);
+          default:
+            return 0;
+        }
+      });
+  }, [projects, searchQuery, statusFilter, sortBy]);
+
+  const getStatusColor = (status: string | null) => {
+    switch ((status || "").toUpperCase()) {
+      case "ACTIVE":
+        return "bg-green-500/20 text-green-400 border-green-500/30";
+      case "PLANNING":
+        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+      case "ON_HOLD":
+        return "bg-amber-500/20 text-amber-400 border-amber-500/30";
+      case "COMPLETED":
+        return "bg-purple-500/20 text-purple-400 border-purple-500/30";
+      case "CANCELLED":
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+      default:
+        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
     }
   };
 
-  const getHealthColor = (health: string) => {
-    switch (health) {
-      case 'GOOD': return 'bg-green-500';
-      case 'AT_RISK': return 'bg-amber-500';
-      case 'CRITICAL': return 'bg-red-500';
-      default: return 'bg-slate-500';
+  const handleDelete = async (projectId: string) => {
+    const confirmed = window.confirm("Are you sure you want to delete this project?");
+    if (!confirmed) return;
+
+    const { error } = await supabase.from("projects").delete().eq("id", projectId);
+
+    if (error) {
+      console.error("Delete project error:", error);
+      alert(error.message || "Failed to delete project");
+      return;
     }
+
+    setProjects((prev) => prev.filter((project) => project.id !== projectId));
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this project?')) {
-      deleteProject(id);
-    }
-  };
-
-  const getProjectTaskCount = (projectId: string) => {
-    return tasks.filter(t => t.projectId === projectId).length;
-  };
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Projects</h1>
           <p className="text-slate-400">Manage and track your projects</p>
         </div>
-        {hasPermission('createProjects') && (
-          <Button 
+
+        {canCreateProjects && (
+          <Button
             className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => navigate('/projects/new')}
+            onClick={() => navigate("/projects/new")}
           >
             <Plus className="w-4 h-4 mr-2" />
             New Project
@@ -118,7 +213,6 @@ export default function ProjectsPage() {
         )}
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -129,6 +223,7 @@ export default function ProjectsPage() {
             className="pl-10 bg-slate-900 border-slate-800 text-white placeholder:text-slate-600"
           />
         </div>
+
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-full sm:w-40 bg-slate-900 border-slate-800 text-white">
             <SelectValue placeholder="Status" />
@@ -142,6 +237,7 @@ export default function ProjectsPage() {
             <SelectItem value="CANCELLED">Cancelled</SelectItem>
           </SelectContent>
         </Select>
+
         <Select value={sortBy} onValueChange={setSortBy}>
           <SelectTrigger className="w-full sm:w-40 bg-slate-900 border-slate-800 text-white">
             <SelectValue placeholder="Sort by" />
@@ -153,7 +249,14 @@ export default function ProjectsPage() {
             <SelectItem value="progress">Progress</SelectItem>
           </SelectContent>
         </Select>
-        <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as any)}>
+
+        <ToggleGroup
+          type="single"
+          value={viewMode}
+          onValueChange={(v) => {
+            if (v) setViewMode(v as "grid" | "list");
+          }}
+        >
           <ToggleGroupItem value="grid" className="data-[state=on]:bg-slate-800">
             <Grid3X3 className="w-4 h-4" />
           </ToggleGroupItem>
@@ -163,12 +266,11 @@ export default function ProjectsPage() {
         </ToggleGroup>
       </div>
 
-      {/* Projects Grid/List */}
-      {viewMode === 'grid' ? (
+      {viewMode === "grid" ? (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredProjects.map((project) => (
-            <Card 
-              key={project.id} 
+            <Card
+              key={project.id}
               className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/30 transition-all cursor-pointer group"
               onClick={() => navigate(`/projects/${project.id}`)}
             >
@@ -177,82 +279,69 @@ export default function ProjectsPage() {
                   <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center">
                     <FolderKanban className="w-5 h-5 text-indigo-400" />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${getHealthColor(project.health)}`} />
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="w-4 h-4 text-slate-400" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800">
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/projects/${project.id}/edit`); }}>
-                          <Edit className="w-4 h-4 mr-2" />
-                          Edit
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical className="w-4 h-4 text-slate-400" />
+                      </Button>
+                    </DropdownMenuTrigger>
+
+                    <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800">
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/projects/${project.id}/edit`);
+                        }}
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit
+                      </DropdownMenuItem>
+
+                      {canDeleteProject(project) && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(project.id);
+                          }}
+                          className="text-red-400"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete
                         </DropdownMenuItem>
-                        {hasPermission('deleteProjects', { isOwner: project.createdBy === project.createdBy }) && (
-                          <DropdownMenuItem 
-                            onClick={(e) => { e.stopPropagation(); handleDelete(project.id); }}
-                            className="text-red-400"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
 
                 <h3 className="text-lg font-semibold text-white mb-1 group-hover:text-indigo-400 transition-colors">
                   {project.name}
                 </h3>
+
                 <p className="text-slate-400 text-sm mb-4 line-clamp-2">
-                  {project.description || 'No description'}
+                  {project.description || "No description"}
                 </p>
 
                 <div className="flex items-center gap-2 mb-4">
                   <Badge className={getStatusColor(project.status)}>
-                    {project.status}
+                    {(project.status || "UNKNOWN").toUpperCase()}
                   </Badge>
                 </div>
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-500">Progress</span>
-                    <span className="text-white">{project.progress}%</span>
+                    <span className="text-white">{project.progress || 0}%</span>
                   </div>
-                  <Progress value={project.progress} className="h-2 bg-slate-800" />
+                  <Progress value={project.progress || 0} className="h-2 bg-slate-800" />
                 </div>
 
                 <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-800">
                   <div className="flex items-center gap-4 text-sm text-slate-500">
                     <span className="flex items-center gap-1">
-                      <CheckSquare className="w-4 h-4" />
-                      {getProjectTaskCount(project.id)}
-                    </span>
-                    <span className="flex items-center gap-1">
                       <Calendar className="w-4 h-4" />
-                      {project.endDate ? format(new Date(project.endDate), 'MMM d') : 'No date'}
+                      {project.end_date ? format(new Date(project.end_date), "MMM d") : "No date"}
                     </span>
-                  </div>
-                  <div className="flex -space-x-2">
-                    {project.members.slice(0, 3).map((member) => {
-                      const user = users.find(u => u.id === member.userId);
-                      return (
-                        <Avatar key={member.userId} className="w-7 h-7 border-2 border-slate-900">
-                          <AvatarImage src={user?.avatar} />
-                          <AvatarFallback className="bg-indigo-600 text-white text-xs">
-                            {user?.fullName?.split(' ').map(n => n[0]).join('') || 'U'}
-                          </AvatarFallback>
-                        </Avatar>
-                      );
-                    })}
-                    {project.members.length > 3 && (
-                      <div className="w-7 h-7 rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-xs text-slate-400">
-                        +{project.members.length - 3}
-                      </div>
-                    )}
                   </div>
                 </div>
               </CardContent>
@@ -272,45 +361,52 @@ export default function ProjectsPage() {
                   <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
                     <FolderKanban className="w-5 h-5 text-indigo-400" />
                   </div>
+
                   <div className="flex-1 min-w-0">
                     <h4 className="text-white font-medium truncate">{project.name}</h4>
-                    <p className="text-slate-500 text-sm truncate">{project.description || 'No description'}</p>
+                    <p className="text-slate-500 text-sm truncate">
+                      {project.description || "No description"}
+                    </p>
                   </div>
+
                   <div className="hidden sm:flex items-center gap-4">
                     <Badge className={getStatusColor(project.status)}>
-                      {project.status}
+                      {(project.status || "UNKNOWN").toUpperCase()}
                     </Badge>
+
                     <div className="w-32">
-                      <Progress value={project.progress} className="h-2 bg-slate-800" />
+                      <Progress value={project.progress || 0} className="h-2 bg-slate-800" />
                     </div>
-                    <div className="flex -space-x-2">
-                      {project.members.slice(0, 3).map((member) => {
-                        const user = users.find(u => u.id === member.userId);
-                        return (
-                          <Avatar key={member.userId} className="w-7 h-7 border-2 border-slate-900">
-                            <AvatarImage src={user?.avatar} />
-                            <AvatarFallback className="bg-indigo-600 text-white text-xs">
-                              {user?.fullName?.split(' ').map(n => n[0]).join('') || 'U'}
-                            </AvatarFallback>
-                          </Avatar>
-                        );
-                      })}
-                    </div>
+
+                    <span className="text-sm text-slate-500">
+                      {project.end_date ? format(new Date(project.end_date), "MMM d") : "No date"}
+                    </span>
                   </div>
+
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" className="h-8 w-8">
                         <MoreVertical className="w-4 h-4 text-slate-400" />
                       </Button>
                     </DropdownMenuTrigger>
+
                     <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800">
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/projects/${project.id}/edit`); }}>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/projects/${project.id}/edit`);
+                        }}
+                      >
                         <Edit className="w-4 h-4 mr-2" />
                         Edit
                       </DropdownMenuItem>
-                      {hasPermission('deleteProjects', { isOwner: project.createdBy === project.createdBy }) && (
-                        <DropdownMenuItem 
-                          onClick={(e) => { e.stopPropagation(); handleDelete(project.id); }}
+
+                      {canDeleteProject(project) && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(project.id);
+                          }}
                           className="text-red-400"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
@@ -331,14 +427,15 @@ export default function ProjectsPage() {
           <FolderKanban className="w-12 h-12 text-slate-600 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-white mb-2">No projects found</h3>
           <p className="text-slate-500 mb-4">
-            {searchQuery || statusFilter !== 'ALL' 
-              ? 'Try adjusting your filters' 
-              : 'Create your first project to get started'}
+            {searchQuery || statusFilter !== "ALL"
+              ? "Try adjusting your filters"
+              : "Create your first project to get started"}
           </p>
-          {!searchQuery && statusFilter === 'ALL' && hasPermission('createProjects') && (
-            <Button 
+
+          {!searchQuery && statusFilter === "ALL" && canCreateProjects && (
+            <Button
               className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              onClick={() => navigate('/projects/new')}
+              onClick={() => navigate("/projects/new")}
             >
               <Plus className="w-4 h-4 mr-2" />
               Create Project

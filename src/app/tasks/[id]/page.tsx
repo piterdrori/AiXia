@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { logActivity } from "@/lib/activity";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -183,8 +184,8 @@ export default function TaskDetailPage() {
         const isAdmin = role === "admin";
         const isTaskCreator = loadedTask.created_by === user.id;
         const isProjectCreator = (projectData as ProjectRow | null)?.created_by === user.id;
-        const isTaskAssigned = loadedTaskMembers.some((m) => m.user_id === user.id);
-        const isProjectAssigned = loadedProjectMembers.some((m) => m.user_id === user.id);
+        const isTaskAssigned = loadedTaskMembers.some((member) => member.user_id === user.id);
+        const isProjectAssigned = loadedProjectMembers.some((member) => member.user_id === user.id);
 
         const canSee =
           isAdmin || isTaskCreator || isProjectCreator || isTaskAssigned || isProjectAssigned;
@@ -219,7 +220,7 @@ export default function TaskDetailPage() {
 
   const canUpdateStatus = useMemo(() => {
     if (!task || !currentUserId) return false;
-    const isAssigned = taskMembers.some((m) => m.user_id === currentUserId);
+    const isAssigned = taskMembers.some((member) => member.user_id === currentUserId);
     return currentUserRole === "admin" || task.created_by === currentUserId || isAssigned;
   }, [task, currentUserId, currentUserRole, taskMembers]);
 
@@ -233,7 +234,7 @@ export default function TaskDetailPage() {
 
   const getProfileName = (userId: string | null) => {
     if (!userId) return "Unknown";
-    return profiles.find((p) => p.user_id === userId)?.full_name || "Unknown";
+    return profiles.find((profile) => profile.user_id === userId)?.full_name || "Unknown";
   };
 
   const getStatusColor = (status: string | null) => {
@@ -282,6 +283,15 @@ export default function TaskDetailPage() {
       return;
     }
 
+    await logActivity({
+      projectId: task.project_id,
+      taskId: task.id,
+      actionType: "task_status_changed",
+      entityType: "task",
+      entityId: task.id,
+      message: `Changed task "${task.title}" status to ${nextStatus}`,
+    });
+
     setTask({ ...task, status: nextStatus });
     setStatusSaving(false);
   };
@@ -327,6 +337,15 @@ export default function TaskDetailPage() {
       setCommentSaving(false);
       return;
     }
+
+    await logActivity({
+      projectId: task.project_id,
+      taskId: task.id,
+      actionType: "task_comment_added",
+      entityType: "comment",
+      entityId: task.id,
+      message: `Added an update to task "${task.title}"`,
+    });
 
     setComments((prev) => [...prev, data as TaskCommentRow]);
     setNewComment("");

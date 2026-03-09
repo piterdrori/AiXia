@@ -17,10 +17,12 @@ import {
 } from "lucide-react";
 import { format, isBefore, addDays, parseISO } from "date-fns";
 
+type Role = "admin" | "manager" | "employee" | "guest";
+
 type ProfileRow = {
   user_id: string;
   full_name: string | null;
-  role: "admin" | "manager" | "employee" | "guest";
+  role: Role;
   status: "active" | "pending" | "inactive" | "denied";
   created_at: string;
 };
@@ -31,6 +33,15 @@ type ProjectRow = {
   description: string | null;
   status: string | null;
   progress: number | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+type ProjectMemberRow = {
+  id: string;
+  project_id: string;
+  user_id: string;
+  role: string;
   created_at: string;
 };
 
@@ -41,6 +52,8 @@ type TaskRow = {
   priority: string | null;
   due_date: string | null;
   assignee_id: string | null;
+  project_id: string | null;
+  created_by: string | null;
   created_at: string;
 };
 
@@ -50,8 +63,10 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserName, setCurrentUserName] = useState<string>("");
+  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
+  const [projectMembers, setProjectMembers] = useState<ProjectMemberRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
 
@@ -71,33 +86,69 @@ export default function DashboardPage() {
 
         setCurrentUserId(user.id);
 
-        const { data: myProfile } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("user_id", user.id)
-          .single();
+        const [
+          { data: myProfile, error: myProfileError },
+          { data: projectsData, error: projectsError },
+          { data: projectMembersData, error: membersError },
+          { data: tasksData, error: tasksError },
+          { data: profilesData, error: profilesError },
+        ] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("full_name, role")
+            .eq("user_id", user.id)
+            .single(),
+          supabase
+            .from("projects")
+            .select("id, name, description, status, progress, created_by, created_at")
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("project_members")
+            .select("id, project_id, user_id, role, created_at"),
+          supabase
+            .from("tasks")
+            .select("id, title, status, priority, due_date, assignee_id, project_id, created_by, created_at")
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("profiles")
+            .select("user_id, full_name, role, status, created_at")
+            .order("created_at", { ascending: false }),
+        ]);
 
-        setCurrentUserName(myProfile?.full_name || "User");
+        if (myProfileError) {
+          console.error("Load current profile error:", myProfileError);
+        } else {
+          setCurrentUserName(myProfile?.full_name || "User");
+          setCurrentUserRole((myProfile?.role as Role) || null);
+        }
 
-        const [{ data: projectsData }, { data: tasksData }, { data: profilesData }] =
-          await Promise.all([
-            supabase
-              .from("projects")
-              .select("id, name, description, status, progress, created_at")
-              .order("created_at", { ascending: false }),
-            supabase
-              .from("tasks")
-              .select("id, title, status, priority, due_date, assignee_id, created_at")
-              .order("created_at", { ascending: false }),
-            supabase
-              .from("profiles")
-              .select("user_id, full_name, role, status, created_at")
-              .order("created_at", { ascending: false }),
-          ]);
+        if (projectsError) {
+          console.error("Load projects error:", projectsError);
+          setProjects([]);
+        } else {
+          setProjects((projectsData || []) as ProjectRow[]);
+        }
 
-        setProjects((projectsData || []) as ProjectRow[]);
-        setTasks((tasksData || []) as TaskRow[]);
-        setProfiles((profilesData || []) as ProfileRow[]);
+        if (membersError) {
+          console.error("Load project members error:", membersError);
+          setProjectMembers([]);
+        } else {
+          setProjectMembers((projectMembersData || []) as ProjectMemberRow[]);
+        }
+
+        if (tasksError) {
+          console.error("Load tasks error:", tasksError);
+          setTasks([]);
+        } else {
+          setTasks((tasksData || []) as TaskRow[]);
+        }
+
+        if (profilesError) {
+          console.error("Load profiles error:", profilesError);
+          setProfiles([]);
+        } else {
+          setProfiles((profilesData || []) as ProfileRow[]);
+        }
       } catch (error) {
         console.error("Dashboard load error:", error);
       } finally {
@@ -118,36 +169,78 @@ export default function DashboardPage() {
     [profiles]
   );
 
+  const visibleProjects = useMemo(() => {
+    if (!currentUserId || !currentUserRole) return [];
+
+    if (currentUserRole === "admin") {
+      return projects;
+    }
+
+    const memberProjectIds = new Set(
+      projectMembers
+        .filter((member) => member.user_id === currentUserId)
+        .map((member) => member.project_id)
+    );
+
+    return projects.filter((project) => {
+      const isCreator = project.created_by === currentUserId;
+      const isAssignedMember = memberProjectIds.has(project.id);
+      return isCreator || isAssignedMember;
+    });
+  }, [projects, projectMembers, currentUserId, currentUserRole]);
+
+  const visibleProjectIds = useMemo(
+    () => new Set(visibleProjects.map((project) => project.id)),
+    [visibleProjects]
+  );
+
+  const visibleTasks = useMemo(() => {
+    if (!currentUserId || !currentUserRole) return [];
+
+    if (currentUserRole === "admin") {
+      return tasks;
+    }
+
+    return tasks.filter((task) => {
+      const isCreator = task.created_by === currentUserId;
+      const isAssignee = task.assignee_id === currentUserId;
+      const isInsideVisibleProject =
+        !!task.project_id && visibleProjectIds.has(task.project_id);
+
+      return isCreator || isAssignee || isInsideVisibleProject;
+    });
+  }, [tasks, currentUserId, currentUserRole, visibleProjectIds]);
+
   const activeProjects = useMemo(
     () =>
-      projects.filter(
+      visibleProjects.filter(
         (p) => p.status && !["done", "completed", "cancelled"].includes(p.status.toLowerCase())
       ),
-    [projects]
+    [visibleProjects]
   );
 
   const activeTasks = useMemo(
     () =>
-      tasks.filter(
+      visibleTasks.filter(
         (t) => t.status && !["done", "completed"].includes(t.status.toLowerCase())
       ),
-    [tasks]
+    [visibleTasks]
   );
 
   const completedTasks = useMemo(
     () =>
-      tasks.filter(
+      visibleTasks.filter(
         (t) => t.status && ["done", "completed"].includes(t.status.toLowerCase())
       ),
-    [tasks]
+    [visibleTasks]
   );
 
-  const recentProjects = useMemo(() => projects.slice(0, 5), [projects]);
+  const recentProjects = useMemo(() => visibleProjects.slice(0, 5), [visibleProjects]);
 
   const myTasks = useMemo(() => {
     if (!currentUserId) return [];
-    return tasks.filter((t) => t.assignee_id === currentUserId);
-  }, [tasks, currentUserId]);
+    return visibleTasks.filter((t) => t.assignee_id === currentUserId);
+  }, [visibleTasks, currentUserId]);
 
   const upcomingDeadlines = useMemo(() => {
     const today = new Date();
@@ -168,7 +261,9 @@ export default function DashboardPage() {
   }, [myTasks]);
 
   const completionRate =
-    tasks.length > 0 ? Math.round((completedTasks.length / tasks.length) * 100) : 0;
+    visibleTasks.length > 0
+      ? Math.round((completedTasks.length / visibleTasks.length) * 100)
+      : 0;
 
   const getPriorityColor = (priority: string | null) => {
     switch ((priority || "").toUpperCase()) {
@@ -239,7 +334,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Total Projects</p>
-                <p className="text-2xl font-bold text-white">{projects.length}</p>
+                <p className="text-2xl font-bold text-white">{visibleProjects.length}</p>
               </div>
               <div className="w-12 h-12 rounded-lg bg-indigo-500/10 flex items-center justify-center">
                 <FolderKanban className="w-6 h-6 text-indigo-400" />
@@ -338,6 +433,7 @@ export default function DashboardPage() {
                   <div
                     key={project.id}
                     className="flex items-center gap-4 p-4 rounded-lg bg-slate-950/50 border border-slate-800 hover:border-indigo-500/30 cursor-pointer transition-all"
+                    onClick={() => navigate(`/projects/${project.id}`)}
                   >
                     <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
                       <FolderKanban className="w-5 h-5 text-indigo-400" />
@@ -381,6 +477,7 @@ export default function DashboardPage() {
                   <div
                     key={task.id}
                     className="flex items-center gap-3 p-3 rounded-lg bg-slate-950/50 border border-slate-800 hover:border-indigo-500/30 cursor-pointer transition-all"
+                    onClick={() => navigate(`/tasks/${task.id}`)}
                   >
                     <div
                       className={`w-2 h-2 rounded-full ${
@@ -426,6 +523,7 @@ export default function DashboardPage() {
                 <div
                   key={task.id}
                   className="flex items-center gap-3 p-3 rounded-lg bg-slate-950/50 border border-slate-800"
+                  onClick={() => navigate(`/tasks/${task.id}`)}
                 >
                   <CheckSquare
                     className={`w-5 h-5 ${
@@ -466,7 +564,9 @@ export default function DashboardPage() {
           <CardContent>
             <ScrollArea className="h-[300px]">
               <div className="space-y-4">
-                <p className="text-slate-500 text-center py-8">Activity feed will be connected later</p>
+                <p className="text-slate-500 text-center py-8">
+                  Activity feed will be connected later
+                </p>
               </div>
             </ScrollArea>
           </CardContent>

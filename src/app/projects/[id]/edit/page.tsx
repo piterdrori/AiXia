@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,21 @@ type ProjectRow = {
   created_by: string | null;
 };
 
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  role: Role;
+  status: "active" | "pending" | "inactive" | "denied";
+};
+
+type ProjectMemberRow = {
+  id: string;
+  project_id: string;
+  user_id: string;
+  role: string;
+  created_at: string;
+};
+
 export default function ProjectEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -39,9 +54,21 @@ export default function ProjectEditPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
+  const [teamMembers, setTeamMembers] = useState<ProfileRow[]>([]);
+  const [existingMembers, setExistingMembers] = useState<ProjectMemberRow[]>([]);
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+
+  const toggleMember = (userId: string) => {
+    setSelectedMembers((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const selectedSet = useMemo(() => new Set(selectedMembers), [selectedMembers]);
 
   useEffect(() => {
     const loadProject = async () => {
@@ -63,11 +90,24 @@ export default function ProjectEditPage() {
           return;
         }
 
-        const { data: me, error: meError } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("user_id", user.id)
-          .single();
+        const [{ data: me, error: meError }, { data: projectData, error: projectError }, { data: membersData }, { data: profilesData }] =
+          await Promise.all([
+            supabase.from("profiles").select("role").eq("user_id", user.id).single(),
+            supabase
+              .from("projects")
+              .select("id, name, description, status, start_date, end_date, created_by")
+              .eq("id", id)
+              .single(),
+            supabase
+              .from("project_members")
+              .select("id, project_id, user_id, role, created_at")
+              .eq("project_id", id),
+            supabase
+              .from("profiles")
+              .select("user_id, full_name, role, status")
+              .eq("status", "active")
+              .order("full_name", { ascending: true }),
+          ]);
 
         if (meError || !me) {
           navigate("/projects");
@@ -76,33 +116,32 @@ export default function ProjectEditPage() {
 
         const currentUserRole = (me.role as Role) || null;
 
-        const { data, error: projectError } = await supabase
-          .from("projects")
-          .select("id, name, description, status, start_date, end_date, created_by")
-          .eq("id", id)
-          .single();
-
-        if (projectError || !data) {
+        if (projectError || !projectData) {
           setError("Failed to load project.");
           setIsLoading(false);
           return;
         }
 
-        const project = data as ProjectRow;
-
-        const canEdit =
-          currentUserRole === "admin" || project.created_by === user.id;
+        const project = projectData as ProjectRow;
+        const canEdit = currentUserRole === "admin" || project.created_by === user.id;
 
         if (!canEdit) {
           navigate("/projects");
           return;
         }
 
+        const loadedMembers = (membersData || []) as ProjectMemberRow[];
+        const loadedProfiles = (profilesData || []) as ProfileRow[];
+
         setName(project.name || "");
         setDescription(project.description || "");
         setStatus((project.status as ProjectStatus) || "PLANNING");
         setStartDate(project.start_date || "");
         setEndDate(project.end_date || "");
+
+        setExistingMembers(loadedMembers);
+        setTeamMembers(loadedProfiles);
+        setSelectedMembers(loadedMembers.map((member) => member.user_id));
       } catch (err) {
         console.error("Load project error:", err);
         setError("Something went wrong while loading the project.");
@@ -164,8 +203,7 @@ export default function ProjectEditPage() {
         return;
       }
 
-      const canEdit =
-        currentUserRole === "admin" || existingProject.created_by === user.id;
+      const canEdit = currentUserRole === "admin" || existingProject.created_by === user.id;
 
       if (!canEdit) {
         setError("You do not have permission to edit this project.");
@@ -192,7 +230,46 @@ export default function ProjectEditPage() {
         return;
       }
 
-      navigate("/projects");
+      const existingUserIds = existingMembers.map((member) => member.user_id);
+      const toInsert = selectedMembers.filter((userId) => !existingUserIds.includes(userId));
+      const toDelete = existingMembers.filter((member) => !selectedSet.has(member.user_id));
+
+      if (toInsert.length > 0) {
+        const rows = toInsert.map((userId) => ({
+          project_id: id,
+          user_id: userId,
+          role: "member",
+        }));
+
+        const { error: insertMembersError } = await supabase
+          .from("project_members")
+          .insert(rows);
+
+        if (insertMembersError) {
+          console.error("Insert project members error:", insertMembersError);
+          setError(insertMembersError.message || "Failed to add some members.");
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      if (toDelete.length > 0) {
+        const idsToDelete = toDelete.map((member) => member.id);
+
+        const { error: deleteMembersError } = await supabase
+          .from("project_members")
+          .delete()
+          .in("id", idsToDelete);
+
+        if (deleteMembersError) {
+          console.error("Delete project members error:", deleteMembersError);
+          setError(deleteMembersError.message || "Failed to remove some members.");
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      navigate(`/projects/${id}`);
     } catch (err) {
       console.error("Update project error:", err);
       setError("Something went wrong while updating the project.");
@@ -214,7 +291,7 @@ export default function ProjectEditPage() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => navigate("/projects")}
+          onClick={() => navigate(`/projects/${id}`)}
           className="text-slate-400 hover:text-white"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -222,7 +299,7 @@ export default function ProjectEditPage() {
 
         <div>
           <h1 className="text-2xl font-bold text-white">Edit Project</h1>
-          <p className="text-slate-400">Update your project details</p>
+          <p className="text-slate-400">Update your project details and team</p>
         </div>
       </div>
 
@@ -309,11 +386,48 @@ export default function ProjectEditPage() {
               </div>
             </div>
 
+            <div className="space-y-3">
+              <Label className="text-slate-300">Assign Team Members</Label>
+
+              {teamMembers.length === 0 ? (
+                <div className="text-slate-500 text-sm">No active team members found.</div>
+              ) : (
+                <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3 max-h-64 overflow-y-auto">
+                  {teamMembers.map((member) => (
+                    <label
+                      key={member.user_id}
+                      className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-900 cursor-pointer"
+                    >
+                      <div>
+                        <div className="text-white text-sm font-medium">
+                          {member.full_name || "Unnamed user"}
+                        </div>
+                        <div className="text-slate-500 text-xs">
+                          {member.role.toUpperCase()}
+                        </div>
+                      </div>
+
+                      <input
+                        type="checkbox"
+                        checked={selectedMembers.includes(member.user_id)}
+                        onChange={() => toggleMember(member.user_id)}
+                        className="h-4 w-4"
+                      />
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-slate-500 text-xs">
+                Only assigned members, the creator, and admin will be able to see this project.
+              </p>
+            </div>
+
             <div className="flex items-center justify-end gap-4 pt-4">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate("/projects")}
+                onClick={() => navigate(`/projects/${id}`)}
                 className="border-slate-700 text-slate-300 hover:bg-slate-800"
               >
                 Cancel

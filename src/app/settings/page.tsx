@@ -1,22 +1,22 @@
-import { useState, useEffect } from 'react';
-import { useStore } from '@/lib/store';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Switch } from '@/components/ui/switch';
-import { Separator } from '@/components/ui/separator';
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import {
   User,
   Mail,
@@ -28,27 +28,60 @@ import {
   Moon,
   Sun,
   Monitor,
-} from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+} from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+type Role = "admin" | "manager" | "employee" | "guest";
+type Status = "active" | "pending" | "inactive" | "denied";
+
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  role: Role;
+  status: Status;
+  requested_role: Role | null;
+  created_at: string;
+  updated_at: string;
+  display_name?: string | null;
+  bio?: string | null;
+  phone?: string | null;
+  location?: string | null;
+  language?: string | null;
+  timezone?: string | null;
+  date_format?: string | null;
+  email_notifications?: boolean | null;
+  push_notifications?: boolean | null;
+  task_assigned_notifications?: boolean | null;
+  due_soon_notifications?: boolean | null;
+  mention_notifications?: boolean | null;
+  digest_frequency?: string | null;
+  theme?: string | null;
+  accent_color?: string | null;
+  font_size?: string | null;
+  compact_mode?: boolean | null;
+};
 
 export default function SettingsPage() {
-  const { currentUser, updateUser } = useStore();
-
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState("profile");
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [authEmail, setAuthEmail] = useState("");
+  const [userId, setUserId] = useState("");
 
   // Profile
-  const [fullName, setFullName] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [bio, setBio] = useState('');
-  const [phone, setPhone] = useState('');
-  const [location, setLocation] = useState('');
+  const [fullName, setFullName] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [bio, setBio] = useState("");
+  const [phone, setPhone] = useState("");
+  const [location, setLocation] = useState("");
 
   // Account
-  const [email, setEmail] = useState('');
-  const [language, setLanguage] = useState('en');
-  const [timezone, setTimezone] = useState('UTC');
-  const [dateFormat, setDateFormat] = useState('MM/DD/YYYY');
+  const [language, setLanguage] = useState("en");
+  const [timezone, setTimezone] = useState("UTC");
+  const [dateFormat, setDateFormat] = useState("MM/DD/YYYY");
 
   // Notifications
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -56,42 +89,155 @@ export default function SettingsPage() {
   const [taskAssigned, setTaskAssigned] = useState(true);
   const [dueSoon, setDueSoon] = useState(true);
   const [mentions, setMentions] = useState(true);
-  const [digestFrequency, setDigestFrequency] = useState('daily');
+  const [digestFrequency, setDigestFrequency] = useState("daily");
 
   // Appearance
-  const [theme, setTheme] = useState('dark');
-  const [accentColor, setAccentColor] = useState('indigo');
-  const [fontSize, setFontSize] = useState('medium');
+  const [theme, setTheme] = useState("dark");
+  const [accentColor, setAccentColor] = useState("indigo");
+  const [fontSize, setFontSize] = useState("medium");
   const [compactMode, setCompactMode] = useState(false);
 
-  useEffect(() => {
-    if (currentUser) {
-      setFullName(currentUser.fullName);
-      setDisplayName(currentUser.displayName || '');
-      setBio(currentUser.bio || '');
-      setPhone(currentUser.phone || '');
-      setLocation(currentUser.location || '');
-      setEmail(currentUser.email);
-    }
-  }, [currentUser]);
+  const loadSettings = async () => {
+    setIsLoading(true);
+    setSaveError("");
 
-  const handleSaveProfile = () => {
-    updateUser(currentUser!.id, {
-      fullName,
-      displayName,
-      bio,
-      phone,
-      location,
-    });
-    showSaved();
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
+
+      setAuthEmail(user.email || "");
+      setUserId(user.id);
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+
+      if (error) {
+        setSaveError(error.message);
+        setIsLoading(false);
+        return;
+      }
+
+      const profile = data as ProfileRow;
+
+      setFullName(profile.full_name || "");
+      setDisplayName(profile.display_name || "");
+      setBio(profile.bio || "");
+      setPhone(profile.phone || "");
+      setLocation(profile.location || "");
+
+      setLanguage(profile.language || "en");
+      setTimezone(profile.timezone || "UTC");
+      setDateFormat(profile.date_format || "MM/DD/YYYY");
+
+      setEmailNotifications(profile.email_notifications ?? true);
+      setPushNotifications(profile.push_notifications ?? true);
+      setTaskAssigned(profile.task_assigned_notifications ?? true);
+      setDueSoon(profile.due_soon_notifications ?? true);
+      setMentions(profile.mention_notifications ?? true);
+      setDigestFrequency(profile.digest_frequency || "daily");
+
+      setTheme(profile.theme || "dark");
+      setAccentColor(profile.accent_color || "indigo");
+      setFontSize(profile.font_size || "medium");
+      setCompactMode(profile.compact_mode ?? false);
+    } catch (error) {
+      console.error("Settings load error:", error);
+      setSaveError("Failed to load settings.");
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
 
   const showSaved = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
 
-  if (!currentUser) {
+  const updateProfile = async (payload: Record<string, unknown>) => {
+    if (!userId) return;
+
+    setIsSaving(true);
+    setSaveError("");
+    setSaved(false);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        ...payload,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", userId);
+
+    setIsSaving(false);
+
+    if (error) {
+      console.error("Settings save error:", error);
+      setSaveError(error.message);
+      return;
+    }
+
+    showSaved();
+  };
+
+  const handleSaveProfile = async () => {
+    await updateProfile({
+      full_name: fullName,
+      display_name: displayName || null,
+      bio: bio || null,
+      phone: phone || null,
+      location: location || null,
+    });
+  };
+
+  const handleSaveAccount = async () => {
+    await updateProfile({
+      language: language,
+      timezone: timezone,
+      date_format: dateFormat,
+    });
+  };
+
+  const handleSaveNotifications = async () => {
+    await updateProfile({
+      email_notifications: emailNotifications,
+      push_notifications: pushNotifications,
+      task_assigned_notifications: taskAssigned,
+      due_soon_notifications: dueSoon,
+      mention_notifications: mentions,
+      digest_frequency: digestFrequency,
+    });
+  };
+
+  const handleSaveAppearance = async () => {
+    await updateProfile({
+      theme: theme,
+      accent_color: accentColor,
+      font_size: fontSize,
+      compact_mode: compactMode,
+    });
+  };
+
+  const initials =
+    fullName
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase() || "U";
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
@@ -101,7 +247,6 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-white">Settings</h1>
         <p className="text-slate-400">Manage your account settings and preferences</p>
@@ -110,6 +255,12 @@ export default function SettingsPage() {
       {saved && (
         <Alert className="bg-green-900/20 border-green-800 text-green-400">
           <AlertDescription>Settings saved successfully!</AlertDescription>
+        </Alert>
+      )}
+
+      {saveError && (
+        <Alert className="bg-red-900/20 border-red-800 text-red-400">
+          <AlertDescription>{saveError}</AlertDescription>
         </Alert>
       )}
 
@@ -137,22 +288,19 @@ export default function SettingsPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Profile Tab */}
         <TabsContent value="profile" className="space-y-6">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
               <CardTitle className="text-white">Profile Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Avatar */}
               <div className="flex items-center gap-4">
                 <Avatar className="w-20 h-20">
-                  <AvatarImage src={currentUser.avatar} />
                   <AvatarFallback className="bg-indigo-600 text-white text-2xl">
-                    {currentUser.fullName.split(' ').map(n => n[0]).join('')}
+                    {initials}
                   </AvatarFallback>
                 </Avatar>
-                <Button variant="outline" className="border-slate-700 text-slate-300">
+                <Button variant="outline" className="border-slate-700 text-slate-300" disabled>
                   <Upload className="w-4 h-4 mr-2" />
                   Change Avatar
                 </Button>
@@ -217,18 +365,18 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <Button 
+              <Button
                 onClick={handleSaveProfile}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                disabled={isSaving}
               >
                 <Save className="w-4 h-4 mr-2" />
-                Save Profile
+                {isSaving ? "Saving..." : "Save Profile"}
               </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Account Tab */}
         <TabsContent value="account" className="space-y-6">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
@@ -240,11 +388,11 @@ export default function SettingsPage() {
                 <Input
                   id="email"
                   type="email"
-                  value={email}
+                  value={authEmail}
                   disabled
                   className="bg-slate-950 border-slate-800 text-slate-400"
                 />
-                <p className="text-slate-500 text-sm">Contact an admin to change your email</p>
+                <p className="text-slate-500 text-sm">Email is managed by authentication settings</p>
               </div>
 
               <Separator className="bg-slate-800" />
@@ -299,12 +447,13 @@ export default function SettingsPage() {
                 </Select>
               </div>
 
-              <Button 
-                onClick={showSaved}
+              <Button
+                onClick={handleSaveAccount}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                disabled={isSaving}
               >
                 <Save className="w-4 h-4 mr-2" />
-                Save Changes
+                {isSaving ? "Saving..." : "Save Changes"}
               </Button>
             </CardContent>
           </Card>
@@ -319,7 +468,7 @@ export default function SettingsPage() {
                   <p className="text-white font-medium">Delete Account</p>
                   <p className="text-slate-500 text-sm">Permanently delete your account and all data</p>
                 </div>
-                <Button variant="destructive">
+                <Button variant="destructive" disabled>
                   Delete Account
                 </Button>
               </div>
@@ -327,7 +476,6 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* Notifications Tab */}
         <TabsContent value="notifications" className="space-y-6">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
@@ -339,10 +487,7 @@ export default function SettingsPage() {
                   <p className="text-white font-medium">Email Notifications</p>
                   <p className="text-slate-500 text-sm">Receive notifications via email</p>
                 </div>
-                <Switch
-                  checked={emailNotifications}
-                  onCheckedChange={setEmailNotifications}
-                />
+                <Switch checked={emailNotifications} onCheckedChange={setEmailNotifications} />
               </div>
 
               <Separator className="bg-slate-800" />
@@ -352,37 +497,25 @@ export default function SettingsPage() {
                   <p className="text-white font-medium">Push Notifications</p>
                   <p className="text-slate-500 text-sm">Receive push notifications in browser</p>
                 </div>
-                <Switch
-                  checked={pushNotifications}
-                  onCheckedChange={setPushNotifications}
-                />
+                <Switch checked={pushNotifications} onCheckedChange={setPushNotifications} />
               </div>
 
               <Separator className="bg-slate-800" />
 
               <div className="space-y-4">
                 <p className="text-white font-medium">Notification Types</p>
-                
+
                 <div className="flex items-center justify-between">
                   <p className="text-slate-300">Task Assigned</p>
-                  <Switch
-                    checked={taskAssigned}
-                    onCheckedChange={setTaskAssigned}
-                  />
+                  <Switch checked={taskAssigned} onCheckedChange={setTaskAssigned} />
                 </div>
                 <div className="flex items-center justify-between">
                   <p className="text-slate-300">Due Soon</p>
-                  <Switch
-                    checked={dueSoon}
-                    onCheckedChange={setDueSoon}
-                  />
+                  <Switch checked={dueSoon} onCheckedChange={setDueSoon} />
                 </div>
                 <div className="flex items-center justify-between">
                   <p className="text-slate-300">Mentions</p>
-                  <Switch
-                    checked={mentions}
-                    onCheckedChange={setMentions}
-                  />
+                  <Switch checked={mentions} onCheckedChange={setMentions} />
                 </div>
               </div>
 
@@ -402,18 +535,18 @@ export default function SettingsPage() {
                 </Select>
               </div>
 
-              <Button 
-                onClick={showSaved}
+              <Button
+                onClick={handleSaveNotifications}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                disabled={isSaving}
               >
                 <Save className="w-4 h-4 mr-2" />
-                Save Preferences
+                {isSaving ? "Saving..." : "Save Preferences"}
               </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Appearance Tab */}
         <TabsContent value="appearance" className="space-y-6">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
@@ -424,33 +557,33 @@ export default function SettingsPage() {
                 <Label className="text-slate-300">Theme</Label>
                 <div className="grid grid-cols-3 gap-4">
                   <button
-                    onClick={() => setTheme('light')}
+                    onClick={() => setTheme("light")}
                     className={`p-4 rounded-lg border transition-all ${
-                      theme === 'light' 
-                        ? 'border-indigo-500 bg-indigo-500/10' 
-                        : 'border-slate-800 hover:border-slate-700'
+                      theme === "light"
+                        ? "border-indigo-500 bg-indigo-500/10"
+                        : "border-slate-800 hover:border-slate-700"
                     }`}
                   >
                     <Sun className="w-6 h-6 mx-auto mb-2 text-amber-400" />
                     <p className="text-white text-sm">Light</p>
                   </button>
                   <button
-                    onClick={() => setTheme('dark')}
+                    onClick={() => setTheme("dark")}
                     className={`p-4 rounded-lg border transition-all ${
-                      theme === 'dark' 
-                        ? 'border-indigo-500 bg-indigo-500/10' 
-                        : 'border-slate-800 hover:border-slate-700'
+                      theme === "dark"
+                        ? "border-indigo-500 bg-indigo-500/10"
+                        : "border-slate-800 hover:border-slate-700"
                     }`}
                   >
                     <Moon className="w-6 h-6 mx-auto mb-2 text-indigo-400" />
                     <p className="text-white text-sm">Dark</p>
                   </button>
                   <button
-                    onClick={() => setTheme('system')}
+                    onClick={() => setTheme("system")}
                     className={`p-4 rounded-lg border transition-all ${
-                      theme === 'system' 
-                        ? 'border-indigo-500 bg-indigo-500/10' 
-                        : 'border-slate-800 hover:border-slate-700'
+                      theme === "system"
+                        ? "border-indigo-500 bg-indigo-500/10"
+                        : "border-slate-800 hover:border-slate-700"
                     }`}
                   >
                     <Monitor className="w-6 h-6 mx-auto mb-2 text-slate-400" />
@@ -464,13 +597,27 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 <Label className="text-slate-300">Accent Color</Label>
                 <div className="flex flex-wrap gap-3">
-                  {['indigo', 'blue', 'purple', 'green', 'red', 'orange'].map((color) => (
+                  {["indigo", "blue", "purple", "green", "red", "orange"].map((color) => (
                     <button
                       key={color}
                       onClick={() => setAccentColor(color)}
                       className={`w-10 h-10 rounded-full transition-all ${
-                        accentColor === color ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-900' : ''
-                      } bg-${color}-500`}
+                        accentColor === color
+                          ? "ring-2 ring-white ring-offset-2 ring-offset-slate-900"
+                          : ""
+                      } ${
+                        color === "indigo"
+                          ? "bg-indigo-500"
+                          : color === "blue"
+                          ? "bg-blue-500"
+                          : color === "purple"
+                          ? "bg-purple-500"
+                          : color === "green"
+                          ? "bg-green-500"
+                          : color === "red"
+                          ? "bg-red-500"
+                          : "bg-orange-500"
+                      }`}
                     />
                   ))}
                 </div>
@@ -497,24 +644,21 @@ export default function SettingsPage() {
                   <p className="text-white font-medium">Compact Mode</p>
                   <p className="text-slate-500 text-sm">Reduce spacing throughout the interface</p>
                 </div>
-                <Switch
-                  checked={compactMode}
-                  onCheckedChange={setCompactMode}
-                />
+                <Switch checked={compactMode} onCheckedChange={setCompactMode} />
               </div>
 
-              <Button 
-                onClick={showSaved}
+              <Button
+                onClick={handleSaveAppearance}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                disabled={isSaving}
               >
                 <Save className="w-4 h-4 mr-2" />
-                Save Appearance
+                {isSaving ? "Saving..." : "Save Appearance"}
               </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Security Tab */}
         <TabsContent value="security" className="space-y-6">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
@@ -529,6 +673,7 @@ export default function SettingsPage() {
                     type="password"
                     placeholder="Enter current password"
                     className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+                    disabled
                   />
                 </div>
                 <div className="space-y-2">
@@ -537,6 +682,7 @@ export default function SettingsPage() {
                     type="password"
                     placeholder="Enter new password"
                     className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+                    disabled
                   />
                 </div>
                 <div className="space-y-2">
@@ -545,9 +691,10 @@ export default function SettingsPage() {
                     type="password"
                     placeholder="Confirm new password"
                     className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+                    disabled
                   />
                 </div>
-                <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" disabled>
                   Update Password
                 </Button>
               </div>
@@ -557,7 +704,7 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 <h3 className="text-white font-medium">Two-Factor Authentication</h3>
                 <p className="text-slate-500">Add an extra layer of security to your account</p>
-                <Button variant="outline" className="border-slate-700 text-slate-300">
+                <Button variant="outline" className="border-slate-700 text-slate-300" disabled>
                   <Shield className="w-4 h-4 mr-2" />
                   Enable 2FA
                 </Button>
@@ -571,7 +718,7 @@ export default function SettingsPage() {
                   <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg">
                     <div>
                       <p className="text-white">Current Session</p>
-                      <p className="text-slate-500 text-sm">Started just now</p>
+                      <p className="text-slate-500 text-sm">Managed by Supabase authentication</p>
                     </div>
                     <Badge className="bg-green-500/20 text-green-400">Active</Badge>
                   </div>

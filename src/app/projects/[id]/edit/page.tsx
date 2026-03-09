@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,38 +16,28 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
-type Role = "admin" | "manager" | "employee" | "guest";
+type ProjectStatus = "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED";
 
 type ProjectRow = {
   id: string;
   name: string;
   description: string | null;
   status: string | null;
-  progress: number | null;
-  created_by: string | null;
   start_date: string | null;
   end_date: string | null;
-  created_at: string;
 };
 
 export default function ProjectEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const [project, setProject] = useState<ProjectRow | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
-
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<
-    "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED"
-  >("PLANNING");
-  const [progress, setProgress] = useState("0");
+  const [status, setStatus] = useState<ProjectStatus>("PLANNING");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  const [isPageLoading, setIsPageLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -59,7 +48,7 @@ export default function ProjectEditPage() {
         return;
       }
 
-      setIsPageLoading(true);
+      setIsLoading(true);
       setError("");
 
       try {
@@ -72,65 +61,30 @@ export default function ProjectEditPage() {
           return;
         }
 
-        setCurrentUserId(user.id);
-
-        const { data: me, error: meError } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("user_id", user.id)
-          .single();
-
-        if (meError || !me) {
-          setError("Failed to load your profile.");
-          setIsPageLoading(false);
-          return;
-        }
-
-        const myRole = me.role as Role;
-        setCurrentUserRole(myRole);
-
-        const { data: projectData, error: projectError } = await supabase
+        const { data, error: projectError } = await supabase
           .from("projects")
-          .select("id, name, description, status, progress, created_by, start_date, end_date, created_at")
+          .select("id, name, description, status, start_date, end_date")
           .eq("id", id)
           .single();
 
-        if (projectError || !projectData) {
-          navigate("/projects");
+        if (projectError || !data) {
+          setError("Failed to load project.");
+          setIsLoading(false);
           return;
         }
 
-        const loadedProject = projectData as ProjectRow;
+        const project = data as ProjectRow;
 
-        const canEdit =
-          myRole === "admin" ||
-          myRole === "manager" ||
-          myRole === "guest";
-
-        if (!canEdit) {
-          navigate("/projects");
-          return;
-        }
-
-        setProject(loadedProject);
-        setName(loadedProject.name || "");
-        setDescription(loadedProject.description || "");
-        setStatus(
-          ((loadedProject.status || "PLANNING").toUpperCase() as
-            | "PLANNING"
-            | "ACTIVE"
-            | "ON_HOLD"
-            | "COMPLETED"
-            | "CANCELLED")
-        );
-        setProgress(String(loadedProject.progress ?? 0));
-        setStartDate(loadedProject.start_date || "");
-        setEndDate(loadedProject.end_date || "");
+        setName(project.name || "");
+        setDescription(project.description || "");
+        setStatus((project.status as ProjectStatus) || "PLANNING");
+        setStartDate(project.start_date || "");
+        setEndDate(project.end_date || "");
       } catch (err) {
-        console.error("Load project edit page error:", err);
-        setError("Failed to load project.");
+        console.error("Load project error:", err);
+        setError("Something went wrong while loading the project.");
       } finally {
-        setIsPageLoading(false);
+        setIsLoading(false);
       }
     };
 
@@ -140,19 +94,12 @@ export default function ProjectEditPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!id || !project) return;
+    if (!id) return;
 
     setError("");
 
     if (!name.trim()) {
       setError("Project name is required.");
-      return;
-    }
-
-    const parsedProgress = Number(progress);
-
-    if (Number.isNaN(parsedProgress) || parsedProgress < 0 || parsedProgress > 100) {
-      setError("Progress must be a number between 0 and 100.");
       return;
     }
 
@@ -165,9 +112,9 @@ export default function ProjectEditPage() {
           name: name.trim(),
           description: description.trim() || null,
           status,
-          progress: parsedProgress,
           start_date: startDate || null,
           end_date: endDate || null,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", id);
 
@@ -180,22 +127,18 @@ export default function ProjectEditPage() {
 
       navigate("/projects");
     } catch (err) {
-      console.error("Project update exception:", err);
-      setError("Failed to update project.");
+      console.error("Update project error:", err);
+      setError("Something went wrong while updating the project.");
       setIsSaving(false);
     }
   };
 
-  if (isPageLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
       </div>
     );
-  }
-
-  if (!project) {
-    return null;
   }
 
   return (
@@ -212,7 +155,7 @@ export default function ProjectEditPage() {
 
         <div>
           <h1 className="text-2xl font-bold text-white">Edit Project</h1>
-          <p className="text-slate-400">Update project details</p>
+          <p className="text-slate-400">Update your project details</p>
         </div>
       </div>
 
@@ -234,8 +177,8 @@ export default function ProjectEditPage() {
                 placeholder="Enter project name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                required
                 className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
-                disabled={isSaving}
               />
             </div>
 
@@ -250,7 +193,6 @@ export default function ProjectEditPage() {
                 onChange={(e) => setDescription(e.target.value)}
                 rows={4}
                 className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 resize-none"
-                disabled={isSaving}
               />
             </div>
 
@@ -258,7 +200,7 @@ export default function ProjectEditPage() {
               <Label htmlFor="status" className="text-slate-300">
                 Status
               </Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
+              <Select value={status} onValueChange={(v) => setStatus(v as ProjectStatus)}>
                 <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
@@ -272,22 +214,6 @@ export default function ProjectEditPage() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="progress" className="text-slate-300">
-                Progress %
-              </Label>
-              <Input
-                id="progress"
-                type="number"
-                min="0"
-                max="100"
-                value={progress}
-                onChange={(e) => setProgress(e.target.value)}
-                className="bg-slate-950 border-slate-800 text-white"
-                disabled={isSaving}
-              />
-            </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="startDate" className="text-slate-300">
@@ -299,7 +225,6 @@ export default function ProjectEditPage() {
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   className="bg-slate-950 border-slate-800 text-white"
-                  disabled={isSaving}
                 />
               </div>
 
@@ -313,7 +238,6 @@ export default function ProjectEditPage() {
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                   className="bg-slate-950 border-slate-800 text-white"
-                  disabled={isSaving}
                 />
               </div>
             </div>
@@ -324,7 +248,6 @@ export default function ProjectEditPage() {
                 variant="outline"
                 onClick={() => navigate("/projects")}
                 className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                disabled={isSaving}
               >
                 Cancel
               </Button>

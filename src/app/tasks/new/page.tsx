@@ -1,126 +1,303 @@
-import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useStore } from '@/lib/store';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Loader2, Plus, X } from 'lucide-react';
-import { Checkbox } from '@/components/ui/checkbox';
+} from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ArrowLeft, Loader2 } from "lucide-react";
+
+type Role = "admin" | "manager" | "employee" | "guest";
+type TaskStatus = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
+type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+
+type ProjectRow = {
+  id: string;
+  name: string;
+  created_by: string | null;
+};
+
+type ProjectMemberRow = {
+  id: string;
+  project_id: string;
+  user_id: string;
+  role: string;
+  created_at: string;
+};
+
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  role: Role;
+  status: "active" | "pending" | "inactive" | "denied";
+};
 
 export default function TaskNewPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const projectIdParam = searchParams.get('projectId');
-  
-  const { createTask, projects, users, currentUser } = useStore();
-  
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [status, setStatus] = useState<'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'DONE'>('TODO');
-  const [priority, setPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'>('MEDIUM');
-  const [projectId, setProjectId] = useState(projectIdParam || '');
-  const [assignees, setAssignees] = useState<string[]>([]);
-  const [dueDate, setDueDate] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
-  const [newTag, setNewTag] = useState('');
-  const [checklist, setChecklist] = useState<{ text: string; completed: boolean }[]>([]);
-  const [newChecklistItem, setNewChecklistItem] = useState('');
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const initialProjectId = searchParams.get("projectId") || "";
+
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [projectId, setProjectId] = useState(initialProjectId);
+  const [priority, setPriority] = useState<TaskPriority>("MEDIUM");
+  const [status, setStatus] = useState<TaskStatus>("TODO");
+  const [dueDate, setDueDate] = useState("");
+
+  const [projects, setProjects] = useState<ProjectRow[]>([]);
+  const [projectMembers, setProjectMembers] = useState<ProjectMemberRow[]>([]);
+  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const loadPage = async () => {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          navigate("/login");
+          return;
+        }
+
+        setCurrentUserId(user.id);
+
+        const { data: myProfile, error: myProfileError } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("user_id", user.id)
+          .single();
+
+        if (myProfileError || !myProfile) {
+          navigate("/tasks");
+          return;
+        }
+
+        const role = myProfile.role as Role;
+        setCurrentUserRole(role);
+
+        const [{ data: allProjects }, { data: allProjectMembers }, { data: allProfiles }] =
+          await Promise.all([
+            supabase
+              .from("projects")
+              .select("id, name, created_by")
+              .order("created_at", { ascending: false }),
+            supabase
+              .from("project_members")
+              .select("id, project_id, user_id, role, created_at"),
+            supabase
+              .from("profiles")
+              .select("user_id, full_name, role, status")
+              .eq("status", "active")
+              .order("full_name", { ascending: true }),
+          ]);
+
+        const projectsData = (allProjects || []) as ProjectRow[];
+        const membersData = (allProjectMembers || []) as ProjectMemberRow[];
+        const profilesData = (allProfiles || []) as ProfileRow[];
+
+        const visibleProjects =
+          role === "admin"
+            ? projectsData
+            : projectsData.filter((project) => {
+                const isCreator = project.created_by === user.id;
+                const isAssigned = membersData.some(
+                  (member) =>
+                    member.project_id === project.id && member.user_id === user.id
+                );
+                return isCreator || isAssigned;
+              });
+
+        setProjects(visibleProjects);
+        setProfiles(profilesData);
+
+        if (initialProjectId) {
+          const currentProjectMembers = membersData.filter(
+            (member) => member.project_id === initialProjectId
+          );
+          setProjectMembers(currentProjectMembers);
+        }
+
+        if (initialProjectId && !visibleProjects.some((p) => p.id === initialProjectId)) {
+          setProjectId("");
+        }
+      } catch (err) {
+        console.error("Load task new page error:", err);
+        setError("Something went wrong while loading the page.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadPage();
+  }, [navigate, initialProjectId]);
+
+  useEffect(() => {
+    const loadMembersForProject = async () => {
+      if (!projectId) {
+        setProjectMembers([]);
+        setSelectedAssignees([]);
+        return;
+      }
+
+      const { data, error: membersError } = await supabase
+        .from("project_members")
+        .select("id, project_id, user_id, role, created_at")
+        .eq("project_id", projectId);
+
+      if (membersError) {
+        console.error("Load project members error:", membersError);
+        setProjectMembers([]);
+        setSelectedAssignees([]);
+        return;
+      }
+
+      const members = (data || []) as ProjectMemberRow[];
+      setProjectMembers(members);
+
+      setSelectedAssignees((prev) =>
+        prev.filter((userId) => members.some((member) => member.user_id === userId))
+      );
+    };
+
+    loadMembersForProject();
+  }, [projectId]);
+
+  const availableAssignees = useMemo(() => {
+    return projectMembers
+      .map((member) => profiles.find((profile) => profile.user_id === member.user_id))
+      .filter((profile): profile is ProfileRow => Boolean(profile));
+  }, [projectMembers, profiles]);
+
+  const toggleAssignee = (userId: string) => {
+    setSelectedAssignees((prev) =>
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId]
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
+
+    if (!currentUserId) {
+      setError("User session not found.");
+      return;
+    }
 
     if (!title.trim()) {
-      setError('Task title is required');
+      setError("Task title is required.");
       return;
     }
 
     if (!projectId) {
-      setError('Please select a project');
+      setError("Please select a project.");
       return;
     }
 
-    setIsLoading(true);
+    setIsSaving(true);
 
     try {
-      const task = createTask({
-        title: title.trim(),
-        description: description.trim(),
-        status,
-        priority,
-        projectId,
-        assignees: assignees.length > 0 ? assignees : [currentUser!.id],
-        dueDate: dueDate || undefined,
-        tags,
-        checklist: checklist.map((item, index) => ({
-          id: `temp-${index}`,
-          text: item.text,
-          completed: item.completed,
-          createdAt: new Date().toISOString(),
-        })),
-      });
-      navigate(`/tasks/${task.id}`);
+      const selectedProject = projects.find((project) => project.id === projectId);
+      if (!selectedProject) {
+        setError("Selected project is not available.");
+        setIsSaving(false);
+        return;
+      }
+
+      const { data: taskData, error: taskError } = await supabase
+        .from("tasks")
+        .insert({
+          title: title.trim(),
+          description: description.trim() || null,
+          status,
+          priority,
+          project_id: projectId,
+          due_date: dueDate || null,
+          created_by: currentUserId,
+          assignee_id: selectedAssignees.length > 0 ? selectedAssignees[0] : null,
+        })
+        .select("id")
+        .single();
+
+      if (taskError || !taskData) {
+        console.error("Create task error:", taskError);
+        setError(taskError?.message || "Failed to create task.");
+        setIsSaving(false);
+        return;
+      }
+
+      if (selectedAssignees.length > 0) {
+        const memberRows = selectedAssignees.map((userId) => ({
+          task_id: taskData.id,
+          user_id: userId,
+          role: "assignee",
+        }));
+
+        const { error: taskMembersError } = await supabase
+          .from("task_members")
+          .insert(memberRows);
+
+        if (taskMembersError) {
+          console.error("Create task members error:", taskMembersError);
+          setError(taskMembersError.message || "Task created, but failed to assign some members.");
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      navigate(`/projects/${projectId}`);
     } catch (err) {
-      setError('Failed to create task');
-      setIsLoading(false);
+      console.error("Create task submit error:", err);
+      setError("Something went wrong while creating the task.");
+      setIsSaving(false);
     }
   };
 
-  const addTag = () => {
-    if (newTag.trim() && !tags.includes(newTag.trim())) {
-      setTags([...tags, newTag.trim()]);
-      setNewTag('');
-    }
-  };
-
-  const removeTag = (tag: string) => {
-    setTags(tags.filter(t => t !== tag));
-  };
-
-  const addChecklistItem = () => {
-    if (newChecklistItem.trim()) {
-      setChecklist([...checklist, { text: newChecklistItem.trim(), completed: false }]);
-      setNewChecklistItem('');
-    }
-  };
-
-  const toggleChecklistItem = (index: number) => {
-    const newChecklist = [...checklist];
-    newChecklist[index].completed = !newChecklist[index].completed;
-    setChecklist(newChecklist);
-  };
-
-  const removeChecklistItem = (index: number) => {
-    setChecklist(checklist.filter((_, i) => i !== index));
-  };
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto">
-      {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           size="icon"
-          onClick={() => navigate('/tasks')}
+          onClick={() => navigate("/tasks")}
           className="text-slate-400 hover:text-white"
         >
           <ArrowLeft className="w-5 h-5" />
         </Button>
+
         <div>
           <h1 className="text-2xl font-bold text-white">Create New Task</h1>
-          <p className="text-slate-400">Add a new task to your project</p>
+          <p className="text-slate-400">Add a new task to your project</p >
         </div>
       </div>
 
@@ -128,7 +305,7 @@ export default function TaskNewPage() {
         <CardContent className="p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
-              <Alert variant="destructive" className="bg-red-900/20 border-red-800 text-red-400">
+              <Alert className="bg-red-900/20 border-red-800 text-red-300">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
@@ -148,7 +325,9 @@ export default function TaskNewPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description" className="text-slate-300">Description</Label>
+              <Label htmlFor="description" className="text-slate-300">
+                Description
+              </Label>
               <Textarea
                 id="description"
                 placeholder="Describe the task..."
@@ -159,9 +338,9 @@ export default function TaskNewPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="project" className="text-slate-300">
+                <Label className="text-slate-300">
                   Project <span className="text-red-400">*</span>
                 </Label>
                 <Select value={projectId} onValueChange={setProjectId}>
@@ -169,16 +348,18 @@ export default function TaskNewPage() {
                     <SelectValue placeholder="Select project" />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-slate-800">
-                    {projects.map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="priority" className="text-slate-300">Priority</Label>
-                <Select value={priority} onValueChange={(v) => setPriority(v as any)}>
+                <Label className="text-slate-300">Priority</Label>
+                <Select value={priority} onValueChange={(v) => setPriority(v as TaskPriority)}>
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue placeholder="Select priority" />
                   </SelectTrigger>
@@ -190,12 +371,10 @@ export default function TaskNewPage() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="status" className="text-slate-300">Status</Label>
-                <Select value={status} onValueChange={(v) => setStatus(v as any)}>
+                <Label className="text-slate-300">Status</Label>
+                <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)}>
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
@@ -209,7 +388,9 @@ export default function TaskNewPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dueDate" className="text-slate-300">Due Date</Label>
+                <Label htmlFor="dueDate" className="text-slate-300">
+                  Due Date
+                </Label>
                 <Input
                   id="dueDate"
                   type="date"
@@ -220,127 +401,71 @@ export default function TaskNewPage() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-slate-300">Assignees</Label>
-              <div className="flex flex-wrap gap-2">
-                {users.filter(u => u.status === 'ACTIVE').map((user) => (
-                  <label
-                    key={user.id}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all ${
-                      assignees.includes(user.id)
-                        ? 'bg-indigo-600/20 border-indigo-500/30'
-                        : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-                    }`}
-                  >
-                    <Checkbox
-                      checked={assignees.includes(user.id)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setAssignees([...assignees, user.id]);
-                        } else {
-                          setAssignees(assignees.filter(id => id !== user.id));
-                        }
-                      }}
-                    />
-                    <span className="text-sm text-slate-300">{user.fullName}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
+            <div className="space-y-3">
+              <Label className="text-slate-300">Assign Members</Label>
 
-            <div className="space-y-2">
-              <Label className="text-slate-300">Tags</Label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Add a tag"
-                  value={newTag}
-                  onChange={(e) => setNewTag(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                  className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
-                />
-                <Button type="button" onClick={addTag} variant="outline" className="border-slate-700">
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-slate-800 text-slate-300 text-sm rounded-full"
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => removeTag(tag)}
-                      className="text-slate-500 hover:text-slate-300"
+              {!projectId ? (
+                <div className="text-slate-500 text-sm">
+                  Select a project first to choose assignees.
+                </div>
+              ) : availableAssignees.length === 0 ? (
+                <div className="text-slate-500 text-sm">
+                  No available members found for this project.
+                </div>
+              ) : (
+                <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3 max-h-64 overflow-y-auto">
+                  {availableAssignees.map((member) => (
+                    <label
+                      key={member.user_id}
+                      className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-900 cursor-pointer"
                     >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            </div>
+                      <div>
+                        <div className="text-white text-sm font-medium">
+                          {member.full_name || "Unnamed user"}
+                        </div>
+                        <div className="text-slate-500 text-xs">
+                          {member.role.toUpperCase()}
+                        </div>
+                      </div>
 
-            <div className="space-y-2">
-              <Label className="text-slate-300">Checklist</Label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Add a checklist item"
-                  value={newChecklistItem}
-                  onChange={(e) => setNewChecklistItem(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addChecklistItem())}
-                  className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
-                />
-                <Button type="button" onClick={addChecklistItem} variant="outline" className="border-slate-700">
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </div>
-              <div className="space-y-2 mt-2">
-                {checklist.map((item, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 p-2 bg-slate-950 rounded-lg"
-                  >
-                    <Checkbox
-                      checked={item.completed}
-                      onCheckedChange={() => toggleChecklistItem(index)}
-                    />
-                    <span className={`flex-1 text-sm ${item.completed ? 'text-slate-500 line-through' : 'text-slate-300'}`}>
-                      {item.text}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeChecklistItem(index)}
-                      className="text-slate-500 hover:text-red-400"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+                      <input
+                        type="checkbox"
+                        checked={selectedAssignees.includes(member.user_id)}
+                        onChange={() => toggleAssignee(member.user_id)}
+                        className="h-4 w-4"
+                      />
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-slate-500 text-xs">
+                Only assigned members, admin, project creator, and task creator should be able to see this task.
+              </p >
             </div>
 
             <div className="flex items-center justify-end gap-4 pt-4">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate('/tasks')}
+                onClick={() => navigate("/tasks")}
                 className="border-slate-700 text-slate-300 hover:bg-slate-800"
               >
                 Cancel
               </Button>
+
               <Button
                 type="submit"
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                disabled={isLoading}
+                disabled={isSaving}
               >
-                {isLoading ? (
+                {isSaving ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Creating...
                   </>
                 ) : (
-                  'Create Task'
+                  "Create Task"
                 )}
               </Button>
             </div>

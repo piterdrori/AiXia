@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
@@ -36,7 +37,6 @@ import { format } from "date-fns";
 
 type Role = "admin" | "manager" | "employee" | "guest";
 type TaskStatus = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
-type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
 type TaskRow = {
   id: string;
@@ -109,7 +109,6 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
-  const [projectMembers, setProjectMembers] = useState<ProjectMemberRow[]>([]);
   const [taskMembers, setTaskMembers] = useState<TaskMemberRow[]>([]);
 
   useEffect(() => {
@@ -163,21 +162,11 @@ export default function TasksPage() {
         const role = myProfile.role as Role;
         setCurrentUserRole(role);
 
-        if (tasksError) {
-          throw tasksError;
-        }
-        if (projectsError) {
-          throw projectsError;
-        }
-        if (profilesError) {
-          throw profilesError;
-        }
-        if (projectMembersError) {
-          throw projectMembersError;
-        }
-        if (taskMembersError) {
-          throw taskMembersError;
-        }
+        if (tasksError) throw tasksError;
+        if (projectsError) throw projectsError;
+        if (profilesError) throw profilesError;
+        if (projectMembersError) throw projectMembersError;
+        if (taskMembersError) throw taskMembersError;
 
         const tasksData = (allTasks || []) as TaskRow[];
         const projectsData = (allProjects || []) as ProjectRow[];
@@ -217,7 +206,6 @@ export default function TasksPage() {
         setTasks(visibleTasks);
         setProjects(visibleProjects);
         setProfiles(profilesData);
-        setProjectMembers(projectMembersData);
         setTaskMembers(taskMembersData);
 
         if (

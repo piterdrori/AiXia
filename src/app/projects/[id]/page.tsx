@@ -7,13 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   ArrowLeft,
   Edit,
   Trash2,
   Plus,
   CheckSquare,
-  Users,
   Calendar,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -102,9 +102,9 @@ export default function ProjectDetailPage() {
         const [
           { data: myProfile, error: myProfileError },
           { data: projectData, error: projectError },
-          { data: membersData, error: membersError },
-          { data: profilesData, error: profilesError },
-          { data: tasksData, error: tasksError },
+          { data: membersData },
+          { data: profilesData },
+          { data: tasksData },
         ] = await Promise.all([
           supabase
             .from("profiles")

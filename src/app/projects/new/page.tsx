@@ -1,66 +1,95 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useStore } from '@/lib/store';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+} from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ArrowLeft, Loader2 } from "lucide-react";
+
+type ProjectStatus = "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED";
 
 export default function ProjectNewPage() {
   const navigate = useNavigate();
-  const { createProject } = useStore();
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [status, setStatus] = useState<'PLANNING' | 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED'>('PLANNING');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [error, setError] = useState('');
+
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [status, setStatus] = useState<ProjectStatus>("PLANNING");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     if (!name.trim()) {
-      setError('Project name is required');
+      setError("Project name is required");
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const project = createProject({
-        name: name.trim(),
-        description: description.trim(),
-        status,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-      });
-      navigate(`/projects/${project.id}`);
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        setError("You are not logged in");
+        setIsLoading(false);
+        return;
+      }
+
+      const { data, error: insertError } = await supabase
+        .from("projects")
+        .insert([
+          {
+            name: name.trim(),
+            description: description.trim() || null,
+            status,
+            progress: 0,
+            created_by: user.id,
+            start_date: startDate || null,
+            end_date: endDate || null,
+          },
+        ])
+        .select()
+        .single();
+
+      if (insertError) {
+        setError(insertError.message || "Failed to create project");
+        setIsLoading(false);
+        return;
+      }
+
+      navigate(`/projects/${data.id}`);
     } catch (err) {
-      setError('Failed to create project');
+      console.error("Create project error:", err);
+      setError("Failed to create project");
       setIsLoading(false);
     }
   };
 
   return (
     <div className="max-w-2xl mx-auto">
-      {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           size="icon"
-          onClick={() => navigate('/projects')}
+          onClick={() => navigate("/projects")}
           className="text-slate-400 hover:text-white"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -75,7 +104,7 @@ export default function ProjectNewPage() {
         <CardContent className="p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
-              <Alert variant="destructive" className="bg-red-900/20 border-red-800 text-red-400">
+              <Alert className="bg-red-900/20 border-red-800 text-red-300">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
@@ -95,7 +124,9 @@ export default function ProjectNewPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description" className="text-slate-300">Description</Label>
+              <Label htmlFor="description" className="text-slate-300">
+                Description
+              </Label>
               <Textarea
                 id="description"
                 placeholder="Describe your project..."
@@ -107,8 +138,10 @@ export default function ProjectNewPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="status" className="text-slate-300">Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as any)}>
+              <Label htmlFor="status" className="text-slate-300">
+                Status
+              </Label>
+              <Select value={status} onValueChange={(v) => setStatus(v as ProjectStatus)}>
                 <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
@@ -124,28 +157,29 @@ export default function ProjectNewPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="startDate" className="text-slate-300">Start Date</Label>
-                <div className="relative">
-                  <Input
-                    id="startDate"
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="bg-slate-950 border-slate-800 text-white"
-                  />
-                </div>
+                <Label htmlFor="startDate" className="text-slate-300">
+                  Start Date
+                </Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-slate-950 border-slate-800 text-white"
+                />
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="endDate" className="text-slate-300">End Date</Label>
-                <div className="relative">
-                  <Input
-                    id="endDate"
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="bg-slate-950 border-slate-800 text-white"
-                  />
-                </div>
+                <Label htmlFor="endDate" className="text-slate-300">
+                  End Date
+                </Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-slate-950 border-slate-800 text-white"
+                />
               </div>
             </div>
 
@@ -153,11 +187,12 @@ export default function ProjectNewPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate('/projects')}
+                onClick={() => navigate("/projects")}
                 className="border-slate-700 text-slate-300 hover:bg-slate-800"
               >
                 Cancel
               </Button>
+
               <Button
                 type="submit"
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
@@ -169,7 +204,7 @@ export default function ProjectNewPage() {
                     Creating...
                   </>
                 ) : (
-                  'Create Project'
+                  "Create Project"
                 )}
               </Button>
             </div>

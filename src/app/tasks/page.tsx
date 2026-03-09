@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -33,8 +34,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 
-type TaskStatus = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
 type Role = "admin" | "manager" | "employee" | "guest";
+type TaskStatus = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
+type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
 type TaskRow = {
   id: string;
@@ -45,12 +47,38 @@ type TaskRow = {
   due_date: string | null;
   project_id: string | null;
   assignee_id: string | null;
+  created_by: string | null;
   created_at: string;
+  updated_at: string;
 };
 
 type ProjectRow = {
   id: string;
   name: string;
+  created_by: string | null;
+};
+
+type ProjectMemberRow = {
+  id: string;
+  project_id: string;
+  user_id: string;
+  role: string;
+  created_at: string;
+};
+
+type TaskMemberRow = {
+  id: string;
+  task_id: string;
+  user_id: string;
+  role: string;
+  created_at: string;
+};
+
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  role: Role;
+  status: "active" | "pending" | "inactive" | "denied";
 };
 
 const columns: { id: TaskStatus; label: string; color: string }[] = [
@@ -63,23 +91,31 @@ const columns: { id: TaskStatus; label: string; color: string }[] = [
 export default function TasksPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const initialProjectId = searchParams.get("projectId");
+  const initialProjectId = searchParams.get("projectId") || "ALL";
 
   const [viewMode, setViewMode] = useState<"board" | "list">("board");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [priorityFilter, setPriorityFilter] = useState<string>("ALL");
-  const [projectFilter, setProjectFilter] = useState<string>(initialProjectId || "ALL");
-  const [draggedTask, setDraggedTask] = useState<string | null>(null);
+  const [projectFilter, setProjectFilter] = useState<string>(initialProjectId);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [draggedTask, setDraggedTask] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [projects, setProjects] = useState<ProjectRow[]>([]);
+  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [projectMembers, setProjectMembers] = useState<ProjectMemberRow[]>([]);
+  const [taskMembers, setTaskMembers] = useState<TaskMemberRow[]>([]);
 
   useEffect(() => {
     const loadTasksPage = async () => {
       setIsLoading(true);
+      setError("");
 
       try {
         const {
@@ -91,52 +127,137 @@ export default function TasksPage() {
           return;
         }
 
-        const [{ data: profileData }, { data: tasksData }, { data: projectsData }] =
-          await Promise.all([
-            supabase.from("profiles").select("role").eq("user_id", user.id).single(),
-            supabase
-              .from("tasks")
-              .select(
-                "id, title, description, status, priority, due_date, project_id, assignee_id, created_at"
-              )
-              .order("created_at", { ascending: false }),
-            supabase.from("projects").select("id, name").order("created_at", { ascending: false }),
-          ]);
+        setCurrentUserId(user.id);
 
-        setCurrentUserRole((profileData?.role as Role) || null);
-        setTasks((tasksData || []) as TaskRow[]);
-        setProjects((projectsData || []) as ProjectRow[]);
-      } catch (error) {
-        console.error("Tasks page load error:", error);
+        const [
+          { data: myProfile, error: myProfileError },
+          { data: allTasks, error: tasksError },
+          { data: allProjects, error: projectsError },
+          { data: allProfiles, error: profilesError },
+          { data: allProjectMembers, error: projectMembersError },
+          { data: allTaskMembers, error: taskMembersError },
+        ] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("role")
+            .eq("user_id", user.id)
+            .single(),
+          supabase.from("tasks").select("*").order("created_at", { ascending: false }),
+          supabase.from("projects").select("id, name, created_by").order("created_at", {
+            ascending: false,
+          }),
+          supabase
+            .from("profiles")
+            .select("user_id, full_name, role, status")
+            .eq("status", "active")
+            .order("full_name", { ascending: true }),
+          supabase.from("project_members").select("id, project_id, user_id, role, created_at"),
+          supabase.from("task_members").select("id, task_id, user_id, role, created_at"),
+        ]);
+
+        if (myProfileError || !myProfile) {
+          navigate("/login");
+          return;
+        }
+
+        const role = myProfile.role as Role;
+        setCurrentUserRole(role);
+
+        if (tasksError) {
+          throw tasksError;
+        }
+        if (projectsError) {
+          throw projectsError;
+        }
+        if (profilesError) {
+          throw profilesError;
+        }
+        if (projectMembersError) {
+          throw projectMembersError;
+        }
+        if (taskMembersError) {
+          throw taskMembersError;
+        }
+
+        const tasksData = (allTasks || []) as TaskRow[];
+        const projectsData = (allProjects || []) as ProjectRow[];
+        const profilesData = (allProfiles || []) as ProfileRow[];
+        const projectMembersData = (allProjectMembers || []) as ProjectMemberRow[];
+        const taskMembersData = (allTaskMembers || []) as TaskMemberRow[];
+
+        const visibleProjects =
+          role === "admin"
+            ? projectsData
+            : projectsData.filter((project) => {
+                const isCreator = project.created_by === user.id;
+                const isAssignedProjectMember = projectMembersData.some(
+                  (member) =>
+                    member.project_id === project.id && member.user_id === user.id
+                );
+                return isCreator || isAssignedProjectMember;
+              });
+
+        const visibleProjectIds = new Set(visibleProjects.map((project) => project.id));
+
+        const visibleTasks =
+          role === "admin"
+            ? tasksData
+            : tasksData.filter((task) => {
+                const isTaskCreator = task.created_by === user.id;
+                const isMainAssignee = task.assignee_id === user.id;
+                const isTaskMember = taskMembersData.some(
+                  (member) => member.task_id === task.id && member.user_id === user.id
+                );
+                const isInsideVisibleProject =
+                  !!task.project_id && visibleProjectIds.has(task.project_id);
+
+                return isTaskCreator || isMainAssignee || isTaskMember || isInsideVisibleProject;
+              });
+
+        setTasks(visibleTasks);
+        setProjects(visibleProjects);
+        setProfiles(profilesData);
+        setProjectMembers(projectMembersData);
+        setTaskMembers(taskMembersData);
+
+        if (
+          initialProjectId !== "ALL" &&
+          !visibleProjects.some((project) => project.id === initialProjectId)
+        ) {
+          setProjectFilter("ALL");
+        }
+      } catch (err) {
+        console.error("Load tasks page error:", err);
+        setError("Failed to load tasks.");
       } finally {
         setIsLoading(false);
       }
     };
 
     loadTasksPage();
-  }, [navigate]);
-
-  const canCreateTasks =
-    currentUserRole === "admin" ||
-    currentUserRole === "manager" ||
-    currentUserRole === "employee" ||
-    currentUserRole === "guest";
+  }, [navigate, initialProjectId]);
 
   const filteredTasks = useMemo(() => {
-    return tasks.filter((t) => {
-      const title = (t.title || "").toLowerCase();
-      const description = (t.description || "").toLowerCase();
+    return tasks.filter((task) => {
+      const title = (task.title || "").toLowerCase();
+      const description = (task.description || "").toLowerCase();
       const query = searchQuery.toLowerCase();
 
       const matchesSearch = title.includes(query) || description.includes(query);
-      const matchesStatus = statusFilter === "ALL" || (t.status || "").toUpperCase() === statusFilter;
+      const matchesStatus =
+        statusFilter === "ALL" || (task.status || "").toUpperCase() === statusFilter;
       const matchesPriority =
-        priorityFilter === "ALL" || (t.priority || "").toUpperCase() === priorityFilter;
-      const matchesProject = projectFilter === "ALL" || t.project_id === projectFilter;
+        priorityFilter === "ALL" || (task.priority || "").toUpperCase() === priorityFilter;
+      const matchesProject = projectFilter === "ALL" || task.project_id === projectFilter;
 
       return matchesSearch && matchesStatus && matchesPriority && matchesProject;
     });
   }, [tasks, searchQuery, statusFilter, priorityFilter, projectFilter]);
+
+  const getProjectName = (projectId: string | null) => {
+    if (!projectId) return "No project";
+    return projects.find((project) => project.id === projectId)?.name || "Unknown project";
+  };
 
   const getPriorityColor = (priority: string | null) => {
     switch ((priority || "").toUpperCase()) {
@@ -151,6 +272,30 @@ export default function TasksPage() {
     }
   };
 
+  const getTaskMemberProfiles = (taskId: string) => {
+    const memberUserIds = taskMembers
+      .filter((member) => member.task_id === taskId)
+      .map((member) => member.user_id);
+
+    return profiles.filter((profile) => memberUserIds.includes(profile.user_id));
+  };
+
+  const canEditTask = (task: TaskRow) => {
+    if (!currentUserId || !currentUserRole) return false;
+    return currentUserRole === "admin" || task.created_by === currentUserId;
+  };
+
+  const canDeleteTask = (task: TaskRow) => {
+    if (!currentUserId || !currentUserRole) return false;
+    return currentUserRole === "admin" || task.created_by === currentUserId;
+  };
+
+  const canCreateTasks =
+    currentUserRole === "admin" ||
+    currentUserRole === "manager" ||
+    currentUserRole === "employee" ||
+    currentUserRole === "guest";
+
   const handleDragStart = (taskId: string) => {
     setDraggedTask(taskId);
   };
@@ -159,44 +304,68 @@ export default function TasksPage() {
     e.preventDefault();
   };
 
-  const handleDrop = async (e: React.DragEvent, status: TaskStatus) => {
+  const handleDrop = async (e: React.DragEvent, nextStatus: TaskStatus) => {
     e.preventDefault();
 
     if (!draggedTask) return;
 
-    const { error } = await supabase.from("tasks").update({ status }).eq("id", draggedTask);
+    const task = tasks.find((item) => item.id === draggedTask);
+    if (!task) {
+      setDraggedTask(null);
+      return;
+    }
 
-    if (error) {
-      console.error("Move task error:", error);
-      alert(error.message);
+    const canMove =
+      currentUserRole === "admin" ||
+      task.created_by === currentUserId ||
+      taskMembers.some(
+        (member) => member.task_id === draggedTask && member.user_id === currentUserId
+      ) ||
+      task.assignee_id === currentUserId;
+
+    if (!canMove) {
+      setDraggedTask(null);
+      return;
+    }
+
+    const { error: updateError } = await supabase
+      .from("tasks")
+      .update({
+        status: nextStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", draggedTask);
+
+    if (updateError) {
+      console.error("Move task error:", updateError);
+      setError(updateError.message || "Failed to update task status.");
       setDraggedTask(null);
       return;
     }
 
     setTasks((prev) =>
-      prev.map((task) => (task.id === draggedTask ? { ...task, status } : task))
+      prev.map((item) =>
+        item.id === draggedTask ? { ...item, status: nextStatus } : item
+      )
     );
+
     setDraggedTask(null);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (taskId: string) => {
     const confirmed = window.confirm("Are you sure you want to delete this task?");
     if (!confirmed) return;
 
-    const { error } = await supabase.from("tasks").delete().eq("id", id);
+    const { error: deleteError } = await supabase.from("tasks").delete().eq("id", taskId);
 
-    if (error) {
-      console.error("Delete task error:", error);
-      alert(error.message);
+    if (deleteError) {
+      console.error("Delete task error:", deleteError);
+      setError(deleteError.message || "Failed to delete task.");
       return;
     }
 
-    setTasks((prev) => prev.filter((task) => task.id !== id));
-  };
-
-  const getProjectName = (projectId: string | null) => {
-    if (!projectId) return "No project";
-    return projects.find((p) => p.id === projectId)?.name || "Unknown project";
+    setTasks((prev) => prev.filter((task) => task.id !== taskId));
+    setTaskMembers((prev) => prev.filter((member) => member.task_id !== taskId));
   };
 
   if (isLoading) {
@@ -219,7 +388,9 @@ export default function TasksPage() {
           <Button
             className="bg-indigo-600 hover:bg-indigo-700 text-white"
             onClick={() =>
-              navigate(`/tasks/new${initialProjectId ? `?projectId=${initialProjectId}` : ""}`)
+              navigate(
+                `/tasks/new${projectFilter !== "ALL" ? `?projectId=${projectFilter}` : ""}`
+              )
             }
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -227,6 +398,12 @@ export default function TasksPage() {
           </Button>
         )}
       </div>
+
+      {error && (
+        <Alert className="bg-red-900/20 border-red-800 text-red-300">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="relative flex-1">
@@ -267,14 +444,14 @@ export default function TasksPage() {
           </Select>
 
           <Select value={projectFilter} onValueChange={setProjectFilter}>
-            <SelectTrigger className="w-40 bg-slate-900 border-slate-800 text-white">
+            <SelectTrigger className="w-44 bg-slate-900 border-slate-800 text-white">
               <SelectValue placeholder="Project" />
             </SelectTrigger>
             <SelectContent className="bg-slate-900 border-slate-800">
               <SelectItem value="ALL">All Projects</SelectItem>
-              {projects.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name}
+              {projects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -283,7 +460,7 @@ export default function TasksPage() {
           <ToggleGroup
             type="single"
             value={viewMode}
-            onValueChange={(v) => v && setViewMode(v as "board" | "list")}
+            onValueChange={(value) => value && setViewMode(value as "board" | "list")}
           >
             <ToggleGroupItem value="board" className="data-[state=on]:bg-slate-800">
               <Grid3X3 className="w-4 h-4" />
@@ -299,7 +476,7 @@ export default function TasksPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {columns.map((column) => {
             const columnTasks = filteredTasks.filter(
-              (t) => (t.status || "").toUpperCase() === column.id
+              (task) => (task.status || "").toUpperCase() === column.id
             );
 
             return (
@@ -313,94 +490,121 @@ export default function TasksPage() {
                   <div className="flex items-center gap-2">
                     <div className={`w-3 h-3 rounded-full ${column.color}`} />
                     <h3 className="font-medium text-white">{column.label}</h3>
-                    <Badge variant="default" className="bg-slate-800 text-slate-400">
-                      {columnTasks.length}
-                    </Badge>
+                    <Badge className="bg-slate-800 text-slate-400">{columnTasks.length}</Badge>
                   </div>
                 </div>
 
-                <div className="p-3 space-y-3 min-h-[200px]">
-                  {columnTasks.map((task) => (
-                    <Card
-                      key={task.id}
-                      draggable
-                      onDragStart={() => handleDragStart(task.id)}
-                      className="bg-slate-900 border-slate-800 hover:border-indigo-500/30 cursor-pointer transition-all group"
-                      onClick={() => navigate(`/tasks/${task.id}`)}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <Badge className={getPriorityColor(task.priority)}>
-                            {task.priority || "LOW"}
-                          </Badge>
+                <div className="p-3 space-y-3 min-h-[220px]">
+                  {columnTasks.map((task) => {
+                    const assigneeProfiles = getTaskMemberProfiles(task.id);
 
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                              >
-                                <MoreVertical className="w-3 h-3 text-slate-400" />
-                              </Button>
-                            </DropdownMenuTrigger>
+                    return (
+                      <Card
+                        key={task.id}
+                        draggable
+                        onDragStart={() => handleDragStart(task.id)}
+                        className="bg-slate-900 border-slate-800 hover:border-indigo-500/30 cursor-pointer transition-all group"
+                        onClick={() => navigate(`/tasks/${task.id}`)}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between mb-2">
+                            <Badge className={getPriorityColor(task.priority)}>
+                              {task.priority || "LOW"}
+                            </Badge>
 
-                            <DropdownMenuContent
-                              align="end"
-                              className="bg-slate-900 border-slate-800"
-                            >
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigate(`/tasks/${task.id}/edit`);
-                                }}
-                              >
-                                <Edit className="w-4 h-4 mr-2" />
-                                Edit
-                              </DropdownMenuItem>
+                            {(canEditTask(task) || canDeleteTask(task)) && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger
+                                  asChild
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                                  >
+                                    <MoreVertical className="w-3 h-3 text-slate-400" />
+                                  </Button>
+                                </DropdownMenuTrigger>
 
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDelete(task.id);
-                                }}
-                                className="text-red-400"
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+                                <DropdownMenuContent
+                                  align="end"
+                                  className="bg-slate-900 border-slate-800"
+                                >
+                                  {canEditTask(task) && (
+                                    <DropdownMenuItem
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(`/tasks/${task.id}/edit`);
+                                      }}
+                                    >
+                                      <Edit className="w-4 h-4 mr-2" />
+                                      Edit
+                                    </DropdownMenuItem>
+                                  )}
 
-                        <h4 className="text-white font-medium mb-2">{task.title}</h4>
-
-                        <p className="text-slate-500 text-sm mb-3 line-clamp-2">
-                          {task.description || "No description"}
-                        </p>
-
-                        <div className="mb-3">
-                          <div className="flex items-center justify-between text-xs mb-1">
-                            <span className="text-slate-500">{getProjectName(task.project_id)}</span>
+                                  {canDeleteTask(task) && (
+                                    <DropdownMenuItem
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDelete(task.id);
+                                      }}
+                                      className="text-red-400"
+                                    >
+                                      <Trash2 className="w-4 h-4 mr-2" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
                           </div>
-                          <Progress value={0} className="h-1 bg-slate-800" />
-                        </div>
 
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-slate-500">
-                            {task.assignee_id ? "Assigned" : "Unassigned"}
-                          </span>
+                          <h4 className="text-white font-medium mb-2">{task.title}</h4>
 
-                          {task.due_date && (
-                            <span className="text-xs text-slate-500 flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              {format(new Date(task.due_date), "MMM d")}
-                            </span>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                          <p className="text-slate-500 text-sm mb-3 line-clamp-2">
+                            {task.description || "No description"}
+                          </p>
+
+                          <div className="text-xs text-slate-500 mb-3">
+                            {getProjectName(task.project_id)}
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <div className="flex -space-x-2">
+                              {assigneeProfiles.slice(0, 3).map((profile) => (
+                                <Avatar
+                                  key={profile.user_id}
+                                  className="w-6 h-6 border-2 border-slate-900"
+                                >
+                                  <AvatarFallback className="bg-indigo-600 text-white text-[10px]">
+                                    {(profile.full_name || "U")
+                                      .split(" ")
+                                      .map((n) => n[0])
+                                      .join("")
+                                      .toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                              ))}
+
+                              {assigneeProfiles.length > 3 && (
+                                <div className="w-6 h-6 rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-[10px] text-slate-400">
+                                  +{assigneeProfiles.length - 3}
+                                </div>
+                              )}
+                            </div>
+
+                            {task.due_date && (
+                              <span className="text-xs text-slate-500 flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {format(new Date(task.due_date), "MMM d")}
+                              </span>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -410,83 +614,113 @@ export default function TasksPage() {
         <Card className="bg-slate-900/50 border-slate-800">
           <CardContent className="p-0">
             <div className="divide-y divide-slate-800">
-              {filteredTasks.map((task) => (
-                <div
-                  key={task.id}
-                  onClick={() => navigate(`/tasks/${task.id}`)}
-                  className="flex items-center gap-4 p-4 hover:bg-slate-800/50 cursor-pointer transition-colors"
-                >
-                  <CheckSquare
-                    className={`w-5 h-5 ${
-                      (task.status || "").toUpperCase() === "DONE"
-                        ? "text-green-400"
-                        : "text-slate-500"
-                    }`}
-                  />
+              {filteredTasks.map((task) => {
+                const assigneeProfiles = getTaskMemberProfiles(task.id);
 
-                  <div className="flex-1 min-w-0">
-                    <h4
-                      className={`font-medium truncate ${
+                return (
+                  <div
+                    key={task.id}
+                    onClick={() => navigate(`/tasks/${task.id}`)}
+                    className="flex items-center gap-4 p-4 hover:bg-slate-800/50 cursor-pointer transition-colors"
+                  >
+                    <CheckSquare
+                      className={`w-5 h-5 ${
                         (task.status || "").toUpperCase() === "DONE"
-                          ? "text-slate-500 line-through"
-                          : "text-white"
+                          ? "text-green-400"
+                          : "text-slate-500"
                       }`}
-                    >
-                      {task.title}
-                    </h4>
-                    <p className="text-slate-500 text-sm truncate">
-                      {task.description || "No description"}
-                    </p>
-                  </div>
+                    />
 
-                  <div className="hidden sm:flex items-center gap-4">
-                    <Badge className={getPriorityColor(task.priority)}>
-                      {task.priority || "LOW"}
-                    </Badge>
+                    <div className="flex-1 min-w-0">
+                      <h4
+                        className={`font-medium truncate ${
+                          (task.status || "").toUpperCase() === "DONE"
+                            ? "text-slate-500 line-through"
+                            : "text-white"
+                        }`}
+                      >
+                        {task.title}
+                      </h4>
+                      <p className="text-slate-500 text-sm truncate">
+                        {task.description || "No description"}
+                      </p>
+                    </div>
 
-                    <span className="text-sm text-slate-500">
-                      {getProjectName(task.project_id)}
-                    </span>
+                    <div className="hidden sm:flex items-center gap-4">
+                      <Badge className={getPriorityColor(task.priority)}>
+                        {task.priority || "LOW"}
+                      </Badge>
 
-                    {task.due_date && (
                       <span className="text-sm text-slate-500">
-                        {format(new Date(task.due_date), "MMM d")}
+                        {getProjectName(task.project_id)}
                       </span>
+
+                      <div className="flex -space-x-2">
+                        {assigneeProfiles.slice(0, 3).map((profile) => (
+                          <Avatar
+                            key={profile.user_id}
+                            className="w-7 h-7 border-2 border-slate-900"
+                          >
+                            <AvatarFallback className="bg-indigo-600 text-white text-xs">
+                              {(profile.full_name || "U")
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                                .toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                        ))}
+                      </div>
+
+                      {task.due_date && (
+                        <span className="text-sm text-slate-500">
+                          {format(new Date(task.due_date), "MMM d")}
+                        </span>
+                      )}
+                    </div>
+
+                    {(canEditTask(task) || canDeleteTask(task)) && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="w-4 h-4 text-slate-400" />
+                          </Button>
+                        </DropdownMenuTrigger>
+
+                        <DropdownMenuContent
+                          align="end"
+                          className="bg-slate-900 border-slate-800"
+                        >
+                          {canEditTask(task) && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/tasks/${task.id}/edit`);
+                              }}
+                            >
+                              <Edit className="w-4 h-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                          )}
+
+                          {canDeleteTask(task) && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(task.id);
+                              }}
+                              className="text-red-400"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </div>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="w-4 h-4 text-slate-400" />
-                      </Button>
-                    </DropdownMenuTrigger>
-
-                    <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800">
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/tasks/${task.id}/edit`);
-                        }}
-                      >
-                        <Edit className="w-4 h-4 mr-2" />
-                        Edit
-                      </DropdownMenuItem>
-
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(task.id);
-                        }}
-                        className="text-red-400"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -502,7 +736,7 @@ export default function TasksPage() {
             priorityFilter !== "ALL" ||
             projectFilter !== "ALL"
               ? "Try adjusting your filters"
-              : "Create your first task to get started"}
+              : "No visible tasks for your account yet"}
           </p>
 
           {!searchQuery &&
@@ -512,9 +746,7 @@ export default function TasksPage() {
             canCreateTasks && (
               <Button
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                onClick={() =>
-                  navigate(`/tasks/new${initialProjectId ? `?projectId=${initialProjectId}` : ""}`)
-                }
+                onClick={() => navigate("/tasks/new")}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create Task

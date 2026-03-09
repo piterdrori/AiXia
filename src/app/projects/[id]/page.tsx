@@ -60,6 +60,18 @@ type TaskRow = {
   created_at: string;
 };
 
+type ActivityLogRow = {
+  id: string;
+  project_id: string | null;
+  task_id: string | null;
+  user_id: string | null;
+  action_type: string;
+  entity_type: string;
+  entity_id: string | null;
+  message: string;
+  created_at: string;
+};
+
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -76,6 +88,7 @@ export default function ProjectDetailPage() {
   const [projectMembers, setProjectMembers] = useState<ProjectMemberRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLogRow[]>([]);
 
   useEffect(() => {
     const loadProjectPage = async () => {
@@ -105,6 +118,7 @@ export default function ProjectDetailPage() {
           { data: membersData },
           { data: profilesData },
           { data: tasksData },
+          { data: logsData },
         ] = await Promise.all([
           supabase
             .from("profiles")
@@ -129,6 +143,12 @@ export default function ProjectDetailPage() {
             .select("id, title, description, status, priority, due_date, project_id, assignee_id, created_by, created_at")
             .eq("project_id", id)
             .order("created_at", { ascending: false }),
+          supabase
+            .from("activity_logs")
+            .select("id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at")
+            .eq("project_id", id)
+            .order("created_at", { ascending: false })
+            .limit(50),
         ]);
 
         if (myProfileError || !myProfile) {
@@ -149,6 +169,7 @@ export default function ProjectDetailPage() {
         const loadedMembers = (membersData || []) as ProjectMemberRow[];
         const loadedProfiles = (profilesData || []) as ProfileRow[];
         const loadedTasks = (tasksData || []) as TaskRow[];
+        const loadedLogs = (logsData || []) as ActivityLogRow[];
 
         const isAdmin = role === "admin";
         const isCreator = loadedProject.created_by === user.id;
@@ -159,30 +180,11 @@ export default function ProjectDetailPage() {
           return;
         }
 
-        let calculatedProgress = 0;
-        if (loadedTasks.length > 0) {
-          const doneCount = loadedTasks.filter(
-            (task) => (task.status || "").toUpperCase() === "DONE"
-          ).length;
-          calculatedProgress = Math.round((doneCount / loadedTasks.length) * 100);
-        }
-
-        if ((loadedProject.progress || 0) !== calculatedProgress) {
-          await supabase
-            .from("projects")
-            .update({
-              progress: calculatedProgress,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", loadedProject.id);
-
-          loadedProject.progress = calculatedProgress;
-        }
-
         setProject(loadedProject);
         setProjectMembers(loadedMembers);
         setProfiles(loadedProfiles);
         setTasks(loadedTasks);
+        setActivityLogs(loadedLogs);
       } catch (err) {
         console.error("Load project page error:", err);
         setError("Something went wrong while loading the project.");
@@ -436,6 +438,9 @@ export default function ProjectDetailPage() {
           <TabsTrigger value="team" className="data-[state=active]:bg-slate-800">
             Team
           </TabsTrigger>
+          <TabsTrigger value="activity" className="data-[state=active]:bg-slate-800">
+            Activity
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -566,96 +571,3 @@ export default function ProjectDetailPage() {
                           </p>
 
                           <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            <Badge className={getTaskStatusColor(task.status)}>
-                              {task.status || "TODO"}
-                            </Badge>
-                            <Badge className={getPriorityColor(task.priority)}>
-                              {task.priority || "LOW"}
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-4">
-                        {assignee && (
-                          <div className="flex items-center gap-2">
-                            <Avatar className="w-7 h-7">
-                              <AvatarFallback className="bg-indigo-600 text-white text-xs">
-                                {getInitials(assignee.full_name)}
-                              </AvatarFallback>
-                            </Avatar>
-                          </div>
-                        )}
-
-                        {task.due_date && (
-                          <span className="text-sm text-slate-500 flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {format(new Date(task.due_date), "MMM d")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-
-            {tasks.length === 0 && (
-              <div className="text-center py-12">
-                <CheckSquare className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-                <p className="text-slate-500">No tasks yet</p>
-                <Button
-                  className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white"
-                  onClick={() => navigate(`/tasks/new?projectId=${project.id}`)}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add First Task
-                </Button>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="team" className="space-y-4">
-          <Card className="bg-slate-900/50 border-slate-800">
-            <CardHeader>
-              <CardTitle className="text-white">Team Members</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="divide-y divide-slate-800">
-                {projectMembers.length === 0 ? (
-                  <p className="text-slate-500 py-4">No team members assigned</p>
-                ) : (
-                  projectMembers.map((member) => {
-                    const profile = getProfileByUserId(member.user_id);
-
-                    return (
-                      <div key={member.id} className="flex items-center gap-4 py-4">
-                        <Avatar className="w-10 h-10">
-                          <AvatarFallback className="bg-indigo-600 text-white">
-                            {getInitials(profile?.full_name || null)}
-                          </AvatarFallback>
-                        </Avatar>
-
-                        <div className="flex-1">
-                          <p className="text-white font-medium">
-                            {profile?.full_name || "Unnamed user"}
-                          </p>
-                          <p className="text-slate-500 text-sm">
-                            {profile?.role?.toUpperCase() || "USER"}
-                          </p>
-                        </div>
-
-                        <Badge className="bg-slate-800 text-slate-300">{member.role}</Badge>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}

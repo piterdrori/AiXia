@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { logActivity } from "@/lib/activity";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -90,24 +91,28 @@ export default function ProjectEditPage() {
           return;
         }
 
-        const [{ data: me, error: meError }, { data: projectData, error: projectError }, { data: membersData }, { data: profilesData }] =
-          await Promise.all([
-            supabase.from("profiles").select("role").eq("user_id", user.id).single(),
-            supabase
-              .from("projects")
-              .select("id, name, description, status, start_date, end_date, created_by")
-              .eq("id", id)
-              .single(),
-            supabase
-              .from("project_members")
-              .select("id, project_id, user_id, role, created_at")
-              .eq("project_id", id),
-            supabase
-              .from("profiles")
-              .select("user_id, full_name, role, status")
-              .eq("status", "active")
-              .order("full_name", { ascending: true }),
-          ]);
+        const [
+          { data: me, error: meError },
+          { data: projectData, error: projectError },
+          { data: membersData },
+          { data: profilesData },
+        ] = await Promise.all([
+          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
+          supabase
+            .from("projects")
+            .select("id, name, description, status, start_date, end_date, created_by")
+            .eq("id", id)
+            .single(),
+          supabase
+            .from("project_members")
+            .select("id, project_id, user_id, role, created_at")
+            .eq("project_id", id),
+          supabase
+            .from("profiles")
+            .select("user_id, full_name, role, status")
+            .eq("status", "active")
+            .order("full_name", { ascending: true }),
+        ]);
 
         if (meError || !me) {
           navigate("/projects");
@@ -230,6 +235,14 @@ export default function ProjectEditPage() {
         return;
       }
 
+      await logActivity({
+        projectId: id,
+        actionType: "project_updated",
+        entityType: "project",
+        entityId: id,
+        message: `Updated project "${name.trim()}"`,
+      });
+
       const existingUserIds = existingMembers.map((member) => member.user_id);
       const toInsert = selectedMembers.filter((userId) => !existingUserIds.includes(userId));
       const toDelete = existingMembers.filter((member) => !selectedSet.has(member.user_id));
@@ -251,6 +264,14 @@ export default function ProjectEditPage() {
           setIsSaving(false);
           return;
         }
+
+        await logActivity({
+          projectId: id,
+          actionType: "project_members_added",
+          entityType: "member",
+          entityId: id,
+          message: `Added ${toInsert.length} member(s) to project`,
+        });
       }
 
       if (toDelete.length > 0) {
@@ -267,6 +288,14 @@ export default function ProjectEditPage() {
           setIsSaving(false);
           return;
         }
+
+        await logActivity({
+          projectId: id,
+          actionType: "project_members_removed",
+          entityType: "member",
+          entityId: id,
+          message: `Removed ${toDelete.length} member(s) from project`,
+        });
       }
 
       navigate(`/projects/${id}`);

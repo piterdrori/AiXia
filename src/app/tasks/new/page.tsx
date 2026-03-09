@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { logActivity } from "@/lib/activity";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -190,9 +191,7 @@ export default function TaskNewPage() {
 
   const toggleAssignee = (userId: string) => {
     setSelectedAssignees((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     );
   };
 
@@ -248,6 +247,15 @@ export default function TaskNewPage() {
         return;
       }
 
+      await logActivity({
+        projectId,
+        taskId: taskData.id,
+        actionType: "task_created",
+        entityType: "task",
+        entityId: taskData.id,
+        message: `Created task "${title.trim()}"`,
+      });
+
       if (selectedAssignees.length > 0) {
         const memberRows = selectedAssignees.map((userId) => ({
           task_id: taskData.id,
@@ -265,6 +273,15 @@ export default function TaskNewPage() {
           setIsSaving(false);
           return;
         }
+
+        await logActivity({
+          projectId,
+          taskId: taskData.id,
+          actionType: "task_assignees_added",
+          entityType: "member",
+          entityId: taskData.id,
+          message: `Assigned ${selectedAssignees.length} member(s) to task "${title.trim()}"`,
+        });
       }
 
       navigate(`/projects/${projectId}`);
@@ -297,7 +314,7 @@ export default function TaskNewPage() {
 
         <div>
           <h1 className="text-2xl font-bold text-white">Create New Task</h1>
-          <p className="text-slate-400">Add a new task to your project</p >
+          <p className="text-slate-400">Add a new task to your project</p>
         </div>
       </div>
 
@@ -441,7 +458,7 @@ export default function TaskNewPage() {
 
               <p className="text-slate-500 text-xs">
                 Only assigned members, admin, project creator, and task creator should be able to see this task.
-              </p >
+              </p>
             </div>
 
             <div className="flex items-center justify-end gap-4 pt-4">

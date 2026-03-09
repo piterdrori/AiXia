@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { logActivity } from "@/lib/activity";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,14 +48,14 @@ export default function ProjectNewPage() {
       setIsMembersLoading(true);
 
       try {
-        const { data, error } = await supabase
+        const { data, error: membersError } = await supabase
           .from("profiles")
           .select("user_id, full_name, role, status")
           .eq("status", "active")
           .order("full_name", { ascending: true });
 
-        if (error) {
-          console.error("Load team members error:", error);
+        if (membersError) {
+          console.error("Load team members error:", membersError);
           setTeamMembers([]);
         } else {
           setTeamMembers((data || []) as ProfileRow[]);
@@ -121,6 +122,14 @@ export default function ProjectNewPage() {
         return;
       }
 
+      await logActivity({
+        projectId: projectData.id,
+        actionType: "project_created",
+        entityType: "project",
+        entityId: projectData.id,
+        message: `Created project "${projectData.name}"`,
+      });
+
       if (selectedMembers.length > 0) {
         const memberRows = selectedMembers.map((memberId) => ({
           project_id: projectData.id,
@@ -128,16 +137,26 @@ export default function ProjectNewPage() {
           role: "member",
         }));
 
-        const { error: membersError } = await supabase
+        const { error: membersInsertError } = await supabase
           .from("project_members")
           .insert(memberRows);
 
-        if (membersError) {
-          console.error("Insert project members error:", membersError);
-          setError(`Project created, but failed to assign members: ${membersError.message}`);
+        if (membersInsertError) {
+          console.error("Insert project members error:", membersInsertError);
+          setError(
+            `Project created, but failed to assign members: ${membersInsertError.message}`
+          );
           setIsLoading(false);
           return;
         }
+
+        await logActivity({
+          projectId: projectData.id,
+          actionType: "project_members_assigned",
+          entityType: "member",
+          entityId: projectData.id,
+          message: `Assigned ${selectedMembers.length} member(s) to project "${projectData.name}"`,
+        });
       }
 
       navigate(`/projects/${projectData.id}`);
@@ -159,6 +178,7 @@ export default function ProjectNewPage() {
         >
           <ArrowLeft className="w-5 h-5" />
         </Button>
+
         <div>
           <h1 className="text-2xl font-bold text-white">Create New Project</h1>
           <p className="text-slate-400">Set up a new project for your team</p>

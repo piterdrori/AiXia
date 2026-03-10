@@ -978,122 +978,147 @@ return (
               </div>
             </div>
 
-            <ScrollArea className="flex-1 h-full">
-              <div className="space-y-4 pt-4 px-4 pb-4">
-                {conversationMessages.map((message, index) => {
-                  const isOwn = message.user_id === currentUserId;
-                  const user = getProfileByUserId(message.user_id);
-                  const showAvatar =
-                    index === 0 || conversationMessages[index - 1].user_id !== message.user_id;
-                  const isEditing = editingMessageId === message.id;
-
-                  return (
-                    <div
-                      key={message.id}
-                      className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}
-                    >
-                      {showAvatar ? (
-                        <Avatar className="w-8 h-8 flex-shrink-0">
-                          <AvatarFallback className="bg-indigo-600 text-white text-xs">
-                            {(user?.full_name || "U")
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")
-                              .toUpperCase()
-                              .slice(0, 2)}
-                          </AvatarFallback>
-                        </Avatar>
-                      ) : (
-                        <div className="w-8 flex-shrink-0" />
-                      )}
-
-                      <div className={`max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
-                        {showAvatar && (
-                          <p className="text-xs text-slate-500 mb-1">
-                            {user?.full_name || "Unknown"} •{" "}
-                            {format(new Date(message.created_at), "h:mm a")}
-                          </p>
-                        )}
-
-                        <div
-                          className={`px-4 py-2 rounded-2xl ${
-                            isOwn
-                              ? "bg-indigo-600 text-white rounded-br-none"
-                              : "bg-slate-800 text-slate-200 rounded-bl-none"
-                          }`}
-                        >
-                          {isEditing ? (
-                            <div className="space-y-2 min-w-[260px]">
-                              <Textarea
-                                value={editingMessageText}
-                                onChange={(e) => setEditingMessageText(e.target.value)}
-                                rows={3}
-                                className="bg-slate-900 border-slate-700 text-white resize-none"
-                              />
-                              <div className="flex items-center gap-2 justify-end">
-                                <Button
-                                  size="sm"
-                                  className="bg-white text-black hover:bg-slate-200"
-                                  onClick={() => handleSaveEditedMessage(message)}
-                                  disabled={
-                                    messageActionLoading === message.id ||
-                                    !editingMessageText.trim()
-                                  }
-                                >
-                                  <Save className="w-3 h-3 mr-1" />
-                                  Save
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-slate-500 text-white hover:bg-slate-700"
-                                  onClick={cancelEditingMessage}
-                                  disabled={messageActionLoading === message.id}
-                                >
-                                  <X className="w-3 h-3 mr-1" />
-                                  Cancel
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="whitespace-pre-wrap">{message.content}</p>
-                          )}
-                        </div>
-
-                        {canManageMessage(message) && !isEditing && (
-                          <div className={`mt-1 flex gap-2 ${isOwn ? "justify-end" : "justify-start"}`}>
-                            <button
-                              className="text-xs text-slate-400 hover:text-white"
-                              onClick={() => startEditingMessage(message)}
-                              disabled={messageActionLoading === message.id}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              className="text-xs text-red-400 hover:text-red-300"
-                              onClick={() => handleDeleteMessage(message)}
-                              disabled={messageActionLoading === message.id}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        )}
+            <ScrollArea className="flex-1">
+              <div className="px-4 pt-6 pb-4">
+                {selectedConversationId && (
+                  <div className="flex justify-center mb-4">
+                    {hasMoreMessages[selectedConversationId] ? (
+                      <Button
+                        type="button"
+                        onClick={handleLoadOlderMessages}
+                        disabled={isLoadingOlder}
+                        className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
+                      >
+                        {isLoadingOlder ? "Loading older messages..." : "Load older messages"}
+                      </Button>
+                    ) : (
+                      <div className="text-xs text-slate-500 px-3 py-1 rounded-md bg-slate-900/80 border border-slate-800">
+                        Beginning of conversation
                       </div>
-                    </div>
-                  );
-                })}
-
-                <div ref={messagesEndRef} />
-
-                {conversationMessages.length === 0 && (
-                  <div className="text-center py-12">
-                    <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4">
-                      <MessageSquare className="w-8 h-8 text-slate-500" />
-                    </div>
-                    <p className="text-slate-500">No messages yet</p>
-                    <p className="text-slate-600 text-sm">Start the conversation!</p>
+                    )}
                   </div>
                 )}
+
+                <div className="space-y-4">
+                  {conversationMessages.map((message, index) => {
+                    const isOwn = message.user_id === currentUserId;
+                    const user = getProfileByUserId(message.user_id);
+                    const showAvatar =
+                      index === 0 || conversationMessages[index - 1].user_id !== message.user_id;
+                    const isEditing = editingMessageId === message.id;
+
+                    return (
+                      <div
+                        key={message.id}
+                        className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}
+                      >
+                        {showAvatar ? (
+                          <Avatar className="w-8 h-8 flex-shrink-0">
+                            <AvatarFallback className="bg-indigo-600 text-white text-xs">
+                              {(user?.full_name || "U")
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                                .toUpperCase()
+                                .slice(0, 2)}
+                            </AvatarFallback>
+                          </Avatar>
+                        ) : (
+                          <div className="w-8 flex-shrink-0" />
+                        )}
+
+                        <div className={`max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
+                          {showAvatar && (
+                            <p className="text-xs text-slate-500 mb-1">
+                              {user?.full_name || "Unknown"} •{" "}
+                              {format(new Date(message.created_at), "h:mm a")}
+                            </p>
+                          )}
+
+                          <div
+                            className={`px-4 py-2 rounded-2xl ${
+                              isOwn
+                                ? "bg-indigo-600 text-white rounded-br-none"
+                                : "bg-slate-800 text-slate-200 rounded-bl-none"
+                            }`}
+                          >
+                            {isEditing ? (
+                              <div className="space-y-2 min-w-[260px]">
+                                <Textarea
+                                  value={editingMessageText}
+                                  onChange={(e) => setEditingMessageText(e.target.value)}
+                                  rows={3}
+                                  className="bg-slate-900 border-slate-700 text-white resize-none"
+                                />
+                                <div className="flex items-center gap-2 justify-end">
+                                  <Button
+                                    size="sm"
+                                    className="bg-white text-black hover:bg-slate-200"
+                                    onClick={() => handleSaveEditedMessage(message)}
+                                    disabled={
+                                      messageActionLoading === message.id ||
+                                      !editingMessageText.trim()
+                                    }
+                                  >
+                                    <Save className="w-3 h-3 mr-1" />
+                                    Save
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-slate-500 text-white hover:bg-slate-700"
+                                    onClick={cancelEditingMessage}
+                                    disabled={messageActionLoading === message.id}
+                                  >
+                                    <X className="w-3 h-3 mr-1" />
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="whitespace-pre-wrap">{message.content}</p>
+                            )}
+                          </div>
+
+                          {canManageMessage(message) && !isEditing && (
+                            <div
+                              className={`mt-1 flex gap-2 ${
+                                isOwn ? "justify-end" : "justify-start"
+                              }`}
+                            >
+                              <button
+                                className="text-xs text-slate-400 hover:text-white"
+                                onClick={() => startEditingMessage(message)}
+                                disabled={messageActionLoading === message.id}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="text-xs text-red-400 hover:text-red-300"
+                                onClick={() => handleDeleteMessage(message)}
+                                disabled={messageActionLoading === message.id}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <div ref={messagesEndRef} />
+
+                  {conversationMessages.length === 0 && (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4">
+                        <MessageSquare className="w-8 h-8 text-slate-500" />
+                      </div>
+                      <p className="text-slate-500">No messages yet</p>
+                      <p className="text-slate-600 text-sm">Start the conversation!</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </ScrollArea>
 

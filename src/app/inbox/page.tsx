@@ -22,8 +22,6 @@ import {
   Trash2,
   Filter,
   AlertCircle,
-  Calendar,
-  User,
   CheckSquare,
   MessageSquare,
   Info,

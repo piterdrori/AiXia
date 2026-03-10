@@ -6,7 +6,8 @@ export type NotificationType =
   | "TASK_UPDATED"
   | "COMMENT"
   | "FILE_UPLOAD"
-  | "PROJECT_UPDATE";
+  | "PROJECT_UPDATE"
+  | "MENTION";
 
 export interface CreateNotificationInput {
   userId: string;
@@ -73,4 +74,31 @@ export async function getUnreadNotifications(userId: string) {
   }
 
   return data || [];
+}
+
+export function extractMentionedUserIds(
+  text: string,
+  profiles: Array<{ user_id: string; full_name: string | null }>
+) {
+  const lowerText = text.toLowerCase();
+  const mentionedIds = new Set<string>();
+
+  for (const profile of profiles) {
+    const fullName = (profile.full_name || "").trim();
+    if (!fullName) continue;
+
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    const firstName = parts[0]?.toLowerCase();
+    const fullNameLower = fullName.toLowerCase();
+
+    if (firstName && lowerText.includes(`@${firstName}`)) {
+      mentionedIds.add(profile.user_id);
+    }
+
+    if (fullNameLower && lowerText.includes(`@${fullNameLower}`)) {
+      mentionedIds.add(profile.user_id);
+    }
+  }
+
+  return Array.from(mentionedIds);
 }

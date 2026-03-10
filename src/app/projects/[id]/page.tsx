@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import {
+  uploadProjectOrTaskFile,
+  getSignedFileUrl,
+  deleteUploadedFile,
+} from "@/lib/file-upload";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +20,9 @@ import {
   Plus,
   CheckSquare,
   Calendar,
+  Upload,
+  FileText,
+  Download,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -72,13 +80,28 @@ type ActivityLogRow = {
   created_at: string;
 };
 
+type FileUploadRow = {
+  id: string;
+  project_id: string | null;
+  task_id: string | null;
+  user_id: string | null;
+  file_name: string;
+  file_path: string;
+  file_size: number | null;
+  mime_type: string | null;
+  entity_type: "project" | "task";
+  created_at: string;
+};
+
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const projectFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [activeTab, setActiveTab] = useState("overview");
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState("");
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -89,6 +112,7 @@ export default function ProjectDetailPage() {
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLogRow[]>([]);
+  const [files, setFiles] = useState<FileUploadRow[]>([]);
 
   useEffect(() => {
     const loadProjectPage = async () => {
@@ -119,6 +143,7 @@ export default function ProjectDetailPage() {
           { data: profilesData },
           { data: tasksData },
           { data: logsData },
+          { data: filesData },
         ] = await Promise.all([
           supabase
             .from("profiles")
@@ -155,6 +180,15 @@ export default function ProjectDetailPage() {
             .eq("project_id", id)
             .order("created_at", { ascending: false })
             .limit(50),
+          supabase
+            .from("file_uploads")
+            .select(
+              "id, project_id, task_id, user_id, file_name, file_path, file_size, mime_type, entity_type, created_at"
+            )
+            .eq("project_id", id)
+            .is("task_id", null)
+            .eq("entity_type", "project")
+            .order("created_at", { ascending: false }),
         ]);
 
         if (myProfileError || !myProfile) {
@@ -176,6 +210,7 @@ export default function ProjectDetailPage() {
         const loadedProfiles = (profilesData || []) as ProfileRow[];
         const loadedTasks = (tasksData || []) as TaskRow[];
         const loadedLogs = (logsData || []) as ActivityLogRow[];
+        const loadedFiles = (filesData || []) as FileUploadRow[];
 
         const isAdmin = role === "admin";
         const isCreator = loadedProject.created_by === user.id;
@@ -191,6 +226,7 @@ export default function ProjectDetailPage() {
         setProfiles(loadedProfiles);
         setTasks(loadedTasks);
         setActivityLogs(loadedLogs);
+        setFiles(loadedFiles);
       } catch (err) {
         console.error("Load project page error:", err);
         setError("Something went wrong while loading the project.");
@@ -311,6 +347,79 @@ export default function ProjectDetailPage() {
       console.error("Delete project error:", err);
       setError("Something went wrong while deleting the project.");
       setIsDeleting(false);
+    }
+  };
+
+  const handleProjectFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (!project || !e.target.files || e.target.files.length === 0) return;
+
+    const file = e.target.files[0];
+    setError("");
+    setIsUploading(true);
+
+    try {
+      const uploaded = (await uploadProjectOrTaskFile({
+        file,
+        entityType: "project",
+        projectId: project.id,
+      })) as FileUploadRow;
+
+      setFiles((prev) => [uploaded, ...prev]);
+
+      const { data: newLogs } = await supabase
+        .from("activity_logs")
+        .select(
+          "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
+        )
+        .eq("project_id", project.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      setActivityLogs((newLogs || []) as ActivityLogRow[]);
+    } catch (err: any) {
+      console.error("Project file upload error:", err);
+      setError(err?.message || "Failed to upload file.");
+    } finally {
+      setIsUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleDownloadFile = async (filePath: string) => {
+    try {
+      const signedUrl = await getSignedFileUrl(filePath);
+      window.open(signedUrl, "_blank");
+    } catch (err: any) {
+      console.error("Download file error:", err);
+      setError(err?.message || "Failed to open file.");
+    }
+  };
+
+  const handleDeleteFile = async (fileId: string, filePath: string) => {
+    const confirmed = window.confirm("Are you sure you want to delete this file?");
+    if (!confirmed) return;
+
+    try {
+      await deleteUploadedFile(fileId, filePath);
+      setFiles((prev) => prev.filter((file) => file.id !== fileId));
+
+      if (project) {
+        const { data: newLogs } = await supabase
+          .from("activity_logs")
+          .select(
+            "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
+          )
+          .eq("project_id", project.id)
+          .order("created_at", { ascending: false })
+          .limit(50);
+
+        setActivityLogs((newLogs || []) as ActivityLogRow[]);
+      }
+    } catch (err: any) {
+      console.error("Delete file error:", err);
+      setError(err?.message || "Failed to delete file.");
     }
   };
 
@@ -443,6 +552,9 @@ export default function ProjectDetailPage() {
           </TabsTrigger>
           <TabsTrigger value="team" className="data-[state=active]:bg-slate-800">
             Team
+          </TabsTrigger>
+          <TabsTrigger value="files" className="data-[state=active]:bg-slate-800">
+            Files
           </TabsTrigger>
           <TabsTrigger value="activity" className="data-[state=active]:bg-slate-800">
             Activity
@@ -663,6 +775,88 @@ export default function ProjectDetailPage() {
                   })
                 )}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="files" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium text-white">Project Files</h3>
+
+            <>
+              <input
+                ref={projectFileInputRef}
+                type="file"
+                className="hidden"
+                onChange={handleProjectFileUpload}
+                disabled={isUploading}
+              />
+
+              <Button
+                type="button"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                disabled={isUploading}
+                onClick={() => projectFileInputRef.current?.click()}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {isUploading ? "Uploading..." : "Upload File"}
+              </Button>
+            </>
+          </div>
+
+          <Card className="bg-slate-900/50 border-slate-800">
+            <CardContent className="p-4">
+              {files.length === 0 ? (
+                <p className="text-slate-500">No project files uploaded yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {files.map((file) => {
+                    const uploader = file.user_id
+                      ? getProfileByUserId(file.user_id)
+                      : null;
+
+                    return (
+                      <div
+                        key={file.id}
+                        className="flex items-center justify-between gap-4 rounded-lg border border-slate-800 bg-slate-950/50 p-3"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <FileText className="w-5 h-5 text-indigo-400" />
+                          <div className="min-w-0">
+                            <p className="text-white text-sm truncate">{file.file_name}</p>
+                            <p className="text-slate-500 text-xs">
+                              {uploader?.full_name || "Unknown user"} •{" "}
+                              {format(new Date(file.created_at), "MMM d, yyyy h:mm a")}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                            onClick={() => handleDownloadFile(file.file_path)}
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Open
+                          </Button>
+
+                          {canEdit && (
+                            <Button
+                              variant="outline"
+                              className="border-red-800 text-red-400 hover:bg-red-900/20"
+                              onClick={() => handleDeleteFile(file.id, file.file_path)}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

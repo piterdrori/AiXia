@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { logActivity } from "@/lib/activity";
+import { createNotification } from "@/lib/notifications";
 import {
   uploadProjectOrTaskFile,
   getSignedFileUrl,
@@ -405,18 +406,20 @@ const handleStatusUpdate = async (newStatus: string) => {
     navigate("/tasks");
   };
 
-  const handleAddComment = async () => {
+const handleAddComment = async () => {
     if (!task || !currentUserId || !newComment.trim()) return;
 
     setCommentSaving(true);
     setError("");
+
+    const commentText = newComment.trim();
 
     const { data, error: commentError } = await supabase
       .from("task_comments")
       .insert({
         task_id: task.id,
         user_id: currentUserId,
-        content: newComment.trim(),
+        content: commentText,
       })
       .select("id, task_id, user_id, content, created_at")
       .single();
@@ -435,6 +438,26 @@ const handleStatusUpdate = async (newStatus: string) => {
       entityId: task.id,
       message: `Added an update to task "${task.title}"`,
     });
+
+    const recipientIds = Array.from(
+      new Set([
+        ...(task.created_by ? [task.created_by] : []),
+        ...taskMembers.map((member) => member.user_id),
+      ])
+    ).filter((userId) => userId !== currentUserId);
+
+    for (const userId of recipientIds) {
+      await createNotification({
+        userId,
+        actorUserId: currentUserId,
+        type: "COMMENT",
+        title: "New Task Comment",
+        message: `New comment on task "${task.title}"`,
+        link: `/tasks/${task.id}`,
+        entityType: "task_comment",
+        entityId: data.id,
+      });
+    }
 
     setComments((prev) => [...prev, data as TaskCommentRow]);
     setNewComment("");

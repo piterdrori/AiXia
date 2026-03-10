@@ -5,7 +5,6 @@ import {
   createNotification,
   extractMentionedUserIds,
 } from "@/lib/notifications";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,10 +37,12 @@ type ProfileRow = {
   status: "active" | "pending" | "inactive" | "denied";
 };
 
+type ChatGroupType = "DIRECT" | "GROUP" | "PROJECT" | "TASK";
+
 type ChatGroupRow = {
   id: string;
   name: string | null;
-  type: "DIRECT" | "GROUP" | "PROJECT" | "TASK";
+  type: ChatGroupType;
   project_id: string | null;
   task_id: string | null;
   created_by: string | null;
@@ -65,6 +66,8 @@ type ChatMessageRow = {
   created_at: string;
 };
 
+const PAGE_SIZE = 20;
+
 function buildDirectKey(a: string, b: string) {
   return [a, b].sort().join("__");
 }
@@ -77,18 +80,18 @@ export default function ChatPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 
-const [groups, setGroups] = useState<ChatGroupRow[]>([]);
+  const [groups, setGroups] = useState<ChatGroupRow[]>([]);
   const [groupMembers, setGroupMembers] = useState<ChatGroupMemberRow[]>([]);
   const [messages, setMessages] = useState<Record<string, ChatMessageRow[]>>({});
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
 
-  const [hasMoreMessages, setHasMoreMessages] = useState<Record<string, boolean>>({});
-  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
-
-const [selectedConversationId, setSelectedConversationId] = useState<string | null>(id || null);
-  const [messageInput, setMessageInput] = useState("");
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(id || null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [messageInput, setMessageInput] = useState("");
+
+  const [hasMoreMessages, setHasMoreMessages] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState("");
 
@@ -104,6 +107,69 @@ const [selectedConversationId, setSelectedConversationId] = useState<string | nu
   const [editingMessageText, setEditingMessageText] = useState("");
   const [messageActionLoading, setMessageActionLoading] = useState<string | null>(null);
   const [groupActionLoading, setGroupActionLoading] = useState<string | null>(null);
+
+  const selectedConversation = selectedConversationId
+    ? groups.find((g) => g.id === selectedConversationId) || null
+    : null;
+
+  const conversationMessages = selectedConversationId
+    ? messages[selectedConversationId] || []
+    : [];
+
+  const getMembersForGroup = (groupId: string) => {
+    return groupMembers.filter((member) => member.group_id === groupId);
+  };
+
+  const getProfileByUserId = (userId: string) => {
+    return profiles.find((profile) => profile.user_id === userId);
+  };
+
+  const getConversationName = (group: ChatGroupRow) => {
+    if (group.name) return group.name;
+
+    const members = getMembersForGroup(group.id);
+
+    if (group.type === "DIRECT") {
+      const otherMember = members.find((member) => member.user_id !== currentUserId);
+      const otherProfile = otherMember ? getProfileByUserId(otherMember.user_id) : null;
+      return otherProfile?.full_name || "Direct Chat";
+    }
+
+    if (group.type === "PROJECT") return "Project Chat";
+    if (group.type === "TASK") return "Task Chat";
+
+    return "Group Chat";
+  };
+
+  const getConversationInitials = (group: ChatGroupRow) => {
+    const name = getConversationName(group);
+    return name
+      .split(" ")
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const loadMessagesForGroup = async (groupId: string) => {
+    const { data, error: messagesError } = await supabase
+      .from("chat_messages")
+      .select("id, group_id, user_id, content, created_at")
+      .eq("group_id", groupId)
+      .order("created_at", { ascending: false })
+      .limit(PAGE_SIZE);
+
+    if (messagesError) {
+      throw new Error(messagesError.message || "Failed to load messages.");
+    }
+
+    const newestMessages = ((data || []) as ChatMessageRow[]).reverse();
+
+    return {
+      items: newestMessages,
+      hasMore: (data || []).length === PAGE_SIZE,
+    };
+  };
 
   const loadChatData = async (preferredId?: string | null) => {
     setError("");
@@ -136,6 +202,7 @@ const [selectedConversationId, setSelectedConversationId] = useState<string | nu
 
     const role = (myProfile?.role || "employee") as Role;
     setCurrentUserRole(role);
+
     const isAdmin = role === "admin";
 
     let groupsQuery = supabase
@@ -161,6 +228,7 @@ const [selectedConversationId, setSelectedConversationId] = useState<string | nu
         setGroups([]);
         setGroupMembers([]);
         setMessages({});
+        setHasMoreMessages({});
         setSelectedConversationId(null);
         return;
       }
@@ -176,20 +244,21 @@ const [selectedConversationId, setSelectedConversationId] = useState<string | nu
     }
 
     const rawGroups = (groupsData || []) as ChatGroupRow[];
-
     const dedupedMap = new Map<string, ChatGroupRow>();
+
     for (const group of rawGroups) {
-      const key =
+      const dedupeKey =
         group.type === "DIRECT" && group.direct_key
           ? `DIRECT:${group.direct_key}`
           : `GROUP:${group.id}`;
-      if (!dedupedMap.has(key)) {
-        dedupedMap.set(key, group);
+
+      if (!dedupedMap.has(dedupeKey)) {
+        dedupedMap.set(dedupeKey, group);
       }
     }
-    const loadedGroups = Array.from(dedupedMap.values());
 
-    const visibleGroupIds = loadedGroups.map((g) => g.id);
+    const loadedGroups = Array.from(dedupedMap.values());
+    const visibleGroupIds = loadedGroups.map((group) => group.id);
 
     let membersQuery = supabase
       .from("chat_group_members")
@@ -206,44 +275,36 @@ const [selectedConversationId, setSelectedConversationId] = useState<string | nu
       return;
     }
 
-const loadedMessages: Record<string, ChatMessageRow[]> = {};
+    const loadedMessages: Record<string, ChatMessageRow[]> = {};
     const loadedHasMore: Record<string, boolean> = {};
 
-    if (visibleGroupIds.length > 0) {
-      for (const groupId of visibleGroupIds) {
-        const { data: messagesData, error: messagesError } = await supabase
-          .from("chat_messages")
-          .select("id, group_id, user_id, content, created_at")
-          .eq("group_id", groupId)
-          .order("created_at", { ascending: false })
-          .limit(20);
-
-        if (messagesError) {
-          setError(messagesError.message || "Failed to load messages.");
-          return;
-        }
-
-        const messageList = ((messagesData || []) as ChatMessageRow[]).reverse();
-        loadedMessages[groupId] = messageList;
-        loadedHasMore[groupId] = (messagesData || []).length === 20;
-      }
+    for (const groupId of visibleGroupIds) {
+      const result = await loadMessagesForGroup(groupId);
+      loadedMessages[groupId] = result.items;
+      loadedHasMore[groupId] = result.hasMore;
     }
 
-setProfiles((allProfiles || []) as ProfileRow[]);
+    setProfiles((allProfiles || []) as ProfileRow[]);
     setGroups(loadedGroups);
     setGroupMembers((membersData || []) as ChatGroupMemberRow[]);
     setMessages(loadedMessages);
     setHasMoreMessages(loadedHasMore);
 
     const requestedId = preferredId || id || null;
-    if (requestedId && loadedGroups.some((g) => g.id === requestedId)) {
+
+    if (requestedId && loadedGroups.some((group) => group.id === requestedId)) {
       setSelectedConversationId(requestedId);
-    } else if (loadedGroups.length > 0) {
-      setSelectedConversationId(loadedGroups[0].id);
-      navigate(`/chat/${loadedGroups[0].id}`);
-    } else {
-      setSelectedConversationId(null);
+      return;
     }
+
+    if (loadedGroups.length > 0) {
+      const firstGroupId = loadedGroups[0].id;
+      setSelectedConversationId(firstGroupId);
+      navigate(`/chat/${firstGroupId}`);
+      return;
+    }
+
+    setSelectedConversationId(null);
   };
 
   useEffect(() => {
@@ -252,17 +313,41 @@ setProfiles((allProfiles || []) as ProfileRow[]);
       await loadChatData(id || null);
       setIsLoading(false);
     };
+
     init();
   }, [id]);
 
   useEffect(() => {
+    if (!selectedConversationId) return;
+
     const channel = supabase
       .channel("chat-realtime")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "chat_messages" },
-        async () => {
-          await loadChatData(selectedConversationId);
+        async (payload) => {
+          const changedGroupId = (payload.new as { group_id?: string } | null)?.group_id;
+          const oldGroupId = (payload.old as { group_id?: string } | null)?.group_id;
+          const targetGroupId = changedGroupId || oldGroupId;
+
+          if (!targetGroupId) return;
+
+          if (targetGroupId !== selectedConversationId) {
+            await loadChatData(selectedConversationId);
+            return;
+          }
+
+          const result = await loadMessagesForGroup(targetGroupId);
+
+          setMessages((prev) => ({
+            ...prev,
+            [targetGroupId]: result.items,
+          }));
+
+          setHasMoreMessages((prev) => ({
+            ...prev,
+            [targetGroupId]: result.hasMore,
+          }));
         }
       )
       .on(
@@ -287,51 +372,10 @@ setProfiles((allProfiles || []) as ProfileRow[]);
   }, [selectedConversationId]);
 
 useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, selectedConversationId]);
-
-  const selectedConversation = selectedConversationId
-    ? groups.find((g) => g.id === selectedConversationId)
-    : null;
-
-  const conversationMessages = selectedConversationId
-    ? messages[selectedConversationId] || []
-    : [];
-
-  const getMembersForGroup = (groupId: string) => {
-    return groupMembers.filter((m) => m.group_id === groupId);
-  };
-
-  const getProfileByUserId = (userId: string) => {
-    return profiles.find((p) => p.user_id === userId);
-  };
-
-  const getConversationName = (group: ChatGroupRow) => {
-    if (group.name) return group.name;
-
-    const members = getMembersForGroup(group.id);
-
-    if (group.type === "DIRECT") {
-      const otherMember = members.find((m) => m.user_id !== currentUserId);
-      const profile = otherMember ? getProfileByUserId(otherMember.user_id) : null;
-      return profile?.full_name || "Direct Chat";
+    if (!isLoading && !isLoadingOlder) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-
-    if (group.type === "PROJECT") return "Project Chat";
-    if (group.type === "TASK") return "Task Chat";
-
-    return "Group Chat";
-  };
-
-  const getConversationInitials = (group: ChatGroupRow) => {
-    const name = getConversationName(group);
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
+  }, [conversationMessages.length, isLoading, isLoadingOlder]);
 
   const filteredConversations = useMemo(() => {
     return groups.filter((group) =>
@@ -339,19 +383,19 @@ useEffect(() => {
     );
   }, [groups, searchQuery, currentUserId, groupMembers, profiles]);
 
-  const directConversations = filteredConversations.filter((g) => g.type === "DIRECT");
-  const projectConversations = filteredConversations.filter((g) => g.type === "PROJECT");
-  const taskConversations = filteredConversations.filter((g) => g.type === "TASK");
-  const groupConversations = filteredConversations.filter((g) => g.type === "GROUP");
+  const directConversations = filteredConversations.filter((group) => group.type === "DIRECT");
+  const projectConversations = filteredConversations.filter((group) => group.type === "PROJECT");
+  const taskConversations = filteredConversations.filter((group) => group.type === "TASK");
+  const groupConversations = filteredConversations.filter((group) => group.type === "GROUP");
 
   const mentionCandidates = useMemo(() => {
     if (!selectedConversationId) return [];
 
-    const memberIds = Array.from(
+    const candidateIds = Array.from(
       new Set(getMembersForGroup(selectedConversationId).map((member) => member.user_id))
     );
 
-    return memberIds
+    return candidateIds
       .map((userId) => profiles.find((profile) => profile.user_id === userId))
       .filter((profile): profile is ProfileRow => Boolean(profile))
       .filter((profile) => profile.user_id !== currentUserId);
@@ -363,32 +407,33 @@ useEffect(() => {
     const q = mentionQuery.trim().toLowerCase();
 
     return mentionCandidates.filter((profile) => {
-      const name = (profile.full_name || "").toLowerCase();
+      const fullName = (profile.full_name || "").toLowerCase();
       if (!q) return true;
-      return name.includes(q);
+      return fullName.includes(q);
     });
   }, [mentionCandidates, mentionQuery, showMentionDropdown]);
 
   const handleMessageInputChange = (value: string) => {
     setMessageInput(value);
 
-    const matches = value.match(/@([a-zA-Z0-9_]*)$/);
+    const match = value.match(/@([a-zA-Z0-9_]*)$/);
 
-    if (matches) {
-      setMentionQuery(matches[1] || "");
+    if (match) {
+      setMentionQuery(match[1] || "");
       setShowMentionDropdown(true);
-    } else {
-      setMentionQuery("");
-      setShowMentionDropdown(false);
+      return;
     }
+
+    setMentionQuery("");
+    setShowMentionDropdown(false);
   };
 
   const insertMention = (fullName: string) => {
     const safeName = fullName.trim();
     if (!safeName) return;
 
-    const updatedValue = messageInput.replace(/@([a-zA-Z0-9_]*)$/, `@${safeName} `);
-    setMessageInput(updatedValue);
+    const updated = messageInput.replace(/@([a-zA-Z0-9_]*)$/, `@${safeName} `);
+    setMessageInput(updated);
     setMentionQuery("");
     setShowMentionDropdown(false);
   };
@@ -403,12 +448,13 @@ useEffect(() => {
     return currentUserRole === "admin" || group.created_by === currentUserId;
   };
 
-const handleSendMessage = async () => {
-    if (!messageInput.trim() || !selectedConversationId || !currentUserId || !selectedConversation)
+  const handleSendMessage = async () => {
+    if (!messageInput.trim() || !selectedConversationId || !currentUserId || !selectedConversation) {
       return;
+    }
 
-    const tempId = `temp-${Date.now()}`;
     const contentToSend = messageInput.trim();
+    const tempId = `temp-${Date.now()}`;
 
     const optimisticMessage: ChatMessageRow = {
       id: tempId,
@@ -443,9 +489,10 @@ const handleSendMessage = async () => {
       setMessages((prev) => ({
         ...prev,
         [selectedConversationId]: (prev[selectedConversationId] || []).filter(
-          (m) => m.id !== tempId
+          (message) => message.id !== tempId
         ),
       }));
+
       setMessageInput(contentToSend);
       setError(sendError?.message || "Failed to send message.");
       setIsSending(false);
@@ -454,12 +501,12 @@ const handleSendMessage = async () => {
 
     setMessages((prev) => ({
       ...prev,
-      [selectedConversationId]: (prev[selectedConversationId] || []).map((m) =>
-        m.id === tempId ? (insertedMessage as ChatMessageRow) : m
+      [selectedConversationId]: (prev[selectedConversationId] || []).map((message) =>
+        message.id === tempId ? (insertedMessage as ChatMessageRow) : message
       ),
     }));
 
-const mentionedUserIds = extractMentionedUserIds(
+    const mentionedUserIds = extractMentionedUserIds(
       contentToSend,
       mentionCandidates.map((profile) => ({
         user_id: profile.user_id,
@@ -470,8 +517,7 @@ const mentionedUserIds = extractMentionedUserIds(
     const mentionedSet = new Set(mentionedUserIds);
 
     const recipientMembers = getMembersForGroup(selectedConversationId).filter(
-      (member) =>
-        member.user_id !== currentUserId && !mentionedSet.has(member.user_id)
+      (member) => member.user_id !== currentUserId && !mentionedSet.has(member.user_id)
     );
 
     for (const member of recipientMembers) {
@@ -503,22 +549,63 @@ const mentionedUserIds = extractMentionedUserIds(
     setIsSending(false);
   };
 
+  const handleLoadOlderMessages = async () => {
+    if (!selectedConversationId) return;
+
+    const currentMessages = messages[selectedConversationId] || [];
+    if (currentMessages.length === 0) return;
+
+    const oldestMessage = currentMessages[0];
+    if (!oldestMessage) return;
+
+    setIsLoadingOlder(true);
+    setError("");
+
+    const { data: olderMessages, error: olderError } = await supabase
+      .from("chat_messages")
+      .select("id, group_id, user_id, content, created_at")
+      .eq("group_id", selectedConversationId)
+      .lt("created_at", oldestMessage.created_at)
+      .order("created_at", { ascending: false })
+      .limit(PAGE_SIZE);
+
+    if (olderError) {
+      setError(olderError.message || "Failed to load older messages.");
+      setIsLoadingOlder(false);
+      return;
+    }
+
+    const olderBatch = ((olderMessages || []) as ChatMessageRow[]).reverse();
+
+    setMessages((prev) => ({
+      ...prev,
+      [selectedConversationId]: [...olderBatch, ...(prev[selectedConversationId] || [])],
+    }));
+
+    setHasMoreMessages((prev) => ({
+      ...prev,
+      [selectedConversationId]: (olderMessages || []).length === PAGE_SIZE,
+    }));
+
+    setIsLoadingOlder(false);
+  };
+
   const startDirectMessage = async (targetUserId: string) => {
     if (!currentUserId) return;
 
     const directKey = buildDirectKey(currentUserId, targetUserId);
 
-    const existingDirect = groups.find(
+    const existingLocal = groups.find(
       (group) => group.type === "DIRECT" && group.direct_key === directKey
     );
 
-    if (existingDirect) {
-      setSelectedConversationId(existingDirect.id);
-      navigate(`/chat/${existingDirect.id}`);
+    if (existingLocal) {
+      setSelectedConversationId(existingLocal.id);
+      navigate(`/chat/${existingLocal.id}`);
       return;
     }
 
-    const { data: dbExisting, error: existingError } = await supabase
+    const { data: existingDb, error: existingError } = await supabase
       .from("chat_groups")
       .select("id, name, type, project_id, task_id, created_by, created_at, direct_key")
       .eq("type", "DIRECT")
@@ -526,14 +613,14 @@ const mentionedUserIds = extractMentionedUserIds(
       .maybeSingle();
 
     if (existingError) {
-      setError(existingError.message || "Failed to check existing direct chat.");
+      setError(existingError.message || "Failed to check direct chat.");
       return;
     }
 
-    if (dbExisting) {
-      await loadChatData(dbExisting.id);
-      setSelectedConversationId(dbExisting.id);
-      navigate(`/chat/${dbExisting.id}`);
+    if (existingDb) {
+      await loadChatData(existingDb.id);
+      setSelectedConversationId(existingDb.id);
+      navigate(`/chat/${existingDb.id}`);
       return;
     }
 
@@ -551,7 +638,7 @@ const mentionedUserIds = extractMentionedUserIds(
       .single();
 
     if (groupError || !newGroup) {
-      setError(groupError?.message || "Failed to create direct message.");
+      setError(groupError?.message || "Failed to create direct chat.");
       return;
     }
 
@@ -561,7 +648,7 @@ const mentionedUserIds = extractMentionedUserIds(
     ]);
 
     if (memberInsertError) {
-      setError(memberInsertError.message || "Failed to create direct chat members.");
+      setError(memberInsertError.message || "Failed to add direct chat members.");
       return;
     }
 
@@ -614,7 +701,9 @@ const mentionedUserIds = extractMentionedUserIds(
       })),
     ];
 
-    const { error: membersError } = await supabase.from("chat_group_members").insert(memberRows);
+    const { error: membersError } = await supabase
+      .from("chat_group_members")
+      .insert(memberRows);
 
     if (membersError) {
       setError(membersError.message || "Failed to add group members.");
@@ -638,14 +727,17 @@ const mentionedUserIds = extractMentionedUserIds(
     );
   };
 
-  const handleDeleteChat = async (group: ChatGroupRow) => {
+const handleDeleteChat = async (group: ChatGroupRow) => {
     const confirmed = window.confirm("Are you sure you want to delete this chat?");
     if (!confirmed) return;
 
     setGroupActionLoading(group.id);
     setError("");
 
-    const { error: deleteError } = await supabase.from("chat_groups").delete().eq("id", group.id);
+    const { error: deleteError } = await supabase
+      .from("chat_groups")
+      .delete()
+      .eq("id", group.id);
 
     if (deleteError) {
       setError(deleteError.message || "Failed to delete chat.");
@@ -694,8 +786,8 @@ const mentionedUserIds = extractMentionedUserIds(
 
     setMessages((prev) => ({
       ...prev,
-      [message.group_id]: (prev[message.group_id] || []).map((m) =>
-        m.id === message.id ? { ...m, content: editingMessageText.trim() } : m
+      [message.group_id]: (prev[message.group_id] || []).map((item) =>
+        item.id === message.id ? { ...item, content: editingMessageText.trim() } : item
       ),
     }));
 
@@ -724,7 +816,9 @@ const mentionedUserIds = extractMentionedUserIds(
 
     setMessages((prev) => ({
       ...prev,
-      [message.group_id]: (prev[message.group_id] || []).filter((m) => m.id !== message.id),
+      [message.group_id]: (prev[message.group_id] || []).filter(
+        (item) => item.id !== message.id
+      ),
     }));
 
     if (editingMessageId === message.id) {
@@ -735,48 +829,10 @@ const mentionedUserIds = extractMentionedUserIds(
     setMessageActionLoading(null);
   };
 
-  const handleLoadOlderMessages = async () => {
-    if (!selectedConversationId) return;
-
-    const currentMessages = messages[selectedConversationId] || [];
-    if (currentMessages.length === 0) return;
-
-    const oldestMessage = currentMessages[0];
-    if (!oldestMessage) return;
-
-    setIsLoadingOlder(true);
-    setError("");
-
-    const { data: olderMessages, error: olderError } = await supabase
-      .from("chat_messages")
-      .select("id, group_id, user_id, content, created_at")
-      .eq("group_id", selectedConversationId)
-      .lt("created_at", oldestMessage.created_at)
-      .order("created_at", { ascending: false })
-      .limit(20);
-
-    if (olderError) {
-      setError(olderError.message || "Failed to load older messages.");
-      setIsLoadingOlder(false);
-      return;
-    }
-
-    const reversedOlder = ((olderMessages || []) as ChatMessageRow[]).reverse();
-
-    setMessages((prev) => ({
-      ...prev,
-      [selectedConversationId]: [...reversedOlder, ...(prev[selectedConversationId] || [])],
-    }));
-
-    setHasMoreMessages((prev) => ({
-      ...prev,
-      [selectedConversationId]: (olderMessages || []).length === 20,
-    }));
-
-    setIsLoadingOlder(false);
-  };
-
-  const renderConversationButton = (group: ChatGroupRow, iconType?: "project" | "task" | "group") => {
+  const renderConversationButton = (
+    group: ChatGroupRow,
+    iconType?: "project" | "task" | "group"
+  ) => {
     return (
       <div
         key={group.id}
@@ -809,7 +865,9 @@ const mentionedUserIds = extractMentionedUserIds(
             )}
 
             <div className="flex-1 min-w-0">
-              <p className="text-white font-medium text-sm truncate">{getConversationName(group)}</p>
+              <p className="text-white font-medium text-sm truncate">
+                {getConversationName(group)}
+              </p>
               <p className="text-slate-500 text-xs">
                 {getMembersForGroup(group.id).length} participants
               </p>
@@ -840,10 +898,10 @@ const mentionedUserIds = extractMentionedUserIds(
     );
   }
 
-return (
+  return (
     <>
       <div className="h-[calc(100vh-140px)] flex gap-4 overflow-hidden">
-       <Card className="w-80 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden">
+        <Card className="w-80 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden">
           <CardContent className="p-4 flex flex-col h-full">
             <div className="relative mb-4">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -872,22 +930,11 @@ return (
             )}
 
             <ScrollArea className="flex-1 -mx-2 h-full">
-              <div className="space-y-4">
-                {selectedConversationId && hasMoreMessages[selectedConversationId] && (
-                  <div className="flex justify-center pb-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleLoadOlderMessages}
-                      disabled={isLoadingOlder}
-                      className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                    >
-                      {isLoadingOlder ? "Loading..." : "Load older messages"}
-                    </Button>
-                  </div>
-                )}
+              <div className="space-y-1 px-2">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-medium text-slate-500 uppercase">Direct Messages</h3>
+                  <h3 className="text-xs font-medium text-slate-500 uppercase">
+                    Direct Messages
+                  </h3>
                 </div>
                 {directConversations.map((group) => renderConversationButton(group))}
 
@@ -895,7 +942,9 @@ return (
                   <>
                     <Separator className="my-3 bg-slate-800" />
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-xs font-medium text-slate-500 uppercase">Project Chats</h3>
+                      <h3 className="text-xs font-medium text-slate-500 uppercase">
+                        Project Chats
+                      </h3>
                     </div>
                     {projectConversations.map((group) =>
                       renderConversationButton(group, "project")
@@ -907,7 +956,9 @@ return (
                   <>
                     <Separator className="my-3 bg-slate-800" />
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-xs font-medium text-slate-500 uppercase">Task Chats</h3>
+                      <h3 className="text-xs font-medium text-slate-500 uppercase">
+                        Task Chats
+                      </h3>
                     </div>
                     {taskConversations.map((group) => renderConversationButton(group, "task"))}
                   </>
@@ -917,7 +968,9 @@ return (
                   <>
                     <Separator className="my-3 bg-slate-800" />
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-xs font-medium text-slate-500 uppercase">Group Chats</h3>
+                      <h3 className="text-xs font-medium text-slate-500 uppercase">
+                        Group Chats
+                      </h3>
                     </div>
                     {groupConversations.map((group) => renderConversationButton(group, "group"))}
                   </>
@@ -925,7 +978,9 @@ return (
 
                 <Separator className="my-3 bg-slate-800" />
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-medium text-slate-500 uppercase">Team Members</h3>
+                  <h3 className="text-xs font-medium text-slate-500 uppercase">
+                    Team Members
+                  </h3>
                 </div>
 
                 {profiles
@@ -940,14 +995,16 @@ return (
                         <AvatarFallback className="bg-indigo-600 text-white">
                           {(user.full_name || "U")
                             .split(" ")
-                            .map((n) => n[0])
+                            .map((part) => part[0])
                             .join("")
                             .toUpperCase()
                             .slice(0, 2)}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 text-left">
-                        <p className="text-white font-medium text-sm">{user.full_name || "Unknown"}</p>
+                        <p className="text-white font-medium text-sm">
+                          {user.full_name || "Unknown"}
+                        </p>
                         <p className="text-slate-500 text-xs">{user.role}</p>
                       </div>
                       <div className="w-2 h-2 rounded-full bg-green-500" />
@@ -979,10 +1036,10 @@ return (
             </div>
 
             <ScrollArea className="flex-1 h-full">
-              <div className="min-h-full px-4 pt-6 pb-4">
-                {selectedConversationId && (
-                  <div className="flex justify-center mb-4">
-                    {hasMoreMessages[selectedConversationId] ? (
+              <div className="px-4 py-4">
+                <div className="flex justify-center mb-4">
+                  {selectedConversationId ? (
+                    hasMoreMessages[selectedConversationId] ? (
                       <Button
                         type="button"
                         onClick={handleLoadOlderMessages}
@@ -995,11 +1052,11 @@ return (
                       <div className="text-xs text-slate-500 px-3 py-1 rounded-md bg-slate-900/80 border border-slate-800">
                         Beginning of conversation
                       </div>
-                    )}
-                  </div>
-                )}
+                    )
+                  ) : null}
+                </div>
 
-                <div className="space-y-4 pb-2">
+                <div className="space-y-4 pt-2">
                   {conversationMessages.map((message, index) => {
                     const isOwn = message.user_id === currentUserId;
                     const user = getProfileByUserId(message.user_id);
@@ -1017,7 +1074,7 @@ return (
                             <AvatarFallback className="bg-indigo-600 text-white text-xs">
                               {(user?.full_name || "U")
                                 .split(" ")
-                                .map((n) => n[0])
+                                .map((part) => part[0])
                                 .join("")
                                 .toUpperCase()
                                 .slice(0, 2)}
@@ -1122,7 +1179,7 @@ return (
               </div>
             </ScrollArea>
 
-<div className="p-4 border-t border-slate-800">
+            <div className="p-4 border-t border-slate-800">
               <div className="space-y-2">
                 <div className="flex gap-2">
                   <Input
@@ -1157,7 +1214,7 @@ return (
                         >
                           <div>
                             <div className="text-sm font-medium text-white">
-                              {profile.full_name || "Unknown"}
+                                {profile.full_name || "Unknown"}
                             </div>
                             <div className="text-xs text-slate-500">
                               {profile.role.toUpperCase()}

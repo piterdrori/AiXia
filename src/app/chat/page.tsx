@@ -9,17 +9,19 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Search,
   Send,
-  Phone,
-  Video,
-  Info,
   FolderKanban,
   MessageSquare,
   Users,
   CheckSquare,
   Plus,
+  Trash2,
+  Edit,
+  Save,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -69,6 +71,7 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 
   const [groups, setGroups] = useState<ChatGroupRow[]>([]);
   const [groupMembers, setGroupMembers] = useState<ChatGroupMemberRow[]>([]);
@@ -86,6 +89,11 @@ export default function ChatPage() {
   const [groupName, setGroupName] = useState("");
   const [selectedGroupMembers, setSelectedGroupMembers] = useState<string[]>([]);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingMessageText, setEditingMessageText] = useState("");
+  const [messageActionLoading, setMessageActionLoading] = useState<string | null>(null);
+  const [groupActionLoading, setGroupActionLoading] = useState<string | null>(null);
 
   const loadChatData = async (preferredId?: string | null) => {
     setError("");
@@ -116,7 +124,9 @@ export default function ChatPage() {
       return;
     }
 
-    const isAdmin = myProfile?.role === "admin";
+    const role = (myProfile?.role || "employee") as Role;
+    setCurrentUserRole(role);
+    const isAdmin = role === "admin";
 
     let groupsQuery = supabase
       .from("chat_groups")
@@ -155,7 +165,20 @@ export default function ChatPage() {
       return;
     }
 
-    const loadedGroups = (groupsData || []) as ChatGroupRow[];
+    const rawGroups = (groupsData || []) as ChatGroupRow[];
+
+    const dedupedMap = new Map<string, ChatGroupRow>();
+    for (const group of rawGroups) {
+      const key =
+        group.type === "DIRECT" && group.direct_key
+          ? `DIRECT:${group.direct_key}`
+          : `GROUP:${group.id}`;
+      if (!dedupedMap.has(key)) {
+        dedupedMap.set(key, group);
+      }
+    }
+    const loadedGroups = Array.from(dedupedMap.values());
+
     const visibleGroupIds = loadedGroups.map((g) => g.id);
 
     let membersQuery = supabase
@@ -307,6 +330,16 @@ useEffect(() => {
   const taskConversations = filteredConversations.filter((g) => g.type === "TASK");
   const groupConversations = filteredConversations.filter((g) => g.type === "GROUP");
 
+  const canManageMessage = (message: ChatMessageRow) => {
+    if (!currentUserId) return false;
+    return currentUserRole === "admin" || message.user_id === currentUserId;
+  };
+
+  const canDeleteChat = (group: ChatGroupRow) => {
+    if (!currentUserId) return false;
+    return currentUserRole === "admin" || group.created_by === currentUserId;
+  };
+
   const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedConversationId || !currentUserId || !selectedConversation)
       return;
@@ -416,16 +449,8 @@ useEffect(() => {
     }
 
     const { error: memberInsertError } = await supabase.from("chat_group_members").insert([
-      {
-        group_id: newGroup.id,
-        user_id: currentUserId,
-        role: "member",
-      },
-      {
-        group_id: newGroup.id,
-        user_id: targetUserId,
-        role: "member",
-      },
+      { group_id: newGroup.id, user_id: currentUserId, role: "member" },
+      { group_id: newGroup.id, user_id: targetUserId, role: "member" },
     ]);
 
     if (memberInsertError) {
@@ -474,11 +499,7 @@ useEffect(() => {
     }
 
     const memberRows = [
-      {
-        group_id: newGroup.id,
-        user_id: currentUserId,
-        role: "owner",
-      },
+      { group_id: newGroup.id, user_id: currentUserId, role: "owner" },
       ...selectedGroupMembers.map((userId) => ({
         group_id: newGroup.id,
         user_id: userId,
@@ -510,41 +531,156 @@ useEffect(() => {
     );
   };
 
+  const handleDeleteChat = async (group: ChatGroupRow) => {
+    const confirmed = window.confirm("Are you sure you want to delete this chat?");
+    if (!confirmed) return;
+
+    setGroupActionLoading(group.id);
+    setError("");
+
+    const { error: deleteError } = await supabase.from("chat_groups").delete().eq("id", group.id);
+
+    if (deleteError) {
+      setError(deleteError.message || "Failed to delete chat.");
+      setGroupActionLoading(null);
+      return;
+    }
+
+    if (selectedConversationId === group.id) {
+      setSelectedConversationId(null);
+      navigate("/chat");
+    }
+
+    await loadChatData(null);
+    setGroupActionLoading(null);
+  };
+
+  const startEditingMessage = (message: ChatMessageRow) => {
+    setEditingMessageId(message.id);
+    setEditingMessageText(message.content);
+  };
+
+  const cancelEditingMessage = () => {
+    setEditingMessageId(null);
+    setEditingMessageText("");
+  };
+
+  const handleSaveEditedMessage = async (message: ChatMessageRow) => {
+    if (!editingMessageText.trim()) {
+      setError("Message cannot be empty.");
+      return;
+    }
+
+    setMessageActionLoading(message.id);
+    setError("");
+
+    const { error: updateError } = await supabase
+      .from("chat_messages")
+      .update({ content: editingMessageText.trim() })
+      .eq("id", message.id);
+
+    if (updateError) {
+      setError(updateError.message || "Failed to update message.");
+      setMessageActionLoading(null);
+      return;
+    }
+
+    setMessages((prev) => ({
+      ...prev,
+      [message.group_id]: (prev[message.group_id] || []).map((m) =>
+        m.id === message.id ? { ...m, content: editingMessageText.trim() } : m
+      ),
+    }));
+
+    setEditingMessageId(null);
+    setEditingMessageText("");
+    setMessageActionLoading(null);
+  };
+
+  const handleDeleteMessage = async (message: ChatMessageRow) => {
+    const confirmed = window.confirm("Are you sure you want to delete this message?");
+    if (!confirmed) return;
+
+    setMessageActionLoading(message.id);
+    setError("");
+
+    const { error: deleteError } = await supabase
+      .from("chat_messages")
+      .delete()
+      .eq("id", message.id);
+
+    if (deleteError) {
+      setError(deleteError.message || "Failed to delete message.");
+      setMessageActionLoading(null);
+      return;
+    }
+
+    setMessages((prev) => ({
+      ...prev,
+      [message.group_id]: (prev[message.group_id] || []).filter((m) => m.id !== message.id),
+    }));
+
+    if (editingMessageId === message.id) {
+      setEditingMessageId(null);
+      setEditingMessageText("");
+    }
+
+    setMessageActionLoading(null);
+  };
+
   const renderConversationButton = (group: ChatGroupRow, iconType?: "project" | "task" | "group") => {
     return (
-      <button
+      <div
         key={group.id}
-        onClick={() => {
-          setSelectedConversationId(group.id);
-          navigate(`/chat/${group.id}`);
-        }}
-        className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
+        className={`w-full rounded-lg transition-all ${
           selectedConversationId === group.id
             ? "bg-indigo-600/20 border border-indigo-500/30"
             : "hover:bg-slate-800/50"
         }`}
       >
-        {iconType ? (
-          <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-            {iconType === "project" && <FolderKanban className="w-5 h-5 text-indigo-400" />}
-            {iconType === "task" && <CheckSquare className="w-5 h-5 text-indigo-400" />}
-            {iconType === "group" && <Users className="w-5 h-5 text-indigo-400" />}
-          </div>
-        ) : (
-          <Avatar className="w-10 h-10">
-            <AvatarFallback className="bg-indigo-600 text-white">
-              {getConversationInitials(group)}
-            </AvatarFallback>
-          </Avatar>
-        )}
+        <div className="flex items-center gap-3 p-3">
+          <button
+            onClick={() => {
+              setSelectedConversationId(group.id);
+              navigate(`/chat/${group.id}`);
+            }}
+            className="flex items-center gap-3 flex-1 text-left"
+          >
+            {iconType ? (
+              <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                {iconType === "project" && <FolderKanban className="w-5 h-5 text-indigo-400" />}
+                {iconType === "task" && <CheckSquare className="w-5 h-5 text-indigo-400" />}
+                {iconType === "group" && <Users className="w-5 h-5 text-indigo-400" />}
+              </div>
+            ) : (
+              <Avatar className="w-10 h-10">
+                <AvatarFallback className="bg-indigo-600 text-white">
+                  {getConversationInitials(group)}
+                </AvatarFallback>
+              </Avatar>
+            )}
 
-        <div className="flex-1 text-left min-w-0">
-          <p className="text-white font-medium text-sm truncate">{getConversationName(group)}</p>
-          <p className="text-slate-500 text-xs">
-            {getMembersForGroup(group.id).length} participants
-          </p>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-medium text-sm truncate">{getConversationName(group)}</p>
+              <p className="text-slate-500 text-xs">
+                {getMembersForGroup(group.id).length} participants
+              </p>
+            </div>
+          </button>
+
+          {canDeleteChat(group) && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-slate-400 hover:text-red-400"
+              onClick={() => handleDeleteChat(group)}
+              disabled={groupActionLoading === group.id}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
         </div>
-      </button>
+      </div>
     );
   };
 
@@ -679,18 +815,6 @@ return (
                   </p>
                 </div>
               </div>
-
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" className="text-slate-400">
-                  <Phone className="w-5 h-5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="text-slate-400">
-                  <Video className="w-5 h-5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="text-slate-400">
-                  <Info className="w-5 h-5" />
-                </Button>
-              </div>
             </div>
 
             <ScrollArea className="flex-1 p-4">
@@ -700,6 +824,7 @@ return (
                   const user = getProfileByUserId(message.user_id);
                   const showAvatar =
                     index === 0 || conversationMessages[index - 1].user_id !== message.user_id;
+                  const isEditing = editingMessageId === message.id;
 
                   return (
                     <div
@@ -736,8 +861,62 @@ return (
                               : "bg-slate-800 text-slate-200 rounded-bl-none"
                           }`}
                         >
-                          <p className="whitespace-pre-wrap">{message.content}</p>
+                          {isEditing ? (
+                            <div className="space-y-2 min-w-[260px]">
+                              <Textarea
+                                value={editingMessageText}
+                                onChange={(e) => setEditingMessageText(e.target.value)}
+                                rows={3}
+                                className="bg-slate-900 border-slate-700 text-white resize-none"
+                              />
+                              <div className="flex items-center gap-2 justify-end">
+                                <Button
+                                  size="sm"
+                                  className="bg-white text-black hover:bg-slate-200"
+                                  onClick={() => handleSaveEditedMessage(message)}
+                                  disabled={
+                                    messageActionLoading === message.id ||
+                                    !editingMessageText.trim()
+                                  }
+                                >
+                                  <Save className="w-3 h-3 mr-1" />
+                                  Save
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-slate-500 text-white hover:bg-slate-700"
+                                  onClick={cancelEditingMessage}
+                                  disabled={messageActionLoading === message.id}
+                                >
+                                  <X className="w-3 h-3 mr-1" />
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="whitespace-pre-wrap">{message.content}</p>
+                          )}
                         </div>
+
+                        {canManageMessage(message) && !isEditing && (
+                          <div className={`mt-1 flex gap-2 ${isOwn ? "justify-end" : "justify-start"}`}>
+                            <button
+                              className="text-xs text-slate-400 hover:text-white"
+                              onClick={() => startEditingMessage(message)}
+                              disabled={messageActionLoading === message.id}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="text-xs text-red-400 hover:text-red-300"
+                              onClick={() => handleDeleteMessage(message)}
+                              disabled={messageActionLoading === message.id}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

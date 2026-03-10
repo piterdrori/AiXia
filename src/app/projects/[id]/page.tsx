@@ -415,13 +415,33 @@ const handleDelete = async () => {
     setIsUploading(true);
 
     try {
-      const uploaded = (await uploadProjectOrTaskFile({
+const uploaded = (await uploadProjectOrTaskFile({
         file,
         entityType: "project",
         projectId: project.id,
       })) as FileUploadRow;
 
       setFiles((prev) => [uploaded, ...prev]);
+
+      const recipientIds = Array.from(
+        new Set([
+          ...(project.created_by ? [project.created_by] : []),
+          ...projectMembers.map((member) => member.user_id),
+        ])
+      ).filter((userId) => userId !== currentUserId);
+
+      for (const userId of recipientIds) {
+        await createNotification({
+          userId,
+          actorUserId: currentUserId || undefined,
+          type: "FILE_UPLOAD",
+          title: "New Project File Uploaded",
+          message: `A file was uploaded to project "${project.name}": ${uploaded.file_name}`,
+          link: `/projects/${project.id}`,
+          entityType: "project_file",
+          entityId: uploaded.id,
+        });
+      }
 
       const { data: newLogs } = await supabase
         .from("activity_logs")

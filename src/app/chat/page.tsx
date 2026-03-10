@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { createNotification } from "@/lib/notifications";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -391,6 +392,23 @@ useEffect(() => {
         m.id === tempId ? (insertedMessage as ChatMessageRow) : m
       ),
     }));
+
+    const recipientMembers = getMembersForGroup(selectedConversationId).filter(
+      (member) => member.user_id !== currentUserId
+    );
+
+    for (const member of recipientMembers) {
+      await createNotification({
+        userId: member.user_id,
+        actorUserId: currentUserId,
+        type: "MESSAGE",
+        title: `New message in ${getConversationName(selectedConversation)}`,
+        message: contentToSend,
+        link: `/chat/${selectedConversationId}`,
+        entityType: "chat_message",
+        entityId: insertedMessage.id,
+      });
+    }
 
     setIsSending(false);
   };

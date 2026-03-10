@@ -249,14 +249,14 @@ export default function ProjectDetailPage() {
   }, [project, currentUserId, currentUserRole]);
 
   const canDeleteThisProjectFile = (file: FileUploadRow) => {
-  if (!currentUserId) return false;
+    if (!currentUserId) return false;
 
-  return (
-    currentUserRole === "admin" ||
-    project?.created_by === currentUserId ||
-    file.user_id === currentUserId
-  );
-};
+    return (
+      currentUserRole === "admin" ||
+      project?.created_by === currentUserId ||
+      file.user_id === currentUserId
+    );
+  };
 
   const getStatusColor = (status: string | null) => {
     switch ((status || "").toUpperCase()) {
@@ -314,7 +314,7 @@ export default function ProjectDetailPage() {
     return profiles.find((profile) => profile.user_id === userId);
   };
 
-  const handleDelete = async () => {
+const handleDelete = async () => {
     if (!project) return;
 
     const confirmed = window.confirm("Are you sure you want to delete this project?");
@@ -398,78 +398,78 @@ export default function ProjectDetailPage() {
   };
 
   const handleDownloadFile = async (filePath: string) => {
-  try {
-    const signedUrl = await getSignedFileUrl(filePath);
-    window.open(signedUrl, "_blank");
-  } catch (err: any) {
-    console.error("Download file error:", err);
-    setError(err?.message || "Failed to open file.");
-  }
-};
-
-const handleDeleteFile = async (
-  fileId: string,
-  filePath: string,
-  fileName: string
-) => {
-  const confirmed = window.confirm("Are you sure you want to delete this file?");
-  if (!confirmed) return;
-
-  try {
-    await deleteUploadedFile(fileId, filePath, {
-      projectId: project?.id || null,
-      taskId: null,
-      fileName,
-    });
-
-    setFiles((prev) => prev.filter((file) => file.id !== fileId));
-
-    if (project) {
-      const { data: newLogs } = await supabase
-        .from("activity_logs")
-        .select(
-          "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
-        )
-        .eq("project_id", project.id)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      setActivityLogs((newLogs || []) as ActivityLogRow[]);
+    try {
+      const signedUrl = await getSignedFileUrl(filePath);
+      window.open(signedUrl, "_blank");
+    } catch (err: any) {
+      console.error("Download file error:", err);
+      setError(err?.message || "Failed to open file.");
     }
-  } catch (err: any) {
-    console.error("Delete file error:", err);
-    setError(err?.message || "Failed to delete file.");
+  };
+
+  const handleDeleteFile = async (
+    fileId: string,
+    filePath: string,
+    fileName: string
+  ) => {
+    const confirmed = window.confirm("Are you sure you want to delete this file?");
+    if (!confirmed) return;
+
+    try {
+      await deleteUploadedFile(fileId, filePath, {
+        projectId: project?.id || null,
+        taskId: null,
+        fileName,
+      });
+
+      setFiles((prev) => prev.filter((file) => file.id !== fileId));
+
+      if (project) {
+        const { data: newLogs } = await supabase
+          .from("activity_logs")
+          .select(
+            "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
+          )
+          .eq("project_id", project.id)
+          .order("created_at", { ascending: false })
+          .limit(50);
+
+        setActivityLogs((newLogs || []) as ActivityLogRow[]);
+      }
+    } catch (err: any) {
+      console.error("Delete file error:", err);
+      setError(err?.message || "Failed to delete file.");
+    }
+  };
+
+  const taskStats = {
+    total: tasks.length,
+    todo: tasks.filter((t) => (t.status || "").toUpperCase() === "TODO").length,
+    inProgress: tasks.filter((t) => (t.status || "").toUpperCase() === "IN_PROGRESS").length,
+    inReview: tasks.filter((t) => (t.status || "").toUpperCase() === "IN_REVIEW").length,
+    done: tasks.filter((t) => (t.status || "").toUpperCase() === "DONE").length,
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
   }
-};
 
-const taskStats = {
-  total: tasks.length,
-  todo: tasks.filter((t) => (t.status || "").toUpperCase() === "TODO").length,
-  inProgress: tasks.filter((t) => (t.status || "").toUpperCase() === "IN_PROGRESS").length,
-  inReview: tasks.filter((t) => (t.status || "").toUpperCase() === "IN_REVIEW").length,
-  done: tasks.filter((t) => (t.status || "").toUpperCase() === "DONE").length,
-};
-
-if (isLoading) {
-  return (
-    <div className="flex items-center justify-center h-64">
-      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
-    </div>
-  );
-}
-
-if (!project) {
-  return (
-    <div className="space-y-4">
-      {error && (
-        <Alert className="bg-red-900/20 border-red-800 text-red-300">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      <div className="text-center text-slate-400">Project not found.</div>
-    </div>
-  );
-}
+  if (!project) {
+    return (
+      <div className="space-y-4">
+        {error && (
+          <Alert className="bg-red-900/20 border-red-800 text-red-300">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        <div className="text-center text-slate-400">Project not found.</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -502,17 +502,16 @@ if (!project) {
         </div>
 
         <div className="flex items-center gap-2">
-      
-          {canDeleteThisProjectFile(file) && (
-  <Button
-    variant="outline"
-    className="border-red-800 text-red-400 hover:bg-red-900/20"
-    onClick={() => handleDeleteFile(file.id, file.file_path, file.file_name)}
-  >
-    <Trash2 className="w-4 h-4 mr-2" />
-    Delete
-  </Button>
-)}
+          {canEdit && (
+            <Button
+              variant="outline"
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              onClick={() => navigate(`/projects/${project.id}/edit`)}
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+          )}
 
           {canDelete && (
             <Button
@@ -861,11 +860,13 @@ if (!project) {
                             Open
                           </Button>
 
-                          {canEdit && (
+                          {canDeleteThisProjectFile(file) && (
                             <Button
                               variant="outline"
                               className="border-red-800 text-red-400 hover:bg-red-900/20"
-                              onClick={() => handleDeleteFile(file.id, file.file_path)}
+                              onClick={() =>
+                                handleDeleteFile(file.id, file.file_path, file.file_name)
+                              }
                             >
                               <Trash2 className="w-4 h-4 mr-2" />
                               Delete

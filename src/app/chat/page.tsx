@@ -19,7 +19,6 @@ import {
   CheckSquare,
   Plus,
   Trash2,
-  Edit,
   Save,
   X,
 } from "lucide-react";

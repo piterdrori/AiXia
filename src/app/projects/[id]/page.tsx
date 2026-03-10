@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { logActivity } from "@/lib/activity";
-import { createNotification } from "@/lib/notifications";
+import {
+  createNotification,
+  extractMentionedUserIds,
+} from "@/lib/notifications";
 import {
   uploadProjectOrTaskFile,
   getSignedFileUrl,
@@ -507,7 +510,7 @@ const uploaded = (await uploadProjectOrTaskFile({
     }
   };
 
-  const handleAddComment = async () => {
+const handleAddComment = async () => {
     if (!project || !currentUserId || !newComment.trim()) return;
 
     setCommentSaving(true);
@@ -554,6 +557,27 @@ const uploaded = (await uploadProjectOrTaskFile({
         type: "COMMENT",
         title: "New Project Comment",
         message: `New comment on project "${project.name}"`,
+        link: `/projects/${project.id}`,
+        entityType: "project_comment",
+        entityId: data.id,
+      });
+    }
+
+    const mentionedUserIds = extractMentionedUserIds(
+      commentText,
+      profiles.map((profile) => ({
+        user_id: profile.user_id,
+        full_name: profile.full_name,
+      }))
+    ).filter((userId) => userId !== currentUserId);
+
+    for (const userId of mentionedUserIds) {
+      await createNotification({
+        userId,
+        actorUserId: currentUserId,
+        type: "MENTION",
+        title: "You were mentioned in a project comment",
+        message: `You were mentioned in project "${project.name}"`,
         link: `/projects/${project.id}`,
         entityType: "project_comment",
         entityId: data.id,

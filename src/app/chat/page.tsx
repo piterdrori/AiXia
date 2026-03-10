@@ -7,6 +7,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Search,
   Send,
@@ -17,8 +19,8 @@ import {
   MessageSquare,
   Users,
   CheckSquare,
+  Plus,
 } from "lucide-react";
-
 import { format } from "date-fns";
 
 type Role = "admin" | "manager" | "employee" | "guest";
@@ -38,6 +40,7 @@ type ChatGroupRow = {
   task_id: string | null;
   created_by: string | null;
   created_at: string;
+  direct_key?: string | null;
 };
 
 type ChatGroupMemberRow = {
@@ -56,13 +59,16 @@ type ChatMessageRow = {
   created_at: string;
 };
 
+function buildDirectKey(a: string, b: string) {
+  return [a, b].sort().join("__");
+}
+
 export default function ChatPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [, setCurrentUserRole] = useState<Role | null>(null);
 
   const [groups, setGroups] = useState<ChatGroupRow[]>([]);
   const [groupMembers, setGroupMembers] = useState<ChatGroupMemberRow[]>([]);
@@ -76,7 +82,12 @@ export default function ChatPage() {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState("");
 
-  const loadChatData = async (selectedId?: string | null) => {
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [selectedGroupMembers, setSelectedGroupMembers] = useState<string[]>([]);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+
+  const loadChatData = async (preferredId?: string | null) => {
     setError("");
 
     const {
@@ -91,63 +102,49 @@ export default function ChatPage() {
 
     setCurrentUserId(user.id);
 
-    const [
-      { data: myProfile, error: myProfileError },
-      { data: allProfiles, error: profilesError },
-      { data: myMemberships, error: membershipsError },
-    ] = await Promise.all([
+    const [{ data: myProfile }, { data: allProfiles, error: profilesError }] = await Promise.all([
       supabase.from("profiles").select("role").eq("user_id", user.id).single(),
       supabase
         .from("profiles")
         .select("user_id, full_name, role, status")
         .eq("status", "active")
         .order("full_name", { ascending: true }),
-      supabase.from("chat_group_members").select("id, group_id, user_id, role, created_at"),
     ]);
-
-    if (myProfileError || !myProfile) {
-      navigate("/login");
-      return;
-    }
-
-    setCurrentUserRole(myProfile.role as Role);
 
     if (profilesError) {
       setError(profilesError.message || "Failed to load users.");
       return;
     }
 
-    if (membershipsError) {
-      setError(membershipsError.message || "Failed to load chat members.");
-      return;
-    }
-
-    const memberships = (myMemberships || []) as ChatGroupMemberRow[];
-
-    const myGroupIds =
-      myProfile.role === "admin"
-        ? Array.from(new Set(memberships.map((m) => m.group_id)))
-        : Array.from(
-            new Set(
-              memberships
-                .filter((m) => m.user_id === user.id)
-                .map((m) => m.group_id)
-            )
-          );
+    const isAdmin = myProfile?.role === "admin";
 
     let groupsQuery = supabase
       .from("chat_groups")
-      .select("id, name, type, project_id, task_id, created_by, created_at")
+      .select("id, name, type, project_id, task_id, created_by, created_at, direct_key")
       .order("created_at", { ascending: false });
 
-    if (myProfile.role !== "admin") {
+    if (!isAdmin) {
+      const { data: myMemberships, error: membershipsError } = await supabase
+        .from("chat_group_members")
+        .select("group_id")
+        .eq("user_id", user.id);
+
+      if (membershipsError) {
+        setError(membershipsError.message || "Failed to load memberships.");
+        return;
+      }
+
+      const myGroupIds = Array.from(new Set((myMemberships || []).map((m) => m.group_id)));
+
       if (myGroupIds.length === 0) {
         setProfiles((allProfiles || []) as ProfileRow[]);
         setGroups([]);
-        setGroupMembers(memberships);
+        setGroupMembers([]);
         setMessages({});
+        setSelectedConversationId(null);
         return;
       }
+
       groupsQuery = groupsQuery.in("id", myGroupIds);
     }
 
@@ -159,17 +156,24 @@ export default function ChatPage() {
     }
 
     const loadedGroups = (groupsData || []) as ChatGroupRow[];
-    const loadedProfiles = (allProfiles || []) as ProfileRow[];
-
     const visibleGroupIds = loadedGroups.map((g) => g.id);
-    const visibleMembers =
-      myProfile.role === "admin"
-        ? memberships.filter((m) => visibleGroupIds.includes(m.group_id))
-        : memberships.filter((m) => visibleGroupIds.includes(m.group_id));
 
-    setProfiles(loadedProfiles);
-    setGroups(loadedGroups);
-    setGroupMembers(visibleMembers);
+    let membersQuery = supabase
+      .from("chat_group_members")
+      .select("id, group_id, user_id, role, created_at");
+
+    if (visibleGroupIds.length > 0) {
+      membersQuery = membersQuery.in("group_id", visibleGroupIds);
+    }
+
+    const { data: membersData, error: membersError } = await membersQuery;
+
+    if (membersError) {
+      setError(membersError.message || "Failed to load group members.");
+      return;
+    }
+
+    let loadedMessages: Record<string, ChatMessageRow[]> = {};
 
     if (visibleGroupIds.length > 0) {
       const { data: messagesData, error: messagesError } = await supabase
@@ -183,21 +187,20 @@ export default function ChatPage() {
         return;
       }
 
-      const groupedMessages: Record<string, ChatMessageRow[]> = {};
       ((messagesData || []) as ChatMessageRow[]).forEach((msg) => {
-        if (!groupedMessages[msg.group_id]) groupedMessages[msg.group_id] = [];
-        groupedMessages[msg.group_id].push(msg);
+        if (!loadedMessages[msg.group_id]) loadedMessages[msg.group_id] = [];
+        loadedMessages[msg.group_id].push(msg);
       });
-
-      setMessages(groupedMessages);
-    } else {
-      setMessages({});
     }
 
-    const finalSelected = selectedId || id || null;
+    setProfiles((allProfiles || []) as ProfileRow[]);
+    setGroups(loadedGroups);
+    setGroupMembers((membersData || []) as ChatGroupMemberRow[]);
+    setMessages(loadedMessages);
 
-    if (finalSelected && loadedGroups.some((g) => g.id === finalSelected)) {
-      setSelectedConversationId(finalSelected);
+    const requestedId = preferredId || id || null;
+    if (requestedId && loadedGroups.some((g) => g.id === requestedId)) {
+      setSelectedConversationId(requestedId);
     } else if (loadedGroups.length > 0) {
       setSelectedConversationId(loadedGroups[0].id);
       navigate(`/chat/${loadedGroups[0].id}`);
@@ -212,13 +215,12 @@ export default function ChatPage() {
       await loadChatData(id || null);
       setIsLoading(false);
     };
-
     init();
   }, [id]);
 
   useEffect(() => {
     const channel = supabase
-      .channel("chat-messages-realtime")
+      .channel("chat-realtime")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "chat_messages" },
@@ -306,43 +308,92 @@ useEffect(() => {
   const groupConversations = filteredConversations.filter((g) => g.type === "GROUP");
 
   const handleSendMessage = async () => {
-    if (!messageInput.trim() || !selectedConversationId || !currentUserId) return;
+    if (!messageInput.trim() || !selectedConversationId || !currentUserId || !selectedConversation)
+      return;
 
-    setIsSending(true);
-    setError("");
-
-    const { error: sendError } = await supabase.from("chat_messages").insert({
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMessage: ChatMessageRow = {
+      id: tempId,
       group_id: selectedConversationId,
       user_id: currentUserId,
       content: messageInput.trim(),
-    });
+      created_at: new Date().toISOString(),
+    };
 
-    if (sendError) {
-      setError(sendError.message || "Failed to send message.");
+    setMessages((prev) => ({
+      ...prev,
+      [selectedConversationId]: [...(prev[selectedConversationId] || []), optimisticMessage],
+    }));
+
+    const contentToSend = messageInput.trim();
+    setMessageInput("");
+    setIsSending(true);
+    setError("");
+
+    const { data: insertedMessage, error: sendError } = await supabase
+      .from("chat_messages")
+      .insert({
+        group_id: selectedConversationId,
+        user_id: currentUserId,
+        content: contentToSend,
+      })
+      .select("id, group_id, user_id, content, created_at")
+      .single();
+
+    if (sendError || !insertedMessage) {
+      setMessages((prev) => ({
+        ...prev,
+        [selectedConversationId]: (prev[selectedConversationId] || []).filter(
+          (m) => m.id !== tempId
+        ),
+      }));
+      setMessageInput(contentToSend);
+      setError(sendError?.message || "Failed to send message.");
       setIsSending(false);
       return;
     }
 
-    setMessageInput("");
+    setMessages((prev) => ({
+      ...prev,
+      [selectedConversationId]: (prev[selectedConversationId] || []).map((m) =>
+        m.id === tempId ? (insertedMessage as ChatMessageRow) : m
+      ),
+    }));
+
     setIsSending(false);
   };
 
   const startDirectMessage = async (targetUserId: string) => {
     if (!currentUserId) return;
 
-    const existingDirect = groups.find((group) => {
-      if (group.type !== "DIRECT") return false;
-      const members = getMembersForGroup(group.id).map((m) => m.user_id);
-      return (
-        members.length === 2 &&
-        members.includes(currentUserId) &&
-        members.includes(targetUserId)
-      );
-    });
+    const directKey = buildDirectKey(currentUserId, targetUserId);
+
+    const existingDirect = groups.find(
+      (group) => group.type === "DIRECT" && group.direct_key === directKey
+    );
 
     if (existingDirect) {
       setSelectedConversationId(existingDirect.id);
       navigate(`/chat/${existingDirect.id}`);
+      return;
+    }
+
+    const { data: dbExisting, error: existingError } = await supabase
+      .from("chat_groups")
+      .select("id, name, type, project_id, task_id, created_by, created_at, direct_key")
+      .eq("type", "DIRECT")
+      .eq("direct_key", directKey)
+      .maybeSingle();
+
+    if (existingError) {
+      setError(existingError.message || "Failed to check existing direct chat.");
+      return;
+    }
+
+    if (dbExisting) {
+      await loadChatData(dbExisting.id);
+      setSelectedConversationId(dbExisting.id);
+      navigate(`/chat/${dbExisting.id}`);
       return;
     }
 
@@ -354,8 +405,9 @@ useEffect(() => {
         project_id: null,
         task_id: null,
         created_by: currentUserId,
+        direct_key: directKey,
       })
-      .select("id, name, type, project_id, task_id, created_by, created_at")
+      .select("id, name, type, project_id, task_id, created_by, created_at, direct_key")
       .single();
 
     if (groupError || !newGroup) {
@@ -384,6 +436,78 @@ useEffect(() => {
     await loadChatData(newGroup.id);
     setSelectedConversationId(newGroup.id);
     navigate(`/chat/${newGroup.id}`);
+  };
+
+  const handleCreateGroup = async () => {
+    if (!currentUserId) return;
+
+    if (!groupName.trim()) {
+      setError("Group name is required.");
+      return;
+    }
+
+    if (selectedGroupMembers.length === 0) {
+      setError("Select at least one member.");
+      return;
+    }
+
+    setIsCreatingGroup(true);
+    setError("");
+
+    const { data: newGroup, error: groupError } = await supabase
+      .from("chat_groups")
+      .insert({
+        name: groupName.trim(),
+        type: "GROUP",
+        project_id: null,
+        task_id: null,
+        created_by: currentUserId,
+        direct_key: null,
+      })
+      .select("id, name, type, project_id, task_id, created_by, created_at, direct_key")
+      .single();
+
+    if (groupError || !newGroup) {
+      setError(groupError?.message || "Failed to create group chat.");
+      setIsCreatingGroup(false);
+      return;
+    }
+
+    const memberRows = [
+      {
+        group_id: newGroup.id,
+        user_id: currentUserId,
+        role: "owner",
+      },
+      ...selectedGroupMembers.map((userId) => ({
+        group_id: newGroup.id,
+        user_id: userId,
+        role: "member",
+      })),
+    ];
+
+    const { error: membersError } = await supabase.from("chat_group_members").insert(memberRows);
+
+    if (membersError) {
+      setError(membersError.message || "Failed to add group members.");
+      setIsCreatingGroup(false);
+      return;
+    }
+
+    setGroupName("");
+    setSelectedGroupMembers([]);
+    setIsCreateGroupOpen(false);
+    setIsCreatingGroup(false);
+
+    await loadChatData(newGroup.id);
+    setSelectedConversationId(newGroup.id);
+    navigate(`/chat/${newGroup.id}`);
+  };
+
+  const toggleGroupMember = (userId: string) => {
+    setSelectedGroupMembers((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
   };
 
   const renderConversationButton = (group: ChatGroupRow, iconType?: "project" | "task" | "group") => {
@@ -432,148 +556,92 @@ useEffect(() => {
     );
   }
 
-  return (
-    <div className="h-[calc(100vh-140px)] flex gap-4">
-      <Card className="w-80 bg-slate-900/50 border-slate-800 flex flex-col">
-        <CardContent className="p-4 flex flex-col h-full">
-          <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-            <Input
-              placeholder="Search conversations..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
-            />
-          </div>
-
-          {error && (
-            <div className="mb-3 rounded-md border border-red-800 bg-red-900/20 px-3 py-2 text-sm text-red-300">
-              {error}
+return (
+    <>
+      <div className="h-[calc(100vh-140px)] flex gap-4">
+        <Card className="w-80 bg-slate-900/50 border-slate-800 flex flex-col">
+          <CardContent className="p-4 flex flex-col h-full">
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <Input
+                placeholder="Search conversations..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+              />
             </div>
-          )}
 
-          <ScrollArea className="flex-1 -mx-2">
-            <div className="space-y-1 px-2">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-medium text-slate-500 uppercase">Direct Messages</h3>
+            <div className="mb-3">
+              <Button
+                onClick={() => setIsCreateGroupOpen(true)}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                New Group Chat
+              </Button>
+            </div>
+
+            {error && (
+              <div className="mb-3 rounded-md border border-red-800 bg-red-900/20 px-3 py-2 text-sm text-red-300">
+                {error}
               </div>
-              {directConversations.map((group) => renderConversationButton(group))}
+            )}
 
-              {projectConversations.length > 0 && (
-                <>
-                  <Separator className="my-3 bg-slate-800" />
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-medium text-slate-500 uppercase">Project Chats</h3>
-                  </div>
-                  {projectConversations.map((group) =>
-                    renderConversationButton(group, "project")
-                  )}
-                </>
-              )}
+            <ScrollArea className="flex-1 -mx-2">
+              <div className="space-y-1 px-2">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-medium text-slate-500 uppercase">Direct Messages</h3>
+                </div>
+                {directConversations.map((group) => renderConversationButton(group))}
 
-              {taskConversations.length > 0 && (
-                <>
-                  <Separator className="my-3 bg-slate-800" />
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-medium text-slate-500 uppercase">Task Chats</h3>
-                  </div>
-                  {taskConversations.map((group) => renderConversationButton(group, "task"))}
-                </>
-              )}
-
-              {groupConversations.length > 0 && (
-                <>
-                  <Separator className="my-3 bg-slate-800" />
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-medium text-slate-500 uppercase">Group Chats</h3>
-                  </div>
-                  {groupConversations.map((group) => renderConversationButton(group, "group"))}
-                </>
-              )}
-
-              <Separator className="my-3 bg-slate-800" />
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-medium text-slate-500 uppercase">Team Members</h3>
-              </div>
-
-              {profiles
-                .filter((user) => user.user_id !== currentUserId && user.status === "active")
-                .map((user) => (
-                  <button
-                    key={user.user_id}
-                    onClick={() => startDirectMessage(user.user_id)}
-                    className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-slate-800/50 transition-all"
-                  >
-                    <Avatar className="w-10 h-10">
-                      <AvatarFallback className="bg-indigo-600 text-white">
-                        {(user.full_name || "U")
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")
-                          .toUpperCase()
-                          .slice(0, 2)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 text-left">
-                      <p className="text-white font-medium text-sm">{user.full_name || "Unknown"}</p>
-                      <p className="text-slate-500 text-xs">{user.role}</p>
+                {projectConversations.length > 0 && (
+                  <>
+                    <Separator className="my-3 bg-slate-800" />
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-medium text-slate-500 uppercase">Project Chats</h3>
                     </div>
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
-                  </button>
-                ))}
-            </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
-      {selectedConversation ? (
-        <Card className="flex-1 bg-slate-900/50 border-slate-800 flex flex-col">
-          <div className="flex items-center justify-between p-4 border-b border-slate-800">
-            <div className="flex items-center gap-3">
-              <Avatar className="w-10 h-10">
-                <AvatarFallback className="bg-indigo-600 text-white">
-                  {getConversationInitials(selectedConversation)}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="text-white font-medium">
-                  {getConversationName(selectedConversation)}
-                </h3>
-                <p className="text-slate-500 text-sm">
-                  {getMembersForGroup(selectedConversation.id).length} participants
-                </p>
-              </div>
-            </div>
+                    {projectConversations.map((group) =>
+                      renderConversationButton(group, "project")
+                    )}
+                  </>
+                )}
 
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="text-slate-400">
-                <Phone className="w-5 h-5" />
-              </Button>
-              <Button variant="ghost" size="icon" className="text-slate-400">
-                <Video className="w-5 h-5" />
-              </Button>
-              <Button variant="ghost" size="icon" className="text-slate-400">
-                <Info className="w-5 h-5" />
-              </Button>
-            </div>
-          </div>
+                {taskConversations.length > 0 && (
+                  <>
+                    <Separator className="my-3 bg-slate-800" />
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-medium text-slate-500 uppercase">Task Chats</h3>
+                    </div>
+                    {taskConversations.map((group) => renderConversationButton(group, "task"))}
+                  </>
+                )}
 
-          <ScrollArea className="flex-1 p-4">
-            <div className="space-y-4">
-              {conversationMessages.map((message, index) => {
-                const isOwn = message.user_id === currentUserId;
-                const user = getProfileByUserId(message.user_id);
-                const showAvatar =
-                  index === 0 || conversationMessages[index - 1].user_id !== message.user_id;
+                {groupConversations.length > 0 && (
+                  <>
+                    <Separator className="my-3 bg-slate-800" />
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-medium text-slate-500 uppercase">Group Chats</h3>
+                    </div>
+                    {groupConversations.map((group) => renderConversationButton(group, "group"))}
+                  </>
+                )}
 
-                return (
-                  <div
-                    key={message.id}
-                    className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}
-                  >
-                    {showAvatar ? (
-                      <Avatar className="w-8 h-8 flex-shrink-0">
-                        <AvatarFallback className="bg-indigo-600 text-white text-xs">
-                          {(user?.full_name || "U")
+                <Separator className="my-3 bg-slate-800" />
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-medium text-slate-500 uppercase">Team Members</h3>
+                </div>
+
+                {profiles
+                  .filter((user) => user.user_id !== currentUserId && user.status === "active")
+                  .map((user) => (
+                    <button
+                      key={user.user_id}
+                      onClick={() => startDirectMessage(user.user_id)}
+                      className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-slate-800/50 transition-all"
+                    >
+                      <Avatar className="w-10 h-10">
+                        <AvatarFallback className="bg-indigo-600 text-white">
+                          {(user.full_name || "U")
                             .split(" ")
                             .map((n) => n[0])
                             .join("")
@@ -581,78 +649,215 @@ useEffect(() => {
                             .slice(0, 2)}
                         </AvatarFallback>
                       </Avatar>
-                    ) : (
-                      <div className="w-8 flex-shrink-0" />
-                    )}
+                      <div className="flex-1 text-left">
+                        <p className="text-white font-medium text-sm">{user.full_name || "Unknown"}</p>
+                        <p className="text-slate-500 text-xs">{user.role}</p>
+                      </div>
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                    </button>
+                  ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
 
-                    <div className={`max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
-                      {showAvatar && (
-                        <p className="text-xs text-slate-500 mb-1">
-                          {user?.full_name || "Unknown"} •{" "}
-                          {format(new Date(message.created_at), "h:mm a")}
-                        </p>
+        {selectedConversation ? (
+          <Card className="flex-1 bg-slate-900/50 border-slate-800 flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <Avatar className="w-10 h-10">
+                  <AvatarFallback className="bg-indigo-600 text-white">
+                    {getConversationInitials(selectedConversation)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="text-white font-medium">
+                    {getConversationName(selectedConversation)}
+                  </h3>
+                  <p className="text-slate-500 text-sm">
+                    {getMembersForGroup(selectedConversation.id).length} participants
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" className="text-slate-400">
+                  <Phone className="w-5 h-5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="text-slate-400">
+                  <Video className="w-5 h-5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="text-slate-400">
+                  <Info className="w-5 h-5" />
+                </Button>
+              </div>
+            </div>
+
+            <ScrollArea className="flex-1 p-4">
+              <div className="space-y-4">
+                {conversationMessages.map((message, index) => {
+                  const isOwn = message.user_id === currentUserId;
+                  const user = getProfileByUserId(message.user_id);
+                  const showAvatar =
+                    index === 0 || conversationMessages[index - 1].user_id !== message.user_id;
+
+                  return (
+                    <div
+                      key={message.id}
+                      className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}
+                    >
+                      {showAvatar ? (
+                        <Avatar className="w-8 h-8 flex-shrink-0">
+                          <AvatarFallback className="bg-indigo-600 text-white text-xs">
+                            {(user?.full_name || "U")
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .toUpperCase()
+                              .slice(0, 2)}
+                          </AvatarFallback>
+                        </Avatar>
+                      ) : (
+                        <div className="w-8 flex-shrink-0" />
                       )}
 
-                      <div
-                        className={`px-4 py-2 rounded-2xl ${
-                          isOwn
-                            ? "bg-indigo-600 text-white rounded-br-none"
-                            : "bg-slate-800 text-slate-200 rounded-bl-none"
-                        }`}
-                      >
-                        <p className="whitespace-pre-wrap">{message.content}</p>
+                      <div className={`max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
+                        {showAvatar && (
+                          <p className="text-xs text-slate-500 mb-1">
+                            {user?.full_name || "Unknown"} •{" "}
+                            {format(new Date(message.created_at), "h:mm a")}
+                          </p>
+                        )}
+
+                        <div
+                          className={`px-4 py-2 rounded-2xl ${
+                            isOwn
+                              ? "bg-indigo-600 text-white rounded-br-none"
+                              : "bg-slate-800 text-slate-200 rounded-bl-none"
+                          }`}
+                        >
+                          <p className="whitespace-pre-wrap">{message.content}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
 
-              <div ref={messagesEndRef} />
+                <div ref={messagesEndRef} />
 
-              {conversationMessages.length === 0 && (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4">
-                    <MessageSquare className="w-8 h-8 text-slate-500" />
+                {conversationMessages.length === 0 && (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4">
+                      <MessageSquare className="w-8 h-8 text-slate-500" />
+                    </div>
+                    <p className="text-slate-500">No messages yet</p>
+                    <p className="text-slate-600 text-sm">Start the conversation!</p>
                   </div>
-                  <p className="text-slate-500">No messages yet</p>
-                  <p className="text-slate-600 text-sm">Start the conversation!</p>
-                </div>
-              )}
+                )}
+              </div>
+            </ScrollArea>
+
+            <div className="p-4 border-t border-slate-800">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Type a message..."
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                  className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+                />
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={isSending || !messageInput.trim()}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
-          </ScrollArea>
+          </Card>
+        ) : (
+          <Card className="flex-1 bg-slate-900/50 border-slate-800 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4">
+                <Send className="w-8 h-8 text-slate-500" />
+              </div>
+              <h3 className="text-lg font-medium text-white mb-2">Select a conversation</h3>
+              <p className="text-slate-500">
+                Choose a conversation from the sidebar to start chatting
+              </p>
+            </div>
+          </Card>
+        )}
+      </div>
 
-          <div className="p-4 border-t border-slate-800">
-            <div className="flex gap-2">
+      <Dialog open={isCreateGroupOpen} onOpenChange={setIsCreateGroupOpen}>
+        <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create Group Chat</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm text-slate-300 mb-2 block">Group Name</label>
               <Input
-                placeholder="Type a message..."
-                value={messageInput}
-                onChange={(e) => setMessageInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                placeholder="Enter group name"
+                className="bg-slate-900 border-slate-800 text-white"
               />
+            </div>
+
+            <div>
+              <label className="text-sm text-slate-300 mb-2 block">Select Members</label>
+              <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-800 bg-slate-900 p-2 space-y-2">
+                {profiles
+                  .filter((user) => user.user_id !== currentUserId && user.status === "active")
+                  .map((user) => (
+                    <label
+                      key={user.user_id}
+                      className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-800 cursor-pointer"
+                    >
+                      <div>
+                        <div className="text-white text-sm font-medium">
+                          {user.full_name || "Unknown"}
+                        </div>
+                        <div className="text-slate-500 text-xs">{user.role}</div>
+                      </div>
+
+                      <Checkbox
+                        checked={selectedGroupMembers.includes(user.user_id)}
+                        onCheckedChange={() => toggleGroupMember(user.user_id)}
+                      />
+                    </label>
+                  ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
               <Button
-                onClick={handleSendMessage}
-                disabled={isSending || !messageInput.trim()}
+                variant="outline"
+                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                onClick={() => {
+                  setIsCreateGroupOpen(false);
+                  setGroupName("");
+                  setSelectedGroupMembers([]);
+                }}
+              >
+                Cancel
+              </Button>
+
+              <Button
+                onClick={handleCreateGroup}
+                disabled={isCreatingGroup}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
               >
-                <Send className="w-4 h-4" />
+                {isCreatingGroup ? "Creating..." : "Create Group"}
               </Button>
             </div>
           </div>
-        </Card>
-      ) : (
-        <Card className="flex-1 bg-slate-900/50 border-slate-800 flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4">
-              <Send className="w-8 h-8 text-slate-500" />
-            </div>
-            <h3 className="text-lg font-medium text-white mb-2">Select a conversation</h3>
-            <p className="text-slate-500">
-              Choose a conversation from the sidebar to start chatting
-            </p>
-          </div>
-        </Card>
-      )}
-    </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

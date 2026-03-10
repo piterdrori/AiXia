@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { logActivity } from "@/lib/activity";
 import {
   uploadProjectOrTaskFile,
   getSignedFileUrl,
   deleteUploadedFile,
 } from "@/lib/file-upload";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -23,6 +25,10 @@ import {
   Upload,
   FileText,
   Download,
+  MessageSquare,
+  Clock3,
+  Save,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -93,6 +99,14 @@ type FileUploadRow = {
   created_at: string;
 };
 
+type ProjectCommentRow = {
+  id: string;
+  project_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+};
+
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -113,6 +127,13 @@ export default function ProjectDetailPage() {
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLogRow[]>([]);
   const [files, setFiles] = useState<FileUploadRow[]>([]);
+  const [comments, setComments] = useState<ProjectCommentRow[]>([]);
+
+  const [newComment, setNewComment] = useState("");
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState("");
+  const [commentSaving, setCommentSaving] = useState(false);
+  const [commentActionLoading, setCommentActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     const loadProjectPage = async () => {
@@ -144,6 +165,7 @@ export default function ProjectDetailPage() {
           { data: tasksData },
           { data: logsData },
           { data: filesData },
+          { data: commentsData },
         ] = await Promise.all([
           supabase
             .from("profiles")
@@ -189,6 +211,11 @@ export default function ProjectDetailPage() {
             .is("task_id", null)
             .eq("entity_type", "project")
             .order("created_at", { ascending: false }),
+          supabase
+            .from("project_comments")
+            .select("id, project_id, user_id, content, created_at")
+            .eq("project_id", id)
+            .order("created_at", { ascending: true }),
         ]);
 
         if (myProfileError || !myProfile) {
@@ -211,6 +238,7 @@ export default function ProjectDetailPage() {
         const loadedTasks = (tasksData || []) as TaskRow[];
         const loadedLogs = (logsData || []) as ActivityLogRow[];
         const loadedFiles = (filesData || []) as FileUploadRow[];
+        const loadedComments = (commentsData || []) as ProjectCommentRow[];
 
         const isAdmin = role === "admin";
         const isCreator = loadedProject.created_by === user.id;
@@ -227,6 +255,7 @@ export default function ProjectDetailPage() {
         setTasks(loadedTasks);
         setActivityLogs(loadedLogs);
         setFiles(loadedFiles);
+        setComments(loadedComments);
       } catch (err) {
         console.error("Load project page error:", err);
         setError("Something went wrong while loading the project.");
@@ -256,6 +285,11 @@ export default function ProjectDetailPage() {
       project?.created_by === currentUserId ||
       file.user_id === currentUserId
     );
+  };
+
+  const canManageComment = (comment: ProjectCommentRow) => {
+    if (!currentUserId) return false;
+    return currentUserRole === "admin" || comment.user_id === currentUserId;
   };
 
   const getStatusColor = (status: string | null) => {
@@ -312,6 +346,16 @@ export default function ProjectDetailPage() {
 
   const getProfileByUserId = (userId: string) => {
     return profiles.find((profile) => profile.user_id === userId);
+  };
+
+  const getProfileName = (userId: string | null) => {
+    if (!userId) return "Unknown";
+    return profiles.find((profile) => profile.user_id === userId)?.full_name || "Unknown";
+  };
+
+  const getProfileRole = (userId: string | null) => {
+    if (!userId) return "";
+    return profiles.find((profile) => profile.user_id === userId)?.role || "";
   };
 
 const handleDelete = async () => {
@@ -440,6 +484,136 @@ const handleDelete = async () => {
       console.error("Delete file error:", err);
       setError(err?.message || "Failed to delete file.");
     }
+  };
+
+  const handleAddComment = async () => {
+    if (!project || !currentUserId || !newComment.trim()) return;
+
+    setCommentSaving(true);
+    setError("");
+
+    const { data, error: commentError } = await supabase
+      .from("project_comments")
+      .insert({
+        project_id: project.id,
+        user_id: currentUserId,
+        content: newComment.trim(),
+      })
+      .select("id, project_id, user_id, content, created_at")
+      .single();
+
+    if (commentError) {
+      setError(commentError.message || "Failed to add comment.");
+      setCommentSaving(false);
+      return;
+    }
+
+    await logActivity({
+      projectId: project.id,
+      taskId: null,
+      actionType: "project_comment_added",
+      entityType: "comment",
+      entityId: data.id,
+      message: `Added an update to project "${project.name}"`,
+    });
+
+    setComments((prev) => [...prev, data as ProjectCommentRow]);
+    setNewComment("");
+    setCommentSaving(false);
+  };
+
+  const startEditingComment = (comment: ProjectCommentRow) => {
+    setEditingCommentId(comment.id);
+    setEditingCommentText(comment.content);
+  };
+
+  const cancelEditingComment = () => {
+    setEditingCommentId(null);
+    setEditingCommentText("");
+  };
+
+  const handleSaveEditedComment = async (comment: ProjectCommentRow) => {
+    if (!editingCommentText.trim()) {
+      setError("Comment cannot be empty.");
+      return;
+    }
+
+    setCommentActionLoading(comment.id);
+    setError("");
+
+    const { error: updateError } = await supabase
+      .from("project_comments")
+      .update({
+        content: editingCommentText.trim(),
+      })
+      .eq("id", comment.id);
+
+    if (updateError) {
+      setError(updateError.message || "Failed to update comment.");
+      setCommentActionLoading(null);
+      return;
+    }
+
+    await logActivity({
+      projectId: project?.id,
+      taskId: null,
+      actionType: "project_comment_edited",
+      entityType: "comment",
+      entityId: comment.id,
+      message: `Edited a comment in project "${project?.name || ""}"`,
+    });
+
+    setComments((prev) =>
+      prev.map((item) =>
+        item.id === comment.id
+          ? {
+              ...item,
+              content: editingCommentText.trim(),
+            }
+          : item
+      )
+    );
+
+    setEditingCommentId(null);
+    setEditingCommentText("");
+    setCommentActionLoading(null);
+  };
+
+  const handleDeleteComment = async (comment: ProjectCommentRow) => {
+    const confirmed = window.confirm("Are you sure you want to delete this comment?");
+    if (!confirmed) return;
+
+    setCommentActionLoading(comment.id);
+    setError("");
+
+    const { error: deleteError } = await supabase
+      .from("project_comments")
+      .delete()
+      .eq("id", comment.id);
+
+    if (deleteError) {
+      setError(deleteError.message || "Failed to delete comment.");
+      setCommentActionLoading(null);
+      return;
+    }
+
+    await logActivity({
+      projectId: project?.id,
+      taskId: null,
+      actionType: "project_comment_deleted",
+      entityType: "comment",
+      entityId: comment.id,
+      message: `Deleted a comment in project "${project?.name || ""}"`,
+    });
+
+    setComments((prev) => prev.filter((item) => item.id !== comment.id));
+
+    if (editingCommentId === comment.id) {
+      setEditingCommentId(null);
+      setEditingCommentText("");
+    }
+
+    setCommentActionLoading(null);
   };
 
   const taskStats = {
@@ -574,6 +748,9 @@ const handleDelete = async () => {
           </TabsTrigger>
           <TabsTrigger value="files" className="data-[state=active]:bg-slate-800">
             Files
+          </TabsTrigger>
+          <TabsTrigger value="discussion" className="data-[state=active]:bg-slate-800">
+            Discussion
           </TabsTrigger>
           <TabsTrigger value="activity" className="data-[state=active]:bg-slate-800">
             Activity
@@ -878,6 +1055,191 @@ const handleDelete = async () => {
                   })}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="discussion" className="space-y-4">
+          <Card className="bg-slate-900/50 border-slate-800">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-indigo-400" />
+                <CardTitle className="text-white">Project Discussion</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+                <div className="mb-2">
+                  <p className="text-sm font-medium text-white">Add Update</p>
+                  <p className="text-xs text-slate-500">
+                    Share project-wide updates, blockers, notes, and decisions
+                  </p>
+                </div>
+
+                <Textarea
+                  placeholder="Write a project update, decision, blocker, or note..."
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  rows={4}
+                  className="bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 resize-none"
+                />
+
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <p className="text-xs text-slate-500">
+                    This update will be visible to people who can access this project.
+                  </p>
+
+                  <Button
+                    type="button"
+                    onClick={handleAddComment}
+                    disabled={commentSaving || !newComment.trim()}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                  >
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    {commentSaving ? "Posting..." : "Post Update"}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {comments.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-800 bg-slate-950/40 p-8 text-center">
+                    <MessageSquare className="mx-auto mb-3 h-10 w-10 text-slate-600" />
+                    <p className="text-white font-medium">No discussion yet</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Start the thread with the first project-wide update.
+                    </p>
+                  </div>
+                ) : (
+                  comments.map((comment) => {
+                    const isMine = comment.user_id === currentUserId;
+                    const authorName = getProfileName(comment.user_id);
+                    const authorRole = getProfileRole(comment.user_id);
+                    const isEditing = editingCommentId === comment.id;
+
+                    return (
+                      <div
+                        key={comment.id}
+                        className={`rounded-xl border p-4 ${
+                          isMine
+                            ? "border-indigo-800/40 bg-indigo-950/20"
+                            : "border-slate-800 bg-slate-950/50"
+                        }`}
+                      >
+                        <div className="mb-3 flex items-start justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-xs font-medium text-white">
+                              {getInitials(authorName)}
+                            </div>
+
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-medium text-white">{authorName}</p>
+
+                                {authorRole && (
+                                  <Badge className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5">
+                                    {authorRole.toUpperCase()}
+                                  </Badge>
+                                )}
+
+                                {isMine && (
+                                  <Badge className="bg-indigo-500/20 text-indigo-300 text-[10px] px-2 py-0.5">
+                                    YOU
+                                  </Badge>
+                                )}
+                              </div>
+
+                              <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                                <Clock3 className="h-3 w-3" />
+                                <span>
+                                  {format(new Date(comment.created_at), "MMM d, yyyy • h:mm a")}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {canManageComment(comment) && (
+                            <div className="flex items-center gap-2">
+                              {!isEditing && (
+                                <>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                                    onClick={() => startEditingComment(comment)}
+                                    disabled={commentActionLoading === comment.id}
+                                  >
+                                    <Edit className="w-3 h-3 mr-1" />
+                                    Edit
+                                  </Button>
+
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-red-800 text-red-400 hover:bg-red-900/20"
+                                    onClick={() => handleDeleteComment(comment)}
+                                    disabled={commentActionLoading === comment.id}
+                                  >
+                                    <Trash2 className="w-3 h-3 mr-1" />
+                                    Delete
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="pl-12">
+                          {isEditing ? (
+                            <div className="space-y-3">
+                              <Textarea
+                                value={editingCommentText}
+                                onChange={(e) => setEditingCommentText(e.target.value)}
+                                rows={4}
+                                className="bg-slate-900 border-slate-800 text-white resize-none"
+                              />
+
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                                  onClick={() => handleSaveEditedComment(comment)}
+                                  disabled={
+                                    commentActionLoading === comment.id ||
+                                    !editingCommentText.trim()
+                                  }
+                                >
+                                  <Save className="w-3 h-3 mr-1" />
+                                  Save
+                                </Button>
+
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                                  onClick={cancelEditingComment}
+                                  disabled={commentActionLoading === comment.id}
+                                >
+                                  <X className="w-3 h-3 mr-1" />
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">
+                              {comment.content}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

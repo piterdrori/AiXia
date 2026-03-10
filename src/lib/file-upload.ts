@@ -25,6 +25,7 @@ export async function uploadProjectOrTaskFile({
 
   const timestamp = Date.now();
   const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+
   const baseFolder =
     entityType === "project"
       ? `projects/${projectId}`
@@ -85,7 +86,15 @@ export async function getSignedFileUrl(filePath: string) {
   return data.signedUrl;
 }
 
-export async function deleteUploadedFile(fileId: string, filePath: string) {
+export async function deleteUploadedFile(
+  fileId: string,
+  filePath: string,
+  options?: {
+    projectId?: string | null;
+    taskId?: string | null;
+    fileName?: string | null;
+  }
+) {
   const { error: storageError } = await supabase.storage
     .from("project-files")
     .remove([filePath]);
@@ -102,4 +111,13 @@ export async function deleteUploadedFile(fileId: string, filePath: string) {
   if (deleteRowError) {
     throw new Error(deleteRowError.message || "Failed to delete file record.");
   }
+
+  await logActivity({
+    projectId: options?.projectId || null,
+    taskId: options?.taskId || null,
+    actionType: "file_deleted",
+    entityType: "file",
+    entityId: fileId,
+    message: `Deleted file "${options?.fileName || "file"}"`,
+  });
 }

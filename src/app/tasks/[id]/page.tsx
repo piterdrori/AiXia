@@ -7,6 +7,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   ArrowLeft,
   Edit,
@@ -18,7 +26,6 @@ import {
   CheckSquare,
 } from "lucide-react";
 import { format } from "date-fns";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type Role = "admin" | "manager" | "employee" | "guest";
 type TaskStatus = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
@@ -263,37 +270,50 @@ export default function TaskDetailPage() {
     }
   };
 
-  const handleStatusChange = async (nextStatus: TaskStatus) => {
+  const handleStatusUpdate = async (newStatus: string) => {
     if (!task || !canUpdateStatus) return;
 
     setStatusSaving(true);
     setError("");
 
-    const { error: updateError } = await supabase
-      .from("tasks")
-      .update({
-        status: nextStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", task.id);
+    try {
+      const { error: updateError } = await supabase
+        .from("tasks")
+        .update({
+          status: newStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", task.id);
 
-    if (updateError) {
-      setError(updateError.message || "Failed to update status.");
+      if (updateError) {
+        setError(updateError.message || "Failed to update task status.");
+        setStatusSaving(false);
+        return;
+      }
+
+      await logActivity({
+        projectId: task.project_id,
+        taskId: task.id,
+        actionType: "task_status_changed",
+        entityType: "task",
+        entityId: task.id,
+        message: `Changed task "${task.title}" status to ${newStatus}`,
+      });
+
+      setTask((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: newStatus,
+            }
+          : prev
+      );
+    } catch (err) {
+      console.error("Status update error:", err);
+      setError("Failed to update task status.");
+    } finally {
       setStatusSaving(false);
-      return;
     }
-
-    await logActivity({
-      projectId: task.project_id,
-      taskId: task.id,
-      actionType: "task_status_changed",
-      entityType: "task",
-      entityId: task.id,
-      message: `Changed task "${task.title}" status to ${nextStatus}`,
-    });
-
-    setTask({ ...task, status: nextStatus });
-    setStatusSaving(false);
   };
 
   const handleDelete = async () => {
@@ -439,49 +459,22 @@ export default function TaskDetailPage() {
 
               {canUpdateStatus && (
                 <div className="space-y-2">
-                  <LabelLike>Status Update</LabelLike>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={(task.status || "TODO") === "TODO" ? "default" : "outline"}
-                      onClick={() => handleStatusChange("TODO")}
-                      disabled={statusSaving}
-                      className="border-slate-700"
-                    >
-                      To Do
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={task.status === "IN_PROGRESS" ? "default" : "outline"}
-                      onClick={() => handleStatusChange("IN_PROGRESS")}
-                      disabled={statusSaving}
-                      className="border-slate-700"
-                    >
-                      In Progress
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={task.status === "IN_REVIEW" ? "default" : "outline"}
-                      onClick={() => handleStatusChange("IN_REVIEW")}
-                      disabled={statusSaving}
-                      className="border-slate-700"
-                    >
-                      In Review
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={task.status === "DONE" ? "default" : "outline"}
-                      onClick={() => handleStatusChange("DONE")}
-                      disabled={statusSaving}
-                      className="border-slate-700"
-                    >
-                      Done
-                    </Button>
-                  </div>
+                  <div className="text-slate-300 text-sm font-medium">Update Status</div>
+                  <Select
+                    value={(task.status || "TODO").toUpperCase()}
+                    onValueChange={handleStatusUpdate}
+                    disabled={statusSaving}
+                  >
+                    <SelectTrigger className="w-56 bg-slate-900 border-slate-700 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="TODO">To Do</SelectItem>
+                      <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                      <SelectItem value="IN_REVIEW">In Review</SelectItem>
+                      <SelectItem value="DONE">Done</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
             </CardContent>
@@ -560,7 +553,11 @@ export default function TaskDetailPage() {
               <InfoRow
                 icon={<Calendar className="w-4 h-4 text-green-400" />}
                 label="Due Date"
-                value={task.due_date ? format(new Date(task.due_date), "MMM d, yyyy") : "No due date"}
+                value={
+                  task.due_date
+                    ? format(new Date(task.due_date), "MMM d, yyyy")
+                    : "No due date"
+                }
               />
             </CardContent>
           </Card>
@@ -606,8 +603,4 @@ function InfoRow({
       </div>
     </div>
   );
-}
-
-function LabelLike({ children }: { children: React.ReactNode }) {
-  return <div className="text-slate-300 text-sm font-medium">{children}</div>;
 }

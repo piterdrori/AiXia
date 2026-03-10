@@ -874,7 +874,7 @@ return (
             <ScrollArea className="flex-1 -mx-2 h-full">
               <div className="space-y-4">
                 {selectedConversationId && hasMoreMessages[selectedConversationId] && (
-                  <div className="flex justify-center">
+                  <div className="flex justify-center pb-2">
                     <Button
                       type="button"
                       variant="outline"
@@ -978,8 +978,8 @@ return (
               </div>
             </div>
 
-            <ScrollArea className="flex-1 p-4 h-full">
-              <div className="space-y-4">
+            <ScrollArea className="flex-1 h-full">
+              <div className="space-y-4 pt-4 px-4 pb-4">
                 {conversationMessages.map((message, index) => {
                   const isOwn = message.user_id === currentUserId;
                   const user = getProfileByUserId(message.user_id);

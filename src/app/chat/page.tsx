@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-import { createNotification } from "@/lib/notifications";
+import {
+  createNotification,
+  extractMentionedUserIds,
+} from "@/lib/notifications";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -78,12 +82,15 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Record<string, ChatMessageRow[]>>({});
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
 
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(id || null);
+const [selectedConversationId, setSelectedConversationId] = useState<string | null>(id || null);
   const [messageInput, setMessageInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState("");
+
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
 
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [groupName, setGroupName] = useState("");
@@ -330,6 +337,55 @@ useEffect(() => {
   const taskConversations = filteredConversations.filter((g) => g.type === "TASK");
   const groupConversations = filteredConversations.filter((g) => g.type === "GROUP");
 
+  const mentionCandidates = useMemo(() => {
+    if (!selectedConversationId) return [];
+
+    const memberIds = Array.from(
+      new Set(getMembersForGroup(selectedConversationId).map((member) => member.user_id))
+    );
+
+    return memberIds
+      .map((userId) => profiles.find((profile) => profile.user_id === userId))
+      .filter((profile): profile is ProfileRow => Boolean(profile))
+      .filter((profile) => profile.user_id !== currentUserId);
+  }, [selectedConversationId, groupMembers, profiles, currentUserId]);
+
+  const filteredMentionCandidates = useMemo(() => {
+    if (!showMentionDropdown) return [];
+
+    const q = mentionQuery.trim().toLowerCase();
+
+    return mentionCandidates.filter((profile) => {
+      const name = (profile.full_name || "").toLowerCase();
+      if (!q) return true;
+      return name.includes(q);
+    });
+  }, [mentionCandidates, mentionQuery, showMentionDropdown]);
+
+  const handleMessageInputChange = (value: string) => {
+    setMessageInput(value);
+
+    const matches = value.match(/@([a-zA-Z0-9_]*)$/);
+
+    if (matches) {
+      setMentionQuery(matches[1] || "");
+      setShowMentionDropdown(true);
+    } else {
+      setMentionQuery("");
+      setShowMentionDropdown(false);
+    }
+  };
+
+  const insertMention = (fullName: string) => {
+    const safeName = fullName.trim();
+    if (!safeName) return;
+
+    const updatedValue = messageInput.replace(/@([a-zA-Z0-9_]*)$/, `@${safeName} `);
+    setMessageInput(updatedValue);
+    setMentionQuery("");
+    setShowMentionDropdown(false);
+  };
+
   const canManageMessage = (message: ChatMessageRow) => {
     if (!currentUserId) return false;
     return currentUserRole === "admin" || message.user_id === currentUserId;
@@ -340,16 +396,18 @@ useEffect(() => {
     return currentUserRole === "admin" || group.created_by === currentUserId;
   };
 
-  const handleSendMessage = async () => {
+const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedConversationId || !currentUserId || !selectedConversation)
       return;
 
     const tempId = `temp-${Date.now()}`;
+    const contentToSend = messageInput.trim();
+
     const optimisticMessage: ChatMessageRow = {
       id: tempId,
       group_id: selectedConversationId,
       user_id: currentUserId,
-      content: messageInput.trim(),
+      content: contentToSend,
       created_at: new Date().toISOString(),
     };
 
@@ -358,8 +416,9 @@ useEffect(() => {
       [selectedConversationId]: [...(prev[selectedConversationId] || []), optimisticMessage],
     }));
 
-    const contentToSend = messageInput.trim();
     setMessageInput("");
+    setMentionQuery("");
+    setShowMentionDropdown(false);
     setIsSending(true);
     setError("");
 
@@ -404,6 +463,27 @@ useEffect(() => {
         type: "MESSAGE",
         title: `New message in ${getConversationName(selectedConversation)}`,
         message: contentToSend,
+        link: `/chat/${selectedConversationId}`,
+        entityType: "chat_message",
+        entityId: insertedMessage.id,
+      });
+    }
+
+    const mentionedUserIds = extractMentionedUserIds(
+      contentToSend,
+      mentionCandidates.map((profile) => ({
+        user_id: profile.user_id,
+        full_name: profile.full_name,
+      }))
+    ).filter((userId) => userId !== currentUserId);
+
+    for (const userId of mentionedUserIds) {
+      await createNotification({
+        userId,
+        actorUserId: currentUserId,
+        type: "MENTION",
+        title: "You were mentioned in chat",
+        message: `You were mentioned in ${getConversationName(selectedConversation)}`,
         link: `/chat/${selectedConversationId}`,
         entityType: "chat_message",
         entityId: insertedMessage.id,
@@ -953,22 +1033,52 @@ return (
               </div>
             </ScrollArea>
 
-            <div className="p-4 border-t border-slate-800">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Type a message..."
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                  className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
-                />
-                <Button
-                  onClick={handleSendMessage}
-                  disabled={isSending || !messageInput.trim()}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
+<div className="p-4 border-t border-slate-800">
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Type a message..."
+                    value={messageInput}
+                    onChange={(e) => handleMessageInputChange(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                    className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+                  />
+                  <Button
+                    onClick={handleSendMessage}
+                    disabled={isSending || !messageInput.trim()}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                {showMentionDropdown && (
+                  <div className="rounded-lg border border-slate-800 bg-slate-900 shadow-lg overflow-hidden">
+                    {filteredMentionCandidates.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-slate-500">
+                        No matching participants
+                      </div>
+                    ) : (
+                      filteredMentionCandidates.map((profile) => (
+                        <button
+                          key={profile.user_id}
+                          type="button"
+                          onClick={() => insertMention(profile.full_name || "")}
+                          className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-800 transition-colors"
+                        >
+                          <div>
+                            <div className="text-sm font-medium text-white">
+                              {profile.full_name || "Unknown"}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {profile.role.toUpperCase()}
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </Card>

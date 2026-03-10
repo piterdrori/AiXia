@@ -127,7 +127,7 @@ export default function TaskDetailPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 
-  const [newComment, setNewComment] = useState("");
+const [newComment, setNewComment] = useState("");
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentText, setEditingCommentText] = useState("");
   const [statusSaving, setStatusSaving] = useState(false);
@@ -135,6 +135,9 @@ export default function TaskDetailPage() {
   const [commentActionLoading, setCommentActionLoading] = useState<string | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -341,6 +344,56 @@ export default function TaskDetailPage() {
       .map((n) => n[0])
       .join("")
       .toUpperCase();
+  };
+
+  const mentionCandidates = useMemo(() => {
+    const candidateIds = Array.from(
+      new Set([
+        ...(task?.created_by ? [task.created_by] : []),
+        ...taskMembers.map((member) => member.user_id),
+      ])
+    );
+
+    return candidateIds
+      .map((userId) => profiles.find((profile) => profile.user_id === userId))
+      .filter((profile): profile is ProfileRow => Boolean(profile))
+      .filter((profile) => profile.user_id !== currentUserId);
+  }, [task, taskMembers, profiles, currentUserId]);
+
+  const filteredMentionCandidates = useMemo(() => {
+    if (!showMentionDropdown) return [];
+
+    const q = mentionQuery.trim().toLowerCase();
+
+    return mentionCandidates.filter((profile) => {
+      const name = (profile.full_name || "").toLowerCase();
+      if (!q) return true;
+      return name.includes(q);
+    });
+  }, [mentionCandidates, mentionQuery, showMentionDropdown]);
+
+  const handleCommentInputChange = (value: string) => {
+    setNewComment(value);
+
+    const matches = value.match(/@([a-zA-Z0-9_]*)$/);
+
+    if (matches) {
+      setMentionQuery(matches[1] || "");
+      setShowMentionDropdown(true);
+    } else {
+      setMentionQuery("");
+      setShowMentionDropdown(false);
+    }
+  };
+
+  const insertMention = (fullName: string) => {
+    const safeName = fullName.trim();
+    if (!safeName) return;
+
+    const updatedValue = newComment.replace(/@([a-zA-Z0-9_]*)$/, `@${safeName} `);
+    setNewComment(updatedValue);
+    setMentionQuery("");
+    setShowMentionDropdown(false);
   };
 
 const handleStatusUpdate = async (newStatus: string) => {
@@ -888,10 +941,38 @@ const uploaded = (await uploadProjectOrTaskFile({
                 <Textarea
                   placeholder="Write an update, status note, blocker, or team comment..."
                   value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
+                  onChange={(e) => handleCommentInputChange(e.target.value)}
                   rows={4}
                   className="bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 resize-none"
                 />
+
+                {showMentionDropdown && (
+                  <div className="mt-2 rounded-lg border border-slate-800 bg-slate-900 shadow-lg overflow-hidden">
+                    {filteredMentionCandidates.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-slate-500">
+                        No matching participants
+                      </div>
+                    ) : (
+                      filteredMentionCandidates.map((profile) => (
+                        <button
+                          key={profile.user_id}
+                          type="button"
+                          onClick={() => insertMention(profile.full_name || "")}
+                          className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-800 transition-colors"
+                        >
+                          <div>
+                            <div className="text-sm font-medium text-white">
+                              {profile.full_name || "Unknown"}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {profile.role.toUpperCase()}
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
 
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <p className="text-xs text-slate-500">

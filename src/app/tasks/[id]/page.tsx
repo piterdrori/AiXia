@@ -1,7 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { logActivity } from "@/lib/activity";
+import {
+  uploadProjectOrTaskFile,
+  getSignedFileUrl,
+  deleteUploadedFile,
+} from "@/lib/file-upload";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +29,9 @@ import {
   FolderKanban,
   Flag,
   CheckSquare,
+  Upload,
+  FileText,
+  Download,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -83,15 +91,30 @@ type TaskCommentRow = {
   created_at: string;
 };
 
+type FileUploadRow = {
+  id: string;
+  project_id: string | null;
+  task_id: string | null;
+  user_id: string | null;
+  file_name: string;
+  file_path: string;
+  file_size: number | null;
+  mime_type: string | null;
+  entity_type: "project" | "task";
+  created_at: string;
+};
+
 export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const taskFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [task, setTask] = useState<TaskRow | null>(null);
   const [project, setProject] = useState<ProjectRow | null>(null);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [taskMembers, setTaskMembers] = useState<TaskMemberRow[]>([]);
   const [comments, setComments] = useState<TaskCommentRow[]>([]);
+  const [files, setFiles] = useState<FileUploadRow[]>([]);
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
@@ -100,6 +123,7 @@ export default function TaskDetailPage() {
   const [statusSaving, setStatusSaving] = useState(false);
   const [commentSaving, setCommentSaving] = useState(false);
   const [deleteSaving, setDeleteSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -159,6 +183,7 @@ export default function TaskDetailPage() {
           { data: taskMembersData },
           { data: projectMembersData },
           { data: commentsData },
+          { data: filesData },
         ] = await Promise.all([
           loadedTask.project_id
             ? supabase.from("projects").select("*").eq("id", loadedTask.project_id).single()
@@ -182,6 +207,14 @@ export default function TaskDetailPage() {
             .select("id, task_id, user_id, content, created_at")
             .eq("task_id", id)
             .order("created_at", { ascending: true }),
+          supabase
+            .from("file_uploads")
+            .select(
+              "id, project_id, task_id, user_id, file_name, file_path, file_size, mime_type, entity_type, created_at"
+            )
+            .eq("task_id", id)
+            .eq("entity_type", "task")
+            .order("created_at", { ascending: false }),
         ]);
 
         const loadedTaskMembers = (taskMembersData || []) as TaskMemberRow[];
@@ -206,6 +239,7 @@ export default function TaskDetailPage() {
         setProfiles((profilesData || []) as ProfileRow[]);
         setTaskMembers(loadedTaskMembers);
         setComments((commentsData || []) as TaskCommentRow[]);
+        setFiles((filesData || []) as FileUploadRow[]);
       } catch (err) {
         console.error("Load task detail error:", err);
         setError("Failed to load task.");
@@ -371,6 +405,62 @@ export default function TaskDetailPage() {
     setCommentSaving(false);
   };
 
+  const handleTaskFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (!task || !project || !e.target.files || e.target.files.length === 0) return;
+
+    const file = e.target.files[0];
+    setError("");
+    setIsUploading(true);
+
+    try {
+      const uploaded = (await uploadProjectOrTaskFile({
+        file,
+        entityType: "task",
+        projectId: project.id,
+        taskId: task.id,
+      })) as FileUploadRow;
+
+      setFiles((prev) => [uploaded, ...prev]);
+    } catch (err: any) {
+      console.error("Task file upload error:", err);
+      setError(err?.message || "Failed to upload file.");
+    } finally {
+      setIsUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleDownloadFile = async (filePath: string) => {
+    try {
+      const signedUrl = await getSignedFileUrl(filePath);
+      window.open(signedUrl, "_blank");
+    } catch (err: any) {
+      console.error("Download file error:", err);
+      setError(err?.message || "Failed to open file.");
+    }
+  };
+
+  const handleDeleteFile = async (fileId: string, filePath: string, fileName: string) => {
+    if (!task) return;
+
+    const confirmed = window.confirm("Are you sure you want to delete this file?");
+    if (!confirmed) return;
+
+    try {
+      await deleteUploadedFile(fileId, filePath, {
+        projectId: task.project_id,
+        taskId: task.id,
+        fileName,
+      });
+      setFiles((prev) => prev.filter((file) => file.id !== fileId));
+    } catch (err: any) {
+      console.error("Delete task file error:", err);
+      setError(err?.message || "Failed to delete file.");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -474,6 +564,83 @@ export default function TaskDetailPage() {
                       <SelectItem value="DONE">Done</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="bg-slate-900/50 border-slate-800">
+            <CardHeader>
+              <div className="flex items-center justify-between gap-4">
+                <CardTitle className="text-white">Task Files</CardTitle>
+
+                <>
+                  <input
+                    ref={taskFileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={handleTaskFileUpload}
+                    disabled={isUploading}
+                  />
+
+                  <Button
+                    type="button"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    disabled={isUploading}
+                    onClick={() => taskFileInputRef.current?.click()}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {isUploading ? "Uploading..." : "Upload File"}
+                  </Button>
+                </>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {files.length === 0 ? (
+                <p className="text-slate-500">No task files uploaded yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {files.map((file) => (
+                    <div
+                      key={file.id}
+                      className="flex items-center justify-between gap-4 rounded-lg border border-slate-800 bg-slate-950/50 p-3"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <FileText className="w-5 h-5 text-indigo-400" />
+                        <div className="min-w-0">
+                          <p className="text-white text-sm truncate">{file.file_name}</p>
+                          <p className="text-slate-500 text-xs">
+                            {getProfileName(file.user_id)} •{" "}
+                            {format(new Date(file.created_at), "MMM d, yyyy h:mm a")}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                          onClick={() => handleDownloadFile(file.file_path)}
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          Open
+                        </Button>
+
+                        {canEditTask && (
+                          <Button
+                            variant="outline"
+                            className="border-red-800 text-red-400 hover:bg-red-900/20"
+                            onClick={() =>
+                              handleDeleteFile(file.id, file.file_path, file.file_name)
+                            }
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>

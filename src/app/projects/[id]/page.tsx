@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { logActivity } from "@/lib/activity";
+import { createNotification } from "@/lib/notifications";
 import {
   uploadProjectOrTaskFile,
   getSignedFileUrl,
@@ -492,12 +493,14 @@ const handleDelete = async () => {
     setCommentSaving(true);
     setError("");
 
+    const commentText = newComment.trim();
+
     const { data, error: commentError } = await supabase
       .from("project_comments")
       .insert({
         project_id: project.id,
         user_id: currentUserId,
-        content: newComment.trim(),
+        content: commentText,
       })
       .select("id, project_id, user_id, content, created_at")
       .single();
@@ -516,6 +519,26 @@ const handleDelete = async () => {
       entityId: data.id,
       message: `Added an update to project "${project.name}"`,
     });
+
+    const recipientIds = Array.from(
+      new Set([
+        ...(project.created_by ? [project.created_by] : []),
+        ...projectMembers.map((member) => member.user_id),
+      ])
+    ).filter((userId) => userId !== currentUserId);
+
+    for (const userId of recipientIds) {
+      await createNotification({
+        userId,
+        actorUserId: currentUserId,
+        type: "COMMENT",
+        title: "New Project Comment",
+        message: `New comment on project "${project.name}"`,
+        link: `/projects/${project.id}`,
+        entityType: "project_comment",
+        entityId: data.id,
+      });
+    }
 
     setComments((prev) => [...prev, data as ProjectCommentRow]);
     setNewComment("");

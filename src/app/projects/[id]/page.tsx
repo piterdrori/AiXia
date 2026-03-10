@@ -398,16 +398,16 @@ export default function ProjectDetailPage() {
   };
 
   const handleDownloadFile = async (filePath: string) => {
-    try {
-      const signedUrl = await getSignedFileUrl(filePath);
-      window.open(signedUrl, "_blank");
-    } catch (err: any) {
-      console.error("Download file error:", err);
-      setError(err?.message || "Failed to open file.");
-    }
-  };
+  try {
+    const signedUrl = await getSignedFileUrl(filePath);
+    window.open(signedUrl, "_blank");
+  } catch (err: any) {
+    console.error("Download file error:", err);
+    setError(err?.message || "Failed to open file.");
+  }
+};
 
-  const handleDeleteFile = async (
+const handleDeleteFile = async (
   fileId: string,
   filePath: string,
   fileName: string
@@ -441,59 +441,35 @@ export default function ProjectDetailPage() {
     setError(err?.message || "Failed to delete file.");
   }
 };
-    const confirmed = window.confirm("Are you sure you want to delete this file?");
-    if (!confirmed) return;
 
-    try {
-      await deleteUploadedFile(fileId, filePath);
-      setFiles((prev) => prev.filter((file) => file.id !== fileId));
+const taskStats = {
+  total: tasks.length,
+  todo: tasks.filter((t) => (t.status || "").toUpperCase() === "TODO").length,
+  inProgress: tasks.filter((t) => (t.status || "").toUpperCase() === "IN_PROGRESS").length,
+  inReview: tasks.filter((t) => (t.status || "").toUpperCase() === "IN_REVIEW").length,
+  done: tasks.filter((t) => (t.status || "").toUpperCase() === "DONE").length,
+};
 
-      if (project) {
-        const { data: newLogs } = await supabase
-          .from("activity_logs")
-          .select(
-            "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
-          )
-          .eq("project_id", project.id)
-          .order("created_at", { ascending: false })
-          .limit(50);
+if (isLoading) {
+  return (
+    <div className="flex items-center justify-center h-64">
+      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+    </div>
+  );
+}
 
-        setActivityLogs((newLogs || []) as ActivityLogRow[]);
-      }
-    } catch (err: any) {
-      console.error("Delete file error:", err);
-      setError(err?.message || "Failed to delete file.");
-    }
-  };
-
-  const taskStats = {
-    total: tasks.length,
-    todo: tasks.filter((t) => (t.status || "").toUpperCase() === "TODO").length,
-    inProgress: tasks.filter((t) => (t.status || "").toUpperCase() === "IN_PROGRESS").length,
-    inReview: tasks.filter((t) => (t.status || "").toUpperCase() === "IN_REVIEW").length,
-    done: tasks.filter((t) => (t.status || "").toUpperCase() === "DONE").length,
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
-      </div>
-    );
-  }
-
-  if (!project) {
-    return (
-      <div className="space-y-4">
-        {error && (
-          <Alert className="bg-red-900/20 border-red-800 text-red-300">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        <div className="text-center text-slate-400">Project not found.</div>
-      </div>
-    );
-  }
+if (!project) {
+  return (
+    <div className="space-y-4">
+      {error && (
+        <Alert className="bg-red-900/20 border-red-800 text-red-300">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      <div className="text-center text-slate-400">Project not found.</div>
+    </div>
+  );
+}
 
   return (
     <div className="space-y-6">

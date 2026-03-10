@@ -77,10 +77,13 @@ export default function ChatPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 
-  const [groups, setGroups] = useState<ChatGroupRow[]>([]);
+const [groups, setGroups] = useState<ChatGroupRow[]>([]);
   const [groupMembers, setGroupMembers] = useState<ChatGroupMemberRow[]>([]);
   const [messages, setMessages] = useState<Record<string, ChatMessageRow[]>>({});
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+
+  const [hasMoreMessages, setHasMoreMessages] = useState<Record<string, boolean>>({});
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
 
 const [selectedConversationId, setSelectedConversationId] = useState<string | null>(id || null);
   const [messageInput, setMessageInput] = useState("");
@@ -203,30 +206,34 @@ const [selectedConversationId, setSelectedConversationId] = useState<string | nu
       return;
     }
 
-    let loadedMessages: Record<string, ChatMessageRow[]> = {};
+const loadedMessages: Record<string, ChatMessageRow[]> = {};
+    const loadedHasMore: Record<string, boolean> = {};
 
     if (visibleGroupIds.length > 0) {
-      const { data: messagesData, error: messagesError } = await supabase
-        .from("chat_messages")
-        .select("id, group_id, user_id, content, created_at")
-        .in("group_id", visibleGroupIds)
-        .order("created_at", { ascending: true });
+      for (const groupId of visibleGroupIds) {
+        const { data: messagesData, error: messagesError } = await supabase
+          .from("chat_messages")
+          .select("id, group_id, user_id, content, created_at")
+          .eq("group_id", groupId)
+          .order("created_at", { ascending: false })
+          .limit(20);
 
-      if (messagesError) {
-        setError(messagesError.message || "Failed to load messages.");
-        return;
+        if (messagesError) {
+          setError(messagesError.message || "Failed to load messages.");
+          return;
+        }
+
+        const messageList = ((messagesData || []) as ChatMessageRow[]).reverse();
+        loadedMessages[groupId] = messageList;
+        loadedHasMore[groupId] = (messagesData || []).length === 20;
       }
-
-      ((messagesData || []) as ChatMessageRow[]).forEach((msg) => {
-        if (!loadedMessages[msg.group_id]) loadedMessages[msg.group_id] = [];
-        loadedMessages[msg.group_id].push(msg);
-      });
     }
 
-    setProfiles((allProfiles || []) as ProfileRow[]);
+setProfiles((allProfiles || []) as ProfileRow[]);
     setGroups(loadedGroups);
     setGroupMembers((membersData || []) as ChatGroupMemberRow[]);
     setMessages(loadedMessages);
+    setHasMoreMessages(loadedHasMore);
 
     const requestedId = preferredId || id || null;
     if (requestedId && loadedGroups.some((g) => g.id === requestedId)) {
@@ -728,6 +735,47 @@ const mentionedUserIds = extractMentionedUserIds(
     setMessageActionLoading(null);
   };
 
+  const handleLoadOlderMessages = async () => {
+    if (!selectedConversationId) return;
+
+    const currentMessages = messages[selectedConversationId] || [];
+    if (currentMessages.length === 0) return;
+
+    const oldestMessage = currentMessages[0];
+    if (!oldestMessage) return;
+
+    setIsLoadingOlder(true);
+    setError("");
+
+    const { data: olderMessages, error: olderError } = await supabase
+      .from("chat_messages")
+      .select("id, group_id, user_id, content, created_at")
+      .eq("group_id", selectedConversationId)
+      .lt("created_at", oldestMessage.created_at)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (olderError) {
+      setError(olderError.message || "Failed to load older messages.");
+      setIsLoadingOlder(false);
+      return;
+    }
+
+    const reversedOlder = ((olderMessages || []) as ChatMessageRow[]).reverse();
+
+    setMessages((prev) => ({
+      ...prev,
+      [selectedConversationId]: [...reversedOlder, ...(prev[selectedConversationId] || [])],
+    }));
+
+    setHasMoreMessages((prev) => ({
+      ...prev,
+      [selectedConversationId]: (olderMessages || []).length === 20,
+    }));
+
+    setIsLoadingOlder(false);
+  };
+
   const renderConversationButton = (group: ChatGroupRow, iconType?: "project" | "task" | "group") => {
     return (
       <div
@@ -824,7 +872,20 @@ return (
             )}
 
             <ScrollArea className="flex-1 -mx-2 h-full">
-              <div className="space-y-1 px-2">
+              <div className="space-y-4">
+                {selectedConversationId && hasMoreMessages[selectedConversationId] && (
+                  <div className="flex justify-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleLoadOlderMessages}
+                      disabled={isLoadingOlder}
+                      className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                    >
+                      {isLoadingOlder ? "Loading..." : "Load older messages"}
+                    </Button>
+                  </div>
+                )}
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-xs font-medium text-slate-500 uppercase">Direct Messages</h3>
                 </div>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { logActivity } from "@/lib/activity";
+import { createNotification } from "@/lib/notifications";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -237,7 +238,7 @@ export default function TaskNewPage() {
           created_by: currentUserId,
           assignee_id: selectedAssignees.length > 0 ? selectedAssignees[0] : null,
         })
-        .select("id")
+        .select("id, title, assignee_id")
         .single();
 
       if (taskError || !taskData) {
@@ -256,7 +257,7 @@ export default function TaskNewPage() {
         message: `Created task "${title.trim()}"`,
       });
 
-      if (selectedAssignees.length > 0) {
+     if (selectedAssignees.length > 0) {
         const memberRows = selectedAssignees.map((userId) => ({
           task_id: taskData.id,
           user_id: userId,
@@ -282,8 +283,22 @@ export default function TaskNewPage() {
           entityId: taskData.id,
           message: `Assigned ${selectedAssignees.length} member(s) to task "${title.trim()}"`,
         });
-      }
 
+        for (const assigneeId of selectedAssignees) {
+          if (assigneeId === currentUserId) continue;
+
+          await createNotification({
+            userId: assigneeId,
+            actorUserId: currentUserId,
+            type: "TASK_ASSIGNED",
+            title: "New Task Assigned",
+            message: `You were assigned task "${taskData.title}"`,
+            link: `/tasks/${taskData.id}`,
+            entityType: "task",
+            entityId: taskData.id,
+          });
+        }
+      }
       navigate(`/projects/${projectId}`);
     } catch (err) {
       console.error("Create task submit error:", err);

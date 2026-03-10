@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import {
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "@/lib/notifications";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +39,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { format } from "date-fns";
 
 interface NavItem {
   label: string;
@@ -44,9 +49,24 @@ interface NavItem {
 }
 
 type UserProfile = {
+  userId: string;
   email: string;
   fullName: string;
   role?: string | null;
+};
+
+type NotificationRow = {
+  id: string;
+  user_id: string;
+  actor_user_id: string | null;
+  type: string;
+  title: string;
+  message: string | null;
+  link: string | null;
+  is_read: boolean;
+  entity_type: string | null;
+  entity_id: string | null;
+  created_at: string;
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -61,8 +81,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
 
-  // Placeholder until inbox/notifications are connected to Supabase
-  const unreadCount = 0;
+  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   useEffect(() => {
     const checkMobile = () => {
@@ -82,6 +105,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  const loadNotifications = async (userId: string) => {
+    setIsLoadingNotifications(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("notifications")
+        .select(
+          "id, user_id, actor_user_id, type, title, message, link, is_read, entity_type, entity_id, created_at"
+        )
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (error) {
+        console.error("Failed to load notifications:", error);
+        return;
+      }
+
+      setNotifications((data || []) as NotificationRow[]);
+    } catch (error) {
+      console.error("Load notifications error:", error);
+    } finally {
+      setIsLoadingNotifications(false);
+    }
+  };
 
   useEffect(() => {
     const loadUser = async () => {
@@ -107,11 +156,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           console.error("Failed to load profile:", error);
         }
 
-        setUserProfile({
+        const loadedUser = {
+          userId: user.id,
           email: user.email || "",
           fullName: profile?.full_name || "User",
           role: profile?.role || null,
-        });
+        };
+
+        setUserProfile(loadedUser);
+        await loadNotifications(user.id);
       } catch (error) {
         console.error("DashboardLayout user load error:", error);
       } finally {
@@ -126,6 +179,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!session?.user) {
         setUserProfile(null);
+        setNotifications([]);
         navigate("/login");
         return;
       }
@@ -136,17 +190,45 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .eq("user_id", session.user.id)
         .single();
 
-      setUserProfile({
+      const loadedUser = {
+        userId: session.user.id,
         email: session.user.email || "",
         fullName: profile?.full_name || "User",
         role: profile?.role || null,
-      });
+      };
+
+      setUserProfile(loadedUser);
+      await loadNotifications(session.user.id);
     });
 
     return () => {
       subscription.unsubscribe();
     };
   }, [navigate]);
+
+  useEffect(() => {
+    if (!userProfile?.userId) return;
+
+    const channel = supabase
+      .channel(`notifications-${userProfile.userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userProfile.userId}`,
+        },
+        async () => {
+          await loadNotifications(userProfile.userId);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userProfile?.userId]);
 
   const navItems: NavItem[] = useMemo(
     () => [
@@ -178,6 +260,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .map((n) => n[0])
       .join("")
       .toUpperCase() || "U";
+
+  const handleNotificationClick = async (notification: NotificationRow) => {
+    try {
+      if (!notification.is_read) {
+        await markNotificationRead(notification.id);
+        setNotifications((prev) =>
+          prev.map((item) =>
+            item.id === notification.id ? { ...item, is_read: true } : item
+          )
+        );
+      }
+
+      setNotificationsOpen(false);
+
+      if (notification.link) {
+        navigate(notification.link);
+      } else {
+        navigate("/inbox");
+      }
+    } catch (error) {
+      console.error("Notification click error:", error);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    if (!userProfile?.userId) return;
+
+    try {
+      await markAllNotificationsRead(userProfile.userId);
+      setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })));
+    } catch (error) {
+      console.error("Mark all read error:", error);
+    }
+  };
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -276,7 +392,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </div>
   );
 
-  return (
+return (
     <div className="min-h-screen bg-slate-950 flex">
       {!isMobile && (
         <aside
@@ -410,19 +526,99 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
 
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative"
-                onClick={() => navigate("/inbox")}
-              >
-                <Bell className="w-5 h-5 text-slate-400" />
-                {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 w-4 h-4 bg-indigo-600 rounded-full text-xs flex items-center justify-center text-white">
-                    {unreadCount > 9 ? "9+" : unreadCount}
-                  </span>
-                )}
-              </Button>
+              <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="relative">
+                    <Bell className="w-5 h-5 text-slate-400" />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-indigo-600 rounded-full text-[10px] flex items-center justify-center text-white">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent
+                  align="end"
+                  className="w-96 bg-slate-900 border-slate-800 p-0"
+                >
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <DropdownMenuLabel className="p-0 text-slate-200">
+                      Notifications
+                    </DropdownMenuLabel>
+
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={handleMarkAllRead}
+                        className="text-xs text-indigo-400 hover:text-indigo-300"
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+
+                  <DropdownMenuSeparator className="bg-slate-800" />
+
+                  <div className="max-h-96 overflow-y-auto">
+                    {isLoadingNotifications ? (
+                      <div className="px-4 py-6 text-sm text-slate-500">
+                        Loading notifications...
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="px-4 py-6 text-sm text-slate-500">
+                        No notifications yet.
+                      </div>
+                    ) : (
+                      notifications.map((notification) => (
+                        <DropdownMenuItem
+                          key={notification.id}
+                          onClick={() => handleNotificationClick(notification)}
+                          className="flex flex-col items-start gap-1 px-4 py-3 cursor-pointer focus:bg-slate-800"
+                        >
+                          <div className="flex items-start justify-between w-full gap-3">
+                            <div className="min-w-0">
+                              <p
+                                className={`text-sm truncate ${
+                                  notification.is_read
+                                    ? "text-slate-300"
+                                    : "text-white font-medium"
+                                }`}
+                              >
+                                {notification.title}
+                              </p>
+                              {notification.message && (
+                                <p className="text-xs text-slate-500 line-clamp-2">
+                                  {notification.message}
+                                </p>
+                              )}
+                            </div>
+
+                            {!notification.is_read && (
+                              <span className="mt-1 w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0" />
+                            )}
+                          </div>
+
+                          <p className="text-[11px] text-slate-600">
+                            {format(new Date(notification.created_at), "MMM d, h:mm a")}
+                          </p>
+                        </DropdownMenuItem>
+                      ))
+                    )}
+                  </div>
+
+                  <DropdownMenuSeparator className="bg-slate-800" />
+
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setNotificationsOpen(false);
+                      navigate("/inbox");
+                    }}
+                    className="justify-center text-slate-300 focus:bg-slate-800"
+                  >
+                    Open Inbox
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </header>

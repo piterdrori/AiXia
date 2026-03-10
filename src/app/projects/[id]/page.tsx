@@ -248,6 +248,16 @@ export default function ProjectDetailPage() {
     return currentUserRole === "admin" || project.created_by === currentUserId;
   }, [project, currentUserId, currentUserRole]);
 
+  const canDeleteThisProjectFile = (file: FileUploadRow) => {
+  if (!currentUserId) return false;
+
+  return (
+    currentUserRole === "admin" ||
+    project?.created_by === currentUserId ||
+    file.user_id === currentUserId
+  );
+};
+
   const getStatusColor = (status: string | null) => {
     switch ((status || "").toUpperCase()) {
       case "ACTIVE":
@@ -397,7 +407,40 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const handleDeleteFile = async (fileId: string, filePath: string) => {
+  const handleDeleteFile = async (
+  fileId: string,
+  filePath: string,
+  fileName: string
+) => {
+  const confirmed = window.confirm("Are you sure you want to delete this file?");
+  if (!confirmed) return;
+
+  try {
+    await deleteUploadedFile(fileId, filePath, {
+      projectId: project?.id || null,
+      taskId: null,
+      fileName,
+    });
+
+    setFiles((prev) => prev.filter((file) => file.id !== fileId));
+
+    if (project) {
+      const { data: newLogs } = await supabase
+        .from("activity_logs")
+        .select(
+          "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
+        )
+        .eq("project_id", project.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      setActivityLogs((newLogs || []) as ActivityLogRow[]);
+    }
+  } catch (err: any) {
+    console.error("Delete file error:", err);
+    setError(err?.message || "Failed to delete file.");
+  }
+};
     const confirmed = window.confirm("Are you sure you want to delete this file?");
     if (!confirmed) return;
 
@@ -483,16 +526,17 @@ export default function ProjectDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {canEdit && (
-            <Button
-              variant="outline"
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
-              onClick={() => navigate(`/projects/${project.id}/edit`)}
-            >
-              <Edit className="w-4 h-4 mr-2" />
-              Edit
-            </Button>
-          )}
+      
+          {canDeleteThisProjectFile(file) && (
+  <Button
+    variant="outline"
+    className="border-red-800 text-red-400 hover:bg-red-900/20"
+    onClick={() => handleDeleteFile(file.id, file.file_path, file.file_name)}
+  >
+    <Trash2 className="w-4 h-4 mr-2" />
+    Delete
+  </Button>
+)}
 
           {canDelete && (
             <Button

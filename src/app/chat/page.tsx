@@ -794,8 +794,8 @@ const mentionedUserIds = extractMentionedUserIds(
 
 return (
     <>
-      <div className="h-[calc(100vh-140px)] flex gap-4">
-        <Card className="w-80 bg-slate-900/50 border-slate-800 flex flex-col">
+      <div className="h-[calc(100vh-140px)] flex gap-4 overflow-hidden">
+       <Card className="w-80 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden">
           <CardContent className="p-4 flex flex-col h-full">
             <div className="relative mb-4">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -823,7 +823,7 @@ return (
               </div>
             )}
 
-            <ScrollArea className="flex-1 -mx-2">
+            <ScrollArea className="flex-1 -mx-2 h-full">
               <div className="space-y-1 px-2">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-xs font-medium text-slate-500 uppercase">Direct Messages</h3>
@@ -898,7 +898,7 @@ return (
         </Card>
 
         {selectedConversation ? (
-          <Card className="flex-1 bg-slate-900/50 border-slate-800 flex flex-col">
+          <Card className="flex-1 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-slate-800">
               <div className="flex items-center gap-3">
                 <Avatar className="w-10 h-10">
@@ -917,7 +917,7 @@ return (
               </div>
             </div>
 
-            <ScrollArea className="flex-1 p-4">
+            <ScrollArea className="flex-1 p-4 h-full">
               <div className="space-y-4">
                 {conversationMessages.map((message, index) => {
                   const isOwn = message.user_id === currentUserId;

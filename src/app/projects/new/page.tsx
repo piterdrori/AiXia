@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { logActivity } from "@/lib/activity";
+import { createNotification } from "@/lib/notifications";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -130,7 +131,7 @@ export default function ProjectNewPage() {
         message: `Created project "${projectData.name}"`,
       });
 
-      if (selectedMembers.length > 0) {
+if (selectedMembers.length > 0) {
         const memberRows = selectedMembers.map((memberId) => ({
           project_id: projectData.id,
           user_id: memberId,
@@ -157,6 +158,21 @@ export default function ProjectNewPage() {
           entityId: projectData.id,
           message: `Assigned ${selectedMembers.length} member(s) to project "${projectData.name}"`,
         });
+
+        for (const memberId of selectedMembers) {
+          if (memberId === user.id) continue;
+
+          await createNotification({
+            userId: memberId,
+            actorUserId: user.id,
+            type: "PROJECT_UPDATE",
+            title: "Added to Project",
+            message: `You were added to project "${projectData.name}"`,
+            link: `/projects/${projectData.id}`,
+            entityType: "project",
+            entityId: projectData.id,
+          });
+        }
       }
 
       navigate(`/projects/${projectData.id}`);

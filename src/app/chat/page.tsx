@@ -16,7 +16,9 @@ import {
   FolderKanban,
   MessageSquare,
   Users,
+  CheckSquare,
 } from "lucide-react";
+
 import { format } from "date-fns";
 
 type Role = "admin" | "manager" | "employee" | "guest";
@@ -60,7 +62,7 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+  const [, setCurrentUserRole] = useState<Role | null>(null);
 
   const [groups, setGroups] = useState<ChatGroupRow[]>([]);
   const [groupMembers, setGroupMembers] = useState<ChatGroupMemberRow[]>([]);

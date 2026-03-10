@@ -452,8 +452,19 @@ const handleSendMessage = async () => {
       ),
     }));
 
+const mentionedUserIds = extractMentionedUserIds(
+      contentToSend,
+      mentionCandidates.map((profile) => ({
+        user_id: profile.user_id,
+        full_name: profile.full_name,
+      }))
+    ).filter((userId) => userId !== currentUserId);
+
+    const mentionedSet = new Set(mentionedUserIds);
+
     const recipientMembers = getMembersForGroup(selectedConversationId).filter(
-      (member) => member.user_id !== currentUserId
+      (member) =>
+        member.user_id !== currentUserId && !mentionedSet.has(member.user_id)
     );
 
     for (const member of recipientMembers) {
@@ -468,14 +479,6 @@ const handleSendMessage = async () => {
         entityId: insertedMessage.id,
       });
     }
-
-    const mentionedUserIds = extractMentionedUserIds(
-      contentToSend,
-      mentionCandidates.map((profile) => ({
-        user_id: profile.user_id,
-        full_name: profile.full_name,
-      }))
-    ).filter((userId) => userId !== currentUserId);
 
     for (const userId of mentionedUserIds) {
       await createNotification({

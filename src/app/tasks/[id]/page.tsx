@@ -343,6 +343,12 @@ export default function TaskDetailPage() {
 const handleStatusUpdate = async (newStatus: string) => {
     if (!task || !canUpdateStatus) return;
 
+    const previousStatus = task.status || "TODO";
+
+    if (previousStatus.toUpperCase() === newStatus.toUpperCase()) {
+      return;
+    }
+
     setStatusSaving(true);
     setError("");
 
@@ -369,6 +375,26 @@ const handleStatusUpdate = async (newStatus: string) => {
         entityId: task.id,
         message: `Changed task "${task.title}" status to ${newStatus}`,
       });
+
+      const recipientIds = Array.from(
+        new Set([
+          ...(task.created_by ? [task.created_by] : []),
+          ...taskMembers.map((member) => member.user_id),
+        ])
+      ).filter((userId) => userId !== currentUserId);
+
+      for (const userId of recipientIds) {
+        await createNotification({
+          userId,
+          actorUserId: currentUserId || undefined,
+          type: "TASK_UPDATED",
+          title: "Task Status Updated",
+          message: `Task "${task.title}" changed from ${previousStatus} to ${newStatus}`,
+          link: `/tasks/${task.id}`,
+          entityType: "task",
+          entityId: task.id,
+        });
+      }
 
       setTask((prev) =>
         prev

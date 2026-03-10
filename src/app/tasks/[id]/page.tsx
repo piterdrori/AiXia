@@ -568,7 +568,7 @@ const handleAddComment = async () => {
     setIsUploading(true);
 
     try {
-      const uploaded = (await uploadProjectOrTaskFile({
+const uploaded = (await uploadProjectOrTaskFile({
         file,
         entityType: "task",
         projectId: project.id,
@@ -576,6 +576,26 @@ const handleAddComment = async () => {
       })) as FileUploadRow;
 
       setFiles((prev) => [uploaded, ...prev]);
+
+      const recipientIds = Array.from(
+        new Set([
+          ...(task.created_by ? [task.created_by] : []),
+          ...taskMembers.map((member) => member.user_id),
+        ])
+      ).filter((userId) => userId !== currentUserId);
+
+      for (const userId of recipientIds) {
+        await createNotification({
+          userId,
+          actorUserId: currentUserId || undefined,
+          type: "FILE_UPLOAD",
+          title: "New Task File Uploaded",
+          message: `A file was uploaded to task "${task.title}": ${uploaded.file_name}`,
+          link: `/tasks/${task.id}`,
+          entityType: "task_file",
+          entityId: uploaded.id,
+        });
+      }
     } catch (err: any) {
       console.error("Task file upload error:", err);
       setError(err?.message || "Failed to upload file.");

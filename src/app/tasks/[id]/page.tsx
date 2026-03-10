@@ -264,6 +264,16 @@ export default function TaskDetailPage() {
     return currentUserRole === "admin" || task.created_by === currentUserId || isAssigned;
   }, [task, currentUserId, currentUserRole, taskMembers]);
 
+  const canDeleteThisFile = (file: FileUploadRow) => {
+    if (!currentUserId) return false;
+
+    return (
+      currentUserRole === "admin" ||
+      task?.created_by === currentUserId ||
+      file.user_id === currentUserId
+    );
+  };
+
   const progressValue = useMemo(() => {
     const value = (task?.status || "").toUpperCase();
     if (value === "DONE") return 100;
@@ -303,7 +313,7 @@ export default function TaskDetailPage() {
     }
   };
 
-  const handleStatusUpdate = async (newStatus: string) => {
+const handleStatusUpdate = async (newStatus: string) => {
     if (!task || !canUpdateStatus) return;
 
     setStatusSaving(true);
@@ -471,7 +481,7 @@ export default function TaskDetailPage() {
 
   if (!task) return null;
 
-  return (
+return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button
@@ -626,7 +636,7 @@ export default function TaskDetailPage() {
                           Open
                         </Button>
 
-                        {canEditTask && (
+                        {canDeleteThisFile(file) && (
                           <Button
                             variant="outline"
                             className="border-red-800 text-red-400 hover:bg-red-900/20"

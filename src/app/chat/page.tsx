@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { format } from "date-fns";
+import { format, isToday, isYesterday } from "date-fns";
 import {
   Search,
   Send,
@@ -12,6 +12,8 @@ import {
   Trash2,
   Save,
   X,
+  Check,
+  Square,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -102,6 +104,14 @@ function dedupeMessages(items: ChatMessageRow[]) {
   return sortMessagesAscending(Array.from(map.values()));
 }
 
+function formatMessageTime(value: string) {
+  const date = new Date(value);
+
+  if (isToday(date)) return format(date, "h:mm a");
+  if (isYesterday(date)) return `Yesterday ${format(date, "h:mm a")}`;
+  return format(date, "MMM d, h:mm a");
+}
+
 export default function ChatPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -146,6 +156,10 @@ export default function ChatPage() {
   const [messageActionLoading, setMessageActionLoading] = useState<string | null>(null);
   const [groupActionLoading, setGroupActionLoading] = useState<string | null>(null);
 
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
+
   const selectedConversation = selectedConversationId
     ? groups.find((group) => group.id === selectedConversationId) || null
     : null;
@@ -165,14 +179,19 @@ export default function ChatPage() {
     };
   }, []);
 
+  useEffect(() => {
+    setIsSelectionMode(false);
+    setSelectedMessageIds([]);
+    setEditingMessageId(null);
+    setEditingMessageText("");
+  }, [selectedConversationId]);
+
   const getScrollViewport = useCallback(() => {
     if (!scrollAreaRef.current) return null;
 
-    return (
-      scrollAreaRef.current.querySelector(
-        "[data-radix-scroll-area-viewport]"
-      ) as HTMLDivElement | null
-    );
+    return scrollAreaRef.current.querySelector(
+      "[data-radix-scroll-area-viewport]"
+    ) as HTMLDivElement | null;
   }, []);
 
   const isViewportNearBottom = useCallback(() => {
@@ -201,6 +220,14 @@ export default function ChatPage() {
       return profiles.find((profile) => profile.user_id === userId);
     },
     [profiles]
+  );
+
+  const canManageMessage = useCallback(
+    (message: ChatMessageRow) => {
+      if (!currentUserId) return false;
+      return currentUserRole === "admin" || message.user_id === currentUserId;
+    },
+    [currentUserId, currentUserRole]
   );
 
   const getConversationName = useCallback(
@@ -328,7 +355,23 @@ export default function ChatPage() {
       ...prev,
       [groupId]: (prev[groupId] || []).filter((item) => item.id !== messageId),
     }));
+
+    setSelectedMessageIds((prev) => prev.filter((id) => id !== messageId));
   }, []);
+
+  const deleteMultipleMessagesLocally = useCallback(
+    (groupId: string, messageIds: string[]) => {
+      const idSet = new Set(messageIds);
+
+      setMessages((prev) => ({
+        ...prev,
+        [groupId]: (prev[groupId] || []).filter((item) => !idSet.has(item.id)),
+      }));
+
+      setSelectedMessageIds((prev) => prev.filter((id) => !idSet.has(id)));
+    },
+    []
+  );
 
   const loadMessagesForGroup = useCallback(async (groupId: string) => {
     const { data, error: messagesError } = await supabase
@@ -500,11 +543,15 @@ export default function ChatPage() {
       if (isMountedRef.current) {
         setIsLoading(false);
         shouldScrollToBottomRef.current = true;
+
+        requestAnimationFrame(() => {
+          scrollToBottom("auto");
+        });
       }
     };
 
     init();
-  }, [id, loadChatData]);
+  }, [id, loadChatData, scrollToBottom]);
 
   useEffect(() => {
     if (!selectedConversationId) return;
@@ -655,6 +702,43 @@ export default function ChatPage() {
     });
   }, [mentionCandidates, mentionQuery, showMentionDropdown]);
 
+  const selectableMessages = useMemo(() => {
+    return conversationMessages.filter((message) => canManageMessage(message));
+  }, [canManageMessage, conversationMessages]);
+
+  const allSelectableIds = selectableMessages.map((message) => message.id);
+  const allSelected =
+    allSelectableIds.length > 0 &&
+    allSelectableIds.every((messageId) => selectedMessageIds.includes(messageId));
+
+  const toggleSelectionMode = () => {
+    const nextMode = !isSelectionMode;
+    setIsSelectionMode(nextMode);
+
+    if (!nextMode) {
+      setSelectedMessageIds([]);
+    }
+  };
+
+  const toggleMessageSelection = (message: ChatMessageRow) => {
+    if (!canManageMessage(message)) return;
+
+    setSelectedMessageIds((prev) =>
+      prev.includes(message.id)
+        ? prev.filter((id) => id !== message.id)
+        : [...prev, message.id]
+    );
+  };
+
+  const handleSelectAllVisible = () => {
+    if (allSelected) {
+      setSelectedMessageIds([]);
+      return;
+    }
+
+    setSelectedMessageIds(allSelectableIds);
+  };
+
   const handleMessageInputChange = (value: string) => {
     setMessageInput(value);
 
@@ -678,11 +762,6 @@ export default function ChatPage() {
     setMessageInput(updatedValue);
     setMentionQuery("");
     setShowMentionDropdown(false);
-  };
-
-  const canManageMessage = (message: ChatMessageRow) => {
-    if (!currentUserId) return false;
-    return currentUserRole === "admin" || message.user_id === currentUserId;
   };
 
   const canDeleteChat = (group: ChatGroupRow) => {
@@ -1004,6 +1083,8 @@ export default function ChatPage() {
   };
 
   const startEditingMessage = (message: ChatMessageRow) => {
+    setIsSelectionMode(false);
+    setSelectedMessageIds([]);
     setEditingMessageId(message.id);
     setEditingMessageText(message.content);
   };
@@ -1071,6 +1152,54 @@ export default function ChatPage() {
     setMessageActionLoading(null);
   };
 
+  const handleBulkDeleteMessages = async () => {
+    if (!selectedConversationId || selectedMessageIds.length === 0) return;
+
+    const allowedIds = new Set(
+      conversationMessages
+        .filter((message) => selectedMessageIds.includes(message.id))
+        .filter((message) => canManageMessage(message))
+        .map((message) => message.id)
+    );
+
+    const idsToDelete = selectedMessageIds.filter((id) => allowedIds.has(id));
+
+    if (idsToDelete.length === 0) {
+      setError("No deletable messages selected.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${idsToDelete.length} selected message(s)?`
+    );
+    if (!confirmed) return;
+
+    setBulkDeleteLoading(true);
+    setError("");
+
+    const { error: deleteError } = await supabase
+      .from("chat_messages")
+      .delete()
+      .in("id", idsToDelete);
+
+    if (deleteError) {
+      setError(deleteError.message || "Failed to delete selected messages.");
+      setBulkDeleteLoading(false);
+      return;
+    }
+
+    deleteMultipleMessagesLocally(selectedConversationId, idsToDelete);
+
+    if (editingMessageId && idsToDelete.includes(editingMessageId)) {
+      setEditingMessageId(null);
+      setEditingMessageText("");
+    }
+
+    setIsSelectionMode(false);
+    setSelectedMessageIds([]);
+    setBulkDeleteLoading(false);
+  };
+
   const renderConversationButton = (
     group: ChatGroupRow,
     iconType?: "project" | "task" | "group"
@@ -1090,22 +1219,16 @@ export default function ChatPage() {
               setSelectedConversationId(group.id);
               navigate(`/chat/${group.id}`);
             }}
-            className="flex items-center gap-3 flex-1 text-left"
+            className="flex items-center gap-3 flex-1 text-left min-w-0"
           >
             {iconType ? (
-              <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-                {iconType === "project" && (
-                  <FolderKanban className="w-5 h-5 text-indigo-400" />
-                )}
-                {iconType === "task" && (
-                  <CheckSquare className="w-5 h-5 text-indigo-400" />
-                )}
-                {iconType === "group" && (
-                  <Users className="w-5 h-5 text-indigo-400" />
-                )}
+              <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
+                {iconType === "project" && <FolderKanban className="w-5 h-5 text-indigo-400" />}
+                {iconType === "task" && <CheckSquare className="w-5 h-5 text-indigo-400" />}
+                {iconType === "group" && <Users className="w-5 h-5 text-indigo-400" />}
               </div>
             ) : (
-              <Avatar className="w-10 h-10">
+              <Avatar className="w-10 h-10 shrink-0">
                 <AvatarFallback className="bg-indigo-600 text-white">
                   {getConversationInitials(group)}
                 </AvatarFallback>
@@ -1126,7 +1249,7 @@ export default function ChatPage() {
             <Button
               variant="ghost"
               size="icon"
-              className="text-slate-400 hover:text-red-400"
+              className="text-slate-400 hover:text-red-400 shrink-0"
               onClick={() => handleDeleteChat(group)}
               disabled={groupActionLoading === group.id}
             >
@@ -1148,10 +1271,10 @@ export default function ChatPage() {
 
   return (
     <>
-      <div className="h-[calc(100vh-140px)] flex gap-4 overflow-hidden">
-        <Card className="w-80 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden">
-          <CardContent className="p-4 flex flex-col h-full">
-            <div className="relative mb-4">
+      <div className="h-[calc(100vh-140px)] flex gap-4 overflow-hidden min-h-0">
+        <Card className="w-80 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden min-h-0 shrink-0">
+          <CardContent className="p-4 flex flex-col h-full min-h-0">
+            <div className="relative mb-4 shrink-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <Input
                 placeholder="Search conversations..."
@@ -1161,7 +1284,7 @@ export default function ChatPage() {
               />
             </div>
 
-            <div className="mb-3">
+            <div className="mb-3 shrink-0">
               <Button
                 onClick={() => setIsCreateGroupOpen(true)}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
@@ -1172,12 +1295,12 @@ export default function ChatPage() {
             </div>
 
             {error && (
-              <div className="mb-3 rounded-md border border-red-800 bg-red-900/20 px-3 py-2 text-sm text-red-300">
+              <div className="mb-3 rounded-md border border-red-800 bg-red-900/20 px-3 py-2 text-sm text-red-300 shrink-0">
                 {error}
               </div>
             )}
 
-            <ScrollArea className="flex-1 -mx-2 h-full">
+            <ScrollArea className="flex-1 min-h-0 -mx-2">
               <div className="space-y-1 px-2">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-xs font-medium text-slate-500 uppercase">
@@ -1209,9 +1332,7 @@ export default function ChatPage() {
                         Task Chats
                       </h3>
                     </div>
-                    {taskConversations.map((group) =>
-                      renderConversationButton(group, "task")
-                    )}
+                    {taskConversations.map((group) => renderConversationButton(group, "task"))}
                   </>
                 )}
 
@@ -1223,9 +1344,7 @@ export default function ChatPage() {
                         Group Chats
                       </h3>
                     </div>
-                    {groupConversations.map((group) =>
-                      renderConversationButton(group, "group")
-                    )}
+                    {groupConversations.map((group) => renderConversationButton(group, "group"))}
                   </>
                 )}
 
@@ -1244,7 +1363,7 @@ export default function ChatPage() {
                       onClick={() => startDirectMessage(user.user_id)}
                       className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-slate-800/50 transition-all"
                     >
-                      <Avatar className="w-10 h-10">
+                      <Avatar className="w-10 h-10 shrink-0">
                         <AvatarFallback className="bg-indigo-600 text-white">
                           {(user.full_name || "U")
                             .split(" ")
@@ -1255,14 +1374,14 @@ export default function ChatPage() {
                         </AvatarFallback>
                       </Avatar>
 
-                      <div className="flex-1 text-left">
-                        <p className="text-white font-medium text-sm">
+                      <div className="flex-1 text-left min-w-0">
+                        <p className="text-white font-medium text-sm truncate">
                           {user.full_name || "Unknown"}
                         </p>
                         <p className="text-slate-500 text-xs">{user.role}</p>
                       </div>
 
-                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                      <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
                     </button>
                   ))}
               </div>
@@ -1271,17 +1390,17 @@ export default function ChatPage() {
         </Card>
 
         {selectedConversation ? (
-          <Card className="flex-1 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <Avatar className="w-10 h-10">
+          <Card className="flex-1 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden min-h-0">
+            <div className="flex items-center justify-between p-4 border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <Avatar className="w-10 h-10 shrink-0">
                   <AvatarFallback className="bg-indigo-600 text-white">
                     {getConversationInitials(selectedConversation)}
                   </AvatarFallback>
                 </Avatar>
 
-                <div>
-                  <h3 className="text-white font-medium">
+                <div className="min-w-0">
+                  <h3 className="text-white font-medium truncate">
                     {getConversationName(selectedConversation)}
                   </h3>
                   <p className="text-slate-500 text-sm">
@@ -1289,9 +1408,69 @@ export default function ChatPage() {
                   </p>
                 </div>
               </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-slate-700 text-slate-200 hover:bg-slate-800"
+                  onClick={toggleSelectionMode}
+                >
+                  {isSelectionMode ? (
+                    <>
+                      <X className="w-4 h-4 mr-2" />
+                      Cancel Selection
+                    </>
+                  ) : (
+                    <>
+                      <CheckSquare className="w-4 h-4 mr-2" />
+                      Select Messages
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
 
-            <ScrollArea ref={scrollAreaRef} className="flex-1 h-full">
+            {(isSelectionMode || selectedMessageIds.length > 0) && (
+              <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-800 bg-slate-950/60 shrink-0">
+                <div className="text-sm text-slate-300">
+                  {selectedMessageIds.length} selected
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-slate-700 text-slate-200 hover:bg-slate-800"
+                    onClick={handleSelectAllVisible}
+                  >
+                    {allSelected ? (
+                      <>
+                        <Square className="w-4 h-4 mr-2" />
+                        Clear All
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4 mr-2" />
+                        Select All
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                    disabled={bulkDeleteLoading || selectedMessageIds.length === 0}
+                    onClick={handleBulkDeleteMessages}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    {bulkDeleteLoading ? "Deleting..." : "Delete Selected"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0">
               <div className="px-4 py-4">
                 <div className="flex justify-center mb-4">
                   {selectedConversationId ? (
@@ -1319,12 +1498,28 @@ export default function ChatPage() {
                     const showAvatar =
                       index === 0 || conversationMessages[index - 1].user_id !== message.user_id;
                     const isEditing = editingMessageId === message.id;
+                    const canSelect = canManageMessage(message);
+                    const isSelected = selectedMessageIds.includes(message.id);
 
                     return (
                       <div
                         key={message.id}
                         className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}
                       >
+                        {isSelectionMode && (
+                          <div
+                            className={`pt-2 ${isOwn ? "order-3" : "order-1"} ${
+                              canSelect ? "" : "opacity-40"
+                            }`}
+                          >
+                            <Checkbox
+                              checked={isSelected}
+                              disabled={!canSelect}
+                              onCheckedChange={() => toggleMessageSelection(message)}
+                            />
+                          </div>
+                        )}
+
                         {showAvatar ? (
                           <Avatar className="w-8 h-8 flex-shrink-0">
                             <AvatarFallback className="bg-indigo-600 text-white text-xs">
@@ -1343,13 +1538,16 @@ export default function ChatPage() {
                         <div className={`max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
                           {showAvatar && (
                             <p className="text-xs text-slate-500 mb-1">
-                              {user?.full_name || "Unknown"} •{" "}
-                              {format(new Date(message.created_at), "h:mm a")}
+                              {user?.full_name || "Unknown"} • {formatMessageTime(message.created_at)}
                             </p>
                           )}
 
                           <div
-                            className={`px-4 py-2 rounded-2xl ${
+                            className={`px-4 py-2 rounded-2xl border ${
+                              isSelected
+                                ? "border-indigo-400"
+                                : "border-transparent"
+                            } ${
                               isOwn
                                 ? "bg-indigo-600 text-white rounded-br-none"
                                 : "bg-slate-800 text-slate-200 rounded-bl-none"
@@ -1393,7 +1591,7 @@ export default function ChatPage() {
                             )}
                           </div>
 
-                          {canManageMessage(message) && !isEditing && (
+                          {canManageMessage(message) && !isEditing && !isSelectionMode && (
                             <div
                               className={`mt-1 flex gap-2 ${
                                 isOwn ? "justify-end" : "justify-start"
@@ -1435,10 +1633,10 @@ export default function ChatPage() {
               </div>
             </ScrollArea>
 
-            <div className="p-4 border-t border-slate-800">
+            <div className="p-4 border-t border-slate-800 shrink-0">
               <div className="space-y-2">
-                <div className="flex gap-2">
-                  <Input
+                <div className="flex gap-2 items-end">
+                  <Textarea
                     placeholder="Type a message..."
                     value={messageInput}
                     onChange={(e) => handleMessageInputChange(e.target.value)}
@@ -1448,12 +1646,13 @@ export default function ChatPage() {
                         handleSendMessage();
                       }
                     }}
-                    className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+                    rows={2}
+                    className="min-h-[44px] max-h-40 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 resize-none"
                   />
                   <Button
                     onClick={handleSendMessage}
                     disabled={isSending || !messageInput.trim()}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white h-11"
                   >
                     <Send className="w-4 h-4" />
                   </Button>
@@ -1490,7 +1689,7 @@ export default function ChatPage() {
             </div>
           </Card>
         ) : (
-          <Card className="flex-1 bg-slate-900/50 border-slate-800 flex items-center justify-center">
+          <Card className="flex-1 bg-slate-900/50 border-slate-800 flex items-center justify-center min-h-0">
             <div className="text-center">
               <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4">
                 <Send className="w-8 h-8 text-slate-500" />

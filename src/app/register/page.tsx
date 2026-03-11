@@ -57,41 +57,32 @@ export default function RegisterPage() {
 
     setIsLoading(true);
 
-    try {
-      const { error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: {
-          data: {
-            full_name: fullName.trim(),
-            requested_role: requestedRole,
-          },
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/login`,
+        data: {
+          full_name: fullName.trim(),
+          requested_role: requestedRole,
         },
-      });
+      },
+    });
 
-      if (error) {
-        setError(error.message);
-        setIsLoading(false);
-        return;
-      }
+    setIsLoading(false);
 
-      // Success behavior:
-      // - first user becomes active admin automatically by DB trigger
-      // - all later users become pending
-      setSuccessMessage(
-        "Registration submitted successfully. If this is not the first account, an admin must approve it before access is granted."
-      );
-
-      setIsLoading(false);
-
-      // Small delay so user sees message, then send to login
-      setTimeout(() => {
-        navigate("/login");
-      }, 1800);
-    } catch (err) {
-      setError("Something went wrong during registration.");
-      setIsLoading(false);
+    if (error) {
+      setError(error.message);
+      return;
     }
+
+    setSuccessMessage(
+      "Registration submitted. Please confirm your email first. After confirmation, an admin must approve your request before you can continue."
+    );
+
+    setTimeout(() => {
+      navigate("/login");
+    }, 2200);
   };
 
   return (
@@ -100,9 +91,7 @@ export default function RegisterPage() {
         <CardContent className="p-8">
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold text-white">Create Account</h1>
-            <p className="text-slate-400 mt-2">
-              Register to access TaskFlow
-            </p>
+            <p className="text-slate-400 mt-2">Request access to the platform</p>
           </div>
 
           <form onSubmit={handleRegister} className="space-y-5">
@@ -148,28 +137,21 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="requestedRole" className="text-slate-300">
-                Requested Role
-              </Label>
+              <Label className="text-slate-300">Requested Role</Label>
               <Select
                 value={requestedRole}
-                onValueChange={(value) =>
-                  setRequestedRole(value as RequestedRole)
-                }
+                onValueChange={(value) => setRequestedRole(value as RequestedRole)}
                 disabled={isLoading}
               >
                 <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
-                <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                <SelectContent className="bg-slate-950 border-slate-800 text-white">
                   <SelectItem value="manager">Manager</SelectItem>
                   <SelectItem value="employee">Employee</SelectItem>
                   <SelectItem value="guest">Guest</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-slate-500">
-                The first account becomes admin automatically. All later accounts require admin approval.
-              </p>
             </div>
 
             <div className="space-y-2">
@@ -207,7 +189,7 @@ export default function RegisterPage() {
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
               disabled={isLoading}
             >
-              {isLoading ? "Creating account..." : "Create Account"}
+              {isLoading ? "Submitting..." : "Request Access"}
             </Button>
           </form>
 

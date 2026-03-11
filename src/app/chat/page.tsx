@@ -1,19 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { supabase } from "@/lib/supabase";
-import {
-  createNotification,
-  extractMentionedUserIds,
-} from "@/lib/notifications";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Textarea } from "@/components/ui/textarea";
+import { format } from "date-fns";
 import {
   Search,
   Send,
@@ -26,9 +13,30 @@ import {
   Save,
   X,
 } from "lucide-react";
-import { format } from "date-fns";
+
+import { supabase } from "@/lib/supabase";
+import {
+  createNotification,
+  extractMentionedUserIds,
+} from "@/lib/notifications";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 
 type Role = "admin" | "manager" | "employee" | "guest";
+type ChatGroupType = "DIRECT" | "GROUP" | "PROJECT" | "TASK";
 
 type ProfileRow = {
   user_id: string;
@@ -36,8 +44,6 @@ type ProfileRow = {
   role: Role;
   status: "active" | "pending" | "inactive" | "denied";
 };
-
-type ChatGroupType = "DIRECT" | "GROUP" | "PROJECT" | "TASK";
 
 type ChatGroupRow = {
   id: string;
@@ -66,30 +72,62 @@ type ChatMessageRow = {
   created_at: string;
 };
 
+type MessagesByGroup = Record<string, ChatMessageRow[]>;
+type HasMoreByGroup = Record<string, boolean>;
+
 const PAGE_SIZE = 20;
+const NEAR_BOTTOM_PX = 120;
 
 function buildDirectKey(a: string, b: string) {
   return [a, b].sort().join("__");
 }
 
+function sortMessagesAscending(items: ChatMessageRow[]) {
+  return [...items].sort((a, b) => {
+    const timeDiff =
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+
+    if (timeDiff !== 0) return timeDiff;
+    return a.id.localeCompare(b.id);
+  });
+}
+
+function dedupeMessages(items: ChatMessageRow[]) {
+  const map = new Map<string, ChatMessageRow>();
+
+  for (const item of items) {
+    map.set(item.id, item);
+  }
+
+  return sortMessagesAscending(Array.from(map.values()));
+}
+
 export default function ChatPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const selectedConversationIdRef = useRef<string | null>(null);
+  const suppressNextAutoScrollRef = useRef(false);
+  const shouldScrollToBottomRef = useRef(false);
+  const isMountedRef = useRef(true);
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 
   const [groups, setGroups] = useState<ChatGroupRow[]>([]);
   const [groupMembers, setGroupMembers] = useState<ChatGroupMemberRow[]>([]);
-  const [messages, setMessages] = useState<Record<string, ChatMessageRow[]>>({});
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [messages, setMessages] = useState<MessagesByGroup>({});
+  const [hasMoreMessages, setHasMoreMessages] = useState<HasMoreByGroup>({});
 
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(id || null);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
+    id || null
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [messageInput, setMessageInput] = useState("");
 
-  const [hasMoreMessages, setHasMoreMessages] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -109,49 +147,190 @@ export default function ChatPage() {
   const [groupActionLoading, setGroupActionLoading] = useState<string | null>(null);
 
   const selectedConversation = selectedConversationId
-    ? groups.find((g) => g.id === selectedConversationId) || null
+    ? groups.find((group) => group.id === selectedConversationId) || null
     : null;
 
   const conversationMessages = selectedConversationId
     ? messages[selectedConversationId] || []
     : [];
 
-  const getMembersForGroup = (groupId: string) => {
-    return groupMembers.filter((member) => member.group_id === groupId);
-  };
+  useEffect(() => {
+    selectedConversationIdRef.current = selectedConversationId;
+  }, [selectedConversationId]);
 
-  const getProfileByUserId = (userId: string) => {
-    return profiles.find((profile) => profile.user_id === userId);
-  };
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
-  const getConversationName = (group: ChatGroupRow) => {
-    if (group.name) return group.name;
+  const getScrollViewport = useCallback(() => {
+    if (!scrollAreaRef.current) return null;
 
-    const members = getMembersForGroup(group.id);
+    return (
+      scrollAreaRef.current.querySelector(
+        "[data-radix-scroll-area-viewport]"
+      ) as HTMLDivElement | null
+    );
+  }, []);
 
-    if (group.type === "DIRECT") {
-      const otherMember = members.find((member) => member.user_id !== currentUserId);
-      const otherProfile = otherMember ? getProfileByUserId(otherMember.user_id) : null;
-      return otherProfile?.full_name || "Direct Chat";
-    }
+  const isViewportNearBottom = useCallback(() => {
+    const viewport = getScrollViewport();
+    if (!viewport) return true;
 
-    if (group.type === "PROJECT") return "Project Chat";
-    if (group.type === "TASK") return "Task Chat";
+    const distanceFromBottom =
+      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
 
-    return "Group Chat";
-  };
+    return distanceFromBottom <= NEAR_BOTTOM_PX;
+  }, [getScrollViewport]);
 
-  const getConversationInitials = (group: ChatGroupRow) => {
-    const name = getConversationName(group);
-    return name
-      .split(" ")
-      .map((part) => part[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
+  }, []);
 
-  const loadMessagesForGroup = async (groupId: string) => {
+  const getMembersForGroup = useCallback(
+    (groupId: string) => {
+      return groupMembers.filter((member) => member.group_id === groupId);
+    },
+    [groupMembers]
+  );
+
+  const getProfileByUserId = useCallback(
+    (userId: string) => {
+      return profiles.find((profile) => profile.user_id === userId);
+    },
+    [profiles]
+  );
+
+  const getConversationName = useCallback(
+    (group: ChatGroupRow) => {
+      if (group.name) return group.name;
+
+      const members = getMembersForGroup(group.id);
+
+      if (group.type === "DIRECT") {
+        const otherMember = members.find((member) => member.user_id !== currentUserId);
+        const otherProfile = otherMember
+          ? getProfileByUserId(otherMember.user_id)
+          : null;
+
+        return otherProfile?.full_name || "Direct Chat";
+      }
+
+      if (group.type === "PROJECT") return "Project Chat";
+      if (group.type === "TASK") return "Task Chat";
+      return "Group Chat";
+    },
+    [currentUserId, getMembersForGroup, getProfileByUserId]
+  );
+
+  const getConversationInitials = useCallback(
+    (group: ChatGroupRow) => {
+      const name = getConversationName(group);
+
+      return name
+        .split(" ")
+        .map((part) => part[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+    },
+    [getConversationName]
+  );
+
+  const moveGroupToTop = useCallback((groupId: string) => {
+    setGroups((prev) => {
+      const index = prev.findIndex((group) => group.id === groupId);
+      if (index <= 0) return prev;
+
+      const next = [...prev];
+      const [group] = next.splice(index, 1);
+      next.unshift(group);
+      return next;
+    });
+  }, []);
+
+  const replaceTempMessageWithRealOne = useCallback(
+    (groupId: string, realMessage: ChatMessageRow) => {
+      setMessages((prev) => {
+        const existing = prev[groupId] || [];
+
+        const tempIndex = existing.findIndex((message) => {
+          if (!message.id.startsWith("temp-")) return false;
+          if (message.user_id !== realMessage.user_id) return false;
+          if (message.group_id !== realMessage.group_id) return false;
+          if (message.content !== realMessage.content) return false;
+
+          const timeDiff = Math.abs(
+            new Date(message.created_at).getTime() -
+              new Date(realMessage.created_at).getTime()
+          );
+
+          return timeDiff < 30000;
+        });
+
+        if (tempIndex === -1) {
+          const merged = dedupeMessages([...existing, realMessage]);
+          return { ...prev, [groupId]: merged };
+        }
+
+        const next = [...existing];
+        next[tempIndex] = realMessage;
+
+        return {
+          ...prev,
+          [groupId]: dedupeMessages(next),
+        };
+      });
+    },
+    []
+  );
+
+  const appendMessageLocally = useCallback(
+    (groupId: string, message: ChatMessageRow) => {
+      setMessages((prev) => {
+        const current = prev[groupId] || [];
+        const alreadyExists = current.some((item) => item.id === message.id);
+
+        if (alreadyExists) return prev;
+
+        const merged = dedupeMessages([...current, message]);
+
+        return {
+          ...prev,
+          [groupId]: merged,
+        };
+      });
+    },
+    []
+  );
+
+  const updateMessageLocally = useCallback(
+    (groupId: string, message: ChatMessageRow) => {
+      setMessages((prev) => {
+        const current = prev[groupId] || [];
+        const exists = current.some((item) => item.id === message.id);
+
+        if (!exists) return prev;
+
+        return {
+          ...prev,
+          [groupId]: current.map((item) => (item.id === message.id ? message : item)),
+        };
+      });
+    },
+    []
+  );
+
+  const deleteMessageLocally = useCallback((groupId: string, messageId: string) => {
+    setMessages((prev) => ({
+      ...prev,
+      [groupId]: (prev[groupId] || []).filter((item) => item.id !== messageId),
+    }));
+  }, []);
+
+  const loadMessagesForGroup = useCallback(async (groupId: string) => {
     const { data, error: messagesError } = await supabase
       .from("chat_messages")
       .select("id, group_id, user_id, content, created_at")
@@ -163,165 +342,175 @@ export default function ChatPage() {
       throw new Error(messagesError.message || "Failed to load messages.");
     }
 
-    const newestMessages = ((data || []) as ChatMessageRow[]).reverse();
+    const newestMessages = sortMessagesAscending((data || []) as ChatMessageRow[]);
 
     return {
       items: newestMessages,
       hasMore: (data || []).length === PAGE_SIZE,
     };
-  };
+  }, []);
 
-  const loadChatData = async (preferredId?: string | null) => {
-    setError("");
+  const loadChatData = useCallback(
+    async (preferredId?: string | null) => {
+      setError("");
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
 
-    if (authError || !user) {
-      navigate("/login");
-      return;
-    }
+      if (authError || !user) {
+        navigate("/login");
+        return;
+      }
 
-    setCurrentUserId(user.id);
+      setCurrentUserId(user.id);
 
-    const [{ data: myProfile }, { data: allProfiles, error: profilesError }] = await Promise.all([
-      supabase.from("profiles").select("role").eq("user_id", user.id).single(),
-      supabase
-        .from("profiles")
-        .select("user_id, full_name, role, status")
-        .eq("status", "active")
-        .order("full_name", { ascending: true }),
-    ]);
+      const [{ data: myProfile }, { data: allProfiles, error: profilesError }] =
+        await Promise.all([
+          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
+          supabase
+            .from("profiles")
+            .select("user_id, full_name, role, status")
+            .eq("status", "active")
+            .order("full_name", { ascending: true }),
+        ]);
 
-    if (profilesError) {
-      setError(profilesError.message || "Failed to load users.");
-      return;
-    }
+      if (profilesError) {
+        setError(profilesError.message || "Failed to load users.");
+        return;
+      }
 
-    const role = (myProfile?.role || "employee") as Role;
-    setCurrentUserRole(role);
+      const role = (myProfile?.role || "employee") as Role;
+      setCurrentUserRole(role);
 
-    const isAdmin = role === "admin";
+      const isAdmin = role === "admin";
 
-    let groupsQuery = supabase
-      .from("chat_groups")
-      .select("id, name, type, project_id, task_id, created_by, created_at, direct_key")
-      .order("created_at", { ascending: false });
+      let groupsQuery = supabase
+        .from("chat_groups")
+        .select("id, name, type, project_id, task_id, created_by, created_at, direct_key")
+        .order("created_at", { ascending: false });
 
-    if (!isAdmin) {
-      const { data: myMemberships, error: membershipsError } = await supabase
+      if (!isAdmin) {
+        const { data: myMemberships, error: membershipsError } = await supabase
+          .from("chat_group_members")
+          .select("group_id")
+          .eq("user_id", user.id);
+
+        if (membershipsError) {
+          setError(membershipsError.message || "Failed to load memberships.");
+          return;
+        }
+
+        const myGroupIds = Array.from(
+          new Set((myMemberships || []).map((membership) => membership.group_id))
+        );
+
+        if (myGroupIds.length === 0) {
+          setProfiles((allProfiles || []) as ProfileRow[]);
+          setGroups([]);
+          setGroupMembers([]);
+          setMessages({});
+          setHasMoreMessages({});
+          setSelectedConversationId(null);
+          return;
+        }
+
+        groupsQuery = groupsQuery.in("id", myGroupIds);
+      }
+
+      const { data: groupsData, error: groupsError } = await groupsQuery;
+
+      if (groupsError) {
+        setError(groupsError.message || "Failed to load chat groups.");
+        return;
+      }
+
+      const rawGroups = (groupsData || []) as ChatGroupRow[];
+      const dedupedMap = new Map<string, ChatGroupRow>();
+
+      for (const group of rawGroups) {
+        const dedupeKey =
+          group.type === "DIRECT" && group.direct_key
+            ? `DIRECT:${group.direct_key}`
+            : `GROUP:${group.id}`;
+
+        if (!dedupedMap.has(dedupeKey)) {
+          dedupedMap.set(dedupeKey, group);
+        }
+      }
+
+      const loadedGroups = Array.from(dedupedMap.values());
+      const visibleGroupIds = loadedGroups.map((group) => group.id);
+
+      let membersQuery = supabase
         .from("chat_group_members")
-        .select("group_id")
-        .eq("user_id", user.id);
+        .select("id, group_id, user_id, role, created_at");
 
-      if (membershipsError) {
-        setError(membershipsError.message || "Failed to load memberships.");
+      if (visibleGroupIds.length > 0) {
+        membersQuery = membersQuery.in("group_id", visibleGroupIds);
+      }
+
+      const { data: membersData, error: membersError } = await membersQuery;
+
+      if (membersError) {
+        setError(membersError.message || "Failed to load group members.");
         return;
       }
 
-      const myGroupIds = Array.from(new Set((myMemberships || []).map((m) => m.group_id)));
+      const loadedMessages: MessagesByGroup = {};
+      const loadedHasMore: HasMoreByGroup = {};
 
-      if (myGroupIds.length === 0) {
-        setProfiles((allProfiles || []) as ProfileRow[]);
-        setGroups([]);
-        setGroupMembers([]);
-        setMessages({});
-        setHasMoreMessages({});
-        setSelectedConversationId(null);
+      for (const groupId of visibleGroupIds) {
+        const result = await loadMessagesForGroup(groupId);
+        loadedMessages[groupId] = result.items;
+        loadedHasMore[groupId] = result.hasMore;
+      }
+
+      setProfiles((allProfiles || []) as ProfileRow[]);
+      setGroups(loadedGroups);
+      setGroupMembers((membersData || []) as ChatGroupMemberRow[]);
+      setMessages(loadedMessages);
+      setHasMoreMessages(loadedHasMore);
+
+      const requestedId = preferredId || id || null;
+
+      if (requestedId && loadedGroups.some((group) => group.id === requestedId)) {
+        setSelectedConversationId(requestedId);
         return;
       }
 
-      groupsQuery = groupsQuery.in("id", myGroupIds);
-    }
-
-    const { data: groupsData, error: groupsError } = await groupsQuery;
-
-    if (groupsError) {
-      setError(groupsError.message || "Failed to load chat groups.");
-      return;
-    }
-
-    const rawGroups = (groupsData || []) as ChatGroupRow[];
-    const dedupedMap = new Map<string, ChatGroupRow>();
-
-    for (const group of rawGroups) {
-      const dedupeKey =
-        group.type === "DIRECT" && group.direct_key
-          ? `DIRECT:${group.direct_key}`
-          : `GROUP:${group.id}`;
-
-      if (!dedupedMap.has(dedupeKey)) {
-        dedupedMap.set(dedupeKey, group);
+      if (loadedGroups.length > 0) {
+        const firstGroupId = loadedGroups[0].id;
+        setSelectedConversationId(firstGroupId);
+        navigate(`/chat/${firstGroupId}`);
+        return;
       }
-    }
 
-    const loadedGroups = Array.from(dedupedMap.values());
-    const visibleGroupIds = loadedGroups.map((group) => group.id);
-
-    let membersQuery = supabase
-      .from("chat_group_members")
-      .select("id, group_id, user_id, role, created_at");
-
-    if (visibleGroupIds.length > 0) {
-      membersQuery = membersQuery.in("group_id", visibleGroupIds);
-    }
-
-    const { data: membersData, error: membersError } = await membersQuery;
-
-    if (membersError) {
-      setError(membersError.message || "Failed to load group members.");
-      return;
-    }
-
-    const loadedMessages: Record<string, ChatMessageRow[]> = {};
-    const loadedHasMore: Record<string, boolean> = {};
-
-    for (const groupId of visibleGroupIds) {
-      const result = await loadMessagesForGroup(groupId);
-      loadedMessages[groupId] = result.items;
-      loadedHasMore[groupId] = result.hasMore;
-    }
-
-    setProfiles((allProfiles || []) as ProfileRow[]);
-    setGroups(loadedGroups);
-    setGroupMembers((membersData || []) as ChatGroupMemberRow[]);
-    setMessages(loadedMessages);
-    setHasMoreMessages(loadedHasMore);
-
-    const requestedId = preferredId || id || null;
-
-    if (requestedId && loadedGroups.some((group) => group.id === requestedId)) {
-      setSelectedConversationId(requestedId);
-      return;
-    }
-
-    if (loadedGroups.length > 0) {
-      const firstGroupId = loadedGroups[0].id;
-      setSelectedConversationId(firstGroupId);
-      navigate(`/chat/${firstGroupId}`);
-      return;
-    }
-
-    setSelectedConversationId(null);
-  };
+      setSelectedConversationId(null);
+    },
+    [id, loadMessagesForGroup, navigate]
+  );
 
   useEffect(() => {
     const init = async () => {
       setIsLoading(true);
       await loadChatData(id || null);
-      setIsLoading(false);
+
+      if (isMountedRef.current) {
+        setIsLoading(false);
+        shouldScrollToBottomRef.current = true;
+      }
     };
 
     init();
-  }, [id]);
+  }, [id, loadChatData]);
 
   useEffect(() => {
     if (!selectedConversationId) return;
 
     const channel = supabase
-      .channel("chat-realtime")
+      .channel(`chat-realtime-${selectedConversationId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "chat_messages" },
@@ -332,36 +521,58 @@ export default function ChatPage() {
 
           if (!targetGroupId) return;
 
-          if (targetGroupId !== selectedConversationId) {
-            await loadChatData(selectedConversationId);
+          const isCurrentConversation =
+            targetGroupId === selectedConversationIdRef.current;
+
+          if (payload.eventType === "INSERT" && payload.new) {
+            const newMessage = payload.new as ChatMessageRow;
+
+            if (isCurrentConversation) {
+              const shouldStayAtBottom = isViewportNearBottom();
+              replaceTempMessageWithRealOne(targetGroupId, newMessage);
+
+              if (shouldStayAtBottom) {
+                shouldScrollToBottomRef.current = true;
+              }
+            } else {
+              appendMessageLocally(targetGroupId, newMessage);
+            }
+
+            moveGroupToTop(targetGroupId);
             return;
           }
 
-          const result = await loadMessagesForGroup(targetGroupId);
+          if (payload.eventType === "UPDATE" && payload.new) {
+            const updatedMessage = payload.new as ChatMessageRow;
+            updateMessageLocally(targetGroupId, updatedMessage);
+            return;
+          }
 
-          setMessages((prev) => ({
-            ...prev,
-            [targetGroupId]: result.items,
-          }));
+          if (payload.eventType === "DELETE" && payload.old) {
+            const deletedMessage = payload.old as ChatMessageRow;
+            deleteMessageLocally(targetGroupId, deletedMessage.id);
 
-          setHasMoreMessages((prev) => ({
-            ...prev,
-            [targetGroupId]: result.hasMore,
-          }));
+            if (editingMessageId === deletedMessage.id) {
+              setEditingMessageId(null);
+              setEditingMessageText("");
+            }
+
+            return;
+          }
         }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "chat_groups" },
         async () => {
-          await loadChatData(selectedConversationId);
+          await loadChatData(selectedConversationIdRef.current);
         }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "chat_group_members" },
         async () => {
-          await loadChatData(selectedConversationId);
+          await loadChatData(selectedConversationIdRef.current);
         }
       )
       .subscribe();
@@ -369,24 +580,56 @@ export default function ChatPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedConversationId]);
+  }, [
+    appendMessageLocally,
+    deleteMessageLocally,
+    editingMessageId,
+    isViewportNearBottom,
+    loadChatData,
+    moveGroupToTop,
+    replaceTempMessageWithRealOne,
+    selectedConversationId,
+    updateMessageLocally,
+  ]);
 
-useEffect(() => {
-    if (!isLoading && !isLoadingOlder) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  useEffect(() => {
+    if (isLoading) return;
+    if (suppressNextAutoScrollRef.current) {
+      suppressNextAutoScrollRef.current = false;
+      return;
     }
-  }, [conversationMessages.length, isLoading, isLoadingOlder]);
+    if (!shouldScrollToBottomRef.current) return;
+
+    shouldScrollToBottomRef.current = false;
+
+    requestAnimationFrame(() => {
+      scrollToBottom("smooth");
+    });
+  }, [conversationMessages.length, isLoading, scrollToBottom]);
+
+  useEffect(() => {
+    if (!selectedConversationId) return;
+    shouldScrollToBottomRef.current = true;
+  }, [selectedConversationId]);
 
   const filteredConversations = useMemo(() => {
     return groups.filter((group) =>
       getConversationName(group).toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [groups, searchQuery, currentUserId, groupMembers, profiles]);
+  }, [getConversationName, groups, searchQuery]);
 
-  const directConversations = filteredConversations.filter((group) => group.type === "DIRECT");
-  const projectConversations = filteredConversations.filter((group) => group.type === "PROJECT");
-  const taskConversations = filteredConversations.filter((group) => group.type === "TASK");
-  const groupConversations = filteredConversations.filter((group) => group.type === "GROUP");
+  const directConversations = filteredConversations.filter(
+    (group) => group.type === "DIRECT"
+  );
+  const projectConversations = filteredConversations.filter(
+    (group) => group.type === "PROJECT"
+  );
+  const taskConversations = filteredConversations.filter(
+    (group) => group.type === "TASK"
+  );
+  const groupConversations = filteredConversations.filter(
+    (group) => group.type === "GROUP"
+  );
 
   const mentionCandidates = useMemo(() => {
     if (!selectedConversationId) return [];
@@ -399,17 +642,16 @@ useEffect(() => {
       .map((userId) => profiles.find((profile) => profile.user_id === userId))
       .filter((profile): profile is ProfileRow => Boolean(profile))
       .filter((profile) => profile.user_id !== currentUserId);
-  }, [selectedConversationId, groupMembers, profiles, currentUserId]);
+  }, [currentUserId, getMembersForGroup, profiles, selectedConversationId]);
 
   const filteredMentionCandidates = useMemo(() => {
     if (!showMentionDropdown) return [];
 
-    const q = mentionQuery.trim().toLowerCase();
+    const query = mentionQuery.trim().toLowerCase();
 
     return mentionCandidates.filter((profile) => {
       const fullName = (profile.full_name || "").toLowerCase();
-      if (!q) return true;
-      return fullName.includes(q);
+      return !query || fullName.includes(query);
     });
   }, [mentionCandidates, mentionQuery, showMentionDropdown]);
 
@@ -432,8 +674,8 @@ useEffect(() => {
     const safeName = fullName.trim();
     if (!safeName) return;
 
-    const updated = messageInput.replace(/@([a-zA-Z0-9_]*)$/, `@${safeName} `);
-    setMessageInput(updated);
+    const updatedValue = messageInput.replace(/@([a-zA-Z0-9_]*)$/, `@${safeName} `);
+    setMessageInput(updatedValue);
     setMentionQuery("");
     setShowMentionDropdown(false);
   };
@@ -464,16 +706,16 @@ useEffect(() => {
       created_at: new Date().toISOString(),
     };
 
-    setMessages((prev) => ({
-      ...prev,
-      [selectedConversationId]: [...(prev[selectedConversationId] || []), optimisticMessage],
-    }));
+    appendMessageLocally(selectedConversationId, optimisticMessage);
+    moveGroupToTop(selectedConversationId);
 
     setMessageInput("");
     setMentionQuery("");
     setShowMentionDropdown(false);
     setIsSending(true);
     setError("");
+
+    shouldScrollToBottomRef.current = true;
 
     const { data: insertedMessage, error: sendError } = await supabase
       .from("chat_messages")
@@ -486,25 +728,14 @@ useEffect(() => {
       .single();
 
     if (sendError || !insertedMessage) {
-      setMessages((prev) => ({
-        ...prev,
-        [selectedConversationId]: (prev[selectedConversationId] || []).filter(
-          (message) => message.id !== tempId
-        ),
-      }));
-
+      deleteMessageLocally(selectedConversationId, tempId);
       setMessageInput(contentToSend);
       setError(sendError?.message || "Failed to send message.");
       setIsSending(false);
       return;
     }
 
-    setMessages((prev) => ({
-      ...prev,
-      [selectedConversationId]: (prev[selectedConversationId] || []).map((message) =>
-        message.id === tempId ? (insertedMessage as ChatMessageRow) : message
-      ),
-    }));
+    replaceTempMessageWithRealOne(selectedConversationId, insertedMessage as ChatMessageRow);
 
     const mentionedUserIds = extractMentionedUserIds(
       contentToSend,
@@ -558,6 +789,10 @@ useEffect(() => {
     const oldestMessage = currentMessages[0];
     if (!oldestMessage) return;
 
+    const viewport = getScrollViewport();
+    const previousScrollHeight = viewport?.scrollHeight || 0;
+    const previousScrollTop = viewport?.scrollTop || 0;
+
     setIsLoadingOlder(true);
     setError("");
 
@@ -575,11 +810,16 @@ useEffect(() => {
       return;
     }
 
-    const olderBatch = ((olderMessages || []) as ChatMessageRow[]).reverse();
+    const olderBatch = sortMessagesAscending((olderMessages || []) as ChatMessageRow[]);
+
+    suppressNextAutoScrollRef.current = true;
 
     setMessages((prev) => ({
       ...prev,
-      [selectedConversationId]: [...olderBatch, ...(prev[selectedConversationId] || [])],
+      [selectedConversationId]: dedupeMessages([
+        ...olderBatch,
+        ...(prev[selectedConversationId] || []),
+      ]),
     }));
 
     setHasMoreMessages((prev) => ({
@@ -588,6 +828,15 @@ useEffect(() => {
     }));
 
     setIsLoadingOlder(false);
+
+    requestAnimationFrame(() => {
+      const nextViewport = getScrollViewport();
+      if (!nextViewport) return;
+
+      const newScrollHeight = nextViewport.scrollHeight;
+      const heightDiff = newScrollHeight - previousScrollHeight;
+      nextViewport.scrollTop = previousScrollTop + heightDiff;
+    });
   };
 
   const startDirectMessage = async (targetUserId: string) => {
@@ -727,7 +976,7 @@ useEffect(() => {
     );
   };
 
-const handleDeleteChat = async (group: ChatGroupRow) => {
+  const handleDeleteChat = async (group: ChatGroupRow) => {
     const confirmed = window.confirm("Are you sure you want to delete this chat?");
     if (!confirmed) return;
 
@@ -784,12 +1033,10 @@ const handleDeleteChat = async (group: ChatGroupRow) => {
       return;
     }
 
-    setMessages((prev) => ({
-      ...prev,
-      [message.group_id]: (prev[message.group_id] || []).map((item) =>
-        item.id === message.id ? { ...item, content: editingMessageText.trim() } : item
-      ),
-    }));
+    updateMessageLocally(message.group_id, {
+      ...message,
+      content: editingMessageText.trim(),
+    });
 
     setEditingMessageId(null);
     setEditingMessageText("");
@@ -814,12 +1061,7 @@ const handleDeleteChat = async (group: ChatGroupRow) => {
       return;
     }
 
-    setMessages((prev) => ({
-      ...prev,
-      [message.group_id]: (prev[message.group_id] || []).filter(
-        (item) => item.id !== message.id
-      ),
-    }));
+    deleteMessageLocally(message.group_id, message.id);
 
     if (editingMessageId === message.id) {
       setEditingMessageId(null);
@@ -852,9 +1094,15 @@ const handleDeleteChat = async (group: ChatGroupRow) => {
           >
             {iconType ? (
               <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-                {iconType === "project" && <FolderKanban className="w-5 h-5 text-indigo-400" />}
-                {iconType === "task" && <CheckSquare className="w-5 h-5 text-indigo-400" />}
-                {iconType === "group" && <Users className="w-5 h-5 text-indigo-400" />}
+                {iconType === "project" && (
+                  <FolderKanban className="w-5 h-5 text-indigo-400" />
+                )}
+                {iconType === "task" && (
+                  <CheckSquare className="w-5 h-5 text-indigo-400" />
+                )}
+                {iconType === "group" && (
+                  <Users className="w-5 h-5 text-indigo-400" />
+                )}
               </div>
             ) : (
               <Avatar className="w-10 h-10">
@@ -893,7 +1141,7 @@ const handleDeleteChat = async (group: ChatGroupRow) => {
   if (isLoading) {
     return (
       <div className="h-[calc(100vh-140px)] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
       </div>
     );
   }
@@ -936,6 +1184,7 @@ const handleDeleteChat = async (group: ChatGroupRow) => {
                     Direct Messages
                   </h3>
                 </div>
+
                 {directConversations.map((group) => renderConversationButton(group))}
 
                 {projectConversations.length > 0 && (
@@ -960,7 +1209,9 @@ const handleDeleteChat = async (group: ChatGroupRow) => {
                         Task Chats
                       </h3>
                     </div>
-                    {taskConversations.map((group) => renderConversationButton(group, "task"))}
+                    {taskConversations.map((group) =>
+                      renderConversationButton(group, "task")
+                    )}
                   </>
                 )}
 
@@ -972,7 +1223,9 @@ const handleDeleteChat = async (group: ChatGroupRow) => {
                         Group Chats
                       </h3>
                     </div>
-                    {groupConversations.map((group) => renderConversationButton(group, "group"))}
+                    {groupConversations.map((group) =>
+                      renderConversationButton(group, "group")
+                    )}
                   </>
                 )}
 
@@ -1001,12 +1254,14 @@ const handleDeleteChat = async (group: ChatGroupRow) => {
                             .slice(0, 2)}
                         </AvatarFallback>
                       </Avatar>
+
                       <div className="flex-1 text-left">
                         <p className="text-white font-medium text-sm">
                           {user.full_name || "Unknown"}
                         </p>
                         <p className="text-slate-500 text-xs">{user.role}</p>
                       </div>
+
                       <div className="w-2 h-2 rounded-full bg-green-500" />
                     </button>
                   ))}
@@ -1024,6 +1279,7 @@ const handleDeleteChat = async (group: ChatGroupRow) => {
                     {getConversationInitials(selectedConversation)}
                   </AvatarFallback>
                 </Avatar>
+
                 <div>
                   <h3 className="text-white font-medium">
                     {getConversationName(selectedConversation)}
@@ -1035,7 +1291,7 @@ const handleDeleteChat = async (group: ChatGroupRow) => {
               </div>
             </div>
 
-            <ScrollArea className="flex-1 h-full">
+            <ScrollArea ref={scrollAreaRef} className="flex-1 h-full">
               <div className="px-4 py-4">
                 <div className="flex justify-center mb-4">
                   {selectedConversationId ? (
@@ -1133,7 +1389,7 @@ const handleDeleteChat = async (group: ChatGroupRow) => {
                                 </div>
                               </div>
                             ) : (
-                              <p className="whitespace-pre-wrap">{message.content}</p>
+                              <p className="whitespace-pre-wrap break-words">{message.content}</p>
                             )}
                           </div>
 
@@ -1164,8 +1420,6 @@ const handleDeleteChat = async (group: ChatGroupRow) => {
                     );
                   })}
 
-                  <div ref={messagesEndRef} />
-
                   {conversationMessages.length === 0 && (
                     <div className="text-center py-12">
                       <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4">
@@ -1175,6 +1429,8 @@ const handleDeleteChat = async (group: ChatGroupRow) => {
                       <p className="text-slate-600 text-sm">Start the conversation!</p>
                     </div>
                   )}
+
+                  <div ref={messagesEndRef} />
                 </div>
               </div>
             </ScrollArea>
@@ -1186,7 +1442,12 @@ const handleDeleteChat = async (group: ChatGroupRow) => {
                     placeholder="Type a message..."
                     value={messageInput}
                     onChange={(e) => handleMessageInputChange(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
                     className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
                   />
                   <Button
@@ -1214,7 +1475,7 @@ const handleDeleteChat = async (group: ChatGroupRow) => {
                         >
                           <div>
                             <div className="text-sm font-medium text-white">
-                                {profile.full_name || "Unknown"}
+                              {profile.full_name || "Unknown"}
                             </div>
                             <div className="text-xs text-slate-500">
                               {profile.role.toUpperCase()}
@@ -1234,7 +1495,9 @@ const handleDeleteChat = async (group: ChatGroupRow) => {
               <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4">
                 <Send className="w-8 h-8 text-slate-500" />
               </div>
-              <h3 className="text-lg font-medium text-white mb-2">Select a conversation</h3>
+              <h3 className="text-lg font-medium text-white mb-2">
+                Select a conversation
+              </h3>
               <p className="text-slate-500">
                 Choose a conversation from the sidebar to start chatting
               </p>

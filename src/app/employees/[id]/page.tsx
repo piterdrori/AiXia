@@ -1,368 +1,613 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { useStore } from '@/lib/store';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Progress } from '@/components/ui/progress';
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   ArrowLeft,
   Edit,
+  Save,
+  X,
+  Trash2,
+  Shield,
+  User,
   Phone,
+  Building2,
   MapPin,
   Briefcase,
-  Calendar,
-  Shield,
-  FolderKanban,
-  CheckSquare,
-  Activity,
-} from 'lucide-react';
-import { format } from 'date-fns';
-import type { UserRole } from '@/types';
+  MessageCircle,
+} from "lucide-react";
+
+type Role = "admin" | "manager" | "employee" | "guest";
+type Status = "active" | "pending" | "inactive" | "denied";
+
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  role: Role;
+  status: Status;
+  requested_role: Role | null;
+  display_name?: string | null;
+  bio?: string | null;
+  phone?: string | null;
+  country?: string | null;
+  city?: string | null;
+  company?: string | null;
+  department?: string | null;
+  job_title?: string | null;
+  avatar_url?: string | null;
+  wechat?: string | null;
+  whatsapp?: string | null;
+  profile_completed?: boolean | null;
+  permissions?: Record<string, boolean> | null;
+  created_at: string;
+  updated_at: string;
+};
 
 export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { 
-    getUserById, 
-    projects, 
-    tasks, 
-    activities,
-    hasPermission,
-    updateUser,
-    currentUser,
-  } = useStore();
 
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+
+  const [user, setUser] = useState<ProfileRow | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [saved, setSaved] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [role, setRole] = useState<UserRole>('EMPLOYEE');
-  const [status, setStatus] = useState<'ACTIVE' | 'PENDING' | 'INACTIVE'>('ACTIVE');
 
-  const user = id ? getUserById(id) : undefined;
+  const [fullName, setFullName] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [country, setCountry] = useState("");
+  const [city, setCity] = useState("");
+  const [company, setCompany] = useState("");
+  const [department, setDepartment] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [bio, setBio] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [wechat, setWechat] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [role, setRole] = useState<Role>("employee");
+  const [status, setStatus] = useState<Status>("active");
+  const [profileCompleted, setProfileCompleted] = useState(false);
+
+  const canManage = currentUserRole === "admin";
+  const isOwnProfile = currentUserId === id;
+
+  const loadUser = async () => {
+    if (!id) {
+      navigate("/employees");
+      return;
+    }
+
+    setIsLoading(true);
+    setSaveError("");
+
+    const {
+      data: { user: authUser },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !authUser) {
+      navigate("/login");
+      return;
+    }
+
+    setCurrentUserId(authUser.id);
+
+    const { data: me } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("user_id", authUser.id)
+      .single();
+
+    setCurrentUserRole((me?.role as Role) || null);
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("user_id", id)
+      .single();
+
+    if (error || !data) {
+      navigate("/employees");
+      return;
+    }
+
+    const profile = data as ProfileRow;
+    setUser(profile);
+
+    setFullName(profile.full_name || "");
+    setDisplayName(profile.display_name || "");
+    setPhone(profile.phone || "");
+    setCountry(profile.country || "");
+    setCity(profile.city || "");
+    setCompany(profile.company || "");
+    setDepartment(profile.department || "");
+    setJobTitle(profile.job_title || "");
+    setBio(profile.bio || "");
+    setAvatarUrl(profile.avatar_url || "");
+    setWechat(profile.wechat || "");
+    setWhatsapp(profile.whatsapp || "");
+    setRole(profile.role);
+    setStatus(profile.status);
+    setProfileCompleted(Boolean(profile.profile_completed));
+
+    setIsLoading(false);
+  };
 
   useEffect(() => {
-    if (user) {
-      setRole(user.role);
-      setStatus(user.status);
-    }
-  }, [user]);
+    loadUser();
+  }, [id]);
 
-  useEffect(() => {
-    if (!user && id) {
-      navigate('/employees');
-    }
-  }, [user, id, navigate]);
+  const showSaved = () => {
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  };
 
-  if (!user) {
+  const handleSave = async () => {
+    if (!id || !user) return;
+
+    setIsSaving(true);
+    setSaveError("");
+    setSaved(false);
+
+    const payload: Record<string, unknown> = {
+      full_name: fullName.trim() || null,
+      display_name: displayName.trim() || null,
+      phone: phone.trim() || null,
+      country: country.trim() || null,
+      city: city.trim() || null,
+      company: company.trim() || null,
+      department: department.trim() || null,
+      job_title: jobTitle.trim() || null,
+      bio: bio.trim() || null,
+      avatar_url: avatarUrl.trim() || null,
+      wechat: wechat.trim() || null,
+      whatsapp: whatsapp.trim() || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (canManage) {
+      payload.role = role;
+      payload.status = status;
+      payload.profile_completed = profileCompleted;
+    }
+
+    const { error } = await supabase.from("profiles").update(payload).eq("user_id", id);
+
+    setIsSaving(false);
+
+    if (error) {
+      setSaveError(error.message || "Failed to save user.");
+      return;
+    }
+
+    setIsEditing(false);
+    showSaved();
+    loadUser();
+  };
+
+  const handleDeactivateUser = async () => {
+    if (!id || !canManage) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to deactivate this user? They will not be able to access the system."
+    );
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        status: "inactive",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", id);
+
+    if (error) {
+      setSaveError(error.message || "Failed to deactivate user.");
+      return;
+    }
+
+    loadUser();
+  };
+
+  const getInitials = (name: string | null) => {
+    if (!name) return "U";
+    return name
+      .split(" ")
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const getRoleColor = (value: Role) => {
+    switch (value) {
+      case "admin":
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+      case "manager":
+        return "bg-purple-500/20 text-purple-400 border-purple-500/30";
+      case "employee":
+        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+      default:
+        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
+    }
+  };
+
+  const getStatusColor = (value: Status) => {
+    switch (value) {
+      case "active":
+        return "bg-green-500/20 text-green-400 border-green-500/30";
+      case "pending":
+        return "bg-amber-500/20 text-amber-400 border-amber-500/30";
+      default:
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+    }
+  };
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
       </div>
     );
   }
 
-  const userProjects = projects.filter(p => 
-    p.members.some(m => m.userId === user.id) || p.createdBy === user.id
-  );
-
-  const userTasks = tasks.filter(t => 
-    t.assignees.includes(user.id) || t.createdBy === user.id
-  );
-
-  const userActivities = activities.filter(a => a.userId === user.id);
-
-  const getRoleColor = (role: UserRole) => {
-    switch (role) {
-      case 'ADMIN': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      case 'MANAGER': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
-      case 'EMPLOYEE': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      case 'GUEST': return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'PENDING': return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-      case 'INACTIVE': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      default: return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
-    }
-  };
-
-  const handleSave = () => {
-    updateUser(user.id, { role, status });
-    setIsEditing(false);
-  };
-
-  const isOwnProfile = currentUser?.id === user.id;
-  const canEdit = hasPermission('manageUsers') || isOwnProfile;
+  if (!user) return null;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button 
-          variant="ghost" 
-          size="icon"
-          onClick={() => navigate('/employees')}
-          className="text-slate-400 hover:text-white"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">Employee Profile</h1>
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            className="text-slate-300 hover:bg-slate-800"
+            onClick={() => navigate("/employees")}
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
+
+          <div>
+            <h1 className="text-2xl font-bold text-white">User Profile</h1>
+            <p className="text-slate-400">View and manage user details</p>
+          </div>
         </div>
-        {canEdit && (
-          <Button 
-            variant="outline"
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            onClick={() => isEditing ? handleSave() : setIsEditing(true)}
-          >
-            <Edit className="w-4 h-4 mr-2" />
-            {isEditing ? 'Save Changes' : 'Edit Profile'}
-          </Button>
-        )}
-        {hasPermission('manageUsers') && (
-          <Button 
-            variant="outline"
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            onClick={() => navigate(`/employees/${user.id}/permissions`)}
-          >
-            <Shield className="w-4 h-4 mr-2" />
-            Permissions
-          </Button>
-        )}
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {canManage && (
+            <Button
+              variant="outline"
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              onClick={() => navigate(`/employees/${id}/permissions`)}
+            >
+              <Shield className="w-4 h-4 mr-2" />
+              Permissions
+            </Button>
+          )}
+
+          {(canManage || isOwnProfile) && !isEditing && (
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() => setIsEditing(true)}
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+          )}
+
+          {canManage && (
+            <Button
+              variant="outline"
+              className="border-red-800 text-red-400 hover:bg-red-900/20"
+              onClick={handleDeactivateUser}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Deactivate
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Profile Card */}
-      <Card className="bg-slate-900/50 border-slate-800">
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row items-start gap-6">
-            <Avatar className="w-24 h-24">
-              <AvatarImage src={user.avatar} />
-              <AvatarFallback className="bg-indigo-600 text-white text-2xl">
-                {user.fullName.split(' ').map(n => n[0]).join('')}
-              </AvatarFallback>
-            </Avatar>
+      {saved && (
+        <Alert className="bg-green-900/20 border-green-800 text-green-400">
+          <AlertDescription>User profile saved successfully.</AlertDescription>
+        </Alert>
+      )}
 
-            <div className="flex-1">
-              <div className="flex flex-wrap items-center gap-3 mb-2">
-                <h2 className="text-2xl font-bold text-white">{user.fullName}</h2>
-                {isEditing && hasPermission('manageUsers') ? (
-                  <>
-                    <Select value={role} onValueChange={(v) => setRole(v as UserRole)}>
-                      <SelectTrigger className="w-32 bg-slate-950 border-slate-800 text-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-900 border-slate-800">
-                        <SelectItem value="ADMIN">Admin</SelectItem>
-                        <SelectItem value="MANAGER">Manager</SelectItem>
-                        <SelectItem value="EMPLOYEE">Employee</SelectItem>
-                        <SelectItem value="GUEST">Guest</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select value={status} onValueChange={(v) => setStatus(v as any)}>
-                      <SelectTrigger className="w-32 bg-slate-950 border-slate-800 text-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-900 border-slate-800">
-                        <SelectItem value="ACTIVE">Active</SelectItem>
-                        <SelectItem value="PENDING">Pending</SelectItem>
-                        <SelectItem value="INACTIVE">Inactive</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </>
-                ) : (
-                  <>
-                    <Badge className={getRoleColor(user.role)}>{user.role}</Badge>
-                    <Badge className={getStatusColor(user.status)}>{user.status}</Badge>
-                  </>
+      {saveError && (
+        <Alert className="bg-red-900/20 border-red-800 text-red-400">
+          <AlertDescription>{saveError}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid xl:grid-cols-[340px,1fr] gap-6">
+        <Card className="bg-slate-900/50 border-slate-800">
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center text-center">
+              <Avatar className="w-24 h-24 mb-4">
+                <AvatarImage src={avatarUrl || undefined} />
+                <AvatarFallback className="bg-indigo-600 text-white text-2xl">
+                  {getInitials(fullName)}
+                </AvatarFallback>
+              </Avatar>
+
+              <h2 className="text-xl font-semibold text-white">{fullName || "Unnamed user"}</h2>
+              <p className="text-slate-400">{displayName || "No display name"}</p>
+
+              <div className="flex items-center gap-2 flex-wrap justify-center mt-4">
+                <Badge className={getRoleColor(role)}>{role.toUpperCase()}</Badge>
+                <Badge className={getStatusColor(status)}>{status.toUpperCase()}</Badge>
+                {!profileCompleted && (
+                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                    PROFILE INCOMPLETE
+                  </Badge>
                 )}
               </div>
 
-              <p className="text-slate-400 mb-4">{user.email}</p>
-
-              {user.bio && (
-                <p className="text-slate-300 mb-4">{user.bio}</p>
-              )}
-
-              <div className="flex flex-wrap gap-4 text-sm">
-                {user.phone && (
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <Phone className="w-4 h-4" />
-                    {user.phone}
-                  </div>
-                )}
-                {user.location && (
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <MapPin className="w-4 h-4" />
-                    {user.location}
-                  </div>
-                )}
-                {user.department && (
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <Briefcase className="w-4 h-4" />
-                    {user.department}
-                  </div>
-                )}
-                <div className="flex items-center gap-2 text-slate-400">
-                  <Calendar className="w-4 h-4" />
-                  Joined {format(new Date(user.createdAt), 'MMM d, yyyy')}
+              <div className="w-full mt-6 space-y-3 text-left">
+                <div className="flex items-center gap-2 text-slate-300">
+                  <Phone className="w-4 h-4 text-slate-500" />
+                  <span>{phone || "No phone"}</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-300">
+                  <MapPin className="w-4 h-4 text-slate-500" />
+                  <span>{[city, country].filter(Boolean).join(", ") || "No location"}</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-300">
+                  <Building2 className="w-4 h-4 text-slate-500" />
+                  <span>{company || "No company"}</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-300">
+                  <Briefcase className="w-4 h-4 text-slate-500" />
+                  <span>{jobTitle || "No job title"}</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-300">
+                  <User className="w-4 h-4 text-slate-500" />
+                  <span>{department || "No department"}</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-300">
+                  <MessageCircle className="w-4 h-4 text-slate-500" />
+                  <span>WhatsApp: {whatsapp || "—"}</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-300">
+                  <MessageCircle className="w-4 h-4 text-slate-500" />
+                  <span>WeChat: {wechat || "—"}</span>
                 </div>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-white">{userProjects.length}</p>
-            <p className="text-slate-500 text-sm">Projects</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-white">{userTasks.length}</p>
-            <p className="text-slate-500 text-sm">Tasks</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-white">
-              {userTasks.filter(t => t.status === 'DONE').length}
-            </p>
-            <p className="text-slate-500 text-sm">Completed</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-white">
-              {userTasks.length > 0 
-                ? Math.round((userTasks.filter(t => t.status === 'DONE').length / userTasks.length) * 100)
-                : 0}%
-            </p>
-            <p className="text-slate-500 text-sm">Completion Rate</p>
+          <CardHeader>
+            <CardTitle className="text-white">
+              {isEditing ? "Edit Profile Details" : "Profile Details"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-slate-300">Full Name</Label>
+                <Input
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  disabled={!isEditing}
+                  className="bg-slate-950 border-slate-800 text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-slate-300">Display Name</Label>
+                <Input
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  disabled={!isEditing}
+                  className="bg-slate-950 border-slate-800 text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-slate-300">Phone</Label>
+                <Input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  disabled={!isEditing}
+                  className="bg-slate-950 border-slate-800 text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-slate-300">Country</Label>
+                <Input
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  disabled={!isEditing}
+                  className="bg-slate-950 border-slate-800 text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-slate-300">City</Label>
+                <Input
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  disabled={!isEditing}
+                  className="bg-slate-950 border-slate-800 text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-slate-300">Company</Label>
+                <Input
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  disabled={!isEditing}
+                  className="bg-slate-950 border-slate-800 text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-slate-300">Department</Label>
+                <Input
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                  disabled={!isEditing}
+                  className="bg-slate-950 border-slate-800 text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-slate-300">Job Title</Label>
+                <Input
+                  value={jobTitle}
+                  onChange={(e) => setJobTitle(e.target.value)}
+                  disabled={!isEditing}
+                  className="bg-slate-950 border-slate-800 text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-slate-300">WhatsApp</Label>
+                <Input
+                  value={whatsapp}
+                  onChange={(e) => setWhatsapp(e.target.value)}
+                  disabled={!isEditing}
+                  className="bg-slate-950 border-slate-800 text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-slate-300">WeChat</Label>
+                <Input
+                  value={wechat}
+                  onChange={(e) => setWechat(e.target.value)}
+                  disabled={!isEditing}
+                  className="bg-slate-950 border-slate-800 text-white"
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label className="text-slate-300">Profile Photo URL</Label>
+                <Input
+                  value={avatarUrl}
+                  onChange={(e) => setAvatarUrl(e.target.value)}
+                  disabled={!isEditing}
+                  className="bg-slate-950 border-slate-800 text-white"
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label className="text-slate-300">Short Bio</Label>
+                <Textarea
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  disabled={!isEditing}
+                  rows={5}
+                  className="bg-slate-950 border-slate-800 text-white resize-none"
+                />
+              </div>
+            </div>
+
+            {canManage && (
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Role</Label>
+                  <Select value={role} onValueChange={(v) => setRole(v as Role)} disabled={!isEditing}>
+                    <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="employee">Employee</SelectItem>
+                      <SelectItem value="guest">Guest</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Status</Label>
+                  <Select
+                    value={status}
+                    onValueChange={(v) => setStatus(v as Status)}
+                    disabled={!isEditing}
+                  >
+                    <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="denied">Denied</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Profile Completion</Label>
+                  <Select
+                    value={profileCompleted ? "yes" : "no"}
+                    onValueChange={(v) => setProfileCompleted(v === "yes")}
+                    disabled={!isEditing}
+                  >
+                    <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                      <SelectItem value="yes">Completed</SelectItem>
+                      <SelectItem value="no">Incomplete</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {(canManage || isOwnProfile) && isEditing && (
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  variant="outline"
+                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                  onClick={() => {
+                    setIsEditing(false);
+                    loadUser();
+                  }}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancel
+                </Button>
+
+                <Button
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                  onClick={handleSave}
+                  disabled={isSaving}
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {isSaving ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
-
-      {/* Tabs */}
-      <Tabs defaultValue="projects">
-        <TabsList className="bg-slate-900 border border-slate-800">
-          <TabsTrigger value="projects" className="data-[state=active]:bg-slate-800">Projects</TabsTrigger>
-          <TabsTrigger value="tasks" className="data-[state=active]:bg-slate-800">Tasks</TabsTrigger>
-          <TabsTrigger value="activity" className="data-[state=active]:bg-slate-800">Activity</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="projects" className="space-y-4">
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {userProjects.map((project) => (
-              <Card 
-                key={project.id}
-                className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/30 cursor-pointer transition-all"
-                onClick={() => navigate(`/projects/${project.id}`)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-                      <FolderKanban className="w-5 h-5 text-indigo-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-white font-medium truncate">{project.name}</h4>
-                    </div>
-                  </div>
-                  <Progress value={project.progress} className="h-2 bg-slate-800 mb-2" />
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500">{project.progress}% complete</span>
-                    <Badge className={getStatusColor(project.status)}>
-                      {project.status}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-          {userProjects.length === 0 && (
-            <p className="text-slate-500 text-center py-8">No projects yet</p>
-          )}
-        </TabsContent>
-
-        <TabsContent value="tasks" className="space-y-4">
-          <div className="space-y-3">
-            {userTasks.map((task) => (
-              <Card 
-                key={task.id}
-                className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/30 cursor-pointer transition-all"
-                onClick={() => navigate(`/tasks/${task.id}`)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <CheckSquare className={`w-5 h-5 ${
-                        task.status === 'DONE' ? 'text-green-400' : 'text-slate-500'
-                      }`} />
-                      <div>
-                        <h4 className={`font-medium ${
-                          task.status === 'DONE' ? 'text-slate-500 line-through' : 'text-white'
-                        }`}>
-                          {task.title}
-                        </h4>
-                        <p className="text-slate-500 text-sm">
-                          {projects.find(p => p.id === task.projectId)?.name}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge className={getStatusColor(task.status)}>
-                      {task.status}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-          {userTasks.length === 0 && (
-            <p className="text-slate-500 text-center py-8">No tasks yet</p>
-          )}
-        </TabsContent>
-
-        <TabsContent value="activity" className="space-y-4">
-          <Card className="bg-slate-900/50 border-slate-800">
-            <CardContent className="p-4">
-              <div className="space-y-4">
-                {userActivities.map((activity) => (
-                  <div key={activity.id} className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
-                      <Activity className="w-4 h-4 text-indigo-400" />
-                    </div>
-                    <div>
-                      <p className="text-slate-300">
-                        {activity.type.replace(/_/g, ' ')}
-                      </p>
-                      <p className="text-slate-500 text-sm">
-                        {format(new Date(activity.createdAt), 'MMM d, h:mm a')}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-                {userActivities.length === 0 && (
-                  <p className="text-slate-500 text-center py-8">No activity yet</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
     </div>
   );
 }

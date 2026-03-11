@@ -6,16 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Users, Plus, Search, UserCheck, UserX, Shield, User as UserIcon } from "lucide-react";
-import { format } from "date-fns";
+  Search,
+  UserCheck,
+  UserX,
+  Shield,
+  User as UserIcon,
+  Plus,
+  Eye,
+} from "lucide-react";
 
 type Role = "admin" | "manager" | "employee" | "guest";
 type Status = "active" | "pending" | "inactive" | "denied";
@@ -23,9 +23,17 @@ type Status = "active" | "pending" | "inactive" | "denied";
 type ProfileRow = {
   user_id: string;
   full_name: string | null;
+  display_name?: string | null;
+  phone?: string | null;
+  country?: string | null;
+  city?: string | null;
+  company?: string | null;
+  department?: string | null;
+  job_title?: string | null;
+  requested_role: Role | null;
   role: Role;
   status: Status;
-  requested_role: Role | null;
+  profile_completed?: boolean | null;
   created_at: string;
   updated_at: string;
 };
@@ -38,8 +46,6 @@ export default function EmployeesPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState<string>("ALL");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [activeTab, setActiveTab] = useState("all");
 
   const canManageUsers = currentUserRole === "admin";
@@ -113,22 +119,31 @@ export default function EmployeesPage() {
   };
 
   const filteredUsers = useMemo(() => {
-    return profiles.filter((u) => {
-      const matchesSearch =
-        (u.full_name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.user_id.toLowerCase().includes(searchQuery.toLowerCase());
+    return profiles.filter((user) => {
+      const haystack = [
+        user.full_name || "",
+        user.display_name || "",
+        user.company || "",
+        user.department || "",
+        user.job_title || "",
+        user.city || "",
+        user.country || "",
+      ]
+        .join(" ")
+        .toLowerCase();
 
-      const matchesRole = roleFilter === "ALL" || u.role.toUpperCase() === roleFilter;
-      const matchesStatus = statusFilter === "ALL" || u.status.toUpperCase() === statusFilter;
+      const matchesSearch = haystack.includes(searchQuery.toLowerCase());
 
       const matchesTab =
         activeTab === "all" ||
-        (activeTab === "active" && u.status === "active") ||
-        (activeTab === "inactive" && (u.status === "inactive" || u.status === "denied"));
+        (activeTab === "pending" && user.status === "pending") ||
+        (activeTab === "active" && user.status === "active") ||
+        (activeTab === "inactive" &&
+          (user.status === "inactive" || user.status === "denied"));
 
-      return matchesSearch && matchesRole && matchesStatus && matchesTab;
+      return matchesSearch && matchesTab;
     });
-  }, [profiles, searchQuery, roleFilter, statusFilter, activeTab]);
+  }, [profiles, searchQuery, activeTab]);
 
   const pendingUsers = profiles.filter((u) => u.status === "pending");
 
@@ -140,8 +155,6 @@ export default function EmployeesPage() {
         return "bg-purple-500/20 text-purple-400 border-purple-500/30";
       case "employee":
         return "bg-blue-500/20 text-blue-400 border-blue-500/30";
-      case "guest":
-        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
       default:
         return "bg-slate-500/20 text-slate-400 border-slate-500/30";
     }
@@ -153,22 +166,8 @@ export default function EmployeesPage() {
         return "bg-green-500/20 text-green-400 border-green-500/30";
       case "pending":
         return "bg-amber-500/20 text-amber-400 border-amber-500/30";
-      case "inactive":
-      case "denied":
+      default:
         return "bg-red-500/20 text-red-400 border-red-500/30";
-      default:
-        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
-    }
-  };
-
-  const getRoleIcon = (role: Role) => {
-    switch (role) {
-      case "admin":
-        return <Shield className="w-4 h-4" />;
-      case "manager":
-        return <UserCheck className="w-4 h-4" />;
-      default:
-        return <UserIcon className="w-4 h-4" />;
     }
   };
 
@@ -178,15 +177,24 @@ export default function EmployeesPage() {
       .split(" ")
       .map((n) => n[0])
       .join("")
-      .toUpperCase();
+      .toUpperCase()
+      .slice(0, 2);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Employees</h1>
-          <p className="text-slate-400">Manage team members and permissions</p>
+          <p className="text-slate-400">View, approve, and manage platform members</p>
         </div>
 
         {canManageUsers && (
@@ -202,184 +210,166 @@ export default function EmployeesPage() {
 
       {pendingUsers.length > 0 && canManageUsers && (
         <Card className="bg-amber-900/10 border-amber-800/30">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-amber-400 flex items-center gap-2">
-                <UserCheck className="w-5 h-5" />
-                Pending Approvals ({pendingUsers.length})
-              </h3>
-            </div>
+          <CardContent className="p-4 space-y-3">
+            <h3 className="text-lg font-medium text-amber-400">
+              Pending Approvals ({pendingUsers.length})
+            </h3>
 
-            <div className="space-y-3">
-              {pendingUsers.map((user) => (
-                <div
-                  key={user.user_id}
-                  className="flex items-center justify-between p-3 bg-slate-950/50 rounded-lg"
-                >
-                  <div className="flex items-center gap-3">
-                    <Avatar className="w-10 h-10">
-                      <AvatarFallback className="bg-indigo-600 text-white">
-                        {getInitials(user.full_name)}
-                      </AvatarFallback>
-                    </Avatar>
+            {pendingUsers.map((user) => (
+              <div
+                key={user.user_id}
+                className="flex items-center justify-between gap-4 p-3 bg-slate-950/50 rounded-lg"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar className="w-10 h-10">
+                    <AvatarFallback className="bg-indigo-600 text-white">
+                      {getInitials(user.full_name)}
+                    </AvatarFallback>
+                  </Avatar>
 
-                    <div>
-                      <p className="text-white font-medium">{user.full_name || "Unnamed user"}</p>
-                      <p className="text-slate-500 text-sm">
-                        requested: {(user.requested_role || "employee").toUpperCase()}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                      onClick={() => approveUser(user.user_id)}
-                    >
-                      <UserCheck className="w-4 h-4 mr-1" />
-                      Approve
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-red-800 text-red-400 hover:bg-red-900/20"
-                      onClick={() => rejectUser(user.user_id)}
-                    >
-                      <UserX className="w-4 h-4 mr-1" />
-                      Reject
-                    </Button>
+                  <div className="min-w-0">
+                    <p className="text-white font-medium truncate">
+                      {user.full_name || "Unnamed user"}
+                    </p>
+                    <p className="text-slate-500 text-sm">
+                      requested: {(user.requested_role || "employee").toUpperCase()}
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    onClick={() => approveUser(user.user_id)}
+                  >
+                    <UserCheck className="w-4 h-4 mr-1" />
+                    Approve
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-red-800 text-red-400 hover:bg-red-900/20"
+                    onClick={() => rejectUser(user.user_id)}
+                  >
+                    <UserX className="w-4 h-4 mr-1" />
+                    Reject
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                    onClick={() => navigate(`/employees/${user.user_id}`)}
+                  >
+                    <Eye className="w-4 h-4 mr-1" />
+                    View
+                  </Button>
+                </div>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-slate-900 border border-slate-800">
-          <TabsTrigger value="all" className="data-[state=active]:bg-slate-800">
-            All Members
-          </TabsTrigger>
-          <TabsTrigger value="active" className="data-[state=active]:bg-slate-800">
-            Active
-          </TabsTrigger>
-          <TabsTrigger value="inactive" className="data-[state=active]:bg-slate-800">
-            Inactive
-          </TabsTrigger>
-        </TabsList>
+      <div className="flex flex-col lg:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <Input
+            placeholder="Search by name, company, department, city..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 bg-slate-950 border-slate-800 text-white"
+          />
+        </div>
 
-        <TabsContent value={activeTab} className="space-y-4">
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-              <Input
-                placeholder="Search employees..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-slate-900 border-slate-800 text-white placeholder:text-slate-600"
-              />
-            </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="bg-slate-900 border border-slate-800">
+            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="pending">Pending</TabsTrigger>
+            <TabsTrigger value="active">Active</TabsTrigger>
+            <TabsTrigger value="inactive">Inactive</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger className="w-36 bg-slate-900 border-slate-800 text-white">
-                  <SelectValue placeholder="Role" />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-900 border-slate-800">
-                  <SelectItem value="ALL">All Roles</SelectItem>
-                  <SelectItem value="ADMIN">Admin</SelectItem>
-                  <SelectItem value="MANAGER">Manager</SelectItem>
-                  <SelectItem value="EMPLOYEE">Employee</SelectItem>
-                  <SelectItem value="GUEST">Guest</SelectItem>
-                </SelectContent>
-              </Select>
+      <div className="grid xl:grid-cols-2 gap-4">
+        {filteredUsers.map((user) => (
+          <Card
+            key={user.user_id}
+            className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/30 transition-all cursor-pointer"
+            onClick={() => navigate(`/employees/${user.user_id}`)}
+          >
+            <CardContent className="p-5">
+              <div className="flex items-start gap-4">
+                <Avatar className="w-12 h-12">
+                  <AvatarFallback className="bg-indigo-600 text-white">
+                    {getInitials(user.full_name)}
+                  </AvatarFallback>
+                </Avatar>
 
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-36 bg-slate-900 border-slate-800 text-white">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-900 border-slate-800">
-                  <SelectItem value="ALL">All Status</SelectItem>
-                  <SelectItem value="ACTIVE">Active</SelectItem>
-                  <SelectItem value="PENDING">Pending</SelectItem>
-                  <SelectItem value="INACTIVE">Inactive</SelectItem>
-                  <SelectItem value="DENIED">Denied</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {isLoading ? (
-            <div className="text-center py-12 text-slate-400">Loading employees...</div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-white mb-2">No employees found</h3>
-              <p className="text-slate-500">
-                {searchQuery || roleFilter !== "ALL" || statusFilter !== "ALL"
-                  ? "Try adjusting your filters"
-                  : "No employees in the system yet"}
-              </p>
-            </div>
-          ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredUsers.map((user) => (
-                <Card
-                  key={user.user_id}
-                  className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/30 transition-all cursor-pointer"
-                >
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between mb-4">
-                      <Avatar className="w-14 h-14">
-                        <AvatarFallback className="bg-indigo-600 text-white text-lg">
-                          {getInitials(user.full_name)}
-                        </AvatarFallback>
-                      </Avatar>
-
-                      <Badge className={getStatusColor(user.status)}>
-                        {user.status.toUpperCase()}
-                      </Badge>
-                    </div>
-
-                    <h3 className="text-white font-semibold mb-1">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                    <h3 className="text-white font-semibold truncate">
                       {user.full_name || "Unnamed user"}
                     </h3>
 
-                    <p className="text-slate-500 text-sm mb-3 break-all">{user.user_id}</p>
-
-                    <div className="flex items-center gap-2 mb-3">
-                      <Badge className={getRoleColor(user.role)}>
-                        {getRoleIcon(user.role)}
-                        <span className="ml-1">{user.role.toUpperCase()}</span>
-                      </Badge>
-                    </div>
-
-                    <p className="text-slate-600 text-xs mt-3">
-                      Joined {format(new Date(user.created_at), "MMM d, yyyy")}
-                    </p>
-
-                    {canManageUsers && (
-                      <div className="mt-4">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full border-slate-700 text-slate-300 hover:bg-slate-800"
-                          onClick={() => navigate(`/employees/${user.user_id}/permissions`)}
-                        >
-                          Permissions
-                        </Button>
-                      </div>
+                    {user.role === "admin" ? (
+                      <Shield className="w-4 h-4 text-red-400" />
+                    ) : (
+                      <UserIcon className="w-4 h-4 text-slate-400" />
                     )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap mb-3">
+                    <Badge className={getRoleColor(user.role)}>{user.role.toUpperCase()}</Badge>
+                    <Badge className={getStatusColor(user.status)}>
+                      {user.status.toUpperCase()}
+                    </Badge>
+                    {!user.profile_completed && user.status === "active" && (
+                      <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                        PROFILE INCOMPLETE
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-2 text-sm">
+                    <p className="text-slate-400">
+                      <span className="text-slate-500">Display:</span>{" "}
+                      {user.display_name || "—"}
+                    </p>
+                    <p className="text-slate-400">
+                      <span className="text-slate-500">Phone:</span> {user.phone || "—"}
+                    </p>
+                    <p className="text-slate-400">
+                      <span className="text-slate-500">Company:</span> {user.company || "—"}
+                    </p>
+                    <p className="text-slate-400">
+                      <span className="text-slate-500">Department:</span> {user.department || "—"}
+                    </p>
+                    <p className="text-slate-400">
+                      <span className="text-slate-500">Job Title:</span> {user.job_title || "—"}
+                    </p>
+                    <p className="text-slate-400">
+                      <span className="text-slate-500">Location:</span>{" "}
+                      {[user.city, user.country].filter(Boolean).join(", ") || "—"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {filteredUsers.length === 0 && (
+        <Card className="bg-slate-900/50 border-slate-800">
+          <CardContent className="p-10 text-center text-slate-500">
+            No users found.
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

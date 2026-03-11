@@ -8,6 +8,15 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
+type Status = "active" | "pending" | "inactive" | "denied";
+
+type LoginProfileRow = {
+  status: Status | null;
+  role: string | null;
+  full_name: string | null;
+  profile_completed?: boolean | null;
+};
+
 export default function LoginPage() {
   const navigate = useNavigate();
 
@@ -24,68 +33,72 @@ export default function LoginPage() {
     setInfoMessage("");
     setIsLoading(true);
 
-    try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
 
-      if (signInError) {
-        setError(signInError.message);
-        setIsLoading(false);
-        return;
-      }
-
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError || !user) {
-        setError("Failed to load user.");
-        setIsLoading(false);
-        return;
-      }
-
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("status, role, full_name")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (profileError || !profile) {
-        setError("Failed to load user profile.");
-        setIsLoading(false);
-        return;
-      }
-
-      if (profile.status === "pending") {
-        setInfoMessage("Your account is waiting for admin approval.");
-        await supabase.auth.signOut();
-        setIsLoading(false);
-        return;
-      }
-
-      if (profile.status === "denied") {
-        setError("Your registration was denied. Please contact the administrator.");
-        await supabase.auth.signOut();
-        setIsLoading(false);
-        return;
-      }
-
-      if (profile.status !== "active") {
-        setError("Your account is not active.");
-        await supabase.auth.signOut();
-        setIsLoading(false);
-        return;
-      }
-
+    if (signInError) {
+      setError(signInError.message);
       setIsLoading(false);
-      navigate("/dashboard");
-    } catch {
-      setError("Something went wrong during login.");
-      setIsLoading(false);
+      return;
     }
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setError("Failed to load user.");
+      setIsLoading(false);
+      return;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("status, role, full_name, profile_completed")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (profileError || !profile) {
+      setError("Failed to load user profile.");
+      await supabase.auth.signOut();
+      setIsLoading(false);
+      return;
+    }
+
+    const typedProfile = profile as LoginProfileRow;
+
+    if (typedProfile.status === "pending") {
+      setInfoMessage("Your account is waiting for admin approval.");
+      await supabase.auth.signOut();
+      setIsLoading(false);
+      return;
+    }
+
+    if (typedProfile.status === "denied") {
+      setError("Your registration was denied. Please contact the administrator.");
+      await supabase.auth.signOut();
+      setIsLoading(false);
+      return;
+    }
+
+    if (typedProfile.status !== "active") {
+      setError("Your account is not active.");
+      await supabase.auth.signOut();
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(false);
+
+    if (!typedProfile.profile_completed) {
+      navigate("/onboarding");
+      return;
+    }
+
+    navigate("/dashboard");
   };
 
   return (

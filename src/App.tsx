@@ -1,4 +1,10 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
@@ -27,43 +33,82 @@ import EmployeesPage from "@/app/employees/page";
 import EmployeeDetailPage from "@/app/employees/[id]/page";
 import EmployeePermissionsPage from "@/app/employees/[id]/permissions/page";
 import SettingsPage from "@/app/settings/page";
+import OnboardingPage from "@/app/onboarding/page";
 
 // Layout
 import DashboardLayout from "@/components/layout/DashboardLayout";
 
+type Status = "active" | "pending" | "inactive" | "denied";
+
+type AccessState =
+  | "unauthenticated"
+  | "pending"
+  | "denied"
+  | "inactive"
+  | "needs_profile"
+  | "ready";
+
+type ProfileAccessRow = {
+  status: Status | null;
+  profile_completed?: boolean | null;
+};
+
 function FullScreenLoader() {
   return (
     <div className="flex items-center justify-center h-screen bg-slate-950">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500" />
     </div>
   );
 }
 
+async function getAccessState(): Promise<AccessState> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) return "unauthenticated";
+
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("status, profile_completed")
+    .eq("user_id", session.user.id)
+    .maybeSingle();
+
+  if (error || !profile) return "unauthenticated";
+
+  const typedProfile = profile as ProfileAccessRow;
+
+  if (typedProfile.status === "pending") return "pending";
+  if (typedProfile.status === "denied") return "denied";
+  if (typedProfile.status !== "active") return "inactive";
+  if (!typedProfile.profile_completed) return "needs_profile";
+
+  return "ready";
+}
+
 function ProtectedRoute({ children }: { children: ReactNode }) {
+  const location = useLocation();
   const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [accessState, setAccessState] = useState<AccessState>("unauthenticated");
 
   useEffect(() => {
     let mounted = true;
 
-    const checkSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
+    const checkAccess = async () => {
+      const state = await getAccessState();
       if (!mounted) return;
-
-      setIsAuthenticated(!!session);
+      setAccessState(state);
       setIsLoading(false);
     };
 
-    checkSession();
+    checkAccess();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async () => {
+      const state = await getAccessState();
       if (!mounted) return;
-      setIsAuthenticated(!!session);
+      setAccessState(state);
       setIsLoading(false);
     });
 
@@ -75,8 +120,20 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (isLoading) return <FullScreenLoader />;
 
-  if (!isAuthenticated) {
+  if (accessState === "unauthenticated") {
     return <Navigate to="/login" replace />;
+  }
+
+  if (accessState === "pending" || accessState === "denied" || accessState === "inactive") {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (accessState === "needs_profile" && location.pathname !== "/onboarding") {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  if (accessState === "ready" && location.pathname === "/onboarding") {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
@@ -84,29 +141,26 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
 function PublicRoute({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [accessState, setAccessState] = useState<AccessState>("unauthenticated");
 
   useEffect(() => {
     let mounted = true;
 
-    const checkSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
+    const checkAccess = async () => {
+      const state = await getAccessState();
       if (!mounted) return;
-
-      setIsAuthenticated(!!session);
+      setAccessState(state);
       setIsLoading(false);
     };
 
-    checkSession();
+    checkAccess();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async () => {
+      const state = await getAccessState();
       if (!mounted) return;
-      setIsAuthenticated(!!session);
+      setAccessState(state);
       setIsLoading(false);
     });
 
@@ -118,8 +172,12 @@ function PublicRoute({ children }: { children: ReactNode }) {
 
   if (isLoading) return <FullScreenLoader />;
 
-  if (isAuthenticated) {
+  if (accessState === "ready") {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  if (accessState === "needs_profile") {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return <>{children}</>;
@@ -129,8 +187,8 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Public */}
         <Route path="/" element={<LandingPage />} />
+
         <Route
           path="/login"
           element={
@@ -140,10 +198,17 @@ function App() {
           }
         />
 
-        {/* Register is intentionally open for admin invite flow */}
         <Route path="/register" element={<RegisterPage />} />
 
-        {/* Protected */}
+        <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute>
+              <OnboardingPage />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/dashboard"
           element={

@@ -131,6 +131,50 @@ export default function ActivityPage() {
     loadActivity();
   }, []);
 
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const channel = supabase
+      .channel("activity-page-logs")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "activity_logs",
+        },
+        (payload) => {
+          const newLog = payload.new as ActivityLogRow;
+
+          setLogs((prev) => {
+            const alreadyExists = prev.some((log) => log.id === newLog.id);
+            if (alreadyExists) return prev;
+            return [newLog, ...prev];
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "activity_logs",
+        },
+        (payload) => {
+          const deletedId = (payload.old as { id?: string } | null)?.id;
+          if (!deletedId) return;
+
+          setLogs((prev) => prev.filter((log) => log.id !== deletedId));
+          setSelectedIds((prev) => prev.filter((id) => id !== deletedId));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUserId]);
+
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
       const matchesEntity =
@@ -392,9 +436,7 @@ export default function ActivityPage() {
                     <div
                       key={log.id}
                       className={`rounded-lg border p-4 bg-slate-950/40 ${
-                        isSelected
-                          ? "border-indigo-500/50"
-                          : "border-slate-800"
+                        isSelected ? "border-indigo-500/50" : "border-slate-800"
                       }`}
                     >
                       <div className="flex items-start gap-3">

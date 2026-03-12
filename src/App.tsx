@@ -5,12 +5,11 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import { Toaster } from "@/components/ui/sonner";
 
-// Pages
 import LandingPage from "@/app/page";
 import LoginPage from "@/app/login/page";
 import RegisterPage from "@/app/register/page";
@@ -34,8 +33,6 @@ import EmployeeDetailPage from "@/app/employees/[id]/page";
 import EmployeePermissionsPage from "@/app/employees/[id]/permissions/page";
 import SettingsPage from "@/app/settings/page";
 import OnboardingPage from "@/app/onboarding/page";
-
-// Layout
 import DashboardLayout from "@/components/layout/DashboardLayout";
 
 type Status = "active" | "pending" | "inactive" | "denied";
@@ -62,54 +59,71 @@ function FullScreenLoader() {
 }
 
 async function getAccessState(): Promise<AccessState> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  try {
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
 
-  if (!session) return "unauthenticated";
+    if (sessionError || !session) return "unauthenticated";
 
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("status, profile_completed")
-    .eq("user_id", session.user.id)
-    .maybeSingle();
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("status, profile_completed")
+      .eq("user_id", session.user.id)
+      .maybeSingle();
 
-  if (error || !profile) return "unauthenticated";
+    if (profileError || !profile) return "unauthenticated";
 
-  const typedProfile = profile as ProfileAccessRow;
+    const typedProfile = profile as ProfileAccessRow;
 
-  if (typedProfile.status === "pending") return "pending";
-  if (typedProfile.status === "denied") return "denied";
-  if (typedProfile.status !== "active") return "inactive";
-  if (!typedProfile.profile_completed) return "needs_profile";
+    if (typedProfile.status === "pending") return "pending";
+    if (typedProfile.status === "denied") return "denied";
+    if (typedProfile.status !== "active") return "inactive";
+    if (!typedProfile.profile_completed) return "needs_profile";
 
-  return "ready";
+    return "ready";
+  } catch (error) {
+    console.error("getAccessState error:", error);
+    return "unauthenticated";
+  }
 }
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [isLoading, setIsLoading] = useState(true);
   const [accessState, setAccessState] = useState<AccessState>("unauthenticated");
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     let mounted = true;
 
     const checkAccess = async () => {
-      const state = await getAccessState();
-      if (!mounted) return;
-      setAccessState(state);
-      setIsLoading(false);
+      const requestId = ++requestIdRef.current;
+
+      try {
+        const state = await getAccessState();
+        if (!mounted || requestId !== requestIdRef.current) return;
+        setAccessState(state);
+      } catch (error) {
+        console.error("ProtectedRoute checkAccess error:", error);
+        if (!mounted || requestId !== requestIdRef.current) return;
+        setAccessState("unauthenticated");
+      } finally {
+        if (!mounted || requestId !== requestIdRef.current) return;
+        setIsLoading(false);
+      }
     };
 
-    checkAccess();
+    void checkAccess();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async () => {
-      const state = await getAccessState();
-      if (!mounted) return;
-      setAccessState(state);
-      setIsLoading(false);
+    } = supabase.auth.onAuthStateChange(() => {
+      window.setTimeout(() => {
+        if (!mounted) return;
+        void checkAccess();
+      }, 0);
     });
 
     return () => {
@@ -124,7 +138,11 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (accessState === "pending" || accessState === "denied" || accessState === "inactive") {
+  if (
+    accessState === "pending" ||
+    accessState === "denied" ||
+    accessState === "inactive"
+  ) {
     return <Navigate to="/login" replace />;
   }
 
@@ -142,26 +160,37 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 function PublicRoute({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [accessState, setAccessState] = useState<AccessState>("unauthenticated");
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     let mounted = true;
 
     const checkAccess = async () => {
-      const state = await getAccessState();
-      if (!mounted) return;
-      setAccessState(state);
-      setIsLoading(false);
+      const requestId = ++requestIdRef.current;
+
+      try {
+        const state = await getAccessState();
+        if (!mounted || requestId !== requestIdRef.current) return;
+        setAccessState(state);
+      } catch (error) {
+        console.error("PublicRoute checkAccess error:", error);
+        if (!mounted || requestId !== requestIdRef.current) return;
+        setAccessState("unauthenticated");
+      } finally {
+        if (!mounted || requestId !== requestIdRef.current) return;
+        setIsLoading(false);
+      }
     };
 
-    checkAccess();
+    void checkAccess();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async () => {
-      const state = await getAccessState();
-      if (!mounted) return;
-      setAccessState(state);
-      setIsLoading(false);
+    } = supabase.auth.onAuthStateChange(() => {
+      window.setTimeout(() => {
+        if (!mounted) return;
+        void checkAccess();
+      }, 0);
     });
 
     return () => {
@@ -198,7 +227,14 @@ function App() {
           }
         />
 
-        <Route path="/register" element={<RegisterPage />} />
+        <Route
+          path="/register"
+          element={
+            <PublicRoute>
+              <RegisterPage />
+            </PublicRoute>
+          }
+        />
 
         <Route
           path="/onboarding"

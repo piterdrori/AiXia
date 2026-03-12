@@ -1,320 +1,462 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { format, parseISO } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Search,
+  Trash2,
+  RefreshCw,
+  CheckSquare,
+  Square,
+  Activity,
+} from "lucide-react";
 
-type OnboardingProfileRow = {
-  user_id: string;
-  full_name: string | null;
-  display_name?: string | null;
-  phone?: string | null;
-  country?: string | null;
-  city?: string | null;
-  company?: string | null;
-  department?: string | null;
-  job_title?: string | null;
-  bio?: string | null;
-  avatar_url?: string | null;
-  wechat?: string | null;
-  whatsapp?: string | null;
-  profile_completed?: boolean | null;
+type Role = "admin" | "manager" | "employee" | "guest";
+
+type ActivityLogRow = {
+  id: string;
+  project_id: string | null;
+  task_id: string | null;
+  user_id: string | null;
+  action_type: string;
+  entity_type: string;
+  entity_id: string | null;
+  message: string;
+  created_at: string;
 };
 
-export default function OnboardingPage() {
-  const navigate = useNavigate();
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  role: Role;
+};
 
-  const [userId, setUserId] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [country, setCountry] = useState("");
-  const [city, setCity] = useState("");
-  const [company, setCompany] = useState("");
-  const [department, setDepartment] = useState("");
-  const [jobTitle, setJobTitle] = useState("");
-  const [bio, setBio] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
-  const [wechat, setWechat] = useState("");
-  const [whatsapp, setWhatsapp] = useState("");
+type FilterType = "all" | "project" | "task" | "calendar_event" | "user";
+
+export default function ActivityPage() {
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+
+  const [logs, setLogs] = useState<ActivityLogRow[]>([]);
+  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [entityFilter, setEntityFilter] = useState<FilterType>("all");
+
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-  const loadProfile = async () => {
+  const isAdmin = currentUserRole === "admin";
+
+  const loadActivity = async () => {
     setIsLoading(true);
     setError("");
+    setSuccessMessage("");
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
 
-    if (authError || !user) {
-      navigate("/login");
-      return;
-    }
+      if (authError || !user) {
+        setError("Failed to load authenticated user.");
+        setIsLoading(false);
+        return;
+      }
 
-    setUserId(user.id);
+      setCurrentUserId(user.id);
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", user.id)
-      .single();
+      const [{ data: me, error: meError }, { data: profilesData, error: profilesError }] =
+        await Promise.all([
+          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
+          supabase.from("profiles").select("user_id, full_name, role").eq("status", "active"),
+        ]);
 
-    if (error || !data) {
-      setError(error?.message || "Failed to load profile.");
+      if (meError || !me) {
+        setError("Failed to load current user role.");
+        setIsLoading(false);
+        return;
+      }
+
+      setCurrentUserRole((me.role as Role) || null);
+
+      if (profilesError) {
+        setProfiles([]);
+      } else {
+        setProfiles((profilesData || []) as ProfileRow[]);
+      }
+
+      let query = supabase
+        .from("activity_logs")
+        .select(
+          "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
+        )
+        .order("created_at", { ascending: false });
+
+      if (me.role !== "admin") {
+        query = query.eq("user_id", user.id);
+      }
+
+      const { data: logsData, error: logsError } = await query;
+
+      if (logsError) {
+        setError(logsError.message || "Failed to load activity logs.");
+        setLogs([]);
+        setIsLoading(false);
+        return;
+      }
+
+      setLogs((logsData || []) as ActivityLogRow[]);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load activity logs.");
+    } finally {
       setIsLoading(false);
-      return;
     }
-
-    const profile = data as OnboardingProfileRow;
-
-    setFullName(profile.full_name || "");
-    setDisplayName(profile.display_name || "");
-    setPhone(profile.phone || "");
-    setCountry(profile.country || "");
-    setCity(profile.city || "");
-    setCompany(profile.company || "");
-    setDepartment(profile.department || "");
-    setJobTitle(profile.job_title || "");
-    setBio(profile.bio || "");
-    setAvatarUrl(profile.avatar_url || "");
-    setWechat(profile.wechat || "");
-    setWhatsapp(profile.whatsapp || "");
-
-    setIsLoading(false);
   };
 
   useEffect(() => {
-    loadProfile();
+    loadActivity();
   }, []);
 
-  const validate = () => {
-    if (!fullName.trim()) return "Full name is required.";
-    if (!displayName.trim()) return "Display name is required.";
-    if (!phone.trim()) return "Phone is required.";
-    if (!country.trim()) return "Country is required.";
-    if (!city.trim()) return "City is required.";
-    if (!company.trim()) return "Company is required.";
-    if (!department.trim()) return "Department is required.";
-    if (!jobTitle.trim()) return "Job title is required.";
-    return "";
+  const filteredLogs = useMemo(() => {
+    return logs.filter((log) => {
+      const matchesEntity =
+        entityFilter === "all" || log.entity_type === entityFilter;
+
+      const profile = profiles.find((p) => p.user_id === log.user_id);
+      const actorName = profile?.full_name || "";
+
+      const haystack = [
+        log.message || "",
+        log.action_type || "",
+        log.entity_type || "",
+        actorName,
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch = haystack.includes(searchQuery.toLowerCase());
+
+      return matchesEntity && matchesSearch;
+    });
+  }, [entityFilter, logs, profiles, searchQuery]);
+
+  const canDeleteLog = (log: ActivityLogRow) => {
+    if (!currentUserId) return false;
+    return isAdmin || log.user_id === currentUserId;
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const deletableVisibleIds = filteredLogs
+    .filter((log) => canDeleteLog(log))
+    .map((log) => log.id);
 
-    const validationError = validate();
-    if (validationError) {
-      setError(validationError);
-      return;
+  const allVisibleSelected =
+    deletableVisibleIds.length > 0 &&
+    deletableVisibleIds.every((id) => selectedIds.includes(id));
+
+  const toggleSelectionMode = () => {
+    const next = !isSelectionMode;
+    setIsSelectionMode(next);
+    if (!next) setSelectedIds([]);
+  };
+
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(deletableVisibleIds);
     }
+  };
 
-    if (!userId) return;
+  const toggleSelectOne = (logId: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(logId) ? prev.filter((id) => id !== logId) : [...prev, logId]
+    );
+  };
 
-    setIsSaving(true);
+  const handleDeleteOne = async (logId: string) => {
+    const confirmed = window.confirm("Delete this activity log?");
+    if (!confirmed) return;
+
+    setIsDeleting(true);
     setError("");
+    setSuccessMessage("");
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        full_name: fullName.trim(),
-        display_name: displayName.trim(),
-        phone: phone.trim(),
-        country: country.trim(),
-        city: city.trim(),
-        company: company.trim(),
-        department: department.trim(),
-        job_title: jobTitle.trim(),
-        bio: bio.trim() || null,
-        avatar_url: avatarUrl.trim() || null,
-        wechat: wechat.trim() || null,
-        whatsapp: whatsapp.trim() || null,
-        profile_completed: true,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", userId);
+    const { error } = await supabase.from("activity_logs").delete().eq("id", logId);
 
-    setIsSaving(false);
+    setIsDeleting(false);
 
     if (error) {
-      setError(error.message || "Failed to save your profile.");
+      setError(error.message || "Failed to delete activity log.");
       return;
     }
 
-    navigate("/dashboard");
+    setLogs((prev) => prev.filter((log) => log.id !== logId));
+    setSelectedIds((prev) => prev.filter((id) => id !== logId));
+    setSuccessMessage("Activity log deleted.");
   };
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    navigate("/login");
-  };
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500" />
-      </div>
+    const confirmed = window.confirm(
+      `Delete ${selectedIds.length} selected activity log(s)?`
     );
-  }
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    setError("");
+    setSuccessMessage("");
+
+    const { error } = await supabase.from("activity_logs").delete().in("id", selectedIds);
+
+    setIsDeleting(false);
+
+    if (error) {
+      setError(error.message || "Failed to delete selected activity logs.");
+      return;
+    }
+
+    const selectedSet = new Set(selectedIds);
+    setLogs((prev) => prev.filter((log) => !selectedSet.has(log.id)));
+    setSelectedIds([]);
+    setIsSelectionMode(false);
+    setSuccessMessage("Selected activity logs deleted.");
+  };
+
+  const getActorName = (userId: string | null) => {
+    if (!userId) return "Unknown user";
+    return profiles.find((p) => p.user_id === userId)?.full_name || "Unknown user";
+  };
+
+  const getEntityBadge = (entityType: string) => {
+    const normalized = (entityType || "").toLowerCase();
+
+    if (normalized === "project") {
+      return <Badge className="bg-indigo-500/20 text-indigo-300">PROJECT</Badge>;
+    }
+
+    if (normalized === "task") {
+      return <Badge className="bg-emerald-500/20 text-emerald-300">TASK</Badge>;
+    }
+
+    if (normalized === "calendar_event") {
+      return <Badge className="bg-amber-500/20 text-amber-300">EVENT</Badge>;
+    }
+
+    if (normalized === "user") {
+      return <Badge className="bg-purple-500/20 text-purple-300">USER</Badge>;
+    }
+
+    return <Badge className="bg-slate-500/20 text-slate-300">{entityType}</Badge>;
+  };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4 py-10">
-      <Card className="w-full max-w-3xl bg-slate-900/60 border-slate-800">
-        <CardContent className="p-8">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-white">Complete Your Profile</h1>
-            <p className="text-slate-400 mt-2">
-              Please fill in your details so we can identify you clearly and keep easy
-              communication between all platform members.
-            </p>
-          </div>
+    <div className="h-[calc(100vh-140px)] flex flex-col gap-6 overflow-hidden">
+      <div className="flex flex-wrap items-start justify-between gap-4 shrink-0">
+        <div>
+          <h1 className="text-3xl font-bold text-white">Activity Log</h1>
+          <p className="text-slate-400">
+            {isAdmin
+              ? "Monitor and manage all system activity logs"
+              : "Monitor and manage your own activity logs"}
+          </p>
+        </div>
 
-          {error && (
-            <Alert className="mb-6 bg-red-900/20 border-red-800 text-red-300">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            onClick={loadActivity}
+            disabled={isLoading}
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
 
-          <form onSubmit={handleSave} className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-slate-300">Full Name *</Label>
-                <Input
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
+          <Button
+            variant="outline"
+            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            onClick={toggleSelectionMode}
+          >
+            {isSelectionMode ? (
+              <>
+                <Square className="w-4 h-4 mr-2" />
+                Cancel Selection
+              </>
+            ) : (
+              <>
+                <CheckSquare className="w-4 h-4 mr-2" />
+                Select Logs
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
 
-              <div className="space-y-2">
-                <Label className="text-slate-300">Display Name *</Label>
-                <Input
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
+      {error && (
+        <Alert className="bg-red-900/20 border-red-800 text-red-300 shrink-0">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-              <div className="space-y-2">
-                <Label className="text-slate-300">Phone *</Label>
-                <Input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
+      {successMessage && (
+        <Alert className="bg-green-900/20 border-green-800 text-green-300 shrink-0">
+          <AlertDescription>{successMessage}</AlertDescription>
+        </Alert>
+      )}
 
-              <div className="space-y-2">
-                <Label className="text-slate-300">Country *</Label>
-                <Input
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">City *</Label>
-                <Input
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">Company *</Label>
-                <Input
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">Department *</Label>
-                <Input
-                  value={department}
-                  onChange={(e) => setDepartment(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">Job Title *</Label>
-                <Input
-                  value={jobTitle}
-                  onChange={(e) => setJobTitle(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">WhatsApp</Label>
-                <Input
-                  value={whatsapp}
-                  onChange={(e) => setWhatsapp(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">WeChat</Label>
-                <Input
-                  value={wechat}
-                  onChange={(e) => setWechat(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label className="text-slate-300">Profile Photo URL</Label>
-                <Input
-                  value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value)}
-                  placeholder="Optional image URL"
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label className="text-slate-300">Short Bio</Label>
-                <Textarea
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  rows={4}
-                  className="bg-slate-950 border-slate-800 text-white resize-none"
-                />
-              </div>
+      <Card className="bg-slate-900/50 border-slate-800 shrink-0">
+        <CardContent className="p-4">
+          <div className="grid md:grid-cols-[1fr,220px,auto,auto] gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <Input
+                placeholder="Search logs..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 bg-slate-950 border-slate-800 text-white"
+              />
             </div>
 
-            <div className="flex items-center justify-between gap-3 pt-2">
+            <select
+              value={entityFilter}
+              onChange={(e) => setEntityFilter(e.target.value as FilterType)}
+              className="h-10 rounded-md border border-slate-800 bg-slate-950 px-3 text-white"
+            >
+              <option value="all">All Types</option>
+              <option value="project">Project</option>
+              <option value="task">Task</option>
+              <option value="calendar_event">Calendar Event</option>
+              <option value="user">User</option>
+            </select>
+
+            {isSelectionMode && (
               <Button
-                type="button"
                 variant="outline"
                 className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                onClick={handleSignOut}
+                onClick={toggleSelectAll}
               >
-                Sign Out
+                {allVisibleSelected ? "Clear All" : "Select All"}
               </Button>
+            )}
 
+            {isSelectionMode && (
               <Button
-                type="submit"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                disabled={isSaving}
+                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={handleBulkDelete}
+                disabled={isDeleting || selectedIds.length === 0}
               >
-                {isSaving ? "Saving..." : "Save and Enter Platform"}
+                <Trash2 className="w-4 h-4 mr-2" />
+                {isDeleting ? "Deleting..." : `Delete Selected (${selectedIds.length})`}
               </Button>
-            </div>
-          </form>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-slate-900/50 border-slate-800 flex-1 min-h-0">
+        <CardHeader className="shrink-0">
+          <CardTitle className="text-white flex items-center gap-2">
+            <Activity className="w-5 h-5 text-indigo-400" />
+            Activity Entries
+          </CardTitle>
+        </CardHeader>
+
+        <CardContent className="flex-1 min-h-0">
+          {isLoading ? (
+            <div className="text-slate-400">Loading activity logs...</div>
+          ) : filteredLogs.length === 0 ? (
+            <div className="text-slate-400">No activity logs found.</div>
+          ) : (
+            <ScrollArea className="h-full pr-3">
+              <div className="space-y-3">
+                {filteredLogs.map((log) => {
+                  const canDelete = canDeleteLog(log);
+                  const isSelected = selectedIds.includes(log.id);
+
+                  return (
+                    <div
+                      key={log.id}
+                      className={`rounded-lg border p-4 bg-slate-950/40 ${
+                        isSelected
+                          ? "border-indigo-500/50"
+                          : "border-slate-800"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        {isSelectionMode && (
+                          <div className="pt-1">
+                            <Checkbox
+                              checked={isSelected}
+                              disabled={!canDelete}
+                              onCheckedChange={() => toggleSelectOne(log.id)}
+                            />
+                          </div>
+                        )}
+
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {getEntityBadge(log.entity_type)}
+                              <Badge className="bg-slate-700 text-slate-200">
+                                {log.action_type}
+                              </Badge>
+                              <span className="text-xs text-slate-500">
+                                by {getActorName(log.user_id)}
+                              </span>
+                            </div>
+
+                            <div className="text-xs text-slate-500">
+                              {format(parseISO(log.created_at), "MMM d, yyyy h:mm a")}
+                            </div>
+                          </div>
+
+                          <div className="text-white text-sm break-words">{log.message}</div>
+
+                          {(log.project_id || log.task_id || log.entity_id) && (
+                            <div className="text-xs text-slate-500 flex flex-wrap gap-4">
+                              {log.project_id && <span>Project: {log.project_id}</span>}
+                              {log.task_id && <span>Task: {log.task_id}</span>}
+                              {log.entity_id && <span>Entity: {log.entity_id}</span>}
+                            </div>
+                          )}
+
+                          {!isSelectionMode && canDelete && (
+                            <div className="pt-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-red-800 text-red-400 hover:bg-red-900/20"
+                                onClick={() => handleDeleteOne(log.id)}
+                                disabled={isDeleting}
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          )}
         </CardContent>
       </Card>
     </div>

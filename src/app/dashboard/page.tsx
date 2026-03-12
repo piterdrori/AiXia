@@ -575,8 +575,7 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </div>
-
-          <div
+          
             className="grid grid-rows-2 gap-6 h-full min-h-0">
   <Card className="bg-slate-900/50 border-slate-800 flex flex-col min-h-0 overflow-hidden">
     <CardHeader className="shrink-0">

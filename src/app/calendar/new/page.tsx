@@ -52,7 +52,6 @@ export default function CalendarNewPage() {
   const presetDate = searchParams.get("date") || format(new Date(), "yyyy-MM-dd");
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -111,8 +110,6 @@ export default function CalendarNewPage() {
           navigate("/calendar");
           return;
         }
-
-        setCurrentUserRole(me.role || null);
 
         if (projectsError) {
           setError(projectsError.message || "Failed to load projects.");

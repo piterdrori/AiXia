@@ -137,12 +137,12 @@ export default function DashboardPage() {
             .from("projects")
             .select("id, name, description, status, progress, created_by, end_date, created_at")
             .order("created_at", { ascending: false }),
-          supabase
-            .from("project_members")
-            .select("id, project_id, user_id, role, created_at"),
+          supabase.from("project_members").select("id, project_id, user_id, role, created_at"),
           supabase
             .from("tasks")
-            .select("id, title, status, priority, due_date, assignee_id, project_id, created_by, created_at")
+            .select(
+              "id, title, status, priority, due_date, assignee_id, project_id, created_by, created_at"
+            )
             .order("created_at", { ascending: false }),
           supabase
             .from("profiles")
@@ -154,9 +154,11 @@ export default function DashboardPage() {
             .order("start_date", { ascending: true }),
           supabase
             .from("activity_logs")
-            .select("id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at")
+            .select(
+              "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
+            )
             .order("created_at", { ascending: false })
-            .limit(20),
+            .limit(50),
         ]);
 
         if (myProfileError || !myProfile) {
@@ -184,7 +186,10 @@ export default function DashboardPage() {
 
   const visibleProjectIds = useMemo(() => {
     if (!currentUserId) return new Set<string>();
-    if (currentUserRole === "admin") return new Set(projects.map((p) => p.id));
+
+    if (currentUserRole === "admin") {
+      return new Set(projects.map((project) => project.id));
+    }
 
     return new Set(
       projects
@@ -207,6 +212,7 @@ export default function DashboardPage() {
 
   const visibleTasks = useMemo(() => {
     if (!currentUserId) return [];
+
     if (currentUserRole === "admin") return tasks;
 
     return tasks.filter(
@@ -219,6 +225,7 @@ export default function DashboardPage() {
 
   const visibleEvents = useMemo(() => {
     if (!currentUserId) return [];
+
     if (currentUserRole === "admin") return calendarEvents;
 
     return calendarEvents.filter(
@@ -228,16 +235,39 @@ export default function DashboardPage() {
     );
   }, [calendarEvents, currentUserId, currentUserRole, visibleProjectIds]);
 
-  const totalTasks = visibleTasks.length;
-  const completedTasks = visibleTasks.filter((t) => t.status === "DONE").length;
-  const totalProjects = visibleProjects.length;
-  const averageProgress =
-    totalProjects > 0
-      ? Math.round(
-          visibleProjects.reduce((sum, project) => sum + (project.progress || 0), 0) /
-            totalProjects
-        )
-      : 0;
+  const activeProjectsForProgress = useMemo(() => {
+    return visibleProjects.filter((project) => {
+      const status = (project.status || "").toUpperCase();
+      return status !== "COMPLETED" && status !== "DONE" && status !== "ARCHIVED";
+    });
+  }, [visibleProjects]);
+
+  const completedTasks = useMemo(() => {
+    return visibleTasks.filter((task) => {
+      const status = (task.status || "").toUpperCase();
+      return status === "DONE" || status === "COMPLETED";
+    }).length;
+  }, [visibleTasks]);
+
+  const activeTasksForCompletion = useMemo(() => {
+    return visibleTasks.filter((task) => {
+      const status = (task.status || "").toUpperCase();
+      return status !== "DONE" && status !== "COMPLETED";
+    });
+  }, [visibleTasks]);
+
+  const totalRelevantTasks = activeTasksForCompletion.length + completedTasks;
+
+  const averageProgress = useMemo(() => {
+    if (activeProjectsForProgress.length === 0) return 0;
+
+    return Math.round(
+      activeProjectsForProgress.reduce(
+        (sum, project) => sum + (project.progress || 0),
+        0
+      ) / activeProjectsForProgress.length
+    );
+  }, [activeProjectsForProgress]);
 
   const upcomingItems = useMemo<UpcomingItem[]>(() => {
     const today = new Date();
@@ -245,8 +275,9 @@ export default function DashboardPage() {
 
     const items: UpcomingItem[] = [];
 
-    for (const task of visibleTasks) {
+    for (const task of activeTasksForCompletion) {
       if (!task.due_date) continue;
+
       const due = parseISO(task.due_date);
       if (isBefore(due, today) || isBefore(next30Days, due)) continue;
 
@@ -274,8 +305,9 @@ export default function DashboardPage() {
       });
     }
 
-    for (const project of visibleProjects) {
+    for (const project of activeProjectsForProgress) {
       if (!project.end_date) continue;
+
       const when = parseISO(project.end_date);
       if (isBefore(when, today) || isBefore(next30Days, when)) continue;
 
@@ -292,20 +324,25 @@ export default function DashboardPage() {
     return items
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .slice(0, 8);
-  }, [visibleEvents, visibleProjects, visibleTasks]);
+  }, [activeProjectsForProgress, activeTasksForCompletion, visibleEvents]);
 
   const visibleActivity = useMemo(() => {
-    if (currentUserRole === "admin") return activityLogs;
+    const filtered = activityLogs.filter((log) => {
+      if (currentUserRole === "admin") return true;
+      if (!currentUserId) return false;
 
-    return activityLogs.filter((log) => {
       if (log.project_id && visibleProjectIds.has(log.project_id)) return true;
       if (log.user_id && log.user_id === currentUserId) return true;
       if (log.task_id && visibleTasks.some((task) => task.id === log.task_id)) return true;
+
       return false;
     });
-  }, [activityLogs, currentUserId, currentUserRole, visibleProjectIds, visibleTasks]);
 
-  const userCount = profiles.length;
+    return filtered.filter((log) => {
+      const action = (log.action_type || "").toUpperCase();
+      return action !== "VIEW";
+    });
+  }, [activityLogs, currentUserId, currentUserRole, visibleProjectIds, visibleTasks]);
 
   if (isLoading) {
     return (
@@ -320,7 +357,9 @@ export default function DashboardPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white">Welcome, {currentUserName}</h1>
-          <p className="text-slate-400">Here is a live overview of your projects, tasks, and events</p>
+          <p className="text-slate-400">
+            Here is a live overview of your projects, tasks, and events
+          </p>
         </div>
 
         <div className="flex gap-2">
@@ -350,8 +389,10 @@ export default function DashboardPage() {
               <FolderKanban className="w-6 h-6 text-indigo-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-white">{totalProjects}</div>
-              <div className="text-sm text-slate-400">Visible Projects</div>
+              <div className="text-2xl font-bold text-white">
+                {activeProjectsForProgress.length}
+              </div>
+              <div className="text-sm text-slate-400">Active Projects</div>
             </div>
           </CardContent>
         </Card>
@@ -362,8 +403,10 @@ export default function DashboardPage() {
               <CheckSquare className="w-6 h-6 text-emerald-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-white">{totalTasks}</div>
-              <div className="text-sm text-slate-400">Visible Tasks</div>
+              <div className="text-2xl font-bold text-white">
+                {activeTasksForCompletion.length}
+              </div>
+              <div className="text-sm text-slate-400">Active Tasks</div>
             </div>
           </CardContent>
         </Card>
@@ -374,7 +417,7 @@ export default function DashboardPage() {
               <Users className="w-6 h-6 text-amber-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-white">{userCount}</div>
+              <div className="text-2xl font-bold text-white">{profiles.length}</div>
               <div className="text-sm text-slate-400">Active Members</div>
             </div>
           </CardContent>
@@ -410,6 +453,7 @@ export default function DashboardPage() {
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           </CardHeader>
+
           <CardContent>
             {upcomingItems.length === 0 ? (
               <div className="text-slate-400">No upcoming deadlines or events.</div>
@@ -452,12 +496,13 @@ export default function DashboardPage() {
         </Card>
 
         <Card className="bg-slate-900/50 border-slate-800">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <Activity className="w-5 h-5 text-indigo-400" />
               Activity Feed
             </CardTitle>
           </CardHeader>
+
           <CardContent>
             {visibleActivity.length === 0 ? (
               <div className="text-slate-400">No recent activity yet.</div>
@@ -487,8 +532,9 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="text-white">Project Progress</CardTitle>
           </CardHeader>
+
           <CardContent className="space-y-4">
-            {visibleProjects.slice(0, 6).map((project) => (
+            {activeProjectsForProgress.slice(0, 6).map((project) => (
               <div key={project.id} className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <button
@@ -502,8 +548,9 @@ export default function DashboardPage() {
                 <Progress value={project.progress || 0} />
               </div>
             ))}
-            {visibleProjects.length === 0 && (
-              <div className="text-slate-400">No projects available.</div>
+
+            {activeProjectsForProgress.length === 0 && (
+              <div className="text-slate-400">No active projects available.</div>
             )}
           </CardContent>
         </Card>
@@ -512,15 +559,24 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="text-white">Task Completion</CardTitle>
           </CardHeader>
+
           <CardContent className="space-y-4">
             <div className="text-white text-lg font-semibold">
-              {completedTasks} / {totalTasks} completed
+              {completedTasks} / {totalRelevantTasks} completed
             </div>
-            <Progress value={totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100)} />
+
+            <Progress
+              value={
+                totalRelevantTasks === 0
+                  ? 0
+                  : Math.round((completedTasks / totalRelevantTasks) * 100)
+              }
+            />
+
             <div className="text-sm text-slate-400">
-              {totalTasks === 0
-                ? "No visible tasks yet."
-                : `${Math.round((completedTasks / totalTasks) * 100)}% of tasks are complete`}
+              {totalRelevantTasks === 0
+                ? "No relevant tasks yet."
+                : `${Math.round((completedTasks / totalRelevantTasks) * 100)}% of tasks are complete`}
             </div>
           </CardContent>
         </Card>

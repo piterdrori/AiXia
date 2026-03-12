@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { logActivity } from "@/lib/activity";
 import { createNotification } from "@/lib/notifications";
+import { createRequestTracker } from "@/lib/safeAsync";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,12 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
-type ProjectStatus = "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED";
+type ProjectStatus =
+  | "PLANNING"
+  | "ACTIVE"
+  | "ON_HOLD"
+  | "COMPLETED"
+  | "CANCELLED";
 
 type ProfileRow = {
   user_id: string;
@@ -30,6 +36,7 @@ type ProfileRow = {
 
 export default function ProjectNewPage() {
   const navigate = useNavigate();
+  const requestTracker = useRef(createRequestTracker());
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -45,7 +52,10 @@ export default function ProjectNewPage() {
   const [isMembersLoading, setIsMembersLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     const loadMembers = async () => {
+      const requestId = requestTracker.current.next();
       setIsMembersLoading(true);
 
       try {
@@ -55,6 +65,8 @@ export default function ProjectNewPage() {
           .eq("status", "active")
           .order("full_name", { ascending: true });
 
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+
         if (membersError) {
           console.error("Load team members error:", membersError);
           setTeamMembers([]);
@@ -62,19 +74,27 @@ export default function ProjectNewPage() {
           setTeamMembers((data || []) as ProfileRow[]);
         }
       } catch (err) {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         console.error("Unexpected load members error:", err);
         setTeamMembers([]);
       } finally {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         setIsMembersLoading(false);
       }
     };
 
-    loadMembers();
+    void loadMembers();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const toggleMember = (userId: string) => {
     setSelectedMembers((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId]
     );
   };
 
@@ -87,6 +107,12 @@ export default function ProjectNewPage() {
       return;
     }
 
+    if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+      setError("End date cannot be earlier than start date");
+      return;
+    }
+
+    const requestId = requestTracker.current.next();
     setIsLoading(true);
 
     try {
@@ -94,6 +120,8 @@ export default function ProjectNewPage() {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
+
+      if (!requestTracker.current.isLatest(requestId)) return;
 
       if (authError || !user) {
         setError("You are not logged in");
@@ -117,6 +145,8 @@ export default function ProjectNewPage() {
         .select()
         .single();
 
+      if (!requestTracker.current.isLatest(requestId)) return;
+
       if (insertError || !projectData) {
         setError(insertError?.message || "Failed to create project");
         setIsLoading(false);
@@ -131,7 +161,7 @@ export default function ProjectNewPage() {
         message: `Created project "${projectData.name}"`,
       });
 
-if (selectedMembers.length > 0) {
+      if (selectedMembers.length > 0) {
         const memberRows = selectedMembers.map((memberId) => ({
           project_id: projectData.id,
           user_id: memberId,
@@ -141,6 +171,8 @@ if (selectedMembers.length > 0) {
         const { error: membersInsertError } = await supabase
           .from("project_members")
           .insert(memberRows);
+
+        if (!requestTracker.current.isLatest(requestId)) return;
 
         if (membersInsertError) {
           console.error("Insert project members error:", membersInsertError);
@@ -175,10 +207,16 @@ if (selectedMembers.length > 0) {
         }
       }
 
+      if (!requestTracker.current.isLatest(requestId)) return;
+
       navigate(`/projects/${projectData.id}`);
     } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Create project error:", err);
       setError("Failed to create project");
+      setIsLoading(false);
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
       setIsLoading(false);
     }
   };
@@ -242,7 +280,10 @@ if (selectedMembers.length > 0) {
               <Label htmlFor="status" className="text-slate-300">
                 Status
               </Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as ProjectStatus)}>
+              <Select
+                value={status}
+                onValueChange={(v) => setStatus(v as ProjectStatus)}
+              >
                 <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
@@ -288,9 +329,13 @@ if (selectedMembers.length > 0) {
               <Label className="text-slate-300">Assign Team Members</Label>
 
               {isMembersLoading ? (
-                <div className="text-slate-500 text-sm">Loading team members...</div>
+                <div className="text-slate-500 text-sm">
+                  Loading team members...
+                </div>
               ) : teamMembers.length === 0 ? (
-                <div className="text-slate-500 text-sm">No active team members found.</div>
+                <div className="text-slate-500 text-sm">
+                  No active team members found.
+                </div>
               ) : (
                 <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3 max-h-64 overflow-y-auto">
                   {teamMembers.map((member) => (
@@ -319,7 +364,8 @@ if (selectedMembers.length > 0) {
               )}
 
               <p className="text-slate-500 text-xs">
-                Only assigned members, the creator, and admin will be able to see this project.
+                Only assigned members, the creator, and admin will be able to
+                see this project.
               </p>
             </div>
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { logActivity } from "@/lib/activity";
 import {
@@ -11,6 +12,8 @@ import {
   getSignedFileUrl,
   deleteUploadedFile,
 } from "@/lib/file-upload";
+import { createRequestTracker } from "@/lib/safeAsync";
+
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,7 +37,6 @@ import {
   Save,
   X,
 } from "lucide-react";
-import { format } from "date-fns";
 
 type Role = "admin" | "manager" | "employee" | "guest";
 
@@ -114,6 +116,7 @@ type ProjectCommentRow = {
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const requestTracker = useRef(createRequestTracker());
   const projectFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [activeTab, setActiveTab] = useState("overview");
@@ -133,7 +136,7 @@ export default function ProjectDetailPage() {
   const [files, setFiles] = useState<FileUploadRow[]>([]);
   const [comments, setComments] = useState<ProjectCommentRow[]>([]);
 
-const [newComment, setNewComment] = useState("");
+  const [newComment, setNewComment] = useState("");
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentText, setEditingCommentText] = useState("");
   const [commentSaving, setCommentSaving] = useState(false);
@@ -143,12 +146,15 @@ const [newComment, setNewComment] = useState("");
   const [mentionQuery, setMentionQuery] = useState("");
 
   useEffect(() => {
+    let mounted = true;
+
     const loadProjectPage = async () => {
       if (!id) {
         navigate("/projects");
         return;
       }
 
+      const requestId = requestTracker.current.next();
       setIsLoading(true);
       setError("");
 
@@ -156,6 +162,8 @@ const [newComment, setNewComment] = useState("");
         const {
           data: { user },
         } = await supabase.auth.getUser();
+
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
         if (!user) {
           navigate("/login");
@@ -174,11 +182,7 @@ const [newComment, setNewComment] = useState("");
           { data: filesData },
           { data: commentsData },
         ] = await Promise.all([
-          supabase
-            .from("profiles")
-            .select("role")
-            .eq("user_id", user.id)
-            .single(),
+          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
           supabase
             .from("projects")
             .select(
@@ -225,6 +229,8 @@ const [newComment, setNewComment] = useState("");
             .order("created_at", { ascending: true }),
         ]);
 
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+
         if (myProfileError || !myProfile) {
           navigate("/projects");
           return;
@@ -235,7 +241,7 @@ const [newComment, setNewComment] = useState("");
 
         if (projectError || !projectData) {
           setError("Project not found.");
-          setIsLoading(false);
+          setProject(null);
           return;
         }
 
@@ -264,14 +270,20 @@ const [newComment, setNewComment] = useState("");
         setFiles(loadedFiles);
         setComments(loadedComments);
       } catch (err) {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         console.error("Load project page error:", err);
         setError("Something went wrong while loading the project.");
       } finally {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         setIsLoading(false);
       }
     };
 
-    loadProjectPage();
+    void loadProjectPage();
+
+    return () => {
+      mounted = false;
+    };
   }, [id, navigate]);
 
   const canEdit = useMemo(() => {
@@ -415,7 +427,7 @@ const [newComment, setNewComment] = useState("");
     setShowMentionDropdown(false);
   };
 
-const handleDelete = async () => {
+  const handleDelete = async () => {
     if (!project) return;
 
     const confirmed = window.confirm("Are you sure you want to delete this project?");
@@ -471,7 +483,7 @@ const handleDelete = async () => {
     setIsUploading(true);
 
     try {
-const uploaded = (await uploadProjectOrTaskFile({
+      const uploaded = (await uploadProjectOrTaskFile({
         file,
         entityType: "project",
         projectId: project.id,
@@ -747,7 +759,7 @@ const handleAddComment = async () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
       </div>
     );
   }
@@ -811,7 +823,7 @@ const handleAddComment = async () => {
             <Button
               variant="outline"
               className="border-red-800 text-red-400 hover:bg-red-900/20"
-              onClick={handleDelete}
+              onClick={() => void handleDelete()}
               disabled={isDeleting}
             >
               <Trash2 className="w-4 h-4 mr-2" />
@@ -1151,7 +1163,7 @@ const handleAddComment = async () => {
                           <Button
                             variant="outline"
                             className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                            onClick={() => handleDownloadFile(file.file_path)}
+                            onClick={() => void handleDownloadFile(file.file_path)}
                           >
                             <Download className="w-4 h-4 mr-2" />
                             Open
@@ -1162,7 +1174,7 @@ const handleAddComment = async () => {
                               variant="outline"
                               className="border-red-800 text-red-400 hover:bg-red-900/20"
                               onClick={() =>
-                                handleDeleteFile(file.id, file.file_path, file.file_name)
+                                void handleDeleteFile(file.id, file.file_path, file.file_name)
                               }
                             >
                               <Trash2 className="w-4 h-4 mr-2" />
@@ -1196,7 +1208,7 @@ const handleAddComment = async () => {
                   </p>
                 </div>
 
-               <Textarea
+                <Textarea
                   placeholder="Write a project update, decision, blocker, or note..."
                   value={newComment}
                   onChange={(e) => handleCommentInputChange(e.target.value)}
@@ -1239,7 +1251,7 @@ const handleAddComment = async () => {
 
                   <Button
                     type="button"
-                    onClick={handleAddComment}
+                    onClick={() => void handleAddComment()}
                     disabled={commentSaving || !newComment.trim()}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white"
                   >
@@ -1327,7 +1339,7 @@ const handleAddComment = async () => {
                                     variant="outline"
                                     size="sm"
                                     className="border-red-800 text-red-400 hover:bg-red-900/20"
-                                    onClick={() => handleDeleteComment(comment)}
+                                    onClick={() => void handleDeleteComment(comment)}
                                     disabled={commentActionLoading === comment.id}
                                   >
                                     <Trash2 className="w-3 h-3 mr-1" />
@@ -1354,7 +1366,7 @@ const handleAddComment = async () => {
                                   type="button"
                                   size="sm"
                                   className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                                  onClick={() => handleSaveEditedComment(comment)}
+                                  onClick={() => void handleSaveEditedComment(comment)}
                                   disabled={
                                     commentActionLoading === comment.id ||
                                     !editingCommentText.trim()

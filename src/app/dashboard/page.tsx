@@ -191,32 +191,23 @@ export default function DashboardPage() {
       .channel("dashboard-activity-logs")
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "activity_logs",
-        },
+        { event: "INSERT", schema: "public", table: "activity_logs" },
         (payload) => {
           const newLog = payload.new as ActivityLogRow;
 
           setActivityLogs((prev) => {
-            const alreadyExists = prev.some((log) => log.id === newLog.id);
-            if (alreadyExists) return prev;
+            const exists = prev.some((log) => log.id === newLog.id);
+            if (exists) return prev;
             return [newLog, ...prev].slice(0, 50);
           });
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "activity_logs",
-        },
+        { event: "DELETE", schema: "public", table: "activity_logs" },
         (payload) => {
           const deletedId = (payload.old as { id?: string } | null)?.id;
           if (!deletedId) return;
-
           setActivityLogs((prev) => prev.filter((log) => log.id !== deletedId));
         }
       )
@@ -317,7 +308,6 @@ export default function DashboardPage() {
 
     for (const task of activeTasksForCompletion) {
       if (!task.due_date) continue;
-
       const due = parseISO(task.due_date);
       if (isBefore(due, today) || isBefore(next30Days, due)) continue;
 
@@ -347,7 +337,6 @@ export default function DashboardPage() {
 
     for (const project of activeProjectsForProgress) {
       if (!project.end_date) continue;
-
       const when = parseISO(project.end_date);
       if (isBefore(when, today) || isBefore(next30Days, when)) continue;
 
@@ -391,8 +380,9 @@ export default function DashboardPage() {
       </div>
     );
   }
+
 return (
-    <div className="h-[calc(100vh-140px)] flex flex-col gap-6 overflow-hidden">
+    <div className="h-[calc(100vh-126px)] flex flex-col gap-5 overflow-hidden">
       <div className="flex flex-wrap items-start justify-between gap-4 shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-white">Welcome, {currentUserName}</h1>
@@ -423,12 +413,12 @@ return (
 
       <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4 shrink-0">
         <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-indigo-500/15 flex items-center justify-center">
-              <FolderKanban className="w-6 h-6 text-indigo-400" />
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/15 flex items-center justify-center shrink-0">
+              <FolderKanban className="w-5 h-5 text-indigo-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-white">
+              <div className="text-xl font-bold text-white">
                 {activeProjectsForProgress.length}
               </div>
               <div className="text-sm text-slate-400">Active Projects</div>
@@ -437,12 +427,12 @@ return (
         </Card>
 
         <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/15 flex items-center justify-center">
-              <CheckSquare className="w-6 h-6 text-emerald-400" />
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
+              <CheckSquare className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-white">
+              <div className="text-xl font-bold text-white">
                 {activeTasksForCompletion.length}
               </div>
               <div className="text-sm text-slate-400">Active Tasks</div>
@@ -451,24 +441,24 @@ return (
         </Card>
 
         <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-amber-500/15 flex items-center justify-center">
-              <Users className="w-6 h-6 text-amber-400" />
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+              <Users className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-white">{profiles.length}</div>
+              <div className="text-xl font-bold text-white">{profiles.length}</div>
               <div className="text-sm text-slate-400">Active Members</div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-500/15 flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-blue-400" />
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/15 flex items-center justify-center shrink-0">
+              <TrendingUp className="w-5 h-5 text-blue-400" />
             </div>
             <div className="w-full">
-              <div className="text-2xl font-bold text-white">{averageProgress}%</div>
+              <div className="text-xl font-bold text-white">{averageProgress}%</div>
               <div className="text-sm text-slate-400 mb-2">Average Project Progress</div>
               <Progress value={averageProgress} />
             </div>
@@ -476,11 +466,11 @@ return (
         </Card>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <div className="grid xl:grid-cols-2 gap-6 h-full min-h-0">
-          <div className="grid grid-rows-2 gap-6 h-full min-h-0">
-            <Card className="bg-slate-900/50 border-slate-800 flex flex-col min-h-0">
-              <CardHeader className="flex flex-row items-center justify-between shrink-0">
+      <div className="flex-[2.2] min-h-0 overflow-hidden">
+        <div className="grid xl:grid-cols-2 gap-5 h-full min-h-0">
+          <div className="grid grid-rows-2 gap-5 h-full min-h-0">
+            <Card className="bg-slate-900/50 border-slate-800 flex flex-col min-h-0 overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between shrink-0 pb-4">
                 <CardTitle className="text-white flex items-center gap-2">
                   <AlertCircle className="w-5 h-5 text-amber-400" />
                   Upcoming Deadlines
@@ -495,7 +485,7 @@ return (
                 </Button>
               </CardHeader>
 
-              <CardContent className="flex-1 min-h-0">
+              <CardContent className="flex-1 min-h-0 overflow-hidden">
                 {upcomingItems.length === 0 ? (
                   <div className="text-slate-400">No upcoming deadlines or events.</div>
                 ) : (
@@ -538,12 +528,12 @@ return (
               </CardContent>
             </Card>
 
-            <Card className="bg-slate-900/50 border-slate-800 flex flex-col min-h-0">
-              <CardHeader className="shrink-0">
+            <Card className="bg-slate-900/50 border-slate-800 flex flex-col min-h-0 overflow-hidden">
+              <CardHeader className="shrink-0 pb-4">
                 <CardTitle className="text-white">Project Progress</CardTitle>
               </CardHeader>
 
-              <CardContent className="flex-1 min-h-0">
+              <CardContent className="flex-1 min-h-0 overflow-hidden">
                 {activeProjectsForProgress.length === 0 ? (
                   <div className="text-slate-400">No active projects available.</div>
                 ) : (
@@ -572,9 +562,9 @@ return (
             </Card>
           </div>
 
-          <div className="grid grid-rows-2 gap-6 h-full min-h-0">
+          <div className="grid grid-rows-2 gap-5 h-full min-h-0">
             <Card className="bg-slate-900/50 border-slate-800 flex flex-col min-h-0 overflow-hidden">
-              <CardHeader className="shrink-0">
+              <CardHeader className="shrink-0 pb-4">
                 <CardTitle className="text-white flex items-center gap-2">
                   <Activity className="w-5 h-5 text-indigo-400" />
                   Activity Feed
@@ -605,7 +595,7 @@ return (
             </Card>
 
             <Card className="bg-slate-900/50 border-slate-800 flex flex-col min-h-0 overflow-hidden">
-              <CardHeader className="shrink-0">
+              <CardHeader className="shrink-0 pb-4">
                 <CardTitle className="text-white">Task Completion</CardTitle>
               </CardHeader>
 

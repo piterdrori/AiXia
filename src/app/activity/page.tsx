@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { supabase } from "@/lib/supabase";
+import { registerRealtimeChannel, removeRealtimeChannel } from "@/lib/realtime";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -131,11 +132,15 @@ export default function ActivityPage() {
     loadActivity();
   }, []);
 
-  useEffect(() => {
-    if (!currentUserId) return;
+useEffect(() => {
+  if (!currentUserId) return;
 
-    const channel = supabase
-      .channel("activity-page-logs")
+  const channelKey = `activity-page:${currentUserId}`;
+
+  registerRealtimeChannel(
+    channelKey,
+    supabase
+      .channel(channelKey)
       .on(
         "postgres_changes",
         {
@@ -168,12 +173,13 @@ export default function ActivityPage() {
           setSelectedIds((prev) => prev.filter((id) => id !== deletedId));
         }
       )
-      .subscribe();
+      .subscribe()
+  );
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentUserId]);
+  return () => {
+    void removeRealtimeChannel(channelKey);
+  };
+}, [currentUserId]);
 
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
@@ -504,3 +510,4 @@ export default function ActivityPage() {
     </div>
   );
 }
+

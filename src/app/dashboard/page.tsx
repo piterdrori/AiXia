@@ -184,6 +184,49 @@ export default function DashboardPage() {
     loadDashboard();
   }, [navigate]);
 
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const channel = supabase
+      .channel("dashboard-activity-logs")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "activity_logs",
+        },
+        (payload) => {
+          const newLog = payload.new as ActivityLogRow;
+
+          setActivityLogs((prev) => {
+            const alreadyExists = prev.some((log) => log.id === newLog.id);
+            if (alreadyExists) return prev;
+            return [newLog, ...prev].slice(0, 50);
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "activity_logs",
+        },
+        (payload) => {
+          const deletedId = (payload.old as { id?: string } | null)?.id;
+          if (!deletedId) return;
+
+          setActivityLogs((prev) => prev.filter((log) => log.id !== deletedId));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUserId]);
+
   const visibleProjectIds = useMemo(() => {
     if (!currentUserId) return new Set<string>();
 

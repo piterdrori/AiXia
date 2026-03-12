@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { createRequestTracker } from "@/lib/safeAsync";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,6 +92,8 @@ const columns: { id: TaskStatus; label: string; color: string }[] = [
 export default function TasksPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const requestTracker = useRef(createRequestTracker());
+
   const initialProjectId = searchParams.get("projectId") || "ALL";
 
   const [viewMode, setViewMode] = useState<"board" | "list">("board");
@@ -112,7 +115,10 @@ export default function TasksPage() {
   const [taskMembers, setTaskMembers] = useState<TaskMemberRow[]>([]);
 
   useEffect(() => {
+    let mounted = true;
+
     const loadTasksPage = async () => {
+      const requestId = requestTracker.current.next();
       setIsLoading(true);
       setError("");
 
@@ -120,6 +126,8 @@ export default function TasksPage() {
         const {
           data: { user },
         } = await supabase.auth.getUser();
+
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
         if (!user) {
           navigate("/login");
@@ -136,23 +144,26 @@ export default function TasksPage() {
           { data: allProjectMembers, error: projectMembersError },
           { data: allTaskMembers, error: taskMembersError },
         ] = await Promise.all([
-          supabase
-            .from("profiles")
-            .select("role")
-            .eq("user_id", user.id)
-            .single(),
+          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
           supabase.from("tasks").select("*").order("created_at", { ascending: false }),
-          supabase.from("projects").select("id, name, created_by").order("created_at", {
-            ascending: false,
-          }),
+          supabase
+            .from("projects")
+            .select("id, name, created_by")
+            .order("created_at", { ascending: false }),
           supabase
             .from("profiles")
             .select("user_id, full_name, role, status")
             .eq("status", "active")
             .order("full_name", { ascending: true }),
-          supabase.from("project_members").select("id, project_id, user_id, role, created_at"),
-          supabase.from("task_members").select("id, task_id, user_id, role, created_at"),
+          supabase
+            .from("project_members")
+            .select("id, project_id, user_id, role, created_at"),
+          supabase
+            .from("task_members")
+            .select("id, task_id, user_id, role, created_at"),
         ]);
+
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
         if (myProfileError || !myProfile) {
           navigate("/login");
@@ -215,14 +226,20 @@ export default function TasksPage() {
           setProjectFilter("ALL");
         }
       } catch (err) {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         console.error("Load tasks page error:", err);
         setError("Failed to load tasks.");
       } finally {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         setIsLoading(false);
       }
     };
 
-    loadTasksPage();
+    void loadTasksPage();
+
+    return () => {
+      mounted = false;
+    };
   }, [navigate, initialProjectId]);
 
   const filteredTasks = useMemo(() => {
@@ -316,6 +333,8 @@ export default function TasksPage() {
       return;
     }
 
+    setError("");
+
     const { error: updateError } = await supabase
       .from("tasks")
       .update({
@@ -344,6 +363,8 @@ export default function TasksPage() {
     const confirmed = window.confirm("Are you sure you want to delete this task?");
     if (!confirmed) return;
 
+    setError("");
+
     const { error: deleteError } = await supabase.from("tasks").delete().eq("id", taskId);
 
     if (deleteError) {
@@ -359,7 +380,7 @@ export default function TasksPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
       </div>
     );
   }
@@ -472,7 +493,7 @@ export default function TasksPage() {
                 key={column.id}
                 className="bg-slate-900/30 rounded-lg border border-slate-800"
                 onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, column.id)}
+                onDrop={(e) => void handleDrop(e, column.id)}
               >
                 <div className="p-3 border-b border-slate-800">
                   <div className="flex items-center gap-2">
@@ -535,7 +556,7 @@ export default function TasksPage() {
                                     <DropdownMenuItem
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleDelete(task.id);
+                                        void handleDelete(task.id);
                                       }}
                                       className="text-red-400"
                                     >
@@ -695,7 +716,7 @@ export default function TasksPage() {
                             <DropdownMenuItem
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDelete(task.id);
+                                void handleDelete(task.id);
                               }}
                               className="text-red-400"
                             >

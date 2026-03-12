@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import {
@@ -69,7 +69,11 @@ type NotificationRow = {
   created_at: string;
 };
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -86,6 +90,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const loadUserRequestIdRef = useRef(0);
+  const loadNotificationsRequestIdRef = useRef(0);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -107,6 +113,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, []);
 
   const loadNotifications = async (userId: string) => {
+    const requestId = ++loadNotificationsRequestIdRef.current;
     setIsLoadingNotifications(true);
 
     try {
@@ -119,6 +126,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .order("created_at", { ascending: false })
         .limit(20);
 
+      if (requestId !== loadNotificationsRequestIdRef.current) return;
+
       if (error) {
         console.error("Failed to load notifications:", error);
         return;
@@ -126,71 +135,46 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       setNotifications((data || []) as NotificationRow[]);
     } catch (error) {
+      if (requestId !== loadNotificationsRequestIdRef.current) return;
       console.error("Load notifications error:", error);
     } finally {
+      if (requestId !== loadNotificationsRequestIdRef.current) return;
       setIsLoadingNotifications(false);
     }
   };
 
-  useEffect(() => {
-    const loadUser = async () => {
-      setIsLoadingUser(true);
+  const loadUserAndNotifications = async () => {
+    const requestId = ++loadUserRequestIdRef.current;
+    setIsLoadingUser(true);
 
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-        if (!user) {
-          navigate("/login");
-          return;
-        }
+      if (requestId !== loadUserRequestIdRef.current) return;
 
-        const { data: profile, error } = await supabase
-          .from("profiles")
-          .select("full_name, role")
-          .eq("user_id", user.id)
-          .single();
-
-        if (error) {
-          console.error("Failed to load profile:", error);
-        }
-
-        const loadedUser = {
-          userId: user.id,
-          email: user.email || "",
-          fullName: profile?.full_name || "User",
-          role: profile?.role || null,
-        };
-
-        setUserProfile(loadedUser);
-        await loadNotifications(user.id);
-      } catch (error) {
-        console.error("DashboardLayout user load error:", error);
-      } finally {
-        setIsLoadingUser(false);
-      }
-    };
-
-    loadUser();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session?.user) {
+      if (sessionError || !session?.user) {
         setUserProfile(null);
         setNotifications([]);
-        navigate("/login");
+        navigate("/login", { replace: true });
         return;
       }
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("full_name, role")
         .eq("user_id", session.user.id)
         .single();
 
-      const loadedUser = {
+      if (requestId !== loadUserRequestIdRef.current) return;
+
+      if (profileError) {
+        console.error("Failed to load profile:", profileError);
+      }
+
+      const loadedUser: UserProfile = {
         userId: session.user.id,
         email: session.user.email || "",
         fullName: profile?.full_name || "User",
@@ -199,9 +183,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       setUserProfile(loadedUser);
       await loadNotifications(session.user.id);
+    } catch (error) {
+      if (requestId !== loadUserRequestIdRef.current) return;
+      console.error("DashboardLayout user load error:", error);
+    } finally {
+      if (requestId !== loadUserRequestIdRef.current) return;
+      setIsLoadingUser(false);
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    void loadUserAndNotifications();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      window.setTimeout(() => {
+        if (!mounted) return;
+
+        if (!session?.user) {
+          setUserProfile(null);
+          setNotifications([]);
+          setIsLoadingUser(false);
+          navigate("/login", { replace: true });
+          return;
+        }
+
+        void loadUserAndNotifications();
+      }, 0);
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, [navigate]);
@@ -219,14 +234,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           table: "notifications",
           filter: `user_id=eq.${userProfile.userId}`,
         },
-        async () => {
-          await loadNotifications(userProfile.userId);
+        () => {
+          void loadNotifications(userProfile.userId);
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [userProfile?.userId]);
 
@@ -246,7 +261,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate("/login");
+    navigate("/login", { replace: true });
   };
 
   const isActive = (href: string) => {
@@ -289,7 +304,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     try {
       await markAllNotificationsRead(userProfile.userId);
-      setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })));
+      setNotifications((prev) =>
+        prev.map((item) => ({ ...item, is_read: true }))
+      );
     } catch (error) {
       console.error("Mark all read error:", error);
     }
@@ -306,7 +323,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {isMobile && (
-          <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(false)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setMobileMenuOpen(false)}
+          >
             <X className="w-5 h-5 text-slate-400" />
           </Button>
         )}
@@ -328,10 +349,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50"
                   }`}
                 >
-                  <item.icon className={`w-5 h-5 ${isActive(item.href) ? "text-indigo-400" : ""}`} />
+                  <item.icon
+                    className={`w-5 h-5 ${isActive(item.href) ? "text-indigo-400" : ""}`}
+                  />
                   <span className="flex-1 text-left">{item.label}</span>
                   {item.badge ? (
-                    <Badge variant="default" className="bg-indigo-600 text-white text-xs">
+                    <Badge
+                      variant="default"
+                      className="bg-indigo-600 text-white text-xs"
+                    >
                       {item.badge}
                     </Badge>
                   ) : null}
@@ -369,8 +395,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </button>
           </DropdownMenuTrigger>
 
-          <DropdownMenuContent align="end" className="w-56 bg-slate-900 border-slate-800">
-            <DropdownMenuLabel className="text-slate-400">My Account</DropdownMenuLabel>
+          <DropdownMenuContent
+            align="end"
+            className="w-56 bg-slate-900 border-slate-800"
+          >
+            <DropdownMenuLabel className="text-slate-400">
+              My Account
+            </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-slate-800" />
             <DropdownMenuItem
               onClick={() => navigate("/settings")}
@@ -392,7 +423,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </div>
   );
 
-return (
+  return (
     <div className="min-h-screen bg-slate-950 flex">
       {!isMobile && (
         <aside
@@ -446,7 +477,10 @@ return (
                     </button>
                   </DropdownMenuTrigger>
 
-                  <DropdownMenuContent align="end" className="w-56 bg-slate-900 border-slate-800">
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-56 bg-slate-900 border-slate-800"
+                  >
                     <DropdownMenuLabel className="text-slate-400">
                       {userProfile?.fullName || "User"}
                     </DropdownMenuLabel>
@@ -494,7 +528,11 @@ return (
           <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-4">
               {isMobile && (
-                <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setMobileMenuOpen(true)}
+                >
                   <Menu className="w-5 h-5 text-slate-400" />
                 </Button>
               )}

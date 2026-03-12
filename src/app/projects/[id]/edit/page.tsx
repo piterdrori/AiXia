@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { logActivity } from "@/lib/activity";
+import { createRequestTracker } from "@/lib/safeAsync";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +50,7 @@ type ProjectMemberRow = {
 export default function ProjectEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const requestTracker = useRef(createRequestTracker());
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -72,12 +75,15 @@ export default function ProjectEditPage() {
   const selectedSet = useMemo(() => new Set(selectedMembers), [selectedMembers]);
 
   useEffect(() => {
+    let mounted = true;
+
     const loadProject = async () => {
       if (!id) {
         navigate("/projects");
         return;
       }
 
+      const requestId = requestTracker.current.next();
       setIsLoading(true);
       setError("");
 
@@ -85,6 +91,8 @@ export default function ProjectEditPage() {
         const {
           data: { user },
         } = await supabase.auth.getUser();
+
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
         if (!user) {
           navigate("/login");
@@ -114,6 +122,8 @@ export default function ProjectEditPage() {
             .order("full_name", { ascending: true }),
         ]);
 
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+
         if (meError || !me) {
           navigate("/projects");
           return;
@@ -123,7 +133,6 @@ export default function ProjectEditPage() {
 
         if (projectError || !projectData) {
           setError("Failed to load project.");
-          setIsLoading(false);
           return;
         }
 
@@ -148,14 +157,20 @@ export default function ProjectEditPage() {
         setTeamMembers(loadedProfiles);
         setSelectedMembers(loadedMembers.map((member) => member.user_id));
       } catch (err) {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         console.error("Load project error:", err);
         setError("Something went wrong while loading the project.");
       } finally {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         setIsLoading(false);
       }
     };
 
-    loadProject();
+    void loadProject();
+
+    return () => {
+      mounted = false;
+    };
   }, [id, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -170,12 +185,20 @@ export default function ProjectEditPage() {
       return;
     }
 
+    if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+      setError("End date cannot be earlier than start date.");
+      return;
+    }
+
+    const requestId = requestTracker.current.next();
     setIsSaving(true);
 
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
+      if (!requestTracker.current.isLatest(requestId)) return;
 
       if (!user) {
         navigate("/login");
@@ -187,6 +210,8 @@ export default function ProjectEditPage() {
         .select("role")
         .eq("user_id", user.id)
         .single();
+
+      if (!requestTracker.current.isLatest(requestId)) return;
 
       if (meError || !me) {
         setError("Failed to validate your permissions.");
@@ -201,6 +226,8 @@ export default function ProjectEditPage() {
         .select("id, created_by")
         .eq("id", id)
         .single();
+
+      if (!requestTracker.current.isLatest(requestId)) return;
 
       if (existingProjectError || !existingProject) {
         setError("Project not found.");
@@ -227,6 +254,8 @@ export default function ProjectEditPage() {
           updated_at: new Date().toISOString(),
         })
         .eq("id", id);
+
+      if (!requestTracker.current.isLatest(requestId)) return;
 
       if (updateError) {
         console.error("Update project error:", updateError);
@@ -258,6 +287,8 @@ export default function ProjectEditPage() {
           .from("project_members")
           .insert(rows);
 
+        if (!requestTracker.current.isLatest(requestId)) return;
+
         if (insertMembersError) {
           console.error("Insert project members error:", insertMembersError);
           setError(insertMembersError.message || "Failed to add some members.");
@@ -282,6 +313,8 @@ export default function ProjectEditPage() {
           .delete()
           .in("id", idsToDelete);
 
+        if (!requestTracker.current.isLatest(requestId)) return;
+
         if (deleteMembersError) {
           console.error("Delete project members error:", deleteMembersError);
           setError(deleteMembersError.message || "Failed to remove some members.");
@@ -298,10 +331,16 @@ export default function ProjectEditPage() {
         });
       }
 
+      if (!requestTracker.current.isLatest(requestId)) return;
+
       navigate(`/projects/${id}`);
     } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Update project error:", err);
       setError("Something went wrong while updating the project.");
+      setIsSaving(false);
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
       setIsSaving(false);
     }
   };
@@ -309,7 +348,7 @@ export default function ProjectEditPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
       </div>
     );
   }

@@ -1,12 +1,11 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -23,7 +22,6 @@ import {
   Bell,
   Palette,
   Shield,
-  Upload,
   Save,
   Moon,
   Sun,
@@ -45,7 +43,15 @@ type ProfileRow = {
   display_name?: string | null;
   bio?: string | null;
   phone?: string | null;
-  location?: string | null;
+  country?: string | null;
+  city?: string | null;
+  company?: string | null;
+  department?: string | null;
+  job_title?: string | null;
+  avatar_url?: string | null;
+  wechat?: string | null;
+  whatsapp?: string | null;
+  profile_completed?: boolean | null;
   language?: string | null;
   timezone?: string | null;
   date_format?: string | null;
@@ -76,7 +82,15 @@ export default function SettingsPage() {
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [phone, setPhone] = useState("");
-  const [location, setLocation] = useState("");
+  const [country, setCountry] = useState("");
+  const [city, setCity] = useState("");
+  const [company, setCompany] = useState("");
+  const [department, setDepartment] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [wechat, setWechat] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [profileCompleted, setProfileCompleted] = useState(false);
 
   // Account
   const [language, setLanguage] = useState("en");
@@ -104,9 +118,11 @@ export default function SettingsPage() {
     try {
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser();
 
-      if (!user) {
+      if (authError || !user) {
+        setSaveError("Failed to load authenticated user.");
         setIsLoading(false);
         return;
       }
@@ -120,8 +136,8 @@ export default function SettingsPage() {
         .eq("user_id", user.id)
         .single();
 
-      if (error) {
-        setSaveError(error.message);
+      if (error || !data) {
+        setSaveError(error?.message || "Failed to load profile settings.");
         setIsLoading(false);
         return;
       }
@@ -132,7 +148,15 @@ export default function SettingsPage() {
       setDisplayName(profile.display_name || "");
       setBio(profile.bio || "");
       setPhone(profile.phone || "");
-      setLocation(profile.location || "");
+      setCountry(profile.country || "");
+      setCity(profile.city || "");
+      setCompany(profile.company || "");
+      setDepartment(profile.department || "");
+      setJobTitle(profile.job_title || "");
+      setAvatarUrl(profile.avatar_url || "");
+      setWechat(profile.wechat || "");
+      setWhatsapp(profile.whatsapp || "");
+      setProfileCompleted(Boolean(profile.profile_completed));
 
       setLanguage(profile.language || "en");
       setTimezone(profile.timezone || "UTC");
@@ -185,7 +209,7 @@ export default function SettingsPage() {
 
     if (error) {
       console.error("Settings save error:", error);
-      setSaveError(error.message);
+      setSaveError(error.message || "Failed to save settings.");
       return;
     }
 
@@ -194,18 +218,26 @@ export default function SettingsPage() {
 
   const handleSaveProfile = async () => {
     await updateProfile({
-      full_name: fullName,
-      display_name: displayName || null,
-      bio: bio || null,
-      phone: phone || null,
-      location: location || null,
+      full_name: fullName.trim() || null,
+      display_name: displayName.trim() || null,
+      bio: bio.trim() || null,
+      phone: phone.trim() || null,
+      country: country.trim() || null,
+      city: city.trim() || null,
+      company: company.trim() || null,
+      department: department.trim() || null,
+      job_title: jobTitle.trim() || null,
+      avatar_url: avatarUrl.trim() || null,
+      wechat: wechat.trim() || null,
+      whatsapp: whatsapp.trim() || null,
+      profile_completed: profileCompleted,
     });
   };
 
   const handleSaveAccount = async () => {
     await updateProfile({
-      language: language,
-      timezone: timezone,
+      language,
+      timezone,
       date_format: dateFormat,
     });
   };
@@ -223,7 +255,7 @@ export default function SettingsPage() {
 
   const handleSaveAppearance = async () => {
     await updateProfile({
-      theme: theme,
+      theme,
       accent_color: accentColor,
       font_size: fontSize,
       compact_mode: compactMode,
@@ -235,18 +267,19 @@ export default function SettingsPage() {
       ?.split(" ")
       .map((n) => n[0])
       .join("")
-      .toUpperCase() || "U";
+      .toUpperCase()
+      .slice(0, 2) || "U";
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">Settings</h1>
         <p className="text-slate-400">Manage your account settings and preferences</p>
@@ -254,7 +287,7 @@ export default function SettingsPage() {
 
       {saved && (
         <Alert className="bg-green-900/20 border-green-800 text-green-400">
-          <AlertDescription>Settings saved successfully!</AlertDescription>
+          <AlertDescription>Settings saved successfully.</AlertDescription>
         </Alert>
       )}
 
@@ -296,21 +329,30 @@ export default function SettingsPage() {
             <CardContent className="space-y-6">
               <div className="flex items-center gap-4">
                 <Avatar className="w-20 h-20">
+                  <AvatarImage src={avatarUrl || undefined} />
                   <AvatarFallback className="bg-indigo-600 text-white text-2xl">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
-                <Button variant="outline" className="border-slate-700 text-slate-300" disabled>
-                  <Upload className="w-4 h-4 mr-2" />
-                  Change Avatar
-                </Button>
+                <div className="flex-1">
+                  <Label htmlFor="avatarUrl" className="text-slate-300">
+                    Profile Photo URL
+                  </Label>
+                  <Input
+                    id="avatarUrl"
+                    value={avatarUrl}
+                    onChange={(e) => setAvatarUrl(e.target.value)}
+                    placeholder="Optional image URL"
+                    className="mt-2 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+                  />
+                </div>
               </div>
-
-              <Separator className="bg-slate-800" />
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="fullName" className="text-slate-300">Full Name</Label>
+                  <Label htmlFor="fullName" className="text-slate-300">
+                    Full Name
+                  </Label>
                   <Input
                     id="fullName"
                     value={fullName}
@@ -318,20 +360,120 @@ export default function SettingsPage() {
                     className="bg-slate-950 border-slate-800 text-white"
                   />
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="displayName" className="text-slate-300">Display Name</Label>
+                  <Label htmlFor="displayName" className="text-slate-300">
+                    Display Name
+                  </Label>
                   <Input
                     id="displayName"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="How you want to be called"
-                    className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+                    className="bg-slate-950 border-slate-800 text-white"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phone" className="text-slate-300">
+                    Phone
+                  </Label>
+                  <Input
+                    id="phone"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="bg-slate-950 border-slate-800 text-white"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="country" className="text-slate-300">
+                    Country
+                  </Label>
+                  <Input
+                    id="country"
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    className="bg-slate-950 border-slate-800 text-white"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="city" className="text-slate-300">
+                    City
+                  </Label>
+                  <Input
+                    id="city"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="bg-slate-950 border-slate-800 text-white"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="company" className="text-slate-300">
+                    Company
+                  </Label>
+                  <Input
+                    id="company"
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                    className="bg-slate-950 border-slate-800 text-white"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="department" className="text-slate-300">
+                    Department
+                  </Label>
+                  <Input
+                    id="department"
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    className="bg-slate-950 border-slate-800 text-white"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="jobTitle" className="text-slate-300">
+                    Job Title
+                  </Label>
+                  <Input
+                    id="jobTitle"
+                    value={jobTitle}
+                    onChange={(e) => setJobTitle(e.target.value)}
+                    className="bg-slate-950 border-slate-800 text-white"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="whatsapp" className="text-slate-300">
+                    WhatsApp
+                  </Label>
+                  <Input
+                    id="whatsapp"
+                    value={whatsapp}
+                    onChange={(e) => setWhatsapp(e.target.value)}
+                    className="bg-slate-950 border-slate-800 text-white"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="wechat" className="text-slate-300">
+                    WeChat
+                  </Label>
+                  <Input
+                    id="wechat"
+                    value={wechat}
+                    onChange={(e) => setWechat(e.target.value)}
+                    className="bg-slate-950 border-slate-800 text-white"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="bio" className="text-slate-300">Bio</Label>
+                <Label htmlFor="bio" className="text-slate-300">
+                  Short Bio
+                </Label>
                 <Textarea
                   id="bio"
                   value={bio}
@@ -342,27 +484,20 @@ export default function SettingsPage() {
                 />
               </div>
 
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-slate-300">Phone</Label>
-                  <Input
-                    id="phone"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+1 (555) 000-0000"
-                    className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="location" className="text-slate-300">Location</Label>
-                  <Input
-                    id="location"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    placeholder="City, Country"
-                    className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label className="text-slate-300">Profile Completion</Label>
+                <Select
+                  value={profileCompleted ? "completed" : "incomplete"}
+                  onValueChange={(value) => setProfileCompleted(value === "completed")}
+                >
+                  <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="incomplete">Incomplete</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <Button
@@ -384,7 +519,9 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-slate-300">Email Address</Label>
+                <Label htmlFor="email" className="text-slate-300">
+                  Email Address
+                </Label>
                 <Input
                   id="email"
                   type="email"
@@ -392,59 +529,56 @@ export default function SettingsPage() {
                   disabled
                   className="bg-slate-950 border-slate-800 text-slate-400"
                 />
-                <p className="text-slate-500 text-sm">Email is managed by authentication settings</p>
+                <p className="text-slate-500 text-sm">
+                  Email is managed by authentication settings.
+                </p>
               </div>
 
               <Separator className="bg-slate-800" />
 
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="language" className="text-slate-300">Language</Label>
+                  <Label className="text-slate-300">Language</Label>
                   <Select value={language} onValueChange={setLanguage}>
                     <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-slate-800">
+                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
                       <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="es">Spanish</SelectItem>
-                      <SelectItem value="fr">French</SelectItem>
-                      <SelectItem value="de">German</SelectItem>
                       <SelectItem value="zh">Chinese</SelectItem>
+                      <SelectItem value="ru">Russian</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="timezone" className="text-slate-300">Timezone</Label>
+                  <Label className="text-slate-300">Timezone</Label>
                   <Select value={timezone} onValueChange={setTimezone}>
                     <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-slate-800">
+                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
                       <SelectItem value="UTC">UTC</SelectItem>
-                      <SelectItem value="America/New_York">Eastern Time</SelectItem>
-                      <SelectItem value="America/Chicago">Central Time</SelectItem>
-                      <SelectItem value="America/Denver">Mountain Time</SelectItem>
-                      <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
-                      <SelectItem value="Europe/London">London</SelectItem>
-                      <SelectItem value="Europe/Paris">Paris</SelectItem>
-                      <SelectItem value="Asia/Tokyo">Tokyo</SelectItem>
+                      <SelectItem value="Asia/Shanghai">Asia/Shanghai</SelectItem>
+                      <SelectItem value="Asia/Jerusalem">Asia/Jerusalem</SelectItem>
+                      <SelectItem value="America/New_York">America/New_York</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="dateFormat" className="text-slate-300">Date Format</Label>
-                <Select value={dateFormat} onValueChange={setDateFormat}>
-                  <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-800">
-                    <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
-                    <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
-                    <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Date Format</Label>
+                  <Select value={dateFormat} onValueChange={setDateFormat}>
+                    <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                      <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
+                      <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
+                      <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <Button
@@ -453,25 +587,8 @@ export default function SettingsPage() {
                 disabled={isSaving}
               >
                 <Save className="w-4 h-4 mr-2" />
-                {isSaving ? "Saving..." : "Save Changes"}
+                {isSaving ? "Saving..." : "Save Account"}
               </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-slate-900/50 border-slate-800 border-red-800/30">
-            <CardHeader>
-              <CardTitle className="text-white">Danger Zone</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white font-medium">Delete Account</p>
-                  <p className="text-slate-500 text-sm">Permanently delete your account and all data</p>
-                </div>
-                <Button variant="destructive" disabled>
-                  Delete Account
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -484,8 +601,8 @@ export default function SettingsPage() {
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-white font-medium">Email Notifications</p>
-                  <p className="text-slate-500 text-sm">Receive notifications via email</p>
+                  <p className="text-white">Email Notifications</p>
+                  <p className="text-sm text-slate-500">Receive notifications by email</p>
                 </div>
                 <Switch checked={emailNotifications} onCheckedChange={setEmailNotifications} />
               </div>
@@ -494,29 +611,40 @@ export default function SettingsPage() {
 
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-white font-medium">Push Notifications</p>
-                  <p className="text-slate-500 text-sm">Receive push notifications in browser</p>
+                  <p className="text-white">Push Notifications</p>
+                  <p className="text-sm text-slate-500">Receive notifications in app</p>
                 </div>
                 <Switch checked={pushNotifications} onCheckedChange={setPushNotifications} />
               </div>
 
               <Separator className="bg-slate-800" />
 
-              <div className="space-y-4">
-                <p className="text-white font-medium">Notification Types</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white">Task Assigned</p>
+                  <p className="text-sm text-slate-500">Notify when a task is assigned</p>
+                </div>
+                <Switch checked={taskAssigned} onCheckedChange={setTaskAssigned} />
+              </div>
 
-                <div className="flex items-center justify-between">
-                  <p className="text-slate-300">Task Assigned</p>
-                  <Switch checked={taskAssigned} onCheckedChange={setTaskAssigned} />
+              <Separator className="bg-slate-800" />
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white">Due Soon</p>
+                  <p className="text-sm text-slate-500">Notify when task due date is near</p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-slate-300">Due Soon</p>
-                  <Switch checked={dueSoon} onCheckedChange={setDueSoon} />
+                <Switch checked={dueSoon} onCheckedChange={setDueSoon} />
+              </div>
+
+              <Separator className="bg-slate-800" />
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white">Mentions</p>
+                  <p className="text-sm text-slate-500">Notify when someone mentions you</p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-slate-300">Mentions</p>
-                  <Switch checked={mentions} onCheckedChange={setMentions} />
-                </div>
+                <Switch checked={mentions} onCheckedChange={setMentions} />
               </div>
 
               <Separator className="bg-slate-800" />
@@ -527,10 +655,11 @@ export default function SettingsPage() {
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-800">
-                    <SelectItem value="never">Never</SelectItem>
+                  <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                    <SelectItem value="realtime">Realtime</SelectItem>
                     <SelectItem value="daily">Daily</SelectItem>
                     <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="never">Never</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -541,7 +670,7 @@ export default function SettingsPage() {
                 disabled={isSaving}
               >
                 <Save className="w-4 h-4 mr-2" />
-                {isSaving ? "Saving..." : "Save Preferences"}
+                {isSaving ? "Saving..." : "Save Notifications"}
               </Button>
             </CardContent>
           </Card>
@@ -550,101 +679,76 @@ export default function SettingsPage() {
         <TabsContent value="appearance" className="space-y-6">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
-              <CardTitle className="text-white">Appearance Settings</CardTitle>
+              <CardTitle className="text-white">Appearance</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label className="text-slate-300">Theme</Label>
-                <div className="grid grid-cols-3 gap-4">
-                  <button
-                    onClick={() => setTheme("light")}
-                    className={`p-4 rounded-lg border transition-all ${
-                      theme === "light"
-                        ? "border-indigo-500 bg-indigo-500/10"
-                        : "border-slate-800 hover:border-slate-700"
-                    }`}
-                  >
-                    <Sun className="w-6 h-6 mx-auto mb-2 text-amber-400" />
-                    <p className="text-white text-sm">Light</p>
-                  </button>
-                  <button
-                    onClick={() => setTheme("dark")}
-                    className={`p-4 rounded-lg border transition-all ${
-                      theme === "dark"
-                        ? "border-indigo-500 bg-indigo-500/10"
-                        : "border-slate-800 hover:border-slate-700"
-                    }`}
-                  >
-                    <Moon className="w-6 h-6 mx-auto mb-2 text-indigo-400" />
-                    <p className="text-white text-sm">Dark</p>
-                  </button>
-                  <button
-                    onClick={() => setTheme("system")}
-                    className={`p-4 rounded-lg border transition-all ${
-                      theme === "system"
-                        ? "border-indigo-500 bg-indigo-500/10"
-                        : "border-slate-800 hover:border-slate-700"
-                    }`}
-                  >
-                    <Monitor className="w-6 h-6 mx-auto mb-2 text-slate-400" />
-                    <p className="text-white text-sm">System</p>
-                  </button>
-                </div>
-              </div>
-
-              <Separator className="bg-slate-800" />
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">Accent Color</Label>
-                <div className="flex flex-wrap gap-3">
-                  {["indigo", "blue", "purple", "green", "red", "orange"].map((color) => (
-                    <button
-                      key={color}
-                      onClick={() => setAccentColor(color)}
-                      className={`w-10 h-10 rounded-full transition-all ${
-                        accentColor === color
-                          ? "ring-2 ring-white ring-offset-2 ring-offset-slate-900"
-                          : ""
-                      } ${
-                        color === "indigo"
-                          ? "bg-indigo-500"
-                          : color === "blue"
-                          ? "bg-blue-500"
-                          : color === "purple"
-                          ? "bg-purple-500"
-                          : color === "green"
-                          ? "bg-green-500"
-                          : color === "red"
-                          ? "bg-red-500"
-                          : "bg-orange-500"
-                      }`}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <Separator className="bg-slate-800" />
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">Font Size</Label>
-                <Select value={fontSize} onValueChange={setFontSize}>
+                <Select value={theme} onValueChange={setTheme}>
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-800">
-                    <SelectItem value="small">Small</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="large">Large</SelectItem>
+                  <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                    <SelectItem value="light">
+                      <div className="flex items-center gap-2">
+                        <Sun className="w-4 h-4" />
+                        Light
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="dark">
+                      <div className="flex items-center gap-2">
+                        <Moon className="w-4 h-4" />
+                        Dark
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="system">
+                      <div className="flex items-center gap-2">
+                        <Monitor className="w-4 h-4" />
+                        System
+                      </div>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white font-medium">Compact Mode</p>
-                  <p className="text-slate-500 text-sm">Reduce spacing throughout the interface</p>
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Accent Color</Label>
+                  <Select value={accentColor} onValueChange={setAccentColor}>
+                    <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                      <SelectItem value="indigo">Indigo</SelectItem>
+                      <SelectItem value="blue">Blue</SelectItem>
+                      <SelectItem value="green">Green</SelectItem>
+                      <SelectItem value="purple">Purple</SelectItem>
+                      <SelectItem value="red">Red</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Switch checked={compactMode} onCheckedChange={setCompactMode} />
+
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Font Size</Label>
+                  <Select value={fontSize} onValueChange={setFontSize}>
+                    <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                      <SelectItem value="small">Small</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="large">Large</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950 px-4 py-3 mt-7">
+                  <div>
+                    <p className="text-white">Compact Mode</p>
+                    <p className="text-xs text-slate-500">Denser layout</p>
+                  </div>
+                  <Switch checked={compactMode} onCheckedChange={setCompactMode} />
+                </div>
               </div>
 
               <Button
@@ -662,68 +766,15 @@ export default function SettingsPage() {
         <TabsContent value="security" className="space-y-6">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
-              <CardTitle className="text-white">Security Settings</CardTitle>
+              <CardTitle className="text-white">Security</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <h3 className="text-white font-medium">Change Password</h3>
-                <div className="space-y-2">
-                  <Label className="text-slate-300">Current Password</Label>
-                  <Input
-                    type="password"
-                    placeholder="Enter current password"
-                    className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
-                    disabled
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-300">New Password</Label>
-                  <Input
-                    type="password"
-                    placeholder="Enter new password"
-                    className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
-                    disabled
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-300">Confirm New Password</Label>
-                  <Input
-                    type="password"
-                    placeholder="Confirm new password"
-                    className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
-                    disabled
-                  />
-                </div>
-                <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" disabled>
-                  Update Password
-                </Button>
-              </div>
-
-              <Separator className="bg-slate-800" />
-
-              <div className="space-y-4">
-                <h3 className="text-white font-medium">Two-Factor Authentication</h3>
-                <p className="text-slate-500">Add an extra layer of security to your account</p>
-                <Button variant="outline" className="border-slate-700 text-slate-300" disabled>
-                  <Shield className="w-4 h-4 mr-2" />
-                  Enable 2FA
-                </Button>
-              </div>
-
-              <Separator className="bg-slate-800" />
-
-              <div className="space-y-4">
-                <h3 className="text-white font-medium">Active Sessions</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg">
-                    <div>
-                      <p className="text-white">Current Session</p>
-                      <p className="text-slate-500 text-sm">Managed by Supabase authentication</p>
-                    </div>
-                    <Badge className="bg-green-500/20 text-green-400">Active</Badge>
-                  </div>
-                </div>
-              </div>
+            <CardContent className="space-y-4">
+              <p className="text-slate-400">
+                Password and email authentication settings are managed through Supabase Auth.
+              </p>
+              <p className="text-slate-500 text-sm">
+                If you want, the next step is to add a change password form here.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>

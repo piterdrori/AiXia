@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { registerRealtimeChannel, removeRealtimeChannel } from "@/lib/realtime";
 import {
   markAllNotificationsRead,
   markNotificationRead,
@@ -221,11 +222,15 @@ export default function DashboardLayout({
     };
   }, [navigate]);
 
-  useEffect(() => {
-    if (!userProfile?.userId) return;
+useEffect(() => {
+  if (!userProfile?.userId) return;
 
-    const channel = supabase
-      .channel(`notifications-${userProfile.userId}`)
+  const channelKey = `notifications:${userProfile.userId}`;
+
+  const channel = registerRealtimeChannel(
+    channelKey,
+    supabase
+      .channel(channelKey)
       .on(
         "postgres_changes",
         {
@@ -238,12 +243,13 @@ export default function DashboardLayout({
           void loadNotifications(userProfile.userId);
         }
       )
-      .subscribe();
+      .subscribe()
+  );
 
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [userProfile?.userId]);
+  return () => {
+    void removeRealtimeChannel(channelKey);
+  };
+}, [userProfile?.userId]);
 
   const navItems: NavItem[] = useMemo(
     () => [

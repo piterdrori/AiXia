@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { createRequestTracker } from "@/lib/safeAsync";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,7 @@ type ProfileRow = {
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
+  const requestTracker = useRef(createRequestTracker());
 
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
@@ -67,13 +69,18 @@ export default function ProjectsPage() {
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
     const loadProjects = async () => {
+      const requestId = requestTracker.current.next();
       setIsLoading(true);
 
       try {
         const {
           data: { user },
         } = await supabase.auth.getUser();
+
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
         if (!user) {
           navigate("/login");
@@ -82,18 +89,29 @@ export default function ProjectsPage() {
 
         setCurrentUserId(user.id);
 
-        const { data: me } = await supabase
+        const { data: me, error: meError } = await supabase
           .from("profiles")
           .select("user_id, role")
           .eq("user_id", user.id)
           .single();
 
-        setCurrentUserRole((me as ProfileRow | null)?.role || null);
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+
+        if (meError) {
+          console.error("Load current profile error:", meError);
+          setCurrentUserRole(null);
+        } else {
+          setCurrentUserRole((me as ProfileRow | null)?.role || null);
+        }
 
         const { data, error } = await supabase
           .from("projects")
-          .select("id, name, description, status, progress, created_by, start_date, end_date, created_at")
+          .select(
+            "id, name, description, status, progress, created_by, start_date, end_date, created_at"
+          )
           .order("created_at", { ascending: false });
+
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
         if (error) {
           console.error("Load projects error:", error);
@@ -102,14 +120,21 @@ export default function ProjectsPage() {
           setProjects((data || []) as ProjectRow[]);
         }
       } catch (error) {
+        if (!mounted) return;
         console.error("Projects page load error:", error);
+        if (!requestTracker.current.isLatest(requestId)) return;
         setProjects([]);
       } finally {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         setIsLoading(false);
       }
     };
 
-    loadProjects();
+    void loadProjects();
+
+    return () => {
+      mounted = false;
+    };
   }, [navigate]);
 
   const canCreateProjects =
@@ -189,7 +214,7 @@ export default function ProjectsPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
       </div>
     );
   }
@@ -302,7 +327,7 @@ export default function ProjectsPage() {
                         <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDelete(project.id);
+                            void handleDelete(project.id);
                           }}
                           className="text-red-400"
                         >
@@ -405,7 +430,7 @@ export default function ProjectsPage() {
                         <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDelete(project.id);
+                            void handleDelete(project.id);
                           }}
                           className="text-red-400"
                         >

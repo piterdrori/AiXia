@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { addDays, format, isBefore, parseISO } from "date-fns";
 import { supabase } from "@/lib/supabase";
-
+import { registerRealtimeChannel, removeRealtimeChannel } from "@/lib/realtime";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -184,11 +184,15 @@ export default function DashboardPage() {
     loadDashboard();
   }, [navigate]);
 
-  useEffect(() => {
-    if (!currentUserId) return;
+useEffect(() => {
+  if (!currentUserId) return;
 
-    const channel = supabase
-      .channel("dashboard-activity-logs")
+  const channelKey = `dashboard-activity:${currentUserId}`;
+
+  registerRealtimeChannel(
+    channelKey,
+    supabase
+      .channel(channelKey)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "activity_logs" },
@@ -211,12 +215,13 @@ export default function DashboardPage() {
           setActivityLogs((prev) => prev.filter((log) => log.id !== deletedId));
         }
       )
-      .subscribe();
+      .subscribe()
+  );
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentUserId]);
+  return () => {
+    void removeRealtimeChannel(channelKey);
+  };
+}, [currentUserId]);
 
   const visibleProjectIds = useMemo(() => {
     if (!currentUserId) return new Set<string>();

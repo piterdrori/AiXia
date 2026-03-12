@@ -576,96 +576,99 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          <div className="grid grid-rows-2 gap-6 h-full min-h-0">
-            <Card className="bg-slate-900/50 border-slate-800 flex flex-col min-h-0">
-              <CardHeader className="shrink-0">
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-indigo-400" />
-                  Activity Feed
-                </CardTitle>
-              </CardHeader>
+          <div
+            className="grid grid-rows-2 gap-6 h-full min-h-0">
+  <Card className="bg-slate-900/50 border-slate-800 flex flex-col min-h-0 overflow-hidden">
+    <CardHeader className="shrink-0">
+      <CardTitle className="text-white flex items-center gap-2">
+        <Activity className="w-5 h-5 text-indigo-400" />
+        Activity Feed
+      </CardTitle>
+    </CardHeader>
 
-              <CardContent className="flex-1 min-h-0">
-                {visibleActivity.length === 0 ? (
-                  <div className="text-slate-400">No recent activity yet.</div>
-                ) : (
-                  <ScrollArea className="h-full pr-3">
-                    <div className="space-y-3">
-                      {visibleActivity.map((log) => (
-                        <div
-                          key={log.id}
-                          className="p-3 rounded-lg border border-slate-800 bg-slate-950/40"
-                        >
-                          <div className="text-white text-sm">{log.message}</div>
-                          <div className="text-xs text-slate-500 mt-1">
-                            {format(parseISO(log.created_at), "MMM d, yyyy h:mm a")}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="bg-slate-900/50 border-slate-800 flex flex-col min-h-0">
-              <CardHeader className="shrink-0">
-                <CardTitle className="text-white">Task Completion</CardTitle>
-              </CardHeader>
-
-              <CardContent className="flex-1 min-h-0 space-y-4">
-                <div className="text-white text-lg font-semibold">
-                  {completedTasks} / {totalRelevantTasks} completed
+    <CardContent className="flex-1 min-h-0 overflow-hidden">
+      {visibleActivity.length === 0 ? (
+        <div className="text-slate-400">No recent activity yet.</div>
+      ) : (
+        <ScrollArea className="h-full pr-3">
+          <div className="space-y-3">
+            {visibleActivity.map((log) => (
+              <div
+                key={log.id}
+                className="p-3 rounded-lg border border-slate-800 bg-slate-950/40"
+              >
+                <div className="text-white text-sm">{log.message}</div>
+                <div className="text-xs text-slate-500 mt-1">
+                  {format(parseISO(log.created_at), "MMM d, yyyy h:mm a")}
                 </div>
-
-                <Progress
-                  value={
-                    totalRelevantTasks === 0
-                      ? 0
-                      : Math.round((completedTasks / totalRelevantTasks) * 100)
-                  }
-                />
-
-                <div className="text-sm text-slate-400">
-                  {totalRelevantTasks === 0
-                    ? "No relevant tasks yet."
-                    : `${Math.round((completedTasks / totalRelevantTasks) * 100)}% of tasks are complete`}
-                </div>
-
-                {activeTasksForCompletion.length > 0 && (
-                  <ScrollArea className="flex-1 min-h-0 pr-3">
-                    <div className="space-y-3">
-                      {activeTasksForCompletion.map((task) => (
-                        <button
-                          key={task.id}
-                          type="button"
-                          onClick={() => navigate(`/tasks/${task.id}`)}
-                          className="w-full text-left p-3 rounded-lg border border-slate-800 bg-slate-950/40 hover:border-indigo-500/30 transition"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-white truncate">{task.title}</div>
-                              {task.due_date && (
-                                <div className="text-xs text-slate-400">
-                                  Due {format(parseISO(task.due_date), "MMM d, yyyy")}
-                                </div>
-                              )}
-                            </div>
-
-                            <Badge className="bg-emerald-500/20 text-emerald-300">
-                              {(task.status || "task").replaceAll("_", " ")}
-                            </Badge>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                )}
-              </CardContent>
-            </Card>
+              </div>
+            ))}
           </div>
+        </ScrollArea>
+      )}
+    </CardContent>
+  </Card>
+
+  <Card className="bg-slate-900/50 border-slate-800 flex flex-col min-h-0 overflow-hidden">
+    <CardHeader className="shrink-0">
+      <CardTitle className="text-white">Task Completion</CardTitle>
+    </CardHeader>
+
+    <CardContent className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <div className="shrink-0 space-y-4 pb-4">
+        <div className="text-white text-lg font-semibold">
+          {completedTasks} / {totalRelevantTasks} completed
+        </div>
+
+        <Progress
+          value={
+            totalRelevantTasks === 0
+              ? 0
+              : Math.round((completedTasks / totalRelevantTasks) * 100)
+          }
+        />
+
+        <div className="text-sm text-slate-400">
+          {totalRelevantTasks === 0
+            ? "No relevant tasks yet."
+            : `${Math.round((completedTasks / totalRelevantTasks) * 100)}% of tasks are complete`}
         </div>
       </div>
-    </div>
-  );
-}
+
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {activeTasksForCompletion.length > 0 ? (
+          <ScrollArea className="h-full pr-3">
+            <div className="space-y-3">
+              {activeTasksForCompletion.map((task) => (
+                <button
+                  key={task.id}
+                  type="button"
+                  onClick={() => navigate(`/tasks/${task.id}`)}
+                  className="w-full text-left p-3 rounded-lg border border-slate-800 bg-slate-950/40 hover:border-indigo-500/30 transition"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-white truncate">{task.title}</div>
+                      {task.due_date && (
+                        <div className="text-xs text-slate-400">
+                          Due {format(parseISO(task.due_date), "MMM d, yyyy")}
+                        </div>
+                      )}
+                    </div>
+
+                    <Badge className="bg-emerald-500/20 text-emerald-300 shrink-0">
+                      {(task.status || "task").replaceAll("_", " ")}
+                    </Badge>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </ScrollArea>
+        ) : (
+          <div className="text-slate-400">No active tasks to display.</div>
+        )}
+      </div>
+    </CardContent>
+  </Card>
+</div>
+            

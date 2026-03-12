@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { addDays, format, isBefore, parseISO } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { registerRealtimeChannel, removeRealtimeChannel } from "@/lib/realtime";
-import { createRequestTracker } from "@/lib/safeAsync";
+import { createRequestTracker } from "../../lib/safeAsync";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

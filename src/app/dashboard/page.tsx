@@ -196,8 +196,8 @@ export default function DashboardPage() {
           const newLog = payload.new as ActivityLogRow;
 
           setActivityLogs((prev) => {
-            const exists = prev.some((log) => log.id === newLog.id);
-            if (exists) return prev;
+            const alreadyExists = prev.some((log) => log.id === newLog.id);
+            if (alreadyExists) return prev;
             return [newLog, ...prev].slice(0, 50);
           });
         }
@@ -355,7 +355,7 @@ export default function DashboardPage() {
       .slice(0, 12);
   }, [activeProjectsForProgress, activeTasksForCompletion, visibleEvents]);
 
-  const visibleActivity = useMemo(() => {
+const visibleActivity = useMemo(() => {
     const filtered = activityLogs.filter((log) => {
       if (currentUserRole === "admin") return true;
       if (!currentUserId) return false;
@@ -381,8 +381,8 @@ export default function DashboardPage() {
     );
   }
 
-return (
-    <div className="h-[calc(100vh-126px)] flex flex-col gap-5 overflow-hidden">
+  return (
+    <div className="min-h-[calc(100vh-126px)] flex flex-col gap-5">
       <div className="flex flex-wrap items-start justify-between gap-4 shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-white">Welcome, {currentUserName}</h1>
@@ -466,195 +466,196 @@ return (
         </Card>
       </div>
 
-     <div className="flex-1 min-h-0 overflow-y-auto">
-  <div className="grid xl:grid-cols-2 gap-5 min-h-[1100px]">
-    <div className="grid gap-5 content-start" style={{ gridTemplateRows: "520px 520px" }}>
-      <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between shrink-0 pb-4">
-          <CardTitle className="text-white flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-amber-400" />
-            Upcoming Deadlines
-          </CardTitle>
-          <Button
-            variant="ghost"
-            className="text-slate-400 hover:text-white"
-            onClick={() => navigate("/calendar")}
-          >
-            View Calendar
-            <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
-        </CardHeader>
+      <div className="grid xl:grid-cols-2 gap-5 min-h-[1100px]">
+        <div className="grid gap-5 content-start" style={{ gridTemplateRows: "520px 520px" }}>
+          <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between shrink-0 pb-4">
+              <CardTitle className="text-white flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-amber-400" />
+                Upcoming Deadlines
+              </CardTitle>
+              <Button
+                variant="ghost"
+                className="text-slate-400 hover:text-white"
+                onClick={() => navigate("/calendar")}
+              >
+                View Calendar
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </CardHeader>
 
-        <CardContent className="flex-1 overflow-hidden">
-          {upcomingItems.length === 0 ? (
-            <div className="text-slate-400">No upcoming deadlines or events.</div>
-          ) : (
-            <ScrollArea className="h-full pr-3">
-              <div className="space-y-3">
-                {upcomingItems.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => navigate(item.link)}
-                    className="w-full text-left p-4 rounded-lg border border-slate-800 bg-slate-950/40 hover:border-indigo-500/30 transition"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-white font-medium truncate">{item.title}</div>
-                        <div className="text-sm text-slate-400">
-                          {format(parseISO(item.date), "MMM d, yyyy")}
-                        </div>
-                      </div>
-
-                      <div className="shrink-0">
-                        <Badge
-                          className={
-                            item.type === "task"
-                              ? "bg-emerald-500/20 text-emerald-300"
-                              : item.type === "event"
-                              ? "bg-indigo-500/20 text-indigo-300"
-                              : "bg-amber-500/20 text-amber-300"
-                          }
-                        >
-                          {item.meta || item.type}
-                        </Badge>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </ScrollArea>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
-        <CardHeader className="shrink-0 pb-4">
-          <CardTitle className="text-white">Project Progress</CardTitle>
-        </CardHeader>
-
-        <CardContent className="flex-1 overflow-hidden">
-          {activeProjectsForProgress.length === 0 ? (
-            <div className="text-slate-400">No active projects available.</div>
-          ) : (
-            <ScrollArea className="h-full pr-3">
-              <div className="space-y-4">
-                {activeProjectsForProgress.map((project) => (
-                  <div key={project.id} className="space-y-2">
-                    <div className="flex items-center justify-between gap-3">
+            <CardContent className="flex-1 overflow-hidden">
+              {upcomingItems.length === 0 ? (
+                <div className="text-slate-400">No upcoming deadlines or events.</div>
+              ) : (
+                <ScrollArea className="h-full pr-3">
+                  <div className="space-y-3">
+                    {upcomingItems.map((item) => (
                       <button
-                        className="text-white hover:text-indigo-300 truncate"
-                        onClick={() => navigate(`/projects/${project.id}`)}
+                        key={item.id}
+                        type="button"
+                        onClick={() => navigate(item.link)}
+                        className="w-full text-left p-4 rounded-lg border border-slate-800 bg-slate-950/40 hover:border-indigo-500/30 transition"
                       >
-                        {project.name}
-                      </button>
-                      <span className="text-sm text-slate-400">
-                        {project.progress || 0}%
-                      </span>
-                    </div>
-                    <Progress value={project.progress || 0} />
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-
-    <div className="grid gap-5 content-start" style={{ gridTemplateRows: "520px 520px" }}>
-      <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
-        <CardHeader className="shrink-0 pb-4">
-          <CardTitle className="text-white flex items-center gap-2">
-            <Activity className="w-5 h-5 text-indigo-400" />
-            Activity Feed
-          </CardTitle>
-        </CardHeader>
-
-        <CardContent className="flex-1 overflow-hidden">
-          {visibleActivity.length === 0 ? (
-            <div className="text-slate-400">No recent activity yet.</div>
-          ) : (
-            <ScrollArea className="h-full pr-3">
-              <div className="space-y-3">
-                {visibleActivity.map((log) => (
-                  <div
-                    key={log.id}
-                    className="p-3 rounded-lg border border-slate-800 bg-slate-950/40"
-                  >
-                    <div className="text-white text-sm">{log.message}</div>
-                    <div className="text-xs text-slate-500 mt-1">
-                      {format(parseISO(log.created_at), "MMM d, yyyy h:mm a")}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
-        <CardHeader className="shrink-0 pb-3">
-          <CardTitle className="text-white">Task Completion</CardTitle>
-        </CardHeader>
-
-        <CardContent className="flex flex-col flex-1 overflow-hidden">
-          <div className="shrink-0 space-y-3 pb-3">
-            <div className="text-white text-lg font-semibold">
-              {completedTasks} / {totalRelevantTasks} completed
-            </div>
-
-            <Progress
-              value={
-                totalRelevantTasks === 0
-                  ? 0
-                  : Math.round((completedTasks / totalRelevantTasks) * 100)
-              }
-            />
-
-            <div className="text-sm text-slate-400">
-              {totalRelevantTasks === 0
-                ? "No relevant tasks yet."
-                : `${Math.round((completedTasks / totalRelevantTasks) * 100)}% of tasks are complete`}
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-hidden">
-            {activeTasksForCompletion.length > 0 ? (
-              <ScrollArea className="h-full pr-3">
-                <div className="space-y-3">
-                  {activeTasksForCompletion.map((task) => (
-                    <button
-                      key={task.id}
-                      type="button"
-                      onClick={() => navigate(`/tasks/${task.id}`)}
-                      className="w-full text-left p-3 rounded-lg border border-slate-800 bg-slate-950/40 hover:border-indigo-500/30 transition"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-white truncate">{task.title}</div>
-                          {task.due_date && (
-                            <div className="text-xs text-slate-400">
-                              Due {format(parseISO(task.due_date), "MMM d, yyyy")}
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-white font-medium truncate">{item.title}</div>
+                            <div className="text-sm text-slate-400">
+                              {format(parseISO(item.date), "MMM d, yyyy")}
                             </div>
-                          )}
-                        </div>
+                          </div>
 
-                        <Badge className="bg-emerald-500/20 text-emerald-300 shrink-0">
-                          {(task.status || "task").replaceAll("_", " ")}
-                        </Badge>
+                          <div className="shrink-0">
+                            <Badge
+                              className={
+                                item.type === "task"
+                                  ? "bg-emerald-500/20 text-emerald-300"
+                                  : item.type === "event"
+                                  ? "bg-indigo-500/20 text-indigo-300"
+                                  : "bg-amber-500/20 text-amber-300"
+                              }
+                            >
+                              {item.meta || item.type}
+                            </Badge>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
+            <CardHeader className="shrink-0 pb-4">
+              <CardTitle className="text-white">Project Progress</CardTitle>
+            </CardHeader>
+
+            <CardContent className="flex-1 overflow-hidden">
+              {activeProjectsForProgress.length === 0 ? (
+                <div className="text-slate-400">No active projects available.</div>
+              ) : (
+                <ScrollArea className="h-full pr-3">
+                  <div className="space-y-4">
+                    {activeProjectsForProgress.map((project) => (
+                      <div key={project.id} className="space-y-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <button
+                            className="text-white hover:text-indigo-300 truncate"
+                            onClick={() => navigate(`/projects/${project.id}`)}
+                          >
+                            {project.name}
+                          </button>
+                          <span className="text-sm text-slate-400">
+                            {project.progress || 0}%
+                          </span>
+                        </div>
+                        <Progress value={project.progress || 0} />
                       </div>
-                    </button>
-                  ))}
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-5 content-start" style={{ gridTemplateRows: "520px 520px" }}>
+          <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
+            <CardHeader className="shrink-0 pb-4">
+              <CardTitle className="text-white flex items-center gap-2">
+                <Activity className="w-5 h-5 text-indigo-400" />
+                Activity Feed
+              </CardTitle>
+            </CardHeader>
+
+            <CardContent className="flex-1 overflow-hidden">
+              {visibleActivity.length === 0 ? (
+                <div className="text-slate-400">No recent activity yet.</div>
+              ) : (
+                <ScrollArea className="h-full pr-3">
+                  <div className="space-y-3">
+                    {visibleActivity.map((log) => (
+                      <div
+                        key={log.id}
+                        className="p-3 rounded-lg border border-slate-800 bg-slate-950/40"
+                      >
+                        <div className="text-white text-sm">{log.message}</div>
+                        <div className="text-xs text-slate-500 mt-1">
+                          {format(parseISO(log.created_at), "MMM d, yyyy h:mm a")}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
+            <CardHeader className="shrink-0 pb-3">
+              <CardTitle className="text-white">Task Completion</CardTitle>
+            </CardHeader>
+
+            <CardContent className="flex flex-col flex-1 overflow-hidden">
+              <div className="shrink-0 space-y-3 pb-3">
+                <div className="text-white text-lg font-semibold">
+                  {completedTasks} / {totalRelevantTasks} completed
                 </div>
-              </ScrollArea>
-            ) : (
-              <div className="text-slate-400">No active tasks to display.</div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+
+                <Progress
+                  value={
+                    totalRelevantTasks === 0
+                      ? 0
+                      : Math.round((completedTasks / totalRelevantTasks) * 100)
+                  }
+                />
+
+                <div className="text-sm text-slate-400">
+                  {totalRelevantTasks === 0
+                    ? "No relevant tasks yet."
+                    : `${Math.round((completedTasks / totalRelevantTasks) * 100)}% of tasks are complete`}
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-hidden">
+                {activeTasksForCompletion.length > 0 ? (
+                  <ScrollArea className="h-full pr-3">
+                    <div className="space-y-3">
+                      {activeTasksForCompletion.map((task) => (
+                        <button
+                          key={task.id}
+                          type="button"
+                          onClick={() => navigate(`/tasks/${task.id}`)}
+                          className="w-full text-left p-3 rounded-lg border border-slate-800 bg-slate-950/40 hover:border-indigo-500/30 transition"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-white truncate">{task.title}</div>
+                              {task.due_date && (
+                                <div className="text-xs text-slate-400">
+                                  Due {format(parseISO(task.due_date), "MMM d, yyyy")}
+                                </div>
+                              )}
+                            </div>
+
+                            <Badge className="bg-emerald-500/20 text-emerald-300 shrink-0">
+                              {(task.status || "task").replaceAll("_", " ")}
+                            </Badge>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                ) : (
+                  <div className="text-slate-400">No active tasks to display.</div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
+  );
+}

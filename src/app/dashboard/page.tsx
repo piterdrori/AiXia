@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { addDays, format, isBefore, parseISO } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { registerRealtimeChannel, removeRealtimeChannel } from "@/lib/realtime";
+import { createRequestTracker } from "@/lib/safeAsync";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -94,6 +96,7 @@ type UpcomingItem = {
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const requestTracker = useRef(createRequestTracker());
 
   const [isLoading, setIsLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -108,7 +111,10 @@ export default function DashboardPage() {
   const [activityLogs, setActivityLogs] = useState<ActivityLogRow[]>([]);
 
   useEffect(() => {
+    let mounted = true;
+
     const loadDashboard = async () => {
+      const requestId = requestTracker.current.next();
       setIsLoading(true);
 
       try {
@@ -116,12 +122,12 @@ export default function DashboardPage() {
           data: { user },
         } = await supabase.auth.getUser();
 
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+
         if (!user) {
           navigate("/login");
           return;
         }
-
-        setCurrentUserId(user.id);
 
         const [
           { data: myProfile, error: myProfileError },
@@ -161,11 +167,14 @@ export default function DashboardPage() {
             .limit(50),
         ]);
 
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+
         if (myProfileError || !myProfile) {
           navigate("/login");
           return;
         }
 
+        setCurrentUserId(user.id);
         setCurrentUserName(myProfile.full_name || "User");
         setCurrentUserRole((myProfile.role as Role) || null);
         setProjects((projectsData || []) as ProjectRow[]);
@@ -175,53 +184,60 @@ export default function DashboardPage() {
         setCalendarEvents((eventsData || []) as CalendarEventRow[]);
         setActivityLogs((logsData || []) as ActivityLogRow[]);
       } catch (error) {
+        if (!mounted) return;
         console.error("Dashboard load error:", error);
       } finally {
-        setIsLoading(false);
+        if (!mounted) return;
+        if (!requestTracker.current.isLatest(requestTracker.current.next() - 1)) return;
       }
     };
 
-    loadDashboard();
+    void loadDashboard();
+
+    return () => {
+      mounted = false;
+    };
   }, [navigate]);
 
-useEffect(() => {
-  if (!currentUserId) return;
+  useEffect(() => {
+    if (!currentUserId) return;
 
-  const channelKey = `dashboard-activity:${currentUserId}`;
+    const channelKey = `dashboard-activity:${currentUserId}`;
 
-  registerRealtimeChannel(
-    channelKey,
-    supabase
-      .channel(channelKey)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "activity_logs" },
-        (payload) => {
-          const newLog = payload.new as ActivityLogRow;
+    registerRealtimeChannel(
+      channelKey,
+      supabase
+        .channel(channelKey)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "activity_logs" },
+          (payload) => {
+            const newLog = payload.new as ActivityLogRow;
 
-          setActivityLogs((prev) => {
-            const alreadyExists = prev.some((log) => log.id === newLog.id);
-            if (alreadyExists) return prev;
-            return [newLog, ...prev].slice(0, 50);
-          });
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "activity_logs" },
-        (payload) => {
-          const deletedId = (payload.old as { id?: string } | null)?.id;
-          if (!deletedId) return;
-          setActivityLogs((prev) => prev.filter((log) => log.id !== deletedId));
-        }
-      )
-      .subscribe()
-  );
+            setActivityLogs((prev) => {
+              const alreadyExists = prev.some((log) => log.id === newLog.id);
+              if (alreadyExists) return prev;
+              return [newLog, ...prev].slice(0, 50);
+            });
+          }
+        )
+        .on(
+          "postgres_changes",
+          { event: "DELETE", schema: "public", table: "activity_logs" },
+          (payload) => {
+            const deletedId = (payload.old as { id?: string } | null)?.id;
+            if (!deletedId) return;
 
-  return () => {
-    void removeRealtimeChannel(channelKey);
-  };
-}, [currentUserId]);
+            setActivityLogs((prev) => prev.filter((log) => log.id !== deletedId));
+          }
+        )
+        .subscribe()
+    );
+
+    return () => {
+      void removeRealtimeChannel(channelKey);
+    };
+  }, [currentUserId]);
 
   const visibleProjectIds = useMemo(() => {
     if (!currentUserId) return new Set<string>();
@@ -377,6 +393,10 @@ const visibleActivity = useMemo(() => {
       return action !== "VIEW";
     });
   }, [activityLogs, currentUserId, currentUserRole, visibleProjectIds, visibleTasks]);
+
+  useEffect(() => {
+    setIsLoading(false);
+  }, [currentUserId, currentUserName, currentUserRole, projects, tasks, profiles]);
 
   if (isLoading) {
     return (

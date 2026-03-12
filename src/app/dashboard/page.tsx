@@ -323,7 +323,7 @@ export default function DashboardPage() {
 
     return items
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .slice(0, 8);
+      .slice(0, 12);
   }, [activeProjectsForProgress, activeTasksForCompletion, visibleEvents]);
 
   const visibleActivity = useMemo(() => {
@@ -353,8 +353,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="h-[calc(100vh-140px)] flex flex-col gap-6 overflow-hidden">
+      <div className="flex flex-wrap items-start justify-between gap-4 shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-white">Welcome, {currentUserName}</h1>
           <p className="text-slate-400">
@@ -382,7 +382,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4 shrink-0">
         <Card className="bg-slate-900/50 border-slate-800">
           <CardContent className="p-5 flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-indigo-500/15 flex items-center justify-center">
@@ -437,149 +437,191 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid xl:grid-cols-[1.2fr,1fr] gap-6">
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-white flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-amber-400" />
-              Upcoming Deadlines
-            </CardTitle>
-            <Button
-              variant="ghost"
-              className="text-slate-400 hover:text-white"
-              onClick={() => navigate("/calendar")}
-            >
-              View Calendar
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          </CardHeader>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="grid xl:grid-cols-2 gap-6 h-full min-h-0">
+          <div className="grid grid-rows-2 gap-6 h-full min-h-0">
+            <Card className="bg-slate-900/50 border-slate-800 flex flex-col min-h-0">
+              <CardHeader className="flex flex-row items-center justify-between shrink-0">
+                <CardTitle className="text-white flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-amber-400" />
+                  Upcoming Deadlines
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  className="text-slate-400 hover:text-white"
+                  onClick={() => navigate("/calendar")}
+                >
+                  View Calendar
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </CardHeader>
 
-          <CardContent>
-            {upcomingItems.length === 0 ? (
-              <div className="text-slate-400">No upcoming deadlines or events.</div>
-            ) : (
-              <div className="space-y-3">
-                {upcomingItems.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => navigate(item.link)}
-                    className="w-full text-left p-4 rounded-lg border border-slate-800 bg-slate-950/40 hover:border-indigo-500/30 transition"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-white font-medium truncate">{item.title}</div>
-                        <div className="text-sm text-slate-400">
-                          {format(parseISO(item.date), "MMM d, yyyy")}
-                        </div>
-                      </div>
-
-                      <div className="shrink-0">
-                        <Badge
-                          className={
-                            item.type === "task"
-                              ? "bg-emerald-500/20 text-emerald-300"
-                              : item.type === "event"
-                              ? "bg-indigo-500/20 text-indigo-300"
-                              : "bg-amber-500/20 text-amber-300"
-                          }
+              <CardContent className="flex-1 min-h-0">
+                {upcomingItems.length === 0 ? (
+                  <div className="text-slate-400">No upcoming deadlines or events.</div>
+                ) : (
+                  <ScrollArea className="h-full pr-3">
+                    <div className="space-y-3">
+                      {upcomingItems.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => navigate(item.link)}
+                          className="w-full text-left p-4 rounded-lg border border-slate-800 bg-slate-950/40 hover:border-indigo-500/30 transition"
                         >
-                          {item.meta || item.type}
-                        </Badge>
-                      </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-white font-medium truncate">{item.title}</div>
+                              <div className="text-sm text-slate-400">
+                                {format(parseISO(item.date), "MMM d, yyyy")}
+                              </div>
+                            </div>
+
+                            <div className="shrink-0">
+                              <Badge
+                                className={
+                                  item.type === "task"
+                                    ? "bg-emerald-500/20 text-emerald-300"
+                                    : item.type === "event"
+                                    ? "bg-indigo-500/20 text-indigo-300"
+                                    : "bg-amber-500/20 text-amber-300"
+                                }
+                              >
+                                {item.meta || item.type}
+                              </Badge>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
                     </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  </ScrollArea>
+                )}
+              </CardContent>
+            </Card>
 
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
-              <Activity className="w-5 h-5 text-indigo-400" />
-              Activity Feed
-            </CardTitle>
-          </CardHeader>
+            <Card className="bg-slate-900/50 border-slate-800 flex flex-col min-h-0">
+              <CardHeader className="shrink-0">
+                <CardTitle className="text-white">Project Progress</CardTitle>
+              </CardHeader>
 
-          <CardContent>
-            {visibleActivity.length === 0 ? (
-              <div className="text-slate-400">No recent activity yet.</div>
-            ) : (
-              <ScrollArea className="h-[360px] pr-3">
-                <div className="space-y-3">
-                  {visibleActivity.map((log) => (
-                    <div
-                      key={log.id}
-                      className="p-3 rounded-lg border border-slate-800 bg-slate-950/40"
-                    >
-                      <div className="text-white text-sm">{log.message}</div>
-                      <div className="text-xs text-slate-500 mt-1">
-                        {format(parseISO(log.created_at), "MMM d, yyyy h:mm a")}
-                      </div>
+              <CardContent className="flex-1 min-h-0">
+                {activeProjectsForProgress.length === 0 ? (
+                  <div className="text-slate-400">No active projects available.</div>
+                ) : (
+                  <ScrollArea className="h-full pr-3">
+                    <div className="space-y-4">
+                      {activeProjectsForProgress.map((project) => (
+                        <div key={project.id} className="space-y-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <button
+                              className="text-white hover:text-indigo-300 truncate"
+                              onClick={() => navigate(`/projects/${project.id}`)}
+                            >
+                              {project.name}
+                            </button>
+                            <span className="text-sm text-slate-400">
+                              {project.progress || 0}%
+                            </span>
+                          </div>
+                          <Progress value={project.progress || 0} />
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </ScrollArea>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-rows-2 gap-6 h-full min-h-0">
+            <Card className="bg-slate-900/50 border-slate-800 flex flex-col min-h-0">
+              <CardHeader className="shrink-0">
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-indigo-400" />
+                  Activity Feed
+                </CardTitle>
+              </CardHeader>
+
+              <CardContent className="flex-1 min-h-0">
+                {visibleActivity.length === 0 ? (
+                  <div className="text-slate-400">No recent activity yet.</div>
+                ) : (
+                  <ScrollArea className="h-full pr-3">
+                    <div className="space-y-3">
+                      {visibleActivity.map((log) => (
+                        <div
+                          key={log.id}
+                          className="p-3 rounded-lg border border-slate-800 bg-slate-950/40"
+                        >
+                          <div className="text-white text-sm">{log.message}</div>
+                          <div className="text-xs text-slate-500 mt-1">
+                            {format(parseISO(log.created_at), "MMM d, yyyy h:mm a")}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="bg-slate-900/50 border-slate-800 flex flex-col min-h-0">
+              <CardHeader className="shrink-0">
+                <CardTitle className="text-white">Task Completion</CardTitle>
+              </CardHeader>
+
+              <CardContent className="flex-1 min-h-0 space-y-4">
+                <div className="text-white text-lg font-semibold">
+                  {completedTasks} / {totalRelevantTasks} completed
                 </div>
-              </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
-      </div>
 
-      <div className="grid xl:grid-cols-2 gap-6">
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardHeader>
-            <CardTitle className="text-white">Project Progress</CardTitle>
-          </CardHeader>
+                <Progress
+                  value={
+                    totalRelevantTasks === 0
+                      ? 0
+                      : Math.round((completedTasks / totalRelevantTasks) * 100)
+                  }
+                />
 
-          <CardContent className="space-y-4">
-            {activeProjectsForProgress.slice(0, 6).map((project) => (
-              <div key={project.id} className="space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <button
-                    className="text-white hover:text-indigo-300 truncate"
-                    onClick={() => navigate(`/projects/${project.id}`)}
-                  >
-                    {project.name}
-                  </button>
-                  <span className="text-sm text-slate-400">{project.progress || 0}%</span>
+                <div className="text-sm text-slate-400">
+                  {totalRelevantTasks === 0
+                    ? "No relevant tasks yet."
+                    : `${Math.round((completedTasks / totalRelevantTasks) * 100)}% of tasks are complete`}
                 </div>
-                <Progress value={project.progress || 0} />
-              </div>
-            ))}
 
-            {activeProjectsForProgress.length === 0 && (
-              <div className="text-slate-400">No active projects available.</div>
-            )}
-          </CardContent>
-        </Card>
+                {activeTasksForCompletion.length > 0 && (
+                  <ScrollArea className="flex-1 min-h-0 pr-3">
+                    <div className="space-y-3">
+                      {activeTasksForCompletion.map((task) => (
+                        <button
+                          key={task.id}
+                          type="button"
+                          onClick={() => navigate(`/tasks/${task.id}`)}
+                          className="w-full text-left p-3 rounded-lg border border-slate-800 bg-slate-950/40 hover:border-indigo-500/30 transition"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-white truncate">{task.title}</div>
+                              {task.due_date && (
+                                <div className="text-xs text-slate-400">
+                                  Due {format(parseISO(task.due_date), "MMM d, yyyy")}
+                                </div>
+                              )}
+                            </div>
 
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardHeader>
-            <CardTitle className="text-white">Task Completion</CardTitle>
-          </CardHeader>
-
-          <CardContent className="space-y-4">
-            <div className="text-white text-lg font-semibold">
-              {completedTasks} / {totalRelevantTasks} completed
-            </div>
-
-            <Progress
-              value={
-                totalRelevantTasks === 0
-                  ? 0
-                  : Math.round((completedTasks / totalRelevantTasks) * 100)
-              }
-            />
-
-            <div className="text-sm text-slate-400">
-              {totalRelevantTasks === 0
-                ? "No relevant tasks yet."
-                : `${Math.round((completedTasks / totalRelevantTasks) * 100)}% of tasks are complete`}
-            </div>
-          </CardContent>
-        </Card>
+                            <Badge className="bg-emerald-500/20 text-emerald-300">
+                              {(task.status || "task").replaceAll("_", " ")}
+                            </Badge>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

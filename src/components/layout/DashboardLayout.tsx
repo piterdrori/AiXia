@@ -227,24 +227,24 @@ useEffect(() => {
 
   const channelKey = `notifications:${userProfile.userId}`;
 
-  const channel = registerRealtimeChannel(
-    channelKey,
-    supabase
-      .channel(channelKey)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${userProfile.userId}`,
-        },
-        () => {
-          void loadNotifications(userProfile.userId);
-        }
-      )
-      .subscribe()
-  );
+registerRealtimeChannel(
+  channelKey,
+  supabase
+    .channel(channelKey)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "notifications",
+        filter: `user_id=eq.${userProfile.userId}`,
+      },
+      () => {
+        void loadNotifications(userProfile.userId);
+      }
+    )
+    .subscribe()
+);
 
   return () => {
     void removeRealtimeChannel(channelKey);

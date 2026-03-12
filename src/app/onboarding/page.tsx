@@ -108,49 +108,50 @@ export default function OnboardingPage() {
     return "";
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+const handleSave = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-    const validationError = validate();
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
+  const validationError = validate();
+  if (validationError) {
+    setError(validationError);
+    return;
+  }
 
-    if (!userId) return;
+  if (!userId) return;
 
-    setIsSaving(true);
-    setError("");
+  setIsSaving(true);
+  setError("");
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        full_name: fullName.trim(),
-        display_name: displayName.trim(),
-        phone: phone.trim(),
-        country: country.trim(),
-        city: city.trim(),
-        company: company.trim(),
-        department: department.trim(),
-        job_title: jobTitle.trim(),
-        bio: bio.trim() || null,
-        avatar_url: avatarUrl.trim() || null,
-        wechat: wechat.trim() || null,
-        whatsapp: whatsapp.trim() || null,
-        profile_completed: true,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", userId);
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      full_name: fullName.trim(),
+      display_name: displayName.trim(),
+      phone: phone.trim(),
+      country: country.trim(),
+      city: city.trim(),
+      company: company.trim(),
+      department: department.trim(),
+      job_title: jobTitle.trim(),
+      bio: bio.trim() || null,
+      avatar_url: avatarUrl.trim() || null,
+      wechat: wechat.trim() || null,
+      whatsapp: whatsapp.trim() || null,
+      profile_completed: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId);
 
-    setIsSaving(false);
+  setIsSaving(false);
 
-    if (error) {
-      setError(error.message || "Failed to save your profile.");
-      return;
-    }
+  if (error) {
+    setError(error.message || "Failed to save your profile.");
+    return;
+  }
 
-    navigate("/dashboard");
-  };
+  await supabase.auth.signOut();
+  navigate("/login");
+};
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -319,4 +320,5 @@ export default function OnboardingPage() {
       </Card>
     </div>
   );
+
 }

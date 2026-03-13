@@ -89,6 +89,44 @@ const columns: { id: TaskStatus; label: string; color: string }[] = [
   { id: "DONE", label: "Done", color: "bg-green-500" },
 ];
 
+function MemberStack({
+  profiles,
+  size = "small",
+}: {
+  profiles: ProfileRow[];
+  size?: "small" | "medium";
+}) {
+  const avatarClass =
+    size === "medium"
+      ? "w-7 h-7 border-2 border-slate-900"
+      : "w-6 h-6 border-2 border-slate-900";
+  const textClass = size === "medium" ? "text-xs" : "text-[10px]";
+
+  return (
+    <div className="flex -space-x-2">
+      {profiles.slice(0, 3).map((profile) => (
+        <Avatar key={profile.user_id} className={avatarClass}>
+          <AvatarFallback className={`bg-indigo-600 text-white ${textClass}`}>
+            {(profile.full_name || "U")
+              .split(" ")
+              .map((n) => n[0])
+              .join("")
+              .toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+      ))}
+
+      {profiles.length > 3 && (
+        <div
+          className={`${size === "medium" ? "w-7 h-7 text-xs" : "w-6 h-6 text-[10px]"} rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-slate-400`}
+        >
+          +{profiles.length - 3}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TasksPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -102,7 +140,8 @@ export default function TasksPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>("ALL");
   const [projectFilter, setProjectFilter] = useState<string>(initialProjectId);
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
   const [error, setError] = useState("");
 
@@ -114,133 +153,138 @@ export default function TasksPage() {
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [taskMembers, setTaskMembers] = useState<TaskMemberRow[]>([]);
 
-  useEffect(() => {
-    let mounted = true;
+  const loadTasksPage = async (mode: "initial" | "refresh" = "initial") => {
+    const requestId = requestTracker.current.next();
 
-    const loadTasksPage = async () => {
-      const requestId = requestTracker.current.next();
-      setIsLoading(true);
-      setError("");
+    if (mode === "initial") {
+      setIsBootstrapping(true);
+    } else {
+      setIsRefreshing(true);
+    }
 
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+    setError("");
 
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-        if (!user) {
-          navigate("/login");
-          return;
-        }
+      if (!requestTracker.current.isLatest(requestId)) return;
 
-        setCurrentUserId(user.id);
-
-        const [
-          { data: myProfile, error: myProfileError },
-          { data: allTasks, error: tasksError },
-          { data: allProjects, error: projectsError },
-          { data: allProfiles, error: profilesError },
-          { data: allProjectMembers, error: projectMembersError },
-          { data: allTaskMembers, error: taskMembersError },
-        ] = await Promise.all([
-          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
-          supabase.from("tasks").select("*").order("created_at", { ascending: false }),
-          supabase
-            .from("projects")
-            .select("id, name, created_by")
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("profiles")
-            .select("user_id, full_name, role, status")
-            .eq("status", "active")
-            .order("full_name", { ascending: true }),
-          supabase
-            .from("project_members")
-            .select("id, project_id, user_id, role, created_at"),
-          supabase
-            .from("task_members")
-            .select("id, task_id, user_id, role, created_at"),
-        ]);
-
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-
-        if (myProfileError || !myProfile) {
-          navigate("/login");
-          return;
-        }
-
-        const role = myProfile.role as Role;
-        setCurrentUserRole(role);
-
-        if (tasksError) throw tasksError;
-        if (projectsError) throw projectsError;
-        if (profilesError) throw profilesError;
-        if (projectMembersError) throw projectMembersError;
-        if (taskMembersError) throw taskMembersError;
-
-        const tasksData = (allTasks || []) as TaskRow[];
-        const projectsData = (allProjects || []) as ProjectRow[];
-        const profilesData = (allProfiles || []) as ProfileRow[];
-        const projectMembersData = (allProjectMembers || []) as ProjectMemberRow[];
-        const taskMembersData = (allTaskMembers || []) as TaskMemberRow[];
-
-        const visibleProjects =
-          role === "admin"
-            ? projectsData
-            : projectsData.filter((project) => {
-                const isCreator = project.created_by === user.id;
-                const isAssignedProjectMember = projectMembersData.some(
-                  (member) =>
-                    member.project_id === project.id && member.user_id === user.id
-                );
-                return isCreator || isAssignedProjectMember;
-              });
-
-        const visibleProjectIds = new Set(visibleProjects.map((project) => project.id));
-
-        const visibleTasks =
-          role === "admin"
-            ? tasksData
-            : tasksData.filter((task) => {
-                const isTaskCreator = task.created_by === user.id;
-                const isMainAssignee = task.assignee_id === user.id;
-                const isTaskMember = taskMembersData.some(
-                  (member) => member.task_id === task.id && member.user_id === user.id
-                );
-                const isInsideVisibleProject =
-                  !!task.project_id && visibleProjectIds.has(task.project_id);
-
-                return isTaskCreator || isMainAssignee || isTaskMember || isInsideVisibleProject;
-              });
-
-        setTasks(visibleTasks);
-        setProjects(visibleProjects);
-        setProfiles(profilesData);
-        setTaskMembers(taskMembersData);
-
-        if (
-          initialProjectId !== "ALL" &&
-          !visibleProjects.some((project) => project.id === initialProjectId)
-        ) {
-          setProjectFilter("ALL");
-        }
-      } catch (err) {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        console.error("Load tasks page error:", err);
-        setError("Failed to load tasks.");
-      } finally {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        setIsLoading(false);
+      if (!user) {
+        navigate("/login");
+        return;
       }
-    };
 
-    void loadTasksPage();
+      setCurrentUserId(user.id);
 
-    return () => {
-      mounted = false;
-    };
-  }, [navigate, initialProjectId]);
+      const [
+        { data: myProfile, error: myProfileError },
+        { data: allTasks, error: tasksError },
+        { data: allProjects, error: projectsError },
+        { data: allProfiles, error: profilesError },
+        { data: allProjectMembers, error: projectMembersError },
+        { data: allTaskMembers, error: taskMembersError },
+      ] = await Promise.all([
+        supabase.from("profiles").select("role").eq("user_id", user.id).single(),
+        supabase.from("tasks").select("*").order("created_at", { ascending: false }),
+        supabase
+          .from("projects")
+          .select("id, name, created_by")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("profiles")
+          .select("user_id, full_name, role, status")
+          .eq("status", "active")
+          .order("full_name", { ascending: true }),
+        supabase
+          .from("project_members")
+          .select("id, project_id, user_id, role, created_at"),
+        supabase
+          .from("task_members")
+          .select("id, task_id, user_id, role, created_at"),
+      ]);
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (myProfileError || !myProfile) {
+        navigate("/login");
+        return;
+      }
+
+      const role = myProfile.role as Role;
+      setCurrentUserRole(role);
+
+      if (tasksError) throw tasksError;
+      if (projectsError) throw projectsError;
+      if (profilesError) throw profilesError;
+      if (projectMembersError) throw projectMembersError;
+      if (taskMembersError) throw taskMembersError;
+
+      const tasksData = (allTasks || []) as TaskRow[];
+      const projectsData = (allProjects || []) as ProjectRow[];
+      const profilesData = (allProfiles || []) as ProfileRow[];
+      const projectMembersData = (allProjectMembers || []) as ProjectMemberRow[];
+      const taskMembersData = (allTaskMembers || []) as TaskMemberRow[];
+
+      const visibleProjects =
+        role === "admin"
+          ? projectsData
+          : projectsData.filter((project) => {
+              const isCreator = project.created_by === user.id;
+              const isAssignedProjectMember = projectMembersData.some(
+                (member) =>
+                  member.project_id === project.id && member.user_id === user.id
+              );
+              return isCreator || isAssignedProjectMember;
+            });
+
+      const visibleProjectIds = new Set(visibleProjects.map((project) => project.id));
+
+      const visibleTasks =
+        role === "admin"
+          ? tasksData
+          : tasksData.filter((task) => {
+              const isTaskCreator = task.created_by === user.id;
+              const isMainAssignee = task.assignee_id === user.id;
+              const isTaskMember = taskMembersData.some(
+                (member) => member.task_id === task.id && member.user_id === user.id
+              );
+              const isInsideVisibleProject =
+                !!task.project_id && visibleProjectIds.has(task.project_id);
+
+              return isTaskCreator || isMainAssignee || isTaskMember || isInsideVisibleProject;
+            });
+
+      setTasks(visibleTasks);
+      setProjects(visibleProjects);
+      setProfiles(profilesData);
+      setTaskMembers(taskMembersData);
+
+      if (
+        initialProjectId !== "ALL" &&
+        !visibleProjects.some((project) => project.id === initialProjectId)
+      ) {
+        setProjectFilter("ALL");
+      }
+    } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Load tasks page error:", err);
+      setError("Failed to load tasks.");
+      setTasks([]);
+      setProjects([]);
+      setProfiles([]);
+      setTaskMembers([]);
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      setIsBootstrapping(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadTasksPage("initial");
+  }, []);
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
@@ -335,6 +379,13 @@ export default function TasksPage() {
 
     setError("");
 
+    const previousTasks = tasks;
+    setTasks((prev) =>
+      prev.map((item) =>
+        item.id === draggedTask ? { ...item, status: nextStatus } : item
+      )
+    );
+
     const { error: updateError } = await supabase
       .from("tasks")
       .update({
@@ -345,16 +396,9 @@ export default function TasksPage() {
 
     if (updateError) {
       console.error("Move task error:", updateError);
+      setTasks(previousTasks);
       setError(updateError.message || "Failed to update task status.");
-      setDraggedTask(null);
-      return;
     }
-
-    setTasks((prev) =>
-      prev.map((item) =>
-        item.id === draggedTask ? { ...item, status: nextStatus } : item
-      )
-    );
 
     setDraggedTask(null);
   };
@@ -365,25 +409,90 @@ export default function TasksPage() {
 
     setError("");
 
+    const previousTasks = tasks;
+    const previousMembers = taskMembers;
+
+    setTasks((prev) => prev.filter((task) => task.id !== taskId));
+    setTaskMembers((prev) => prev.filter((member) => member.task_id !== taskId));
+
     const { error: deleteError } = await supabase.from("tasks").delete().eq("id", taskId);
 
     if (deleteError) {
       console.error("Delete task error:", deleteError);
+      setTasks(previousTasks);
+      setTaskMembers(previousMembers);
       setError(deleteError.message || "Failed to delete task.");
-      return;
     }
-
-    setTasks((prev) => prev.filter((task) => task.id !== taskId));
-    setTaskMembers((prev) => prev.filter((member) => member.task_id !== taskId));
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
-      </div>
-    );
-  }
+  const renderBoardSkeleton = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {columns.map((column) => (
+        <div key={column.id} className="bg-slate-900/30 rounded-lg border border-slate-800">
+          <div className="p-3 border-b border-slate-800">
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded-full ${column.color}`} />
+              <div className="h-4 w-24 rounded bg-slate-800 animate-pulse" />
+            </div>
+          </div>
+
+          <div className="p-3 space-y-3 min-h-[220px]">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <Card key={index} className="bg-slate-900 border-slate-800">
+                <CardContent className="p-4">
+                  <div className="animate-pulse space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="h-6 w-16 rounded bg-slate-800" />
+                      <div className="h-6 w-6 rounded bg-slate-800" />
+                    </div>
+                    <div className="h-4 w-3/4 rounded bg-slate-800" />
+                    <div className="h-4 w-full rounded bg-slate-800" />
+                    <div className="h-4 w-2/3 rounded bg-slate-800" />
+                    <div className="h-4 w-24 rounded bg-slate-800" />
+                    <div className="flex justify-between items-center">
+                      <div className="flex -space-x-2">
+                        <div className="w-6 h-6 rounded-full bg-slate-800" />
+                        <div className="w-6 h-6 rounded-full bg-slate-800" />
+                      </div>
+                      <div className="h-4 w-14 rounded bg-slate-800" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderListSkeleton = () => (
+    <Card className="bg-slate-900/50 border-slate-800">
+      <CardContent className="p-0">
+        <div className="divide-y divide-slate-800">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="p-4">
+              <div className="animate-pulse flex items-center gap-4">
+                <div className="w-5 h-5 rounded bg-slate-800" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-48 rounded bg-slate-800" />
+                  <div className="h-4 w-72 rounded bg-slate-800" />
+                </div>
+                <div className="hidden sm:block h-6 w-20 rounded bg-slate-800" />
+                <div className="hidden sm:block h-4 w-24 rounded bg-slate-800" />
+                <div className="hidden sm:flex gap-1">
+                  <div className="w-7 h-7 rounded-full bg-slate-800" />
+                  <div className="w-7 h-7 rounded-full bg-slate-800" />
+                </div>
+                <div className="hidden sm:block h-4 w-14 rounded bg-slate-800" />
+                <div className="h-8 w-8 rounded bg-slate-800" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   return (
     <div className="space-y-6">
@@ -393,19 +502,30 @@ export default function TasksPage() {
           <p className="text-slate-400">Manage and organize your tasks</p>
         </div>
 
-        {canCreateTasks && (
+        <div className="flex items-center gap-2">
           <Button
-            className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() =>
-              navigate(
-                `/tasks/new${projectFilter !== "ALL" ? `?projectId=${projectFilter}` : ""}`
-              )
-            }
+            variant="outline"
+            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            onClick={() => void loadTasksPage("refresh")}
+            disabled={isRefreshing}
           >
-            <Plus className="w-4 h-4 mr-2" />
-            New Task
+            {isRefreshing ? "Refreshing..." : "Refresh"}
           </Button>
-        )}
+
+          {canCreateTasks && (
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() =>
+                navigate(
+                  `/tasks/new${projectFilter !== "ALL" ? `?projectId=${projectFilter}` : ""}`
+                )
+              }
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              New Task
+            </Button>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -481,7 +601,9 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {viewMode === "board" ? (
+      {isBootstrapping ? (
+        viewMode === "board" ? renderBoardSkeleton() : renderListSkeleton()
+      ) : viewMode === "board" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {columns.map((column) => {
             const columnTasks = filteredTasks.filter(
@@ -523,10 +645,7 @@ export default function TasksPage() {
 
                             {(canEditTask(task) || canDeleteTask(task)) && (
                               <DropdownMenu>
-                                <DropdownMenuTrigger
-                                  asChild
-                                  onClick={(e) => e.stopPropagation()}
-                                >
+                                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -580,28 +699,7 @@ export default function TasksPage() {
                           </div>
 
                           <div className="flex items-center justify-between">
-                            <div className="flex -space-x-2">
-                              {assigneeProfiles.slice(0, 3).map((profile) => (
-                                <Avatar
-                                  key={profile.user_id}
-                                  className="w-6 h-6 border-2 border-slate-900"
-                                >
-                                  <AvatarFallback className="bg-indigo-600 text-white text-[10px]">
-                                    {(profile.full_name || "U")
-                                      .split(" ")
-                                      .map((n) => n[0])
-                                      .join("")
-                                      .toUpperCase()}
-                                  </AvatarFallback>
-                                </Avatar>
-                              ))}
-
-                              {assigneeProfiles.length > 3 && (
-                                <div className="w-6 h-6 rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-[10px] text-slate-400">
-                                  +{assigneeProfiles.length - 3}
-                                </div>
-                              )}
-                            </div>
+                            <MemberStack profiles={assigneeProfiles} />
 
                             {task.due_date && (
                               <span className="text-xs text-slate-500 flex items-center gap-1">
@@ -664,22 +762,7 @@ export default function TasksPage() {
                         {getProjectName(task.project_id)}
                       </span>
 
-                      <div className="flex -space-x-2">
-                        {assigneeProfiles.slice(0, 3).map((profile) => (
-                          <Avatar
-                            key={profile.user_id}
-                            className="w-7 h-7 border-2 border-slate-900"
-                          >
-                            <AvatarFallback className="bg-indigo-600 text-white text-xs">
-                              {(profile.full_name || "U")
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")
-                                .toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                        ))}
-                      </div>
+                      <MemberStack profiles={assigneeProfiles} size="medium" />
 
                       {task.due_date && (
                         <span className="text-sm text-slate-500">
@@ -735,7 +818,7 @@ export default function TasksPage() {
         </Card>
       )}
 
-      {filteredTasks.length === 0 && (
+      {!isBootstrapping && filteredTasks.length === 0 && (
         <div className="text-center py-12">
           <CheckSquare className="w-12 h-12 text-slate-600 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-white mb-2">No tasks found</h3>

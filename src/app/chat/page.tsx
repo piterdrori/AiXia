@@ -21,6 +21,11 @@ import {
   createNotification,
   extractMentionedUserIds,
 } from "@/lib/notifications";
+import { createRequestTracker } from "@/lib/safeAsync";
+import {
+  registerRealtimeChannel,
+  removeRealtimeChannel,
+} from "@/lib/realtime";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -115,6 +120,7 @@ function formatMessageTime(value: string) {
 export default function ChatPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const requestTracker = useRef(createRequestTracker());
 
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -314,41 +320,35 @@ export default function ChatPage() {
     []
   );
 
-  const appendMessageLocally = useCallback(
-    (groupId: string, message: ChatMessageRow) => {
-      setMessages((prev) => {
-        const current = prev[groupId] || [];
-        const alreadyExists = current.some((item) => item.id === message.id);
+  const appendMessageLocally = useCallback((groupId: string, message: ChatMessageRow) => {
+    setMessages((prev) => {
+      const current = prev[groupId] || [];
+      const alreadyExists = current.some((item) => item.id === message.id);
 
-        if (alreadyExists) return prev;
+      if (alreadyExists) return prev;
 
-        const merged = dedupeMessages([...current, message]);
+      const merged = dedupeMessages([...current, message]);
 
-        return {
-          ...prev,
-          [groupId]: merged,
-        };
-      });
-    },
-    []
-  );
+      return {
+        ...prev,
+        [groupId]: merged,
+      };
+    });
+  }, []);
 
-  const updateMessageLocally = useCallback(
-    (groupId: string, message: ChatMessageRow) => {
-      setMessages((prev) => {
-        const current = prev[groupId] || [];
-        const exists = current.some((item) => item.id === message.id);
+  const updateMessageLocally = useCallback((groupId: string, message: ChatMessageRow) => {
+    setMessages((prev) => {
+      const current = prev[groupId] || [];
+      const exists = current.some((item) => item.id === message.id);
 
-        if (!exists) return prev;
+      if (!exists) return prev;
 
-        return {
-          ...prev,
-          [groupId]: current.map((item) => (item.id === message.id ? message : item)),
-        };
-      });
-    },
-    []
-  );
+      return {
+        ...prev,
+        [groupId]: current.map((item) => (item.id === message.id ? message : item)),
+      };
+    });
+  }, []);
 
   const deleteMessageLocally = useCallback((groupId: string, messageId: string) => {
     setMessages((prev) => ({
@@ -372,8 +372,7 @@ export default function ChatPage() {
     },
     []
   );
-
-  const loadMessagesForGroup = useCallback(async (groupId: string) => {
+const loadMessagesForGroup = useCallback(async (groupId: string) => {
     const { data, error: messagesError } = await supabase
       .from("chat_messages")
       .select("id, group_id, user_id, content, created_at")
@@ -395,12 +394,15 @@ export default function ChatPage() {
 
   const loadChatData = useCallback(
     async (preferredId?: string | null) => {
+      const requestId = requestTracker.current.next();
       setError("");
 
       const {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
+
+      if (!isMountedRef.current || !requestTracker.current.isLatest(requestId)) return;
 
       if (authError || !user) {
         navigate("/login");
@@ -418,6 +420,8 @@ export default function ChatPage() {
             .eq("status", "active")
             .order("full_name", { ascending: true }),
         ]);
+
+      if (!isMountedRef.current || !requestTracker.current.isLatest(requestId)) return;
 
       if (profilesError) {
         setError(profilesError.message || "Failed to load users.");
@@ -439,6 +443,8 @@ export default function ChatPage() {
           .from("chat_group_members")
           .select("group_id")
           .eq("user_id", user.id);
+
+        if (!isMountedRef.current || !requestTracker.current.isLatest(requestId)) return;
 
         if (membershipsError) {
           setError(membershipsError.message || "Failed to load memberships.");
@@ -463,6 +469,8 @@ export default function ChatPage() {
       }
 
       const { data: groupsData, error: groupsError } = await groupsQuery;
+
+      if (!isMountedRef.current || !requestTracker.current.isLatest(requestId)) return;
 
       if (groupsError) {
         setError(groupsError.message || "Failed to load chat groups.");
@@ -496,6 +504,8 @@ export default function ChatPage() {
 
       const { data: membersData, error: membersError } = await membersQuery;
 
+      if (!isMountedRef.current || !requestTracker.current.isLatest(requestId)) return;
+
       if (membersError) {
         setError(membersError.message || "Failed to load group members.");
         return;
@@ -506,6 +516,9 @@ export default function ChatPage() {
 
       for (const groupId of visibleGroupIds) {
         const result = await loadMessagesForGroup(groupId);
+
+        if (!isMountedRef.current || !requestTracker.current.isLatest(requestId)) return;
+
         loadedMessages[groupId] = result.items;
         loadedHasMore[groupId] = result.hasMore;
       }
@@ -550,82 +563,84 @@ export default function ChatPage() {
       }
     };
 
-    init();
+    void init();
   }, [id, loadChatData, scrollToBottom]);
 
   useEffect(() => {
     if (!selectedConversationId) return;
 
-    const channel = supabase
-      .channel(`chat-realtime-${selectedConversationId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "chat_messages" },
-        async (payload) => {
-          const changedGroupId = (payload.new as { group_id?: string } | null)?.group_id;
-          const oldGroupId = (payload.old as { group_id?: string } | null)?.group_id;
-          const targetGroupId = changedGroupId || oldGroupId;
+    const channelKey = `chat:${selectedConversationId}`;
 
-          if (!targetGroupId) return;
+    registerRealtimeChannel(
+      channelKey,
+      supabase
+        .channel(channelKey)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "chat_messages" },
+          (payload) => {
+            const changedGroupId = (payload.new as { group_id?: string } | null)?.group_id;
+            const oldGroupId = (payload.old as { group_id?: string } | null)?.group_id;
+            const targetGroupId = changedGroupId || oldGroupId;
 
-          const isCurrentConversation =
-            targetGroupId === selectedConversationIdRef.current;
+            if (!targetGroupId) return;
 
-          if (payload.eventType === "INSERT" && payload.new) {
-            const newMessage = payload.new as ChatMessageRow;
+            const isCurrentConversation =
+              targetGroupId === selectedConversationIdRef.current;
 
-            if (isCurrentConversation) {
-              const shouldStayAtBottom = isViewportNearBottom();
-              replaceTempMessageWithRealOne(targetGroupId, newMessage);
+            if (payload.eventType === "INSERT" && payload.new) {
+              const newMessage = payload.new as ChatMessageRow;
 
-              if (shouldStayAtBottom) {
-                shouldScrollToBottomRef.current = true;
+              if (isCurrentConversation) {
+                const shouldStayAtBottom = isViewportNearBottom();
+                replaceTempMessageWithRealOne(targetGroupId, newMessage);
+
+                if (shouldStayAtBottom) {
+                  shouldScrollToBottomRef.current = true;
+                }
+              } else {
+                appendMessageLocally(targetGroupId, newMessage);
               }
-            } else {
-              appendMessageLocally(targetGroupId, newMessage);
+
+              moveGroupToTop(targetGroupId);
+              return;
             }
 
-            moveGroupToTop(targetGroupId);
-            return;
-          }
-
-          if (payload.eventType === "UPDATE" && payload.new) {
-            const updatedMessage = payload.new as ChatMessageRow;
-            updateMessageLocally(targetGroupId, updatedMessage);
-            return;
-          }
-
-          if (payload.eventType === "DELETE" && payload.old) {
-            const deletedMessage = payload.old as ChatMessageRow;
-            deleteMessageLocally(targetGroupId, deletedMessage.id);
-
-            if (editingMessageId === deletedMessage.id) {
-              setEditingMessageId(null);
-              setEditingMessageText("");
+            if (payload.eventType === "UPDATE" && payload.new) {
+              updateMessageLocally(targetGroupId, payload.new as ChatMessageRow);
+              return;
             }
 
-            return;
+            if (payload.eventType === "DELETE" && payload.old) {
+              const deletedMessage = payload.old as ChatMessageRow;
+              deleteMessageLocally(targetGroupId, deletedMessage.id);
+
+              if (editingMessageId === deletedMessage.id) {
+                setEditingMessageId(null);
+                setEditingMessageText("");
+              }
+            }
           }
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "chat_groups" },
-        async () => {
-          await loadChatData(selectedConversationIdRef.current);
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "chat_group_members" },
-        async () => {
-          await loadChatData(selectedConversationIdRef.current);
-        }
-      )
-      .subscribe();
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "chat_groups" },
+          () => {
+            void loadChatData(selectedConversationIdRef.current);
+          }
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "chat_group_members" },
+          () => {
+            void loadChatData(selectedConversationIdRef.current);
+          }
+        )
+        .subscribe()
+    );
 
     return () => {
-      supabase.removeChannel(channel);
+      void removeRealtimeChannel(channelKey);
     };
   }, [
     appendMessageLocally,
@@ -701,8 +716,7 @@ export default function ChatPage() {
       return !query || fullName.includes(query);
     });
   }, [mentionCandidates, mentionQuery, showMentionDropdown]);
-
-  const selectableMessages = useMemo(() => {
+const selectableMessages = useMemo(() => {
     return conversationMessages.filter((message) => canManageMessage(message));
   }, [canManageMessage, conversationMessages]);
 
@@ -984,7 +998,6 @@ export default function ChatPage() {
     setSelectedConversationId(newGroup.id);
     navigate(`/chat/${newGroup.id}`);
   };
-
   const handleCreateGroup = async () => {
     if (!currentUserId) return;
 
@@ -1250,7 +1263,7 @@ export default function ChatPage() {
               variant="ghost"
               size="icon"
               className="text-slate-400 hover:text-red-400 shrink-0"
-              onClick={() => handleDeleteChat(group)}
+              onClick={() => void handleDeleteChat(group)}
               disabled={groupActionLoading === group.id}
             >
               <Trash2 className="w-4 h-4" />
@@ -1347,7 +1360,6 @@ export default function ChatPage() {
                     {groupConversations.map((group) => renderConversationButton(group, "group"))}
                   </>
                 )}
-
                 <Separator className="my-3 bg-slate-800" />
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-xs font-medium text-slate-500 uppercase">
@@ -1360,7 +1372,7 @@ export default function ChatPage() {
                   .map((user) => (
                     <button
                       key={user.user_id}
-                      onClick={() => startDirectMessage(user.user_id)}
+                      onClick={() => void startDirectMessage(user.user_id)}
                       className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-slate-800/50 transition-all"
                     >
                       <Avatar className="w-10 h-10 shrink-0">
@@ -1461,7 +1473,7 @@ export default function ChatPage() {
                     type="button"
                     className="bg-red-600 hover:bg-red-700 text-white"
                     disabled={bulkDeleteLoading || selectedMessageIds.length === 0}
-                    onClick={handleBulkDeleteMessages}
+                    onClick={() => void handleBulkDeleteMessages()}
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
                     {bulkDeleteLoading ? "Deleting..." : "Delete Selected"}
@@ -1477,7 +1489,7 @@ export default function ChatPage() {
                     hasMoreMessages[selectedConversationId] ? (
                       <Button
                         type="button"
-                        onClick={handleLoadOlderMessages}
+                        onClick={() => void handleLoadOlderMessages()}
                         disabled={isLoadingOlder}
                         className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
                       >
@@ -1544,9 +1556,7 @@ export default function ChatPage() {
 
                           <div
                             className={`px-4 py-2 rounded-2xl border ${
-                              isSelected
-                                ? "border-indigo-400"
-                                : "border-transparent"
+                              isSelected ? "border-indigo-400" : "border-transparent"
                             } ${
                               isOwn
                                 ? "bg-indigo-600 text-white rounded-br-none"
@@ -1565,7 +1575,7 @@ export default function ChatPage() {
                                   <Button
                                     size="sm"
                                     className="bg-white text-black hover:bg-slate-200"
-                                    onClick={() => handleSaveEditedMessage(message)}
+                                    onClick={() => void handleSaveEditedMessage(message)}
                                     disabled={
                                       messageActionLoading === message.id ||
                                       !editingMessageText.trim()
@@ -1606,7 +1616,7 @@ export default function ChatPage() {
                               </button>
                               <button
                                 className="text-xs text-red-400 hover:text-red-300"
-                                onClick={() => handleDeleteMessage(message)}
+                                onClick={() => void handleDeleteMessage(message)}
                                 disabled={messageActionLoading === message.id}
                               >
                                 Delete
@@ -1643,14 +1653,14 @@ export default function ChatPage() {
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
-                        handleSendMessage();
+                        void handleSendMessage();
                       }
                     }}
                     rows={2}
                     className="min-h-[44px] max-h-40 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 resize-none"
                   />
                   <Button
-                    onClick={handleSendMessage}
+                    onClick={() => void handleSendMessage()}
                     disabled={isSending || !messageInput.trim()}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white h-11"
                   >
@@ -1762,7 +1772,7 @@ export default function ChatPage() {
               </Button>
 
               <Button
-                onClick={handleCreateGroup}
+                onClick={() => void handleCreateGroup()}
                 disabled={isCreatingGroup}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
               >
@@ -1775,3 +1785,4 @@ export default function ChatPage() {
     </>
   );
 }
+  

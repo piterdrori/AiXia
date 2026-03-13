@@ -20,8 +20,6 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
-type Role = "admin" | "manager" | "employee" | "guest";
-
 type EventType =
   | "meeting"
   | "task"
@@ -30,16 +28,6 @@ type EventType =
   | "call"
   | "personal"
   | "other";
-
-type ReminderValue =
-  | "NONE"
-  | "5"
-  | "10"
-  | "15"
-  | "30"
-  | "60"
-  | "120"
-  | "1440";
 
 type ProjectRow = {
   id: string;
@@ -59,6 +47,16 @@ type ProjectMemberRow = {
   user_id: string;
 };
 
+function addMinutesToTime(time: string, minutesToAdd: number) {
+  const [hours, minutes] = time.split(":").map(Number);
+  const totalMinutes = hours * 60 + minutes + minutesToAdd;
+  const normalized = ((totalMinutes % 1440) + 1440) % 1440;
+  const nextHours = Math.floor(normalized / 60);
+  const nextMinutes = normalized % 60;
+
+  return `${String(nextHours).padStart(2, "0")}:${String(nextMinutes).padStart(2, "0")}`;
+}
+
 export default function CalendarNewPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -71,148 +69,157 @@ export default function CalendarNewPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [eventType, setEventType] = useState<EventType>("meeting");
+
   const [startDate, setStartDate] = useState(presetDate);
   const [startTime, setStartTime] = useState("09:00");
   const [endDate, setEndDate] = useState(presetDate);
   const [endTime, setEndTime] = useState("10:00");
   const [allDay, setAllDay] = useState(false);
-  const [reminderMinutes, setReminderMinutes] = useState<ReminderValue>("NONE");
+
+  const [meetingDuration, setMeetingDuration] = useState<string>("60");
+  const [reminderMinutes, setReminderMinutes] = useState<string>("5");
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("NONE");
   const [selectedTaskId, setSelectedTaskId] = useState<string>("NONE");
 
-  const [isBootstrapping, setIsBootstrapping] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+
+  const usesDuration = eventType === "meeting";
+  const needsOnlyStartTime = eventType === "reminder" || eventType === "call";
+  const needsStartAndEndTime = eventType === "task" || eventType === "deadline";
+  const needsAllOptions = eventType === "personal" || eventType === "other";
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadPage = async () => {
+      const requestId = requestTracker.current.next();
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+
+        if (!user) {
+          navigate("/login");
+          return;
+        }
+
+        setCurrentUserId(user.id);
+
+        const [
+          { data: me, error: meError },
+          { data: allProjects, error: projectsError },
+          { data: allProjectMembers, error: membersError },
+          { data: allTasks, error: tasksError },
+        ] = await Promise.all([
+          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
+          supabase
+            .from("projects")
+            .select("id, name, created_by")
+            .order("created_at", { ascending: false }),
+          supabase.from("project_members").select("project_id, user_id"),
+          supabase
+            .from("tasks")
+            .select("id, title, project_id, due_date")
+            .order("created_at", { ascending: false }),
+        ]);
+
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+
+        if (meError || !me) {
+          navigate("/calendar");
+          return;
+        }
+
+        const projectList = (allProjects || []) as ProjectRow[];
+        const memberList = (allProjectMembers || []) as ProjectMemberRow[];
+
+        if (projectsError) {
+          setError(projectsError.message || "Failed to load projects.");
+          setProjects([]);
+        } else {
+          const visibleProjectIds =
+            me.role === "admin"
+              ? new Set(projectList.map((project) => project.id))
+              : new Set(
+                  projectList
+                    .filter(
+                      (project) =>
+                        project.created_by === user.id ||
+                        memberList.some(
+                          (member) =>
+                            member.project_id === project.id && member.user_id === user.id
+                        )
+                    )
+                    .map((project) => project.id)
+                );
+
+          const visibleProjects = projectList.filter((project) =>
+            visibleProjectIds.has(project.id)
+          );
+
+          setProjects(visibleProjects);
+
+          if (
+            selectedProjectId !== "NONE" &&
+            !visibleProjects.some((project) => project.id === selectedProjectId)
+          ) {
+            setSelectedProjectId("NONE");
+            setSelectedTaskId("NONE");
+          }
+
+          if (tasksError || membersError) {
+            setTasks([]);
+          } else {
+            const allTaskRows = (allTasks || []) as TaskRow[];
+            const visibleTasks = allTaskRows.filter(
+              (task) => !task.project_id || visibleProjectIds.has(task.project_id)
+            );
+            setTasks(visibleTasks);
+          }
+        }
+      } catch (err) {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+        console.error("Load calendar new page error:", err);
+        setError("Failed to load calendar form.");
+      } finally {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+        setIsLoading(false);
+      }
+    };
+
+    void loadPage();
+
+    return () => {
+      mounted = false;
+    };
+  }, [navigate, selectedProjectId]);
+
+  useEffect(() => {
+    if (usesDuration && startTime) {
+      setEndTime(addMinutesToTime(startTime, Number(meetingDuration || 60)));
+    }
+  }, [usesDuration, startTime, meetingDuration]);
+
+  useEffect(() => {
+    if (!endDate) {
+      setEndDate(startDate);
+    }
+  }, [startDate, endDate]);
 
   const filteredTasks = useMemo(() => {
     if (selectedProjectId === "NONE") return [];
     return tasks.filter((task) => task.project_id === selectedProjectId);
   }, [tasks, selectedProjectId]);
-
-  const loadPage = async (mode: "initial" | "refresh" = "initial") => {
-    const requestId = requestTracker.current.next();
-
-    if (mode === "initial") {
-      setIsBootstrapping(true);
-    } else {
-      setIsRefreshing(true);
-    }
-
-    setError("");
-
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!requestTracker.current.isLatest(requestId)) return;
-
-      if (!user) {
-        navigate("/login");
-        return;
-      }
-
-      setCurrentUserId(user.id);
-
-      const [
-        { data: me, error: meError },
-        { data: allProjects, error: projectsError },
-        { data: allProjectMembers, error: membersError },
-        { data: allTasks, error: tasksError },
-      ] = await Promise.all([
-        supabase.from("profiles").select("role").eq("user_id", user.id).single(),
-        supabase
-          .from("projects")
-          .select("id, name, created_by")
-          .order("created_at", { ascending: false }),
-        supabase.from("project_members").select("project_id, user_id"),
-        supabase
-          .from("tasks")
-          .select("id, title, project_id, due_date")
-          .order("created_at", { ascending: false }),
-      ]);
-
-      if (!requestTracker.current.isLatest(requestId)) return;
-
-      if (meError || !me) {
-        navigate("/calendar");
-        return;
-      }
-
-      const role = (me.role as Role) || "employee";
-
-      if (projectsError) {
-        setProjects([]);
-        setError(projectsError.message || "Failed to load projects.");
-      }
-
-      if (tasksError && !projectsError) {
-        setTasks([]);
-        setError(tasksError.message || "Failed to load tasks.");
-      }
-
-      if (membersError && !projectsError && !tasksError) {
-        setError(membersError.message || "Failed to load project members.");
-      }
-
-      const projectList = (allProjects || []) as ProjectRow[];
-      const memberList = (allProjectMembers || []) as ProjectMemberRow[];
-      const taskList = (allTasks || []) as TaskRow[];
-
-      const visibleProjectIds =
-        role === "admin"
-          ? new Set(projectList.map((project) => project.id))
-          : new Set(
-              projectList
-                .filter(
-                  (project) =>
-                    project.created_by === user.id ||
-                    memberList.some(
-                      (member) =>
-                        member.project_id === project.id && member.user_id === user.id
-                    )
-                )
-                .map((project) => project.id)
-            );
-
-      const visibleProjects = projectList.filter((project) =>
-        visibleProjectIds.has(project.id)
-      );
-
-      const visibleTasks = taskList.filter(
-        (task) => !!task.project_id && visibleProjectIds.has(task.project_id)
-      );
-
-      setProjects(visibleProjects);
-      setTasks(visibleTasks);
-
-      if (
-        selectedProjectId !== "NONE" &&
-        !visibleProjects.some((project) => project.id === selectedProjectId)
-      ) {
-        setSelectedProjectId("NONE");
-        setSelectedTaskId("NONE");
-      }
-    } catch (err) {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      console.error("Load calendar new page error:", err);
-      setError("Failed to load calendar form.");
-      setProjects([]);
-      setTasks([]);
-    } finally {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setIsBootstrapping(false);
-      setIsRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    void loadPage("initial");
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -232,41 +239,48 @@ export default function CalendarNewPage() {
       return;
     }
 
-    if (!allDay) {
-      if (!startTime) {
-        setError("Start time is required.");
-        return;
-      }
-
-      if (!endTime) {
-        setError("End time is required.");
-        return;
-      }
-    }
-
-    if (endDate && startDate && new Date(endDate) < new Date(startDate)) {
-      setError("End date cannot be earlier than start date.");
+    if (!allDay && !startTime) {
+      setError("Start time is required.");
       return;
     }
 
+    const requestId = requestTracker.current.next();
     setIsSaving(true);
     setError("");
 
     try {
+      let computedEndDate = endDate || startDate;
+      let computedEndTime: string | null = allDay ? null : endTime || null;
+
+      if (!allDay && usesDuration) {
+        computedEndDate = startDate;
+        computedEndTime = addMinutesToTime(startTime, Number(meetingDuration || 60));
+      }
+
+      if (!allDay && needsOnlyStartTime) {
+        computedEndDate = startDate;
+        computedEndTime = null;
+      }
+
+      if (!allDay && needsStartAndEndTime && !endTime) {
+        setError("End time is required for this event type.");
+        setIsSaving(false);
+        return;
+      }
+
       const payload = {
         title: title.trim(),
         description: description.trim() || null,
         event_type: eventType,
         start_date: startDate,
         start_time: allDay ? null : startTime || null,
-        end_date: endDate || startDate,
-        end_time: allDay ? null : endTime || null,
+        end_date: computedEndDate,
+        end_time: computedEndTime,
         all_day: allDay,
-        reminder_minutes:
-          reminderMinutes === "NONE" ? null : Number(reminderMinutes),
         project_id: selectedProjectId === "NONE" ? null : selectedProjectId,
         task_id: selectedTaskId === "NONE" ? null : selectedTaskId,
         created_by: currentUserId,
+        reminder_minutes: reminderMinutes === "NONE" ? null : Number(reminderMinutes),
       };
 
       const { data: insertedEvent, error: insertError } = await supabase
@@ -274,6 +288,8 @@ export default function CalendarNewPage() {
         .insert(payload)
         .select("id, project_id, task_id, title, start_date")
         .single();
+
+      if (!requestTracker.current.isLatest(requestId)) return;
 
       if (insertError || !insertedEvent) {
         setError(insertError?.message || "Failed to create event.");
@@ -290,81 +306,53 @@ export default function CalendarNewPage() {
         message: `Created calendar event "${insertedEvent.title}" for ${insertedEvent.start_date}`,
       });
 
+      if (!requestTracker.current.isLatest(requestId)) return;
       navigate("/calendar");
     } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Create event error:", err);
       setError("Failed to create event.");
     } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
       setIsSaving(false);
     }
   };
 
-  if (isBootstrapping) {
+  if (isLoading) {
     return (
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded bg-slate-800 animate-pulse" />
-          <div className="space-y-2">
-            <div className="h-7 w-48 rounded bg-slate-800 animate-pulse" />
-            <div className="h-4 w-80 rounded bg-slate-800 animate-pulse" />
-          </div>
-        </div>
-
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-6">
-            <div className="space-y-6 animate-pulse">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="h-10 md:col-span-2 rounded bg-slate-800" />
-                <div className="h-28 md:col-span-2 rounded bg-slate-800" />
-                <div className="h-10 rounded bg-slate-800" />
-                <div className="h-10 rounded bg-slate-800" />
-                <div className="h-10 rounded bg-slate-800" />
-                <div className="h-10 rounded bg-slate-800" />
-                <div className="h-10 rounded bg-slate-800" />
-                <div className="h-10 rounded bg-slate-800" />
-                <div className="h-10 rounded bg-slate-800" />
-                <div className="h-10 rounded bg-slate-800" />
-                <div className="h-10 rounded bg-slate-800" />
-                <div className="h-10 rounded bg-slate-800" />
-              </div>
-              <div className="flex justify-end gap-3">
-                <div className="h-10 w-24 rounded bg-slate-800" />
-                <div className="h-10 w-32 rounded bg-slate-800" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="h-64 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
       </div>
     );
   }
-
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate("/calendar")}
-          className="text-slate-400 hover:text-white"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/calendar")}
+            className="text-slate-400 hover:text-white"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
 
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">Create New Event</h1>
-          <p className="text-slate-400">
-            Add a calendar event and connect it to projects or tasks
-          </p>
+          <div>
+            <h1 className="text-2xl font-bold text-white">Create New Event</h1>
+            <p className="text-slate-400">
+              Add a calendar event and connect it to projects or tasks
+            </p>
+          </div>
         </div>
 
         <Button
           type="button"
           variant="outline"
           className="border-slate-700 text-slate-300 hover:bg-slate-800"
-          onClick={() => void loadPage("refresh")}
-          disabled={isRefreshing}
+          onClick={() => window.location.reload()}
         >
-          {isRefreshing ? "Refreshing..." : "Refresh"}
+          Refresh
         </Button>
       </div>
 
@@ -401,7 +389,20 @@ export default function CalendarNewPage() {
 
               <div className="space-y-2">
                 <Label className="text-slate-300">Event Type</Label>
-                <Select value={eventType} onValueChange={(v) => setEventType(v as EventType)}>
+                <Select
+                  value={eventType}
+                  onValueChange={(value) => {
+                    setEventType(value as EventType);
+
+                    if (value === "meeting") {
+                      setMeetingDuration("60");
+                    }
+
+                    if (value === "reminder" || value === "call") {
+                      setEndDate(startDate);
+                    }
+                  }}
+                >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue />
                   </SelectTrigger>
@@ -419,10 +420,7 @@ export default function CalendarNewPage() {
 
               <div className="space-y-2">
                 <Label className="text-slate-300">Reminder</Label>
-                <Select
-                  value={reminderMinutes}
-                  onValueChange={(v) => setReminderMinutes(v as ReminderValue)}
-                >
+                <Select value={reminderMinutes} onValueChange={setReminderMinutes}>
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue />
                   </SelectTrigger>
@@ -433,13 +431,11 @@ export default function CalendarNewPage() {
                     <SelectItem value="15">15 minutes before</SelectItem>
                     <SelectItem value="30">30 minutes before</SelectItem>
                     <SelectItem value="60">1 hour before</SelectItem>
-                    <SelectItem value="120">2 hours before</SelectItem>
-                    <SelectItem value="1440">1 day before</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="flex items-center gap-3 pt-4 md:col-span-2">
+              <div className="flex items-center gap-3 pt-8">
                 <Checkbox
                   checked={allDay}
                   onCheckedChange={(checked) => setAllDay(Boolean(checked))}
@@ -455,6 +451,9 @@ export default function CalendarNewPage() {
                   onChange={(e) => {
                     setStartDate(e.target.value);
                     if (!endDate) setEndDate(e.target.value);
+                    if (eventType === "reminder" || eventType === "call" || eventType === "meeting") {
+                      setEndDate(e.target.value);
+                    }
                   }}
                   className="bg-slate-950 border-slate-800 text-white"
                 />
@@ -472,17 +471,38 @@ export default function CalendarNewPage() {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label className="text-slate-300">End Date</Label>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
+              {(needsStartAndEndTime || needsAllOptions || allDay) && (
+                <div className="space-y-2">
+                  <Label className="text-slate-300">End Date</Label>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="bg-slate-950 border-slate-800 text-white"
+                  />
+                </div>
+              )}
 
-              {!allDay && (
+              {!allDay && usesDuration && (
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Duration</Label>
+                  <Select value={meetingDuration} onValueChange={setMeetingDuration}>
+                    <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                      <SelectItem value="15">15 minutes</SelectItem>
+                      <SelectItem value="30">30 minutes</SelectItem>
+                      <SelectItem value="45">45 minutes</SelectItem>
+                      <SelectItem value="60">1 hour</SelectItem>
+                      <SelectItem value="90">1.5 hours</SelectItem>
+                      <SelectItem value="120">2 hours</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {!allDay && (needsStartAndEndTime || needsAllOptions) && (
                 <div className="space-y-2">
                   <Label className="text-slate-300">End Time</Label>
                   <Input
@@ -538,6 +558,15 @@ export default function CalendarNewPage() {
                 </Select>
               </div>
             </div>
+
+            {!allDay && usesDuration && (
+              <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-4 text-sm text-slate-400">
+                Meeting will end automatically at{" "}
+                <span className="text-white font-medium">
+                  {addMinutesToTime(startTime, Number(meetingDuration || 60))}
+                </span>
+              </div>
+            )}
 
             <div className="flex justify-end gap-3">
               <Button

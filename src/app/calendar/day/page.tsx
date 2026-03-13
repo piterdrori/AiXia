@@ -31,12 +31,13 @@ type TaskRow = {
   project_id: string | null;
 };
 
-function parseYYYYMMDD(s: string | undefined) {
-  if (!s) return null;
-  const [y, m, d] = s.split("-").map(Number);
-  if (!y || !m || !d) return null;
-  const date = new Date(y, m - 1, d);
-  return Number.isNaN(date.getTime()) ? null : date;
+function parseYYYYMMDD(value: string | undefined) {
+  if (!value) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+
+  const parsed = new Date(year, month - 1, day);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 export default function CalendarDayPage() {
@@ -46,21 +47,29 @@ export default function CalendarDayPage() {
 
   const [events, setEvents] = useState<CalendarEventRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   const selectedDate = useMemo(() => parseYYYYMMDD(date), [date]);
+  const dateStr = date || "";
 
-  useEffect(() => {
-    let mounted = true;
+  const loadDay = async (mode: "initial" | "refresh" = "initial") => {
+    if (!date) return;
 
-    const loadDay = async () => {
-      if (!date) return;
+    const requestId = requestTracker.current.next();
 
-      const requestId = requestTracker.current.next();
-      setIsLoading(true);
+    if (mode === "initial") {
+      setIsBootstrapping(true);
+    } else {
+      setIsRefreshing(true);
+    }
 
-      try {
-        const [{ data: eventsData }, { data: tasksData }] = await Promise.all([
+    setLoadError("");
+
+    try {
+      const [{ data: eventsData, error: eventsError }, { data: tasksData, error: tasksError }] =
+        await Promise.all([
           supabase
             .from("calendar_events")
             .select(
@@ -75,26 +84,37 @@ export default function CalendarDayPage() {
             .order("created_at", { ascending: false }),
         ]);
 
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+      if (!requestTracker.current.isLatest(requestId)) return;
 
-        setEvents((eventsData || []) as CalendarEventRow[]);
-        setTasks((tasksData || []) as TaskRow[]);
-      } catch (error) {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        console.error("Load calendar day error:", error);
-        setEvents([]);
-        setTasks([]);
-      } finally {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        setIsLoading(false);
+      if (eventsError) {
+        console.error("Load calendar day events error:", eventsError);
       }
-    };
 
-    void loadDay();
+      if (tasksError) {
+        console.error("Load calendar day tasks error:", tasksError);
+      }
 
-    return () => {
-      mounted = false;
-    };
+      setEvents((eventsData || []) as CalendarEventRow[]);
+      setTasks((tasksData || []) as TaskRow[]);
+
+      if (eventsError || tasksError) {
+        setLoadError("Some day data could not be loaded.");
+      }
+    } catch (error) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Load calendar day error:", error);
+      setEvents([]);
+      setTasks([]);
+      setLoadError("Failed to load this day.");
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      setIsBootstrapping(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadDay("initial");
   }, [date]);
 
   if (!selectedDate) {
@@ -116,7 +136,6 @@ export default function CalendarDayPage() {
   }
 
   const dateLabel = format(selectedDate, "EEEE, MMMM d, yyyy");
-  const dateStr = date || "";
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -131,27 +150,64 @@ export default function CalendarDayPage() {
         </Button>
 
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">{dateLabel}</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold text-white">{dateLabel}</h1>
+            <Badge className="bg-indigo-600 text-white">
+              {events.length + tasks.length} item{events.length + tasks.length === 1 ? "" : "s"}
+            </Badge>
+          </div>
           <p className="text-slate-400">Day view with calendar events and due tasks</p>
         </div>
 
-        <Button
-          className="bg-indigo-600 hover:bg-indigo-700 text-white"
-          onClick={() => navigate(`/calendar/new?date=${encodeURIComponent(dateStr)}`)}
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          New Event
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="border-slate-800 text-slate-300 hover:bg-slate-900"
+            onClick={() => void loadDay("refresh")}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? "Refreshing..." : "Refresh"}
+          </Button>
+
+          <Button
+            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            onClick={() => navigate(`/calendar/new?date=${encodeURIComponent(dateStr)}`)}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New Event
+          </Button>
+        </div>
       </div>
+
+      {loadError && (
+        <Card className="bg-red-950/20 border-red-900/40 p-4 text-sm text-red-300">
+          {loadError}
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-slate-900/50 border-slate-800">
           <CardHeader>
             <CardTitle className="text-white">Events</CardTitle>
           </CardHeader>
+
           <CardContent className="space-y-3">
-            {isLoading ? (
-              <p className="text-slate-400">Loading events...</p>
+            {isBootstrapping ? (
+              Array.from({ length: 4 }).map((_, index) => (
+                <div
+                  key={`event-skeleton-${index}`}
+                  className="p-4 rounded-lg border border-slate-800 bg-slate-950/40"
+                >
+                  <div className="animate-pulse space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="h-4 w-40 rounded bg-slate-800" />
+                      <div className="h-6 w-16 rounded bg-slate-800" />
+                    </div>
+                    <div className="h-5 w-24 rounded bg-slate-800" />
+                    <div className="h-4 w-full rounded bg-slate-800" />
+                  </div>
+                </div>
+              ))
             ) : events.length === 0 ? (
               <p className="text-slate-400">No events for this day.</p>
             ) : (
@@ -162,6 +218,7 @@ export default function CalendarDayPage() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-white font-medium truncate">{event.title}</div>
+
                     <div className="flex items-center gap-2">
                       {event.all_day ? (
                         <Badge className="bg-indigo-500/20 text-indigo-300">All Day</Badge>
@@ -170,6 +227,7 @@ export default function CalendarDayPage() {
                           {event.start_time || "--:--"}
                         </Badge>
                       )}
+
                       <Button
                         size="icon"
                         variant="ghost"
@@ -205,9 +263,24 @@ export default function CalendarDayPage() {
           <CardHeader>
             <CardTitle className="text-white">Tasks Due</CardTitle>
           </CardHeader>
+
           <CardContent className="space-y-3">
-            {isLoading ? (
-              <p className="text-slate-400">Loading tasks...</p>
+            {isBootstrapping ? (
+              Array.from({ length: 4 }).map((_, index) => (
+                <div
+                  key={`task-skeleton-${index}`}
+                  className="p-4 rounded-lg border border-slate-800 bg-slate-950/40"
+                >
+                  <div className="animate-pulse space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="h-4 w-40 rounded bg-slate-800" />
+                      <div className="h-6 w-20 rounded bg-slate-800" />
+                    </div>
+                    <div className="h-4 w-28 rounded bg-slate-800" />
+                    <div className="h-9 w-24 rounded bg-slate-800" />
+                  </div>
+                </div>
+              ))
             ) : tasks.length === 0 ? (
               <p className="text-slate-400">No tasks due on this day.</p>
             ) : (
@@ -218,6 +291,7 @@ export default function CalendarDayPage() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-white font-medium truncate">{task.title}</div>
+
                     {task.status && (
                       <Badge className="bg-emerald-500/20 text-emerald-300">
                         {task.status.replaceAll("_", " ")}

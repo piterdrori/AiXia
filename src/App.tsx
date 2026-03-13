@@ -5,7 +5,14 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
-import { useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import { Toaster } from "@/components/ui/sonner";
@@ -50,6 +57,14 @@ type ProfileAccessRow = {
   profile_completed?: boolean | null;
 };
 
+type AuthAccessContextValue = {
+  isBootstrapping: boolean;
+  accessState: AccessState;
+  refreshAccessState: () => Promise<void>;
+};
+
+const AuthAccessContext = createContext<AuthAccessContextValue | null>(null);
+
 function FullScreenLoader() {
   return (
     <div className="flex items-center justify-center h-screen bg-slate-950">
@@ -89,50 +104,79 @@ async function getAccessState(): Promise<AccessState> {
   }
 }
 
-function ProtectedRoute({ children }: { children: ReactNode }) {
-  const location = useLocation();
-  const [isLoading, setIsLoading] = useState(true);
+function AuthAccessProvider({ children }: { children: ReactNode }) {
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [accessState, setAccessState] = useState<AccessState>("unauthenticated");
   const requestIdRef = useRef(0);
+  const mountedRef = useRef(true);
+
+  const refreshAccessState = async () => {
+    const requestId = ++requestIdRef.current;
+
+    try {
+      const nextState = await getAccessState();
+      if (!mountedRef.current || requestId !== requestIdRef.current) return;
+      setAccessState(nextState);
+    } catch (error) {
+      console.error("refreshAccessState error:", error);
+      if (!mountedRef.current || requestId !== requestIdRef.current) return;
+      setAccessState("unauthenticated");
+    } finally {
+      if (!mountedRef.current || requestId !== requestIdRef.current) return;
+      setIsBootstrapping(false);
+    }
+  };
 
   useEffect(() => {
-    let mounted = true;
-
-    const checkAccess = async () => {
-      const requestId = ++requestIdRef.current;
-
-      try {
-        const state = await getAccessState();
-        if (!mounted || requestId !== requestIdRef.current) return;
-        setAccessState(state);
-      } catch (error) {
-        console.error("ProtectedRoute checkAccess error:", error);
-        if (!mounted || requestId !== requestIdRef.current) return;
-        setAccessState("unauthenticated");
-      } finally {
-        if (!mounted || requestId !== requestIdRef.current) return;
-        setIsLoading(false);
-      }
-    };
-
-    void checkAccess();
+    mountedRef.current = true;
+    void refreshAccessState();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => {
       window.setTimeout(() => {
-        if (!mounted) return;
-        void checkAccess();
+        if (!mountedRef.current) return;
+        void refreshAccessState();
       }, 0);
     });
 
     return () => {
-      mounted = false;
+      mountedRef.current = false;
       subscription.unsubscribe();
     };
   }, []);
 
-  if (isLoading) return <FullScreenLoader />;
+  const value = useMemo<AuthAccessContextValue>(
+    () => ({
+      isBootstrapping,
+      accessState,
+      refreshAccessState,
+    }),
+    [isBootstrapping, accessState]
+  );
+
+  return (
+    <AuthAccessContext.Provider value={value}>
+      {children}
+    </AuthAccessContext.Provider>
+  );
+}
+
+function useAuthAccess() {
+  const context = useContext(AuthAccessContext);
+
+  if (!context) {
+    throw new Error("useAuthAccess must be used inside AuthAccessProvider");
+  }
+
+  return context;
+}
+
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  const { isBootstrapping, accessState } = useAuthAccess();
+
+  if (isBootstrapping) return <FullScreenLoader />;
 
   if (accessState === "unauthenticated") {
     return <Navigate to="/login" replace />;
@@ -158,48 +202,9 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 }
 
 function PublicRoute({ children }: { children: ReactNode }) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [accessState, setAccessState] = useState<AccessState>("unauthenticated");
-  const requestIdRef = useRef(0);
+  const { isBootstrapping, accessState } = useAuthAccess();
 
-  useEffect(() => {
-    let mounted = true;
-
-    const checkAccess = async () => {
-      const requestId = ++requestIdRef.current;
-
-      try {
-        const state = await getAccessState();
-        if (!mounted || requestId !== requestIdRef.current) return;
-        setAccessState(state);
-      } catch (error) {
-        console.error("PublicRoute checkAccess error:", error);
-        if (!mounted || requestId !== requestIdRef.current) return;
-        setAccessState("unauthenticated");
-      } finally {
-        if (!mounted || requestId !== requestIdRef.current) return;
-        setIsLoading(false);
-      }
-    };
-
-    void checkAccess();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      window.setTimeout(() => {
-        if (!mounted) return;
-        void checkAccess();
-      }, 0);
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  if (isLoading) return <FullScreenLoader />;
+  if (isBootstrapping) return <FullScreenLoader />;
 
   if (accessState === "ready") {
     return <Navigate to="/dashboard" replace />;
@@ -212,251 +217,258 @@ function PublicRoute({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<LandingPage />} />
+
+      <Route
+        path="/login"
+        element={
+          <PublicRoute>
+            <LoginPage />
+          </PublicRoute>
+        }
+      />
+
+      <Route
+        path="/register"
+        element={
+          <PublicRoute>
+            <RegisterPage />
+          </PublicRoute>
+        }
+      />
+
+      <Route
+        path="/onboarding"
+        element={
+          <ProtectedRoute>
+            <OnboardingPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <DashboardPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/projects"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <ProjectsPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/new"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <ProjectNewPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:id"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <ProjectDetailPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:id/edit"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <ProjectEditPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/tasks"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <TasksPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tasks/new"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <TaskNewPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tasks/:id"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <TaskDetailPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tasks/:id/edit"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <TaskEditPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/calendar"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <CalendarPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/calendar/new"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <CalendarNewPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/calendar/day/:date"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <CalendarDayPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/calendar/:id/edit"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <CalendarEditPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/chat"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <ChatPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/chat/:id"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <ChatPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/inbox"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <InboxPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/employees"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <EmployeesPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/employees/:id"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <EmployeeDetailPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/employees/:id/permissions"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <EmployeePermissionsPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <SettingsPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
 function App() {
   return (
     <Router>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-
-        <Route
-          path="/login"
-          element={
-            <PublicRoute>
-              <LoginPage />
-            </PublicRoute>
-          }
-        />
-
-        <Route
-          path="/register"
-          element={
-            <PublicRoute>
-              <RegisterPage />
-            </PublicRoute>
-          }
-        />
-
-        <Route
-          path="/onboarding"
-          element={
-            <ProtectedRoute>
-              <OnboardingPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <DashboardPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/projects"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <ProjectsPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/projects/new"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <ProjectNewPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/projects/:id"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <ProjectDetailPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/projects/:id/edit"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <ProjectEditPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/tasks"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <TasksPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/tasks/new"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <TaskNewPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/tasks/:id"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <TaskDetailPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/tasks/:id/edit"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <TaskEditPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/calendar"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <CalendarPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/calendar/new"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <CalendarNewPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/calendar/day/:date"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <CalendarDayPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/calendar/:id/edit"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <CalendarEditPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/chat"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <ChatPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/chat/:id"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <ChatPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/inbox"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <InboxPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/employees"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <EmployeesPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/employees/:id"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <EmployeeDetailPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/employees/:id/permissions"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <EmployeePermissionsPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <SettingsPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-
-      <Toaster />
+      <AuthAccessProvider>
+        <AppRoutes />
+        <Toaster />
+      </AuthAccessProvider>
     </Router>
   );
 }

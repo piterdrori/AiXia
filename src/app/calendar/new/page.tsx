@@ -258,25 +258,23 @@ export default function CalendarNewPage() {
     });
   }, [startDate]);
 
-  useEffect(() => {
-    if (!startDate) return;
+useEffect(() => {
+  if (!startDate || !startTime || allDay) return;
 
-    if (usesDuration && startTime) {
-      const duration = Number(meetingDuration || 60);
-      const nextEndTime = addMinutesToTime(startTime, duration);
-      setEndTime(nextEndTime);
+  const autoDuration = usesDuration ? Number(meetingDuration || 60) : 60;
+  const nextEndTime = addMinutesToTime(startTime, autoDuration);
+  setEndTime(nextEndTime);
 
-      const [startHour, startMinute] = startTime.split(":").map(Number);
-      const startTotal = startHour * 60 + startMinute;
-      const endTotal = startTotal + duration;
+  const [startHour, startMinute] = startTime.split(":").map(Number);
+  const startTotal = startHour * 60 + startMinute;
+  const endTotal = startTotal + autoDuration;
 
-      if (endTotal >= 1440) {
-        setEndDate(addDaysToDate(startDate, 1));
-      } else {
-        setEndDate(startDate);
-      }
-    }
-  }, [usesDuration, startDate, startTime, meetingDuration]);
+  if (endTotal >= 1440) {
+    setEndDate(addDaysToDate(startDate, 1));
+  } else {
+    setEndDate(startDate);
+  }
+}, [startDate, startTime, allDay, usesDuration, meetingDuration]);
 
   useEffect(() => {
     if (selectedProjectId === "NONE") {
@@ -292,38 +290,39 @@ export default function CalendarNewPage() {
     }
   }, [selectedProjectId, selectedTaskId, tasks]);
 
-  useEffect(() => {
-    if (allDay) {
-      return;
-    }
+useEffect(() => {
+  if (allDay || !startDate || !startTime) return;
 
-    if (needsSingleTimeOnly) {
-      setEndDate(startDate);
-      setEndTime(startTime);
-      return;
-    }
+  if (needsSingleTimeOnly) {
+    setEndDate(startDate);
+    setEndTime(addMinutesToTime(startTime, 60));
+    return;
+  }
 
-    if (usesDuration) {
-      const duration = Number(meetingDuration || 60);
-      setEndTime(addMinutesToTime(startTime, duration));
-      return;
-    }
+  if (usesDuration) {
+    const duration = Number(meetingDuration || 60);
+    setEndDate(startDate);
+    setEndTime(addMinutesToTime(startTime, duration));
+    return;
+  }
 
-    if (needsStartAndEnd && isEndBeforeStart(startDate, startTime, endDate, endTime)) {
+  if (needsStartAndEnd) {
+    if (endDate < startDate || isEndBeforeStart(startDate, startTime, endDate, endTime)) {
       setEndDate(startDate);
       setEndTime(addMinutesToTime(startTime, 60));
     }
-  }, [
-    allDay,
-    needsSingleTimeOnly,
-    usesDuration,
-    needsStartAndEnd,
-    startDate,
-    startTime,
-    endDate,
-    endTime,
-    meetingDuration,
-  ]);
+  }
+}, [
+  allDay,
+  startDate,
+  startTime,
+  endDate,
+  endTime,
+  needsSingleTimeOnly,
+  usesDuration,
+  needsStartAndEnd,
+  meetingDuration,
+]);
 
   const filteredTasks = useMemo(() => {
     if (selectedProjectId === "NONE") return [];
@@ -596,33 +595,29 @@ const handleSubmit = async (e: React.FormEvent) => {
               {!allDay && (
                 <div className="space-y-2">
                   <Label className="text-slate-300">Start Time</Label>
-                  <Input
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => {
-                      const nextStartTime = e.target.value;
-                      setStartTime(nextStartTime);
+          <Input
+  type="time"
+  value={startTime}
+  onChange={(e) => {
+    const nextStartTime = e.target.value;
+    setStartTime(nextStartTime);
 
-                      if (usesDuration) {
-                        const duration = Number(meetingDuration || 60);
-                        const nextEndTime = addMinutesToTime(nextStartTime, duration);
-                        setEndTime(nextEndTime);
+    const autoDuration = usesDuration ? Number(meetingDuration || 60) : 60;
+    const nextEndTime = addMinutesToTime(nextStartTime, autoDuration);
+    setEndTime(nextEndTime);
 
-                        const [startHour, startMinute] = nextStartTime
-                          .split(":")
-                          .map(Number);
-                        const startTotal = startHour * 60 + startMinute;
-                        const endTotal = startTotal + duration;
+    const [startHour, startMinute] = nextStartTime.split(":").map(Number);
+    const startTotal = startHour * 60 + startMinute;
+    const endTotal = startTotal + autoDuration;
 
-                        if (endTotal >= 1440) {
-                          setEndDate(addDaysToDate(startDate, 1));
-                        } else {
-                          setEndDate(startDate);
-                        }
-                      }
-                    }}
-                    className="bg-slate-950 border-slate-800 text-white"
-                  />
+    if (endTotal >= 1440) {
+      setEndDate(addDaysToDate(startDate, 1));
+    } else {
+      setEndDate(startDate);
+    }
+  }}
+  className="bg-slate-950 border-slate-800 text-white"
+/>
                 </div>
               )}
 

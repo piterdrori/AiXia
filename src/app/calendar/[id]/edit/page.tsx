@@ -97,6 +97,7 @@ export default function CalendarEditPage() {
   const navigate = useNavigate();
 
   const pageRequestTracker = useRef(createRequestTracker());
+  const relatedDataRequestTracker = useRef(createRequestTracker());
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
@@ -119,34 +120,85 @@ export default function CalendarEditPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>("NONE");
   const [selectedTaskId, setSelectedTaskId] = useState<string>("NONE");
 
-  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [eventLoaded, setEventLoaded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoadingRelatedData, setIsLoadingRelatedData] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState("");
 
   const usesDuration = useMemo(() => eventType === "meeting", [eventType]);
+
   const needsStartAndEnd = useMemo(() => {
     return eventType === "task" || eventType === "deadline" || eventType === "other";
   }, [eventType]);
+
   const needsSingleTimeOnly = useMemo(() => {
     return eventType === "reminder" || eventType === "call" || eventType === "personal";
   }, [eventType]);
 
-  const loadPage = async (mode: "initial" | "refresh" = "initial") => {
+  const loadRelatedData = async (
+    userId: string,
+    mode: "initial" | "refresh" = "initial"
+  ) => {
+    const requestId = relatedDataRequestTracker.current.next();
+
+    if (mode === "refresh") {
+      setIsRefreshing(true);
+    } else {
+      setIsLoadingRelatedData(true);
+    }
+
+    try {
+      const [{ data: projectsData, error: projectsError }, { data: tasksData, error: tasksError }] =
+        await Promise.all([
+          supabase
+            .from("projects")
+            .select("id, name, created_by")
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("tasks")
+            .select("id, title, project_id")
+            .order("created_at", { ascending: false }),
+        ]);
+
+      if (!relatedDataRequestTracker.current.isLatest(requestId)) return;
+
+      if (projectsError) {
+        console.error("Load projects error:", projectsError);
+      }
+
+      if (tasksError) {
+        console.error("Load tasks error:", tasksError);
+      }
+
+      setProjects((projectsData || []) as ProjectRow[]);
+      setTasks((tasksData || []) as TaskRow[]);
+
+      if (projectsError || tasksError) {
+        setError("Some event form data could not be loaded.");
+      }
+    } catch (err) {
+      if (!relatedDataRequestTracker.current.isLatest(requestId)) return;
+      console.error("Load related calendar edit data error:", err);
+      setError("Failed to load related data.");
+      setProjects([]);
+      setTasks([]);
+    } finally {
+      if (!relatedDataRequestTracker.current.isLatest(requestId)) return;
+      setIsRefreshing(false);
+      setIsLoadingRelatedData(false);
+      void userId;
+    }
+  };
+
+  const loadEventOnly = async () => {
     if (!id) {
       navigate("/calendar");
       return;
     }
 
     const requestId = pageRequestTracker.current.next();
-
-    if (mode === "initial") {
-      setIsBootstrapping(true);
-    } else {
-      setIsRefreshing(true);
-    }
-
     setError("");
 
     try {
@@ -163,27 +215,13 @@ export default function CalendarEditPage() {
 
       setCurrentUserId(user.id);
 
-      const [
-        { data: eventData, error: eventError },
-        { data: projectsData, error: projectsError },
-        { data: tasksData, error: tasksError },
-      ] = await Promise.all([
-        supabase
-          .from("calendar_events")
-          .select(
-            "id, title, description, event_type, start_date, start_time, end_date, end_time, all_day, project_id, task_id, created_by, reminder_minutes"
-          )
-          .eq("id", id)
-          .single(),
-        supabase
-          .from("projects")
-          .select("id, name, created_by")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("tasks")
-          .select("id, title, project_id")
-          .order("created_at", { ascending: false }),
-      ]);
+      const { data: eventData, error: eventError } = await supabase
+        .from("calendar_events")
+        .select(
+          "id, title, description, event_type, start_date, start_time, end_date, end_time, all_day, project_id, task_id, created_by, reminder_minutes"
+        )
+        .eq("id", id)
+        .single();
 
       if (!pageRequestTracker.current.isLatest(requestId)) return;
 
@@ -199,17 +237,12 @@ export default function CalendarEditPage() {
         return;
       }
 
-      if (projectsError) {
-        console.error("Load projects error:", projectsError);
-      }
-
-      if (tasksError) {
-        console.error("Load tasks error:", tasksError);
-      }
-
       setTitle(event.title || "");
       setDescription(event.description || "");
       setEventType((event.event_type || "meeting") as EventType);
+      setReminderMinutes(
+        event.reminder_minutes ? (String(event.reminder_minutes) as ReminderValue) : "NONE"
+      );
       setStartDate(event.start_date || "");
       setStartTime(event.start_time || "09:00");
       setEndDate(event.end_date || event.start_date || "");
@@ -217,31 +250,18 @@ export default function CalendarEditPage() {
       setAllDay(Boolean(event.all_day));
       setSelectedProjectId(event.project_id || "NONE");
       setSelectedTaskId(event.task_id || "NONE");
-      setReminderMinutes(
-        event.reminder_minutes ? String(event.reminder_minutes) as ReminderValue : "NONE"
-      );
+      setEventLoaded(true);
 
-      setProjects((projectsData || []) as ProjectRow[]);
-      setTasks((tasksData || []) as TaskRow[]);
-
-      if (projectsError || tasksError) {
-        setError("Some event form data could not be loaded.");
-      }
+      void loadRelatedData(user.id, "initial");
     } catch (err) {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
       console.error("Load calendar edit page error:", err);
       setError("Failed to load event.");
-      setProjects([]);
-      setTasks([]);
-    } finally {
-      if (!pageRequestTracker.current.isLatest(requestId)) return;
-      setIsBootstrapping(false);
-      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
-    void loadPage("initial");
+    void loadEventOnly();
   }, [id]);
 
   useEffect(() => {
@@ -276,7 +296,10 @@ export default function CalendarEditPage() {
   useEffect(() => {
     if (selectedProjectId === "NONE") {
       setSelectedTaskId("NONE");
-    } else if (
+      return;
+    }
+
+    if (
       selectedTaskId !== "NONE" &&
       !tasks.some(
         (task) => task.id === selectedTaskId && task.project_id === selectedProjectId
@@ -324,7 +347,6 @@ export default function CalendarEditPage() {
     if (selectedProjectId === "NONE") return [];
     return tasks.filter((task) => task.project_id === selectedProjectId);
   }, [tasks, selectedProjectId]);
-
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -474,7 +496,7 @@ export default function CalendarEditPage() {
     }
   };
 
-  if (isBootstrapping) {
+  if (!eventLoaded) {
     return (
       <div className="h-64 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
@@ -505,7 +527,11 @@ export default function CalendarEditPage() {
           type="button"
           variant="outline"
           className="border-slate-700 text-slate-300 hover:bg-slate-800"
-          onClick={() => void loadPage("refresh")}
+          onClick={() => {
+            if (currentUserId) {
+              void loadRelatedData(currentUserId, "refresh");
+            }
+          }}
           disabled={isRefreshing}
         >
           {isRefreshing ? "Refreshing..." : "Refresh"}
@@ -543,7 +569,10 @@ export default function CalendarEditPage() {
 
               <div className="space-y-2">
                 <Label className="text-slate-300">Event Type</Label>
-                <Select value={eventType} onValueChange={(value) => setEventType(value as EventType)}>
+                <Select
+                  value={eventType}
+                  onValueChange={(value) => setEventType(value as EventType)}
+                >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue />
                   </SelectTrigger>
@@ -607,7 +636,7 @@ export default function CalendarEditPage() {
                 />
               </div>
 
-            {!allDay && (
+              {!allDay && (
                 <div className="space-y-2">
                   <Label className="text-slate-300">Start Time</Label>
                   <Input
@@ -644,9 +673,7 @@ export default function CalendarEditPage() {
                   <Label className="text-slate-300">Duration</Label>
                   <Select
                     value={meetingDuration}
-                    onValueChange={(value) =>
-                      setMeetingDuration(value as MeetingDurationValue)
-                    }
+                    onValueChange={(value) => setMeetingDuration(value as MeetingDurationValue)}
                   >
                     <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                       <SelectValue />
@@ -718,7 +745,7 @@ export default function CalendarEditPage() {
                 <Select
                   value={selectedTaskId}
                   onValueChange={setSelectedTaskId}
-                  disabled={selectedProjectId === "NONE"}
+                  disabled={selectedProjectId === "NONE" || isLoadingRelatedData}
                 >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue />

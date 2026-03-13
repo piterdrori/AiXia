@@ -1,10 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/lib/notifications";
+import { createRequestTracker } from "@/lib/safeAsync";
+import {
+  registerRealtimeChannel,
+  removeRealtimeChannel,
+} from "@/lib/realtime";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -72,6 +78,7 @@ const notificationColors: Record<NotificationType, string> = {
 
 export default function InboxPage() {
   const navigate = useNavigate();
+  const requestTracker = useRef(createRequestTracker());
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
@@ -80,6 +87,7 @@ export default function InboxPage() {
   const [error, setError] = useState("");
 
   const loadNotifications = async (userId: string) => {
+    const requestId = requestTracker.current.next();
     setError("");
 
     const { data, error } = await supabase
@@ -89,6 +97,8 @@ export default function InboxPage() {
       )
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
+
+    if (!requestTracker.current.isLatest(requestId)) return;
 
     if (error) {
       console.error("Load inbox notifications error:", error);
@@ -100,13 +110,18 @@ export default function InboxPage() {
   };
 
   useEffect(() => {
+    let mounted = true;
+
     const init = async () => {
+      const requestId = requestTracker.current.next();
       setIsLoading(true);
 
       try {
         const {
           data: { user },
         } = await supabase.auth.getUser();
+
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
         if (!user) {
           navigate("/login");
@@ -116,37 +131,48 @@ export default function InboxPage() {
         setCurrentUserId(user.id);
         await loadNotifications(user.id);
       } catch (error) {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         console.error("Inbox init error:", error);
         setError("Failed to load inbox.");
       } finally {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         setIsLoading(false);
       }
     };
 
-    init();
+    void init();
+
+    return () => {
+      mounted = false;
+    };
   }, [navigate]);
 
   useEffect(() => {
     if (!currentUserId) return;
 
-    const channel = supabase
-      .channel(`inbox-${currentUserId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${currentUserId}`,
-        },
-        async () => {
-          await loadNotifications(currentUserId);
-        }
-      )
-      .subscribe();
+    const channelKey = `inbox:${currentUserId}`;
+
+    registerRealtimeChannel(
+      channelKey,
+      supabase
+        .channel(channelKey)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${currentUserId}`,
+          },
+          () => {
+            void loadNotifications(currentUserId);
+          }
+        )
+        .subscribe()
+    );
 
     return () => {
-      supabase.removeChannel(channel);
+      void removeRealtimeChannel(channelKey);
     };
   }, [currentUserId]);
 
@@ -221,7 +247,7 @@ export default function InboxPage() {
     }
   };
 
-return (
+  return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -238,7 +264,7 @@ return (
             <Button
               variant="outline"
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
-              onClick={handleMarkAllRead}
+              onClick={() => void handleMarkAllRead()}
             >
               <CheckCheck className="w-4 h-4 mr-2" />
               Mark All Read
@@ -248,7 +274,7 @@ return (
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
-        <Select value={filter} onValueChange={(v) => setFilter(v as any)}>
+        <Select value={filter} onValueChange={(v) => setFilter(v as "ALL" | "UNREAD" | NotificationType)}>
           <SelectTrigger className="w-48 bg-slate-900 border-slate-800 text-white">
             <Filter className="w-4 h-4 mr-2" />
             <SelectValue placeholder="Filter" />
@@ -305,7 +331,7 @@ return (
                       className={`flex items-start gap-4 p-4 hover:bg-slate-800/50 transition-colors cursor-pointer ${
                         !notification.is_read ? "bg-indigo-900/5" : ""
                       }`}
-                      onClick={() => handleNotificationClick(notification)}
+                      onClick={() => void handleNotificationClick(notification)}
                     >
                       <div
                         className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${colorClass}`}
@@ -349,7 +375,7 @@ return (
                             className="h-8 w-8 text-slate-400 hover:text-white"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleMarkOneRead(notification.id);
+                              void handleMarkOneRead(notification.id);
                             }}
                           >
                             <Check className="w-4 h-4" />
@@ -362,7 +388,7 @@ return (
                           className="h-8 w-8 text-slate-400 hover:text-red-400"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteNotification(notification.id);
+                            void handleDeleteNotification(notification.id);
                           }}
                         >
                           <Trash2 className="w-4 h-4" />

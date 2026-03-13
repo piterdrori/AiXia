@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   addDays,
@@ -13,6 +13,7 @@ import {
   addMonths,
 } from "date-fns";
 import { supabase } from "@/lib/supabase";
+import { createRequestTracker } from "@/lib/safeAsync";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -58,6 +59,8 @@ function buildMonthGrid(cursor: Date) {
 
 export default function CalendarPage() {
   const navigate = useNavigate();
+  const requestTracker = useRef(createRequestTracker());
+
   const [cursor, setCursor] = useState(new Date());
   const [events, setEvents] = useState<CalendarEventRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
@@ -66,33 +69,51 @@ export default function CalendarPage() {
   const gridDays = useMemo(() => buildMonthGrid(cursor), [cursor]);
 
   useEffect(() => {
+    let mounted = true;
+
     const loadCalendar = async () => {
+      const requestId = requestTracker.current.next();
       setIsLoading(true);
 
       const monthStart = format(startOfMonth(cursor), "yyyy-MM-dd");
       const monthEnd = format(endOfMonth(cursor), "yyyy-MM-dd");
 
-      const [{ data: eventsData }, { data: tasksData }] = await Promise.all([
-        supabase
-          .from("calendar_events")
-          .select("id, title, description, event_type, start_date, all_day")
-          .gte("start_date", monthStart)
-          .lte("start_date", monthEnd)
-          .order("start_date", { ascending: true }),
-        supabase
-          .from("tasks")
-          .select("id, title, due_date, status")
-          .gte("due_date", monthStart)
-          .lte("due_date", monthEnd)
-          .order("due_date", { ascending: true }),
-      ]);
+      try {
+        const [{ data: eventsData }, { data: tasksData }] = await Promise.all([
+          supabase
+            .from("calendar_events")
+            .select("id, title, description, event_type, start_date, all_day")
+            .gte("start_date", monthStart)
+            .lte("start_date", monthEnd)
+            .order("start_date", { ascending: true }),
+          supabase
+            .from("tasks")
+            .select("id, title, due_date, status")
+            .gte("due_date", monthStart)
+            .lte("due_date", monthEnd)
+            .order("due_date", { ascending: true }),
+        ]);
 
-      setEvents((eventsData || []) as CalendarEventRow[]);
-      setTasks((tasksData || []) as TaskRow[]);
-      setIsLoading(false);
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+
+        setEvents((eventsData || []) as CalendarEventRow[]);
+        setTasks((tasksData || []) as TaskRow[]);
+      } catch (error) {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+        console.error("Load calendar error:", error);
+        setEvents([]);
+        setTasks([]);
+      } finally {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+        setIsLoading(false);
+      }
     };
 
-    loadCalendar();
+    void loadCalendar();
+
+    return () => {
+      mounted = false;
+    };
   }, [cursor]);
 
   const eventsByDay = useMemo(() => {

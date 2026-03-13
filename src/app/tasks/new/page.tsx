@@ -63,13 +63,14 @@ export default function TaskNewPage() {
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [projectMembers, setProjectMembers] = useState<ProjectMemberRow[]>([]);
+  const [allProjectMembers, setAllProjectMembers] = useState<ProjectMemberRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [, setCurrentUserRole] = useState<Role | null>(null);
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isMembersLoading, setIsMembersLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
@@ -79,7 +80,7 @@ export default function TaskNewPage() {
 
     const loadPage = async () => {
       const requestId = pageRequestTracker.current.next();
-      setIsLoading(true);
+      setIsBootstrapping(true);
       setError("");
 
       try {
@@ -96,27 +97,13 @@ export default function TaskNewPage() {
 
         setCurrentUserId(user.id);
 
-        const { data: myProfile, error: myProfileError } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("user_id", user.id)
-          .single();
-
-        if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
-
-        if (myProfileError || !myProfile) {
-          navigate("/tasks");
-          return;
-        }
-
-        const role = myProfile.role as Role;
-        setCurrentUserRole(role);
-
         const [
+          { data: myProfile, error: myProfileError },
           { data: allProjects, error: projectsError },
           { data: allProjectMembers, error: projectMembersError },
           { data: allProfiles, error: profilesError },
         ] = await Promise.all([
+          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
           supabase
             .from("projects")
             .select("id, name, created_by")
@@ -133,22 +120,31 @@ export default function TaskNewPage() {
 
         if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
 
+        if (myProfileError || !myProfile) {
+          navigate("/tasks");
+          return;
+        }
+
+        const role = myProfile.role as Role;
+        setCurrentUserRole(role);
+
         if (projectsError) {
-          setError(projectsError.message || "Failed to load projects.");
           setProjects([]);
+          setError(projectsError.message || "Failed to load projects.");
         }
 
         if (profilesError) {
-          setError(profilesError.message || "Failed to load team members.");
           setProfiles([]);
+          setError(profilesError.message || "Failed to load team members.");
         }
 
         if (projectMembersError) {
+          setAllProjectMembers([]);
           setError(projectMembersError.message || "Failed to load project members.");
         }
 
         const projectsData = (allProjects || []) as ProjectRow[];
-        const membersData = (allProjectMembers || []) as ProjectMemberRow[];
+        const projectMembersData = (allProjectMembers || []) as ProjectMemberRow[];
         const profilesData = (allProfiles || []) as ProfileRow[];
 
         const visibleProjects =
@@ -156,7 +152,7 @@ export default function TaskNewPage() {
             ? projectsData
             : projectsData.filter((project) => {
                 const isCreator = project.created_by === user.id;
-                const isAssigned = membersData.some(
+                const isAssigned = projectMembersData.some(
                   (member) =>
                     member.project_id === project.id && member.user_id === user.id
                 );
@@ -165,11 +161,22 @@ export default function TaskNewPage() {
 
         setProjects(visibleProjects);
         setProfiles(profilesData);
+        setAllProjectMembers(projectMembersData);
 
-        if (initialProjectId && visibleProjects.some((p) => p.id === initialProjectId)) {
-          setProjectId(initialProjectId);
-        } else if (initialProjectId) {
-          setProjectId("");
+        const safeProjectId =
+          initialProjectId && visibleProjects.some((p) => p.id === initialProjectId)
+            ? initialProjectId
+            : "";
+
+        setProjectId(safeProjectId);
+
+        if (safeProjectId) {
+          const initialMembers = projectMembersData.filter(
+            (member) => member.project_id === safeProjectId
+          );
+          setProjectMembers(initialMembers);
+        } else {
+          setProjectMembers([]);
         }
       } catch (err) {
         if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
@@ -177,7 +184,7 @@ export default function TaskNewPage() {
         setError("Something went wrong while loading the page.");
       } finally {
         if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
-        setIsLoading(false);
+        setIsBootstrapping(false);
       }
     };
 
@@ -197,6 +204,21 @@ export default function TaskNewPage() {
       if (!projectId) {
         setProjectMembers([]);
         setSelectedAssignees([]);
+        setIsMembersLoading(false);
+        return;
+      }
+
+      const cachedMembers = allProjectMembers.filter(
+        (member) => member.project_id === projectId
+      );
+
+      if (cachedMembers.length > 0) {
+        setProjectMembers(cachedMembers);
+        setSelectedAssignees((prev) =>
+          prev.filter((userId) =>
+            cachedMembers.some((member) => member.user_id === userId)
+          )
+        );
         setIsMembersLoading(false);
         return;
       }
@@ -221,10 +243,13 @@ export default function TaskNewPage() {
         const members = (data || []) as ProjectMemberRow[];
         setProjectMembers(members);
 
+        setAllProjectMembers((prev) => {
+          const withoutProject = prev.filter((item) => item.project_id !== projectId);
+          return [...withoutProject, ...members];
+        });
+
         setSelectedAssignees((prev) =>
-          prev.filter((userId) =>
-            members.some((member) => member.user_id === userId)
-          )
+          prev.filter((userId) => members.some((member) => member.user_id === userId))
         );
       } catch (err) {
         if (!mounted || !membersRequestTracker.current.isLatest(requestId)) return;
@@ -242,7 +267,7 @@ export default function TaskNewPage() {
     return () => {
       mounted = false;
     };
-  }, [projectId]);
+  }, [projectId, allProjectMembers]);
 
   const availableAssignees = useMemo(() => {
     return projectMembers
@@ -382,15 +407,6 @@ export default function TaskNewPage() {
       setIsSaving(false);
     }
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-2xl mx-auto">
       <div className="flex items-center gap-4 mb-6">
@@ -418,6 +434,17 @@ export default function TaskNewPage() {
               </Alert>
             )}
 
+            {isBootstrapping && (
+              <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-4">
+                <div className="animate-pulse space-y-4">
+                  <div className="h-4 w-28 rounded bg-slate-800" />
+                  <div className="h-10 w-full rounded bg-slate-800" />
+                  <div className="h-4 w-24 rounded bg-slate-800" />
+                  <div className="h-28 w-full rounded bg-slate-800" />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="title" className="text-slate-300">
                 Task Title <span className="text-red-400">*</span>
@@ -428,6 +455,7 @@ export default function TaskNewPage() {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
+                disabled={isBootstrapping || isSaving}
                 className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
               />
             </div>
@@ -442,15 +470,21 @@ export default function TaskNewPage() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={4}
+                disabled={isBootstrapping || isSaving}
                 className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 resize-none"
               />
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-slate-300">
                   Project <span className="text-red-400">*</span>
                 </Label>
-                <Select value={projectId} onValueChange={setProjectId}>
+                <Select
+                  value={projectId}
+                  onValueChange={setProjectId}
+                  disabled={isBootstrapping || isSaving}
+                >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue placeholder="Select project" />
                   </SelectTrigger>
@@ -466,7 +500,11 @@ export default function TaskNewPage() {
 
               <div className="space-y-2">
                 <Label className="text-slate-300">Priority</Label>
-                <Select value={priority} onValueChange={(v) => setPriority(v as TaskPriority)}>
+                <Select
+                  value={priority}
+                  onValueChange={(v) => setPriority(v as TaskPriority)}
+                  disabled={isBootstrapping || isSaving}
+                >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue placeholder="Select priority" />
                   </SelectTrigger>
@@ -481,7 +519,11 @@ export default function TaskNewPage() {
 
               <div className="space-y-2">
                 <Label className="text-slate-300">Status</Label>
-                <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)}>
+                <Select
+                  value={status}
+                  onValueChange={(v) => setStatus(v as TaskStatus)}
+                  disabled={isBootstrapping || isSaving}
+                >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
@@ -503,6 +545,7 @@ export default function TaskNewPage() {
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
+                  disabled={isBootstrapping || isSaving}
                   className="bg-slate-950 border-slate-800 text-white"
                 />
               </div>
@@ -541,6 +584,7 @@ export default function TaskNewPage() {
                         type="checkbox"
                         checked={selectedAssignees.includes(member.user_id)}
                         onChange={() => toggleAssignee(member.user_id)}
+                        disabled={isSaving}
                         className="h-4 w-4"
                       />
                     </label>
@@ -559,6 +603,7 @@ export default function TaskNewPage() {
                 type="button"
                 variant="outline"
                 onClick={() => navigate(projectId ? `/projects/${projectId}` : "/tasks")}
+                disabled={isSaving}
                 className="border-slate-700 text-slate-300 hover:bg-slate-800"
               >
                 Cancel
@@ -567,7 +612,7 @@ export default function TaskNewPage() {
               <Button
                 type="submit"
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                disabled={isSaving}
+                disabled={isBootstrapping || isSaving}
               >
                 {isSaving ? (
                   <>

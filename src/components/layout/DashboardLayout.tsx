@@ -70,6 +70,54 @@ type NotificationRow = {
   created_at: string;
 };
 
+type CachedLayoutState = {
+  userProfile: UserProfile | null;
+  notifications: NotificationRow[];
+  cachedAt: number;
+};
+
+const LAYOUT_CACHE_KEY = "taskflow.dashboardLayout.cache";
+const CACHE_TTL_MS = 60 * 1000;
+
+function readLayoutCache(): CachedLayoutState | null {
+  try {
+    const raw = sessionStorage.getItem(LAYOUT_CACHE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as CachedLayoutState;
+    if (!parsed?.cachedAt) return null;
+
+    const isExpired = Date.now() - parsed.cachedAt > CACHE_TTL_MS;
+    if (isExpired) return null;
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeLayoutCache(userProfile: UserProfile | null, notifications: NotificationRow[]) {
+  try {
+    const payload: CachedLayoutState = {
+      userProfile,
+      notifications,
+      cachedAt: Date.now(),
+    };
+
+    sessionStorage.setItem(LAYOUT_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    // ignore cache errors
+  }
+}
+
+function clearLayoutCache() {
+  try {
+    sessionStorage.removeItem(LAYOUT_CACHE_KEY);
+  } catch {
+    // ignore cache errors
+  }
+}
+
 export default function DashboardLayout({
   children,
 }: {
@@ -78,19 +126,29 @@ export default function DashboardLayout({
   const navigate = useNavigate();
   const location = useLocation();
 
+  const cached = readLayoutCache();
+
   const [isMobile, setIsMobile] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [isLoadingUser, setIsLoadingUser] = useState(true);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(
+    cached?.userProfile || null
+  );
+  const [isLoadingUser, setIsLoadingUser] = useState(!cached?.userProfile);
 
-  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [notifications, setNotifications] = useState<NotificationRow[]>(
+    cached?.notifications || []
+  );
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+  const [hasLoadedNotifications, setHasLoadedNotifications] = useState(
+    Boolean(cached?.notifications?.length)
+  );
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
+
   const loadUserRequestIdRef = useRef(0);
   const loadNotificationsRequestIdRef = useRef(0);
 
@@ -113,8 +171,13 @@ export default function DashboardLayout({
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  const loadNotifications = async (userId: string) => {
+  const loadNotifications = async (userId: string, force = false) => {
     const requestId = ++loadNotificationsRequestIdRef.current;
+
+    if (!force && hasLoadedNotifications && notifications.length > 0) {
+      return;
+    }
+
     setIsLoadingNotifications(true);
 
     try {
@@ -134,7 +197,10 @@ export default function DashboardLayout({
         return;
       }
 
-      setNotifications((data || []) as NotificationRow[]);
+      const nextNotifications = (data || []) as NotificationRow[];
+      setNotifications(nextNotifications);
+      setHasLoadedNotifications(true);
+      writeLayoutCache(userProfile, nextNotifications);
     } catch (error) {
       if (requestId !== loadNotificationsRequestIdRef.current) return;
       console.error("Load notifications error:", error);
@@ -144,7 +210,7 @@ export default function DashboardLayout({
     }
   };
 
-  const loadUserAndNotifications = async () => {
+  const loadUser = async () => {
     const requestId = ++loadUserRequestIdRef.current;
     setIsLoadingUser(true);
 
@@ -159,7 +225,9 @@ export default function DashboardLayout({
       if (sessionError || !session?.user) {
         setUserProfile(null);
         setNotifications([]);
-        navigate("/login", { replace: true });
+        setHasLoadedNotifications(false);
+        clearLayoutCache();
+        setIsLoadingUser(false);
         return;
       }
 
@@ -183,7 +251,7 @@ export default function DashboardLayout({
       };
 
       setUserProfile(loadedUser);
-      await loadNotifications(session.user.id);
+      writeLayoutCache(loadedUser, notifications);
     } catch (error) {
       if (requestId !== loadUserRequestIdRef.current) return;
       console.error("DashboardLayout user load error:", error);
@@ -196,7 +264,11 @@ export default function DashboardLayout({
   useEffect(() => {
     let mounted = true;
 
-    void loadUserAndNotifications();
+    if (!cached?.userProfile) {
+      void loadUser();
+    } else {
+      setIsLoadingUser(false);
+    }
 
     const {
       data: { subscription },
@@ -207,12 +279,12 @@ export default function DashboardLayout({
         if (!session?.user) {
           setUserProfile(null);
           setNotifications([]);
-          setIsLoadingUser(false);
-          navigate("/login", { replace: true });
+          setHasLoadedNotifications(false);
+          clearLayoutCache();
           return;
         }
 
-        void loadUserAndNotifications();
+        void loadUser();
       }, 0);
     });
 
@@ -220,36 +292,42 @@ export default function DashboardLayout({
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, []);
 
-useEffect(() => {
-  if (!userProfile?.userId) return;
+  useEffect(() => {
+    if (!userProfile?.userId) return;
 
-  const channelKey = `notifications:${userProfile.userId}`;
+    const channelKey = `notifications:${userProfile.userId}`;
 
-registerRealtimeChannel(
-  channelKey,
-  supabase
-    .channel(channelKey)
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "notifications",
-        filter: `user_id=eq.${userProfile.userId}`,
-      },
-      () => {
-        void loadNotifications(userProfile.userId);
-      }
-    )
-    .subscribe()
-);
+    registerRealtimeChannel(
+      channelKey,
+      supabase
+        .channel(channelKey)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${userProfile.userId}`,
+          },
+          () => {
+            void loadNotifications(userProfile.userId, true);
+          }
+        )
+        .subscribe()
+    );
 
-  return () => {
-    void removeRealtimeChannel(channelKey);
-  };
-}, [userProfile?.userId]);
+    return () => {
+      void removeRealtimeChannel(channelKey);
+    };
+  }, [userProfile?.userId]);
+
+  useEffect(() => {
+    if (notificationsOpen && userProfile?.userId) {
+      void loadNotifications(userProfile.userId, true);
+    }
+  }, [notificationsOpen, userProfile?.userId]);
 
   const navItems: NavItem[] = useMemo(
     () => [
@@ -266,6 +344,7 @@ registerRealtimeChannel(
   );
 
   const handleLogout = async () => {
+    clearLayoutCache();
     await supabase.auth.signOut();
     navigate("/login", { replace: true });
   };
@@ -286,11 +365,11 @@ registerRealtimeChannel(
     try {
       if (!notification.is_read) {
         await markNotificationRead(notification.id);
-        setNotifications((prev) =>
-          prev.map((item) =>
-            item.id === notification.id ? { ...item, is_read: true } : item
-          )
+        const nextNotifications = notifications.map((item) =>
+          item.id === notification.id ? { ...item, is_read: true } : item
         );
+        setNotifications(nextNotifications);
+        writeLayoutCache(userProfile, nextNotifications);
       }
 
       setNotificationsOpen(false);
@@ -310,9 +389,12 @@ registerRealtimeChannel(
 
     try {
       await markAllNotificationsRead(userProfile.userId);
-      setNotifications((prev) =>
-        prev.map((item) => ({ ...item, is_read: true }))
-      );
+      const nextNotifications = notifications.map((item) => ({
+        ...item,
+        is_read: true,
+      }));
+      setNotifications(nextNotifications);
+      writeLayoutCache(userProfile, nextNotifications);
     } catch (error) {
       console.error("Mark all read error:", error);
     }
@@ -476,7 +558,7 @@ registerRealtimeChannel(
                   <DropdownMenuTrigger asChild>
                     <button className="w-full flex justify-center p-2 rounded-lg hover:bg-slate-800/50 transition-colors">
                       <Avatar className="w-8 h-8">
-                        <AvatarFallback className="bg-indigo-600 text-white text-sm">
+        <AvatarFallback className="bg-indigo-600 text-white text-sm">
                           {userInitials}
                         </AvatarFallback>
                       </Avatar>
@@ -557,118 +639,4 @@ registerRealtimeChannel(
                 </Button>
               )}
 
-              <div className="relative hidden sm:block">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                <Input
-                  type="text"
-                  placeholder="Search..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 w-64 bg-slate-900 border-slate-800 text-slate-200 placeholder:text-slate-500"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="relative">
-                    <Bell className="w-5 h-5 text-slate-400" />
-                    {unreadCount > 0 && (
-                      <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-indigo-600 rounded-full text-[10px] flex items-center justify-center text-white">
-                        {unreadCount > 9 ? "9+" : unreadCount}
-                      </span>
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-
-                <DropdownMenuContent
-                  align="end"
-                  className="w-96 bg-slate-900 border-slate-800 p-0"
-                >
-                  <div className="flex items-center justify-between px-4 py-3">
-                    <DropdownMenuLabel className="p-0 text-slate-200">
-                      Notifications
-                    </DropdownMenuLabel>
-
-                    {unreadCount > 0 && (
-                      <button
-                        onClick={handleMarkAllRead}
-                        className="text-xs text-indigo-400 hover:text-indigo-300"
-                      >
-                        Mark all as read
-                      </button>
-                    )}
-                  </div>
-
-                  <DropdownMenuSeparator className="bg-slate-800" />
-
-                  <div className="max-h-96 overflow-y-auto">
-                    {isLoadingNotifications ? (
-                      <div className="px-4 py-6 text-sm text-slate-500">
-                        Loading notifications...
-                      </div>
-                    ) : notifications.length === 0 ? (
-                      <div className="px-4 py-6 text-sm text-slate-500">
-                        No notifications yet.
-                      </div>
-                    ) : (
-                      notifications.map((notification) => (
-                        <DropdownMenuItem
-                          key={notification.id}
-                          onClick={() => handleNotificationClick(notification)}
-                          className="flex flex-col items-start gap-1 px-4 py-3 cursor-pointer focus:bg-slate-800"
-                        >
-                          <div className="flex items-start justify-between w-full gap-3">
-                            <div className="min-w-0">
-                              <p
-                                className={`text-sm truncate ${
-                                  notification.is_read
-                                    ? "text-slate-300"
-                                    : "text-white font-medium"
-                                }`}
-                              >
-                                {notification.title}
-                              </p>
-                              {notification.message && (
-                                <p className="text-xs text-slate-500 line-clamp-2">
-                                  {notification.message}
-                                </p>
-                              )}
-                            </div>
-
-                            {!notification.is_read && (
-                              <span className="mt-1 w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0" />
-                            )}
-                          </div>
-
-                          <p className="text-[11px] text-slate-600">
-                            {format(new Date(notification.created_at), "MMM d, h:mm a")}
-                          </p>
-                        </DropdownMenuItem>
-                      ))
-                    )}
-                  </div>
-
-                  <DropdownMenuSeparator className="bg-slate-800" />
-
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setNotificationsOpen(false);
-                      navigate("/inbox");
-                    }}
-                    className="justify-center text-slate-300 focus:bg-slate-800"
-                  >
-                    Open Inbox
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </header>
-
-        <div className="p-4 lg:p-6">{children}</div>
-      </main>
-    </div>
-  );
-}
+              <div className="relative hidden sm

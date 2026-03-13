@@ -96,7 +96,10 @@ function readLayoutCache(): CachedLayoutState | null {
   }
 }
 
-function writeLayoutCache(userProfile: UserProfile | null, notifications: NotificationRow[]) {
+function writeLayoutCache(
+  userProfile: UserProfile | null,
+  notifications: NotificationRow[]
+) {
   try {
     const payload: CachedLayoutState = {
       userProfile,
@@ -144,7 +147,7 @@ export default function DashboardLayout({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const [hasLoadedNotifications, setHasLoadedNotifications] = useState(
-    Boolean(cached?.notifications?.length)
+    Boolean(cached?.notifications)
   );
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
@@ -174,7 +177,7 @@ export default function DashboardLayout({
   const loadNotifications = async (userId: string, force = false) => {
     const requestId = ++loadNotificationsRequestIdRef.current;
 
-    if (!force && hasLoadedNotifications && notifications.length > 0) {
+    if (!force && hasLoadedNotifications) {
       return;
     }
 
@@ -227,7 +230,6 @@ export default function DashboardLayout({
         setNotifications([]);
         setHasLoadedNotifications(false);
         clearLayoutCache();
-        setIsLoadingUser(false);
         return;
       }
 
@@ -511,7 +513,7 @@ export default function DashboardLayout({
     </div>
   );
 
-  return (
+return (
     <div className="min-h-screen bg-slate-950 flex">
       {!isMobile && (
         <aside
@@ -639,4 +641,118 @@ export default function DashboardLayout({
                 </Button>
               )}
 
-              <div className="re
+              <div className="relative hidden sm:block">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 w-64 bg-slate-900 border-slate-800 text-slate-200 placeholder:text-slate-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="relative">
+                    <Bell className="w-5 h-5 text-slate-400" />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-indigo-600 rounded-full text-[10px] flex items-center justify-center text-white">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent
+                  align="end"
+                  className="w-96 bg-slate-900 border-slate-800 p-0"
+                >
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <DropdownMenuLabel className="p-0 text-slate-200">
+                      Notifications
+                    </DropdownMenuLabel>
+
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={handleMarkAllRead}
+                        className="text-xs text-indigo-400 hover:text-indigo-300"
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+
+                  <DropdownMenuSeparator className="bg-slate-800" />
+
+                  <div className="max-h-96 overflow-y-auto">
+                    {isLoadingNotifications ? (
+                      <div className="px-4 py-6 text-sm text-slate-500">
+                        Loading notifications...
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="px-4 py-6 text-sm text-slate-500">
+                        No notifications yet.
+                      </div>
+                    ) : (
+                      notifications.map((notification) => (
+                        <DropdownMenuItem
+                          key={notification.id}
+                          onClick={() => handleNotificationClick(notification)}
+                          className="flex flex-col items-start gap-1 px-4 py-3 cursor-pointer focus:bg-slate-800"
+                        >
+                          <div className="flex items-start justify-between w-full gap-3">
+                            <div className="min-w-0">
+                              <p
+                                className={`text-sm truncate ${
+                                  notification.is_read
+                                    ? "text-slate-300"
+                                    : "text-white font-medium"
+                                }`}
+                              >
+                                {notification.title}
+                              </p>
+                              {notification.message && (
+                                <p className="text-xs text-slate-500 line-clamp-2">
+                                  {notification.message}
+                                </p>
+                              )}
+                            </div>
+
+                            {!notification.is_read && (
+                              <span className="mt-1 w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0" />
+                            )}
+                          </div>
+
+                          <p className="text-[11px] text-slate-600">
+                            {format(new Date(notification.created_at), "MMM d, h:mm a")}
+                          </p>
+                        </DropdownMenuItem>
+                      ))
+                    )}
+                  </div>
+
+                  <DropdownMenuSeparator className="bg-slate-800" />
+
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setNotificationsOpen(false);
+                      navigate("/inbox");
+                    }}
+                    className="justify-center text-slate-300 focus:bg-slate-800"
+                  >
+                    Open Inbox
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </header>
+
+        <div className="p-4 lg:p-6">{children}</div>
+      </main>
+    </div>
+  );
+}

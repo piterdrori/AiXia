@@ -113,6 +113,73 @@ type ProjectCommentRow = {
   created_at: string;
 };
 
+function ProjectDetailSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="h-10 w-10 rounded-md bg-slate-800" />
+          <div className="space-y-2">
+            <div className="h-7 w-56 rounded bg-slate-800" />
+            <div className="h-4 w-72 rounded bg-slate-900" />
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-10 w-24 rounded bg-slate-800" />
+          <div className="h-10 w-24 rounded bg-slate-800" />
+        </div>
+      </div>
+
+      <Card className="bg-slate-900/50 border-slate-800">
+        <CardContent className="p-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="h-4 w-28 rounded bg-slate-800" />
+            <div className="h-4 w-12 rounded bg-slate-800" />
+          </div>
+          <div className="h-3 w-full rounded bg-slate-800" />
+          <div className="grid grid-cols-5 gap-4">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div key={index} className="text-center space-y-2">
+                <div className="h-7 w-10 mx-auto rounded bg-slate-800" />
+                <div className="h-3 w-14 mx-auto rounded bg-slate-900" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="h-10 w-full max-w-[720px] rounded-md bg-slate-900 border border-slate-800" />
+
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card className="bg-slate-900/50 border-slate-800">
+          <CardContent className="p-6 space-y-4">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div key={index} className="flex items-center justify-between">
+                <div className="h-4 w-24 rounded bg-slate-800" />
+                <div className="h-4 w-28 rounded bg-slate-900" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-900/50 border-slate-800">
+          <CardContent className="p-6 space-y-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-slate-800" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-32 rounded bg-slate-800" />
+                  <div className="h-3 w-20 rounded bg-slate-900" />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -121,6 +188,8 @@ export default function ProjectDetailPage() {
 
   const [activeTab, setActiveTab] = useState("overview");
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState("");
@@ -145,145 +214,147 @@ export default function ProjectDetailPage() {
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
 
-  useEffect(() => {
-    let mounted = true;
+  const loadProjectPage = async (mode: "initial" | "refresh" = "initial") => {
+    if (!id) {
+      navigate("/projects");
+      return;
+    }
 
-    const loadProjectPage = async () => {
-      if (!id) {
+    const requestId = requestTracker.current.next();
+
+    if (mode === "initial" && !hasLoadedOnce) {
+      setIsLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
+
+    setError("");
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (!user) {
+        navigate("/login");
+        return;
+      }
+
+      setCurrentUserId(user.id);
+
+      const [
+        { data: myProfile, error: myProfileError },
+        { data: projectData, error: projectError },
+        { data: membersData },
+        { data: profilesData },
+        { data: tasksData },
+        { data: logsData },
+        { data: filesData },
+        { data: commentsData },
+      ] = await Promise.all([
+        supabase.from("profiles").select("role").eq("user_id", user.id).single(),
+        supabase
+          .from("projects")
+          .select(
+            "id, name, description, status, progress, created_by, start_date, end_date, created_at"
+          )
+          .eq("id", id)
+          .single(),
+        supabase
+          .from("project_members")
+          .select("id, project_id, user_id, role, created_at")
+          .eq("project_id", id),
+        supabase
+          .from("profiles")
+          .select("user_id, full_name, role, status")
+          .eq("status", "active"),
+        supabase
+          .from("tasks")
+          .select(
+            "id, title, description, status, priority, due_date, project_id, assignee_id, created_by, created_at"
+          )
+          .eq("project_id", id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("activity_logs")
+          .select(
+            "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
+          )
+          .eq("project_id", id)
+          .order("created_at", { ascending: false })
+          .limit(50),
+        supabase
+          .from("file_uploads")
+          .select(
+            "id, project_id, task_id, user_id, file_name, file_path, file_size, mime_type, entity_type, created_at"
+          )
+          .eq("project_id", id)
+          .is("task_id", null)
+          .eq("entity_type", "project")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("project_comments")
+          .select("id, project_id, user_id, content, created_at")
+          .eq("project_id", id)
+          .order("created_at", { ascending: true }),
+      ]);
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (myProfileError || !myProfile) {
         navigate("/projects");
         return;
       }
 
-      const requestId = requestTracker.current.next();
-      setIsLoading(true);
-      setError("");
+      const role = myProfile.role as Role;
+      setCurrentUserRole(role);
 
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-
-        if (!user) {
-          navigate("/login");
-          return;
-        }
-
-        setCurrentUserId(user.id);
-
-        const [
-          { data: myProfile, error: myProfileError },
-          { data: projectData, error: projectError },
-          { data: membersData },
-          { data: profilesData },
-          { data: tasksData },
-          { data: logsData },
-          { data: filesData },
-          { data: commentsData },
-        ] = await Promise.all([
-          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
-          supabase
-            .from("projects")
-            .select(
-              "id, name, description, status, progress, created_by, start_date, end_date, created_at"
-            )
-            .eq("id", id)
-            .single(),
-          supabase
-            .from("project_members")
-            .select("id, project_id, user_id, role, created_at")
-            .eq("project_id", id),
-          supabase
-            .from("profiles")
-            .select("user_id, full_name, role, status")
-            .eq("status", "active"),
-          supabase
-            .from("tasks")
-            .select(
-              "id, title, description, status, priority, due_date, project_id, assignee_id, created_by, created_at"
-            )
-            .eq("project_id", id)
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("activity_logs")
-            .select(
-              "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
-            )
-            .eq("project_id", id)
-            .order("created_at", { ascending: false })
-            .limit(50),
-          supabase
-            .from("file_uploads")
-            .select(
-              "id, project_id, task_id, user_id, file_name, file_path, file_size, mime_type, entity_type, created_at"
-            )
-            .eq("project_id", id)
-            .is("task_id", null)
-            .eq("entity_type", "project")
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("project_comments")
-            .select("id, project_id, user_id, content, created_at")
-            .eq("project_id", id)
-            .order("created_at", { ascending: true }),
-        ]);
-
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-
-        if (myProfileError || !myProfile) {
-          navigate("/projects");
-          return;
-        }
-
-        const role = myProfile.role as Role;
-        setCurrentUserRole(role);
-
-        if (projectError || !projectData) {
-          setError("Project not found.");
-          setProject(null);
-          return;
-        }
-
-        const loadedProject = projectData as ProjectRow;
-        const loadedMembers = (membersData || []) as ProjectMemberRow[];
-        const loadedProfiles = (profilesData || []) as ProfileRow[];
-        const loadedTasks = (tasksData || []) as TaskRow[];
-        const loadedLogs = (logsData || []) as ActivityLogRow[];
-        const loadedFiles = (filesData || []) as FileUploadRow[];
-        const loadedComments = (commentsData || []) as ProjectCommentRow[];
-
-        const isAdmin = role === "admin";
-        const isCreator = loadedProject.created_by === user.id;
-        const isAssignedMember = loadedMembers.some((member) => member.user_id === user.id);
-
-        if (!isAdmin && !isCreator && !isAssignedMember) {
-          navigate("/projects");
-          return;
-        }
-
-        setProject(loadedProject);
-        setProjectMembers(loadedMembers);
-        setProfiles(loadedProfiles);
-        setTasks(loadedTasks);
-        setActivityLogs(loadedLogs);
-        setFiles(loadedFiles);
-        setComments(loadedComments);
-      } catch (err) {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        console.error("Load project page error:", err);
-        setError("Something went wrong while loading the project.");
-      } finally {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        setIsLoading(false);
+      if (projectError || !projectData) {
+        setProject(null);
+        setError("Project not found.");
+        return;
       }
-    };
 
-    void loadProjectPage();
+      const loadedProject = projectData as ProjectRow;
+      const loadedMembers = (membersData || []) as ProjectMemberRow[];
+      const loadedProfiles = (profilesData || []) as ProfileRow[];
+      const loadedTasks = (tasksData || []) as TaskRow[];
+      const loadedLogs = (logsData || []) as ActivityLogRow[];
+      const loadedFiles = (filesData || []) as FileUploadRow[];
+      const loadedComments = (commentsData || []) as ProjectCommentRow[];
 
-    return () => {
-      mounted = false;
-    };
+      const isAdmin = role === "admin";
+      const isCreator = loadedProject.created_by === user.id;
+      const isAssignedMember = loadedMembers.some((member) => member.user_id === user.id);
+
+      if (!isAdmin && !isCreator && !isAssignedMember) {
+        navigate("/projects");
+        return;
+      }
+
+      setProject(loadedProject);
+      setProjectMembers(loadedMembers);
+      setProfiles(loadedProfiles);
+      setTasks(loadedTasks);
+      setActivityLogs(loadedLogs);
+      setFiles(loadedFiles);
+      setComments(loadedComments);
+      setHasLoadedOnce(true);
+    } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Load project page error:", err);
+      setError("Something went wrong while loading the project.");
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadProjectPage("initial");
   }, [id, navigate]);
 
   const canEdit = useMemo(() => {
@@ -358,12 +429,11 @@ export default function ProjectDetailPage() {
     if (!fullName) return "U";
     return fullName
       .split(" ")
-      .map((n) => n[0])
+      .map((name) => name[0])
       .join("")
       .toUpperCase();
   };
-
-  const getProfileByUserId = (userId: string) => {
+const getProfileByUserId = (userId: string) => {
     return profiles.find((profile) => profile.user_id === userId);
   };
 
@@ -394,12 +464,12 @@ export default function ProjectDetailPage() {
   const filteredMentionCandidates = useMemo(() => {
     if (!showMentionDropdown) return [];
 
-    const q = mentionQuery.trim().toLowerCase();
+    const query = mentionQuery.trim().toLowerCase();
 
     return mentionCandidates.filter((profile) => {
       const name = (profile.full_name || "").toLowerCase();
-      if (!q) return true;
-      return name.includes(q);
+      if (!query) return true;
+      return name.includes(query);
     });
   }, [mentionCandidates, mentionQuery, showMentionDropdown]);
 
@@ -473,9 +543,20 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const handleProjectFileUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const refreshActivityLogs = async (projectId: string) => {
+    const { data: newLogs } = await supabase
+      .from("activity_logs")
+      .select(
+        "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
+      )
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    setActivityLogs((newLogs || []) as ActivityLogRow[]);
+  };
+
+  const handleProjectFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!project || !e.target.files || e.target.files.length === 0) return;
 
     const file = e.target.files[0];
@@ -511,16 +592,7 @@ export default function ProjectDetailPage() {
         });
       }
 
-      const { data: newLogs } = await supabase
-        .from("activity_logs")
-        .select(
-          "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
-        )
-        .eq("project_id", project.id)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      setActivityLogs((newLogs || []) as ActivityLogRow[]);
+      await refreshActivityLogs(project.id);
     } catch (err: any) {
       console.error("Project file upload error:", err);
       setError(err?.message || "Failed to upload file.");
@@ -540,11 +612,7 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const handleDeleteFile = async (
-    fileId: string,
-    filePath: string,
-    fileName: string
-  ) => {
+  const handleDeleteFile = async (fileId: string, filePath: string, fileName: string) => {
     const confirmed = window.confirm("Are you sure you want to delete this file?");
     if (!confirmed) return;
 
@@ -558,16 +626,7 @@ export default function ProjectDetailPage() {
       setFiles((prev) => prev.filter((file) => file.id !== fileId));
 
       if (project) {
-        const { data: newLogs } = await supabase
-          .from("activity_logs")
-          .select(
-            "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
-          )
-          .eq("project_id", project.id)
-          .order("created_at", { ascending: false })
-          .limit(50);
-
-        setActivityLogs((newLogs || []) as ActivityLogRow[]);
+        await refreshActivityLogs(project.id);
       }
     } catch (err: any) {
       console.error("Delete file error:", err);
@@ -575,7 +634,7 @@ export default function ProjectDetailPage() {
     }
   };
 
-const handleAddComment = async () => {
+  const handleAddComment = async () => {
     if (!project || !currentUserId || !newComment.trim()) return;
 
     setCommentSaving(true);
@@ -652,6 +711,7 @@ const handleAddComment = async () => {
     setComments((prev) => [...prev, data as ProjectCommentRow]);
     setNewComment("");
     setCommentSaving(false);
+    await refreshActivityLogs(project.id);
   };
 
   const startEditingComment = (comment: ProjectCommentRow) => {
@@ -709,6 +769,10 @@ const handleAddComment = async () => {
     setEditingCommentId(null);
     setEditingCommentText("");
     setCommentActionLoading(null);
+
+    if (project) {
+      await refreshActivityLogs(project.id);
+    }
   };
 
   const handleDeleteComment = async (comment: ProjectCommentRow) => {
@@ -746,22 +810,22 @@ const handleAddComment = async () => {
     }
 
     setCommentActionLoading(null);
+
+    if (project) {
+      await refreshActivityLogs(project.id);
+    }
   };
 
   const taskStats = {
     total: tasks.length,
-    todo: tasks.filter((t) => (t.status || "").toUpperCase() === "TODO").length,
-    inProgress: tasks.filter((t) => (t.status || "").toUpperCase() === "IN_PROGRESS").length,
-    inReview: tasks.filter((t) => (t.status || "").toUpperCase() === "IN_REVIEW").length,
-    done: tasks.filter((t) => (t.status || "").toUpperCase() === "DONE").length,
+    todo: tasks.filter((task) => (task.status || "").toUpperCase() === "TODO").length,
+    inProgress: tasks.filter((task) => (task.status || "").toUpperCase() === "IN_PROGRESS").length,
+    inReview: tasks.filter((task) => (task.status || "").toUpperCase() === "IN_REVIEW").length,
+    done: tasks.filter((task) => (task.status || "").toUpperCase() === "DONE").length,
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
-      </div>
-    );
+  if (isLoading && !hasLoadedOnce) {
+    return <ProjectDetailSkeleton />;
   }
 
   if (!project) {
@@ -777,6 +841,7 @@ const handleAddComment = async () => {
     );
   }
 
+  const pageBusy = isRefreshing && hasLoadedOnce;
   return (
     <div className="space-y-6">
       {error && (
@@ -802,12 +867,22 @@ const handleAddComment = async () => {
               <Badge className={getStatusColor(project.status)}>
                 {project.status || "UNKNOWN"}
               </Badge>
+              {pageBusy && <span className="text-xs text-slate-500">Refreshing...</span>}
             </div>
             <p className="text-slate-400">{project.description || "No description"}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            onClick={() => void loadProjectPage("refresh")}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? "Refreshing..." : "Refresh"}
+          </Button>
+
           {canEdit && (
             <Button
               variant="outline"
@@ -1029,13 +1104,11 @@ const handleAddComment = async () => {
 
                       <div className="flex items-center gap-4">
                         {assignee && (
-                          <div className="flex items-center gap-2">
-                            <Avatar className="w-7 h-7">
-                              <AvatarFallback className="bg-indigo-600 text-white text-xs">
-                                {getInitials(assignee.full_name)}
-                              </AvatarFallback>
-                            </Avatar>
-                          </div>
+                          <Avatar className="w-7 h-7">
+                            <AvatarFallback className="bg-indigo-600 text-white text-xs">
+                              {getInitials(assignee.full_name)}
+                            </AvatarFallback>
+                          </Avatar>
                         )}
 
                         {task.due_date && (
@@ -1139,9 +1212,7 @@ const handleAddComment = async () => {
               ) : (
                 <div className="space-y-3">
                   {files.map((file) => {
-                    const uploader = file.user_id
-                      ? getProfileByUserId(file.user_id)
-                      : null;
+                    const uploader = file.user_id ? getProfileByUserId(file.user_id) : null;
 
                     return (
                       <div
@@ -1244,212 +1315,209 @@ const handleAddComment = async () => {
                   </div>
                 )}
 
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <p className="text-xs text-slate-500">
-                    This update will be visible to people who can access this project.
-                  </p>
+              <div className="mt-3 flex items-center justify-between gap-3">
+  <p className="text-xs text-slate-500">
+    This update will be visible to people who can access this project.
+  </p>
+
+  <Button
+    type="button"
+    onClick={() => void handleAddComment()}
+    disabled={commentSaving || !newComment.trim()}
+    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+  >
+    <MessageSquare className="w-4 h-4 mr-2" />
+    {commentSaving ? "Posting..." : "Post Update"}
+  </Button>
+</div>
+</div>
+
+<div className="space-y-4">
+  {comments.length === 0 ? (
+    <div className="rounded-xl border border-dashed border-slate-800 bg-slate-950/40 p-8 text-center">
+      <MessageSquare className="mx-auto mb-3 h-10 w-10 text-slate-600" />
+      <p className="text-white font-medium">No discussion yet</p>
+      <p className="mt-1 text-sm text-slate-500">
+        Start the thread with the first project-wide update.
+      </p>
+    </div>
+  ) : (
+    comments.map((comment) => {
+      const isMine = comment.user_id === currentUserId;
+      const authorName = getProfileName(comment.user_id);
+      const authorRole = getProfileRole(comment.user_id);
+      const isEditing = editingCommentId === comment.id;
+
+      return (
+        <div
+          key={comment.id}
+          className={`rounded-xl border p-4 ${
+            isMine
+              ? "border-indigo-800/40 bg-indigo-950/20"
+              : "border-slate-800 bg-slate-950/50"
+          }`}
+        >
+          <div className="mb-3 flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-xs font-medium text-white">
+                {getInitials(authorName)}
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-medium text-white">{authorName}</p>
+
+                  {authorRole && (
+                    <Badge className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5">
+                      {authorRole.toUpperCase()}
+                    </Badge>
+                  )}
+
+                  {isMine && (
+                    <Badge className="bg-indigo-500/20 text-indigo-300 text-[10px] px-2 py-0.5">
+                      YOU
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                  <Clock3 className="h-3 w-3" />
+                  <span>
+                    {format(new Date(comment.created_at), "MMM d, yyyy • h:mm a")}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {canManageComment(comment) && !isEditing && (
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                  onClick={() => startEditingComment(comment)}
+                  disabled={commentActionLoading === comment.id}
+                >
+                  <Edit className="w-3 h-3 mr-1" />
+                  Edit
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-red-800 text-red-400 hover:bg-red-900/20"
+                  onClick={() => void handleDeleteComment(comment)}
+                  disabled={commentActionLoading === comment.id}
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />
+                  Delete
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="pl-12">
+            {isEditing ? (
+              <div className="space-y-3">
+                <Textarea
+                  value={editingCommentText}
+                  onChange={(e) => setEditingCommentText(e.target.value)}
+                  rows={4}
+                  className="bg-slate-900 border-slate-800 text-white resize-none"
+                />
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    onClick={() => void handleSaveEditedComment(comment)}
+                    disabled={
+                      commentActionLoading === comment.id ||
+                      !editingCommentText.trim()
+                    }
+                  >
+                    <Save className="w-3 h-3 mr-1" />
+                    Save
+                  </Button>
 
                   <Button
                     type="button"
-                    onClick={() => void handleAddComment()}
-                    disabled={commentSaving || !newComment.trim()}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    size="sm"
+                    variant="outline"
+                    className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                    onClick={cancelEditingComment}
+                    disabled={commentActionLoading === comment.id}
                   >
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    {commentSaving ? "Posting..." : "Post Update"}
+                    <X className="w-3 h-3 mr-1" />
+                    Cancel
                   </Button>
                 </div>
               </div>
+            ) : (
+              <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">
+                {comment.content}
+              </p>
+            )}
+          </div>
+        </div>
+      );
+    })
+  )}
+</div>
+</CardContent>
+</Card>
+</TabsContent>
 
-              <div className="space-y-4">
-                {comments.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-800 bg-slate-950/40 p-8 text-center">
-                    <MessageSquare className="mx-auto mb-3 h-10 w-10 text-slate-600" />
-                    <p className="text-white font-medium">No discussion yet</p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Start the thread with the first project-wide update.
-                    </p>
-                  </div>
-                ) : (
-                  comments.map((comment) => {
-                    const isMine = comment.user_id === currentUserId;
-                    const authorName = getProfileName(comment.user_id);
-                    const authorRole = getProfileRole(comment.user_id);
-                    const isEditing = editingCommentId === comment.id;
+<TabsContent value="activity" className="space-y-4">
+  <Card className="bg-slate-900/50 border-slate-800">
+    <CardHeader>
+      <CardTitle className="text-white">Project Activity</CardTitle>
+    </CardHeader>
+    <CardContent>
+      {activityLogs.length === 0 ? (
+        <p className="text-slate-500">No activity yet.</p>
+      ) : (
+        <div className="space-y-4">
+          {activityLogs.map((log) => {
+            const actor = log.user_id ? getProfileByUserId(log.user_id) : null;
 
-                    return (
-                      <div
-                        key={comment.id}
-                        className={`rounded-xl border p-4 ${
-                          isMine
-                            ? "border-indigo-800/40 bg-indigo-950/20"
-                            : "border-slate-800 bg-slate-950/50"
-                        }`}
-                      >
-                        <div className="mb-3 flex items-start justify-between gap-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-xs font-medium text-white">
-                              {getInitials(authorName)}
-                            </div>
-
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="text-sm font-medium text-white">{authorName}</p>
-
-                                {authorRole && (
-                                  <Badge className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5">
-                                    {authorRole.toUpperCase()}
-                                  </Badge>
-                                )}
-
-                                {isMine && (
-                                  <Badge className="bg-indigo-500/20 text-indigo-300 text-[10px] px-2 py-0.5">
-                                    YOU
-                                  </Badge>
-                                )}
-                              </div>
-
-                              <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-                                <Clock3 className="h-3 w-3" />
-                                <span>
-                                  {format(new Date(comment.created_at), "MMM d, yyyy • h:mm a")}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {canManageComment(comment) && (
-                            <div className="flex items-center gap-2">
-                              {!isEditing && (
-                                <>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                                    onClick={() => startEditingComment(comment)}
-                                    disabled={commentActionLoading === comment.id}
-                                  >
-                                    <Edit className="w-3 h-3 mr-1" />
-                                    Edit
-                                  </Button>
-
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="border-red-800 text-red-400 hover:bg-red-900/20"
-                                    onClick={() => void handleDeleteComment(comment)}
-                                    disabled={commentActionLoading === comment.id}
-                                  >
-                                    <Trash2 className="w-3 h-3 mr-1" />
-                                    Delete
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="pl-12">
-                          {isEditing ? (
-                            <div className="space-y-3">
-                              <Textarea
-                                value={editingCommentText}
-                                onChange={(e) => setEditingCommentText(e.target.value)}
-                                rows={4}
-                                className="bg-slate-900 border-slate-800 text-white resize-none"
-                              />
-
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                                  onClick={() => void handleSaveEditedComment(comment)}
-                                  disabled={
-                                    commentActionLoading === comment.id ||
-                                    !editingCommentText.trim()
-                                  }
-                                >
-                                  <Save className="w-3 h-3 mr-1" />
-                                  Save
-                                </Button>
-
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                                  onClick={cancelEditingComment}
-                                  disabled={commentActionLoading === comment.id}
-                                >
-                                  <X className="w-3 h-3 mr-1" />
-                                  Cancel
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">
-                              {comment.content}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="activity" className="space-y-4">
-          <Card className="bg-slate-900/50 border-slate-800">
-            <CardHeader>
-              <CardTitle className="text-white">Project Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {activityLogs.length === 0 ? (
-                <p className="text-slate-500">No activity yet.</p>
-              ) : (
-                <div className="space-y-4">
-                  {activityLogs.map((log) => {
-                    const actor = log.user_id ? getProfileByUserId(log.user_id) : null;
-
-                    return (
-                      <div
-                        key={log.id}
-                        className="flex items-start justify-between gap-4 border-b border-slate-800 pb-4 last:border-b-0"
-                      >
-                        <div>
-                          <p className="text-white text-sm">
-                            {actor?.full_name ? (
-                              <>
-                                <span className="font-medium">{actor.full_name}</span>{" "}
-                                <span className="text-slate-300">{log.message}</span>
-                              </>
-                            ) : (
-                              <span className="text-slate-300">{log.message}</span>
-                            )}
-                          </p>
-                          <p className="text-xs text-slate-500 mt-1">
-                            {log.action_type} • {log.entity_type}
-                          </p>
-                        </div>
-
-                        <div className="text-xs text-slate-500 whitespace-nowrap">
-                          {format(new Date(log.created_at), "MMM d, h:mm a")}
-                        </div>
-                      </div>
-                    );
-                  })}
+            return (
+              <div
+                key={log.id}
+                className="flex items-start justify-between gap-4 border-b border-slate-800 pb-4 last:border-b-0"
+              >
+                <div>
+                  <p className="text-white text-sm">
+                    {actor?.full_name ? (
+                      <>
+                        <span className="font-medium">{actor.full_name}</span>{" "}
+                        <span className="text-slate-300">{log.message}</span>
+                      </>
+                    ) : (
+                      <span className="text-slate-300">{log.message}</span>
+                    )}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {log.action_type} • {log.entity_type}
+                  </p>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
+
+                <div className="text-xs text-slate-500 whitespace-nowrap">
+                  {format(new Date(log.created_at), "MMM d, h:mm a")}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </CardContent>
+  </Card>
+</TabsContent>
+</Tabs>
+</div>
+);
 }
+  

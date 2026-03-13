@@ -95,9 +95,7 @@ function isEndBeforeStart(
 export default function CalendarEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-
   const pageRequestTracker = useRef(createRequestTracker());
-  const relatedDataRequestTracker = useRef(createRequestTracker());
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
@@ -112,8 +110,7 @@ export default function CalendarEditPage() {
   const [endTime, setEndTime] = useState("10:00");
   const [allDay, setAllDay] = useState(false);
 
-  const [meetingDuration, setMeetingDuration] =
-    useState<MeetingDurationValue>("60");
+  const [meetingDuration, setMeetingDuration] = useState<MeetingDurationValue>("60");
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
@@ -121,8 +118,8 @@ export default function CalendarEditPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string>("NONE");
 
   const [eventLoaded, setEventLoaded] = useState(false);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isLoadingRelatedData, setIsLoadingRelatedData] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState("");
@@ -137,68 +134,29 @@ export default function CalendarEditPage() {
     return eventType === "reminder" || eventType === "call" || eventType === "personal";
   }, [eventType]);
 
-  const loadRelatedData = async (
-    userId: string,
-    mode: "initial" | "refresh" = "initial"
-  ) => {
-    const requestId = relatedDataRequestTracker.current.next();
+  const filteredTasks = useMemo(() => {
+    if (selectedProjectId === "NONE") return [];
+    return tasks.filter((task) => task.project_id === selectedProjectId);
+  }, [tasks, selectedProjectId]);
 
-    if (mode === "refresh") {
-      setIsRefreshing(true);
-    } else {
-      setIsLoadingRelatedData(true);
-    }
+  const isLoadingRelatedData = isBootstrapping || isRefreshing;
+  const isPageBusy = !eventLoaded;
 
-    try {
-      const [{ data: projectsData, error: projectsError }, { data: tasksData, error: tasksError }] =
-        await Promise.all([
-          supabase
-            .from("projects")
-            .select("id, name, created_by")
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("tasks")
-            .select("id, title, project_id")
-            .order("created_at", { ascending: false }),
-        ]);
-
-      if (!relatedDataRequestTracker.current.isLatest(requestId)) return;
-
-      if (projectsError) {
-        console.error("Load projects error:", projectsError);
-      }
-
-      if (tasksError) {
-        console.error("Load tasks error:", tasksError);
-      }
-
-      setProjects((projectsData || []) as ProjectRow[]);
-      setTasks((tasksData || []) as TaskRow[]);
-
-      if (projectsError || tasksError) {
-        setError("Some event form data could not be loaded.");
-      }
-    } catch (err) {
-      if (!relatedDataRequestTracker.current.isLatest(requestId)) return;
-      console.error("Load related calendar edit data error:", err);
-      setError("Failed to load related data.");
-      setProjects([]);
-      setTasks([]);
-    } finally {
-      if (!relatedDataRequestTracker.current.isLatest(requestId)) return;
-      setIsRefreshing(false);
-      setIsLoadingRelatedData(false);
-      void userId;
-    }
-  };
-
-  const loadEventOnly = async () => {
+  const loadPage = async (mode: "initial" | "refresh" = "initial") => {
     if (!id) {
       navigate("/calendar");
       return;
     }
 
     const requestId = pageRequestTracker.current.next();
+
+    if (mode === "initial") {
+      setIsBootstrapping(true);
+      setEventLoaded(false);
+    } else {
+      setIsRefreshing(true);
+    }
+
     setError("");
 
     try {
@@ -215,13 +173,24 @@ export default function CalendarEditPage() {
 
       setCurrentUserId(user.id);
 
-      const { data: eventData, error: eventError } = await supabase
-        .from("calendar_events")
-        .select(
-          "id, title, description, event_type, start_date, start_time, end_date, end_time, all_day, project_id, task_id, created_by, reminder_minutes"
-        )
-        .eq("id", id)
-        .single();
+      const [{ data: eventData, error: eventError }, { data: projectsData }, { data: tasksData }] =
+        await Promise.all([
+          supabase
+            .from("calendar_events")
+            .select(
+              "id, title, description, event_type, start_date, start_time, end_date, end_time, all_day, project_id, task_id, created_by, reminder_minutes"
+            )
+            .eq("id", id)
+            .single(),
+          supabase
+            .from("projects")
+            .select("id, name, created_by")
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("tasks")
+            .select("id, title, project_id")
+            .order("created_at", { ascending: false }),
+        ]);
 
       if (!pageRequestTracker.current.isLatest(requestId)) return;
 
@@ -240,9 +209,6 @@ export default function CalendarEditPage() {
       setTitle(event.title || "");
       setDescription(event.description || "");
       setEventType((event.event_type || "meeting") as EventType);
-      setReminderMinutes(
-        event.reminder_minutes ? (String(event.reminder_minutes) as ReminderValue) : "NONE"
-      );
       setStartDate(event.start_date || "");
       setStartTime(event.start_time || "09:00");
       setEndDate(event.end_date || event.start_date || "");
@@ -250,18 +216,28 @@ export default function CalendarEditPage() {
       setAllDay(Boolean(event.all_day));
       setSelectedProjectId(event.project_id || "NONE");
       setSelectedTaskId(event.task_id || "NONE");
-      setEventLoaded(true);
+      setReminderMinutes(
+        event.reminder_minutes ? (String(event.reminder_minutes) as ReminderValue) : "NONE"
+      );
 
-      void loadRelatedData(user.id, "initial");
+      setProjects((projectsData || []) as ProjectRow[]);
+      setTasks((tasksData || []) as TaskRow[]);
+      setEventLoaded(true);
     } catch (err) {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
       console.error("Load calendar edit page error:", err);
       setError("Failed to load event.");
+      setProjects([]);
+      setTasks([]);
+    } finally {
+      if (!pageRequestTracker.current.isLatest(requestId)) return;
+      setIsBootstrapping(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
-    void loadEventOnly();
+    void loadPage("initial");
   }, [id]);
 
   useEffect(() => {
@@ -301,9 +277,7 @@ export default function CalendarEditPage() {
 
     if (
       selectedTaskId !== "NONE" &&
-      !tasks.some(
-        (task) => task.id === selectedTaskId && task.project_id === selectedProjectId
-      )
+      !tasks.some((task) => task.id === selectedTaskId && task.project_id === selectedProjectId)
     ) {
       setSelectedTaskId("NONE");
     }
@@ -343,10 +317,6 @@ export default function CalendarEditPage() {
     meetingDuration,
   ]);
 
-  const filteredTasks = useMemo(() => {
-    if (selectedProjectId === "NONE") return [];
-    return tasks.filter((task) => task.project_id === selectedProjectId);
-  }, [tasks, selectedProjectId]);
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -373,16 +343,16 @@ export default function CalendarEditPage() {
     const computedEndDate = allDay
       ? endDate || startDate
       : needsSingleTimeOnly
-      ? startDate
-      : endDate || startDate;
+        ? startDate
+        : endDate || startDate;
 
     const computedEndTime = allDay
       ? null
       : needsSingleTimeOnly
-      ? startTime || null
-      : usesDuration
-      ? addMinutesToTime(startTime, Number(meetingDuration || 60))
-      : endTime || null;
+        ? startTime || null
+        : usesDuration
+          ? addMinutesToTime(startTime, Number(meetingDuration || 60))
+          : endTime || null;
 
     if (!allDay && needsStartAndEnd && !computedEndTime) {
       setError("End time is required.");
@@ -495,15 +465,6 @@ export default function CalendarEditPage() {
       setIsDeleting(false);
     }
   };
-
-  if (!eventLoaded) {
-    return (
-      <div className="h-64 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -527,11 +488,7 @@ export default function CalendarEditPage() {
           type="button"
           variant="outline"
           className="border-slate-700 text-slate-300 hover:bg-slate-800"
-          onClick={() => {
-            if (currentUserId) {
-              void loadRelatedData(currentUserId, "refresh");
-            }
-          }}
+          onClick={() => void loadPage("refresh")}
           disabled={isRefreshing}
         >
           {isRefreshing ? "Refreshing..." : "Refresh"}
@@ -547,6 +504,15 @@ export default function CalendarEditPage() {
       <Card className="bg-slate-900/50 border-slate-800">
         <CardContent className="p-6">
           <form onSubmit={handleSave} className="space-y-6">
+            {isPageBusy && (
+              <Alert className="bg-indigo-900/20 border-indigo-800 text-indigo-200">
+                <AlertDescription className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading event details...
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2 md:col-span-2">
                 <Label className="text-slate-300">Title</Label>
@@ -554,6 +520,7 @@ export default function CalendarEditPage() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="bg-slate-950 border-slate-800 text-white"
+                  disabled={isPageBusy}
                 />
               </div>
 
@@ -564,6 +531,7 @@ export default function CalendarEditPage() {
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}
                   className="bg-slate-950 border-slate-800 text-white resize-none"
+                  disabled={isPageBusy}
                 />
               </div>
 
@@ -572,6 +540,7 @@ export default function CalendarEditPage() {
                 <Select
                   value={eventType}
                   onValueChange={(value) => setEventType(value as EventType)}
+                  disabled={isPageBusy}
                 >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue />
@@ -593,6 +562,7 @@ export default function CalendarEditPage() {
                 <Select
                   value={reminderMinutes}
                   onValueChange={(value) => setReminderMinutes(value as ReminderValue)}
+                  disabled={isPageBusy}
                 >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue />
@@ -612,6 +582,7 @@ export default function CalendarEditPage() {
                 <Checkbox
                   checked={allDay}
                   onCheckedChange={(checked) => setAllDay(Boolean(checked))}
+                  disabled={isPageBusy}
                 />
                 <Label className="text-slate-300">All Day Event</Label>
               </div>
@@ -633,6 +604,7 @@ export default function CalendarEditPage() {
                     });
                   }}
                   className="bg-slate-950 border-slate-800 text-white"
+                  disabled={isPageBusy}
                 />
               </div>
 
@@ -664,6 +636,7 @@ export default function CalendarEditPage() {
                       }
                     }}
                     className="bg-slate-950 border-slate-800 text-white"
+                    disabled={isPageBusy}
                   />
                 </div>
               )}
@@ -674,6 +647,7 @@ export default function CalendarEditPage() {
                   <Select
                     value={meetingDuration}
                     onValueChange={(value) => setMeetingDuration(value as MeetingDurationValue)}
+                    disabled={isPageBusy}
                   >
                     <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                       <SelectValue />
@@ -697,7 +671,7 @@ export default function CalendarEditPage() {
                     min={startDate}
                     onChange={(e) => setEndDate(e.target.value)}
                     className="bg-slate-950 border-slate-800 text-white"
-                    disabled={usesDuration}
+                    disabled={usesDuration || isPageBusy}
                   />
                 </div>
               )}
@@ -713,6 +687,7 @@ export default function CalendarEditPage() {
                     value={endTime}
                     onChange={(e) => setEndTime(e.target.value)}
                     className="bg-slate-950 border-slate-800 text-white"
+                    disabled={isPageBusy}
                   />
                 </div>
               )}
@@ -725,6 +700,7 @@ export default function CalendarEditPage() {
                     setSelectedProjectId(value);
                     setSelectedTaskId("NONE");
                   }}
+                  disabled={isPageBusy}
                 >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue />
@@ -745,7 +721,7 @@ export default function CalendarEditPage() {
                 <Select
                   value={selectedTaskId}
                   onValueChange={setSelectedTaskId}
-                  disabled={selectedProjectId === "NONE" || isLoadingRelatedData}
+                  disabled={selectedProjectId === "NONE" || isLoadingRelatedData || isPageBusy}
                 >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue />
@@ -768,7 +744,7 @@ export default function CalendarEditPage() {
                 variant="outline"
                 className="border-red-800 text-red-400 hover:bg-red-900/20"
                 onClick={() => void handleDelete()}
-                disabled={isDeleting}
+                disabled={isDeleting || isPageBusy}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
                 {isDeleting ? "Deleting..." : "Delete"}
@@ -787,9 +763,9 @@ export default function CalendarEditPage() {
                 <Button
                   type="submit"
                   className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                  disabled={isSaving}
+                  disabled={isSaving || isPageBusy}
                 >
-                  {isSaving ? "Saving..." : "Save Changes"}
+                  {isSaving ? "Saving..." : isPageBusy ? "Loading..." : "Save Changes"}
                 </Button>
               </div>
             </div>

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
+import { createRequestTracker } from "@/lib/safeAsync";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,8 @@ type ProjectMemberRow = {
 export default function CalendarNewPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const requestTracker = useRef(createRequestTracker());
+
   const presetDate = searchParams.get("date") || format(new Date(), "yyyy-MM-dd");
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -72,7 +75,10 @@ export default function CalendarNewPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let mounted = true;
+
     const loadPage = async () => {
+      const requestId = requestTracker.current.next();
       setIsLoading(true);
       setError("");
 
@@ -80,6 +86,8 @@ export default function CalendarNewPage() {
         const {
           data: { user },
         } = await supabase.auth.getUser();
+
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
         if (!user) {
           navigate("/login");
@@ -105,6 +113,8 @@ export default function CalendarNewPage() {
             .select("id, title, project_id, due_date")
             .order("created_at", { ascending: false }),
         ]);
+
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
         if (meError || !me) {
           navigate("/calendar");
@@ -151,15 +161,21 @@ export default function CalendarNewPage() {
           setTasks((allTasks || []) as TaskRow[]);
         }
       } catch (err) {
-        console.error(err);
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+        console.error("Load calendar new page error:", err);
         setError("Failed to load calendar form.");
       } finally {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         setIsLoading(false);
       }
     };
 
-    loadPage();
-  }, [navigate]);
+    void loadPage();
+
+    return () => {
+      mounted = false;
+    };
+  }, [navigate, selectedProjectId]);
 
   const filteredTasks = useMemo(() => {
     if (selectedProjectId === "NONE") return [];
@@ -181,47 +197,60 @@ export default function CalendarNewPage() {
       return;
     }
 
+    const requestId = requestTracker.current.next();
     setIsSaving(true);
     setError("");
 
-    const payload = {
-      title: title.trim(),
-      description: description.trim() || null,
-      event_type: eventType,
-      start_date: startDate,
-      start_time: allDay ? null : startTime || null,
-      end_date: endDate || startDate,
-      end_time: allDay ? null : endTime || null,
-      all_day: allDay,
-      project_id: selectedProjectId === "NONE" ? null : selectedProjectId,
-      task_id: selectedTaskId === "NONE" ? null : selectedTaskId,
-      created_by: currentUserId,
-    };
+    try {
+      const payload = {
+        title: title.trim(),
+        description: description.trim() || null,
+        event_type: eventType,
+        start_date: startDate,
+        start_time: allDay ? null : startTime || null,
+        end_date: endDate || startDate,
+        end_time: allDay ? null : endTime || null,
+        all_day: allDay,
+        project_id: selectedProjectId === "NONE" ? null : selectedProjectId,
+        task_id: selectedTaskId === "NONE" ? null : selectedTaskId,
+        created_by: currentUserId,
+      };
 
-    const { data: insertedEvent, error: insertError } = await supabase
-      .from("calendar_events")
-      .insert(payload)
-      .select("id, project_id, task_id, title, start_date")
-      .single();
+      const { data: insertedEvent, error: insertError } = await supabase
+        .from("calendar_events")
+        .insert(payload)
+        .select("id, project_id, task_id, title, start_date")
+        .single();
 
-    if (insertError || !insertedEvent) {
-      setError(insertError?.message || "Failed to create event.");
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (insertError || !insertedEvent) {
+        setError(insertError?.message || "Failed to create event.");
+        setIsSaving(false);
+        return;
+      }
+
+      await supabase.from("activity_logs").insert({
+        project_id: insertedEvent.project_id,
+        task_id: insertedEvent.task_id,
+        user_id: currentUserId,
+        action_type: "CREATE",
+        entity_type: "calendar_event",
+        entity_id: insertedEvent.id,
+        message: `Created calendar event "${insertedEvent.title}" for ${insertedEvent.start_date}`,
+      });
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      navigate("/calendar");
+    } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Create event error:", err);
+      setError("Failed to create event.");
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
       setIsSaving(false);
-      return;
     }
-
-    await supabase.from("activity_logs").insert({
-      project_id: insertedEvent.project_id,
-      task_id: insertedEvent.task_id,
-      user_id: currentUserId,
-      action_type: "CREATE",
-      entity_type: "calendar_event",
-      entity_id: insertedEvent.id,
-      message: `Created calendar event "${insertedEvent.title}" for ${insertedEvent.start_date}`,
-    });
-
-    setIsSaving(false);
-    navigate("/calendar");
   };
 
   if (isLoading) {

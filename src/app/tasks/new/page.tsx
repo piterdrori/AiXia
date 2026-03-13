@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { logActivity } from "@/lib/activity";
 import { createNotification } from "@/lib/notifications";
+import { createRequestTracker } from "@/lib/safeAsync";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,6 +48,8 @@ type ProfileRow = {
 export default function TaskNewPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const requestTracker = useRef(createRequestTracker());
+
   const initialProjectId = searchParams.get("projectId") || "";
 
   const [title, setTitle] = useState("");
@@ -68,7 +72,10 @@ export default function TaskNewPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let mounted = true;
+
     const loadPage = async () => {
+      const requestId = requestTracker.current.next();
       setIsLoading(true);
       setError("");
 
@@ -76,6 +83,8 @@ export default function TaskNewPage() {
         const {
           data: { user },
         } = await supabase.auth.getUser();
+
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
         if (!user) {
           navigate("/login");
@@ -89,6 +98,8 @@ export default function TaskNewPage() {
           .select("role")
           .eq("user_id", user.id)
           .single();
+
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
         if (myProfileError || !myProfile) {
           navigate("/tasks");
@@ -113,6 +124,8 @@ export default function TaskNewPage() {
               .eq("status", "active")
               .order("full_name", { ascending: true }),
           ]);
+
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
         const projectsData = (allProjects || []) as ProjectRow[];
         const membersData = (allProjectMembers || []) as ProjectMemberRow[];
@@ -143,18 +156,28 @@ export default function TaskNewPage() {
           setProjectId("");
         }
       } catch (err) {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         console.error("Load task new page error:", err);
         setError("Something went wrong while loading the page.");
       } finally {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         setIsLoading(false);
       }
     };
 
-    loadPage();
+    void loadPage();
+
+    return () => {
+      mounted = false;
+    };
   }, [navigate, initialProjectId]);
 
   useEffect(() => {
+    let mounted = true;
+
     const loadMembersForProject = async () => {
+      const requestId = requestTracker.current.next();
+
       if (!projectId) {
         setProjectMembers([]);
         setSelectedAssignees([]);
@@ -165,6 +188,8 @@ export default function TaskNewPage() {
         .from("project_members")
         .select("id, project_id, user_id, role, created_at")
         .eq("project_id", projectId);
+
+      if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
       if (membersError) {
         console.error("Load project members error:", membersError);
@@ -181,7 +206,11 @@ export default function TaskNewPage() {
       );
     };
 
-    loadMembersForProject();
+    void loadMembersForProject();
+
+    return () => {
+      mounted = false;
+    };
   }, [projectId]);
 
   const availableAssignees = useMemo(() => {
@@ -215,10 +244,18 @@ export default function TaskNewPage() {
       return;
     }
 
+    if (dueDate && Number.isNaN(new Date(dueDate).getTime())) {
+      setError("Due date is invalid.");
+      return;
+    }
+
+    const requestId = requestTracker.current.next();
     setIsSaving(true);
 
     try {
       const selectedProject = projects.find((project) => project.id === projectId);
+
+      if (!requestTracker.current.isLatest(requestId)) return;
 
       if (!selectedProject) {
         setError("Selected project is not available.");
@@ -241,6 +278,8 @@ export default function TaskNewPage() {
         .select("id, title, assignee_id")
         .single();
 
+      if (!requestTracker.current.isLatest(requestId)) return;
+
       if (taskError || !taskData) {
         console.error("Create task error:", taskError);
         setError(taskError?.message || "Failed to create task.");
@@ -257,7 +296,7 @@ export default function TaskNewPage() {
         message: `Created task "${title.trim()}"`,
       });
 
-     if (selectedAssignees.length > 0) {
+      if (selectedAssignees.length > 0) {
         const memberRows = selectedAssignees.map((userId) => ({
           task_id: taskData.id,
           user_id: userId,
@@ -267,6 +306,8 @@ export default function TaskNewPage() {
         const { error: taskMembersError } = await supabase
           .from("task_members")
           .insert(memberRows);
+
+        if (!requestTracker.current.isLatest(requestId)) return;
 
         if (taskMembersError) {
           console.error("Create task members error:", taskMembersError);
@@ -299,10 +340,17 @@ export default function TaskNewPage() {
           });
         }
       }
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
       navigate(`/projects/${projectId}`);
     } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Create task submit error:", err);
       setError("Something went wrong while creating the task.");
+      setIsSaving(false);
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
       setIsSaving(false);
     }
   };
@@ -310,7 +358,7 @@ export default function TaskNewPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
       </div>
     );
   }
@@ -472,7 +520,8 @@ export default function TaskNewPage() {
               )}
 
               <p className="text-slate-500 text-xs">
-                Only assigned members, admin, project creator, and task creator should be able to see this task.
+                Only assigned members, admin, project creator, and task creator should be able to
+                see this task.
               </p>
             </div>
 

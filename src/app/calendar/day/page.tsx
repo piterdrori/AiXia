@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
+import { createRequestTracker } from "@/lib/safeAsync";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +42,7 @@ function parseYYYYMMDD(s: string | undefined) {
 export default function CalendarDayPage() {
   const { date } = useParams<{ date: string }>();
   const navigate = useNavigate();
+  const requestTracker = useRef(createRequestTracker());
 
   const [events, setEvents] = useState<CalendarEventRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
@@ -49,31 +51,50 @@ export default function CalendarDayPage() {
   const selectedDate = useMemo(() => parseYYYYMMDD(date), [date]);
 
   useEffect(() => {
+    let mounted = true;
+
     const loadDay = async () => {
       if (!date) return;
+
+      const requestId = requestTracker.current.next();
       setIsLoading(true);
 
-      const [{ data: eventsData }, { data: tasksData }] = await Promise.all([
-        supabase
-          .from("calendar_events")
-          .select(
-            "id, title, description, event_type, start_date, start_time, end_date, end_time, all_day, project_id, task_id"
-          )
-          .eq("start_date", date)
-          .order("start_time", { ascending: true }),
-        supabase
-          .from("tasks")
-          .select("id, title, due_date, status, project_id")
-          .eq("due_date", date)
-          .order("created_at", { ascending: false }),
-      ]);
+      try {
+        const [{ data: eventsData }, { data: tasksData }] = await Promise.all([
+          supabase
+            .from("calendar_events")
+            .select(
+              "id, title, description, event_type, start_date, start_time, end_date, end_time, all_day, project_id, task_id"
+            )
+            .eq("start_date", date)
+            .order("start_time", { ascending: true }),
+          supabase
+            .from("tasks")
+            .select("id, title, due_date, status, project_id")
+            .eq("due_date", date)
+            .order("created_at", { ascending: false }),
+        ]);
 
-      setEvents((eventsData || []) as CalendarEventRow[]);
-      setTasks((tasksData || []) as TaskRow[]);
-      setIsLoading(false);
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+
+        setEvents((eventsData || []) as CalendarEventRow[]);
+        setTasks((tasksData || []) as TaskRow[]);
+      } catch (error) {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+        console.error("Load calendar day error:", error);
+        setEvents([]);
+        setTasks([]);
+      } finally {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+        setIsLoading(false);
+      }
     };
 
-    loadDay();
+    void loadDay();
+
+    return () => {
+      mounted = false;
+    };
   }, [date]);
 
   if (!selectedDate) {

@@ -558,7 +558,7 @@ export default function DashboardLayout({
                   <DropdownMenuTrigger asChild>
                     <button className="w-full flex justify-center p-2 rounded-lg hover:bg-slate-800/50 transition-colors">
                       <Avatar className="w-8 h-8">
-        <AvatarFallback className="bg-indigo-600 text-white text-sm">
+                        <AvatarFallback className="bg-indigo-600 text-white text-sm">
                           {userInitials}
                         </AvatarFallback>
                       </Avatar>
@@ -639,4 +639,4 @@ export default function DashboardLayout({
                 </Button>
               )}
 
-              <div className="relative hidden sm
+              <div className="re

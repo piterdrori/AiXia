@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 type EventType =
   | "meeting"
@@ -30,7 +30,6 @@ type EventType =
   | "other";
 
 type ReminderValue = "NONE" | "5" | "10" | "15" | "30" | "60";
-
 type MeetingDurationValue = "30" | "60" | "90" | "120";
 
 type ProjectRow = {
@@ -51,8 +50,36 @@ type ProjectMemberRow = {
   user_id: string;
 };
 
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) =>
+  String(i).padStart(2, "0")
+);
+
+const MINUTE_OPTIONS = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
+
+function normalizeTime(value: string) {
+  const [rawHour = "09", rawMinute = "00"] = (value || "09:00").split(":");
+  const hour = HOUR_OPTIONS.includes(rawHour) ? rawHour : "09";
+  const minute = MINUTE_OPTIONS.includes(rawMinute) ? rawMinute : "00";
+  return `${hour}:${minute}`;
+}
+
+function getHour(value: string) {
+  return normalizeTime(value).split(":")[0];
+}
+
+function getMinute(value: string) {
+  return normalizeTime(value).split(":")[1];
+}
+
+function buildTime(hour: string, minute: string) {
+  const safeHour = HOUR_OPTIONS.includes(hour) ? hour : "00";
+  const safeMinute = MINUTE_OPTIONS.includes(minute) ? minute : "00";
+  return `${safeHour}:${safeMinute}`;
+}
+
 function addMinutesToTime(time: string, minutesToAdd: number) {
-  const [hours, minutes] = time.split(":").map(Number);
+  const normalized = normalizeTime(time);
+  const [hours, minutes] = normalized.split(":").map(Number);
   const totalMinutes = hours * 60 + minutes + minutesToAdd;
 
   const normalizedMinutes = ((totalMinutes % 1440) + 1440) % 1440;
@@ -80,9 +107,95 @@ function isEndBeforeStart(
   endDate: string,
   endTime: string
 ) {
-  const start = new Date(`${startDate}T${startTime || "00:00"}`);
-  const end = new Date(`${endDate}T${endTime || "00:00"}`);
+  const start = new Date(`${startDate}T${normalizeTime(startTime)}`);
+  const end = new Date(`${endDate}T${normalizeTime(endTime)}`);
   return end.getTime() < start.getTime();
+}
+
+function Time24Field({
+  label,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+  disabled?: boolean;
+}) {
+  const hour = getHour(value);
+  const minute = getMinute(value);
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-slate-300">{label}</Label>
+      <div className="grid grid-cols-2 gap-2">
+        <Select
+          value={hour}
+          onValueChange={(nextHour) => onChange(buildTime(nextHour, minute))}
+          disabled={disabled}
+        >
+          <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+            <SelectValue placeholder="Hour" />
+          </SelectTrigger>
+          <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-64">
+            {HOUR_OPTIONS.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={minute}
+          onValueChange={(nextMinute) => onChange(buildTime(hour, nextMinute))}
+          disabled={disabled}
+        >
+          <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+            <SelectValue placeholder="Minute" />
+          </SelectTrigger>
+          <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-64">
+            {MINUTE_OPTIONS.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+}
+
+function CalendarFormSkeleton() {
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-md bg-slate-800 animate-pulse" />
+        <div className="space-y-2">
+          <div className="h-6 w-48 rounded bg-slate-800 animate-pulse" />
+          <div className="h-4 w-80 rounded bg-slate-800 animate-pulse" />
+        </div>
+      </div>
+
+      <Card className="bg-slate-900/50 border-slate-800">
+        <CardContent className="p-6">
+          <div className="grid md:grid-cols-2 gap-4">
+            {Array.from({ length: 10 }).map((_, index) => (
+              <div
+                key={index}
+                className={`space-y-2 ${index < 2 ? "md:col-span-2" : ""}`}
+              >
+                <div className="h-4 w-24 rounded bg-slate-800 animate-pulse" />
+                <div className="h-10 w-full rounded bg-slate-800 animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 export default function CalendarNewPage() {
@@ -118,9 +231,7 @@ export default function CalendarNewPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const usesDuration = useMemo(() => {
-    return eventType === "meeting";
-  }, [eventType]);
+  const usesDuration = useMemo(() => eventType === "meeting", [eventType]);
 
   const needsStartAndEnd = useMemo(() => {
     return eventType === "task" || eventType === "deadline" || eventType === "other";
@@ -258,23 +369,23 @@ export default function CalendarNewPage() {
     });
   }, [startDate]);
 
-useEffect(() => {
-  if (!startDate || !startTime || allDay) return;
+  useEffect(() => {
+    if (!startDate || !startTime || allDay) return;
 
-  const autoDuration = usesDuration ? Number(meetingDuration || 60) : 60;
-  const nextEndTime = addMinutesToTime(startTime, autoDuration);
-  setEndTime(nextEndTime);
+    const autoDuration = usesDuration ? Number(meetingDuration || 60) : 60;
+    const nextEndTime = addMinutesToTime(startTime, autoDuration);
+    setEndTime(nextEndTime);
 
-  const [startHour, startMinute] = startTime.split(":").map(Number);
-  const startTotal = startHour * 60 + startMinute;
-  const endTotal = startTotal + autoDuration;
+    const [startHour, startMinute] = normalizeTime(startTime).split(":").map(Number);
+    const startTotal = startHour * 60 + startMinute;
+    const endTotal = startTotal + autoDuration;
 
-  if (endTotal >= 1440) {
-    setEndDate(addDaysToDate(startDate, 1));
-  } else {
-    setEndDate(startDate);
-  }
-}, [startDate, startTime, allDay, usesDuration, meetingDuration]);
+    if (endTotal >= 1440) {
+      setEndDate(addDaysToDate(startDate, 1));
+    } else {
+      setEndDate(startDate);
+    }
+  }, [startDate, startTime, allDay, usesDuration, meetingDuration]);
 
   useEffect(() => {
     if (selectedProjectId === "NONE") {
@@ -290,44 +401,55 @@ useEffect(() => {
     }
   }, [selectedProjectId, selectedTaskId, tasks]);
 
-useEffect(() => {
-  if (allDay || !startDate || !startTime) return;
+  useEffect(() => {
+    if (allDay || !startDate || !startTime) return;
 
-  if (needsSingleTimeOnly) {
-    setEndDate(startDate);
-    setEndTime(addMinutesToTime(startTime, 60));
-    return;
-  }
-
-  if (usesDuration) {
-    const duration = Number(meetingDuration || 60);
-    setEndDate(startDate);
-    setEndTime(addMinutesToTime(startTime, duration));
-    return;
-  }
-
-  if (needsStartAndEnd) {
-    if (endDate < startDate || isEndBeforeStart(startDate, startTime, endDate, endTime)) {
+    if (needsSingleTimeOnly) {
       setEndDate(startDate);
       setEndTime(addMinutesToTime(startTime, 60));
+      return;
     }
-  }
-}, [
-  allDay,
-  startDate,
-  startTime,
-  endDate,
-  endTime,
-  needsSingleTimeOnly,
-  usesDuration,
-  needsStartAndEnd,
-  meetingDuration,
-]);
+
+    if (usesDuration) {
+      const duration = Number(meetingDuration || 60);
+      const nextEndTime = addMinutesToTime(startTime, duration);
+      setEndTime(nextEndTime);
+
+      const [startHour, startMinute] = normalizeTime(startTime).split(":").map(Number);
+      const startTotal = startHour * 60 + startMinute;
+      const endTotal = startTotal + duration;
+
+      if (endTotal >= 1440) {
+        setEndDate(addDaysToDate(startDate, 1));
+      } else {
+        setEndDate(startDate);
+      }
+      return;
+    }
+
+    if (needsStartAndEnd) {
+      if (endDate < startDate || isEndBeforeStart(startDate, startTime, endDate, endTime)) {
+        setEndDate(startDate);
+        setEndTime(addMinutesToTime(startTime, 60));
+      }
+    }
+  }, [
+    allDay,
+    startDate,
+    startTime,
+    endDate,
+    endTime,
+    needsSingleTimeOnly,
+    usesDuration,
+    needsStartAndEnd,
+    meetingDuration,
+  ]);
 
   const filteredTasks = useMemo(() => {
     if (selectedProjectId === "NONE") return [];
     return tasks.filter((task) => task.project_id === selectedProjectId);
   }, [tasks, selectedProjectId]);
+
 const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -360,10 +482,10 @@ const handleSubmit = async (e: React.FormEvent) => {
     const computedEndTime = allDay
       ? null
       : needsSingleTimeOnly
-      ? startTime || null
+      ? normalizeTime(startTime)
       : usesDuration
       ? addMinutesToTime(startTime, Number(meetingDuration || 60))
-      : endTime || null;
+      : normalizeTime(endTime);
 
     if (!allDay && needsStartAndEnd && !computedEndTime) {
       setError("End time is required.");
@@ -390,13 +512,14 @@ const handleSubmit = async (e: React.FormEvent) => {
         description: description.trim() || null,
         event_type: eventType,
         start_date: startDate,
-        start_time: allDay ? null : startTime || null,
+        start_time: allDay ? null : normalizeTime(startTime),
         end_date: computedEndDate,
         end_time: computedEndTime,
         all_day: allDay,
         project_id: selectedProjectId === "NONE" ? null : selectedProjectId,
         task_id: selectedTaskId === "NONE" ? null : selectedTaskId,
         created_by: currentUserId,
+        reminder_minutes: reminderMinutes === "NONE" ? null : Number(reminderMinutes),
       };
 
       const { data: insertedEvent, error: insertError } = await supabase
@@ -422,24 +545,6 @@ const handleSubmit = async (e: React.FormEvent) => {
         message: `Created calendar event "${insertedEvent.title}" for ${insertedEvent.start_date}`,
       });
 
-      if (reminderMinutes !== "NONE") {
-        const { error: reminderError } = await supabase.from("notifications").insert({
-          user_id: currentUserId,
-          actor_user_id: currentUserId,
-          type: "EVENT_REMINDER",
-          title: "Calendar reminder",
-          message: `${title.trim()} starts in ${reminderMinutes} minute(s)`,
-          link: "/calendar",
-          is_read: false,
-          entity_type: "calendar_event",
-          entity_id: insertedEvent.id,
-        });
-
-        if (reminderError) {
-          console.error("Reminder notification insert error:", reminderError);
-        }
-      }
-
       if (!requestTracker.current.isLatest(requestId)) return;
       navigate("/calendar");
     } catch (err) {
@@ -453,11 +558,7 @@ const handleSubmit = async (e: React.FormEvent) => {
   };
 
   if (isBootstrapping) {
-    return (
-      <div className="h-64 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
-      </div>
-    );
+    return <CalendarFormSkeleton />;
   }
 
   return (
@@ -593,35 +694,29 @@ const handleSubmit = async (e: React.FormEvent) => {
               </div>
 
               {!allDay && (
-                <div className="space-y-2">
-                  <Label className="text-slate-300">Start Time</Label>
-<Input
-  type="time"
-  step="60"
-  inputMode="numeric"
-  pattern="[0-9]{2}:[0-9]{2}"
-  value={startTime}
-  onChange={(e) => {
-    const nextStartTime = e.target.value;
-    setStartTime(nextStartTime);
+                <Time24Field
+                  label="Start Time"
+                  value={startTime}
+                  onChange={(nextStartTime) => {
+                    setStartTime(nextStartTime);
 
-    const autoDuration = usesDuration ? Number(meetingDuration || 60) : 60;
-    const nextEndTime = addMinutesToTime(nextStartTime, autoDuration);
-    setEndTime(nextEndTime);
+                    const autoDuration = usesDuration ? Number(meetingDuration || 60) : 60;
+                    const nextEndTime = addMinutesToTime(nextStartTime, autoDuration);
+                    setEndTime(nextEndTime);
 
-    const [startHour, startMinute] = nextStartTime.split(":").map(Number);
-    const startTotal = startHour * 60 + startMinute;
-    const endTotal = startTotal + autoDuration;
+                    const [startHour, startMinute] = normalizeTime(nextStartTime)
+                      .split(":")
+                      .map(Number);
+                    const startTotal = startHour * 60 + startMinute;
+                    const endTotal = startTotal + autoDuration;
 
-    if (endTotal >= 1440) {
-      setEndDate(addDaysToDate(startDate, 1));
-    } else {
-      setEndDate(startDate);
-    }
-  }}
-  className="bg-slate-950 border-slate-800 text-white"
-/>
-                </div>
+                    if (endTotal >= 1440) {
+                      setEndDate(addDaysToDate(startDate, 1));
+                    } else {
+                      setEndDate(startDate);
+                    }
+                  }}
+                />
               )}
 
               {usesDuration && !allDay && (
@@ -661,18 +756,11 @@ const handleSubmit = async (e: React.FormEvent) => {
               )}
 
               {needsStartAndEnd && !allDay && (
-                <div className="space-y-2">
-                  <Label className="text-slate-300">End Time</Label>
-                  <Input
-  type="time"
-  step="60"
-  inputMode="numeric"
-  pattern="[0-9]{2}:[0-9]{2}"
-  value={endTime}
-  onChange={(e) => setEndTime(e.target.value)}
-  className="bg-slate-950 border-slate-800 text-white"
-/>
-                </div>
+                <Time24Field
+                  label="End Time"
+                  value={endTime}
+                  onChange={setEndTime}
+                />
               )}
 
               <div className="space-y-2">

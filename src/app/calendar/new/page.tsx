@@ -595,8 +595,11 @@ const handleSubmit = async (e: React.FormEvent) => {
               {!allDay && (
                 <div className="space-y-2">
                   <Label className="text-slate-300">Start Time</Label>
-          <Input
+<Input
   type="time"
+  step="60"
+  inputMode="numeric"
+  pattern="[0-9]{2}:[0-9]{2}"
   value={startTime}
   onChange={(e) => {
     const nextStartTime = e.target.value;
@@ -661,11 +664,14 @@ const handleSubmit = async (e: React.FormEvent) => {
                 <div className="space-y-2">
                   <Label className="text-slate-300">End Time</Label>
                   <Input
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    className="bg-slate-950 border-slate-800 text-white"
-                  />
+  type="time"
+  step="60"
+  inputMode="numeric"
+  pattern="[0-9]{2}:[0-9]{2}"
+  value={endTime}
+  onChange={(e) => setEndTime(e.target.value)}
+  className="bg-slate-950 border-slate-800 text-white"
+/>
                 </div>
               )}
 

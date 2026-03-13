@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { createRequestTracker } from "@/lib/safeAsync";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,6 +58,7 @@ type TaskRow = {
 export default function CalendarEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const requestTracker = useRef(createRequestTracker());
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
@@ -80,28 +82,37 @@ export default function CalendarEditPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let mounted = true;
+
     const loadPage = async () => {
       if (!id) {
         navigate("/calendar");
         return;
       }
 
+      const requestId = requestTracker.current.next();
       setIsLoading(true);
       setError("");
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (!user) {
-        navigate("/login");
-        return;
-      }
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
-      setCurrentUserId(user.id);
+        if (!user) {
+          navigate("/login");
+          return;
+        }
 
-      const [{ data: eventData, error: eventError }, { data: projectsData }, { data: tasksData }] =
-        await Promise.all([
+        setCurrentUserId(user.id);
+
+        const [
+          { data: eventData, error: eventError },
+          { data: projectsData },
+          { data: tasksData },
+        ] = await Promise.all([
           supabase
             .from("calendar_events")
             .select(
@@ -119,35 +130,48 @@ export default function CalendarEditPage() {
             .order("created_at", { ascending: false }),
         ]);
 
-      if (eventError || !eventData) {
-        navigate("/calendar");
-        return;
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+
+        if (eventError || !eventData) {
+          navigate("/calendar");
+          return;
+        }
+
+        const event = eventData as CalendarEventRow;
+
+        if (event.created_by !== user.id) {
+          navigate("/calendar");
+          return;
+        }
+
+        setTitle(event.title || "");
+        setDescription(event.description || "");
+        setEventType((event.event_type || "meeting") as EventType);
+        setStartDate(event.start_date || "");
+        setStartTime(event.start_time || "09:00");
+        setEndDate(event.end_date || event.start_date || "");
+        setEndTime(event.end_time || "10:00");
+        setAllDay(Boolean(event.all_day));
+        setSelectedProjectId(event.project_id || "NONE");
+        setSelectedTaskId(event.task_id || "NONE");
+
+        setProjects((projectsData || []) as ProjectRow[]);
+        setTasks((tasksData || []) as TaskRow[]);
+      } catch (err) {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+        console.error("Load calendar edit page error:", err);
+        setError("Failed to load event.");
+      } finally {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+        setIsLoading(false);
       }
-
-      const event = eventData as CalendarEventRow;
-
-      if (event.created_by !== user.id) {
-        navigate("/calendar");
-        return;
-      }
-
-      setTitle(event.title || "");
-      setDescription(event.description || "");
-      setEventType((event.event_type || "meeting") as EventType);
-      setStartDate(event.start_date || "");
-      setStartTime(event.start_time || "09:00");
-      setEndDate(event.end_date || event.start_date || "");
-      setEndTime(event.end_time || "10:00");
-      setAllDay(Boolean(event.all_day));
-      setSelectedProjectId(event.project_id || "NONE");
-      setSelectedTaskId(event.task_id || "NONE");
-
-      setProjects((projectsData || []) as ProjectRow[]);
-      setTasks((tasksData || []) as TaskRow[]);
-      setIsLoading(false);
     };
 
-    loadPage();
+    void loadPage();
+
+    return () => {
+      mounted = false;
+    };
   }, [id, navigate]);
 
   const filteredTasks = useMemo(() => {
@@ -159,44 +183,56 @@ export default function CalendarEditPage() {
     e.preventDefault();
     if (!id || !currentUserId) return;
 
+    const requestId = requestTracker.current.next();
     setIsSaving(true);
     setError("");
 
-    const { error: updateError } = await supabase
-      .from("calendar_events")
-      .update({
-        title: title.trim(),
-        description: description.trim() || null,
-        event_type: eventType,
-        start_date: startDate,
-        start_time: allDay ? null : startTime || null,
-        end_date: endDate || startDate,
-        end_time: allDay ? null : endTime || null,
-        all_day: allDay,
+    try {
+      const { error: updateError } = await supabase
+        .from("calendar_events")
+        .update({
+          title: title.trim(),
+          description: description.trim() || null,
+          event_type: eventType,
+          start_date: startDate,
+          start_time: allDay ? null : startTime || null,
+          end_date: endDate || startDate,
+          end_time: allDay ? null : endTime || null,
+          all_day: allDay,
+          project_id: selectedProjectId === "NONE" ? null : selectedProjectId,
+          task_id: selectedTaskId === "NONE" ? null : selectedTaskId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (updateError) {
+        setError(updateError.message || "Failed to update event.");
+        setIsSaving(false);
+        return;
+      }
+
+      await supabase.from("activity_logs").insert({
         project_id: selectedProjectId === "NONE" ? null : selectedProjectId,
         task_id: selectedTaskId === "NONE" ? null : selectedTaskId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id);
+        user_id: currentUserId,
+        action_type: "UPDATE",
+        entity_type: "calendar_event",
+        entity_id: id,
+        message: `Updated calendar event "${title.trim()}"`,
+      });
 
-    if (updateError) {
-      setError(updateError.message || "Failed to update event.");
+      if (!requestTracker.current.isLatest(requestId)) return;
+      navigate("/calendar");
+    } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Update calendar event error:", err);
+      setError("Failed to update event.");
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
       setIsSaving(false);
-      return;
     }
-
-    await supabase.from("activity_logs").insert({
-      project_id: selectedProjectId === "NONE" ? null : selectedProjectId,
-      task_id: selectedTaskId === "NONE" ? null : selectedTaskId,
-      user_id: currentUserId,
-      action_type: "UPDATE",
-      entity_type: "calendar_event",
-      entity_id: id,
-      message: `Updated calendar event "${title.trim()}"`,
-    });
-
-    setIsSaving(false);
-    navigate("/calendar");
   };
 
   const handleDelete = async () => {
@@ -205,28 +241,44 @@ export default function CalendarEditPage() {
     const confirmed = window.confirm("Are you sure you want to delete this event?");
     if (!confirmed) return;
 
+    const requestId = requestTracker.current.next();
     setIsDeleting(true);
     setError("");
 
-    const { error: deleteError } = await supabase.from("calendar_events").delete().eq("id", id);
+    try {
+      const { error: deleteError } = await supabase
+        .from("calendar_events")
+        .delete()
+        .eq("id", id);
 
-    if (deleteError) {
-      setError(deleteError.message || "Failed to delete event.");
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (deleteError) {
+        setError(deleteError.message || "Failed to delete event.");
+        setIsDeleting(false);
+        return;
+      }
+
+      await supabase.from("activity_logs").insert({
+        project_id: selectedProjectId === "NONE" ? null : selectedProjectId,
+        task_id: selectedTaskId === "NONE" ? null : selectedTaskId,
+        user_id: currentUserId,
+        action_type: "DELETE",
+        entity_type: "calendar_event",
+        entity_id: id,
+        message: `Deleted calendar event "${title.trim()}"`,
+      });
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+      navigate("/calendar");
+    } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Delete calendar event error:", err);
+      setError("Failed to delete event.");
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
       setIsDeleting(false);
-      return;
     }
-
-    await supabase.from("activity_logs").insert({
-      project_id: selectedProjectId === "NONE" ? null : selectedProjectId,
-      task_id: selectedTaskId === "NONE" ? null : selectedTaskId,
-      user_id: currentUserId,
-      action_type: "DELETE",
-      entity_type: "calendar_event",
-      entity_id: id,
-      message: `Deleted calendar event "${title.trim()}"`,
-    });
-
-    navigate("/calendar");
   };
 
   if (isLoading) {
@@ -400,7 +452,7 @@ export default function CalendarEditPage() {
                 type="button"
                 variant="outline"
                 className="border-red-800 text-red-400 hover:bg-red-900/20"
-                onClick={handleDelete}
+                onClick={() => void handleDelete()}
                 disabled={isDeleting}
               >
                 <Trash2 className="w-4 h-4 mr-2" />

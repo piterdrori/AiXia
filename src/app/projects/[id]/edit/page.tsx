@@ -47,6 +47,73 @@ type ProjectMemberRow = {
   created_at: string;
 };
 
+function ProjectEditSkeleton() {
+  return (
+    <div className="max-w-2xl mx-auto animate-pulse">
+      <div className="flex items-center gap-4 mb-6">
+        <div className="h-10 w-10 rounded-md bg-slate-800" />
+        <div className="space-y-2">
+          <div className="h-7 w-36 rounded bg-slate-800" />
+          <div className="h-4 w-56 rounded bg-slate-900" />
+        </div>
+      </div>
+
+      <Card className="bg-slate-900/50 border-slate-800">
+        <CardContent className="p-6 space-y-6">
+          <div className="space-y-2">
+            <div className="h-4 w-28 rounded bg-slate-800" />
+            <div className="h-10 w-full rounded bg-slate-900" />
+          </div>
+
+          <div className="space-y-2">
+            <div className="h-4 w-24 rounded bg-slate-800" />
+            <div className="h-28 w-full rounded bg-slate-900" />
+          </div>
+
+          <div className="space-y-2">
+            <div className="h-4 w-16 rounded bg-slate-800" />
+            <div className="h-10 w-full rounded bg-slate-900" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <div className="h-4 w-20 rounded bg-slate-800" />
+              <div className="h-10 w-full rounded bg-slate-900" />
+            </div>
+            <div className="space-y-2">
+              <div className="h-4 w-20 rounded bg-slate-800" />
+              <div className="h-10 w-full rounded bg-slate-900" />
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="h-4 w-36 rounded bg-slate-800" />
+            <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between gap-3 rounded-md px-3 py-2"
+                >
+                  <div className="space-y-2">
+                    <div className="h-4 w-32 rounded bg-slate-800" />
+                    <div className="h-3 w-16 rounded bg-slate-900" />
+                  </div>
+                  <div className="h-4 w-4 rounded bg-slate-800" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-4 pt-4">
+            <div className="h-10 w-24 rounded bg-slate-800" />
+            <div className="h-10 w-32 rounded bg-slate-800" />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function ProjectEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -63,6 +130,8 @@ export default function ProjectEditPage() {
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -74,103 +143,104 @@ export default function ProjectEditPage() {
 
   const selectedSet = useMemo(() => new Set(selectedMembers), [selectedMembers]);
 
-  useEffect(() => {
-    let mounted = true;
+  const loadProject = async (mode: "initial" | "refresh" = "initial") => {
+    if (!id) {
+      navigate("/projects");
+      return;
+    }
 
-    const loadProject = async () => {
-      if (!id) {
+    const requestId = requestTracker.current.next();
+
+    if (mode === "initial" && !hasLoadedOnce) {
+      setIsLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
+
+    setError("");
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (!user) {
+        navigate("/login");
+        return;
+      }
+
+      const [
+        { data: me, error: meError },
+        { data: projectData, error: projectError },
+        { data: membersData },
+        { data: profilesData },
+      ] = await Promise.all([
+        supabase.from("profiles").select("role").eq("user_id", user.id).single(),
+        supabase
+          .from("projects")
+          .select("id, name, description, status, start_date, end_date, created_by")
+          .eq("id", id)
+          .single(),
+        supabase
+          .from("project_members")
+          .select("id, project_id, user_id, role, created_at")
+          .eq("project_id", id),
+        supabase
+          .from("profiles")
+          .select("user_id, full_name, role, status")
+          .eq("status", "active")
+          .order("full_name", { ascending: true }),
+      ]);
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (meError || !me) {
         navigate("/projects");
         return;
       }
 
-      const requestId = requestTracker.current.next();
-      setIsLoading(true);
-      setError("");
+      const currentUserRole = (me.role as Role) || null;
 
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-
-        if (!user) {
-          navigate("/login");
-          return;
-        }
-
-        const [
-          { data: me, error: meError },
-          { data: projectData, error: projectError },
-          { data: membersData },
-          { data: profilesData },
-        ] = await Promise.all([
-          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
-          supabase
-            .from("projects")
-            .select("id, name, description, status, start_date, end_date, created_by")
-            .eq("id", id)
-            .single(),
-          supabase
-            .from("project_members")
-            .select("id, project_id, user_id, role, created_at")
-            .eq("project_id", id),
-          supabase
-            .from("profiles")
-            .select("user_id, full_name, role, status")
-            .eq("status", "active")
-            .order("full_name", { ascending: true }),
-        ]);
-
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-
-        if (meError || !me) {
-          navigate("/projects");
-          return;
-        }
-
-        const currentUserRole = (me.role as Role) || null;
-
-        if (projectError || !projectData) {
-          setError("Failed to load project.");
-          return;
-        }
-
-        const project = projectData as ProjectRow;
-        const canEdit = currentUserRole === "admin" || project.created_by === user.id;
-
-        if (!canEdit) {
-          navigate("/projects");
-          return;
-        }
-
-        const loadedMembers = (membersData || []) as ProjectMemberRow[];
-        const loadedProfiles = (profilesData || []) as ProfileRow[];
-
-        setName(project.name || "");
-        setDescription(project.description || "");
-        setStatus((project.status as ProjectStatus) || "PLANNING");
-        setStartDate(project.start_date || "");
-        setEndDate(project.end_date || "");
-
-        setExistingMembers(loadedMembers);
-        setTeamMembers(loadedProfiles);
-        setSelectedMembers(loadedMembers.map((member) => member.user_id));
-      } catch (err) {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        console.error("Load project error:", err);
-        setError("Something went wrong while loading the project.");
-      } finally {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        setIsLoading(false);
+      if (projectError || !projectData) {
+        setError("Failed to load project.");
+        return;
       }
-    };
 
-    void loadProject();
+      const project = projectData as ProjectRow;
+      const canEdit = currentUserRole === "admin" || project.created_by === user.id;
 
-    return () => {
-      mounted = false;
-    };
+      if (!canEdit) {
+        navigate("/projects");
+        return;
+      }
+
+      const loadedMembers = (membersData || []) as ProjectMemberRow[];
+      const loadedProfiles = (profilesData || []) as ProfileRow[];
+
+      setName(project.name || "");
+      setDescription(project.description || "");
+      setStatus((project.status as ProjectStatus) || "PLANNING");
+      setStartDate(project.start_date || "");
+      setEndDate(project.end_date || "");
+      setExistingMembers(loadedMembers);
+      setTeamMembers(loadedProfiles);
+      setSelectedMembers(loadedMembers.map((member) => member.user_id));
+      setHasLoadedOnce(true);
+    } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Load project error:", err);
+      setError("Something went wrong while loading the project.");
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadProject("initial");
   }, [id, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -332,7 +402,6 @@ export default function ProjectEditPage() {
       }
 
       if (!requestTracker.current.isLatest(requestId)) return;
-
       navigate(`/projects/${id}`);
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
@@ -345,12 +414,8 @@ export default function ProjectEditPage() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
-      </div>
-    );
+  if (isLoading && !hasLoadedOnce) {
+    return <ProjectEditSkeleton />;
   }
 
   return (
@@ -366,7 +431,10 @@ export default function ProjectEditPage() {
         </Button>
 
         <div>
-          <h1 className="text-2xl font-bold text-white">Edit Project</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-white">Edit Project</h1>
+            {isRefreshing && <span className="text-xs text-slate-500">Refreshing...</span>}
+          </div>
           <p className="text-slate-400">Update your project details and team</p>
         </div>
       </div>
@@ -379,6 +447,18 @@ export default function ProjectEditPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
+
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void loadProject("refresh")}
+                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                disabled={isRefreshing}
+              >
+                {isRefreshing ? "Refreshing..." : "Refresh"}
+              </Button>
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="name" className="text-slate-300">

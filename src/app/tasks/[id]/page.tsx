@@ -142,149 +142,150 @@ export default function TaskDetailPage() {
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let mounted = true;
+  const loadTaskPage = async (mode: "initial" | "refresh" = "initial") => {
+    if (!id) {
+      navigate("/tasks");
+      return;
+    }
 
-    const loadTaskPage = async () => {
-      if (!id) {
+    const requestId = requestTracker.current.next();
+
+    if (mode === "initial") {
+      setIsBootstrapping(true);
+    } else {
+      setIsRefreshing(true);
+    }
+
+    setError("");
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (!user) {
+        navigate("/login");
+        return;
+      }
+
+      setCurrentUserId(user.id);
+
+      const { data: myProfile, error: myProfileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (myProfileError || !myProfile) {
         navigate("/tasks");
         return;
       }
 
-      const requestId = requestTracker.current.next();
-      setIsLoading(true);
-      setError("");
+      const role = myProfile.role as Role;
+      setCurrentUserRole(role);
 
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+      const { data: taskData, error: taskError } = await supabase
+        .from("tasks")
+        .select("*")
+        .eq("id", id)
+        .single();
 
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+      if (!requestTracker.current.isLatest(requestId)) return;
 
-        if (!user) {
-          navigate("/login");
-          return;
-        }
-
-        setCurrentUserId(user.id);
-
-        const { data: myProfile, error: myProfileError } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("user_id", user.id)
-          .single();
-
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-
-        if (myProfileError || !myProfile) {
-          navigate("/tasks");
-          return;
-        }
-
-        const role = myProfile.role as Role;
-        setCurrentUserRole(role);
-
-        const { data: taskData, error: taskError } = await supabase
-          .from("tasks")
-          .select("*")
-          .eq("id", id)
-          .single();
-
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-
-        if (taskError || !taskData) {
-          navigate("/tasks");
-          return;
-        }
-
-        const loadedTask = taskData as TaskRow;
-
-        const [
-          { data: projectData },
-          { data: profilesData },
-          { data: taskMembersData },
-          { data: projectMembersData },
-          { data: commentsData },
-          { data: filesData },
-        ] = await Promise.all([
-          loadedTask.project_id
-            ? supabase.from("projects").select("*").eq("id", loadedTask.project_id).single()
-            : Promise.resolve({ data: null }),
-          supabase
-            .from("profiles")
-            .select("user_id, full_name, role, status")
-            .order("full_name", { ascending: true }),
-          supabase
-            .from("task_members")
-            .select("id, task_id, user_id, role, created_at")
-            .eq("task_id", id),
-          loadedTask.project_id
-            ? supabase
-                .from("project_members")
-                .select("id, project_id, user_id, role, created_at")
-                .eq("project_id", loadedTask.project_id)
-            : Promise.resolve({ data: [] }),
-          supabase
-            .from("task_comments")
-            .select("id, task_id, user_id, content, created_at")
-            .eq("task_id", id)
-            .order("created_at", { ascending: true }),
-          supabase
-            .from("file_uploads")
-            .select(
-              "id, project_id, task_id, user_id, file_name, file_path, file_size, mime_type, entity_type, created_at"
-            )
-            .eq("task_id", id)
-            .eq("entity_type", "task")
-            .order("created_at", { ascending: false }),
-        ]);
-
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-
-        const loadedTaskMembers = (taskMembersData || []) as TaskMemberRow[];
-        const loadedProjectMembers = (projectMembersData || []) as ProjectMemberRow[];
-
-        const isAdmin = role === "admin";
-        const isTaskCreator = loadedTask.created_by === user.id;
-        const isProjectCreator = (projectData as ProjectRow | null)?.created_by === user.id;
-        const isTaskAssigned = loadedTaskMembers.some((member) => member.user_id === user.id);
-        const isProjectAssigned = loadedProjectMembers.some((member) => member.user_id === user.id);
-
-        const canSee =
-          isAdmin || isTaskCreator || isProjectCreator || isTaskAssigned || isProjectAssigned;
-
-        if (!canSee) {
-          navigate("/tasks");
-          return;
-        }
-
-        setTask(loadedTask);
-        setProject((projectData || null) as ProjectRow | null);
-        setProfiles((profilesData || []) as ProfileRow[]);
-        setTaskMembers(loadedTaskMembers);
-        setComments((commentsData || []) as TaskCommentRow[]);
-        setFiles((filesData || []) as FileUploadRow[]);
-      } catch (err) {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        console.error("Load task detail error:", err);
-        setError("Failed to load task.");
-      } finally {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        setIsLoading(false);
+      if (taskError || !taskData) {
+        navigate("/tasks");
+        return;
       }
-    };
 
-    void loadTaskPage();
+      const loadedTask = taskData as TaskRow;
 
-    return () => {
-      mounted = false;
-    };
-  }, [id, navigate]);
+      const [
+        { data: projectData },
+        { data: profilesData },
+        { data: taskMembersData },
+        { data: projectMembersData },
+        { data: commentsData },
+        { data: filesData },
+      ] = await Promise.all([
+        loadedTask.project_id
+          ? supabase.from("projects").select("*").eq("id", loadedTask.project_id).single()
+          : Promise.resolve({ data: null }),
+        supabase
+          .from("profiles")
+          .select("user_id, full_name, role, status")
+          .order("full_name", { ascending: true }),
+        supabase
+          .from("task_members")
+          .select("id, task_id, user_id, role, created_at")
+          .eq("task_id", id),
+        loadedTask.project_id
+          ? supabase
+              .from("project_members")
+              .select("id, project_id, user_id, role, created_at")
+              .eq("project_id", loadedTask.project_id)
+          : Promise.resolve({ data: [] }),
+        supabase
+          .from("task_comments")
+          .select("id, task_id, user_id, content, created_at")
+          .eq("task_id", id)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("file_uploads")
+          .select(
+            "id, project_id, task_id, user_id, file_name, file_path, file_size, mime_type, entity_type, created_at"
+          )
+          .eq("task_id", id)
+          .eq("entity_type", "task")
+          .order("created_at", { ascending: false }),
+      ]);
 
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      const loadedTaskMembers = (taskMembersData || []) as TaskMemberRow[];
+      const loadedProjectMembers = (projectMembersData || []) as ProjectMemberRow[];
+
+      const isAdmin = role === "admin";
+      const isTaskCreator = loadedTask.created_by === user.id;
+      const isProjectCreator = (projectData as ProjectRow | null)?.created_by === user.id;
+      const isTaskAssigned = loadedTaskMembers.some((member) => member.user_id === user.id);
+      const isProjectAssigned = loadedProjectMembers.some((member) => member.user_id === user.id);
+
+      const canSee =
+        isAdmin || isTaskCreator || isProjectCreator || isTaskAssigned || isProjectAssigned;
+
+      if (!canSee) {
+        navigate("/tasks");
+        return;
+      }
+
+      setTask(loadedTask);
+      setProject((projectData || null) as ProjectRow | null);
+      setProfiles((profilesData || []) as ProfileRow[]);
+      setTaskMembers(loadedTaskMembers);
+      setComments((commentsData || []) as TaskCommentRow[]);
+      setFiles((filesData || []) as FileUploadRow[]);
+    } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Load task detail error:", err);
+      setError("Failed to load task.");
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      setIsBootstrapping(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadTaskPage("initial");
+  }, [id]);
   const canEditTask = useMemo(() => {
     if (!task || !currentUserId) return false;
     return currentUserRole === "admin" || task.created_by === currentUserId;
@@ -416,7 +417,7 @@ export default function TaskDetailPage() {
     setShowMentionDropdown(false);
   };
 
-const handleStatusUpdate = async (newStatus: string) => {
+  const handleStatusUpdate = async (newStatus: string) => {
     if (!task || !canUpdateStatus) return;
 
     const previousStatus = task.status || "TODO";
@@ -442,7 +443,6 @@ const handleStatusUpdate = async (newStatus: string) => {
 
       if (updateError) {
         setError(updateError.message || "Failed to update task status.");
-        setStatusSaving(false);
         return;
       }
 
@@ -517,7 +517,6 @@ const handleStatusUpdate = async (newStatus: string) => {
 
     navigate("/tasks");
   };
-
   const handleAddComment = async () => {
     if (!task || !currentUserId || !newComment.trim()) return;
 
@@ -792,17 +791,51 @@ const handleStatusUpdate = async (newStatus: string) => {
     }
   };
 
-  if (isLoading) {
+  if (isBootstrapping) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
+      <div className="space-y-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 w-64 rounded bg-slate-800" />
+          <div className="h-4 w-40 rounded bg-slate-800" />
+        </div>
+
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <Card key={index} className="bg-slate-900/50 border-slate-800">
+                <CardContent className="p-6">
+                  <div className="animate-pulse space-y-4">
+                    <div className="h-5 w-40 rounded bg-slate-800" />
+                    <div className="h-4 w-full rounded bg-slate-800" />
+                    <div className="h-4 w-5/6 rounded bg-slate-800" />
+                    <div className="h-4 w-3/4 rounded bg-slate-800" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <div className="space-y-6">
+            {Array.from({ length: 2 }).map((_, index) => (
+              <Card key={index} className="bg-slate-900/50 border-slate-800">
+                <CardContent className="p-6">
+                  <div className="animate-pulse space-y-4">
+                    <div className="h-5 w-28 rounded bg-slate-800" />
+                    <div className="h-4 w-full rounded bg-slate-800" />
+                    <div className="h-4 w-4/5 rounded bg-slate-800" />
+                    <div className="h-4 w-3/5 rounded bg-slate-800" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!task) return null;
-
-return (
+  return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button
@@ -821,28 +854,39 @@ return (
           </p>
         </div>
 
-        {canEditTask && (
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            onClick={() => navigate(`/tasks/${task.id}/edit`)}
             className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            onClick={() => void loadTaskPage("refresh")}
+            disabled={isRefreshing}
           >
-            <Edit className="w-4 h-4 mr-2" />
-            Edit
+            {isRefreshing ? "Refreshing..." : "Refresh"}
           </Button>
-        )}
 
-        {canDeleteTask && (
-          <Button
-            variant="outline"
-            onClick={() => void handleDelete()}
-            disabled={deleteSaving}
-            className="border-red-800 text-red-400 hover:bg-red-900/20"
-          >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Delete
-          </Button>
-        )}
+          {canEditTask && (
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/tasks/${task.id}/edit`)}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+          )}
+
+          {canDeleteTask && (
+            <Button
+              variant="outline"
+              onClick={() => void handleDelete()}
+              disabled={deleteSaving}
+              className="border-red-800 text-red-400 hover:bg-red-900/20"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete
+            </Button>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -857,6 +901,7 @@ return (
             <CardHeader>
               <CardTitle className="text-white">Task Overview</CardTitle>
             </CardHeader>
+
             <CardContent className="space-y-5">
               <div className="flex flex-wrap gap-2">
                 <Badge className={getStatusColor(task.status)}>{task.status || "TODO"}</Badge>
@@ -926,6 +971,7 @@ return (
                 </>
               </div>
             </CardHeader>
+
             <CardContent>
               {files.length === 0 ? (
                 <p className="text-slate-500">No task files uploaded yet.</p>
@@ -938,6 +984,7 @@ return (
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <FileText className="w-5 h-5 text-indigo-400" />
+
                         <div className="min-w-0">
                           <p className="text-white text-sm truncate">{file.file_name}</p>
                           <p className="text-slate-500 text-xs">
@@ -976,7 +1023,6 @@ return (
               )}
             </CardContent>
           </Card>
-
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -984,6 +1030,7 @@ return (
                 <CardTitle className="text-white">Task Discussion</CardTitle>
               </div>
             </CardHeader>
+
             <CardContent className="space-y-5">
               <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
                 <div className="mb-2">
@@ -1103,35 +1150,31 @@ return (
                             </div>
                           </div>
 
-                          {canManageComment(comment) && (
+                          {canManageComment(comment) && !isEditing && (
                             <div className="flex items-center gap-2">
-                              {!isEditing && (
-                                <>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                                    onClick={() => startEditingComment(comment)}
-                                    disabled={commentActionLoading === comment.id}
-                                  >
-                                    <Edit className="w-3 h-3 mr-1" />
-                                    Edit
-                                  </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                                onClick={() => startEditingComment(comment)}
+                                disabled={commentActionLoading === comment.id}
+                              >
+                                <Edit className="w-3 h-3 mr-1" />
+                                Edit
+                              </Button>
 
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="border-red-800 text-red-400 hover:bg-red-900/20"
-                                    onClick={() => void handleDeleteComment(comment)}
-                                    disabled={commentActionLoading === comment.id}
-                                  >
-                                    <Trash2 className="w-3 h-3 mr-1" />
-                                    Delete
-                                  </Button>
-                                </>
-                              )}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="border-red-800 text-red-400 hover:bg-red-900/20"
+                                onClick={() => void handleDeleteComment(comment)}
+                                disabled={commentActionLoading === comment.id}
+                              >
+                                <Trash2 className="w-3 h-3 mr-1" />
+                                Delete
+                              </Button>
                             </div>
                           )}
                         </div>
@@ -1194,6 +1237,7 @@ return (
             <CardHeader>
               <CardTitle className="text-white">Details</CardTitle>
             </CardHeader>
+
             <CardContent className="space-y-4">
               <InfoRow
                 icon={<FolderKanban className="w-4 h-4 text-indigo-400" />}
@@ -1226,6 +1270,7 @@ return (
             <CardHeader>
               <CardTitle className="text-white">Assigned Members</CardTitle>
             </CardHeader>
+
             <CardContent className="space-y-3">
               {taskMembers.length === 0 ? (
                 <p className="text-slate-500">No assigned members.</p>

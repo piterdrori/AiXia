@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   addDays,
+  addMonths,
   endOfMonth,
   endOfWeek,
   format,
@@ -10,7 +11,6 @@ import {
   startOfMonth,
   startOfWeek,
   subMonths,
-  addMonths,
 } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
@@ -64,22 +64,29 @@ export default function CalendarPage() {
   const [cursor, setCursor] = useState(new Date());
   const [events, setEvents] = useState<CalendarEventRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   const gridDays = useMemo(() => buildMonthGrid(cursor), [cursor]);
 
-  useEffect(() => {
-    let mounted = true;
+  const loadCalendar = async (mode: "initial" | "refresh" = "initial") => {
+    const requestId = requestTracker.current.next();
 
-    const loadCalendar = async () => {
-      const requestId = requestTracker.current.next();
-      setIsLoading(true);
+    if (mode === "initial") {
+      setIsBootstrapping(true);
+    } else {
+      setIsRefreshing(true);
+    }
 
-      const monthStart = format(startOfMonth(cursor), "yyyy-MM-dd");
-      const monthEnd = format(endOfMonth(cursor), "yyyy-MM-dd");
+    setLoadError("");
 
-      try {
-        const [{ data: eventsData }, { data: tasksData }] = await Promise.all([
+    const monthStart = format(startOfMonth(cursor), "yyyy-MM-dd");
+    const monthEnd = format(endOfMonth(cursor), "yyyy-MM-dd");
+
+    try {
+      const [{ data: eventsData, error: eventsError }, { data: tasksData, error: tasksError }] =
+        await Promise.all([
           supabase
             .from("calendar_events")
             .select("id, title, description, event_type, start_date, all_day")
@@ -94,51 +101,73 @@ export default function CalendarPage() {
             .order("due_date", { ascending: true }),
         ]);
 
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+      if (!requestTracker.current.isLatest(requestId)) return;
 
-        setEvents((eventsData || []) as CalendarEventRow[]);
-        setTasks((tasksData || []) as TaskRow[]);
-      } catch (error) {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        console.error("Load calendar error:", error);
-        setEvents([]);
-        setTasks([]);
-      } finally {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        setIsLoading(false);
+      if (eventsError) {
+        console.error("Load calendar events error:", eventsError);
       }
-    };
 
-    void loadCalendar();
+      if (tasksError) {
+        console.error("Load calendar tasks error:", tasksError);
+      }
 
-    return () => {
-      mounted = false;
-    };
+      setEvents((eventsData || []) as CalendarEventRow[]);
+      setTasks((tasksData || []) as TaskRow[]);
+
+      if (eventsError || tasksError) {
+        setLoadError("Some calendar data could not be loaded.");
+      }
+    } catch (error) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Load calendar error:", error);
+      setEvents([]);
+      setTasks([]);
+      setLoadError("Failed to load calendar.");
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      setIsBootstrapping(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadCalendar("initial");
   }, [cursor]);
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, CalendarEventRow[]>();
+
     for (const event of events) {
       const key = event.start_date;
       const current = map.get(key) || [];
       current.push(event);
       map.set(key, current);
     }
+
     return map;
   }, [events]);
 
   const tasksByDay = useMemo(() => {
     const map = new Map<string, TaskRow[]>();
+
     for (const task of tasks) {
       if (!task.due_date) continue;
       const current = map.get(task.due_date) || [];
       current.push(task);
       map.set(task.due_date, current);
     }
+
     return map;
   }, [tasks]);
 
-  const now = new Date();
+  const todayKey = toYYYYMMDD(new Date());
+
+  const todayCount = useMemo(() => {
+    const dayEvents = eventsByDay.get(todayKey) || [];
+    const dayTasks = tasksByDay.get(todayKey) || [];
+    return dayEvents.length + dayTasks.length;
+  }, [eventsByDay, tasksByDay, todayKey]);
+
   const monthLabel = format(cursor, "MMMM yyyy");
 
   const goPrevMonth = () => setCursor((prev) => subMonths(prev, 1));
@@ -149,17 +178,37 @@ export default function CalendarPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">Calendar</h1>
-          <p className="text-slate-400">View calendar events, tasks, and deadlines together</p>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-3xl font-bold text-white">Calendar</h1>
+            {todayCount > 0 && (
+              <Badge className="bg-indigo-600 text-white">
+                {todayCount} today
+              </Badge>
+            )}
+          </div>
+          <p className="text-slate-400">
+            View calendar events, tasks, and deadlines together
+          </p>
         </div>
 
-        <Button
-          className="bg-indigo-600 hover:bg-indigo-700 text-white"
-          onClick={() => navigate("/calendar/new")}
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          New Event
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="border-slate-800 text-slate-300 hover:bg-slate-900"
+            onClick={() => void loadCalendar("refresh")}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? "Refreshing..." : "Refresh"}
+          </Button>
+
+          <Button
+            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            onClick={() => navigate("/calendar/new")}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New Event
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
@@ -172,7 +221,9 @@ export default function CalendarPage() {
           <ChevronLeft className="w-4 h-4" />
         </Button>
 
-        <div className="text-white font-semibold text-xl min-w-[170px]">{monthLabel}</div>
+        <div className="text-white font-semibold text-xl min-w-[170px]">
+          {monthLabel}
+        </div>
 
         <Button
           variant="outline"
@@ -192,82 +243,114 @@ export default function CalendarPage() {
         </Button>
       </div>
 
+      {loadError && (
+        <Card className="bg-red-950/20 border-red-900/40 p-4 text-sm text-red-300">
+          {loadError}
+        </Card>
+      )}
+
       <Card className="bg-slate-900/40 border-slate-800 p-4">
         <div className="grid grid-cols-7 gap-3 text-slate-400 text-sm mb-3">
-          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-            <div key={d} className="px-2">
-              {d}
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName) => (
+            <div key={dayName} className="px-2">
+              {dayName}
             </div>
           ))}
         </div>
 
         <div className="grid grid-cols-7 gap-3">
-          {gridDays.map((day) => {
-            const key = toYYYYMMDD(day);
-            const inMonth = isSameMonth(day, cursor);
-            const today = isSameDay(day, now);
+          {isBootstrapping
+            ? Array.from({ length: 35 }).map((_, index) => (
+                <div
+                  key={`skeleton-${index}`}
+                  className="rounded-xl border border-slate-800 bg-slate-950/30 p-3 min-h-[110px]"
+                >
+                  <div className="animate-pulse space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="h-4 w-6 rounded bg-slate-800" />
+                      <div className="h-5 w-10 rounded bg-slate-800" />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="h-5 w-full rounded bg-slate-800" />
+                      <div className="h-5 w-5/6 rounded bg-slate-800" />
+                    </div>
+                  </div>
+                </div>
+              ))
+            : gridDays.map((day) => {
+                const key = toYYYYMMDD(day);
+                const inMonth = isSameMonth(day, cursor);
+                const isTodayDate = isSameDay(day, new Date());
 
-            const dayEvents = eventsByDay.get(key) || [];
-            const dayTasks = tasksByDay.get(key) || [];
+                const dayEvents = eventsByDay.get(key) || [];
+                const dayTasks = tasksByDay.get(key) || [];
+                const totalCount = dayEvents.length + dayTasks.length;
 
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => navigate(`/calendar/day/${key}`)}
-                className={[
-                  "text-left rounded-xl border p-3 min-h-[110px] transition",
-                  "bg-slate-950/30 border-slate-800 hover:border-indigo-500/40 hover:bg-slate-950/50",
-                  !inMonth ? "opacity-50" : "",
-                ].join(" ")}
-              >
-                <div className="flex items-center justify-between">
-                  <div
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => navigate(`/calendar/day/${key}`)}
                     className={[
-                      "text-sm",
-                      today ? "text-indigo-300 font-semibold" : "text-white",
+                      "text-left rounded-xl border p-3 min-h-[110px] transition",
+                      "bg-slate-950/30 border-slate-800 hover:border-indigo-500/40 hover:bg-slate-950/50",
+                      !inMonth ? "opacity-50" : "",
                     ].join(" ")}
                   >
-                    {day.getDate()}
-                  </div>
-                  {today ? (
-                    <Badge className="bg-indigo-500/20 text-indigo-300">Today</Badge>
-                  ) : null}
-                </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div
+                        className={[
+                          "text-sm",
+                          isTodayDate ? "text-indigo-300 font-semibold" : "text-white",
+                        ].join(" ")}
+                      >
+                        {day.getDate()}
+                      </div>
 
-                <div className="mt-3 space-y-2">
-                  {dayEvents.slice(0, 2).map((event) => (
-                    <div
-                      key={event.id}
-                      className="text-xs rounded-md px-2 py-1 bg-indigo-500/15 text-indigo-200 truncate"
-                    >
-                      {event.title}
-                    </div>
-                  ))}
+                      <div className="flex items-center gap-2">
+                        {totalCount > 0 && (
+                          <span className="min-w-[20px] h-5 px-1 rounded-full bg-indigo-600 text-white text-[11px] flex items-center justify-center">
+                            {totalCount}
+                          </span>
+                        )}
 
-                  {dayTasks.slice(0, 2).map((task) => (
-                    <div
-                      key={task.id}
-                      className="text-xs rounded-md px-2 py-1 bg-emerald-500/15 text-emerald-200 truncate"
-                    >
-                      Task: {task.title}
+                        {isTodayDate && (
+                          <Badge className="bg-indigo-500/20 text-indigo-300">
+                            Today
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                  ))}
 
-                  {dayEvents.length + dayTasks.length > 4 && (
-                    <div className="text-[11px] text-slate-400">
-                      +{dayEvents.length + dayTasks.length - 4} more
+                    <div className="mt-3 space-y-2">
+                      {dayEvents.slice(0, 2).map((event) => (
+                        <div
+                          key={event.id}
+                          className="text-xs rounded-md px-2 py-1 bg-indigo-500/15 text-indigo-200 truncate"
+                        >
+                          {event.title}
+                        </div>
+                      ))}
+
+                      {dayTasks.slice(0, 2).map((task) => (
+                        <div
+                          key={task.id}
+                          className="text-xs rounded-md px-2 py-1 bg-emerald-500/15 text-emerald-200 truncate"
+                        >
+                          Task: {task.title}
+                        </div>
+                      ))}
+
+                      {totalCount > 4 && (
+                        <div className="text-[11px] text-slate-400">
+                          +{totalCount - 4} more
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+                  </button>
+                );
+              })}
         </div>
-
-        {isLoading && (
-          <div className="text-center text-slate-400 mt-4">Loading calendar...</div>
-        )}
       </Card>
     </div>
   );

@@ -63,79 +63,83 @@ export default function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [sortBy, setSortBy] = useState<string>("newest");
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+  const [loadError, setLoadError] = useState("");
 
-  useEffect(() => {
-    let mounted = true;
+  const loadProjects = async (mode: "initial" | "refresh" = "initial") => {
+    const requestId = requestTracker.current.next();
 
-    const loadProjects = async () => {
-      const requestId = requestTracker.current.next();
-      setIsLoading(true);
+    if (mode === "initial") {
+      setIsBootstrapping(true);
+    } else {
+      setIsRefreshing(true);
+    }
 
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+    setLoadError("");
 
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-        if (!user) {
-          navigate("/login");
-          return;
-        }
+      if (!requestTracker.current.isLatest(requestId)) return;
 
-        setCurrentUserId(user.id);
+      if (!user) {
+        navigate("/login");
+        return;
+      }
 
-        const { data: me, error: meError } = await supabase
+      setCurrentUserId(user.id);
+
+      const [profileResult, projectsResult] = await Promise.all([
+        supabase
           .from("profiles")
           .select("user_id, role")
           .eq("user_id", user.id)
-          .single();
-
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-
-        if (meError) {
-          console.error("Load current profile error:", meError);
-          setCurrentUserRole(null);
-        } else {
-          setCurrentUserRole((me as ProfileRow | null)?.role || null);
-        }
-
-        const { data, error } = await supabase
+          .single(),
+        supabase
           .from("projects")
           .select(
             "id, name, description, status, progress, created_by, start_date, end_date, created_at"
           )
-          .order("created_at", { ascending: false });
+          .order("created_at", { ascending: false }),
+      ]);
 
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+      if (!requestTracker.current.isLatest(requestId)) return;
 
-        if (error) {
-          console.error("Load projects error:", error);
-          setProjects([]);
-        } else {
-          setProjects((data || []) as ProjectRow[]);
-        }
-      } catch (error) {
-        if (!mounted) return;
-        console.error("Projects page load error:", error);
-        if (!requestTracker.current.isLatest(requestId)) return;
-        setProjects([]);
-      } finally {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        setIsLoading(false);
+      if (profileResult.error) {
+        console.error("Load current profile error:", profileResult.error);
+        setCurrentUserRole(null);
+      } else {
+        setCurrentUserRole((profileResult.data as ProfileRow | null)?.role || null);
       }
-    };
 
-    void loadProjects();
+      if (projectsResult.error) {
+        console.error("Load projects error:", projectsResult.error);
+        setProjects([]);
+        setLoadError(projectsResult.error.message || "Failed to load projects.");
+      } else {
+        setProjects((projectsResult.data || []) as ProjectRow[]);
+      }
+    } catch (error) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Projects page load error:", error);
+      setProjects([]);
+      setLoadError("Failed to load projects.");
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      setIsBootstrapping(false);
+      setIsRefreshing(false);
+    }
+  };
 
-    return () => {
-      mounted = false;
-    };
-  }, [navigate]);
+  useEffect(() => {
+    void loadProjects("initial");
+  }, []);
 
   const canCreateProjects =
     currentUserRole === "admin" ||
@@ -200,24 +204,17 @@ export default function ProjectsPage() {
     const confirmed = window.confirm("Are you sure you want to delete this project?");
     if (!confirmed) return;
 
+    const previousProjects = projects;
+    setProjects((prev) => prev.filter((project) => project.id !== projectId));
+
     const { error } = await supabase.from("projects").delete().eq("id", projectId);
 
     if (error) {
       console.error("Delete project error:", error);
+      setProjects(previousProjects);
       alert(error.message || "Failed to delete project");
-      return;
     }
-
-    setProjects((prev) => prev.filter((project) => project.id !== projectId));
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -227,15 +224,26 @@ export default function ProjectsPage() {
           <p className="text-slate-400">Manage and track your projects</p>
         </div>
 
-        {canCreateProjects && (
+        <div className="flex items-center gap-2">
           <Button
-            className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => navigate("/projects/new")}
+            variant="outline"
+            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            onClick={() => void loadProjects("refresh")}
+            disabled={isRefreshing}
           >
-            <Plus className="w-4 h-4 mr-2" />
-            New Project
+            {isRefreshing ? "Refreshing..." : "Refresh"}
           </Button>
-        )}
+
+          {canCreateProjects && (
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() => navigate("/projects/new")}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              New Project
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
@@ -291,7 +299,64 @@ export default function ProjectsPage() {
         </ToggleGroup>
       </div>
 
-      {viewMode === "grid" ? (
+      {loadError && (
+        <Card className="bg-red-950/20 border-red-900/40">
+          <CardContent className="p-4 text-sm text-red-300">{loadError}</CardContent>
+        </Card>
+      )}
+
+      {isBootstrapping ? (
+        viewMode === "grid" ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <Card key={index} className="bg-slate-900/50 border-slate-800">
+                <CardContent className="p-5">
+                  <div className="animate-pulse space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div className="w-10 h-10 rounded-lg bg-slate-800" />
+                      <div className="w-8 h-8 rounded bg-slate-800" />
+                    </div>
+                    <div className="h-5 w-2/3 rounded bg-slate-800" />
+                    <div className="h-4 w-full rounded bg-slate-800" />
+                    <div className="h-4 w-3/4 rounded bg-slate-800" />
+                    <div className="h-6 w-24 rounded bg-slate-800" />
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <div className="h-4 w-16 rounded bg-slate-800" />
+                        <div className="h-4 w-10 rounded bg-slate-800" />
+                      </div>
+                      <div className="h-2 w-full rounded bg-slate-800" />
+                    </div>
+                    <div className="h-4 w-20 rounded bg-slate-800" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card className="bg-slate-900/50 border-slate-800">
+            <CardContent className="p-0">
+              <div className="divide-y divide-slate-800">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div key={index} className="p-4">
+                    <div className="animate-pulse flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-slate-800" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 w-48 rounded bg-slate-800" />
+                        <div className="h-4 w-72 rounded bg-slate-800" />
+                      </div>
+                      <div className="hidden sm:block h-6 w-20 rounded bg-slate-800" />
+                      <div className="hidden sm:block h-2 w-32 rounded bg-slate-800" />
+                      <div className="hidden sm:block h-4 w-16 rounded bg-slate-800" />
+                      <div className="h-8 w-8 rounded bg-slate-800" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )
+      ) : viewMode === "grid" ? (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredProjects.map((project) => (
             <Card
@@ -447,10 +512,11 @@ export default function ProjectsPage() {
         </Card>
       )}
 
-      {filteredProjects.length === 0 && (
+      {!isBootstrapping && filteredProjects.length === 0 && (
         <div className="text-center py-12">
           <FolderKanban className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-white mb-2">No projects found</h3>
+          <h3
+            className="text-lg font-medium text-white mb-2">No projects found</h3>
           <p className="text-slate-500 mb-4">
             {searchQuery || statusFilter !== "ALL"
               ? "Try adjusting your filters"

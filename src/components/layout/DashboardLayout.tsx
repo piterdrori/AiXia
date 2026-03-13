@@ -70,6 +70,31 @@ type NotificationRow = {
   created_at: string;
 };
 
+type ProjectMemberRow = {
+  project_id: string;
+  user_id: string;
+};
+
+type ProjectRow = {
+  id: string;
+  created_by: string | null;
+};
+
+type TaskRow = {
+  id: string;
+  due_date: string | null;
+  created_by: string | null;
+  project_id: string | null;
+  assignee_id: string | null;
+};
+
+type CalendarEventRow = {
+  id: string;
+  start_date: string;
+  created_by: string | null;
+  project_id: string | null;
+};
+
 type CachedLayoutState = {
   userProfile: UserProfile | null;
   notifications: NotificationRow[];
@@ -120,7 +145,6 @@ function clearLayoutCache() {
     // ignore cache errors
   }
 }
-
 export default function DashboardLayout({
   children,
 }: {
@@ -150,10 +174,14 @@ export default function DashboardLayout({
     Boolean(cached?.notifications)
   );
 
+  const [calendarTodayCount, setCalendarTodayCount] = useState(0);
+  const [chatUnreadCount] = useState(0);
+
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   const loadUserRequestIdRef = useRef(0);
   const loadNotificationsRequestIdRef = useRef(0);
+  const loadCalendarBadgeRequestIdRef = useRef(0);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -177,9 +205,7 @@ export default function DashboardLayout({
   const loadNotifications = async (userId: string, force = false) => {
     const requestId = ++loadNotificationsRequestIdRef.current;
 
-    if (!force && hasLoadedNotifications) {
-      return;
-    }
+    if (!force && hasLoadedNotifications) return;
 
     setIsLoadingNotifications(true);
 
@@ -213,6 +239,94 @@ export default function DashboardLayout({
     }
   };
 
+  const loadCalendarBadge = async (
+    userId: string,
+    role?: string | null
+  ) => {
+    const requestId = ++loadCalendarBadgeRequestIdRef.current;
+
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+
+      const [
+        { data: allProjects, error: projectsError },
+        { data: allProjectMembers, error: membersError },
+        { data: allTasks, error: tasksError },
+        { data: allEvents, error: eventsError },
+      ] = await Promise.all([
+        supabase.from("projects").select("id, created_by"),
+        supabase.from("project_members").select("project_id, user_id"),
+        supabase
+          .from("tasks")
+          .select("id, due_date, created_by, project_id, assignee_id")
+          .eq("due_date", today),
+        supabase
+          .from("calendar_events")
+          .select("id, start_date, created_by, project_id")
+          .eq("start_date", today),
+      ]);
+
+      if (requestId !== loadCalendarBadgeRequestIdRef.current) return;
+
+      if (projectsError || membersError || tasksError || eventsError) {
+        console.error(
+          "Calendar badge load error:",
+          projectsError || membersError || tasksError || eventsError
+        );
+        return;
+      }
+
+      const projects = (allProjects || []) as ProjectRow[];
+      const projectMembers = (allProjectMembers || []) as ProjectMemberRow[];
+      const todayTasks = (allTasks || []) as TaskRow[];
+      const todayEvents = (allEvents || []) as CalendarEventRow[];
+
+      const visibleProjectIds =
+        role === "admin"
+          ? new Set(projects.map((project) => project.id))
+          : new Set(
+              projects
+                .filter(
+                  (project) =>
+                    project.created_by === userId ||
+                    projectMembers.some(
+                      (member) =>
+                        member.project_id === project.id && member.user_id === userId
+                    )
+                )
+                .map((project) => project.id)
+            );
+
+      const visibleTasks =
+        role === "admin"
+          ? todayTasks
+          : todayTasks.filter((task) => {
+              const isCreator = task.created_by === userId;
+              const isAssignee = task.assignee_id === userId;
+              const isInsideVisibleProject =
+                !!task.project_id && visibleProjectIds.has(task.project_id);
+
+              return isCreator || isAssignee || isInsideVisibleProject;
+            });
+
+      const visibleEvents =
+        role === "admin"
+          ? todayEvents
+          : todayEvents.filter((event) => {
+              const isCreator = event.created_by === userId;
+              const isInsideVisibleProject =
+                !!event.project_id && visibleProjectIds.has(event.project_id);
+
+              return isCreator || isInsideVisibleProject;
+            });
+
+      setCalendarTodayCount(visibleTasks.length + visibleEvents.length);
+    } catch (error) {
+      if (requestId !== loadCalendarBadgeRequestIdRef.current) return;
+      console.error("Load calendar badge error:", error);
+    }
+  };
+
   const loadUser = async () => {
     const requestId = ++loadUserRequestIdRef.current;
     setIsLoadingUser(true);
@@ -229,6 +343,7 @@ export default function DashboardLayout({
         setUserProfile(null);
         setNotifications([]);
         setHasLoadedNotifications(false);
+        setCalendarTodayCount(0);
         clearLayoutCache();
         return;
       }
@@ -254,6 +369,8 @@ export default function DashboardLayout({
 
       setUserProfile(loadedUser);
       writeLayoutCache(loadedUser, notifications);
+
+      void loadCalendarBadge(session.user.id, loadedUser.role || null);
     } catch (error) {
       if (requestId !== loadUserRequestIdRef.current) return;
       console.error("DashboardLayout user load error:", error);
@@ -270,6 +387,12 @@ export default function DashboardLayout({
       void loadUser();
     } else {
       setIsLoadingUser(false);
+      if (cached.userProfile?.userId) {
+        void loadCalendarBadge(
+          cached.userProfile.userId,
+          cached.userProfile.role || null
+        );
+      }
     }
 
     const {
@@ -282,6 +405,7 @@ export default function DashboardLayout({
           setUserProfile(null);
           setNotifications([]);
           setHasLoadedNotifications(false);
+          setCalendarTodayCount(0);
           clearLayoutCache();
           return;
         }
@@ -315,6 +439,7 @@ export default function DashboardLayout({
           },
           () => {
             void loadNotifications(userProfile.userId, true);
+            void loadCalendarBadge(userProfile.userId, userProfile.role || null);
           }
         )
         .subscribe()
@@ -323,7 +448,7 @@ export default function DashboardLayout({
     return () => {
       void removeRealtimeChannel(channelKey);
     };
-  }, [userProfile?.userId]);
+  }, [userProfile?.userId, userProfile?.role]);
 
   useEffect(() => {
     if (notificationsOpen && userProfile?.userId) {
@@ -336,13 +461,13 @@ export default function DashboardLayout({
       { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
       { label: "Projects", icon: FolderKanban, href: "/projects" },
       { label: "Tasks", icon: CheckSquare, href: "/tasks" },
-      { label: "Calendar", icon: Calendar, href: "/calendar" },
-      { label: "Chat", icon: MessageSquare, href: "/chat" },
+      { label: "Calendar", icon: Calendar, href: "/calendar", badge: calendarTodayCount },
+      { label: "Chat", icon: MessageSquare, href: "/chat", badge: chatUnreadCount || undefined },
       { label: "Inbox", icon: Bell, href: "/inbox", badge: unreadCount },
       { label: "Employees", icon: Users, href: "/employees" },
       { label: "Settings", icon: Settings, href: "/settings" },
     ],
-    [unreadCount]
+    [calendarTodayCount, chatUnreadCount, unreadCount]
   );
 
   const handleLogout = async () => {
@@ -367,9 +492,11 @@ export default function DashboardLayout({
     try {
       if (!notification.is_read) {
         await markNotificationRead(notification.id);
+
         const nextNotifications = notifications.map((item) =>
           item.id === notification.id ? { ...item, is_read: true } : item
         );
+
         setNotifications(nextNotifications);
         writeLayoutCache(userProfile, nextNotifications);
       }
@@ -391,10 +518,12 @@ export default function DashboardLayout({
 
     try {
       await markAllNotificationsRead(userProfile.userId);
+
       const nextNotifications = notifications.map((item) => ({
         ...item,
         is_read: true,
       }));
+
       setNotifications(nextNotifications);
       writeLayoutCache(userProfile, nextNotifications);
     } catch (error) {
@@ -513,7 +642,7 @@ export default function DashboardLayout({
     </div>
   );
 
-return (
+  return (
     <div className="min-h-screen bg-slate-950 flex">
       {!isMobile && (
         <aside
@@ -611,7 +740,7 @@ return (
 
       <main
         className={`flex-1 transition-all duration-300 ${
-          !isMobile && sidebarOpen ? "ml-64" : !isMobile ? "ml-16" : ""
+       !isMobile && sidebarOpen ? "ml-64" : !isMobile ? "ml-16" : ""
         }`}
       >
         <header className="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800">
@@ -654,7 +783,10 @@ return (
             </div>
 
             <div className="flex items-center gap-2">
-              <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+              <DropdownMenu
+                open={notificationsOpen}
+                onOpenChange={setNotificationsOpen}
+              >
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="relative">
                     <Bell className="w-5 h-5 text-slate-400" />
@@ -714,6 +846,7 @@ return (
                               >
                                 {notification.title}
                               </p>
+
                               {notification.message && (
                                 <p className="text-xs text-slate-500 line-clamp-2">
                                   {notification.message}
@@ -727,7 +860,10 @@ return (
                           </div>
 
                           <p className="text-[11px] text-slate-600">
-                            {format(new Date(notification.created_at), "MMM d, h:mm a")}
+                            {format(
+                              new Date(notification.created_at),
+                              "MMM d, h:mm a"
+                            )}
                           </p>
                         </DropdownMenuItem>
                       ))

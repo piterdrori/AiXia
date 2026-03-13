@@ -445,7 +445,6 @@ export default function TaskNewPage() {
                 className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 resize-none"
               />
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-slate-300">
@@ -577,7 +576,7 @@ export default function TaskNewPage() {
                   </>
                 ) : (
                   "Create Task"
-               )}
+                )}
               </Button>
             </div>
           </form>

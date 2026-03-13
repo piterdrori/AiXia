@@ -66,7 +66,9 @@ type TaskMemberRow = {
 export default function TaskEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const requestTracker = useRef(createRequestTracker());
+
+  const pageRequestTracker = useRef(createRequestTracker());
+  const membersRequestTracker = useRef(createRequestTracker());
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -81,10 +83,11 @@ export default function TaskEditPage() {
   const [existingTaskMembers, setExistingTaskMembers] = useState<TaskMemberRow[]>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
 
-  const [, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [, setCurrentUserRole] = useState<Role | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isMembersLoading, setIsMembersLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -99,7 +102,7 @@ export default function TaskEditPage() {
         return;
       }
 
-      const requestId = requestTracker.current.next();
+      const requestId = pageRequestTracker.current.next();
       setIsLoading(true);
       setError("");
 
@@ -108,7 +111,7 @@ export default function TaskEditPage() {
           data: { user },
         } = await supabase.auth.getUser();
 
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+        if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
 
         if (!user) {
           navigate("/login");
@@ -123,7 +126,7 @@ export default function TaskEditPage() {
           .eq("user_id", user.id)
           .single();
 
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+        if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
 
         if (myProfileError || !myProfile) {
           navigate("/tasks");
@@ -139,7 +142,7 @@ export default function TaskEditPage() {
           .eq("id", id)
           .single();
 
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+        if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
 
         if (taskError || !taskData) {
           navigate("/tasks");
@@ -155,10 +158,10 @@ export default function TaskEditPage() {
         }
 
         const [
-          { data: projectsData },
-          { data: profilesData },
-          { data: taskMembersData },
-          { data: projectMembersData },
+          { data: allProjects, error: projectsError },
+          { data: allProfiles, error: profilesError },
+          { data: taskMembersData, error: taskMembersError },
+          { data: allProjectMembers, error: allProjectMembersError },
         ] = await Promise.all([
           supabase
             .from("projects")
@@ -173,15 +176,51 @@ export default function TaskEditPage() {
             .from("task_members")
             .select("id, task_id, user_id, role, created_at")
             .eq("task_id", id),
-          task.project_id
-            ? supabase
-                .from("project_members")
-                .select("id, project_id, user_id, role, created_at")
-                .eq("project_id", task.project_id)
-            : Promise.resolve({ data: [] }),
+          supabase
+            .from("project_members")
+            .select("id, project_id, user_id, role, created_at"),
         ]);
 
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+        if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
+
+        if (projectsError) {
+          setError(projectsError.message || "Failed to load projects.");
+          setProjects([]);
+        }
+
+        if (profilesError) {
+          setError(profilesError.message || "Failed to load team members.");
+          setProfiles([]);
+        }
+
+        if (taskMembersError) {
+          setError(taskMembersError.message || "Failed to load current assignees.");
+        }
+
+        if (allProjectMembersError) {
+          setError(allProjectMembersError.message || "Failed to load project members.");
+        }
+
+        const projectsData = (allProjects || []) as ProjectRow[];
+        const profilesData = (allProfiles || []) as ProfileRow[];
+        const currentTaskMembers = (taskMembersData || []) as TaskMemberRow[];
+        const allMembersData = (allProjectMembers || []) as ProjectMemberRow[];
+
+        const visibleProjects =
+          role === "admin"
+            ? projectsData
+            : projectsData.filter((project) => {
+                const isCreator = project.created_by === user.id;
+                const isAssignedProjectMember = allMembersData.some(
+                  (member) =>
+                    member.project_id === project.id && member.user_id === user.id
+                );
+                return isCreator || isAssignedProjectMember;
+              });
+
+        const initialProjectMembers = task.project_id
+          ? allMembersData.filter((member) => member.project_id === task.project_id)
+          : [];
 
         setTitle(task.title || "");
         setDescription(task.description || "");
@@ -190,17 +229,17 @@ export default function TaskEditPage() {
         setStatus((task.status as TaskStatus) || "TODO");
         setDueDate(task.due_date || "");
 
-        setProjects((projectsData || []) as ProjectRow[]);
-        setProfiles((profilesData || []) as ProfileRow[]);
-        setExistingTaskMembers((taskMembersData || []) as TaskMemberRow[]);
-        setSelectedAssignees(((taskMembersData || []) as TaskMemberRow[]).map((m) => m.user_id));
-        setProjectMembers((projectMembersData || []) as ProjectMemberRow[]);
+        setProjects(visibleProjects);
+        setProfiles(profilesData);
+        setExistingTaskMembers(currentTaskMembers);
+        setSelectedAssignees(currentTaskMembers.map((member) => member.user_id));
+        setProjectMembers(initialProjectMembers);
       } catch (err) {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+        if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
         console.error("Load task edit error:", err);
         setError("Failed to load task.");
       } finally {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+        if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
         setIsLoading(false);
       }
     };
@@ -216,31 +255,45 @@ export default function TaskEditPage() {
     let mounted = true;
 
     const reloadProjectMembers = async () => {
-      const requestId = requestTracker.current.next();
+      const requestId = membersRequestTracker.current.next();
 
       if (!projectId) {
         setProjectMembers([]);
         setSelectedAssignees([]);
+        setIsMembersLoading(false);
         return;
       }
 
-      const { data, error: membersError } = await supabase
-        .from("project_members")
-        .select("id, project_id, user_id, role, created_at")
-        .eq("project_id", projectId);
+      setIsMembersLoading(true);
 
-      if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+      try {
+        const { data, error: membersError } = await supabase
+          .from("project_members")
+          .select("id, project_id, user_id, role, created_at")
+          .eq("project_id", projectId);
 
-      if (membersError) {
-        console.error("Load project members error:", membersError);
-        return;
+        if (!mounted || !membersRequestTracker.current.isLatest(requestId)) return;
+
+        if (membersError) {
+          console.error("Load project members error:", membersError);
+          setProjectMembers([]);
+          return;
+        }
+
+        const members = (data || []) as ProjectMemberRow[];
+        setProjectMembers(members);
+
+        setSelectedAssignees((prev) =>
+          prev.filter((userId) => members.some((member) => member.user_id === userId))
+        );
+      } catch (err) {
+        if (!mounted || !membersRequestTracker.current.isLatest(requestId)) return;
+        console.error("Reload project members error:", err);
+        setProjectMembers([]);
+      } finally {
+        if (!mounted || !membersRequestTracker.current.isLatest(requestId)) return;
+        setIsMembersLoading(false);
       }
-
-      const members = (data || []) as ProjectMemberRow[];
-      setProjectMembers(members);
-      setSelectedAssignees((prev) =>
-        prev.filter((userId) => members.some((m) => m.user_id === userId))
-      );
     };
 
     void reloadProjectMembers();
@@ -258,7 +311,9 @@ export default function TaskEditPage() {
 
   const toggleAssignee = (userId: string) => {
     setSelectedAssignees((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId]
     );
   };
 
@@ -278,7 +333,12 @@ export default function TaskEditPage() {
       return;
     }
 
-    const requestId = requestTracker.current.next();
+    if (dueDate && Number.isNaN(new Date(dueDate).getTime())) {
+      setError("Due date is invalid.");
+      return;
+    }
+
+    const requestId = pageRequestTracker.current.next();
     setIsSaving(true);
 
     try {
@@ -296,15 +356,14 @@ export default function TaskEditPage() {
         })
         .eq("id", id);
 
-      if (!requestTracker.current.isLatest(requestId)) return;
+      if (!pageRequestTracker.current.isLatest(requestId)) return;
 
       if (updateError) {
         setError(updateError.message || "Failed to update task.");
-        setIsSaving(false);
         return;
       }
 
-      const existingUserIds = existingTaskMembers.map((m) => m.user_id);
+      const existingUserIds = existingTaskMembers.map((member) => member.user_id);
       const toInsert = selectedAssignees.filter((userId) => !existingUserIds.includes(userId));
       const toDelete = existingTaskMembers.filter((member) => !selectedSet.has(member.user_id));
 
@@ -317,40 +376,38 @@ export default function TaskEditPage() {
 
         const { error: insertError } = await supabase.from("task_members").insert(rows);
 
-        if (!requestTracker.current.isLatest(requestId)) return;
+        if (!pageRequestTracker.current.isLatest(requestId)) return;
 
         if (insertError) {
           setError(insertError.message || "Failed to add assignees.");
-          setIsSaving(false);
           return;
         }
       }
 
       if (toDelete.length > 0) {
-        const idsToDelete = toDelete.map((m) => m.id);
+        const idsToDelete = toDelete.map((member) => member.id);
+
         const { error: deleteError } = await supabase
           .from("task_members")
           .delete()
           .in("id", idsToDelete);
 
-        if (!requestTracker.current.isLatest(requestId)) return;
+        if (!pageRequestTracker.current.isLatest(requestId)) return;
 
         if (deleteError) {
           setError(deleteError.message || "Failed to remove assignees.");
-          setIsSaving(false);
           return;
         }
       }
 
-      if (!requestTracker.current.isLatest(requestId)) return;
+      if (!pageRequestTracker.current.isLatest(requestId)) return;
       navigate(`/tasks/${id}`);
     } catch (err) {
-      if (!requestTracker.current.isLatest(requestId)) return;
+      if (!pageRequestTracker.current.isLatest(requestId)) return;
       console.error("Update task error:", err);
       setError("Something went wrong while updating the task.");
-      setIsSaving(false);
     } finally {
-      if (!requestTracker.current.isLatest(requestId)) return;
+      if (!pageRequestTracker.current.isLatest(requestId)) return;
       setIsSaving(false);
     }
   };
@@ -374,6 +431,7 @@ export default function TaskEditPage() {
         >
           <ArrowLeft className="w-5 h-5" />
         </Button>
+
         <div>
           <h1 className="text-2xl font-bold text-white">Edit Task</h1>
           <p className="text-slate-400">Update task details</p>
@@ -417,7 +475,7 @@ export default function TaskEditPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-slate-300">
                   Project <span className="text-red-400">*</span>
@@ -450,9 +508,7 @@ export default function TaskEditPage() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-slate-300">Status</Label>
                 <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)}>
@@ -485,7 +541,11 @@ export default function TaskEditPage() {
             <div className="space-y-3">
               <Label className="text-slate-300">Assignees</Label>
 
-              {availableAssignees.length === 0 ? (
+              {!projectId ? (
+                <div className="text-slate-500 text-sm">Select a project first.</div>
+              ) : isMembersLoading ? (
+                <div className="text-slate-500 text-sm">Loading project members...</div>
+              ) : availableAssignees.length === 0 ? (
                 <div className="text-slate-500 text-sm">
                   No available members found for this project.
                 </div>
@@ -527,7 +587,7 @@ export default function TaskEditPage() {
                 Cancel
               </Button>
 
-              <Button
+             <Button
                 type="submit"
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
                 disabled={isSaving}

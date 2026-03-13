@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { logActivity } from "@/lib/activity";
 import {
@@ -11,6 +12,8 @@ import {
   getSignedFileUrl,
   deleteUploadedFile,
 } from "@/lib/file-upload";
+import { createRequestTracker } from "@/lib/safeAsync";
+
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,7 +44,6 @@ import {
   Save,
   X,
 } from "lucide-react";
-import { format } from "date-fns";
 
 type Role = "admin" | "manager" | "employee" | "guest";
 
@@ -115,6 +117,7 @@ type FileUploadRow = {
 export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const requestTracker = useRef(createRequestTracker());
   const taskFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [task, setTask] = useState<TaskRow | null>(null);
@@ -127,7 +130,7 @@ export default function TaskDetailPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 
-const [newComment, setNewComment] = useState("");
+  const [newComment, setNewComment] = useState("");
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentText, setEditingCommentText] = useState("");
   const [statusSaving, setStatusSaving] = useState(false);
@@ -143,12 +146,15 @@ const [newComment, setNewComment] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let mounted = true;
+
     const loadTaskPage = async () => {
       if (!id) {
         navigate("/tasks");
         return;
       }
 
+      const requestId = requestTracker.current.next();
       setIsLoading(true);
       setError("");
 
@@ -156,6 +162,8 @@ const [newComment, setNewComment] = useState("");
         const {
           data: { user },
         } = await supabase.auth.getUser();
+
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
         if (!user) {
           navigate("/login");
@@ -170,6 +178,8 @@ const [newComment, setNewComment] = useState("");
           .eq("user_id", user.id)
           .single();
 
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+
         if (myProfileError || !myProfile) {
           navigate("/tasks");
           return;
@@ -183,6 +193,8 @@ const [newComment, setNewComment] = useState("");
           .select("*")
           .eq("id", id)
           .single();
+
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
         if (taskError || !taskData) {
           navigate("/tasks");
@@ -231,6 +243,8 @@ const [newComment, setNewComment] = useState("");
             .order("created_at", { ascending: false }),
         ]);
 
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+
         const loadedTaskMembers = (taskMembersData || []) as TaskMemberRow[];
         const loadedProjectMembers = (projectMembersData || []) as ProjectMemberRow[];
 
@@ -255,14 +269,20 @@ const [newComment, setNewComment] = useState("");
         setComments((commentsData || []) as TaskCommentRow[]);
         setFiles((filesData || []) as FileUploadRow[]);
       } catch (err) {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         console.error("Load task detail error:", err);
         setError("Failed to load task.");
       } finally {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         setIsLoading(false);
       }
     };
 
-    loadTaskPage();
+    void loadTaskPage();
+
+    return () => {
+      mounted = false;
+    };
   }, [id, navigate]);
 
   const canEditTask = useMemo(() => {
@@ -405,6 +425,7 @@ const handleStatusUpdate = async (newStatus: string) => {
       return;
     }
 
+    const requestId = requestTracker.current.next();
     setStatusSaving(true);
     setError("");
 
@@ -416,6 +437,8 @@ const handleStatusUpdate = async (newStatus: string) => {
           updated_at: new Date().toISOString(),
         })
         .eq("id", task.id);
+
+      if (!requestTracker.current.isLatest(requestId)) return;
 
       if (updateError) {
         setError(updateError.message || "Failed to update task status.");
@@ -452,6 +475,8 @@ const handleStatusUpdate = async (newStatus: string) => {
         });
       }
 
+      if (!requestTracker.current.isLatest(requestId)) return;
+
       setTask((prev) =>
         prev
           ? {
@@ -461,9 +486,11 @@ const handleStatusUpdate = async (newStatus: string) => {
           : prev
       );
     } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Status update error:", err);
       setError("Failed to update task status.");
     } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
       setStatusSaving(false);
     }
   };
@@ -474,10 +501,13 @@ const handleStatusUpdate = async (newStatus: string) => {
     const confirmed = window.confirm("Are you sure you want to delete this task?");
     if (!confirmed) return;
 
+    const requestId = requestTracker.current.next();
     setDeleteSaving(true);
     setError("");
 
     const { error: deleteError } = await supabase.from("tasks").delete().eq("id", task.id);
+
+    if (!requestTracker.current.isLatest(requestId)) return;
 
     if (deleteError) {
       setError(deleteError.message || "Failed to delete task.");
@@ -488,9 +518,10 @@ const handleStatusUpdate = async (newStatus: string) => {
     navigate("/tasks");
   };
 
-const handleAddComment = async () => {
+  const handleAddComment = async () => {
     if (!task || !currentUserId || !newComment.trim()) return;
 
+    const requestId = requestTracker.current.next();
     setCommentSaving(true);
     setError("");
 
@@ -505,6 +536,8 @@ const handleAddComment = async () => {
       })
       .select("id, task_id, user_id, content, created_at")
       .single();
+
+    if (!requestTracker.current.isLatest(requestId)) return;
 
     if (commentError) {
       setError(commentError.message || "Failed to add comment.");
@@ -562,6 +595,8 @@ const handleAddComment = async () => {
       });
     }
 
+    if (!requestTracker.current.isLatest(requestId)) return;
+
     setComments((prev) => [...prev, data as TaskCommentRow]);
     setNewComment("");
     setCommentSaving(false);
@@ -583,6 +618,7 @@ const handleAddComment = async () => {
       return;
     }
 
+    const requestId = requestTracker.current.next();
     setCommentActionLoading(comment.id);
     setError("");
 
@@ -592,6 +628,8 @@ const handleAddComment = async () => {
         content: editingCommentText.trim(),
       })
       .eq("id", comment.id);
+
+    if (!requestTracker.current.isLatest(requestId)) return;
 
     if (updateError) {
       setError(updateError.message || "Failed to update comment.");
@@ -607,6 +645,8 @@ const handleAddComment = async () => {
       entityId: comment.id,
       message: `Edited a comment in task "${task?.title || ""}"`,
     });
+
+    if (!requestTracker.current.isLatest(requestId)) return;
 
     setComments((prev) =>
       prev.map((item) =>
@@ -628,6 +668,7 @@ const handleAddComment = async () => {
     const confirmed = window.confirm("Are you sure you want to delete this comment?");
     if (!confirmed) return;
 
+    const requestId = requestTracker.current.next();
     setCommentActionLoading(comment.id);
     setError("");
 
@@ -635,6 +676,8 @@ const handleAddComment = async () => {
       .from("task_comments")
       .delete()
       .eq("id", comment.id);
+
+    if (!requestTracker.current.isLatest(requestId)) return;
 
     if (deleteError) {
       setError(deleteError.message || "Failed to delete comment.");
@@ -650,6 +693,8 @@ const handleAddComment = async () => {
       entityId: comment.id,
       message: `Deleted a comment in task "${task?.title || ""}"`,
     });
+
+    if (!requestTracker.current.isLatest(requestId)) return;
 
     setComments((prev) => prev.filter((item) => item.id !== comment.id));
 
@@ -667,16 +712,19 @@ const handleAddComment = async () => {
     if (!task || !project || !e.target.files || e.target.files.length === 0) return;
 
     const file = e.target.files[0];
+    const requestId = requestTracker.current.next();
     setError("");
     setIsUploading(true);
 
     try {
-const uploaded = (await uploadProjectOrTaskFile({
+      const uploaded = (await uploadProjectOrTaskFile({
         file,
         entityType: "task",
         projectId: project.id,
         taskId: task.id,
       })) as FileUploadRow;
+
+      if (!requestTracker.current.isLatest(requestId)) return;
 
       setFiles((prev) => [uploaded, ...prev]);
 
@@ -700,9 +748,11 @@ const uploaded = (await uploadProjectOrTaskFile({
         });
       }
     } catch (err: any) {
+      if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Task file upload error:", err);
       setError(err?.message || "Failed to upload file.");
     } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
       setIsUploading(false);
       e.target.value = "";
     }
@@ -724,14 +774,19 @@ const uploaded = (await uploadProjectOrTaskFile({
     const confirmed = window.confirm("Are you sure you want to delete this file?");
     if (!confirmed) return;
 
+    const requestId = requestTracker.current.next();
+
     try {
       await deleteUploadedFile(fileId, filePath, {
         projectId: task.project_id,
         taskId: task.id,
         fileName,
       });
+
+      if (!requestTracker.current.isLatest(requestId)) return;
       setFiles((prev) => prev.filter((file) => file.id !== fileId));
     } catch (err: any) {
+      if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Delete task file error:", err);
       setError(err?.message || "Failed to delete file.");
     }
@@ -740,14 +795,14 @@ const uploaded = (await uploadProjectOrTaskFile({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
       </div>
     );
   }
 
   if (!task) return null;
 
-  return (
+return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button
@@ -780,7 +835,7 @@ const uploaded = (await uploadProjectOrTaskFile({
         {canDeleteTask && (
           <Button
             variant="outline"
-            onClick={handleDelete}
+            onClick={() => void handleDelete()}
             disabled={deleteSaving}
             className="border-red-800 text-red-400 hover:bg-red-900/20"
           >
@@ -827,7 +882,7 @@ const uploaded = (await uploadProjectOrTaskFile({
                   <div className="text-slate-300 text-sm font-medium">Update Status</div>
                   <Select
                     value={(task.status || "TODO").toUpperCase()}
-                    onValueChange={handleStatusUpdate}
+                    onValueChange={(value) => void handleStatusUpdate(value)}
                     disabled={statusSaving}
                   >
                     <SelectTrigger className="w-56 bg-slate-900 border-slate-700 text-white">
@@ -896,7 +951,7 @@ const uploaded = (await uploadProjectOrTaskFile({
                         <Button
                           variant="outline"
                           className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                          onClick={() => handleDownloadFile(file.file_path)}
+                          onClick={() => void handleDownloadFile(file.file_path)}
                         >
                           <Download className="w-4 h-4 mr-2" />
                           Open
@@ -907,7 +962,7 @@ const uploaded = (await uploadProjectOrTaskFile({
                             variant="outline"
                             className="border-red-800 text-red-400 hover:bg-red-900/20"
                             onClick={() =>
-                              handleDeleteFile(file.id, file.file_path, file.file_name)
+                              void handleDeleteFile(file.id, file.file_path, file.file_name)
                             }
                           >
                             <Trash2 className="w-4 h-4 mr-2" />
@@ -981,7 +1036,7 @@ const uploaded = (await uploadProjectOrTaskFile({
 
                   <Button
                     type="button"
-                    onClick={handleAddComment}
+                    onClick={() => void handleAddComment()}
                     disabled={commentSaving || !newComment.trim()}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white"
                   >
@@ -1069,7 +1124,7 @@ const uploaded = (await uploadProjectOrTaskFile({
                                     variant="outline"
                                     size="sm"
                                     className="border-red-800 text-red-400 hover:bg-red-900/20"
-                                    onClick={() => handleDeleteComment(comment)}
+                                    onClick={() => void handleDeleteComment(comment)}
                                     disabled={commentActionLoading === comment.id}
                                   >
                                     <Trash2 className="w-3 h-3 mr-1" />
@@ -1096,7 +1151,7 @@ const uploaded = (await uploadProjectOrTaskFile({
                                   type="button"
                                   size="sm"
                                   className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                                  onClick={() => handleSaveEditedComment(comment)}
+                                  onClick={() => void handleSaveEditedComment(comment)}
                                   disabled={
                                     commentActionLoading === comment.id ||
                                     !editingCommentText.trim()

@@ -29,6 +29,10 @@ type EventType =
   | "personal"
   | "other";
 
+type ReminderValue = "NONE" | "5" | "10" | "15" | "30" | "60";
+
+type MeetingDurationValue = "30" | "60" | "90" | "120";
+
 type ProjectRow = {
   id: string;
   name: string;
@@ -50,11 +54,35 @@ type ProjectMemberRow = {
 function addMinutesToTime(time: string, minutesToAdd: number) {
   const [hours, minutes] = time.split(":").map(Number);
   const totalMinutes = hours * 60 + minutes + minutesToAdd;
-  const normalized = ((totalMinutes % 1440) + 1440) % 1440;
-  const nextHours = Math.floor(normalized / 60);
-  const nextMinutes = normalized % 60;
+
+  const normalizedMinutes = ((totalMinutes % 1440) + 1440) % 1440;
+  const nextHours = Math.floor(normalizedMinutes / 60);
+  const nextMinutes = normalizedMinutes % 60;
 
   return `${String(nextHours).padStart(2, "0")}:${String(nextMinutes).padStart(2, "0")}`;
+}
+
+function addDaysToDate(dateStr: string, daysToAdd: number) {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + daysToAdd);
+
+  const nextYear = date.getFullYear();
+  const nextMonth = String(date.getMonth() + 1).padStart(2, "0");
+  const nextDay = String(date.getDate()).padStart(2, "0");
+
+  return `${nextYear}-${nextMonth}-${nextDay}`;
+}
+
+function isEndBeforeStart(
+  startDate: string,
+  startTime: string,
+  endDate: string,
+  endTime: string
+) {
+  const start = new Date(`${startDate}T${startTime || "00:00"}`);
+  const end = new Date(`${endDate}T${endTime || "00:00"}`);
+  return end.getTime() < start.getTime();
 }
 
 export default function CalendarNewPage() {
@@ -69,6 +97,7 @@ export default function CalendarNewPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [eventType, setEventType] = useState<EventType>("meeting");
+  const [reminderMinutes, setReminderMinutes] = useState<ReminderValue>("5");
 
   const [startDate, setStartDate] = useState(presetDate);
   const [startTime, setStartTime] = useState("09:00");
@@ -76,152 +105,231 @@ export default function CalendarNewPage() {
   const [endTime, setEndTime] = useState("10:00");
   const [allDay, setAllDay] = useState(false);
 
-  const [meetingDuration, setMeetingDuration] = useState<string>("60");
-  const [reminderMinutes, setReminderMinutes] = useState<string>("5");
+  const [meetingDuration, setMeetingDuration] =
+    useState<MeetingDurationValue>("60");
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("NONE");
   const [selectedTaskId, setSelectedTaskId] = useState<string>("NONE");
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const usesDuration = eventType === "meeting";
-  const needsOnlyStartTime = eventType === "reminder" || eventType === "call";
-  const needsStartAndEndTime = eventType === "task" || eventType === "deadline";
-  const needsAllOptions = eventType === "personal" || eventType === "other";
+  const usesDuration = useMemo(() => {
+    return eventType === "meeting";
+  }, [eventType]);
 
-  useEffect(() => {
-    let mounted = true;
+  const needsStartAndEnd = useMemo(() => {
+    return eventType === "task" || eventType === "deadline" || eventType === "other";
+  }, [eventType]);
 
-    const loadPage = async () => {
-      const requestId = requestTracker.current.next();
-      setIsLoading(true);
-      setError("");
+  const needsSingleTimeOnly = useMemo(() => {
+    return eventType === "reminder" || eventType === "call" || eventType === "personal";
+  }, [eventType]);
 
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+  const loadPage = async (mode: "initial" | "refresh" = "initial") => {
+    const requestId = requestTracker.current.next();
 
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+    if (mode === "initial") {
+      setIsBootstrapping(true);
+    } else {
+      setIsRefreshing(true);
+    }
 
-        if (!user) {
-          navigate("/login");
-          return;
-        }
+    setError("");
 
-        setCurrentUserId(user.id);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-        const [
-          { data: me, error: meError },
-          { data: allProjects, error: projectsError },
-          { data: allProjectMembers, error: membersError },
-          { data: allTasks, error: tasksError },
-        ] = await Promise.all([
-          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
-          supabase
-            .from("projects")
-            .select("id, name, created_by")
-            .order("created_at", { ascending: false }),
-          supabase.from("project_members").select("project_id, user_id"),
-          supabase
-            .from("tasks")
-            .select("id, title, project_id, due_date")
-            .order("created_at", { ascending: false }),
-        ]);
+      if (!requestTracker.current.isLatest(requestId)) return;
 
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-
-        if (meError || !me) {
-          navigate("/calendar");
-          return;
-        }
-
-        const projectList = (allProjects || []) as ProjectRow[];
-        const memberList = (allProjectMembers || []) as ProjectMemberRow[];
-
-        if (projectsError) {
-          setError(projectsError.message || "Failed to load projects.");
-          setProjects([]);
-        } else {
-          const visibleProjectIds =
-            me.role === "admin"
-              ? new Set(projectList.map((project) => project.id))
-              : new Set(
-                  projectList
-                    .filter(
-                      (project) =>
-                        project.created_by === user.id ||
-                        memberList.some(
-                          (member) =>
-                            member.project_id === project.id && member.user_id === user.id
-                        )
-                    )
-                    .map((project) => project.id)
-                );
-
-          const visibleProjects = projectList.filter((project) =>
-            visibleProjectIds.has(project.id)
-          );
-
-          setProjects(visibleProjects);
-
-          if (
-            selectedProjectId !== "NONE" &&
-            !visibleProjects.some((project) => project.id === selectedProjectId)
-          ) {
-            setSelectedProjectId("NONE");
-            setSelectedTaskId("NONE");
-          }
-
-          if (tasksError || membersError) {
-            setTasks([]);
-          } else {
-            const allTaskRows = (allTasks || []) as TaskRow[];
-            const visibleTasks = allTaskRows.filter(
-              (task) => !task.project_id || visibleProjectIds.has(task.project_id)
-            );
-            setTasks(visibleTasks);
-          }
-        }
-      } catch (err) {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        console.error("Load calendar new page error:", err);
-        setError("Failed to load calendar form.");
-      } finally {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        setIsLoading(false);
+      if (!user) {
+        navigate("/login");
+        return;
       }
-    };
 
-    void loadPage();
+      setCurrentUserId(user.id);
 
-    return () => {
-      mounted = false;
-    };
-  }, [navigate, selectedProjectId]);
+      const [
+        { data: me, error: meError },
+        { data: allProjects, error: projectsError },
+        { data: allProjectMembers, error: membersError },
+        { data: allTasks, error: tasksError },
+      ] = await Promise.all([
+        supabase.from("profiles").select("role").eq("user_id", user.id).single(),
+        supabase
+          .from("projects")
+          .select("id, name, created_by")
+          .order("created_at", { ascending: false }),
+        supabase.from("project_members").select("project_id, user_id"),
+        supabase
+          .from("tasks")
+          .select("id, title, project_id, due_date")
+          .order("created_at", { ascending: false }),
+      ]);
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (meError || !me) {
+        navigate("/calendar");
+        return;
+      }
+
+      const projectList = (allProjects || []) as ProjectRow[];
+      const memberList = (allProjectMembers || []) as ProjectMemberRow[];
+      const taskList = (allTasks || []) as TaskRow[];
+
+      if (projectsError) {
+        setError(projectsError.message || "Failed to load projects.");
+        setProjects([]);
+      } else {
+        const visibleProjectIds =
+          me.role === "admin"
+            ? new Set(projectList.map((project) => project.id))
+            : new Set(
+                projectList
+                  .filter(
+                    (project) =>
+                      project.created_by === user.id ||
+                      memberList.some(
+                        (member) =>
+                          member.project_id === project.id && member.user_id === user.id
+                      )
+                  )
+                  .map((project) => project.id)
+              );
+
+        const visibleProjects = projectList.filter((project) =>
+          visibleProjectIds.has(project.id)
+        );
+
+        setProjects(visibleProjects);
+
+        if (
+          selectedProjectId !== "NONE" &&
+          !visibleProjects.some((project) => project.id === selectedProjectId)
+        ) {
+          setSelectedProjectId("NONE");
+          setSelectedTaskId("NONE");
+        }
+
+        if (!tasksError && !membersError) {
+          setTasks(
+            taskList.filter(
+              (task) => !task.project_id || visibleProjectIds.has(task.project_id)
+            )
+          );
+        }
+      }
+
+      if (tasksError || membersError) {
+        setTasks([]);
+      }
+    } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Load calendar new page error:", err);
+      setError("Failed to load calendar form.");
+      setProjects([]);
+      setTasks([]);
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      setIsBootstrapping(false);
+      setIsRefreshing(false);
+    }
+  };
 
   useEffect(() => {
+    void loadPage("initial");
+  }, []);
+
+  useEffect(() => {
+    if (!startDate) return;
+
+    setEndDate((prevEndDate) => {
+      if (!prevEndDate || prevEndDate < startDate) {
+        return startDate;
+      }
+      return prevEndDate;
+    });
+  }, [startDate]);
+
+  useEffect(() => {
+    if (!startDate) return;
+
     if (usesDuration && startTime) {
-      setEndTime(addMinutesToTime(startTime, Number(meetingDuration || 60)));
+      const duration = Number(meetingDuration || 60);
+      const nextEndTime = addMinutesToTime(startTime, duration);
+      setEndTime(nextEndTime);
+
+      const [startHour, startMinute] = startTime.split(":").map(Number);
+      const startTotal = startHour * 60 + startMinute;
+      const endTotal = startTotal + duration;
+
+      if (endTotal >= 1440) {
+        setEndDate(addDaysToDate(startDate, 1));
+      } else {
+        setEndDate(startDate);
+      }
     }
-  }, [usesDuration, startTime, meetingDuration]);
+  }, [usesDuration, startDate, startTime, meetingDuration]);
 
   useEffect(() => {
-    if (!endDate) {
-      setEndDate(startDate);
+    if (selectedProjectId === "NONE") {
+      setSelectedTaskId("NONE");
+    } else if (
+      selectedTaskId !== "NONE" &&
+      !tasks.some(
+        (task) =>
+          task.id === selectedTaskId && task.project_id === selectedProjectId
+      )
+    ) {
+      setSelectedTaskId("NONE");
     }
-  }, [startDate, endDate]);
+  }, [selectedProjectId, selectedTaskId, tasks]);
+
+  useEffect(() => {
+    if (allDay) {
+      return;
+    }
+
+    if (needsSingleTimeOnly) {
+      setEndDate(startDate);
+      setEndTime(startTime);
+      return;
+    }
+
+    if (usesDuration) {
+      const duration = Number(meetingDuration || 60);
+      setEndTime(addMinutesToTime(startTime, duration));
+      return;
+    }
+
+    if (needsStartAndEnd && isEndBeforeStart(startDate, startTime, endDate, endTime)) {
+      setEndDate(startDate);
+      setEndTime(addMinutesToTime(startTime, 60));
+    }
+  }, [
+    allDay,
+    needsSingleTimeOnly,
+    usesDuration,
+    needsStartAndEnd,
+    startDate,
+    startTime,
+    endDate,
+    endTime,
+    meetingDuration,
+  ]);
 
   const filteredTasks = useMemo(() => {
     if (selectedProjectId === "NONE") return [];
     return tasks.filter((task) => task.project_id === selectedProjectId);
   }, [tasks, selectedProjectId]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!currentUserId) {
@@ -244,30 +352,40 @@ export default function CalendarNewPage() {
       return;
     }
 
+    const computedEndDate = allDay
+      ? endDate || startDate
+      : needsSingleTimeOnly
+      ? startDate
+      : endDate || startDate;
+
+    const computedEndTime = allDay
+      ? null
+      : needsSingleTimeOnly
+      ? startTime || null
+      : usesDuration
+      ? addMinutesToTime(startTime, Number(meetingDuration || 60))
+      : endTime || null;
+
+    if (!allDay && needsStartAndEnd && !computedEndTime) {
+      setError("End time is required.");
+      return;
+    }
+
+    if (
+      !allDay &&
+      needsStartAndEnd &&
+      computedEndTime &&
+      isEndBeforeStart(startDate, startTime, computedEndDate, computedEndTime)
+    ) {
+      setError("End date/time cannot be earlier than start date/time.");
+      return;
+    }
+
     const requestId = requestTracker.current.next();
     setIsSaving(true);
     setError("");
 
     try {
-      let computedEndDate = endDate || startDate;
-      let computedEndTime: string | null = allDay ? null : endTime || null;
-
-      if (!allDay && usesDuration) {
-        computedEndDate = startDate;
-        computedEndTime = addMinutesToTime(startTime, Number(meetingDuration || 60));
-      }
-
-      if (!allDay && needsOnlyStartTime) {
-        computedEndDate = startDate;
-        computedEndTime = null;
-      }
-
-      if (!allDay && needsStartAndEndTime && !endTime) {
-        setError("End time is required for this event type.");
-        setIsSaving(false);
-        return;
-      }
-
       const payload = {
         title: title.trim(),
         description: description.trim() || null,
@@ -280,7 +398,6 @@ export default function CalendarNewPage() {
         project_id: selectedProjectId === "NONE" ? null : selectedProjectId,
         task_id: selectedTaskId === "NONE" ? null : selectedTaskId,
         created_by: currentUserId,
-        reminder_minutes: reminderMinutes === "NONE" ? null : Number(reminderMinutes),
       };
 
       const { data: insertedEvent, error: insertError } = await supabase
@@ -306,6 +423,24 @@ export default function CalendarNewPage() {
         message: `Created calendar event "${insertedEvent.title}" for ${insertedEvent.start_date}`,
       });
 
+      if (reminderMinutes !== "NONE") {
+        const { error: reminderError } = await supabase.from("notifications").insert({
+          user_id: currentUserId,
+          actor_user_id: currentUserId,
+          type: "EVENT_REMINDER",
+          title: "Calendar reminder",
+          message: `${title.trim()} starts in ${reminderMinutes} minute(s)`,
+          link: "/calendar",
+          is_read: false,
+          entity_type: "calendar_event",
+          entity_id: insertedEvent.id,
+        });
+
+        if (reminderError) {
+          console.error("Reminder notification insert error:", reminderError);
+        }
+      }
+
       if (!requestTracker.current.isLatest(requestId)) return;
       navigate("/calendar");
     } catch (err) {
@@ -318,13 +453,14 @@ export default function CalendarNewPage() {
     }
   };
 
-  if (isLoading) {
+  if (isBootstrapping) {
     return (
       <div className="h-64 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
       </div>
     );
   }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -350,9 +486,10 @@ export default function CalendarNewPage() {
           type="button"
           variant="outline"
           className="border-slate-700 text-slate-300 hover:bg-slate-800"
-          onClick={() => window.location.reload()}
+          onClick={() => void loadPage("refresh")}
+          disabled={isRefreshing}
         >
-          Refresh
+          {isRefreshing ? "Refreshing..." : "Refresh"}
         </Button>
       </div>
 
@@ -391,17 +528,7 @@ export default function CalendarNewPage() {
                 <Label className="text-slate-300">Event Type</Label>
                 <Select
                   value={eventType}
-                  onValueChange={(value) => {
-                    setEventType(value as EventType);
-
-                    if (value === "meeting") {
-                      setMeetingDuration("60");
-                    }
-
-                    if (value === "reminder" || value === "call") {
-                      setEndDate(startDate);
-                    }
-                  }}
+                  onValueChange={(value) => setEventType(value as EventType)}
                 >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue />
@@ -420,7 +547,10 @@ export default function CalendarNewPage() {
 
               <div className="space-y-2">
                 <Label className="text-slate-300">Reminder</Label>
-                <Select value={reminderMinutes} onValueChange={setReminderMinutes}>
+                <Select
+                  value={reminderMinutes}
+                  onValueChange={(value) => setReminderMinutes(value as ReminderValue)}
+                >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue />
                   </SelectTrigger>
@@ -435,7 +565,7 @@ export default function CalendarNewPage() {
                 </Select>
               </div>
 
-              <div className="flex items-center gap-3 pt-8">
+              <div className="flex items-center gap-3 md:col-span-2">
                 <Checkbox
                   checked={allDay}
                   onCheckedChange={(checked) => setAllDay(Boolean(checked))}
@@ -449,11 +579,15 @@ export default function CalendarNewPage() {
                   type="date"
                   value={startDate}
                   onChange={(e) => {
-                    setStartDate(e.target.value);
-                    if (!endDate) setEndDate(e.target.value);
-                    if (eventType === "reminder" || eventType === "call" || eventType === "meeting") {
-                      setEndDate(e.target.value);
-                    }
+                    const nextStartDate = e.target.value;
+                    setStartDate(nextStartDate);
+
+                    setEndDate((prevEndDate) => {
+                      if (!prevEndDate || prevEndDate < nextStartDate) {
+                        return nextStartDate;
+                      }
+                      return prevEndDate;
+                    });
                   }}
                   className="bg-slate-950 border-slate-800 text-white"
                 />
@@ -465,35 +599,47 @@ export default function CalendarNewPage() {
                   <Input
                     type="time"
                     value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
+                    onChange={(e) => {
+                      const nextStartTime = e.target.value;
+                      setStartTime(nextStartTime);
+
+                      if (usesDuration) {
+                        const duration = Number(meetingDuration || 60);
+                        const nextEndTime = addMinutesToTime(nextStartTime, duration);
+                        setEndTime(nextEndTime);
+
+                        const [startHour, startMinute] = nextStartTime
+                          .split(":")
+                          .map(Number);
+                        const startTotal = startHour * 60 + startMinute;
+                        const endTotal = startTotal + duration;
+
+                        if (endTotal >= 1440) {
+                          setEndDate(addDaysToDate(startDate, 1));
+                        } else {
+                          setEndDate(startDate);
+                        }
+                      }
+                    }}
                     className="bg-slate-950 border-slate-800 text-white"
                   />
                 </div>
               )}
 
-              {(needsStartAndEndTime || needsAllOptions || allDay) && (
-                <div className="space-y-2">
-                  <Label className="text-slate-300">End Date</Label>
-                  <Input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="bg-slate-950 border-slate-800 text-white"
-                  />
-                </div>
-              )}
-
-              {!allDay && usesDuration && (
+              {usesDuration && !allDay && (
                 <div className="space-y-2">
                   <Label className="text-slate-300">Duration</Label>
-                  <Select value={meetingDuration} onValueChange={setMeetingDuration}>
+                  <Select
+                    value={meetingDuration}
+                    onValueChange={(value) =>
+                      setMeetingDuration(value as MeetingDurationValue)
+                    }
+                  >
                     <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                      <SelectItem value="15">15 minutes</SelectItem>
                       <SelectItem value="30">30 minutes</SelectItem>
-                      <SelectItem value="45">45 minutes</SelectItem>
                       <SelectItem value="60">1 hour</SelectItem>
                       <SelectItem value="90">1.5 hours</SelectItem>
                       <SelectItem value="120">2 hours</SelectItem>
@@ -502,7 +648,21 @@ export default function CalendarNewPage() {
                 </div>
               )}
 
-              {!allDay && (needsStartAndEndTime || needsAllOptions) && (
+              {(needsStartAndEnd || usesDuration) && (
+                <div className="space-y-2">
+                  <Label className="text-slate-300">End Date</Label>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    min={startDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="bg-slate-950 border-slate-800 text-white"
+                    disabled={usesDuration}
+                  />
+                </div>
+              )}
+
+              {needsStartAndEnd && !allDay && (
                 <div className="space-y-2">
                   <Label className="text-slate-300">End Time</Label>
                   <Input
@@ -559,15 +719,6 @@ export default function CalendarNewPage() {
               </div>
             </div>
 
-            {!allDay && usesDuration && (
-              <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-4 text-sm text-slate-400">
-                Meeting will end automatically at{" "}
-                <span className="text-white font-medium">
-                  {addMinutesToTime(startTime, Number(meetingDuration || 60))}
-                </span>
-              </div>
-            )}
-
             <div className="flex justify-end gap-3">
               <Button
                 type="button"
@@ -583,14 +734,7 @@ export default function CalendarNewPage() {
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
                 disabled={isSaving}
               >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  "Create Event"
-                )}
+                {isSaving ? "Creating..." : "Create Event"}
               </Button>
             </div>
           </form>

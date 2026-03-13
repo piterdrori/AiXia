@@ -83,7 +83,7 @@ export default function TaskEditPage() {
   const [existingTaskMembers, setExistingTaskMembers] = useState<TaskMemberRow[]>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
 
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [, setCurrentUserId] = useState<string | null>(null);
   const [, setCurrentUserRole] = useState<Role | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);

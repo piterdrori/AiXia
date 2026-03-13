@@ -86,170 +86,172 @@ export default function TaskEditPage() {
   const [, setCurrentUserId] = useState<string | null>(null);
   const [, setCurrentUserRole] = useState<Role | null>(null);
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMembersLoading, setIsMembersLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
 
   const selectedSet = useMemo(() => new Set(selectedAssignees), [selectedAssignees]);
 
-  useEffect(() => {
-    let mounted = true;
+  const loadPage = async (mode: "initial" | "refresh" = "initial") => {
+    if (!id) {
+      navigate("/tasks");
+      return;
+    }
 
-    const loadPage = async () => {
-      if (!id) {
+    const requestId = pageRequestTracker.current.next();
+
+    if (mode === "initial") {
+      setIsBootstrapping(true);
+    } else {
+      setIsRefreshing(true);
+    }
+
+    setError("");
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!pageRequestTracker.current.isLatest(requestId)) return;
+
+      if (!user) {
+        navigate("/login");
+        return;
+      }
+
+      setCurrentUserId(user.id);
+
+      const { data: myProfile, error: myProfileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!pageRequestTracker.current.isLatest(requestId)) return;
+
+      if (myProfileError || !myProfile) {
         navigate("/tasks");
         return;
       }
 
-      const requestId = pageRequestTracker.current.next();
-      setIsLoading(true);
-      setError("");
+      const role = myProfile.role as Role;
+      setCurrentUserRole(role);
 
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+      const { data: taskData, error: taskError } = await supabase
+        .from("tasks")
+        .select("*")
+        .eq("id", id)
+        .single();
 
-        if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
+      if (!pageRequestTracker.current.isLatest(requestId)) return;
 
-        if (!user) {
-          navigate("/login");
-          return;
-        }
-
-        setCurrentUserId(user.id);
-
-        const { data: myProfile, error: myProfileError } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("user_id", user.id)
-          .single();
-
-        if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
-
-        if (myProfileError || !myProfile) {
-          navigate("/tasks");
-          return;
-        }
-
-        const role = myProfile.role as Role;
-        setCurrentUserRole(role);
-
-        const { data: taskData, error: taskError } = await supabase
-          .from("tasks")
-          .select("*")
-          .eq("id", id)
-          .single();
-
-        if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
-
-        if (taskError || !taskData) {
-          navigate("/tasks");
-          return;
-        }
-
-        const task = taskData as TaskRow;
-        const canEdit = role === "admin" || task.created_by === user.id;
-
-        if (!canEdit) {
-          navigate(`/tasks/${id}`);
-          return;
-        }
-
-        const [
-          { data: allProjects, error: projectsError },
-          { data: allProfiles, error: profilesError },
-          { data: taskMembersData, error: taskMembersError },
-          { data: allProjectMembers, error: allProjectMembersError },
-        ] = await Promise.all([
-          supabase
-            .from("projects")
-            .select("id, name, created_by")
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("profiles")
-            .select("user_id, full_name, role, status")
-            .eq("status", "active")
-            .order("full_name", { ascending: true }),
-          supabase
-            .from("task_members")
-            .select("id, task_id, user_id, role, created_at")
-            .eq("task_id", id),
-          supabase
-            .from("project_members")
-            .select("id, project_id, user_id, role, created_at"),
-        ]);
-
-        if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
-
-        if (projectsError) {
-          setError(projectsError.message || "Failed to load projects.");
-          setProjects([]);
-        }
-
-        if (profilesError) {
-          setError(profilesError.message || "Failed to load team members.");
-          setProfiles([]);
-        }
-
-        if (taskMembersError) {
-          setError(taskMembersError.message || "Failed to load current assignees.");
-        }
-
-        if (allProjectMembersError) {
-          setError(allProjectMembersError.message || "Failed to load project members.");
-        }
-
-        const projectsData = (allProjects || []) as ProjectRow[];
-        const profilesData = (allProfiles || []) as ProfileRow[];
-        const currentTaskMembers = (taskMembersData || []) as TaskMemberRow[];
-        const allMembersData = (allProjectMembers || []) as ProjectMemberRow[];
-
-        const visibleProjects =
-          role === "admin"
-            ? projectsData
-            : projectsData.filter((project) => {
-                const isCreator = project.created_by === user.id;
-                const isAssignedProjectMember = allMembersData.some(
-                  (member) =>
-                    member.project_id === project.id && member.user_id === user.id
-                );
-                return isCreator || isAssignedProjectMember;
-              });
-
-        const initialProjectMembers = task.project_id
-          ? allMembersData.filter((member) => member.project_id === task.project_id)
-          : [];
-
-        setTitle(task.title || "");
-        setDescription(task.description || "");
-        setProjectId(task.project_id || "");
-        setPriority((task.priority as TaskPriority) || "MEDIUM");
-        setStatus((task.status as TaskStatus) || "TODO");
-        setDueDate(task.due_date || "");
-
-        setProjects(visibleProjects);
-        setProfiles(profilesData);
-        setExistingTaskMembers(currentTaskMembers);
-        setSelectedAssignees(currentTaskMembers.map((member) => member.user_id));
-        setProjectMembers(initialProjectMembers);
-      } catch (err) {
-        if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
-        console.error("Load task edit error:", err);
-        setError("Failed to load task.");
-      } finally {
-        if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
-        setIsLoading(false);
+      if (taskError || !taskData) {
+        navigate("/tasks");
+        return;
       }
-    };
 
-    void loadPage();
+      const task = taskData as TaskRow;
+      const canEdit = role === "admin" || task.created_by === user.id;
 
-    return () => {
-      mounted = false;
-    };
-  }, [id, navigate]);
+      if (!canEdit) {
+        navigate(`/tasks/${id}`);
+        return;
+      }
+
+      const [
+        { data: allProjects, error: projectsError },
+        { data: allProfiles, error: profilesError },
+        { data: taskMembersData, error: taskMembersError },
+        { data: allProjectMembers, error: allProjectMembersError },
+      ] = await Promise.all([
+        supabase
+          .from("projects")
+          .select("id, name, created_by")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("profiles")
+          .select("user_id, full_name, role, status")
+          .eq("status", "active")
+          .order("full_name", { ascending: true }),
+        supabase
+          .from("task_members")
+          .select("id, task_id, user_id, role, created_at")
+          .eq("task_id", id),
+        supabase
+          .from("project_members")
+          .select("id, project_id, user_id, role, created_at"),
+      ]);
+
+      if (!pageRequestTracker.current.isLatest(requestId)) return;
+
+      if (projectsError) {
+        setError(projectsError.message || "Failed to load projects.");
+        setProjects([]);
+      }
+
+      if (profilesError) {
+        setError(profilesError.message || "Failed to load team members.");
+        setProfiles([]);
+      }
+
+      if (taskMembersError) {
+        setError(taskMembersError.message || "Failed to load current assignees.");
+      }
+
+      if (allProjectMembersError) {
+        setError(allProjectMembersError.message || "Failed to load project members.");
+      }
+
+      const projectsData = (allProjects || []) as ProjectRow[];
+      const profilesData = (allProfiles || []) as ProfileRow[];
+      const currentTaskMembers = (taskMembersData || []) as TaskMemberRow[];
+      const allMembersData = (allProjectMembers || []) as ProjectMemberRow[];
+
+      const visibleProjects =
+        role === "admin"
+          ? projectsData
+          : projectsData.filter((project) => {
+              const isCreator = project.created_by === user.id;
+              const isAssignedProjectMember = allMembersData.some(
+                (member) =>
+                  member.project_id === project.id && member.user_id === user.id
+              );
+              return isCreator || isAssignedProjectMember;
+            });
+
+      const initialProjectMembers = task.project_id
+        ? allMembersData.filter((member) => member.project_id === task.project_id)
+        : [];
+
+      setTitle(task.title || "");
+      setDescription(task.description || "");
+      setProjectId(task.project_id || "");
+      setPriority((task.priority as TaskPriority) || "MEDIUM");
+      setStatus((task.status as TaskStatus) || "TODO");
+      setDueDate(task.due_date || "");
+
+      setProjects(visibleProjects);
+      setProfiles(profilesData);
+      setExistingTaskMembers(currentTaskMembers);
+      setSelectedAssignees(currentTaskMembers.map((member) => member.user_id));
+      setProjectMembers(initialProjectMembers);
+    } catch (err) {
+      if (!pageRequestTracker.current.isLatest(requestId)) return;
+      console.error("Load task edit error:", err);
+      setError("Failed to load task.");
+    } finally {
+      if (!pageRequestTracker.current.isLatest(requestId)) return;
+      setIsBootstrapping(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadPage("initial");
+  }, [id]);
 
   useEffect(() => {
     let mounted = true;
@@ -412,14 +414,32 @@ export default function TaskEditPage() {
     }
   };
 
-  if (isLoading) {
+  if (isBootstrapping) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="animate-pulse space-y-3">
+          <div className="h-8 w-40 rounded bg-slate-800" />
+          <div className="h-4 w-56 rounded bg-slate-800" />
+        </div>
+
+        <Card className="bg-slate-900/50 border-slate-800">
+          <CardContent className="p-6">
+            <div className="animate-pulse space-y-4">
+              <div className="h-10 w-full rounded bg-slate-800" />
+              <div className="h-28 w-full rounded bg-slate-800" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="h-10 w-full rounded bg-slate-800" />
+                <div className="h-10 w-full rounded bg-slate-800" />
+                <div className="h-10 w-full rounded bg-slate-800" />
+                <div className="h-10 w-full rounded bg-slate-800" />
+              </div>
+              <div className="h-40 w-full rounded bg-slate-800" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
-
   return (
     <div className="max-w-2xl mx-auto">
       <div className="flex items-center gap-4 mb-6">
@@ -432,10 +452,19 @@ export default function TaskEditPage() {
           <ArrowLeft className="w-5 h-5" />
         </Button>
 
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-white">Edit Task</h1>
           <p className="text-slate-400">Update task details</p>
         </div>
+
+        <Button
+          variant="outline"
+          className="border-slate-700 text-slate-300 hover:bg-slate-800"
+          onClick={() => void loadPage("refresh")}
+          disabled={isRefreshing}
+        >
+          {isRefreshing ? "Refreshing..." : "Refresh"}
+        </Button>
       </div>
 
       <Card className="bg-slate-900/50 border-slate-800">
@@ -587,7 +616,7 @@ export default function TaskEditPage() {
                 Cancel
               </Button>
 
-             <Button
+              <Button
                 type="submit"
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
                 disabled={isSaving}

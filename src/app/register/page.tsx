@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom"; // Ensure Link is imported
 import { supabase } from "@/lib/supabase";
 import { v4 as uuidv4 } from "uuid";
 import { sendVerificationEmail } from "@/lib/sendVerificationEmail";
@@ -42,12 +43,10 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // Generate verification token
       const verificationToken = uuidv4();
       const tokenExpiry = new Date();
       tokenExpiry.setHours(tokenExpiry.getHours() + 24);
 
-      // Sign up user
       const { error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
@@ -55,7 +54,6 @@ export default function RegisterPage() {
 
       if (signUpError) throw signUpError;
 
-      // Insert / update profile
       const { error: profileError } = await supabase
         .from("profiles")
         .upsert([
@@ -71,7 +69,6 @@ export default function RegisterPage() {
 
       if (profileError) throw profileError;
 
-      // Send verification email
       await sendVerificationEmail(
         email.trim(),
         `${window.location.origin}/complete-profile?token=${verificationToken}`
@@ -194,8 +191,10 @@ export default function RegisterPage() {
           </form>
 
           <div className="mt-6 text-center text-sm text-slate-400">
-            Already have an account?{" "}
-            <Link to="/login" className="text-indigo-400 hover:text-indigo-300">Sign in</Link>
+            Don't have an account?{" "}
+            <Link to="/login" className="text-indigo-400 hover:text-indigo-300">
+              Sign in
+            </Link>
           </div>
         </CardContent>
       </Card>

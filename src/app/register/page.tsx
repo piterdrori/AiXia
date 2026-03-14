@@ -20,8 +20,6 @@ import {
 type RequestedRole = "manager" | "employee" | "guest";
 
 export default function RegisterPage() {
-  const navigate = useNavigate();
-
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

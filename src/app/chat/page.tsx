@@ -16,7 +16,6 @@ import MessageList from "./components/MessageList";
 import { useChatBootstrap } from "./hooks/useChatBootstrap";
 import { useChatMessages } from "./hooks/useChatMessages";
 import type {
-  ChatGroupMemberRow,
   ChatGroupRow,
   ChatMessageRow,
   ProfileRow,

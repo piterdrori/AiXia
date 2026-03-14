@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { createRequestTracker } from "@/lib/safeAsync";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Shield, Save } from "lucide-react";
+import { ArrowLeft, Shield, Save, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type Role = "admin" | "manager" | "employee" | "guest";
@@ -74,81 +76,106 @@ const permissionLabels: Record<string, { label: string; description: string }> =
 export default function EmployeePermissionsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const requestTracker = useRef(createRequestTracker());
 
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
   const [user, setUser] = useState<ProfileRow | null>(null);
 
-  const loadData = async () => {
-    if (!id) {
-      navigate("/employees");
-      return;
-    }
-
-    setIsLoading(true);
-    setSaveError("");
-
-    try {
-      const {
-        data: { user: authUser },
-        error: authError,
-      } = await supabase.auth.getUser();
-
-      if (authError || !authUser) {
-        navigate("/login");
-        return;
-      }
-
-      const { data: me, error: meError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("user_id", authUser.id)
-        .single();
-
-      if (meError) {
-        console.error("Failed to load current user role:", meError);
+  const loadData = useCallback(
+    async (mode: "initial" | "refresh" = "initial") => {
+      if (!id) {
         navigate("/employees");
         return;
       }
 
-      const role = (me?.role as Role) || null;
-      setCurrentUserRole(role);
+      const requestId = requestTracker.current.next();
 
-      if (role !== "admin") {
-        navigate("/employees");
-        return;
+      if (mode === "initial") {
+        setIsBootstrapping(true);
+      } else {
+        setIsRefreshing(true);
       }
 
-      const { data: targetUser, error: targetUserError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", id)
-        .single();
+      setSaveError("");
 
-      if (targetUserError || !targetUser) {
-        console.error("Failed to load target user:", targetUserError);
-        navigate("/employees");
-        return;
+      try {
+        const {
+          data: { user: authUser },
+          error: authError,
+        } = await supabase.auth.getUser();
+
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        if (authError || !authUser) {
+          navigate("/login");
+          return;
+        }
+
+        const { data: me, error: meError } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("user_id", authUser.id)
+          .single();
+
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        if (meError) {
+          console.error("Failed to load current user role:", meError);
+          navigate("/employees");
+          return;
+        }
+
+        const role = (me?.role as Role) || null;
+        setCurrentUserRole(role);
+
+        if (role !== "admin") {
+          navigate("/employees");
+          return;
+        }
+
+        const { data: targetUser, error: targetUserError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("user_id", id)
+          .single();
+
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        if (targetUserError || !targetUser) {
+          console.error("Failed to load target user:", targetUserError);
+          navigate("/employees");
+          return;
+        }
+
+        const typedUser = targetUser as ProfileRow;
+        setUser(typedUser);
+        setPermissions((typedUser.permissions || {}) as Record<string, boolean>);
+      } catch (err) {
+        if (!requestTracker.current.isLatest(requestId)) return;
+        console.error("Unexpected load error:", err);
+        setSaveError("Failed to load permissions page.");
+      } finally {
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        if (mode === "initial") {
+          setIsBootstrapping(false);
+        } else {
+          setIsRefreshing(false);
+        }
       }
-
-      const typedUser = targetUser as ProfileRow;
-      setUser(typedUser);
-      setPermissions((typedUser.permissions || {}) as Record<string, boolean>);
-    } catch (err) {
-      console.error("Unexpected load error:", err);
-      setSaveError("Failed to load permissions page.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+    [id, navigate]
+  );
 
   useEffect(() => {
-    loadData();
-  }, [id, navigate]);
+    void loadData("initial");
+  }, [loadData]);
 
   const handleToggle = (permission: string) => {
     setPermissions((prev) => ({
@@ -167,31 +194,34 @@ export default function EmployeePermissionsPage() {
     setSaveError("");
 
     try {
-      const { data, error } = await supabase
+      const nextUpdatedAt = new Date().toISOString();
+
+      const { error } = await supabase
         .from("profiles")
         .update({
           permissions,
-          updated_at: new Date().toISOString(),
+          updated_at: nextUpdatedAt,
         })
-        .eq("user_id", id)
-        .select();
-
-      console.log("SAVE PERMISSIONS RESULT:", {
-        id,
-        permissions,
-        data,
-        error,
-      });
+        .eq("user_id", id);
 
       if (error) {
-        setSaveError(error.message);
+        setSaveError(error.message || "Failed to save permissions.");
         return;
       }
 
-      setSaved(true);
-      await loadData();
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              permissions,
+              updated_at: nextUpdatedAt,
+            }
+          : prev
+      );
 
-      setTimeout(() => {
+      setSaved(true);
+
+      window.setTimeout(() => {
         setSaved(false);
       }, 3000);
     } catch (err) {
@@ -240,15 +270,20 @@ export default function EmployeePermissionsPage() {
     );
   }, [user]);
 
-  if (isLoading) {
+  if (!user && !isBootstrapping) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+      <div className="max-w-2xl mx-auto space-y-6">
+        <Card className="bg-red-900/10 border-red-800/30">
+          <CardContent className="p-6 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
+            <div className="text-red-300">Unable to load permissions page.</div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  if (!user || currentUserRole !== "admin") {
+  if (currentUserRole !== "admin" && !isBootstrapping) {
     return null;
   }
 
@@ -258,8 +293,9 @@ export default function EmployeePermissionsPage() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => navigate("/employees")}
+          onClick={() => navigate(`/employees/${id}`)}
           className="text-slate-400 hover:text-white"
+          disabled={isSaving}
         >
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -267,9 +303,18 @@ export default function EmployeePermissionsPage() {
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-white">Edit Permissions</h1>
           <p className="text-slate-400">
-            Manage permissions for {user.full_name || "Unnamed user"}
+            Manage permissions for {user?.full_name || "Unnamed user"}
           </p>
         </div>
+
+        <Button
+          variant="outline"
+          className="border-slate-700 text-slate-300 hover:bg-slate-800"
+          onClick={() => void loadData("refresh")}
+          disabled={isRefreshing || isSaving}
+        >
+          {isRefreshing ? "Refreshing..." : "Refresh"}
+        </Button>
       </div>
 
       {saved && (
@@ -296,44 +341,61 @@ export default function EmployeePermissionsPage() {
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {Object.entries(permissionLabels).map(([key, { label, description }]) => (
-            <div key={key} className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <Label htmlFor={key} className="text-white font-medium cursor-pointer">
-                  {label}
-                </Label>
-                <p className="text-slate-500 text-sm">{description}</p>
-              </div>
-
-              <Switch
-                id={key}
-                checked={permissions[key] || false}
-                onCheckedChange={() => handleToggle(key)}
-              />
+          {isBootstrapping && !user ? (
+            <div className="space-y-4 animate-pulse">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <div key={index} className="flex items-start justify-between gap-4">
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-slate-800 rounded w-32" />
+                    <div className="h-4 bg-slate-800 rounded w-56" />
+                  </div>
+                  <div className="w-12 h-6 bg-slate-800 rounded-full" />
+                </div>
+              ))}
             </div>
-          ))}
+          ) : (
+            <>
+              {Object.entries(permissionLabels).map(([key, { label, description }]) => (
+                <div key={key} className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <Label htmlFor={key} className="text-white font-medium cursor-pointer">
+                      {label}
+                    </Label>
+                    <p className="text-slate-500 text-sm">{description}</p>
+                  </div>
 
-          <Separator className="bg-slate-800" />
+                  <Switch
+                    id={key}
+                    checked={permissions[key] || false}
+                    onCheckedChange={() => handleToggle(key)}
+                    disabled={isSaving}
+                  />
+                </div>
+              ))}
 
-          <div className="flex items-center justify-between pt-4">
-            <Button
-              variant="outline"
-              onClick={() => navigate("/employees")}
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
-              disabled={isSaving}
-            >
-              Cancel
-            </Button>
+              <Separator className="bg-slate-800" />
 
-            <Button
-              onClick={handleSave}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              disabled={isSaving}
-            >
-              <Save className="w-4 h-4 mr-2" />
-              {isSaving ? "Saving..." : "Save Permissions"}
-            </Button>
-          </div>
+              <div className="flex items-center justify-between pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(`/employees/${id}`)}
+                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                  disabled={isSaving}
+                >
+                  Cancel
+                </Button>
+
+                <Button
+                  onClick={() => void handleSave()}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                  disabled={isSaving}
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {isSaving ? "Saving..." : "Save Permissions"}
+                </Button>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -344,7 +406,7 @@ export default function EmployeePermissionsPage() {
 
         <CardContent>
           <p className="text-slate-400 mb-4">
-            This user has the <Badge className="mx-1">{user.role.toUpperCase()}</Badge> role which
+            This user has the <Badge className="mx-1">{user?.role.toUpperCase()}</Badge> role which
             grants the following default permissions:
           </p>
           <div className="flex flex-wrap gap-2">{roleBadges}</div>

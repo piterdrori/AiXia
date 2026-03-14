@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { v4 as uuidv4 } from "uuid";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,8 +19,6 @@ import {
 type RequestedRole = "manager" | "employee" | "guest";
 
 export default function RegisterPage() {
-  const navigate = useNavigate();
-
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,54 +34,69 @@ export default function RegisterPage() {
     setError("");
     setSuccessMessage("");
 
-    if (!fullName.trim()) {
-      setError("Full name is required.");
-      return;
-    }
-
-    if (!email.trim()) {
-      setError("Email is required.");
-      return;
-    }
-
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
+    // --- Validation ---
+    if (!fullName.trim()) return setError("Full name is required.");
+    if (!email.trim()) return setError("Email is required.");
+    if (password.length < 6)
+      return setError("Password must be at least 6 characters.");
+    if (password !== confirmPassword)
+      return setError("Passwords do not match.");
 
     setIsLoading(true);
 
-    const { error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/login`,
-        data: {
-          full_name: fullName.trim(),
-          requested_role: requestedRole,
-        },
-      },
-    });
+    try {
+      // --- Generate verification token ---
+      const verificationToken = uuidv4();
+      const tokenExpiry = new Date();
+      tokenExpiry.setHours(tokenExpiry.getHours() + 24);
 
-    setIsLoading(false);
+      // --- Sign up user with Supabase Auth ---
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
 
-    if (error) {
-      setError(error.message);
-      return;
+      if (signUpError) throw signUpError;
+
+      // --- Insert / update profile with pending_verification ---
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert([
+          {
+            email: email.trim(),
+            full_name: fullName.trim(),
+            requested_role: requestedRole,
+            status: "pending_verification",
+            verification_token: verificationToken,
+            token_expires_at: tokenExpiry.toISOString(),
+          },
+        ]);
+
+      if (profileError) throw profileError;
+
+      // --- Send verification email ---
+      await fetch("/api/send-verification-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          link: `${window.location.origin}/complete-profile?token=${verificationToken}`,
+        }),
+      });
+
+      setSuccessMessage(
+        "Registration submitted! Check your email to complete your profile. After submission, an admin will review your details. You cannot log in until approved."
+      );
+      setFullName("");
+      setEmail("");
+      setPassword("");
+      setConfirmPassword("");
+      setRequestedRole("employee");
+    } catch (err: any) {
+      setError(err.message || "Registration failed. Try again.");
+    } finally {
+      setIsLoading(false);
     }
-
-    setSuccessMessage(
-      "Registration submitted. Please confirm your email first. After confirmation, an admin must approve your request before you can continue."
-    );
-
-    setTimeout(() => {
-      navigate("/login");
-    }, 2200);
   };
 
   return (
@@ -91,7 +105,9 @@ export default function RegisterPage() {
         <CardContent className="p-8">
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold text-white">Create Account</h1>
-            <p className="text-slate-400 mt-2">Request access to the platform</p>
+            <p className="text-slate-400 mt-2">
+              Request access to the platform
+            </p>
           </div>
 
           <form onSubmit={handleRegister} className="space-y-5">
@@ -140,7 +156,9 @@ export default function RegisterPage() {
               <Label className="text-slate-300">Requested Role</Label>
               <Select
                 value={requestedRole}
-                onValueChange={(value) => setRequestedRole(value as RequestedRole)}
+                onValueChange={(value) =>
+                  setRequestedRole(value as RequestedRole)
+                }
                 disabled={isLoading}
               >
                 <SelectTrigger className="bg-slate-950 border-slate-800 text-white">

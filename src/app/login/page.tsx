@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-type Status = "active" | "pending" | "inactive" | "denied";
+type Status = "active" | "pending_verification" | "pending_approval" | "rejected";
 
 type LoginProfileRow = {
   status: Status | null;
@@ -70,25 +70,34 @@ export default function LoginPage() {
 
     const typedProfile = profile as LoginProfileRow;
 
-    if (typedProfile.status === "pending") {
-      setInfoMessage("Your account is waiting for admin approval.");
-      await supabase.auth.signOut();
-      setIsLoading(false);
-      return;
-    }
-
-    if (typedProfile.status === "denied") {
-      setError("Your registration was denied. Please contact the administrator.");
-      await supabase.auth.signOut();
-      setIsLoading(false);
-      return;
-    }
-
-    if (typedProfile.status !== "active") {
-      setError("Your account is not active.");
-      await supabase.auth.signOut();
-      setIsLoading(false);
-      return;
+    switch (typedProfile.status) {
+      case "pending_verification":
+        setInfoMessage(
+          "Please verify your email first. Check your inbox for the verification link."
+        );
+        await supabase.auth.signOut();
+        setIsLoading(false);
+        return;
+      case "pending_approval":
+        setInfoMessage(
+          "Your profile is pending admin approval. Please wait until approval to log in."
+        );
+        await supabase.auth.signOut();
+        setIsLoading(false);
+        return;
+      case "rejected":
+        setError("Your registration was rejected. Contact the admin.");
+        await supabase.auth.signOut();
+        setIsLoading(false);
+        return;
+      case "active":
+        // proceed
+        break;
+      default:
+        setError("Login failed. Unknown status.");
+        await supabase.auth.signOut();
+        setIsLoading(false);
+        return;
     }
 
     setIsLoading(false);

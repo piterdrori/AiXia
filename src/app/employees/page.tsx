@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { createRequestTracker } from "@/lib/safeAsync";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +17,7 @@ import {
   User as UserIcon,
   Plus,
   Eye,
+  AlertCircle,
 } from "lucide-react";
 
 type Role = "admin" | "manager" | "employee" | "guest";
@@ -40,82 +43,176 @@ type ProfileRow = {
 
 export default function EmployeesPage() {
   const navigate = useNavigate();
+  const requestTracker = useRef(createRequestTracker());
 
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [actionLoadingUserId, setActionLoadingUserId] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
 
   const canManageUsers = currentUserRole === "admin";
 
-  const loadProfiles = async () => {
-    setIsLoading(true);
+  const loadProfiles = useCallback(
+    async (mode: "initial" | "refresh" = "initial") => {
+      const requestId = requestTracker.current.next();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      if (mode === "initial") {
+        setIsLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
 
-    if (!user) {
-      setProfiles([]);
-      setCurrentUserRole(null);
-      setIsLoading(false);
-      return;
-    }
+      setError("");
 
-    const { data: me } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("user_id", user.id)
-      .single();
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
 
-    setCurrentUserRole((me?.role as Role) || null);
+        if (!requestTracker.current.isLatest(requestId)) return;
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .order("created_at", { ascending: false });
+        if (authError || !user) {
+          navigate("/login");
+          return;
+        }
 
-    if (!error && data) {
-      setProfiles(data as ProfileRow[]);
-    }
+        setCurrentUserId(user.id);
 
-    setIsLoading(false);
-  };
+        const [
+          { data: me, error: meError },
+          { data: profilesData, error: profilesError },
+        ] = await Promise.all([
+          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
+          supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+        ]);
+
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        if (meError || !me) {
+          navigate("/login");
+          return;
+        }
+
+        if (profilesError) {
+          console.error("Load profiles error:", profilesError);
+          setError(profilesError.message || "Failed to load employees.");
+          setProfiles([]);
+          setCurrentUserRole((me.role as Role) || null);
+          return;
+        }
+
+        setCurrentUserRole((me.role as Role) || null);
+        setProfiles((profilesData || []) as ProfileRow[]);
+      } catch (err) {
+        if (!requestTracker.current.isLatest(requestId)) return;
+        console.error("Employees page load error:", err);
+        setError("Failed to load employees.");
+        setProfiles([]);
+      } finally {
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        if (mode === "initial") {
+          setIsLoading(false);
+        } else {
+          setIsRefreshing(false);
+        }
+      }
+    },
+    [navigate]
+  );
 
   useEffect(() => {
-    loadProfiles();
-  }, []);
+    void loadProfiles("initial");
+  }, [loadProfiles]);
 
   const approveUser = async (userId: string) => {
-    const target = profiles.find((p) => p.user_id === userId);
+    const target = profiles.find((profile) => profile.user_id === userId);
     if (!target) return;
 
     const roleToApply = target.requested_role || "employee";
+    setActionLoadingUserId(userId);
+    setError("");
 
-    await supabase
-      .from("profiles")
-      .update({
-        status: "active",
-        role: roleToApply,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", userId);
+    try {
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          status: "active",
+          role: roleToApply,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId);
 
-    loadProfiles();
+      if (updateError) {
+        console.error("Approve user error:", updateError);
+        setError(updateError.message || "Failed to approve user.");
+        return;
+      }
+
+      setProfiles((prev) =>
+        prev.map((profile) =>
+          profile.user_id === userId
+            ? {
+                ...profile,
+                status: "active",
+                role: roleToApply,
+                updated_at: new Date().toISOString(),
+              }
+            : profile
+        )
+      );
+    } catch (err) {
+      console.error("Approve user error:", err);
+      setError("Failed to approve user.");
+    } finally {
+      setActionLoadingUserId(null);
+    }
   };
 
   const rejectUser = async (userId: string) => {
-    await supabase
-      .from("profiles")
-      .update({
-        status: "denied",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", userId);
+    setActionLoadingUserId(userId);
+    setError("");
 
-    loadProfiles();
+    try {
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          status: "denied",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId);
+
+      if (updateError) {
+        console.error("Reject user error:", updateError);
+        setError(updateError.message || "Failed to reject user.");
+        return;
+      }
+
+      setProfiles((prev) =>
+        prev.map((profile) =>
+          profile.user_id === userId
+            ? {
+                ...profile,
+                status: "denied",
+                updated_at: new Date().toISOString(),
+              }
+            : profile
+        )
+      );
+    } catch (err) {
+      console.error("Reject user error:", err);
+      setError("Failed to reject user.");
+    } finally {
+      setActionLoadingUserId(null);
+    }
   };
 
   const filteredUsers = useMemo(() => {
@@ -145,7 +242,7 @@ export default function EmployeesPage() {
     });
   }, [profiles, searchQuery, activeTab]);
 
-  const pendingUsers = profiles.filter((u) => u.status === "pending");
+  const pendingUsers = profiles.filter((user) => user.status === "pending");
 
   const getRoleColor = (role: Role) => {
     switch (role) {
@@ -175,7 +272,7 @@ export default function EmployeesPage() {
     if (!fullName) return "U";
     return fullName
       .split(" ")
-      .map((n) => n[0])
+      .map((name) => name[0])
       .join("")
       .toUpperCase()
       .slice(0, 2);
@@ -197,16 +294,36 @@ export default function EmployeesPage() {
           <p className="text-slate-400">View, approve, and manage platform members</p>
         </div>
 
-        {canManageUsers && (
+        <div className="flex items-center gap-2">
           <Button
-            className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => navigate("/register")}
+            variant="outline"
+            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            onClick={() => void loadProfiles("refresh")}
+            disabled={isRefreshing}
           >
-            <Plus className="w-4 h-4 mr-2" />
-            Invite Member
+            {isRefreshing ? "Refreshing..." : "Refresh"}
           </Button>
-        )}
+
+          {canManageUsers && (
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() => navigate("/register")}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Invite Member
+            </Button>
+          )}
+        </div>
       </div>
+
+      {error && (
+        <Card className="bg-red-900/10 border-red-800/30">
+          <CardContent className="p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
+            <div className="text-sm text-red-300">{error}</div>
+          </CardContent>
+        </Card>
+      )}
 
       {pendingUsers.length > 0 && canManageUsers && (
         <Card className="bg-amber-900/10 border-amber-800/30">
@@ -241,20 +358,22 @@ export default function EmployeesPage() {
                   <Button
                     size="sm"
                     className="bg-green-600 hover:bg-green-700 text-white"
-                    onClick={() => approveUser(user.user_id)}
+                    onClick={() => void approveUser(user.user_id)}
+                    disabled={actionLoadingUserId === user.user_id}
                   >
                     <UserCheck className="w-4 h-4 mr-1" />
-                    Approve
+                    {actionLoadingUserId === user.user_id ? "Saving..." : "Approve"}
                   </Button>
 
                   <Button
                     size="sm"
                     variant="outline"
                     className="border-red-800 text-red-400 hover:bg-red-900/20"
-                    onClick={() => rejectUser(user.user_id)}
+                    onClick={() => void rejectUser(user.user_id)}
+                    disabled={actionLoadingUserId === user.user_id}
                   >
                     <UserX className="w-4 h-4 mr-1" />
-                    Reject
+                    {actionLoadingUserId === user.user_id ? "Saving..." : "Reject"}
                   </Button>
 
                   <Button
@@ -262,6 +381,7 @@ export default function EmployeesPage() {
                     variant="outline"
                     className="border-slate-700 text-slate-300 hover:bg-slate-800"
                     onClick={() => navigate(`/employees/${user.user_id}`)}
+                    disabled={actionLoadingUserId === user.user_id}
                   >
                     <Eye className="w-4 h-4 mr-1" />
                     View
@@ -323,7 +443,9 @@ export default function EmployeesPage() {
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap mb-3">
-                    <Badge className={getRoleColor(user.role)}>{user.role.toUpperCase()}</Badge>
+                    <Badge className={getRoleColor(user.role)}>
+                      {user.role.toUpperCase()}
+                    </Badge>
                     <Badge className={getStatusColor(user.status)}>
                       {user.status.toUpperCase()}
                     </Badge>
@@ -346,10 +468,12 @@ export default function EmployeesPage() {
                       <span className="text-slate-500">Company:</span> {user.company || "—"}
                     </p>
                     <p className="text-slate-400">
-                      <span className="text-slate-500">Department:</span> {user.department || "—"}
+                      <span className="text-slate-500">Department:</span>{" "}
+                      {user.department || "—"}
                     </p>
                     <p className="text-slate-400">
-                      <span className="text-slate-500">Job Title:</span> {user.job_title || "—"}
+                      <span className="text-slate-500">Job Title:</span>{" "}
+                      {user.job_title || "—"}
                     </p>
                     <p className="text-slate-400">
                       <span className="text-slate-500">Location:</span>{" "}

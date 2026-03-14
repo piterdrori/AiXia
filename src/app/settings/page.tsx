@@ -28,7 +28,6 @@ import {
   Moon,
   Sun,
   Monitor,
-  AlertCircle,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 

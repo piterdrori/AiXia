@@ -45,8 +45,7 @@ export default function ChatPage() {
     reloadChatShell,
   } = useChatBootstrap(id || null);
 
-  const {
-    messages,
+const {
     hasMoreMessages,
     isLoadingMessages,
     isLoadingOlder,
@@ -85,8 +84,7 @@ export default function ChatPage() {
     : null;
 
   const getMembers = (groupId: string) => getMembersForGroup(groupMembers, groupId);
-  const getProfile = (userId: string) =>
-    profiles.find((profile) => profile.user_id === userId) || null;
+
 
   const mentionCandidates = useMemo(() => {
     if (!selectedConversationId) return [];

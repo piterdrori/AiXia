@@ -1,4 +1,4 @@
-import { CheckSquare, FolderKanban, MessageSquare, Plus, Search, Trash2, Users } from "lucide-react";
+import { CheckSquare, FolderKanban, Plus, Search, Trash2, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";

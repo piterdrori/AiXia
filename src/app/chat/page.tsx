@@ -110,14 +110,6 @@ export default function ChatPage() {
     return groups.find((group) => group.id === selectedConversationId) || null;
   }, [groups, selectedConversationId]);
 
-  const getProfileByUserId = useCallback(
-    (userId: string | null | undefined) => {
-      if (!userId) return null;
-      return profiles.find((profile) => profile.user_id === userId) || null;
-    },
-    [profiles]
-  );
-
   const getMembers = useCallback(
     (groupId: string) => getMembersForGroup(groupMembers, groupId),
     [groupMembers]

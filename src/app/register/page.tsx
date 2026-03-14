@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link, } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { v4 as uuidv4 } from "uuid";
 import { sendVerificationEmail } from "@/lib/sendVerificationEmail";

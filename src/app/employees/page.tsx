@@ -48,7 +48,7 @@ export default function EmployeesPage() {
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionLoadingUserId, setActionLoadingUserId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -63,7 +63,7 @@ export default function EmployeesPage() {
       const requestId = requestTracker.current.next();
 
       if (mode === "initial") {
-        setIsLoading(true);
+        setIsBootstrapping(true);
       } else {
         setIsRefreshing(true);
       }
@@ -98,26 +98,26 @@ export default function EmployeesPage() {
           return;
         }
 
+        setCurrentUserRole((me.role as Role) || null);
+
         if (profilesError) {
           console.error("Load profiles error:", profilesError);
-          setError(profilesError.message || "Failed to load employees.");
           setProfiles([]);
-          setCurrentUserRole((me.role as Role) || null);
+          setError(profilesError.message || "Failed to load employees.");
           return;
         }
 
-        setCurrentUserRole((me.role as Role) || null);
         setProfiles((profilesData || []) as ProfileRow[]);
       } catch (err) {
         if (!requestTracker.current.isLatest(requestId)) return;
         console.error("Employees page load error:", err);
-        setError("Failed to load employees.");
         setProfiles([]);
+        setError("Failed to load employees.");
       } finally {
         if (!requestTracker.current.isLatest(requestId)) return;
 
         if (mode === "initial") {
-          setIsLoading(false);
+          setIsBootstrapping(false);
         } else {
           setIsRefreshing(false);
         }
@@ -279,14 +279,6 @@ export default function EmployeesPage() {
       .slice(0, 2);
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -415,80 +407,105 @@ export default function EmployeesPage() {
         </Tabs>
       </div>
 
-      <div className="grid xl:grid-cols-2 gap-4">
-        {filteredUsers.map((user) => (
-          <Card
-            key={user.user_id}
-            className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/30 transition-all cursor-pointer"
-            onClick={() => navigate(`/employees/${user.user_id}`)}
-          >
-            <CardContent className="p-5">
-              <div className="flex items-start gap-4">
-                <Avatar className="w-12 h-12">
-                  <AvatarFallback className="bg-indigo-600 text-white">
-                    {getInitials(user.full_name)}
-                  </AvatarFallback>
-                </Avatar>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-2">
-                    <h3 className="text-white font-semibold truncate">
-                      {user.full_name || "Unnamed user"}
-                    </h3>
-
-                    {user.role === "admin" ? (
-                      <Shield className="w-4 h-4 text-red-400" />
-                    ) : (
-                      <UserIcon className="w-4 h-4 text-slate-400" />
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-wrap mb-3">
-                    <Badge className={getRoleColor(user.role)}>
-                      {user.role.toUpperCase()}
-                    </Badge>
-                    <Badge className={getStatusColor(user.status)}>
-                      {user.status.toUpperCase()}
-                    </Badge>
-                    {!user.profile_completed && user.status === "active" && (
-                      <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-                        PROFILE INCOMPLETE
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-2 text-sm">
-                    <p className="text-slate-400">
-                      <span className="text-slate-500">Display:</span>{" "}
-                      {user.display_name || "—"}
-                    </p>
-                    <p className="text-slate-400">
-                      <span className="text-slate-500">Phone:</span> {user.phone || "—"}
-                    </p>
-                    <p className="text-slate-400">
-                      <span className="text-slate-500">Company:</span> {user.company || "—"}
-                    </p>
-                    <p className="text-slate-400">
-                      <span className="text-slate-500">Department:</span>{" "}
-                      {user.department || "—"}
-                    </p>
-                    <p className="text-slate-400">
-                      <span className="text-slate-500">Job Title:</span>{" "}
-                      {user.job_title || "—"}
-                    </p>
-                    <p className="text-slate-400">
-                      <span className="text-slate-500">Location:</span>{" "}
-                      {[user.city, user.country].filter(Boolean).join(", ") || "—"}
-                    </p>
+      {isBootstrapping ? (
+        <div className="grid xl:grid-cols-2 gap-4">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <Card key={index} className="bg-slate-900/50 border-slate-800">
+              <CardContent className="p-5">
+                <div className="animate-pulse flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-full bg-slate-800" />
+                  <div className="flex-1 space-y-3">
+                    <div className="h-5 w-40 rounded bg-slate-800" />
+                    <div className="flex gap-2">
+                      <div className="h-6 w-20 rounded bg-slate-800" />
+                      <div className="h-6 w-20 rounded bg-slate-800" />
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      <div className="h-4 rounded bg-slate-800" />
+                      <div className="h-4 rounded bg-slate-800" />
+                      <div className="h-4 rounded bg-slate-800" />
+                      <div className="h-4 rounded bg-slate-800" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : filteredUsers.length > 0 ? (
+        <div className="grid xl:grid-cols-2 gap-4">
+          {filteredUsers.map((user) => (
+            <Card
+              key={user.user_id}
+              className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/30 transition-all cursor-pointer"
+              onClick={() => navigate(`/employees/${user.user_id}`)}
+            >
+              <CardContent className="p-5">
+                <div className="flex items-start gap-4">
+                  <Avatar className="w-12 h-12">
+                    <AvatarFallback className="bg-indigo-600 text-white">
+                      {getInitials(user.full_name)}
+                    </AvatarFallback>
+                  </Avatar>
 
-      {filteredUsers.length === 0 && (
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-2">
+                      <h3 className="text-white font-semibold truncate">
+                        {user.full_name || "Unnamed user"}
+                      </h3>
+
+                      {user.role === "admin" ? (
+                        <Shield className="w-4 h-4 text-red-400" />
+                      ) : (
+                        <UserIcon className="w-4 h-4 text-slate-400" />
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap mb-3">
+                      <Badge className={getRoleColor(user.role)}>
+                        {user.role.toUpperCase()}
+                      </Badge>
+                      <Badge className={getStatusColor(user.status)}>
+                        {user.status.toUpperCase()}
+                      </Badge>
+                      {!user.profile_completed && user.status === "active" && (
+                        <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                          PROFILE INCOMPLETE
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 gap-2 text-sm">
+                      <p className="text-slate-400">
+                        <span className="text-slate-500">Display:</span>{" "}
+                        {user.display_name || "—"}
+                      </p>
+                      <p className="text-slate-400">
+                        <span className="text-slate-500">Phone:</span> {user.phone || "—"}
+                      </p>
+                      <p className="text-slate-400">
+                        <span className="text-slate-500">Company:</span> {user.company || "—"}
+                      </p>
+                      <p className="text-slate-400">
+                        <span className="text-slate-500">Department:</span>{" "}
+                        {user.department || "—"}
+                      </p>
+                      <p className="text-slate-400">
+                        <span className="text-slate-500">Job Title:</span>{" "}
+                        {user.job_title || "—"}
+                      </p>
+                      <p className="text-slate-400">
+                        <span className="text-slate-500">Location:</span>{" "}
+                        {[user.city, user.country].filter(Boolean).join(", ") || "—"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
         <Card className="bg-slate-900/50 border-slate-800">
           <CardContent className="p-10 text-center text-slate-500">
             No users found.

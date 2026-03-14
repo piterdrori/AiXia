@@ -23,6 +23,7 @@ type OnboardingProfileRow = {
   wechat?: string | null;
   whatsapp?: string | null;
   profile_completed?: boolean | null;
+  status?: string | null;
 };
 
 export default function OnboardingPage() {
@@ -45,10 +46,12 @@ export default function OnboardingPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const loadProfile = async () => {
     setIsLoading(true);
     setError("");
+    setSuccessMessage("");
 
     const {
       data: { user },
@@ -75,6 +78,19 @@ export default function OnboardingPage() {
     }
 
     const profile = data as OnboardingProfileRow;
+
+    if (profile.status === "pending_approval") {
+      setError(
+        "Your details were already submitted and are waiting for admin approval."
+      );
+      setIsLoading(false);
+      return;
+    }
+
+    if (profile.status === "active") {
+      navigate("/dashboard");
+      return;
+    }
 
     setFullName(profile.full_name || "");
     setDisplayName(profile.display_name || "");
@@ -108,50 +124,59 @@ export default function OnboardingPage() {
     return "";
   };
 
-const handleSave = async (e: React.FormEvent) => {
-  e.preventDefault();
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-  const validationError = validate();
-  if (validationError) {
-    setError(validationError);
-    return;
-  }
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
 
-  if (!userId) return;
+    if (!userId) return;
 
-  setIsSaving(true);
-  setError("");
+    setIsSaving(true);
+    setError("");
+    setSuccessMessage("");
 
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      full_name: fullName.trim(),
-      display_name: displayName.trim(),
-      phone: phone.trim(),
-      country: country.trim(),
-      city: city.trim(),
-      company: company.trim(),
-      department: department.trim(),
-      job_title: jobTitle.trim(),
-      bio: bio.trim() || null,
-      avatar_url: avatarUrl.trim() || null,
-      wechat: wechat.trim() || null,
-      whatsapp: whatsapp.trim() || null,
-      profile_completed: true,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("user_id", userId);
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        full_name: fullName.trim(),
+        display_name: displayName.trim(),
+        phone: phone.trim(),
+        country: country.trim(),
+        city: city.trim(),
+        company: company.trim(),
+        department: department.trim(),
+        job_title: jobTitle.trim(),
+        bio: bio.trim() || null,
+        avatar_url: avatarUrl.trim() || null,
+        wechat: wechat.trim() || null,
+        whatsapp: whatsapp.trim() || null,
+        profile_completed: true,
+        status: "pending_approval",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", userId);
 
-  setIsSaving(false);
+    setIsSaving(false);
 
-  if (error) {
-    setError(error.message || "Failed to save your profile.");
-    return;
-  }
+    if (error) {
+      setError(error.message || "Failed to submit your profile.");
+      return;
+    }
 
-  await supabase.auth.signOut();
-  navigate("/login");
-};
+    setSuccessMessage(
+      "Your details were submitted successfully. Your account is now waiting for admin approval. You will be able to log in only after approval."
+    );
+
+    await supabase.auth.signOut();
+
+    setTimeout(() => {
+      navigate("/login");
+    }, 2500);
+  };
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -171,16 +196,29 @@ const handleSave = async (e: React.FormEvent) => {
       <Card className="w-full max-w-3xl bg-slate-900/60 border-slate-800">
         <CardContent className="p-8">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-white">Complete Your Profile</h1>
+            <h1 className="text-3xl font-bold text-white">
+              Complete Your Profile
+            </h1>
             <p className="text-slate-400 mt-2">
-              Please fill in your details so we can identify you clearly and keep easy
-              communication between all platform members.
+              Please fill in your details below to complete your registration.
+              After you submit this form, your request will be sent to the admin
+              for approval.
+            </p>
+            <p className="text-slate-400 mt-2">
+              You will not be able to enter the platform until the admin
+              approves your account.
             </p>
           </div>
 
           {error && (
             <Alert className="mb-6 bg-red-900/20 border-red-800 text-red-300">
               <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {successMessage && (
+            <Alert className="mb-6 bg-emerald-900/20 border-emerald-800 text-emerald-300">
+              <AlertDescription>{successMessage}</AlertDescription>
             </Alert>
           )}
 
@@ -312,7 +350,7 @@ const handleSave = async (e: React.FormEvent) => {
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
                 disabled={isSaving}
               >
-                {isSaving ? "Saving..." : "Save and Enter Platform"}
+                {isSaving ? "Submitting..." : "Submit For Approval"}
               </Button>
             </div>
           </form>
@@ -320,5 +358,4 @@ const handleSave = async (e: React.FormEvent) => {
       </Card>
     </div>
   );
-
 }

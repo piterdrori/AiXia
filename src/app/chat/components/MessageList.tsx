@@ -1,4 +1,4 @@
-import { Check, CheckSquare, MessageSquare, Save, Square, Trash2, X } from "lucide-react";
+import { Check, MessageSquare, Save, Square, X } from "lucide-react";
 import { formatMessageTime, getProfileByUserId, getUserInitials } from "../utils";
 import type { ChatMessageRow, MessageListProps } from "../types";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";

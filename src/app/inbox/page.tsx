@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import {
@@ -86,28 +86,56 @@ export default function InboxPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const loadNotifications = async (userId: string) => {
-    const requestId = requestTracker.current.next();
-    setError("");
+  const fetchNotifications = useCallback(
+    async (
+      userId: string,
+      options?: {
+        requestId?: number;
+        setLoading?: boolean;
+      }
+    ) => {
+      const requestId = options?.requestId ?? requestTracker.current.next();
+      const shouldSetLoading = options?.setLoading ?? false;
 
-    const { data, error } = await supabase
-      .from("notifications")
-      .select(
-        "id, user_id, actor_user_id, type, title, message, link, is_read, entity_type, entity_id, created_at"
-      )
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+      if (shouldSetLoading) {
+        setIsLoading(true);
+      }
 
-    if (!requestTracker.current.isLatest(requestId)) return;
+      setError("");
 
-    if (error) {
-      console.error("Load inbox notifications error:", error);
-      setError(error.message || "Failed to load notifications.");
-      return;
-    }
+      try {
+        const { data, error: notificationsError } = await supabase
+          .from("notifications")
+          .select(
+            "id, user_id, actor_user_id, type, title, message, link, is_read, entity_type, entity_id, created_at"
+          )
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false });
 
-    setNotifications((data || []) as NotificationRow[]);
-  };
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        if (notificationsError) {
+          console.error("Load inbox notifications error:", notificationsError);
+          setError(notificationsError.message || "Failed to load notifications.");
+          setNotifications([]);
+          return;
+        }
+
+        setNotifications((data || []) as NotificationRow[]);
+      } catch (err) {
+        if (!requestTracker.current.isLatest(requestId)) return;
+        console.error("Fetch notifications error:", err);
+        setError("Failed to load notifications.");
+        setNotifications([]);
+      } finally {
+        if (!requestTracker.current.isLatest(requestId)) return;
+        if (shouldSetLoading) {
+          setIsLoading(false);
+        }
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -115,24 +143,26 @@ export default function InboxPage() {
     const init = async () => {
       const requestId = requestTracker.current.next();
       setIsLoading(true);
+      setError("");
 
       try {
         const {
           data: { user },
+          error: authError,
         } = await supabase.auth.getUser();
 
         if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
-        if (!user) {
+        if (authError || !user) {
           navigate("/login");
           return;
         }
 
         setCurrentUserId(user.id);
-        await loadNotifications(user.id);
-      } catch (error) {
+        await fetchNotifications(user.id, { requestId, setLoading: false });
+      } catch (err) {
         if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        console.error("Inbox init error:", error);
+        console.error("Inbox init error:", err);
         setError("Failed to load inbox.");
       } finally {
         if (!mounted || !requestTracker.current.isLatest(requestId)) return;
@@ -145,7 +175,7 @@ export default function InboxPage() {
     return () => {
       mounted = false;
     };
-  }, [navigate]);
+  }, [fetchNotifications, navigate]);
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -165,7 +195,7 @@ export default function InboxPage() {
             filter: `user_id=eq.${currentUserId}`,
           },
           () => {
-            void loadNotifications(currentUserId);
+            void fetchNotifications(currentUserId, { setLoading: false });
           }
         )
         .subscribe()
@@ -174,22 +204,23 @@ export default function InboxPage() {
     return () => {
       void removeRealtimeChannel(channelKey);
     };
-  }, [currentUserId]);
+  }, [currentUserId, fetchNotifications]);
 
   const filteredNotifications = useMemo(() => {
-    return notifications.filter((n) => {
+    return notifications.filter((notification) => {
       if (filter === "ALL") return true;
-      if (filter === "UNREAD") return !n.is_read;
-      return n.type === filter;
+      if (filter === "UNREAD") return !notification.is_read;
+      return notification.type === filter;
     });
   }, [notifications, filter]);
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const unreadCount = notifications.filter((notification) => !notification.is_read).length;
 
   const handleNotificationClick = async (notification: NotificationRow) => {
     try {
       if (!notification.is_read) {
         await markNotificationRead(notification.id);
+
         setNotifications((prev) =>
           prev.map((item) =>
             item.id === notification.id ? { ...item, is_read: true } : item
@@ -200,21 +231,22 @@ export default function InboxPage() {
       if (notification.link) {
         navigate(notification.link);
       }
-    } catch (error) {
-      console.error("Notification click error:", error);
+    } catch (err) {
+      console.error("Notification click error:", err);
     }
   };
 
   const handleMarkOneRead = async (notificationId: string) => {
     try {
       await markNotificationRead(notificationId);
+
       setNotifications((prev) =>
         prev.map((item) =>
           item.id === notificationId ? { ...item, is_read: true } : item
         )
       );
-    } catch (error) {
-      console.error("Mark one read error:", error);
+    } catch (err) {
+      console.error("Mark one read error:", err);
     }
   };
 
@@ -223,27 +255,33 @@ export default function InboxPage() {
 
     try {
       await markAllNotificationsRead(currentUserId);
-      setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })));
-    } catch (error) {
-      console.error("Mark all read error:", error);
+
+      setNotifications((prev) =>
+        prev.map((item) => ({
+          ...item,
+          is_read: true,
+        }))
+      );
+    } catch (err) {
+      console.error("Mark all read error:", err);
     }
   };
 
   const handleDeleteNotification = async (notificationId: string) => {
     try {
-      const { error } = await supabase
+      const { error: deleteError } = await supabase
         .from("notifications")
         .delete()
         .eq("id", notificationId);
 
-      if (error) {
-        console.error("Delete notification error:", error);
+      if (deleteError) {
+        console.error("Delete notification error:", deleteError);
         return;
       }
 
       setNotifications((prev) => prev.filter((item) => item.id !== notificationId));
-    } catch (error) {
-      console.error("Delete notification error:", error);
+    } catch (err) {
+      console.error("Delete notification error:", err);
     }
   };
 
@@ -274,7 +312,12 @@ export default function InboxPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
-        <Select value={filter} onValueChange={(v) => setFilter(v as "ALL" | "UNREAD" | NotificationType)}>
+        <Select
+          value={filter}
+          onValueChange={(value) =>
+            setFilter(value as "ALL" | "UNREAD" | NotificationType)
+          }
+        >
           <SelectTrigger className="w-48 bg-slate-900 border-slate-800 text-white">
             <Filter className="w-4 h-4 mr-2" />
             <SelectValue placeholder="Filter" />
@@ -300,19 +343,25 @@ export default function InboxPage() {
               {isLoading ? (
                 <div className="text-center py-12">
                   <Bell className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-white mb-2">Loading notifications</h3>
+                  <h3 className="text-lg font-medium text-white mb-2">
+                    Loading notifications
+                  </h3>
                   <p className="text-slate-500">Please wait...</p>
                 </div>
               ) : error ? (
                 <div className="text-center py-12">
                   <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-white mb-2">Something went wrong</h3>
+                  <h3 className="text-lg font-medium text-white mb-2">
+                    Something went wrong
+                  </h3>
                   <p className="text-slate-500">{error}</p>
                 </div>
               ) : filteredNotifications.length === 0 ? (
                 <div className="text-center py-12">
                   <Bell className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-white mb-2">No notifications</h3>
+                  <h3 className="text-lg font-medium text-white mb-2">
+                    No notifications
+                  </h3>
                   <p className="text-slate-500">
                     {filter === "ALL"
                       ? "You're all caught up!"
@@ -323,7 +372,8 @@ export default function InboxPage() {
                 filteredNotifications.map((notification) => {
                   const Icon = notificationIcons[notification.type] || Bell;
                   const colorClass =
-                    notificationColors[notification.type] || "bg-slate-500/20 text-slate-400";
+                    notificationColors[notification.type] ||
+                    "bg-slate-500/20 text-slate-400";
 
                   return (
                     <div
@@ -349,6 +399,7 @@ export default function InboxPage() {
                             >
                               {notification.title}
                             </h4>
+
                             {notification.message && (
                               <p className="text-slate-400 text-sm mt-1">
                                 {notification.message}
@@ -361,7 +412,7 @@ export default function InboxPage() {
                               <div className="w-2 h-2 rounded-full bg-indigo-500" />
                             )}
                             <span className="text-slate-500 text-xs">
-                              {format(new Date(notification.created_at), "MMM d, h:mm a")}
+                              {format(new Date(notification.created_at), "MMM d, HH:mm")}
                             </span>
                           </div>
                         </div>

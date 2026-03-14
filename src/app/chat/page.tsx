@@ -14,7 +14,6 @@ import {
   X,
   Check,
   Square,
-  Loader2,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -82,7 +81,6 @@ type ChatMessageRow = {
 
 type MessagesByGroup = Record<string, ChatMessageRow[]>;
 type HasMoreByGroup = Record<string, boolean>;
-type LoadingByGroup = Record<string, boolean>;
 
 const PAGE_SIZE = 20;
 const NEAR_BOTTOM_PX = 120;
@@ -122,9 +120,7 @@ function formatMessageTime(value: string) {
 export default function ChatPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-
-  const bootstrapTracker = useRef(createRequestTracker());
-  const messageTracker = useRef(createRequestTracker());
+  const requestTracker = useRef(createRequestTracker());
 
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -141,8 +137,6 @@ export default function ChatPage() {
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [messages, setMessages] = useState<MessagesByGroup>({});
   const [hasMoreMessages, setHasMoreMessages] = useState<HasMoreByGroup>({});
-  const [loadingMessagesByGroup, setLoadingMessagesByGroup] =
-    useState<LoadingByGroup>({});
 
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
     id || null
@@ -150,7 +144,7 @@ export default function ChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [messageInput, setMessageInput] = useState("");
 
-  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState("");
@@ -180,11 +174,7 @@ export default function ChatPage() {
     ? messages[selectedConversationId] || []
     : [];
 
-  const isCurrentConversationLoading = selectedConversationId
-    ? Boolean(loadingMessagesByGroup[selectedConversationId])
-    : false;
-
-  useEffect(() => {
+useEffect(() => {
     selectedConversationIdRef.current = selectedConversationId;
   }, [selectedConversationId]);
 
@@ -294,18 +284,6 @@ export default function ChatPage() {
     });
   }, []);
 
-  const appendMessageLocally = useCallback((groupId: string, message: ChatMessageRow) => {
-    setMessages((prev) => {
-      const current = prev[groupId] || [];
-      if (current.some((item) => item.id === message.id)) return prev;
-
-      return {
-        ...prev,
-        [groupId]: dedupeMessages([...current, message]),
-      };
-    });
-  }, []);
-
   const replaceTempMessageWithRealOne = useCallback(
     (groupId: string, realMessage: ChatMessageRow) => {
       setMessages((prev) => {
@@ -326,10 +304,8 @@ export default function ChatPage() {
         });
 
         if (tempIndex === -1) {
-          return {
-            ...prev,
-            [groupId]: dedupeMessages([...existing, realMessage]),
-          };
+          const merged = dedupeMessages([...existing, realMessage]);
+          return { ...prev, [groupId]: merged };
         }
 
         const next = [...existing];
@@ -344,10 +320,26 @@ export default function ChatPage() {
     []
   );
 
+  const appendMessageLocally = useCallback((groupId: string, message: ChatMessageRow) => {
+    setMessages((prev) => {
+      const current = prev[groupId] || [];
+      const alreadyExists = current.some((item) => item.id === message.id);
+
+      if (alreadyExists) return prev;
+
+      return {
+        ...prev,
+        [groupId]: dedupeMessages([...current, message]),
+      };
+    });
+  }, []);
+
   const updateMessageLocally = useCallback((groupId: string, message: ChatMessageRow) => {
     setMessages((prev) => {
       const current = prev[groupId] || [];
-      if (!current.some((item) => item.id === message.id)) return prev;
+      const exists = current.some((item) => item.id === message.id);
+
+      if (!exists) return prev;
 
       return {
         ...prev,
@@ -356,7 +348,7 @@ export default function ChatPage() {
     });
   }, []);
 
-  const deleteMessageLocally = useCallback((groupId: string, messageId: string) => {
+const deleteMessageLocally = useCallback((groupId: string, messageId: string) => {
     setMessages((prev) => ({
       ...prev,
       [groupId]: (prev[groupId] || []).filter((item) => item.id !== messageId),
@@ -399,53 +391,17 @@ export default function ChatPage() {
     };
   }, []);
 
-  const loadMessagesIfNeeded = useCallback(
-    async (groupId: string, force = false) => {
-      if (!groupId) return;
-      if (!force && messages[groupId]) return;
+  const loadChatData = useCallback(
+    async (preferredId?: string | null) => {
+      const requestId = requestTracker.current.next();
+      setError("");
 
-      const requestId = messageTracker.current.next();
-
-      setLoadingMessagesByGroup((prev) => ({ ...prev, [groupId]: true }));
-
-      try {
-        const result = await loadMessagesForGroup(groupId);
-
-        if (!isMountedRef.current || !messageTracker.current.isLatest(requestId)) return;
-
-        setMessages((prev) => ({
-          ...prev,
-          [groupId]: result.items,
-        }));
-
-        setHasMoreMessages((prev) => ({
-          ...prev,
-          [groupId]: result.hasMore,
-        }));
-      } catch (err) {
-        if (!isMountedRef.current || !messageTracker.current.isLatest(requestId)) return;
-        console.error("Load group messages error:", err);
-        setError("Failed to load messages.");
-      } finally {
-        if (!isMountedRef.current || !messageTracker.current.isLatest(requestId)) return;
-        setLoadingMessagesByGroup((prev) => ({ ...prev, [groupId]: false }));
-      }
-    },
-    [loadMessagesForGroup, messages]
-  );
-
-  const bootstrapChatData = useCallback(async () => {
-    const requestId = bootstrapTracker.current.next();
-    setError("");
-    setIsBootstrapping(true);
-
-    try {
       const {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
 
-      if (!isMountedRef.current || !bootstrapTracker.current.isLatest(requestId)) return;
+      if (!isMountedRef.current || !requestTracker.current.isLatest(requestId)) return;
 
       if (authError || !user) {
         navigate("/login");
@@ -464,7 +420,7 @@ export default function ChatPage() {
             .order("full_name", { ascending: true }),
         ]);
 
-      if (!isMountedRef.current || !bootstrapTracker.current.isLatest(requestId)) return;
+      if (!isMountedRef.current || !requestTracker.current.isLatest(requestId)) return;
 
       if (profilesError) {
         setError(profilesError.message || "Failed to load users.");
@@ -475,6 +431,7 @@ export default function ChatPage() {
       setCurrentUserRole(role);
 
       const isAdmin = role === "admin";
+
       let groupsQuery = supabase
         .from("chat_groups")
         .select("id, name, type, project_id, task_id, created_by, created_at, direct_key")
@@ -486,7 +443,7 @@ export default function ChatPage() {
           .select("group_id")
           .eq("user_id", user.id);
 
-        if (!isMountedRef.current || !bootstrapTracker.current.isLatest(requestId)) return;
+        if (!isMountedRef.current || !requestTracker.current.isLatest(requestId)) return;
 
         if (membershipsError) {
           setError(membershipsError.message || "Failed to load memberships.");
@@ -512,7 +469,7 @@ export default function ChatPage() {
 
       const { data: groupsData, error: groupsError } = await groupsQuery;
 
-      if (!isMountedRef.current || !bootstrapTracker.current.isLatest(requestId)) return;
+      if (!isMountedRef.current || !requestTracker.current.isLatest(requestId)) return;
 
       if (groupsError) {
         setError(groupsError.message || "Failed to load chat groups.");
@@ -546,116 +503,80 @@ export default function ChatPage() {
 
       const { data: membersData, error: membersError } = await membersQuery;
 
-      if (!isMountedRef.current || !bootstrapTracker.current.isLatest(requestId)) return;
+      if (!isMountedRef.current || !requestTracker.current.isLatest(requestId)) return;
 
       if (membersError) {
         setError(membersError.message || "Failed to load group members.");
         return;
       }
+const loadedMessages: MessagesByGroup = {};
+      const loadedHasMore: HasMoreByGroup = {};
+
+      for (const groupId of visibleGroupIds) {
+        const result = await loadMessagesForGroup(groupId);
+
+        if (!isMountedRef.current || !requestTracker.current.isLatest(requestId)) return;
+
+        loadedMessages[groupId] = result.items;
+        loadedHasMore[groupId] = result.hasMore;
+      }
 
       setProfiles((allProfiles || []) as ProfileRow[]);
       setGroups(loadedGroups);
       setGroupMembers((membersData || []) as ChatGroupMemberRow[]);
+      setMessages(loadedMessages);
+      setHasMoreMessages(loadedHasMore);
 
-      const requestedId = id || null;
+      const requestedId = preferredId || id || null;
 
       if (requestedId && loadedGroups.some((group) => group.id === requestedId)) {
         setSelectedConversationId(requestedId);
-        await loadMessagesIfNeeded(requestedId, true);
-      } else if (loadedGroups.length > 0) {
+        return;
+      }
+
+      if (loadedGroups.length > 0) {
         const firstGroupId = loadedGroups[0].id;
         setSelectedConversationId(firstGroupId);
-        navigate(`/chat/${firstGroupId}`, { replace: true });
-        await loadMessagesIfNeeded(firstGroupId, true);
-      } else {
-        setSelectedConversationId(null);
+        navigate(`/chat/${firstGroupId}`);
+        return;
       }
-    } finally {
-      if (!isMountedRef.current || !bootstrapTracker.current.isLatest(requestId)) return;
-      setIsBootstrapping(false);
-    }
-  }, [id, loadMessagesIfNeeded, navigate]);
+
+      setSelectedConversationId(null);
+    },
+    [id, loadMessagesForGroup, navigate]
+  );
 
   useEffect(() => {
-    void bootstrapChatData();
-  }, [bootstrapChatData]);
+    const init = async () => {
+      setIsLoading(true);
 
-  useEffect(() => {
-    if (isBootstrapping) return;
+      try {
+        await loadChatData(id || null);
+      } catch (err) {
+        console.error("Chat init error:", err);
 
-    const requestedId = id || null;
+        if (isMountedRef.current) {
+          setError("Failed to load chat.");
+        }
+      } finally {
+        if (isMountedRef.current) {
+          setIsLoading(false);
+          shouldScrollToBottomRef.current = true;
 
-    if (!requestedId) {
-      if (groups.length > 0 && !selectedConversationId) {
-        const firstGroupId = groups[0].id;
-        setSelectedConversationId(firstGroupId);
-        void loadMessagesIfNeeded(firstGroupId);
+          requestAnimationFrame(() => {
+            scrollToBottom("auto");
+          });
+        }
       }
-      return;
-    }
-
-    if (requestedId === selectedConversationId) return;
-
-    if (groups.some((group) => group.id === requestedId)) {
-      setSelectedConversationId(requestedId);
-      shouldScrollToBottomRef.current = true;
-      void loadMessagesIfNeeded(requestedId);
-    }
-  }, [groups, id, isBootstrapping, loadMessagesIfNeeded, selectedConversationId]);
-
-  useEffect(() => {
-    if (!selectedConversationId) return;
-    shouldScrollToBottomRef.current = true;
-  }, [selectedConversationId]);
-
-  useEffect(() => {
-    if (isBootstrapping) return;
-    if (suppressNextAutoScrollRef.current) {
-      suppressNextAutoScrollRef.current = false;
-      return;
-    }
-    if (!shouldScrollToBottomRef.current) return;
-
-    shouldScrollToBottomRef.current = false;
-
-    requestAnimationFrame(() => {
-      scrollToBottom("smooth");
-    });
-  }, [conversationMessages.length, isBootstrapping, scrollToBottom]);
-
-  useEffect(() => {
-    const groupsChannelKey = "chat-groups-global";
-
-    registerRealtimeChannel(
-      groupsChannelKey,
-      supabase
-        .channel(groupsChannelKey)
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "chat_groups" },
-          () => {
-            void bootstrapChatData();
-          }
-        )
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "chat_group_members" },
-          () => {
-            void bootstrapChatData();
-          }
-        )
-        .subscribe()
-    );
-
-    return () => {
-      void removeRealtimeChannel(groupsChannelKey);
     };
-  }, [bootstrapChatData]);
+
+    void init();
+  }, [id, loadChatData, scrollToBottom]);
 
   useEffect(() => {
     if (!selectedConversationId) return;
 
-    const channelKey = `chat-messages:${selectedConversationId}`;
+    const channelKey = `chat:${selectedConversationId}`;
 
     registerRealtimeChannel(
       channelKey,
@@ -663,27 +584,32 @@ export default function ChatPage() {
         .channel(channelKey)
         .on(
           "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "chat_messages",
-            filter: `group_id=eq.${selectedConversationId}`,
-          },
+          { event: "*", schema: "public", table: "chat_messages" },
           (payload) => {
-            const targetGroupId = selectedConversationIdRef.current;
+            const changedGroupId = (payload.new as { group_id?: string } | null)?.group_id;
+            const oldGroupId = (payload.old as { group_id?: string } | null)?.group_id;
+            const targetGroupId = changedGroupId || oldGroupId;
+
             if (!targetGroupId) return;
+
+            const isCurrentConversation =
+              targetGroupId === selectedConversationIdRef.current;
 
             if (payload.eventType === "INSERT" && payload.new) {
               const newMessage = payload.new as ChatMessageRow;
-              const shouldStayAtBottom = isViewportNearBottom();
 
-              replaceTempMessageWithRealOne(targetGroupId, newMessage);
-              moveGroupToTop(targetGroupId);
+              if (isCurrentConversation) {
+                const shouldStayAtBottom = isViewportNearBottom();
+                replaceTempMessageWithRealOne(targetGroupId, newMessage);
 
-              if (shouldStayAtBottom) {
-                shouldScrollToBottomRef.current = true;
+                if (shouldStayAtBottom) {
+                  shouldScrollToBottomRef.current = true;
+                }
+              } else {
+                appendMessageLocally(targetGroupId, newMessage);
               }
 
+              moveGroupToTop(targetGroupId);
               return;
             }
 
@@ -703,6 +629,20 @@ export default function ChatPage() {
             }
           }
         )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "chat_groups" },
+          () => {
+            void loadChatData(selectedConversationIdRef.current);
+          }
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "chat_group_members" },
+          () => {
+            void loadChatData(selectedConversationIdRef.current);
+          }
+        )
         .subscribe()
     );
 
@@ -710,14 +650,36 @@ export default function ChatPage() {
       void removeRealtimeChannel(channelKey);
     };
   }, [
+    appendMessageLocally,
     deleteMessageLocally,
     editingMessageId,
     isViewportNearBottom,
+    loadChatData,
     moveGroupToTop,
     replaceTempMessageWithRealOne,
     selectedConversationId,
     updateMessageLocally,
   ]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (suppressNextAutoScrollRef.current) {
+      suppressNextAutoScrollRef.current = false;
+      return;
+    }
+    if (!shouldScrollToBottomRef.current) return;
+
+    shouldScrollToBottomRef.current = false;
+
+    requestAnimationFrame(() => {
+      scrollToBottom("smooth");
+    });
+  }, [conversationMessages.length, isLoading, scrollToBottom]);
+
+  useEffect(() => {
+    if (!selectedConversationId) return;
+    shouldScrollToBottomRef.current = true;
+  }, [selectedConversationId]);
 
   const filteredConversations = useMemo(() => {
     return groups.filter((group) =>
@@ -770,13 +732,6 @@ export default function ChatPage() {
   const allSelected =
     allSelectableIds.length > 0 &&
     allSelectableIds.every((messageId) => selectedMessageIds.includes(messageId));
-
-  const handleOpenConversation = async (groupId: string) => {
-    setSelectedConversationId(groupId);
-    shouldScrollToBottomRef.current = true;
-    navigate(`/chat/${groupId}`);
-    await loadMessagesIfNeeded(groupId);
-  };
 
   const toggleSelectionMode = () => {
     const nextMode = !isSelectionMode;
@@ -908,7 +863,6 @@ export default function ChatPage() {
         entityId: insertedMessage.id,
       });
     }
-
     for (const userId of mentionedUserIds) {
       await createNotification({
         userId,
@@ -932,6 +886,8 @@ export default function ChatPage() {
     if (currentMessages.length === 0) return;
 
     const oldestMessage = currentMessages[0];
+    if (!oldestMessage) return;
+
     const viewport = getScrollViewport();
     const previousScrollHeight = viewport?.scrollHeight || 0;
     const previousScrollTop = viewport?.scrollTop || 0;
@@ -954,7 +910,6 @@ export default function ChatPage() {
     }
 
     const olderBatch = sortMessagesAscending((olderMessages || []) as ChatMessageRow[]);
-
     suppressNextAutoScrollRef.current = true;
 
     setMessages((prev) => ({
@@ -981,6 +936,7 @@ export default function ChatPage() {
       nextViewport.scrollTop = previousScrollTop + heightDiff;
     });
   };
+
   const startDirectMessage = async (targetUserId: string) => {
     if (!currentUserId) return;
 
@@ -991,7 +947,8 @@ export default function ChatPage() {
     );
 
     if (existingLocal) {
-      await handleOpenConversation(existingLocal.id);
+      setSelectedConversationId(existingLocal.id);
+      navigate(`/chat/${existingLocal.id}`);
       return;
     }
 
@@ -1008,8 +965,9 @@ export default function ChatPage() {
     }
 
     if (existingDb) {
-      await bootstrapChatData();
-      await handleOpenConversation(existingDb.id);
+      await loadChatData(existingDb.id);
+      setSelectedConversationId(existingDb.id);
+      navigate(`/chat/${existingDb.id}`);
       return;
     }
 
@@ -1041,8 +999,9 @@ export default function ChatPage() {
       return;
     }
 
-    await bootstrapChatData();
-    await handleOpenConversation(newGroup.id);
+    await loadChatData(newGroup.id);
+    setSelectedConversationId(newGroup.id);
+    navigate(`/chat/${newGroup.id}`);
   };
 
   const handleCreateGroup = async () => {
@@ -1104,8 +1063,9 @@ export default function ChatPage() {
     setIsCreateGroupOpen(false);
     setIsCreatingGroup(false);
 
-    await bootstrapChatData();
-    await handleOpenConversation(newGroup.id);
+    await loadChatData(newGroup.id);
+    setSelectedConversationId(newGroup.id);
+    navigate(`/chat/${newGroup.id}`);
   };
 
   const toggleGroupMember = (userId: string) => {
@@ -1137,7 +1097,7 @@ export default function ChatPage() {
       navigate("/chat");
     }
 
-    await bootstrapChatData();
+    await loadChatData(null);
     setGroupActionLoading(null);
   };
 
@@ -1274,7 +1234,10 @@ export default function ChatPage() {
       >
         <div className="flex items-center gap-3 p-3">
           <button
-            onClick={() => void handleOpenConversation(group.id)}
+            onClick={() => {
+              setSelectedConversationId(group.id);
+              navigate(`/chat/${group.id}`);
+            }}
             className="flex items-center gap-3 flex-1 text-left min-w-0"
           >
             {iconType ? (
@@ -1317,10 +1280,10 @@ export default function ChatPage() {
     );
   };
 
-  if (isBootstrapping) {
+  if (isLoading) {
     return (
       <div className="h-[calc(100vh-140px)] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
       </div>
     );
   }
@@ -1369,9 +1332,11 @@ export default function ChatPage() {
                 {projectConversations.length > 0 && (
                   <>
                     <Separator className="my-3 bg-slate-800" />
-                    <h3 className="mb-2 text-xs font-medium text-slate-500 uppercase">
-                      Project Chats
-                    </h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-medium text-slate-500 uppercase">
+                        Project Chats
+                      </h3>
+                    </div>
                     {projectConversations.map((group) =>
                       renderConversationButton(group, "project")
                     )}
@@ -1381,9 +1346,11 @@ export default function ChatPage() {
                 {taskConversations.length > 0 && (
                   <>
                     <Separator className="my-3 bg-slate-800" />
-                    <h3 className="mb-2 text-xs font-medium text-slate-500 uppercase">
-                      Task Chats
-                    </h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-medium text-slate-500 uppercase">
+                        Task Chats
+                      </h3>
+                    </div>
                     {taskConversations.map((group) => renderConversationButton(group, "task"))}
                   </>
                 )}
@@ -1391,17 +1358,21 @@ export default function ChatPage() {
                 {groupConversations.length > 0 && (
                   <>
                     <Separator className="my-3 bg-slate-800" />
-                    <h3 className="mb-2 text-xs font-medium text-slate-500 uppercase">
-                      Group Chats
-                    </h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-medium text-slate-500 uppercase">
+                        Group Chats
+                      </h3>
+                    </div>
                     {groupConversations.map((group) => renderConversationButton(group, "group"))}
                   </>
                 )}
 
                 <Separator className="my-3 bg-slate-800" />
-                <h3 className="mb-2 text-xs font-medium text-slate-500 uppercase">
-                  Team Members
-                </h3>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-medium text-slate-500 uppercase">
+                    Team Members
+                  </h3>
+                </div>
 
                 {profiles
                   .filter((user) => user.user_id !== currentUserId && user.status === "active")
@@ -1457,24 +1428,26 @@ export default function ChatPage() {
                 </div>
               </div>
 
-              <Button
-                type="button"
-                variant="outline"
-                className="border-slate-700 text-slate-200 hover:bg-slate-800"
-                onClick={toggleSelectionMode}
-              >
-                {isSelectionMode ? (
-                  <>
-                    <X className="w-4 h-4 mr-2" />
-                    Cancel Selection
-                  </>
-                ) : (
-                  <>
-                    <CheckSquare className="w-4 h-4 mr-2" />
-                    Select Messages
-                  </>
-                )}
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-slate-700 text-slate-200 hover:bg-slate-800"
+                  onClick={toggleSelectionMode}
+                >
+                  {isSelectionMode ? (
+                    <>
+                      <X className="w-4 h-4 mr-2" />
+                      Cancel Selection
+                    </>
+                  ) : (
+                    <>
+                      <CheckSquare className="w-4 h-4 mr-2" />
+                      Select Messages
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
 
             {(isSelectionMode || selectedMessageIds.length > 0) && (
@@ -1490,7 +1463,7 @@ export default function ChatPage() {
                     className="border-slate-700 text-slate-200 hover:bg-slate-800"
                     onClick={handleSelectAllVisible}
                   >
-                    {allSelected ? (
+                   {allSelected ? (
                       <>
                         <Square className="w-4 h-4 mr-2" />
                         Clear All
@@ -1537,145 +1510,143 @@ export default function ChatPage() {
                   ) : null}
                 </div>
 
-                {isCurrentConversationLoading ? (
-                  <div className="h-full flex items-center justify-center py-16">
-                    <Loader2 className="w-7 h-7 animate-spin text-indigo-500" />
-                  </div>
-                ) : (
-                  <div className="space-y-4 pt-2">
-                    {conversationMessages.map((message, index) => {
-                      const isOwn = message.user_id === currentUserId;
-                      const user = getProfileByUserId(message.user_id);
-                      const showAvatar =
-                        index === 0 || conversationMessages[index - 1].user_id !== message.user_id;
-                      const isEditing = editingMessageId === message.id;
-                      const canSelect = canManageMessage(message);
-                      const isSelected = selectedMessageIds.includes(message.id);
+                <div className="space-y-4 pt-2">
+                  {conversationMessages.map((message, index) => {
+                    const isOwn = message.user_id === currentUserId;
+                    const user = getProfileByUserId(message.user_id);
+                    const showAvatar =
+                      index === 0 || conversationMessages[index - 1].user_id !== message.user_id;
+                    const isEditing = editingMessageId === message.id;
+                    const canSelect = canManageMessage(message);
+                    const isSelected = selectedMessageIds.includes(message.id);
 
-                      return (
-                        <div
-                         key={message.id}
-                          className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}
-                        >
-                          {isSelectionMode && (
-                            <div className={`pt-2 ${canSelect ? "" : "opacity-40"}`}>
-                              <Checkbox
-                                checked={isSelected}
-                                disabled={!canSelect}
-                                onCheckedChange={() => toggleMessageSelection(message)}
-                              />
-                            </div>
+                    return (
+                      <div
+                        key={message.id}
+                        className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}
+                      >
+                        {isSelectionMode && (
+                          <div
+                            className={`pt-2 ${canSelect ? "" : "opacity-40"} ${
+                              isOwn ? "order-3" : "order-1"
+                            }`}
+                          >
+                            <Checkbox
+                              checked={isSelected}
+                              disabled={!canSelect}
+                              onCheckedChange={() => toggleMessageSelection(message)}
+                            />
+                          </div>
+                        )}
+
+                        {showAvatar ? (
+                          <Avatar className="w-8 h-8 flex-shrink-0">
+                            <AvatarFallback className="bg-indigo-600 text-white text-xs">
+                              {(user?.full_name || "U")
+                                .split(" ")
+                                .map((part) => part[0])
+                                .join("")
+                                .toUpperCase()
+                                .slice(0, 2)}
+                            </AvatarFallback>
+                          </Avatar>
+                        ) : (
+                          <div className="w-8 flex-shrink-0" />
+                        )}
+
+                        <div className={`max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
+                          {showAvatar && (
+                            <p className="text-xs text-slate-500 mb-1">
+                              {user?.full_name || "Unknown"} • {formatMessageTime(message.created_at)}
+                            </p>
                           )}
 
-                          {showAvatar ? (
-                            <Avatar className="w-8 h-8 flex-shrink-0">
-                              <AvatarFallback className="bg-indigo-600 text-white text-xs">
-                                {(user?.full_name || "U")
-                                  .split(" ")
-                                  .map((part) => part[0])
-                                  .join("")
-                                  .toUpperCase()
-                                  .slice(0, 2)}
-                              </AvatarFallback>
-                            </Avatar>
-                          ) : (
-                            <div className="w-8 flex-shrink-0" />
-                          )}
-
-                          <div className={`max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
-                            {showAvatar && (
-                              <p className="text-xs text-slate-500 mb-1">
-                                {user?.full_name || "Unknown"} • {formatMessageTime(message.created_at)}
-                              </p>
-                            )}
-
-                            <div
-                              className={`px-4 py-2 rounded-2xl border ${
-                                isSelected ? "border-indigo-400" : "border-transparent"
-                              } ${
-                                isOwn
-                                  ? "bg-indigo-600 text-white rounded-br-none"
-                                  : "bg-slate-800 text-slate-200 rounded-bl-none"
-                              }`}
-                            >
-                              {isEditing ? (
-                                <div className="space-y-2 min-w-[260px]">
-                                  <Textarea
-                                    value={editingMessageText}
-                                    onChange={(e) => setEditingMessageText(e.target.value)}
-                                    rows={3}
-                                    className="bg-slate-900 border-slate-700 text-white resize-none"
-                                  />
-                                  <div className="flex items-center gap-2 justify-end">
-                                    <Button
-                                      size="sm"
-                                      className="bg-white text-black hover:bg-slate-200"
-                                      onClick={() => void handleSaveEditedMessage(message)}
-                                      disabled={
-                                        messageActionLoading === message.id ||
-                                        !editingMessageText.trim()
-                                      }
-                                    >
-                                      <Save className="w-3 h-3 mr-1" />
-                                      Save
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="border-slate-500 text-white hover:bg-slate-700"
-                                      onClick={cancelEditingMessage}
-                                      disabled={messageActionLoading === message.id}
-                                    >
-                                      <X className="w-3 h-3 mr-1" />
-                                      Cancel
-                                    </Button>
-                                  </div>
+                          <div
+                            className={`px-4 py-2 rounded-2xl border ${
+                              isSelected ? "border-indigo-400" : "border-transparent"
+                            } ${
+                              isOwn
+                                ? "bg-indigo-600 text-white rounded-br-none"
+                                : "bg-slate-800 text-slate-200 rounded-bl-none"
+                            }`}
+                          >
+                            {isEditing ? (
+                              <div className="space-y-2 min-w-[260px]">
+                                <Textarea
+                                  value={editingMessageText}
+                                  onChange={(e) => setEditingMessageText(e.target.value)}
+                                  rows={3}
+                                  className="bg-slate-900 border-slate-700 text-white resize-none"
+                                />
+                                <div className="flex items-center gap-2 justify-end">
+                                  <Button
+                                    size="sm"
+                                    className="bg-white text-black hover:bg-slate-200"
+                                    onClick={() => void handleSaveEditedMessage(message)}
+                                    disabled={
+                                      messageActionLoading === message.id ||
+                                      !editingMessageText.trim()
+                                    }
+                                  >
+                                    <Save className="w-3 h-3 mr-1" />
+                                    Save
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-slate-500 text-white hover:bg-slate-700"
+                                    onClick={cancelEditingMessage}
+                                    disabled={messageActionLoading === message.id}
+                                  >
+                                    <X className="w-3 h-3 mr-1" />
+                                    Cancel
+                                  </Button>
                                 </div>
-                              ) : (
-                                <p className="whitespace-pre-wrap break-words">{message.content}</p>
-                              )}
-                            </div>
-
-                            {canManageMessage(message) && !isEditing && !isSelectionMode && (
-                              <div
-                                className={`mt-1 flex gap-2 ${
-                                  isOwn ? "justify-end" : "justify-start"
-                                }`}
-                              >
-                                <button
-                                  className="text-xs text-slate-400 hover:text-white"
-                                  onClick={() => startEditingMessage(message)}
-                                  disabled={messageActionLoading === message.id}
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  className="text-xs text-red-400 hover:text-red-300"
-                                  onClick={() => void handleDeleteMessage(message)}
-                                  disabled={messageActionLoading === message.id}
-                                >
-                                  Delete
-                                </button>
                               </div>
+                            ) : (
+                              <p className="whitespace-pre-wrap break-words">{message.content}</p>
                             )}
                           </div>
-                        </div>
-                      );
-                    })}
 
-                    {conversationMessages.length === 0 && !isCurrentConversationLoading && (
-                      <div className="text-center py-12">
-                        <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4">
-                          <MessageSquare className="w-8 h-8 text-slate-500" />
+                          {canManageMessage(message) && !isEditing && !isSelectionMode && (
+                            <div
+                              className={`mt-1 flex gap-2 ${
+                                isOwn ? "justify-end" : "justify-start"
+                              }`}
+                            >
+                              <button
+                                className="text-xs text-slate-400 hover:text-white"
+                                onClick={() => startEditingMessage(message)}
+                                disabled={messageActionLoading === message.id}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="text-xs text-red-400 hover:text-red-300"
+                                onClick={() => void handleDeleteMessage(message)}
+                                disabled={messageActionLoading === message.id}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        <p className="text-slate-500">No messages yet</p>
-                        <p className="text-slate-600 text-sm">Start the conversation!</p>
                       </div>
-                    )}
+                    );
+                  })}
 
-                    <div ref={messagesEndRef} />
-                  </div>
-                )}
+                  {conversationMessages.length === 0 && (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4">
+                        <MessageSquare className="w-8 h-8 text-slate-500" />
+                      </div>
+                      <p className="text-slate-500">No messages yet</p>
+                      <p className="text-slate-600 text-sm">Start the conversation!</p>
+                    </div>
+                  )}
+
+                  <div ref={messagesEndRef} />
+                </div>
               </div>
             </ScrollArea>
 
@@ -1821,5 +1792,4 @@ export default function ChatPage() {
     </>
   );
 }
-  
     

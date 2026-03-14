@@ -18,7 +18,6 @@ import type {
 } from "./types";
 import {
   buildDirectKey,
-  formatMessageTime,
   getConversationInitials,
   getConversationName,
   getMembersForGroup,

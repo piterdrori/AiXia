@@ -135,6 +135,8 @@ export default function EmployeesPage() {
     if (!target) return;
 
     const roleToApply = target.requested_role || "employee";
+    const nextUpdatedAt = new Date().toISOString();
+
     setActionLoadingUserId(userId);
     setError("");
 
@@ -144,7 +146,7 @@ export default function EmployeesPage() {
         .update({
           status: "active",
           role: roleToApply,
-          updated_at: new Date().toISOString(),
+          updated_at: nextUpdatedAt,
         })
         .eq("user_id", userId);
 
@@ -161,7 +163,7 @@ export default function EmployeesPage() {
                 ...profile,
                 status: "active",
                 role: roleToApply,
-                updated_at: new Date().toISOString(),
+                updated_at: nextUpdatedAt,
               }
             : profile
         )
@@ -175,6 +177,8 @@ export default function EmployeesPage() {
   };
 
   const rejectUser = async (userId: string) => {
+    const nextUpdatedAt = new Date().toISOString();
+
     setActionLoadingUserId(userId);
     setError("");
 
@@ -183,7 +187,7 @@ export default function EmployeesPage() {
         .from("profiles")
         .update({
           status: "denied",
-          updated_at: new Date().toISOString(),
+          updated_at: nextUpdatedAt,
         })
         .eq("user_id", userId);
 
@@ -199,7 +203,7 @@ export default function EmployeesPage() {
             ? {
                 ...profile,
                 status: "denied",
-                updated_at: new Date().toISOString(),
+                updated_at: nextUpdatedAt,
               }
             : profile
         )

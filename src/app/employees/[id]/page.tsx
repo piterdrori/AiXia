@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { createRequestTracker } from "@/lib/safeAsync";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +31,7 @@ import {
   MapPin,
   Briefcase,
   MessageCircle,
+  AlertCircle,
 } from "lucide-react";
 
 type Role = "admin" | "manager" | "employee" | "guest";
@@ -60,13 +63,18 @@ type ProfileRow = {
 export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const requestTracker = useRef(createRequestTracker());
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 
   const [user, setUser] = useState<ProfileRow | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeactivating, setIsDeactivating] = useState(false);
+
   const [saveError, setSaveError] = useState("");
   const [saved, setSaved] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -90,49 +98,8 @@ export default function EmployeeDetailPage() {
   const canManage = currentUserRole === "admin";
   const isOwnProfile = currentUserId === id;
 
-  const loadUser = async () => {
-    if (!id) {
-      navigate("/employees");
-      return;
-    }
-
-    setIsLoading(true);
-    setSaveError("");
-
-    const {
-      data: { user: authUser },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !authUser) {
-      navigate("/login");
-      return;
-    }
-
-    setCurrentUserId(authUser.id);
-
-    const { data: me } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("user_id", authUser.id)
-      .single();
-
-    setCurrentUserRole((me?.role as Role) || null);
-
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", id)
-      .single();
-
-    if (error || !data) {
-      navigate("/employees");
-      return;
-    }
-
-    const profile = data as ProfileRow;
+  const fillForm = (profile: ProfileRow) => {
     setUser(profile);
-
     setFullName(profile.full_name || "");
     setDisplayName(profile.display_name || "");
     setPhone(profile.phone || "");
@@ -148,84 +115,87 @@ export default function EmployeeDetailPage() {
     setRole(profile.role);
     setStatus(profile.status);
     setProfileCompleted(Boolean(profile.profile_completed));
-
-    setIsLoading(false);
   };
 
+  const loadUser = useCallback(
+    async (mode: "initial" | "refresh" = "initial") => {
+      if (!id) {
+        navigate("/employees");
+        return;
+      }
+
+      const requestId = requestTracker.current.next();
+
+      if (mode === "initial") {
+        setIsBootstrapping(true);
+      } else {
+        setIsRefreshing(true);
+      }
+
+      setSaveError("");
+
+      try {
+        const {
+          data: { user: authUser },
+          error: authError,
+        } = await supabase.auth.getUser();
+
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        if (authError || !authUser) {
+          navigate("/login");
+          return;
+        }
+
+        setCurrentUserId(authUser.id);
+
+        const [
+          { data: me, error: meError },
+          { data: profileData, error: profileError },
+        ] = await Promise.all([
+          supabase.from("profiles").select("role").eq("user_id", authUser.id).single(),
+          supabase.from("profiles").select("*").eq("user_id", id).single(),
+        ]);
+
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        if (meError || !me) {
+          navigate("/employees");
+          return;
+        }
+
+        setCurrentUserRole((me.role as Role) || null);
+
+        if (profileError || !profileData) {
+          navigate("/employees");
+          return;
+        }
+
+        fillForm(profileData as ProfileRow);
+      } catch (err) {
+        if (!requestTracker.current.isLatest(requestId)) return;
+        console.error("Employee detail load error:", err);
+        setSaveError("Failed to load user profile.");
+      } finally {
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        if (mode === "initial") {
+          setIsBootstrapping(false);
+        } else {
+          setIsRefreshing(false);
+        }
+      }
+    },
+    [id, navigate]
+  );
+
   useEffect(() => {
-    loadUser();
-  }, [id]);
+    void loadUser("initial");
+  }, [loadUser]);
 
   const showSaved = () => {
     setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
-  };
-
-  const handleSave = async () => {
-    if (!id || !user) return;
-
-    setIsSaving(true);
-    setSaveError("");
-    setSaved(false);
-
-    const payload: Record<string, unknown> = {
-      full_name: fullName.trim() || null,
-      display_name: displayName.trim() || null,
-      phone: phone.trim() || null,
-      country: country.trim() || null,
-      city: city.trim() || null,
-      company: company.trim() || null,
-      department: department.trim() || null,
-      job_title: jobTitle.trim() || null,
-      bio: bio.trim() || null,
-      avatar_url: avatarUrl.trim() || null,
-      wechat: wechat.trim() || null,
-      whatsapp: whatsapp.trim() || null,
-      updated_at: new Date().toISOString(),
-    };
-
-    if (canManage) {
-      payload.role = role;
-      payload.status = status;
-      payload.profile_completed = profileCompleted;
-    }
-
-    const { error } = await supabase.from("profiles").update(payload).eq("user_id", id);
-
-    setIsSaving(false);
-
-    if (error) {
-      setSaveError(error.message || "Failed to save user.");
-      return;
-    }
-
-    setIsEditing(false);
-    showSaved();
-    loadUser();
-  };
-
-  const handleDeactivateUser = async () => {
-    if (!id || !canManage) return;
-
-    const confirmed = window.confirm(
-      "Are you sure you want to deactivate this user? They will not be able to access the system."
-    );
-    if (!confirmed) return;
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        status: "inactive",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", id);
-
-    if (error) {
-      setSaveError(error.message || "Failed to deactivate user.");
-      return;
-    }
-
-    loadUser();
+    window.setTimeout(() => setSaved(false), 2500);
   };
 
   const getInitials = (name: string | null) => {
@@ -261,16 +231,121 @@ export default function EmployeeDetailPage() {
         return "bg-red-500/20 text-red-400 border-red-500/30";
     }
   };
+  const handleSave = async () => {
+    if (!id || !user) return;
 
-  if (isLoading) {
+    setIsSaving(true);
+    setSaveError("");
+    setSaved(false);
+
+    const nextUpdatedAt = new Date().toISOString();
+
+    const payload: Record<string, unknown> = {
+      full_name: fullName.trim() || null,
+      display_name: displayName.trim() || null,
+      phone: phone.trim() || null,
+      country: country.trim() || null,
+      city: city.trim() || null,
+      company: company.trim() || null,
+      department: department.trim() || null,
+      job_title: jobTitle.trim() || null,
+      bio: bio.trim() || null,
+      avatar_url: avatarUrl.trim() || null,
+      wechat: wechat.trim() || null,
+      whatsapp: whatsapp.trim() || null,
+      updated_at: nextUpdatedAt,
+    };
+
+    if (canManage) {
+      payload.role = role;
+      payload.status = status;
+      payload.profile_completed = profileCompleted;
+    }
+
+    try {
+      const { error } = await supabase.from("profiles").update(payload).eq("user_id", id);
+
+      if (error) {
+        setSaveError(error.message || "Failed to save user.");
+        return;
+      }
+
+      setUser((prev) =>
+        prev
+          ? ({
+              ...prev,
+              ...payload,
+            } as ProfileRow)
+          : prev
+      );
+
+      setIsEditing(false);
+      showSaved();
+    } catch (err) {
+      console.error("Save employee error:", err);
+      setSaveError("Failed to save user.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeactivateUser = async () => {
+    if (!id || !canManage) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to deactivate this user? They will not be able to access the system."
+    );
+    if (!confirmed) return;
+
+    setIsDeactivating(true);
+    setSaveError("");
+
+    try {
+      const nextUpdatedAt = new Date().toISOString();
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          status: "inactive",
+          updated_at: nextUpdatedAt,
+        })
+        .eq("user_id", id);
+
+      if (error) {
+        setSaveError(error.message || "Failed to deactivate user.");
+        return;
+      }
+
+      setStatus("inactive");
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: "inactive",
+              updated_at: nextUpdatedAt,
+            }
+          : prev
+      );
+    } catch (err) {
+      console.error("Deactivate employee error:", err);
+      setSaveError("Failed to deactivate user.");
+    } finally {
+      setIsDeactivating(false);
+    }
+  };
+
+  if (!user && !isBootstrapping) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500" />
+      <div className="max-w-4xl mx-auto space-y-6">
+        <Card className="bg-red-900/10 border-red-800/30">
+          <CardContent className="p-6 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
+            <div className="text-red-300">User not found.</div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
-
-  if (!user) return null;
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -280,6 +355,7 @@ export default function EmployeeDetailPage() {
             variant="ghost"
             className="text-slate-300 hover:bg-slate-800"
             onClick={() => navigate("/employees")}
+            disabled={isSaving || isDeactivating}
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
@@ -292,11 +368,21 @@ export default function EmployeeDetailPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            onClick={() => void loadUser("refresh")}
+            disabled={isRefreshing || isSaving || isDeactivating}
+          >
+            {isRefreshing ? "Refreshing..." : "Refresh"}
+          </Button>
+
           {canManage && (
             <Button
               variant="outline"
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
               onClick={() => navigate(`/employees/${id}/permissions`)}
+              disabled={isSaving || isDeactivating}
             >
               <Shield className="w-4 h-4 mr-2" />
               Permissions
@@ -307,6 +393,7 @@ export default function EmployeeDetailPage() {
             <Button
               className="bg-indigo-600 hover:bg-indigo-700 text-white"
               onClick={() => setIsEditing(true)}
+              disabled={isDeactivating}
             >
               <Edit className="w-4 h-4 mr-2" />
               Edit
@@ -317,10 +404,11 @@ export default function EmployeeDetailPage() {
             <Button
               variant="outline"
               className="border-red-800 text-red-400 hover:bg-red-900/20"
-              onClick={handleDeactivateUser}
+              onClick={() => void handleDeactivateUser()}
+              disabled={isDeactivating || isSaving}
             >
               <Trash2 className="w-4 h-4 mr-2" />
-              Deactivate
+              {isDeactivating ? "Deactivating..." : "Deactivate"}
             </Button>
           )}
         </div>
@@ -341,269 +429,307 @@ export default function EmployeeDetailPage() {
       <div className="grid xl:grid-cols-[340px,1fr] gap-6">
         <Card className="bg-slate-900/50 border-slate-800">
           <CardContent className="p-6">
-            <div className="flex flex-col items-center text-center">
-              <Avatar className="w-24 h-24 mb-4">
-                <AvatarImage src={avatarUrl || undefined} />
-                <AvatarFallback className="bg-indigo-600 text-white text-2xl">
-                  {getInitials(fullName)}
-                </AvatarFallback>
-              </Avatar>
-
-              <h2 className="text-xl font-semibold text-white">{fullName || "Unnamed user"}</h2>
-              <p className="text-slate-400">{displayName || "No display name"}</p>
-
-              <div className="flex items-center gap-2 flex-wrap justify-center mt-4">
-                <Badge className={getRoleColor(role)}>{role.toUpperCase()}</Badge>
-                <Badge className={getStatusColor(status)}>{status.toUpperCase()}</Badge>
-                {!profileCompleted && (
-                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-                    PROFILE INCOMPLETE
-                  </Badge>
-                )}
-              </div>
-
-              <div className="w-full mt-6 space-y-3 text-left">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <Phone className="w-4 h-4 text-slate-500" />
-                  <span>{phone || "No phone"}</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-300">
-                  <MapPin className="w-4 h-4 text-slate-500" />
-                  <span>{[city, country].filter(Boolean).join(", ") || "No location"}</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-300">
-                  <Building2 className="w-4 h-4 text-slate-500" />
-                  <span>{company || "No company"}</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-300">
-                  <Briefcase className="w-4 h-4 text-slate-500" />
-                  <span>{jobTitle || "No job title"}</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-300">
-                  <User className="w-4 h-4 text-slate-500" />
-                  <span>{department || "No department"}</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-300">
-                  <MessageCircle className="w-4 h-4 text-slate-500" />
-                  <span>WhatsApp: {whatsapp || "—"}</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-300">
-                  <MessageCircle className="w-4 h-4 text-slate-500" />
-                  <span>WeChat: {wechat || "—"}</span>
+            {isBootstrapping && !user ? (
+              <div className="animate-pulse space-y-4">
+                <div className="w-24 h-24 rounded-full bg-slate-800 mx-auto" />
+                <div className="h-6 bg-slate-800 rounded w-40 mx-auto" />
+                <div className="h-4 bg-slate-800 rounded w-28 mx-auto" />
+                <div className="space-y-3 pt-4">
+                  <div className="h-4 bg-slate-800 rounded" />
+                  <div className="h-4 bg-slate-800 rounded" />
+                  <div className="h-4 bg-slate-800 rounded" />
+                  <div className="h-4 bg-slate-800 rounded" />
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex flex-col items-center text-center">
+                <Avatar className="w-24 h-24 mb-4">
+                  <AvatarImage src={avatarUrl || undefined} />
+                  <AvatarFallback className="bg-indigo-600 text-white text-2xl">
+                    {getInitials(fullName)}
+                  </AvatarFallback>
+                </Avatar>
+
+                <h2 className="text-xl font-semibold text-white">{fullName || "Unnamed user"}</h2>
+                <p className="text-slate-400">{displayName || "No display name"}</p>
+
+                <div className="flex items-center gap-2 flex-wrap justify-center mt-4">
+                  <Badge className={getRoleColor(role)}>{role.toUpperCase()}</Badge>
+                  <Badge className={getStatusColor(status)}>{status.toUpperCase()}</Badge>
+                  {!profileCompleted && (
+                    <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                      PROFILE INCOMPLETE
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="w-full mt-6 space-y-3 text-left">
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <Phone className="w-4 h-4 text-slate-500" />
+                    <span>{phone || "No phone"}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <MapPin className="w-4 h-4 text-slate-500" />
+                    <span>{[city, country].filter(Boolean).join(", ") || "No location"}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <Building2 className="w-4 h-4 text-slate-500" />
+                    <span>{company || "No company"}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <Briefcase className="w-4 h-4 text-slate-500" />
+                    <span>{jobTitle || "No job title"}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <User className="w-4 h-4 text-slate-500" />
+                    <span>{department || "No department"}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <MessageCircle className="w-4 h-4 text-slate-500" />
+                    <span>WhatsApp: {whatsapp || "—"}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <MessageCircle className="w-4 h-4 text-slate-500" />
+                    <span>WeChat: {wechat || "—"}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
-
         <Card className="bg-slate-900/50 border-slate-800">
           <CardHeader>
             <CardTitle className="text-white">
               {isEditing ? "Edit Profile Details" : "Profile Details"}
             </CardTitle>
           </CardHeader>
+
           <CardContent className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-slate-300">Full Name</Label>
-                <Input
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  disabled={!isEditing}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">Display Name</Label>
-                <Input
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  disabled={!isEditing}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">Phone</Label>
-                <Input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  disabled={!isEditing}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">Country</Label>
-                <Input
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  disabled={!isEditing}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">City</Label>
-                <Input
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  disabled={!isEditing}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">Company</Label>
-                <Input
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                  disabled={!isEditing}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">Department</Label>
-                <Input
-                  value={department}
-                  onChange={(e) => setDepartment(e.target.value)}
-                  disabled={!isEditing}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">Job Title</Label>
-                <Input
-                  value={jobTitle}
-                  onChange={(e) => setJobTitle(e.target.value)}
-                  disabled={!isEditing}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">WhatsApp</Label>
-                <Input
-                  value={whatsapp}
-                  onChange={(e) => setWhatsapp(e.target.value)}
-                  disabled={!isEditing}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">WeChat</Label>
-                <Input
-                  value={wechat}
-                  onChange={(e) => setWechat(e.target.value)}
-                  disabled={!isEditing}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label className="text-slate-300">Profile Photo URL</Label>
-                <Input
-                  value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value)}
-                  disabled={!isEditing}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label className="text-slate-300">Short Bio</Label>
-                <Textarea
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  disabled={!isEditing}
-                  rows={5}
-                  className="bg-slate-950 border-slate-800 text-white resize-none"
-                />
-              </div>
-            </div>
-
-            {canManage && (
-              <div className="grid md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-slate-300">Role</Label>
-                  <Select value={role} onValueChange={(v) => setRole(v as Role)} disabled={!isEditing}>
-                    <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
-                      <SelectItem value="employee">Employee</SelectItem>
-                      <SelectItem value="guest">Guest</SelectItem>
-                    </SelectContent>
-                  </Select>
+            {isBootstrapping && !user ? (
+              <div className="space-y-6 animate-pulse">
+                <div className="grid md:grid-cols-2 gap-4">
+                  {Array.from({ length: 10 }).map((_, index) => (
+                    <div key={index} className="space-y-2">
+                      <div className="h-4 bg-slate-800 rounded w-24" />
+                      <div className="h-10 bg-slate-800 rounded" />
+                    </div>
+                  ))}
                 </div>
-
                 <div className="space-y-2">
-                  <Label className="text-slate-300">Status</Label>
-                  <Select
-                    value={status}
-                    onValueChange={(v) => setStatus(v as Status)}
-                    disabled={!isEditing}
-                  >
-                    <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                      <SelectItem value="denied">Denied</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-slate-300">Profile Completion</Label>
-                  <Select
-                    value={profileCompleted ? "yes" : "no"}
-                    onValueChange={(v) => setProfileCompleted(v === "yes")}
-                    disabled={!isEditing}
-                  >
-                    <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                      <SelectItem value="yes">Completed</SelectItem>
-                      <SelectItem value="no">Incomplete</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="h-4 bg-slate-800 rounded w-28" />
+                  <div className="h-28 bg-slate-800 rounded" />
                 </div>
               </div>
-            )}
+            ) : (
+              <>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Full Name</Label>
+                    <Input
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      disabled={!isEditing}
+                      className="bg-slate-950 border-slate-800 text-white"
+                    />
+                  </div>
 
-            {(canManage || isOwnProfile) && isEditing && (
-              <div className="flex items-center justify-end gap-2">
-                <Button
-                  variant="outline"
-                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                  onClick={() => {
-                    setIsEditing(false);
-                    loadUser();
-                  }}
-                >
-                  <X className="w-4 h-4 mr-2" />
-                  Cancel
-                </Button>
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Display Name</Label>
+                    <Input
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      disabled={!isEditing}
+                      className="bg-slate-950 border-slate-800 text-white"
+                    />
+                  </div>
 
-                <Button
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                  onClick={handleSave}
-                  disabled={isSaving}
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {isSaving ? "Saving..." : "Save Changes"}
-                </Button>
-              </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Phone</Label>
+                    <Input
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      disabled={!isEditing}
+                      className="bg-slate-950 border-slate-800 text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Country</Label>
+                    <Input
+                      value={country}
+                      onChange={(e) => setCountry(e.target.value)}
+                      disabled={!isEditing}
+                      className="bg-slate-950 border-slate-800 text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">City</Label>
+                    <Input
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      disabled={!isEditing}
+                      className="bg-slate-950 border-slate-800 text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Company</Label>
+                    <Input
+                      value={company}
+                      onChange={(e) => setCompany(e.target.value)}
+                      disabled={!isEditing}
+                      className="bg-slate-950 border-slate-800 text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Department</Label>
+                    <Input
+                      value={department}
+                      onChange={(e) => setDepartment(e.target.value)}
+                      disabled={!isEditing}
+                      className="bg-slate-950 border-slate-800 text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Job Title</Label>
+                    <Input
+                      value={jobTitle}
+                      onChange={(e) => setJobTitle(e.target.value)}
+                      disabled={!isEditing}
+                      className="bg-slate-950 border-slate-800 text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">WhatsApp</Label>
+                    <Input
+                      value={whatsapp}
+                      onChange={(e) => setWhatsapp(e.target.value)}
+                      disabled={!isEditing}
+                      className="bg-slate-950 border-slate-800 text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">WeChat</Label>
+                    <Input
+                      value={wechat}
+                      onChange={(e) => setWechat(e.target.value)}
+                      disabled={!isEditing}
+                      className="bg-slate-950 border-slate-800 text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label className="text-slate-300">Profile Photo URL</Label>
+                    <Input
+                      value={avatarUrl}
+                      onChange={(e) => setAvatarUrl(e.target.value)}
+                      disabled={!isEditing}
+                      className="bg-slate-950 border-slate-800 text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label className="text-slate-300">Short Bio</Label>
+                    <Textarea
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                      disabled={!isEditing}
+                      rows={5}
+                      className="bg-slate-950 border-slate-800 text-white resize-none"
+                    />
+                  </div>
+                </div>
+
+                {canManage && (
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">Role</Label>
+                      <Select
+                        value={role}
+                        onValueChange={(v) => setRole(v as Role)}
+                        disabled={!isEditing}
+                      >
+                        <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="manager">Manager</SelectItem>
+                          <SelectItem value="employee">Employee</SelectItem>
+                          <SelectItem value="guest">Guest</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">Status</Label>
+                      <Select
+                        value={status}
+                        onValueChange={(v) => setStatus(v as Status)}
+                        disabled={!isEditing}
+                      >
+                        <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                          <SelectItem value="denied">Denied</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">Profile Completion</Label>
+                      <Select
+                        value={profileCompleted ? "yes" : "no"}
+                        onValueChange={(v) => setProfileCompleted(v === "yes")}
+                        disabled={!isEditing}
+                      >
+                        <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                          <SelectItem value="yes">Completed</SelectItem>
+                          <SelectItem value="no">Incomplete</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+
+                {(canManage || isOwnProfile) && isEditing && (
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                      onClick={() => {
+                        setIsEditing(false);
+                        if (user) fillForm(user);
+                      }}
+                      disabled={isSaving}
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Cancel
+                    </Button>
+
+                    <Button
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                      onClick={() => void handleSave()}
+                      disabled={isSaving}
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      {isSaving ? "Saving..." : "Save Changes"}
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>

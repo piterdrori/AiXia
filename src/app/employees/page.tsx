@@ -46,7 +46,6 @@ export default function EmployeesPage() {
   const requestTracker = useRef(createRequestTracker());
 
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -83,8 +82,6 @@ export default function EmployeesPage() {
           navigate("/login");
           return;
         }
-
-        setCurrentUserId(user.id);
 
         const [
           { data: me, error: meError },

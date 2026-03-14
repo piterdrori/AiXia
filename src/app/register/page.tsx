@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { v4 as uuidv4 } from "uuid";
+import { sendVerificationEmail } from "@/lib/sendVerificationEmail";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,8 @@ import {
 type RequestedRole = "manager" | "employee" | "guest";
 
 export default function RegisterPage() {
+  const navigate = useNavigate();
+
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,23 +37,20 @@ export default function RegisterPage() {
     setError("");
     setSuccessMessage("");
 
-    // --- Validation ---
     if (!fullName.trim()) return setError("Full name is required.");
     if (!email.trim()) return setError("Email is required.");
-    if (password.length < 6)
-      return setError("Password must be at least 6 characters.");
-    if (password !== confirmPassword)
-      return setError("Passwords do not match.");
+    if (password.length < 6) return setError("Password must be at least 6 characters.");
+    if (password !== confirmPassword) return setError("Passwords do not match.");
 
     setIsLoading(true);
 
     try {
-      // --- Generate verification token ---
+      // Generate verification token
       const verificationToken = uuidv4();
       const tokenExpiry = new Date();
       tokenExpiry.setHours(tokenExpiry.getHours() + 24);
 
-      // --- Sign up user with Supabase Auth ---
+      // Sign up user
       const { error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
@@ -58,7 +58,7 @@ export default function RegisterPage() {
 
       if (signUpError) throw signUpError;
 
-      // --- Insert / update profile with pending_verification ---
+      // Insert / update profile
       const { error: profileError } = await supabase
         .from("profiles")
         .upsert([
@@ -74,19 +74,16 @@ export default function RegisterPage() {
 
       if (profileError) throw profileError;
 
-      // --- Send verification email ---
-      await fetch("/api/send-verification-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email.trim(),
-          link: `${window.location.origin}/complete-profile?token=${verificationToken}`,
-        }),
-      });
+      // Send verification email
+      await sendVerificationEmail(
+        email.trim(),
+        `${window.location.origin}/complete-profile?token=${verificationToken}`
+      );
 
       setSuccessMessage(
         "Registration submitted! Check your email to complete your profile. After submission, an admin will review your details. You cannot log in until approved."
       );
+
       setFullName("");
       setEmail("");
       setPassword("");
@@ -105,9 +102,7 @@ export default function RegisterPage() {
         <CardContent className="p-8">
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold text-white">Create Account</h1>
-            <p className="text-slate-400 mt-2">
-              Request access to the platform
-            </p>
+            <p className="text-slate-400 mt-2">Request access to the platform</p>
           </div>
 
           <form onSubmit={handleRegister} className="space-y-5">
@@ -124,9 +119,7 @@ export default function RegisterPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="fullName" className="text-slate-300">
-                Full Name
-              </Label>
+              <Label htmlFor="fullName" className="text-slate-300">Full Name</Label>
               <Input
                 id="fullName"
                 value={fullName}
@@ -138,9 +131,7 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-300">
-                Email
-              </Label>
+              <Label htmlFor="email" className="text-slate-300">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -156,9 +147,7 @@ export default function RegisterPage() {
               <Label className="text-slate-300">Requested Role</Label>
               <Select
                 value={requestedRole}
-                onValueChange={(value) =>
-                  setRequestedRole(value as RequestedRole)
-                }
+                onValueChange={(value) => setRequestedRole(value as RequestedRole)}
                 disabled={isLoading}
               >
                 <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
@@ -173,9 +162,7 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-300">
-                Password
-              </Label>
+              <Label htmlFor="password" className="text-slate-300">Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -188,9 +175,7 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-slate-300">
-                Confirm Password
-              </Label>
+              <Label htmlFor="confirmPassword" className="text-slate-300">Confirm Password</Label>
               <Input
                 id="confirmPassword"
                 type="password"
@@ -213,9 +198,7 @@ export default function RegisterPage() {
 
           <div className="mt-6 text-center text-sm text-slate-400">
             Already have an account?{" "}
-            <Link to="/login" className="text-indigo-400 hover:text-indigo-300">
-              Sign in
-            </Link>
+            <Link to="/login" className="text-indigo-400 hover:text-indigo-300">Sign in</Link>
           </div>
         </CardContent>
       </Card>

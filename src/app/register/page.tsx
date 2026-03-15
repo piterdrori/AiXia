@@ -17,6 +17,39 @@ import {
 
 type RequestedRole = "manager" | "employee" | "guest";
 
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) {
+    return err.message;
+  }
+
+  if (typeof err === "string" && err.trim()) {
+    return err;
+  }
+
+  if (err && typeof err === "object") {
+    const anyErr = err as Record<string, unknown>;
+
+    if (typeof anyErr.message === "string" && anyErr.message.trim()) {
+      return anyErr.message;
+    }
+
+    if (
+      typeof anyErr.error_description === "string" &&
+      anyErr.error_description.trim()
+    ) {
+      return anyErr.error_description;
+    }
+
+    if (typeof anyErr.msg === "string" && anyErr.msg.trim()) {
+      return anyErr.msg;
+    }
+
+    return JSON.stringify(anyErr, null, 2);
+  }
+
+  return "Registration failed. Try again.";
+}
+
 export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -57,7 +90,7 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      const result = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
@@ -71,8 +104,10 @@ export default function RegisterPage() {
         },
       });
 
-      if (signUpError) {
-        throw signUpError;
+      console.log("SIGNUP RESULT:", result);
+
+      if (result.error) {
+        throw result.error;
       }
 
       setSuccessMessage(
@@ -84,16 +119,9 @@ export default function RegisterPage() {
       setPassword("");
       setConfirmPassword("");
       setRequestedRole("employee");
-    } catch (err: any) {
-      const errorMessage =
-        err?.message ||
-        err?.error_description ||
-        err?.msg ||
-        JSON.stringify(err, null, 2) ||
-        "Registration failed. Try again.";
-
-      console.error("Register error:", err);
-      setError(errorMessage);
+    } catch (err) {
+      console.error("REGISTER ERROR:", err);
+      setError(getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -111,7 +139,9 @@ export default function RegisterPage() {
           <form onSubmit={handleRegister} className="space-y-5">
             {error && (
               <Alert className="bg-red-900/20 border-red-800 text-red-300">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription className="whitespace-pre-wrap">
+                  {error}
+                </AlertDescription>
               </Alert>
             )}
 

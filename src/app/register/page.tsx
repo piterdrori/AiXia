@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { Link } from "react-router-dom"; // Ensure Link is imported
+import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-import { v4 as uuidv4 } from "uuid";
-import { sendVerificationEmail } from "@/lib/sendVerificationEmail";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +22,8 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [requestedRole, setRequestedRole] = useState<RequestedRole>("employee");
+  const [requestedRole, setRequestedRole] =
+    useState<RequestedRole>("employee");
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -35,47 +34,49 @@ export default function RegisterPage() {
     setError("");
     setSuccessMessage("");
 
-    if (!fullName.trim()) return setError("Full name is required.");
-    if (!email.trim()) return setError("Email is required.");
-    if (password.length < 6) return setError("Password must be at least 6 characters.");
-    if (password !== confirmPassword) return setError("Passwords do not match.");
+    if (!fullName.trim()) {
+      setError("Full name is required.");
+      return;
+    }
+
+    if (!email.trim()) {
+      setError("Email is required.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
 
     setIsLoading(true);
 
     try {
-      const verificationToken = uuidv4();
-      const tokenExpiry = new Date();
-      tokenExpiry.setHours(tokenExpiry.getHours() + 24);
-
       const { error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
-      });
-
-      if (signUpError) throw signUpError;
-
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .upsert([
-          {
-            email: email.trim(),
+        options: {
+          data: {
             full_name: fullName.trim(),
             requested_role: requestedRole,
+            role: requestedRole,
             status: "pending_verification",
-            verification_token: verificationToken,
-            token_expires_at: tokenExpiry.toISOString(),
+            profile_completed: false,
           },
-        ]);
+        },
+      });
 
-      if (profileError) throw profileError;
-
-      await sendVerificationEmail(
-        email.trim(),
-        `${window.location.origin}/complete-profile?token=${verificationToken}`
-      );
+      if (signUpError) {
+        throw signUpError;
+      }
 
       setSuccessMessage(
-        "Registration submitted! Check your email to complete your profile. After submission, an admin will review your details. You cannot log in until approved."
+        "Registration submitted successfully. Please check your email to verify your account. After verification, your request will wait for admin approval."
       );
 
       setFullName("");
@@ -83,21 +84,20 @@ export default function RegisterPage() {
       setPassword("");
       setConfirmPassword("");
       setRequestedRole("employee");
-try {
-  ...
-} catch (err: any) {
-  const errorMessage =
-    err?.message ||
-    err?.error_description ||
-    err?.msg ||
-    JSON.stringify(err, null, 2) ||
-    "Registration failed. Try again.";
+    } catch (err: any) {
+      const errorMessage =
+        err?.message ||
+        err?.error_description ||
+        err?.msg ||
+        JSON.stringify(err, null, 2) ||
+        "Registration failed. Try again.";
 
-  console.error("Register error:", err);
-  setError(errorMessage);
-} finally {
-  setIsLoading(false);
-}
+      console.error("Register error:", err);
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
@@ -122,7 +122,9 @@ try {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="fullName" className="text-slate-300">Full Name</Label>
+              <Label htmlFor="fullName" className="text-slate-300">
+                Full Name
+              </Label>
               <Input
                 id="fullName"
                 value={fullName}
@@ -134,7 +136,9 @@ try {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-300">Email</Label>
+              <Label htmlFor="email" className="text-slate-300">
+                Email
+              </Label>
               <Input
                 id="email"
                 type="email"
@@ -150,7 +154,9 @@ try {
               <Label className="text-slate-300">Requested Role</Label>
               <Select
                 value={requestedRole}
-                onValueChange={(value) => setRequestedRole(value as RequestedRole)}
+                onValueChange={(value) =>
+                  setRequestedRole(value as RequestedRole)
+                }
                 disabled={isLoading}
               >
                 <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
@@ -165,7 +171,9 @@ try {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-300">Password</Label>
+              <Label htmlFor="password" className="text-slate-300">
+                Password
+              </Label>
               <Input
                 id="password"
                 type="password"
@@ -178,7 +186,9 @@ try {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-slate-300">Confirm Password</Label>
+              <Label htmlFor="confirmPassword" className="text-slate-300">
+                Confirm Password
+              </Label>
               <Input
                 id="confirmPassword"
                 type="password"
@@ -200,7 +210,7 @@ try {
           </form>
 
           <div className="mt-6 text-center text-sm text-slate-400">
-            Don't have an account?{" "}
+            Already have an account?{" "}
             <Link to="/login" className="text-indigo-400 hover:text-indigo-300">
               Sign in
             </Link>

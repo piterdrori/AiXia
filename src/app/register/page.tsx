@@ -83,6 +83,8 @@ export default function RegisterPage() {
       setPassword("");
       setConfirmPassword("");
       setRequestedRole("employee");
+try {
+  ...
 } catch (err: any) {
   const errorMessage =
     err?.message ||

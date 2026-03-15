@@ -78,6 +78,7 @@ export default function EmployeeDetailPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeactivating, setIsDeactivating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [saveError, setSaveError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -356,6 +357,37 @@ export default function EmployeeDetailPage() {
     }
   };
 
+  const handleDeleteUser = async () => {
+    if (!id || !canManage) return;
+
+    const confirmed = window.confirm(
+      "⚠️ This will permanently delete the user. This cannot be undone. Continue?"
+    );
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    setSaveError("");
+
+    try {
+      const { error } = await supabase.rpc("admin_delete_user", {
+        target_user_id: id,
+      });
+
+      if (error) {
+        setSaveError(error.message || "Failed to delete user.");
+        return;
+      }
+
+      window.alert("User deleted successfully.");
+      navigate("/employees");
+    } catch (err) {
+      console.error("Delete user error:", err);
+      setSaveError("Failed to delete user.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (!user && !isBootstrapping) {
     return (
       <div className="max-w-4xl mx-auto space-y-6">
@@ -377,7 +409,7 @@ export default function EmployeeDetailPage() {
             variant="ghost"
             className="text-slate-300 hover:bg-slate-800"
             onClick={() => navigate("/employees")}
-            disabled={isSaving || isDeactivating}
+            disabled={isSaving || isDeactivating || isDeleting}
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
@@ -394,7 +426,7 @@ export default function EmployeeDetailPage() {
             variant="outline"
             className="border-slate-700 text-slate-300 hover:bg-slate-800"
             onClick={() => void loadUser("refresh")}
-            disabled={isRefreshing || isSaving || isDeactivating}
+            disabled={isRefreshing || isSaving || isDeactivating || isDeleting}
           >
             {isRefreshing ? "Refreshing..." : "Refresh"}
           </Button>
@@ -404,7 +436,7 @@ export default function EmployeeDetailPage() {
               variant="outline"
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
               onClick={() => navigate(`/employees/${id}/permissions`)}
-              disabled={isSaving || isDeactivating}
+              disabled={isSaving || isDeactivating || isDeleting}
             >
               <Shield className="w-4 h-4 mr-2" />
               Permissions
@@ -415,7 +447,7 @@ export default function EmployeeDetailPage() {
             <Button
               className="bg-indigo-600 hover:bg-indigo-700 text-white"
               onClick={() => setIsEditing(true)}
-              disabled={isDeactivating}
+              disabled={isDeactivating || isDeleting}
             >
               <Edit className="w-4 h-4 mr-2" />
               Edit
@@ -427,10 +459,21 @@ export default function EmployeeDetailPage() {
               variant="outline"
               className="border-red-800 text-red-400 hover:bg-red-900/20"
               onClick={() => void handleDeactivateUser()}
-              disabled={isDeactivating || isSaving}
+              disabled={isDeactivating || isSaving || isDeleting}
             >
               <Trash2 className="w-4 h-4 mr-2" />
               {isDeactivating ? "Deactivating..." : "Deactivate"}
+            </Button>
+          )}
+
+          {canManage && (
+            <Button
+              variant="destructive"
+              className="bg-red-700 hover:bg-red-800 text-white"
+              onClick={() => void handleDeleteUser()}
+              disabled={isDeleting || isSaving || isDeactivating}
+            >
+              {isDeleting ? "Deleting..." : "Delete User"}
             </Button>
           )}
         </div>

@@ -94,7 +94,8 @@ export default function RegisterPage() {
         email: email.trim(),
         password,
         options: {
-          data: {
+  emailRedirectTo: `${window.location.origin}/onboarding`,
+  data: {
             full_name: fullName.trim(),
             requested_role: requestedRole,
             role: requestedRole,

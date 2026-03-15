@@ -35,7 +35,11 @@ import {
 } from "lucide-react";
 
 type Role = "admin" | "manager" | "employee" | "guest";
-type Status = "active" | "pending" | "inactive" | "denied";
+type Status =
+  | "active"
+  | "pending_verification"
+  | "pending_approval"
+  | "rejected";
 
 type ProfileRow = {
   user_id: string;
@@ -225,12 +229,30 @@ export default function EmployeeDetailPage() {
     switch (value) {
       case "active":
         return "bg-green-500/20 text-green-400 border-green-500/30";
-      case "pending":
+      case "pending_verification":
         return "bg-amber-500/20 text-amber-400 border-amber-500/30";
-      default:
+      case "pending_approval":
+        return "bg-orange-500/20 text-orange-400 border-orange-500/30";
+      case "rejected":
         return "bg-red-500/20 text-red-400 border-red-500/30";
+      default:
+        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
     }
   };
+
+  const getStatusLabel = (value: Status) => {
+    switch (value) {
+      case "pending_verification":
+        return "PENDING VERIFICATION";
+      case "pending_approval":
+        return "PENDING APPROVAL";
+      case "rejected":
+        return "REJECTED";
+      default:
+        return value.toUpperCase();
+    }
+  };
+
   const handleSave = async () => {
     if (!id || !user) return;
 
@@ -306,7 +328,7 @@ export default function EmployeeDetailPage() {
       const { error } = await supabase
         .from("profiles")
         .update({
-          status: "inactive",
+          status: "rejected",
           updated_at: nextUpdatedAt,
         })
         .eq("user_id", id);
@@ -316,12 +338,12 @@ export default function EmployeeDetailPage() {
         return;
       }
 
-      setStatus("inactive");
+      setStatus("rejected");
       setUser((prev) =>
         prev
           ? {
               ...prev,
-              status: "inactive",
+              status: "rejected",
               updated_at: nextUpdatedAt,
             }
           : prev
@@ -455,7 +477,7 @@ export default function EmployeeDetailPage() {
 
                 <div className="flex items-center gap-2 flex-wrap justify-center mt-4">
                   <Badge className={getRoleColor(role)}>{role.toUpperCase()}</Badge>
-                  <Badge className={getStatusColor(status)}>{status.toUpperCase()}</Badge>
+                  <Badge className={getStatusColor(status)}>{getStatusLabel(status)}</Badge>
                   {!profileCompleted && (
                     <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
                       PROFILE INCOMPLETE
@@ -497,6 +519,7 @@ export default function EmployeeDetailPage() {
             )}
           </CardContent>
         </Card>
+
         <Card className="bg-slate-900/50 border-slate-800">
           <CardHeader>
             <CardTitle className="text-white">
@@ -678,9 +701,13 @@ export default function EmployeeDetailPage() {
                         </SelectTrigger>
                         <SelectContent className="bg-slate-950 border-slate-800 text-white">
                           <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="inactive">Inactive</SelectItem>
-                          <SelectItem value="denied">Denied</SelectItem>
+                          <SelectItem value="pending_verification">
+                            Pending Verification
+                          </SelectItem>
+                          <SelectItem value="pending_approval">
+                            Pending Approval
+                          </SelectItem>
+                          <SelectItem value="rejected">Rejected</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

@@ -120,12 +120,24 @@ export default function RegisterPage() {
       setConfirmPassword("");
       setRequestedRole("employee");
     } catch (err) {
-      console.error("REGISTER ERROR:", err);
-      setError(getErrorMessage(err));
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  console.error("REGISTER ERROR:", err);
+
+  const rawMessage = getErrorMessage(err);
+
+  if (
+    rawMessage.includes("Gateway Timeout") ||
+    rawMessage.includes("AuthRetryableFetchError") ||
+    rawMessage.includes("504")
+  ) {
+    setError(
+      "The server took too long to respond. Please wait a minute and try again. Also check in Supabase Users to see whether the account was already created."
+    );
+  } else {
+    setError(rawMessage);
+  }
+} finally {
+  setIsLoading(false);
+}
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">

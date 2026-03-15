@@ -83,12 +83,19 @@ export default function RegisterPage() {
       setPassword("");
       setConfirmPassword("");
       setRequestedRole("employee");
-    } catch (err: any) {
-      setError(err.message || "Registration failed. Try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+} catch (err: any) {
+  const errorMessage =
+    err?.message ||
+    err?.error_description ||
+    err?.msg ||
+    JSON.stringify(err, null, 2) ||
+    "Registration failed. Try again.";
+
+  console.error("Register error:", err);
+  setError(errorMessage);
+} finally {
+  setIsLoading(false);
+}
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">

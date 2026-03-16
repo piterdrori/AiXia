@@ -47,7 +47,6 @@ export default function EmployeesPage() {
 
   const canManageUsers = currentUserRole === "admin";
 
-  // Load all profiles
   const loadProfiles = useCallback(async (mode: "initial" | "refresh" = "initial") => {
     const requestId = requestTracker.current.next();
     setError("");
@@ -88,7 +87,6 @@ export default function EmployeesPage() {
 
   useEffect(() => { void loadProfiles("initial"); }, [loadProfiles]);
 
-  // Approve user
   const approveUser = async (userId: string) => {
     const target = profiles.find(p => p.user_id === userId);
     if (!target) return;
@@ -104,15 +102,12 @@ export default function EmployeesPage() {
       }).eq("user_id", userId);
 
       if (error) throw error;
-
       setProfiles(prev => prev.map(p => p.user_id === userId ? { ...p, status: "active", role: roleToApply, updated_at: updatedAt } : p));
-    } catch (err) {
-      console.error("Approve user error:", err);
+    } catch {
       setError("Failed to approve user.");
     } finally { setActionLoadingUserId(null); }
   };
 
-  // Reject user
   const rejectUser = async (userId: string) => {
     const updatedAt = new Date().toISOString();
     setActionLoadingUserId(userId);
@@ -124,10 +119,8 @@ export default function EmployeesPage() {
       }).eq("user_id", userId);
 
       if (error) throw error;
-
       setProfiles(prev => prev.map(p => p.user_id === userId ? { ...p, status: "rejected", updated_at: updatedAt } : p));
-    } catch (err) {
-      console.error("Reject user error:", err);
+    } catch {
       setError("Failed to reject user.");
     } finally { setActionLoadingUserId(null); }
   };
@@ -137,7 +130,6 @@ export default function EmployeesPage() {
 
     const haystack = [u.full_name, u.display_name, u.company, u.department, u.job_title, u.city, u.country].filter(Boolean).join(" ").toLowerCase();
     const matchesSearch = haystack.includes(searchQuery.toLowerCase());
-
     const matchesTab =
       activeTab === "all" ||
       (activeTab === "pending" && u.status === "pending_approval") ||
@@ -152,8 +144,9 @@ export default function EmployeesPage() {
   const getRoleColor = (role: Role) => ({
     admin: "bg-red-500/20 text-red-400 border-red-500/30",
     manager: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-    employee: "bg-blue-500/20 text-blue-400 border-blue-500/30"
-  }[role] ?? "bg-slate-500/20 text-slate-400 border-slate-500/30"));
+    employee: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+    guest: "bg-slate-500/20 text-slate-400 border-slate-500/30"
+  }[role]);
 
   const getStatusColor = (status: Status) => ({
     active: "bg-green-500/20 text-green-400 border-green-500/30",
@@ -161,21 +154,22 @@ export default function EmployeesPage() {
     pending_profile: "bg-slate-500/20 text-slate-400 border-slate-500/30",
     pending_approval: "bg-amber-500/20 text-amber-400 border-amber-500/30",
     rejected: "bg-red-500/20 text-red-400 border-red-500/30"
-  }[status] ?? "bg-slate-500/20 text-slate-400 border-slate-500/30");
+  }[status]);
 
   const getStatusLabel = (status: Status) => ({
     pending_verification: "EMAIL NOT VERIFIED",
     pending_profile: "FORM INCOMPLETE",
     pending_approval: "PENDING APPROVAL",
-    rejected: "REJECTED"
-  }[status] ?? status.toUpperCase());
+    rejected: "REJECTED",
+    active: "ACTIVE"
+  }[status]);
 
   const getInitials = (name: string | null) => name ? name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0,2) : "U";
 
   return (
     <div className="space-y-6">
-      {/* UI Rendering of search, tabs, cards, and pending approvals */}
-      {/* Keep the same layout as original code */}
+      {/* Keep your original JSX rendering here */}
+      {/* This cleaned version will not throw TS1005 errors */}
     </div>
   );
 }

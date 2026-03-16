@@ -22,56 +22,53 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setSuccessMessage("");
+const handleRegister = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError("");
+  setSuccessMessage("");
 
-    // --- Basic validation ---
-    if (!fullName.trim()) return setError("Full name is required.");
-    if (!email.trim()) return setError("Email is required.");
-    if (password.length < 6) return setError("Password must be at least 6 characters.");
-    if (password !== confirmPassword) return setError("Passwords do not match.");
+  if (!fullName.trim()) return setError("Full name is required.");
+  if (!email.trim()) return setError("Email is required.");
+  if (password.length < 6) return setError("Password must be at least 6 characters.");
+  if (password !== confirmPassword) return setError("Passwords do not match.");
 
-    setIsLoading(true);
+  setIsLoading(true);
 
-    try {
-      // --- Sign up the user with metadata for the profiles trigger ---
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/onboarding`,
-          data: {
-            full_name: fullName.trim(),
-            requested_role: requestedRole,
-            role: requestedRole,
-            status: "pending_verification",
-            profile_completed: false,
-          },
+  try {
+    // Only destructure error, not data
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/onboarding`,
+        data: {
+          full_name: fullName.trim(),
+          requested_role: requestedRole,
+          role: requestedRole,
+          status: "pending_verification",
+          profile_completed: false,
         },
-      });
+      },
+    });
 
-      if (error) throw error;
+    if (error) throw error;
 
-      setSuccessMessage(
-        "Registration successful! Check your email to verify your account. " +
-        "After verification, you will be redirected to complete your profile and submit your request for admin approval."
-      );
+    setSuccessMessage(
+      "Registration successful! Check your email to verify your account. After verification, you will be redirected to complete your profile and submit your request for admin approval."
+    );
 
-      // reset fields
-      setFullName("");
-      setEmail("");
-      setPassword("");
-      setConfirmPassword("");
-      setRequestedRole("employee");
-    } catch (err: any) {
-      console.error("Registration error:", err);
-      setError(err.message || "Failed to register. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    setFullName("");
+    setEmail("");
+    setPassword("");
+    setConfirmPassword("");
+    setRequestedRole("employee");
+  } catch (err: any) {
+    console.error("Registration error:", err);
+    setError(err.message || "Failed to register. Please try again.");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">

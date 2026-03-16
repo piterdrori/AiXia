@@ -21,7 +21,11 @@ import {
 } from "lucide-react";
 
 type Role = "admin" | "manager" | "employee" | "guest";
-type Status = "active" | "pending" | "inactive" | "denied";
+type Status =
+  | "active"
+  | "pending_verification"
+  | "pending_approval"
+  | "rejected";
 
 type ProfileRow = {
   user_id: string;
@@ -186,7 +190,7 @@ export default function EmployeesPage() {
       const { error: updateError } = await supabase
         .from("profiles")
         .update({
-          status: "denied",
+          status: "rejected",
           updated_at: nextUpdatedAt,
         })
         .eq("user_id", userId);
@@ -202,7 +206,7 @@ export default function EmployeesPage() {
           profile.user_id === userId
             ? {
                 ...profile,
-                status: "denied",
+                status: "rejected",
                 updated_at: nextUpdatedAt,
               }
             : profile
@@ -234,16 +238,17 @@ export default function EmployeesPage() {
 
       const matchesTab =
         activeTab === "all" ||
-        (activeTab === "pending" && user.status === "pending") ||
+        (activeTab === "pending" && user.status === "pending_approval") ||
         (activeTab === "active" && user.status === "active") ||
-        (activeTab === "inactive" &&
-          (user.status === "inactive" || user.status === "denied"));
+        (activeTab === "inactive" && user.status === "rejected");
 
       return matchesSearch && matchesTab;
     });
   }, [profiles, searchQuery, activeTab]);
 
-  const pendingUsers = profiles.filter((user) => user.status === "pending");
+  const pendingUsers = profiles.filter(
+    (user) => user.status === "pending_approval"
+  );
 
   const getRoleColor = (role: Role) => {
     switch (role) {
@@ -262,10 +267,27 @@ export default function EmployeesPage() {
     switch (status) {
       case "active":
         return "bg-green-500/20 text-green-400 border-green-500/30";
-      case "pending":
+      case "pending_verification":
+        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
+      case "pending_approval":
         return "bg-amber-500/20 text-amber-400 border-amber-500/30";
-      default:
+      case "rejected":
         return "bg-red-500/20 text-red-400 border-red-500/30";
+      default:
+        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
+    }
+  };
+
+  const getStatusLabel = (status: Status) => {
+    switch (status) {
+      case "pending_verification":
+        return "EMAIL NOT VERIFIED";
+      case "pending_approval":
+        return "PENDING APPROVAL";
+      case "rejected":
+        return "REJECTED";
+      default:
+        return status.toUpperCase();
     }
   };
 
@@ -466,7 +488,7 @@ export default function EmployeesPage() {
                         {user.role.toUpperCase()}
                       </Badge>
                       <Badge className={getStatusColor(user.status)}>
-                        {user.status.toUpperCase()}
+                        {getStatusLabel(user.status)}
                       </Badge>
                       {!user.profile_completed && user.status === "active" && (
                         <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">

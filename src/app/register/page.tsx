@@ -27,6 +27,7 @@ export default function RegisterPage() {
     setError("");
     setSuccessMessage("");
 
+    // Basic validations
     if (!fullName.trim()) return setError("Full name is required.");
     if (!email.trim()) return setError("Email is required.");
     if (password.length < 6) return setError("Password must be at least 6 characters.");
@@ -35,29 +36,26 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // 1️⃣ Sign up user via Supabase
+      // Step 1: Sign up user in Supabase Auth
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/onboarding`,
-        },
+        options: { emailRedirectTo: `${window.location.origin}/onboarding` },
       });
 
-      if (signUpError || !data?.user) throw signUpError || new Error("Failed to create user");
+      if (signUpError || !data.user) throw signUpError || new Error("Failed to create user");
       const user = data.user;
 
-      // 2️⃣ Insert a minimal profile row for new user
+      // Step 2: Insert profile for the user
       const { error: profileError } = await supabase.from("profiles").insert({
-        user_id: user.id,               // Correct foreign key
-        requested_role: requestedRole,  // role user requested
-        status: "pending_verification", // initial status
+        user_id: user.id,             // foreign key exists
+        requested_role: requestedRole,
+        status: "pending_verification",
         profile_completed: false,
       });
 
       if (profileError) throw profileError;
 
-      // 3️⃣ Show success message
       setSuccessMessage(
         "Registration successful! Check your email to verify your account. After verification, complete your profile to submit the request for admin approval."
       );
@@ -86,53 +84,24 @@ export default function RegisterPage() {
             <p className="text-slate-400 mt-2">Request access to the platform</p>
           </div>
 
-          {error && (
-            <Alert className="bg-red-900/20 border-red-800 text-red-300 mb-4">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          {successMessage && (
-            <Alert className="bg-emerald-900/20 border-emerald-800 text-emerald-300 mb-4">
-              <AlertDescription>{successMessage}</AlertDescription>
-            </Alert>
-          )}
+          {error && <Alert className="bg-red-900/20 border-red-800 text-red-300 mb-4"><AlertDescription>{error}</AlertDescription></Alert>}
+          {successMessage && <Alert className="bg-emerald-900/20 border-emerald-800 text-emerald-300 mb-4"><AlertDescription>{successMessage}</AlertDescription></Alert>}
 
           <form onSubmit={handleRegister} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="fullName" className="text-slate-300">Full Name</Label>
-              <Input
-                id="fullName"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Enter your full name"
-                className="bg-slate-950 border-slate-800 text-white"
-                disabled={isLoading}
-              />
+              <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Enter your full name" className="bg-slate-950 border-slate-800 text-white" disabled={isLoading} />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="email" className="text-slate-300">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-                className="bg-slate-950 border-slate-800 text-white"
-                disabled={isLoading}
-              />
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email" className="bg-slate-950 border-slate-800 text-white" disabled={isLoading} />
             </div>
 
             <div className="space-y-2">
               <Label className="text-slate-300">Requested Role</Label>
-              <Select
-                value={requestedRole}
-                onValueChange={(v) => setRequestedRole(v as RequestedRole)}
-                disabled={isLoading}
-              >
-                <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
+              <Select value={requestedRole} onValueChange={(v) => setRequestedRole(v as RequestedRole)} disabled={isLoading}>
+                <SelectTrigger className="bg-slate-950 border-slate-800 text-white"><SelectValue placeholder="Select role" /></SelectTrigger>
                 <SelectContent className="bg-slate-950 border-slate-800 text-white">
                   <SelectItem value="manager">Manager</SelectItem>
                   <SelectItem value="employee">Employee</SelectItem>
@@ -143,44 +112,21 @@ export default function RegisterPage() {
 
             <div className="space-y-2">
               <Label htmlFor="password" className="text-slate-300">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Create a password"
-                className="bg-slate-950 border-slate-800 text-white"
-                disabled={isLoading}
-              />
+              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Create a password" className="bg-slate-950 border-slate-800 text-white" disabled={isLoading} />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="confirmPassword" className="text-slate-300">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm your password"
-                className="bg-slate-950 border-slate-800 text-white"
-                disabled={isLoading}
-              />
+              <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm your password" className="bg-slate-950 border-slate-800 text-white" disabled={isLoading} />
             </div>
 
-            <Button
-              type="submit"
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
-              disabled={isLoading}
-            >
+            <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white" disabled={isLoading}>
               {isLoading ? "Submitting..." : "Request Access"}
             </Button>
           </form>
 
           <div className="mt-6 text-center text-sm text-slate-400">
-            Already have an account?{" "}
-            <Link to="/login" className="text-indigo-400 hover:text-indigo-300">
-              Sign in
-            </Link>
+            Already have an account? <Link to="/login" className="text-indigo-400 hover:text-indigo-300">Sign in</Link>
           </div>
         </CardContent>
       </Card>

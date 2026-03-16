@@ -220,31 +220,35 @@ export default function EmployeesPage() {
     }
   };
 
-  const filteredUsers = useMemo(() => {
-    return profiles.filter((user) => {
-      const haystack = [
-        user.full_name || "",
-        user.display_name || "",
-        user.company || "",
-        user.department || "",
-        user.job_title || "",
-        user.city || "",
-        user.country || "",
-      ]
-        .join(" ")
-        .toLowerCase();
+const filteredUsers = useMemo(() => {
+  return profiles.filter((user) => {
+    if (user.status === "pending_verification") {
+      return false;
+    }
 
-      const matchesSearch = haystack.includes(searchQuery.toLowerCase());
+    const haystack = [
+      user.full_name || "",
+      user.display_name || "",
+      user.company || "",
+      user.department || "",
+      user.job_title || "",
+      user.city || "",
+      user.country || "",
+    ]
+      .join(" ")
+      .toLowerCase();
 
-      const matchesTab =
-        activeTab === "all" ||
-        (activeTab === "pending" && user.status === "pending_approval") ||
-        (activeTab === "active" && user.status === "active") ||
-        (activeTab === "inactive" && user.status === "rejected");
+    const matchesSearch = haystack.includes(searchQuery.toLowerCase());
 
-      return matchesSearch && matchesTab;
-    });
-  }, [profiles, searchQuery, activeTab]);
+    const matchesTab =
+      activeTab === "all" ||
+      (activeTab === "pending" && user.status === "pending_approval") ||
+      (activeTab === "active" && user.status === "active") ||
+      (activeTab === "inactive" && user.status === "rejected");
+
+    return matchesSearch && matchesTab;
+  });
+}, [profiles, searchQuery, activeTab]);
 
   const pendingUsers = profiles.filter(
     (user) => user.status === "pending_approval"

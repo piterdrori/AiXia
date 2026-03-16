@@ -4,11 +4,11 @@ import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import { Search, UserCheck, UserX, Shield, User as UserIcon, Plus, Eye, AlertCircle } from "lucide-react";
 
 type Role = "admin" | "manager" | "employee" | "guest";
@@ -42,15 +42,15 @@ export default function EmployeesPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionLoadingUserId, setActionLoadingUserId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState<"all" | "pending" | "active" | "inactive">("all");
   const [error, setError] = useState("");
 
   const canManageUsers = currentUserRole === "admin";
 
+  // Load all profiles
   const loadProfiles = useCallback(async (mode: "initial" | "refresh" = "initial") => {
     const requestId = requestTracker.current.next();
     setError("");
-
     if (mode === "initial") setIsBootstrapping(true);
     else setIsRefreshing(true);
 
@@ -77,7 +77,6 @@ export default function EmployeesPage() {
 
       setProfiles((profilesData || []) as ProfileRow[]);
     } catch (err) {
-      if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Employees page load error:", err);
       setProfiles([]);
       setError("Failed to load employees.");
@@ -87,127 +86,96 @@ export default function EmployeesPage() {
     }
   }, [navigate]);
 
-  useEffect(() => {
-    void loadProfiles("initial");
-  }, [loadProfiles]);
+  useEffect(() => { void loadProfiles("initial"); }, [loadProfiles]);
 
+  // Approve user
   const approveUser = async (userId: string) => {
-    const target = profiles.find((p) => p.user_id === userId);
+    const target = profiles.find(p => p.user_id === userId);
     if (!target) return;
-
     const roleToApply = target.requested_role || "employee";
-    const nextUpdatedAt = new Date().toISOString();
+    const updatedAt = new Date().toISOString();
     setActionLoadingUserId(userId);
-    setError("");
 
     try {
-      const { error: updateError } = await supabase.from("profiles").update({
+      const { error } = await supabase.from("profiles").update({
         status: "active",
         role: roleToApply,
-        updated_at: nextUpdatedAt
+        updated_at: updatedAt
       }).eq("user_id", userId);
 
-      if (updateError) throw updateError;
+      if (error) throw error;
 
-      setProfiles((prev) =>
-        prev.map((p) => p.user_id === userId ? { ...p, status: "active", role: roleToApply, updated_at: nextUpdatedAt } : p)
-      );
+      setProfiles(prev => prev.map(p => p.user_id === userId ? { ...p, status: "active", role: roleToApply, updated_at: updatedAt } : p));
     } catch (err) {
       console.error("Approve user error:", err);
       setError("Failed to approve user.");
-    } finally {
-      setActionLoadingUserId(null);
-    }
+    } finally { setActionLoadingUserId(null); }
   };
 
+  // Reject user
   const rejectUser = async (userId: string) => {
-    const nextUpdatedAt = new Date().toISOString();
+    const updatedAt = new Date().toISOString();
     setActionLoadingUserId(userId);
-    setError("");
 
     try {
-      const { error: updateError } = await supabase.from("profiles").update({
+      const { error } = await supabase.from("profiles").update({
         status: "rejected",
-        updated_at: nextUpdatedAt
+        updated_at: updatedAt
       }).eq("user_id", userId);
 
-      if (updateError) throw updateError;
+      if (error) throw error;
 
-      setProfiles((prev) =>
-        prev.map((p) => p.user_id === userId ? { ...p, status: "rejected", updated_at: nextUpdatedAt } : p)
-      );
+      setProfiles(prev => prev.map(p => p.user_id === userId ? { ...p, status: "rejected", updated_at: updatedAt } : p));
     } catch (err) {
       console.error("Reject user error:", err);
       setError("Failed to reject user.");
-    } finally {
-      setActionLoadingUserId(null);
-    }
+    } finally { setActionLoadingUserId(null); }
   };
 
-  const filteredUsers = useMemo(() => profiles.filter((user) => {
-    if (user.status === "pending_verification" || user.status === "pending_profile") return false;
+  const filteredUsers = useMemo(() => profiles.filter(u => {
+    if (u.status === "pending_verification" || u.status === "pending_profile") return false;
 
-    const haystack = [
-      user.full_name || "",
-      user.display_name || "",
-      user.company || "",
-      user.department || "",
-      user.job_title || "",
-      user.city || "",
-      user.country || ""
-    ].join(" ").toLowerCase();
-
+    const haystack = [u.full_name, u.display_name, u.company, u.department, u.job_title, u.city, u.country].filter(Boolean).join(" ").toLowerCase();
     const matchesSearch = haystack.includes(searchQuery.toLowerCase());
 
     const matchesTab =
       activeTab === "all" ||
-      (activeTab === "pending" && user.status === "pending_approval") ||
-      (activeTab === "active" && user.status === "active") ||
-      (activeTab === "inactive" && user.status === "rejected");
+      (activeTab === "pending" && u.status === "pending_approval") ||
+      (activeTab === "active" && u.status === "active") ||
+      (activeTab === "inactive" && u.status === "rejected");
 
     return matchesSearch && matchesTab;
   }), [profiles, searchQuery, activeTab]);
 
   const pendingUsers = profiles.filter(u => u.status === "pending_approval");
 
-  const getRoleColor = (role: Role) => {
-    switch (role) {
-      case "admin": return "bg-red-500/20 text-red-400 border-red-500/30";
-      case "manager": return "bg-purple-500/20 text-purple-400 border-purple-500/30";
-      case "employee": return "bg-blue-500/20 text-blue-400 border-blue-500/30";
-      default: return "bg-slate-500/20 text-slate-400 border-slate-500/30";
-    }
-  };
+  const getRoleColor = (role: Role) => ({
+    admin: "bg-red-500/20 text-red-400 border-red-500/30",
+    manager: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+    employee: "bg-blue-500/20 text-blue-400 border-blue-500/30"
+  }[role] ?? "bg-slate-500/20 text-slate-400 border-slate-500/30"));
 
-  const getStatusColor = (status: Status) => {
-    switch (status) {
-      case "active": return "bg-green-500/20 text-green-400 border-green-500/30";
-      case "pending_verification": return "bg-slate-500/20 text-slate-400 border-slate-500/30";
-      case "pending_profile": return "bg-slate-500/20 text-slate-400 border-slate-500/30";
-      case "pending_approval": return "bg-amber-500/20 text-amber-400 border-amber-500/30";
-      case "rejected": return "bg-red-500/20 text-red-400 border-red-500/30";
-      default: return "bg-slate-500/20 text-slate-400 border-slate-500/30";
-    }
-  };
+  const getStatusColor = (status: Status) => ({
+    active: "bg-green-500/20 text-green-400 border-green-500/30",
+    pending_verification: "bg-slate-500/20 text-slate-400 border-slate-500/30",
+    pending_profile: "bg-slate-500/20 text-slate-400 border-slate-500/30",
+    pending_approval: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+    rejected: "bg-red-500/20 text-red-400 border-red-500/30"
+  }[status] ?? "bg-slate-500/20 text-slate-400 border-slate-500/30");
 
-  const getStatusLabel = (status: Status) => {
-    switch (status) {
-      case "pending_verification": return "EMAIL NOT VERIFIED";
-      case "pending_profile": return "FORM INCOMPLETE";
-      case "pending_approval": return "PENDING APPROVAL";
-      case "rejected": return "REJECTED";
-      default: return status.toUpperCase();
-    }
-  };
+  const getStatusLabel = (status: Status) => ({
+    pending_verification: "EMAIL NOT VERIFIED",
+    pending_profile: "FORM INCOMPLETE",
+    pending_approval: "PENDING APPROVAL",
+    rejected: "REJECTED"
+  }[status] ?? status.toUpperCase());
 
-  const getInitials = (name: string | null) => {
-    if (!name) return "U";
-    return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
-  };
+  const getInitials = (name: string | null) => name ? name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0,2) : "U";
 
   return (
     <div className="space-y-6">
-      {/* ... UI rendering is identical to your previous code ... */}
+      {/* UI Rendering of search, tabs, cards, and pending approvals */}
+      {/* Keep the same layout as original code */}
     </div>
   );
 }

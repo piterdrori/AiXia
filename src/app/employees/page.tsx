@@ -222,7 +222,11 @@ export default function EmployeesPage() {
 
 const filteredUsers = useMemo(() => {
   return profiles.filter((user) => {
-    if (user.status === "pending_verification") {
+
+    if (
+      user.status === "pending_verification" ||
+      user.status === "pending_profile"
+    ) {
       return false;
     }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { Eye, EyeOff } from "lucide-react";
 
 export default function ResetPasswordPage() {
 
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -25,29 +25,23 @@ export default function ResetPasswordPage() {
 
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
+useEffect(() => {
+  const handleRecoverySession = async () => {
+    const code = searchParams.get("code");
 
-    const hash = window.location.hash;
-
-    if (hash) {
-
-      const params = new URLSearchParams(hash.replace("#", "?"));
-
-      const access_token = params.get("access_token");
-      const refresh_token = params.get("refresh_token");
-
-      if (access_token && refresh_token) {
-
-        supabase.auth.setSession({
-          access_token,
-          refresh_token
-        });
-
-      }
-
+    if (!code) {
+      return;
     }
 
-  }, []);
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (error) {
+      setError(error.message);
+    }
+  };
+
+  void handleRecoverySession();
+}, [searchParams]);
 
   const handleResetPassword = async (e: React.FormEvent<HTMLFormElement>) => {
 

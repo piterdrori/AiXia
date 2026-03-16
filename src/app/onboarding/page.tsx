@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,7 @@ type OnboardingProfileRow = {
 
 export default function OnboardingPage() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [userId, setUserId] = useState("");
   const [fullName, setFullName] = useState("");
@@ -48,18 +49,44 @@ export default function OnboardingPage() {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
+  const waitForAuthenticatedUser = async () => {
+    for (let i = 0; i < 12; i += 1) {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session?.user) {
+        return session.user;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    return null;
+  };
+
   const loadProfile = async () => {
     setIsLoading(true);
     setError("");
     setSuccessMessage("");
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    const searchParams = new URLSearchParams(location.search);
+    const errorCode = searchParams.get("error_code");
+    const errorDescription = searchParams.get("error_description");
 
-    if (authError || !user) {
-      navigate("/login");
+    if (errorCode) {
+      setError(errorDescription || "The email link is invalid or expired.");
+      setIsLoading(false);
+      return;
+    }
+
+    const user = await waitForAuthenticatedUser();
+
+    if (!user) {
+      setError(
+        "Your email was confirmed, but the session was not created correctly. Please sign in and complete your profile."
+      );
+      setIsLoading(false);
       return;
     }
 
@@ -109,8 +136,8 @@ export default function OnboardingPage() {
   };
 
   useEffect(() => {
-    loadProfile();
-  }, []);
+    void loadProfile();
+  }, [location.search]);
 
   const validate = () => {
     if (!fullName.trim()) return "Full name is required.";

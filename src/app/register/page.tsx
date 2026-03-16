@@ -27,7 +27,7 @@ export default function RegisterPage() {
     setError("");
     setSuccessMessage("");
 
-    // Basic validations
+    // Validation
     if (!fullName.trim()) return setError("Full name is required.");
     if (!email.trim()) return setError("Email is required.");
     if (password.length < 6) return setError("Password must be at least 6 characters.");
@@ -36,37 +36,31 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // Step 1: Sign up user in Supabase Auth
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      // Sign up the user
+      const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
-        options: { emailRedirectTo: `${window.location.origin}/onboarding` },
+        options: {
+          emailRedirectTo: `${window.location.origin}/onboarding`,
+          data: {
+            full_name: fullName.trim(),
+            requested_role: requestedRole
+          }
+        }
       });
 
-      if (signUpError || !data.user) throw signUpError || new Error("Failed to create user");
-      const user = data.user;
-
-      // Step 2: Insert profile for the user
-      const { error: profileError } = await supabase.from("profiles").insert({
-        user_id: user.id,             // foreign key exists
-        requested_role: requestedRole,
-        status: "pending_verification",
-        profile_completed: false,
-      });
-
-      if (profileError) throw profileError;
+      if (error) throw error;
 
       setSuccessMessage(
         "Registration successful! Check your email to verify your account. After verification, complete your profile to submit the request for admin approval."
       );
 
-      // Reset form fields
+      // reset fields
       setFullName("");
       setEmail("");
       setPassword("");
       setConfirmPassword("");
       setRequestedRole("employee");
-
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Failed to register. Please try again.");

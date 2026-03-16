@@ -206,6 +206,76 @@ function useAuthAccess() {
   return context;
 }
 
+function SessionTimeoutManager() {
+  const { accessState, isBootstrapping } = useAuthAccess();
+  const location = useLocation();
+  const timeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (isBootstrapping) return;
+
+    const isAuthenticated =
+      accessState !== "unauthenticated" &&
+      accessState !== "pending_approval" &&
+      accessState !== "rejected";
+
+    if (!isAuthenticated) {
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      return;
+    }
+
+    const logout = async () => {
+      await supabase.auth.signOut();
+      window.location.replace("/login");
+    };
+
+    const resetTimer = () => {
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+      }
+
+      timeoutRef.current = window.setTimeout(() => {
+        void logout();
+      }, 2 * 60 * 60 * 1000);
+    };
+
+    const events: Array<keyof WindowEventMap> = [
+      "mousemove",
+      "mousedown",
+      "keydown",
+      "scroll",
+      "touchstart",
+      "focus",
+      "click",
+    ];
+
+    events.forEach((eventName) => {
+      window.addEventListener(eventName, resetTimer);
+    });
+
+    document.addEventListener("visibilitychange", resetTimer);
+
+    resetTimer();
+
+    return () => {
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+      }
+
+      events.forEach((eventName) => {
+        window.removeEventListener(eventName, resetTimer);
+      });
+
+      document.removeEventListener("visibilitychange", resetTimer);
+    };
+  }, [accessState, isBootstrapping, location.pathname]);
+
+  return null;
+}
+
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const location = useLocation();
   const { isBootstrapping, accessState } = useAuthAccess();
@@ -503,6 +573,7 @@ function App() {
   return (
     <Router>
       <AuthAccessProvider>
+        <SessionTimeoutManager />
         <AppRoutes />
         <Toaster />
       </AuthAccessProvider>

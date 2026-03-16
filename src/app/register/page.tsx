@@ -1,3 +1,4 @@
+// src/app/register/page.tsx
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
@@ -22,53 +23,55 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
-const handleRegister = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setError("");
-  setSuccessMessage("");
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccessMessage("");
 
-  if (!fullName.trim()) return setError("Full name is required.");
-  if (!email.trim()) return setError("Email is required.");
-  if (password.length < 6) return setError("Password must be at least 6 characters.");
-  if (password !== confirmPassword) return setError("Passwords do not match.");
+    // Basic validation
+    if (!fullName.trim()) return setError("Full name is required.");
+    if (!email.trim()) return setError("Email is required.");
+    if (password.length < 6) return setError("Password must be at least 6 characters.");
+    if (password !== confirmPassword) return setError("Passwords do not match.");
 
-  setIsLoading(true);
+    setIsLoading(true);
 
-  try {
-    // Only destructure error, not data
-    const { error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/onboarding`,
-        data: {
-          full_name: fullName.trim(),
-          requested_role: requestedRole,
-          role: requestedRole,
-          status: "pending_verification",
-          profile_completed: false,
-        },
-      },
-    });
+    try {
+      // Sign up the user and provide required data for the profiles table
+      const { error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/onboarding`,
+          data: {
+            full_name: fullName.trim(),
+            requested_role: requestedRole,
+            role: requestedRole,
+            status: "pending_verification",
+            profile_completed: false
+          }
+        }
+      });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    setSuccessMessage(
-      "Registration successful! Check your email to verify your account. After verification, you will be redirected to complete your profile and submit your request for admin approval."
-    );
+      setSuccessMessage(
+        "Registration successful! Check your email to verify your account. After verification, you will be redirected to complete your profile and submit your request for admin approval."
+      );
 
-    setFullName("");
-    setEmail("");
-    setPassword("");
-    setConfirmPassword("");
-    setRequestedRole("employee");
-  } catch (err: any) {
-    console.error("Registration error:", err);
-    setError(err.message || "Failed to register. Please try again.");
-  } finally {
-    setIsLoading(false);
-  }
-};
+      // Reset form fields
+      setFullName("");
+      setEmail("");
+      setPassword("");
+      setConfirmPassword("");
+      setRequestedRole("employee");
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Failed to register. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
@@ -84,7 +87,6 @@ const handleRegister = async (e: React.FormEvent) => {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-
           {successMessage && (
             <Alert className="bg-emerald-900/20 border-emerald-800 text-emerald-300 mb-4">
               <AlertDescription>{successMessage}</AlertDescription>
@@ -172,9 +174,7 @@ const handleRegister = async (e: React.FormEvent) => {
 
           <div className="mt-6 text-center text-sm text-slate-400">
             Already have an account?{" "}
-            <Link to="/login" className="text-indigo-400 hover:text-indigo-300">
-              Sign in
-            </Link>
+            <Link to="/login" className="text-indigo-400 hover:text-indigo-300">Sign in</Link>
           </div>
         </CardContent>
       </Card>

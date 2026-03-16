@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,51 +16,57 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [requestedRole, setRequestedRole] = useState<RequestedRole>("employee");
-
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
+  const getErrorMessage = (err: unknown): string => {
+    if (err instanceof Error && err.message) return err.message;
+    if (typeof err === "string" && err.trim()) return err;
+    if (err && typeof err === "object") {
+      const e = err as Record<string, unknown>;
+      return e.message?.toString() || e.error_description?.toString() || e.msg?.toString() || JSON.stringify(e, null, 2);
+    }
+    return "Registration failed. Try again.";
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    setSuccessMessage("");
+    setError(""); setSuccessMessage("");
 
-    if (!fullName.trim()) return setError("Full name is required.");
-    if (!email.trim()) return setError("Email is required.");
-    if (password.length < 6) return setError("Password must be at least 6 characters.");
-    if (password !== confirmPassword) return setError("Passwords do not match.");
+    if (!fullName.trim()) { setError("Full name is required."); return; }
+    if (!email.trim()) { setError("Email is required."); return; }
+    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    if (password !== confirmPassword) { setError("Passwords do not match."); return; }
 
     setIsLoading(true);
-
     try {
-      // Sign up the user
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/onboarding`
+          emailRedirectTo: `${window.location.origin}/onboarding`,
+          data: {
+            full_name: fullName.trim(),
+            requested_role: requestedRole,
+            role: requestedRole,
+            status: "pending_verification",
+            profile_completed: false,
+          }
         }
       });
 
       if (error) throw error;
 
-      setSuccessMessage(
-        "Registration successful! Check your email to verify your account. After verification, complete your profile to submit the request for admin approval."
+      setSuccessMessage("Registration submitted successfully. Check your email to verify your account. Then complete your profile to send request to admin.");
+      setFullName(""); setEmail(""); setPassword(""); setConfirmPassword(""); setRequestedRole("employee");
+    } catch (err) {
+      console.error("REGISTER ERROR:", err);
+      const msg = getErrorMessage(err);
+      setError(msg.includes("504") || msg.includes("Gateway Timeout") || msg.includes("AuthRetryableFetchError") ?
+        "The server took too long to respond. Please wait a minute and try again." : msg
       );
-
-      // reset fields
-      setFullName("");
-      setEmail("");
-      setPassword("");
-      setConfirmPassword("");
-      setRequestedRole("employee");
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Failed to register. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
+    } finally { setIsLoading(false); }
   };
 
   return (
@@ -73,24 +78,24 @@ export default function RegisterPage() {
             <p className="text-slate-400 mt-2">Request access to the platform</p>
           </div>
 
-          {error && <Alert className="bg-red-900/20 border-red-800 text-red-300 mb-4"><AlertDescription>{error}</AlertDescription></Alert>}
-          {successMessage && <Alert className="bg-emerald-900/20 border-emerald-800 text-emerald-300 mb-4"><AlertDescription>{successMessage}</AlertDescription></Alert>}
-
           <form onSubmit={handleRegister} className="space-y-5">
+            {error && <Alert className="bg-red-900/20 border-red-800 text-red-300"><AlertDescription>{error}</AlertDescription></Alert>}
+            {successMessage && <Alert className="bg-emerald-900/20 border-emerald-800 text-emerald-300"><AlertDescription>{successMessage}</AlertDescription></Alert>}
+
             <div className="space-y-2">
               <Label htmlFor="fullName" className="text-slate-300">Full Name</Label>
-              <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Enter your full name" className="bg-slate-950 border-slate-800 text-white" disabled={isLoading} />
+              <Input id="fullName" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Enter your full name" className="bg-slate-950 border-slate-800 text-white" disabled={isLoading}/>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="email" className="text-slate-300">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email" className="bg-slate-950 border-slate-800 text-white" disabled={isLoading} />
+              <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Enter your email" className="bg-slate-950 border-slate-800 text-white" disabled={isLoading}/>
             </div>
 
             <div className="space-y-2">
               <Label className="text-slate-300">Requested Role</Label>
-              <Select value={requestedRole} onValueChange={(v) => setRequestedRole(v as RequestedRole)} disabled={isLoading}>
-                <SelectTrigger className="bg-slate-950 border-slate-800 text-white"><SelectValue placeholder="Select role" /></SelectTrigger>
+              <Select value={requestedRole} onValueChange={v => setRequestedRole(v as RequestedRole)} disabled={isLoading}>
+                <SelectTrigger className="bg-slate-950 border-slate-800 text-white"><SelectValue placeholder="Select role"/></SelectTrigger>
                 <SelectContent className="bg-slate-950 border-slate-800 text-white">
                   <SelectItem value="manager">Manager</SelectItem>
                   <SelectItem value="employee">Employee</SelectItem>
@@ -101,12 +106,12 @@ export default function RegisterPage() {
 
             <div className="space-y-2">
               <Label htmlFor="password" className="text-slate-300">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Create a password" className="bg-slate-950 border-slate-800 text-white" disabled={isLoading} />
+              <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Create a password" className="bg-slate-950 border-slate-800 text-white" disabled={isLoading}/>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="confirmPassword" className="text-slate-300">Confirm Password</Label>
-              <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm your password" className="bg-slate-950 border-slate-800 text-white" disabled={isLoading} />
+              <Input id="confirmPassword" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Confirm your password" className="bg-slate-950 border-slate-800 text-white" disabled={isLoading}/>
             </div>
 
             <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white" disabled={isLoading}>

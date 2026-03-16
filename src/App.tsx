@@ -247,10 +247,7 @@ function PublicRoute({ children }: { children: ReactNode }) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  if (
-    accessState === "pending_verification" ||
-    accessState === "needs_profile"
-  ) {
+  if (accessState === "needs_profile") {
     return <Navigate to="/onboarding" replace />;
   }
 

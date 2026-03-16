@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 
@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
+import { Eye, EyeOff } from "lucide-react";
+
 export default function ResetPasswordPage() {
 
   const navigate = useNavigate();
@@ -15,10 +17,37 @@ export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+
+    const hash = window.location.hash;
+
+    if (hash) {
+
+      const params = new URLSearchParams(hash.replace("#", "?"));
+
+      const access_token = params.get("access_token");
+      const refresh_token = params.get("refresh_token");
+
+      if (access_token && refresh_token) {
+
+        supabase.auth.setSession({
+          access_token,
+          refresh_token
+        });
+
+      }
+
+    }
+
+  }, []);
 
   const handleResetPassword = async (e: React.FormEvent<HTMLFormElement>) => {
 
@@ -108,16 +137,28 @@ export default function ResetPasswordPage() {
                 New Password
               </Label>
 
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter new password"
-                className="bg-slate-950 border-slate-800 text-white"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-                required
-              />
+              <div className="relative">
+
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Enter new password"
+                  className="bg-slate-950 border-slate-800 text-white pr-10"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoading}
+                  required
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+
+              </div>
 
             </div>
 
@@ -127,16 +168,28 @@ export default function ResetPasswordPage() {
                 Confirm Password
               </Label>
 
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder="Confirm password"
-                className="bg-slate-950 border-slate-800 text-white"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                disabled={isLoading}
-                required
-              />
+              <div className="relative">
+
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Confirm password"
+                  className="bg-slate-950 border-slate-800 text-white pr-10"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={isLoading}
+                  required
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+
+              </div>
 
             </div>
 

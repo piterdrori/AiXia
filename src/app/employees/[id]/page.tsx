@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
@@ -35,10 +35,12 @@ import {
 } from "lucide-react";
 
 type Role = "admin" | "manager" | "employee" | "guest";
+
 type Status =
-  | "active"
   | "pending_verification"
+  | "pending_profile"
   | "pending_approval"
+  | "active"
   | "rejected";
 
 type ProfileRow = {
@@ -63,6 +65,15 @@ type ProfileRow = {
   created_at: string;
   updated_at: string;
 };
+
+type CurrentUserRoleRow = {
+  role: Role;
+};
+
+function normalizeOptional(value: string) {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
 
 export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -103,7 +114,7 @@ export default function EmployeeDetailPage() {
   const canManage = currentUserRole === "admin";
   const isOwnProfile = currentUserId === id;
 
-  const fillForm = (profile: ProfileRow) => {
+  const fillForm = useCallback((profile: ProfileRow) => {
     setUser(profile);
     setFullName(profile.full_name || "");
     setDisplayName(profile.display_name || "");
@@ -120,7 +131,7 @@ export default function EmployeeDetailPage() {
     setRole(profile.role);
     setStatus(profile.status);
     setProfileCompleted(Boolean(profile.profile_completed));
-  };
+  }, []);
 
   const loadUser = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
@@ -158,8 +169,16 @@ export default function EmployeeDetailPage() {
           { data: me, error: meError },
           { data: profileData, error: profileError },
         ] = await Promise.all([
-          supabase.from("profiles").select("role").eq("user_id", authUser.id).single(),
-          supabase.from("profiles").select("*").eq("user_id", id).single(),
+          supabase
+            .from("profiles")
+            .select("role")
+            .eq("user_id", authUser.id)
+            .single(),
+          supabase
+            .from("profiles")
+            .select("*")
+            .eq("user_id", id)
+            .maybeSingle(),
         ]);
 
         if (!requestTracker.current.isLatest(requestId)) return;
@@ -169,10 +188,11 @@ export default function EmployeeDetailPage() {
           return;
         }
 
-        setCurrentUserRole((me.role as Role) || null);
+        setCurrentUserRole((me as CurrentUserRoleRow).role);
 
         if (profileError || !profileData) {
-          navigate("/employees");
+          setSaveError("User not found.");
+          setUser(null);
           return;
         }
 
@@ -191,7 +211,7 @@ export default function EmployeeDetailPage() {
         }
       }
     },
-    [id, navigate]
+    [fillForm, id, navigate]
   );
 
   useEffect(() => {
@@ -205,6 +225,7 @@ export default function EmployeeDetailPage() {
 
   const getInitials = (name: string | null) => {
     if (!name) return "U";
+
     return name
       .split(" ")
       .map((part) => part[0])
@@ -221,6 +242,7 @@ export default function EmployeeDetailPage() {
         return "bg-purple-500/20 text-purple-400 border-purple-500/30";
       case "employee":
         return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+      case "guest":
       default:
         return "bg-slate-500/20 text-slate-400 border-slate-500/30";
     }
@@ -231,26 +253,30 @@ export default function EmployeeDetailPage() {
       case "active":
         return "bg-green-500/20 text-green-400 border-green-500/30";
       case "pending_verification":
-        return "bg-amber-500/20 text-amber-400 border-amber-500/30";
-      case "pending_approval":
-        return "bg-orange-500/20 text-orange-400 border-orange-500/30";
-      case "rejected":
-        return "bg-red-500/20 text-red-400 border-red-500/30";
-      default:
         return "bg-slate-500/20 text-slate-400 border-slate-500/30";
+      case "pending_profile":
+        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+      case "pending_approval":
+        return "bg-amber-500/20 text-amber-400 border-amber-500/30";
+      case "rejected":
+      default:
+        return "bg-red-500/20 text-red-400 border-red-500/30";
     }
   };
 
   const getStatusLabel = (value: Status) => {
     switch (value) {
       case "pending_verification":
-        return "PENDING VERIFICATION";
+        return "EMAIL NOT VERIFIED";
+      case "pending_profile":
+        return "PROFILE NOT SUBMITTED";
       case "pending_approval":
         return "PENDING APPROVAL";
       case "rejected":
         return "REJECTED";
+      case "active":
       default:
-        return value.toUpperCase();
+        return "ACTIVE";
     }
   };
 
@@ -272,10 +298,10 @@ export default function EmployeeDetailPage() {
       company: company.trim() || null,
       department: department.trim() || null,
       job_title: jobTitle.trim() || null,
-      bio: bio.trim() || null,
-      avatar_url: avatarUrl.trim() || null,
-      wechat: wechat.trim() || null,
-      whatsapp: whatsapp.trim() || null,
+      bio: normalizeOptional(bio),
+      avatar_url: normalizeOptional(avatarUrl),
+      wechat: normalizeOptional(wechat),
+      whatsapp: normalizeOptional(whatsapp),
       updated_at: nextUpdatedAt,
     };
 
@@ -286,21 +312,26 @@ export default function EmployeeDetailPage() {
     }
 
     try {
-      const { error } = await supabase.from("profiles").update(payload).eq("user_id", id);
+      const { error } = await supabase
+        .from("profiles")
+        .update(payload)
+        .eq("user_id", id);
 
       if (error) {
         setSaveError(error.message || "Failed to save user.");
         return;
       }
 
-      setUser((prev) =>
-        prev
-          ? ({
-              ...prev,
-              ...payload,
-            } as ProfileRow)
-          : prev
-      );
+      const nextUser: ProfileRow | null = user
+        ? ({
+            ...user,
+            ...payload,
+          } as ProfileRow)
+        : null;
+
+      if (nextUser) {
+        fillForm(nextUser);
+      }
 
       setIsEditing(false);
       showSaved();
@@ -316,7 +347,7 @@ export default function EmployeeDetailPage() {
     if (!id || !canManage) return;
 
     const confirmed = window.confirm(
-      "Are you sure you want to deactivate this user? They will not be able to access the system."
+      "Are you sure you want to reject/deactivate this user? They will not be able to access the system."
     );
     if (!confirmed) return;
 
@@ -339,16 +370,17 @@ export default function EmployeeDetailPage() {
         return;
       }
 
-      setStatus("rejected");
-      setUser((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: "rejected",
-              updated_at: nextUpdatedAt,
-            }
-          : prev
-      );
+      const nextUser = user
+        ? {
+            ...user,
+            status: "rejected" as Status,
+            updated_at: nextUpdatedAt,
+          }
+        : null;
+
+      if (nextUser) {
+        fillForm(nextUser);
+      }
     } catch (err) {
       console.error("Deactivate employee error:", err);
       setSaveError("Failed to deactivate user.");
@@ -361,7 +393,7 @@ export default function EmployeeDetailPage() {
     if (!id || !canManage) return;
 
     const confirmed = window.confirm(
-      "⚠️ This will permanently delete the user. This cannot be undone. Continue?"
+      "This will permanently delete the user. This cannot be undone. Continue?"
     );
     if (!confirmed) return;
 
@@ -394,7 +426,7 @@ export default function EmployeeDetailPage() {
         <Card className="bg-red-900/10 border-red-800/30">
           <CardContent className="p-6 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
-            <div className="text-red-300">User not found.</div>
+            <div className="text-red-300">{saveError || "User not found."}</div>
           </CardContent>
         </Card>
       </div>
@@ -462,7 +494,7 @@ export default function EmployeeDetailPage() {
               disabled={isDeactivating || isSaving || isDeleting}
             >
               <Trash2 className="w-4 h-4 mr-2" />
-              {isDeactivating ? "Deactivating..." : "Deactivate"}
+              {isDeactivating ? "Deactivating..." : "Reject / Deactivate"}
             </Button>
           )}
 
@@ -485,7 +517,7 @@ export default function EmployeeDetailPage() {
         </Alert>
       )}
 
-      {saveError && (
+      {saveError && user && (
         <Alert className="bg-red-900/20 border-red-800 text-red-400">
           <AlertDescription>{saveError}</AlertDescription>
         </Alert>
@@ -515,7 +547,9 @@ export default function EmployeeDetailPage() {
                   </AvatarFallback>
                 </Avatar>
 
-                <h2 className="text-xl font-semibold text-white">{fullName || "Unnamed user"}</h2>
+                <h2 className="text-xl font-semibold text-white">
+                  {fullName || "Unnamed user"}
+                </h2>
                 <p className="text-slate-400">{displayName || "No display name"}</p>
 
                 <div className="flex items-center gap-2 flex-wrap justify-center mt-4">
@@ -524,6 +558,11 @@ export default function EmployeeDetailPage() {
                   {!profileCompleted && (
                     <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
                       PROFILE INCOMPLETE
+                    </Badge>
+                  )}
+                  {requested_role && requested_role !== role && (
+                    <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30">
+                      REQUESTED {requested_role.toUpperCase()}
                     </Badge>
                   )}
                 </div>
@@ -717,7 +756,7 @@ export default function EmployeeDetailPage() {
                       <Label className="text-slate-300">Role</Label>
                       <Select
                         value={role}
-                        onValueChange={(v) => setRole(v as Role)}
+                        onValueChange={(value) => setRole(value as Role)}
                         disabled={!isEditing}
                       >
                         <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
@@ -736,7 +775,7 @@ export default function EmployeeDetailPage() {
                       <Label className="text-slate-300">Status</Label>
                       <Select
                         value={status}
-                        onValueChange={(v) => setStatus(v as Status)}
+                        onValueChange={(value) => setStatus(value as Status)}
                         disabled={!isEditing}
                       >
                         <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
@@ -746,6 +785,9 @@ export default function EmployeeDetailPage() {
                           <SelectItem value="active">Active</SelectItem>
                           <SelectItem value="pending_verification">
                             Pending Verification
+                          </SelectItem>
+                          <SelectItem value="pending_profile">
+                            Pending Profile
                           </SelectItem>
                           <SelectItem value="pending_approval">
                             Pending Approval
@@ -759,7 +801,7 @@ export default function EmployeeDetailPage() {
                       <Label className="text-slate-300">Profile Completion</Label>
                       <Select
                         value={profileCompleted ? "yes" : "no"}
-                        onValueChange={(v) => setProfileCompleted(v === "yes")}
+                        onValueChange={(value) => setProfileCompleted(value === "yes")}
                         disabled={!isEditing}
                       >
                         <SelectTrigger className="bg-slate-950 border-slate-800 text-white">

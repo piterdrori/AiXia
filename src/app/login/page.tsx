@@ -49,6 +49,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [showPassword, setShowPassword] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -67,6 +68,16 @@ export default function LoginPage() {
     try {
       const normalizedEmail = normalizeEmail(email);
 
+      if (!normalizedEmail) {
+        setError("Email is required.");
+        return;
+      }
+
+      if (!password) {
+        setError("Password is required.");
+        return;
+      }
+
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
         password,
@@ -77,9 +88,81 @@ export default function LoginPage() {
         return;
       }
 
-      navigate("/dashboard");
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        setError("Unable to load authenticated user.");
+        await supabase.auth.signOut();
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("status, role, full_name, profile_completed")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (profileError || !profile) {
+        setError("User profile not found.");
+        await supabase.auth.signOut();
+        return;
+      }
+
+      const typedProfile = profile as LoginProfileRow;
+
+      if (!typedProfile.status) {
+        setError("User status not configured.");
+        await supabase.auth.signOut();
+        return;
+      }
+
+      switch (typedProfile.status) {
+        case "pending_verification":
+          setInfoMessage(
+            "Please verify your email first. Check your inbox and click the confirmation link."
+          );
+          await supabase.auth.signOut();
+          return;
+
+        case "pending_profile":
+          navigate("/onboarding");
+          return;
+
+        case "pending_approval":
+          setInfoMessage(
+            "Your profile was submitted and is waiting for admin approval."
+          );
+          await supabase.auth.signOut();
+          return;
+
+        case "rejected":
+          setError(
+            "Your registration was rejected. Please contact the administrator."
+          );
+          await supabase.auth.signOut();
+          return;
+
+        case "active":
+          if (!typedProfile.profile_completed) {
+            navigate("/onboarding");
+            return;
+          }
+
+          navigate("/dashboard");
+          return;
+
+        default:
+          setError("Invalid account state.");
+          await supabase.auth.signOut();
+          return;
+      }
     } catch (err) {
+      console.error("Login error:", err);
       setError("Unexpected login error.");
+      await supabase.auth.signOut();
     } finally {
       setIsLoading(false);
     }
@@ -89,12 +172,9 @@ export default function LoginPage() {
     <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
       <Card className="w-full max-w-md bg-slate-900/60 border-slate-800">
         <CardContent className="p-8">
-
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold text-white">Sign In</h1>
-            <p className="text-slate-400 mt-2">
-              Access your TaskFlow account
-            </p>
+            <p className="text-slate-400 mt-2">Access your TaskFlow account</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
@@ -124,6 +204,9 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
+                required
+                autoComplete="email"
+                inputMode="email"
               />
             </div>
 
@@ -142,12 +225,14 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
+                  required
+                  autoComplete="current-password"
                 />
 
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2 text-slate-400"
+                  className="absolute right-3 top-2 text-slate-400 hover:text-white"
                 >
                   {showPassword ? "🙈" : "👁"}
                 </button>

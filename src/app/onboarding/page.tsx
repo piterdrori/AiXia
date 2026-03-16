@@ -23,7 +23,7 @@ type OnboardingProfileRow = {
   wechat?: string | null;
   whatsapp?: string | null;
   profile_completed?: boolean | null;
-  status?: string | null;
+  status?: "pending_verification" | "pending_profile" | "pending_approval" | "active" | "rejected" | null;
 };
 
 export default function OnboardingPage() {
@@ -50,81 +50,36 @@ export default function OnboardingPage() {
   const [successMessage, setSuccessMessage] = useState("");
 
   const waitForAuthenticatedUser = async () => {
-    for (let i = 0; i < 12; i += 1) {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (session?.user) {
-        return session.user;
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 500));
+    for (let i = 0; i < 12; i++) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) return session.user;
+      await new Promise(r => setTimeout(r, 500));
     }
-
     return null;
   };
 
   const loadProfile = async () => {
-    setIsLoading(true);
-    setError("");
-    setSuccessMessage("");
-
+    setIsLoading(true); setError(""); setSuccessMessage("");
     const searchParams = new URLSearchParams(location.search);
     const errorCode = searchParams.get("error_code");
     const errorDescription = searchParams.get("error_description");
 
-    if (errorCode) {
-      setError(errorDescription || "The email link is invalid or expired.");
-      setIsLoading(false);
-      return;
-    }
+    if (errorCode) { setError(errorDescription || "Email link invalid or expired"); setIsLoading(false); return; }
 
     const user = await waitForAuthenticatedUser();
-
-    if (!user) {
-      setError(
-        "Your email was confirmed, but the session was not created correctly. Please sign in and complete your profile."
-      );
-      setIsLoading(false);
-      return;
-    }
-
+    if (!user) { setError("Session not created correctly. Sign in."); setIsLoading(false); return; }
     setUserId(user.id);
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", user.id)
-      .single();
-
-    if (error || !data) {
-      setError(error?.message || "Failed to load profile.");
-      setIsLoading(false);
-      return;
-    }
+    const { data, error } = await supabase.from("profiles").select("*").eq("user_id", user.id).single();
+    if (error || !data) { setError(error?.message || "Failed to load profile."); setIsLoading(false); return; }
 
     const profile = data as OnboardingProfileRow;
-
     if (profile.status === "pending_verification") {
-  await supabase
-    .from("profiles")
-    .update({ status: "pending_profile" })
-    .eq("user_id", user.id);
-}
-
-    if (profile.status === "pending_approval") {
-      setError(
-        "Your details were already submitted and are waiting for admin approval."
-      );
-      setIsLoading(false);
-      return;
+      await supabase.from("profiles").update({ status: "pending_profile" }).eq("user_id", user.id);
     }
 
-    if (profile.status === "active") {
-      navigate("/dashboard");
-      return;
-    }
+    if (profile.status === "pending_approval") { setError("Already submitted. Waiting for admin."); setIsLoading(false); return; }
+    if (profile.status === "active") navigate("/dashboard");
 
     setFullName(profile.full_name || "");
     setDisplayName(profile.display_name || "");
@@ -142,9 +97,7 @@ export default function OnboardingPage() {
     setIsLoading(false);
   };
 
-  useEffect(() => {
-    void loadProfile();
-  }, [location.search]);
+  useEffect(() => { void loadProfile(); }, [location.search]);
 
   const validate = () => {
     if (!fullName.trim()) return "Full name is required.";
@@ -160,232 +113,72 @@ export default function OnboardingPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-
     const validationError = validate();
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
+    if (validationError) { setError(validationError); return; }
     if (!userId) return;
 
-    setIsSaving(true);
-    setError("");
-    setSuccessMessage("");
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        full_name: fullName.trim(),
-        display_name: displayName.trim(),
-        phone: phone.trim(),
-        country: country.trim(),
-        city: city.trim(),
-        company: company.trim(),
-        department: department.trim(),
-        job_title: jobTitle.trim(),
-        bio: bio.trim() || null,
-        avatar_url: avatarUrl.trim() || null,
-        wechat: wechat.trim() || null,
-        whatsapp: whatsapp.trim() || null,
-        profile_completed: true,
-        status: "pending_approval",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", userId);
+    setIsSaving(true); setError(""); setSuccessMessage("");
+    const { error } = await supabase.from("profiles").update({
+      full_name: fullName.trim(),
+      display_name: displayName.trim(),
+      phone: phone.trim(),
+      country: country.trim(),
+      city: city.trim(),
+      company: company.trim(),
+      department: department.trim(),
+      job_title: jobTitle.trim(),
+      bio: bio.trim() || null,
+      avatar_url: avatarUrl.trim() || null,
+      wechat: wechat.trim() || null,
+      whatsapp: whatsapp.trim() || null,
+      profile_completed: true,
+      status: "pending_approval",
+      updated_at: new Date().toISOString()
+    }).eq("user_id", userId);
 
     setIsSaving(false);
+    if (error) { setError(error.message || "Failed to submit profile."); return; }
 
-    if (error) {
-      setError(error.message || "Failed to submit your profile.");
-      return;
-    }
-
-    setSuccessMessage(
-      "Your details were submitted successfully. Your account is now waiting for admin approval. You will be able to log in only after approval."
-    );
-
+    setSuccessMessage("Details submitted. Waiting for admin approval.");
     await supabase.auth.signOut();
-
-    setTimeout(() => {
-      navigate("/login");
-    }, 2500);
+    setTimeout(() => navigate("/login"), 2500);
   };
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    navigate("/login");
-  };
+  const handleSignOut = async () => { await supabase.auth.signOut(); navigate("/login"); };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500" />
-      </div>
-    );
-  }
+  if (isLoading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500" /></div>;
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4 py-10">
       <Card className="w-full max-w-3xl bg-slate-900/60 border-slate-800">
         <CardContent className="p-8">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-white">
-              Complete Your Profile
-            </h1>
-            <p className="text-slate-400 mt-2">
-              Please fill in your details below to complete your registration.
-              After you submit this form, your request will be sent to the admin
-              for approval.
-            </p>
-            <p className="text-slate-400 mt-2">
-              You will not be able to enter the platform until the admin
-              approves your account.
-            </p>
+            <h1 className="text-3xl font-bold text-white">Complete Your Profile</h1>
+            <p className="text-slate-400 mt-2">Fill your details to complete registration. Admin will approve after submission.</p>
           </div>
 
-          {error && (
-            <Alert className="mb-6 bg-red-900/20 border-red-800 text-red-300">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {successMessage && (
-            <Alert className="mb-6 bg-emerald-900/20 border-emerald-800 text-emerald-300">
-              <AlertDescription>{successMessage}</AlertDescription>
-            </Alert>
-          )}
+          {error && <Alert className="mb-6 bg-red-900/20 border-red-800 text-red-300"><AlertDescription>{error}</AlertDescription></Alert>}
+          {successMessage && <Alert className="mb-6 bg-emerald-900/20 border-emerald-800 text-emerald-300"><AlertDescription>{successMessage}</AlertDescription></Alert>}
 
           <form onSubmit={handleSave} className="space-y-6">
             <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-slate-300">Full Name *</Label>
-                <Input
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">Display Name *</Label>
-                <Input
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">Phone *</Label>
-                <Input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">Country *</Label>
-                <Input
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">City *</Label>
-                <Input
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">Company *</Label>
-                <Input
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">Department *</Label>
-                <Input
-                  value={department}
-                  onChange={(e) => setDepartment(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">Job Title *</Label>
-                <Input
-                  value={jobTitle}
-                  onChange={(e) => setJobTitle(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">WhatsApp</Label>
-                <Input
-                  value={whatsapp}
-                  onChange={(e) => setWhatsapp(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">WeChat</Label>
-                <Input
-                  value={wechat}
-                  onChange={(e) => setWechat(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label className="text-slate-300">Profile Photo URL</Label>
-                <Input
-                  value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value)}
-                  placeholder="Optional image URL"
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label className="text-slate-300">Short Bio</Label>
-                <Textarea
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  rows={4}
-                  className="bg-slate-950 border-slate-800 text-white resize-none"
-                />
-              </div>
+              <div className="space-y-2"><Label className="text-slate-300">Full Name *</Label><Input value={fullName} onChange={e => setFullName(e.target.value)} className="bg-slate-950 border-slate-800 text-white" /></div>
+              <div className="space-y-2"><Label className="text-slate-300">Display Name *</Label><Input value={displayName} onChange={e => setDisplayName(e.target.value)} className="bg-slate-950 border-slate-800 text-white" /></div>
+              <div className="space-y-2"><Label className="text-slate-300">Phone *</Label><Input value={phone} onChange={e => setPhone(e.target.value)} className="bg-slate-950 border-slate-800 text-white" /></div>
+              <div className="space-y-2"><Label className="text-slate-300">Country *</Label><Input value={country} onChange={e => setCountry(e.target.value)} className="bg-slate-950 border-slate-800 text-white" /></div>
+              <div className="space-y-2"><Label className="text-slate-300">City *</Label><Input value={city} onChange={e => setCity(e.target.value)} className="bg-slate-950 border-slate-800 text-white" /></div>
+              <div className="space-y-2"><Label className="text-slate-300">Company *</Label><Input value={company} onChange={e => setCompany(e.target.value)} className="bg-slate-950 border-slate-800 text-white" /></div>
+              <div className="space-y-2"><Label className="text-slate-300">Department *</Label><Input value={department} onChange={e => setDepartment(e.target.value)} className="bg-slate-950 border-slate-800 text-white" /></div>
+              <div className="space-y-2"><Label className="text-slate-300">Job Title *</Label><Input value={jobTitle} onChange={e => setJobTitle(e.target.value)} className="bg-slate-950 border-slate-800 text-white" /></div>
+              <div className="space-y-2"><Label className="text-slate-300">WhatsApp</Label><Input value={whatsapp} onChange={e => setWhatsapp(e.target.value)} className="bg-slate-950 border-slate-800 text-white" /></div>
+              <div className="space-y-2"><Label className="text-slate-300">WeChat</Label><Input value={wechat} onChange={e => setWechat(e.target.value)} className="bg-slate-950 border-slate-800 text-white" /></div>
+              <div className="space-y-2 md:col-span-2"><Label className="text-slate-300">Profile Photo URL</Label><Input value={avatarUrl} onChange={e => setAvatarUrl(e.target.value)} placeholder="Optional image URL" className="bg-slate-950 border-slate-800 text-white" /></div>
+              <div className="space-y-2 md:col-span-2"><Label className="text-slate-300">Short Bio</Label><Textarea value={bio} onChange={e => setBio(e.target.value)} rows={4} className="bg-slate-950 border-slate-800 text-white resize-none" /></div>
             </div>
 
             <div className="flex items-center justify-between gap-3 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                onClick={handleSignOut}
-              >
-                Sign Out
-              </Button>
-
-              <Button
-                type="submit"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                disabled={isSaving}
-              >
-                {isSaving ? "Submitting..." : "Submit For Approval"}
-              </Button>
+              <Button type="button" variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800" onClick={async () => { await supabase.auth.signOut(); navigate("/login"); }}>Sign Out</Button>
+              <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white" disabled={isSaving}>{isSaving ? "Submitting..." : "Submit For Approval"}</Button>
             </div>
           </form>
         </CardContent>

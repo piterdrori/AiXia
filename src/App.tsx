@@ -20,6 +20,8 @@ import { Toaster } from "@/components/ui/sonner";
 import LandingPage from "@/app/page";
 import LoginPage from "@/app/login/page";
 import RegisterPage from "@/app/register/page";
+import ForgotPasswordPage from "@/app/forgot-password/page";
+import ResetPasswordPage from "@/app/reset-password/page";
 import DashboardPage from "@/app/dashboard/page";
 import ProjectsPage from "@/app/projects/page";
 import ProjectDetailPage from "@/app/projects/[id]/page";
@@ -347,6 +349,23 @@ function AppRoutes() {
         }
       />
 
+      <Route
+  path="/forgot-password"
+  element={
+    <PublicRoute>
+      <ForgotPasswordPage />
+    </PublicRoute>
+  }
+/>
+
+<Route
+  path="/reset-password"
+  element={
+    <PublicRoute>
+      <ResetPasswordPage />
+    </PublicRoute>
+  }
+/>
       <Route
         path="/onboarding"
         element={

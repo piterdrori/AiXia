@@ -42,18 +42,23 @@ import SettingsPage from "@/app/settings/page";
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 
-type Status = "active" | "pending" | "inactive" | "denied";
+type ProfileStatus =
+  | "pending_verification"
+  | "pending_profile"
+  | "pending_approval"
+  | "active"
+  | "rejected";
 
 type AccessState =
   | "unauthenticated"
-  | "pending"
-  | "denied"
-  | "inactive"
+  | "pending_verification"
   | "needs_profile"
+  | "pending_approval"
+  | "rejected"
   | "ready";
 
 type ProfileAccessRow = {
-  status: Status | null;
+  status: ProfileStatus | null;
   profile_completed?: boolean | null;
 };
 
@@ -80,7 +85,9 @@ async function getAccessState(): Promise<AccessState> {
       error: sessionError,
     } = await supabase.auth.getSession();
 
-    if (sessionError || !session) return "unauthenticated";
+    if (sessionError || !session) {
+      return "unauthenticated";
+    }
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
@@ -88,16 +95,32 @@ async function getAccessState(): Promise<AccessState> {
       .eq("user_id", session.user.id)
       .maybeSingle();
 
-    if (profileError || !profile) return "unauthenticated";
+    if (profileError || !profile) {
+      console.error("Failed to load access profile:", profileError);
+      return "unauthenticated";
+    }
 
     const typedProfile = profile as ProfileAccessRow;
 
-    if (typedProfile.status === "pending") return "pending";
-    if (typedProfile.status === "denied") return "denied";
-    if (typedProfile.status !== "active") return "inactive";
-    if (!typedProfile.profile_completed) return "needs_profile";
+    switch (typedProfile.status) {
+      case "pending_verification":
+        return "pending_verification";
 
-    return "ready";
+      case "pending_profile":
+        return "needs_profile";
+
+      case "pending_approval":
+        return "pending_approval";
+
+      case "rejected":
+        return "rejected";
+
+      case "active":
+        return typedProfile.profile_completed ? "ready" : "needs_profile";
+
+      default:
+        return "unauthenticated";
+    }
   } catch (error) {
     console.error("getAccessState error:", error);
     return "unauthenticated";
@@ -115,14 +138,25 @@ function AuthAccessProvider({ children }: { children: ReactNode }) {
 
     try {
       const nextState = await getAccessState();
-      if (!mountedRef.current || requestId !== requestIdRef.current) return;
+
+      if (!mountedRef.current || requestId !== requestIdRef.current) {
+        return;
+      }
+
       setAccessState(nextState);
     } catch (error) {
       console.error("refreshAccessState error:", error);
-      if (!mountedRef.current || requestId !== requestIdRef.current) return;
+
+      if (!mountedRef.current || requestId !== requestIdRef.current) {
+        return;
+      }
+
       setAccessState("unauthenticated");
     } finally {
-      if (!mountedRef.current || requestId !== requestIdRef.current) return;
+      if (!mountedRef.current || requestId !== requestIdRef.current) {
+        return;
+      }
+
       setIsBootstrapping(false);
     }
   };
@@ -176,16 +210,18 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   const location = useLocation();
   const { isBootstrapping, accessState } = useAuthAccess();
 
-  if (isBootstrapping) return <FullScreenLoader />;
+  if (isBootstrapping) {
+    return <FullScreenLoader />;
+  }
 
   if (accessState === "unauthenticated") {
     return <Navigate to="/login" replace />;
   }
 
   if (
-    accessState === "pending" ||
-    accessState === "denied" ||
-    accessState === "inactive"
+    accessState === "pending_verification" ||
+    accessState === "pending_approval" ||
+    accessState === "rejected"
   ) {
     return <Navigate to="/login" replace />;
   }
@@ -204,7 +240,9 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 function PublicRoute({ children }: { children: ReactNode }) {
   const { isBootstrapping, accessState } = useAuthAccess();
 
-  if (isBootstrapping) return <FullScreenLoader />;
+  if (isBootstrapping) {
+    return <FullScreenLoader />;
+  }
 
   if (accessState === "ready") {
     return <Navigate to="/dashboard" replace />;

@@ -12,6 +12,7 @@ import { Eye, EyeOff } from "lucide-react";
 
 export default function ResetPasswordPage() {
 
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
   const [password, setPassword] = useState("");
@@ -24,24 +25,33 @@ export default function ResetPasswordPage() {
   const [message, setMessage] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
 
-useEffect(() => {
-  const handleRecoverySession = async () => {
-    const code = searchParams.get("code");
+  useEffect(() => {
 
-    if (!code) {
-      return;
-    }
+    const handleRecoverySession = async () => {
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+      const code = searchParams.get("code");
 
-    if (error) {
-      setError(error.message);
-    }
-  };
+      if (!code) {
+        setError("Invalid or expired reset link.");
+        return;
+      }
 
-  void handleRecoverySession();
-}, [searchParams]);
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+      if (error) {
+        setError(error.message);
+        return;
+      }
+
+      setSessionReady(true);
+
+    };
+
+    void handleRecoverySession();
+
+  }, [searchParams]);
 
   const handleResetPassword = async (e: React.FormEvent<HTMLFormElement>) => {
 
@@ -49,6 +59,11 @@ useEffect(() => {
 
     setError("");
     setMessage("");
+
+    if (!sessionReady) {
+      setError("Auth session missing.");
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match.");

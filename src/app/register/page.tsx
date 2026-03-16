@@ -45,9 +45,9 @@ export default function RegisterPage() {
           emailRedirectTo: `${window.location.origin}/onboarding`,
           data: {
             full_name: fullName.trim(),
-            requested_role: requestedRole,
-            role: requestedRole,
-            status: "pending_verification",
+            role: requestedRole as "employee" | "manager" | "guest",
+            requested_role: requestedRole as "employee" | "manager" | "guest",
+            status: "pending_verification" as "pending_verification",
             profile_completed: false
           }
         }

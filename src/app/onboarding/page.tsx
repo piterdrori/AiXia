@@ -8,6 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
+type Status = "pending_verification" | "pending_profile" | "pending_approval" | "active" | "rejected";
+
 type OnboardingProfileRow = {
   user_id: string;
   full_name: string | null;
@@ -23,7 +25,7 @@ type OnboardingProfileRow = {
   wechat?: string | null;
   whatsapp?: string | null;
   profile_completed?: boolean | null;
-  status?: "pending_verification" | "pending_profile" | "pending_approval" | "active" | "rejected" | null;
+  status: Status;
 };
 
 export default function OnboardingPage() {
@@ -53,33 +55,67 @@ export default function OnboardingPage() {
     for (let i = 0; i < 12; i++) {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) return session.user;
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
     return null;
   };
 
   const loadProfile = async () => {
-    setIsLoading(true); setError(""); setSuccessMessage("");
+    setIsLoading(true);
+    setError("");
+    setSuccessMessage("");
+
     const searchParams = new URLSearchParams(location.search);
     const errorCode = searchParams.get("error_code");
     const errorDescription = searchParams.get("error_description");
-
-    if (errorCode) { setError(errorDescription || "Email link invalid or expired"); setIsLoading(false); return; }
-
-    const user = await waitForAuthenticatedUser();
-    if (!user) { setError("Session not created correctly. Sign in."); setIsLoading(false); return; }
-    setUserId(user.id);
-
-    const { data, error } = await supabase.from("profiles").select("*").eq("user_id", user.id).single();
-    if (error || !data) { setError(error?.message || "Failed to load profile."); setIsLoading(false); return; }
-
-    const profile = data as OnboardingProfileRow;
-    if (profile.status === "pending_verification") {
-      await supabase.from("profiles").update({ status: "pending_profile" }).eq("user_id", user.id);
+    if (errorCode) {
+      setError(errorDescription || "The email link is invalid or expired.");
+      setIsLoading(false);
+      return;
     }
 
-    if (profile.status === "pending_approval") { setError("Already submitted. Waiting for admin."); setIsLoading(false); return; }
-    if (profile.status === "active") navigate("/dashboard");
+    const user = await waitForAuthenticatedUser();
+    if (!user) {
+      setError(
+        "Your email was confirmed, but the session was not created correctly. Please sign in and complete your profile."
+      );
+      setIsLoading(false);
+      return;
+    }
+
+    setUserId(user.id);
+
+    const { data: profileData, error: profileError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("user_id", user.id)
+      .single();
+
+    if (profileError || !profileData) {
+      setError(profileError?.message || "Failed to load profile.");
+      setIsLoading(false);
+      return;
+    }
+
+    const profile = profileData as OnboardingProfileRow;
+
+    if (profile.status === "pending_verification") {
+      await supabase
+        .from("profiles")
+        .update({ status: "pending_profile" })
+        .eq("user_id", user.id);
+    }
+
+    if (profile.status === "pending_approval") {
+      setError("Your details were already submitted and are waiting for admin approval.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (profile.status === "active") {
+      navigate("/dashboard");
+      return;
+    }
 
     setFullName(profile.full_name || "");
     setDisplayName(profile.display_name || "");
@@ -117,36 +153,54 @@ export default function OnboardingPage() {
     if (validationError) { setError(validationError); return; }
     if (!userId) return;
 
-    setIsSaving(true); setError(""); setSuccessMessage("");
-    const { error } = await supabase.from("profiles").update({
-      full_name: fullName.trim(),
-      display_name: displayName.trim(),
-      phone: phone.trim(),
-      country: country.trim(),
-      city: city.trim(),
-      company: company.trim(),
-      department: department.trim(),
-      job_title: jobTitle.trim(),
-      bio: bio.trim() || null,
-      avatar_url: avatarUrl.trim() || null,
-      wechat: wechat.trim() || null,
-      whatsapp: whatsapp.trim() || null,
-      profile_completed: true,
-      status: "pending_approval",
-      updated_at: new Date().toISOString()
-    }).eq("user_id", userId);
+    setIsSaving(true);
+    setError("");
+    setSuccessMessage("");
+
+    const { error: saveError } = await supabase
+      .from("profiles")
+      .update({
+        full_name: fullName.trim(),
+        display_name: displayName.trim(),
+        phone: phone.trim(),
+        country: country.trim(),
+        city: city.trim(),
+        company: company.trim(),
+        department: department.trim(),
+        job_title: jobTitle.trim(),
+        bio: bio.trim() || null,
+        avatar_url: avatarUrl.trim() || null,
+        wechat: wechat.trim() || null,
+        whatsapp: whatsapp.trim() || null,
+        profile_completed: true,
+        status: "pending_approval",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", userId);
 
     setIsSaving(false);
-    if (error) { setError(error.message || "Failed to submit profile."); return; }
+    if (saveError) { setError(saveError.message || "Failed to submit your profile."); return; }
 
-    setSuccessMessage("Details submitted. Waiting for admin approval.");
+    setSuccessMessage(
+      "Your details were submitted successfully. Your account is now waiting for admin approval. You will be able to log in only after approval."
+    );
+
     await supabase.auth.signOut();
     setTimeout(() => navigate("/login"), 2500);
   };
 
-  const handleSignOut = async () => { await supabase.auth.signOut(); navigate("/login"); };
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate("/login");
+  };
 
-  if (isLoading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500" /></div>;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4 py-10">
@@ -154,7 +208,13 @@ export default function OnboardingPage() {
         <CardContent className="p-8">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white">Complete Your Profile</h1>
-            <p className="text-slate-400 mt-2">Fill your details to complete registration. Admin will approve after submission.</p>
+            <p className="text-slate-400 mt-2">
+              Please fill in your details below to complete your registration.
+              After you submit this form, your request will be sent to the admin for approval.
+            </p>
+            <p className="text-slate-400 mt-2">
+              You will not be able to enter the platform until the admin approves your account.
+            </p>
           </div>
 
           {error && <Alert className="mb-6 bg-red-900/20 border-red-800 text-red-300"><AlertDescription>{error}</AlertDescription></Alert>}
@@ -177,7 +237,7 @@ export default function OnboardingPage() {
             </div>
 
             <div className="flex items-center justify-between gap-3 pt-2">
-              <Button type="button" variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800" onClick={async () => { await supabase.auth.signOut(); navigate("/login"); }}>Sign Out</Button>
+              <Button type="button" variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800" onClick={handleSignOut}>Sign Out</Button>
               <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white" disabled={isSaving}>{isSaving ? "Submitting..." : "Submit For Approval"}</Button>
             </div>
           </form>

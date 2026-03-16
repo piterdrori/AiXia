@@ -560,9 +560,9 @@ export default function EmployeeDetailPage() {
                       PROFILE INCOMPLETE
                     </Badge>
                   )}
-                  {requested_role && requested_role !== role && (
+                                    {user?.requested_role && user.requested_role !== role && (
                     <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30">
-                      REQUESTED {requested_role.toUpperCase()}
+                      REQUESTED {user.requested_role.toUpperCase()}
                     </Badge>
                   )}
                 </div>

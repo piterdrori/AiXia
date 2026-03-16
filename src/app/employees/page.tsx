@@ -250,9 +250,9 @@ const filteredUsers = useMemo(() => {
   });
 }, [profiles, searchQuery, activeTab]);
 
-  const pendingUsers = profiles.filter(
-    (user) => user.status === "pending_approval"
-  );
+const pendingUsers = profiles.filter(
+  (user) => user.status === "pending_approval"
+);
 
   const getRoleColor = (role: Role) => {
     switch (role) {

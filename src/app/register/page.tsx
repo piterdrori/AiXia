@@ -181,3 +181,17 @@ export default function RegisterPage() {
     </div>
   );
 }
+const { data, error } = await supabase.auth.signUp({
+  email: email.trim(),
+  password,
+  options: {
+    emailRedirectTo: `${window.location.origin}/onboarding`,
+    data: {
+      full_name: fullName.trim(),
+      requested_role: requestedRole as "employee" | "manager" | "guest",
+      role: requestedRole as "employee" | "manager" | "guest",
+      status: "pending_verification" as "pending_verification",
+      profile_completed: false,
+    },
+  },
+});

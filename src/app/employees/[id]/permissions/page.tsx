@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
@@ -13,7 +13,13 @@ import { ArrowLeft, Shield, Save, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type Role = "admin" | "manager" | "employee" | "guest";
-type Status = "active" | "pending" | "inactive" | "denied";
+
+type Status =
+  | "pending_verification"
+  | "pending_profile"
+  | "pending_approval"
+  | "active"
+  | "rejected";
 
 type ProfileRow = {
   user_id: string;
@@ -26,7 +32,14 @@ type ProfileRow = {
   updated_at: string;
 };
 
-const permissionLabels: Record<string, { label: string; description: string }> = {
+type CurrentUserRoleRow = {
+  role: Role;
+};
+
+const permissionLabels: Record<
+  string,
+  { label: string; description: string }
+> = {
   createProjects: {
     label: "Create Projects",
     description: "Can create new projects",
@@ -125,16 +138,15 @@ export default function EmployeePermissionsPage() {
 
         if (!requestTracker.current.isLatest(requestId)) return;
 
-        if (meError) {
-          console.error("Failed to load current user role:", meError);
+        if (meError || !me) {
           navigate("/employees");
           return;
         }
 
-        const role = (me?.role as Role) || null;
-        setCurrentUserRole(role);
+        const myRole = (me as CurrentUserRoleRow).role;
+        setCurrentUserRole(myRole);
 
-        if (role !== "admin") {
+        if (myRole !== "admin") {
           navigate("/employees");
           return;
         }
@@ -143,13 +155,13 @@ export default function EmployeePermissionsPage() {
           .from("profiles")
           .select("*")
           .eq("user_id", id)
-          .single();
+          .maybeSingle();
 
         if (!requestTracker.current.isLatest(requestId)) return;
 
         if (targetUserError || !targetUser) {
-          console.error("Failed to load target user:", targetUserError);
-          navigate("/employees");
+          setUser(null);
+          setSaveError("Unable to load permissions page.");
           return;
         }
 
@@ -158,7 +170,7 @@ export default function EmployeePermissionsPage() {
         setPermissions((typedUser.permissions || {}) as Record<string, boolean>);
       } catch (err) {
         if (!requestTracker.current.isLatest(requestId)) return;
-        console.error("Unexpected load error:", err);
+        console.error("Permissions page load error:", err);
         setSaveError("Failed to load permissions page.");
       } finally {
         if (!requestTracker.current.isLatest(requestId)) return;
@@ -187,7 +199,7 @@ export default function EmployeePermissionsPage() {
   };
 
   const handleSave = async () => {
-    if (!id) return;
+    if (!id || currentUserRole !== "admin") return;
 
     setIsSaving(true);
     setSaved(false);
@@ -220,12 +232,9 @@ export default function EmployeePermissionsPage() {
       );
 
       setSaved(true);
-
-      window.setTimeout(() => {
-        setSaved(false);
-      }, 3000);
+      window.setTimeout(() => setSaved(false), 3000);
     } catch (err) {
-      console.error("Unexpected save error:", err);
+      console.error("Permissions save error:", err);
       setSaveError("Unexpected error while saving permissions.");
     } finally {
       setIsSaving(false);
@@ -236,17 +245,31 @@ export default function EmployeePermissionsPage() {
     if (!user) return null;
 
     if (user.role === "admin") {
-      return <Badge className="bg-green-500/20 text-green-400">All Permissions</Badge>;
+      return (
+        <Badge className="bg-green-500/20 text-green-400">
+          All Permissions
+        </Badge>
+      );
     }
 
     if (user.role === "manager") {
       return (
         <>
-          <Badge className="bg-blue-500/20 text-blue-400">Create Projects</Badge>
-          <Badge className="bg-blue-500/20 text-blue-400">Edit Projects</Badge>
-          <Badge className="bg-blue-500/20 text-blue-400">Create Tasks</Badge>
-          <Badge className="bg-blue-500/20 text-blue-400">Edit Tasks</Badge>
-          <Badge className="bg-blue-500/20 text-blue-400">View Reports</Badge>
+          <Badge className="bg-blue-500/20 text-blue-400">
+            Create Projects
+          </Badge>
+          <Badge className="bg-blue-500/20 text-blue-400">
+            Edit Projects
+          </Badge>
+          <Badge className="bg-blue-500/20 text-blue-400">
+            Create Tasks
+          </Badge>
+          <Badge className="bg-blue-500/20 text-blue-400">
+            Edit Tasks
+          </Badge>
+          <Badge className="bg-blue-500/20 text-blue-400">
+            View Reports
+          </Badge>
         </>
       );
     }
@@ -254,18 +277,30 @@ export default function EmployeePermissionsPage() {
     if (user.role === "employee") {
       return (
         <>
-          <Badge className="bg-slate-500/20 text-slate-400">Create Tasks</Badge>
-          <Badge className="bg-slate-500/20 text-slate-400">Edit Own Tasks</Badge>
-          <Badge className="bg-slate-500/20 text-slate-400">Access Chat</Badge>
+          <Badge className="bg-slate-500/20 text-slate-400">
+            Create Tasks
+          </Badge>
+          <Badge className="bg-slate-500/20 text-slate-400">
+            Edit Own Tasks
+          </Badge>
+          <Badge className="bg-slate-500/20 text-slate-400">
+            Access Chat
+          </Badge>
         </>
       );
     }
 
     return (
       <>
-        <Badge className="bg-slate-500/20 text-slate-400">View Projects</Badge>
-        <Badge className="bg-slate-500/20 text-slate-400">Create Tasks</Badge>
-        <Badge className="bg-slate-500/20 text-slate-400">View Reports</Badge>
+        <Badge className="bg-slate-500/20 text-slate-400">
+          View Projects
+        </Badge>
+        <Badge className="bg-slate-500/20 text-slate-400">
+          Create Tasks
+        </Badge>
+        <Badge className="bg-slate-500/20 text-slate-400">
+          View Reports
+        </Badge>
       </>
     );
   }, [user]);
@@ -276,7 +311,9 @@ export default function EmployeePermissionsPage() {
         <Card className="bg-red-900/10 border-red-800/30">
           <CardContent className="p-6 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
-            <div className="text-red-300">Unable to load permissions page.</div>
+            <div className="text-red-300">
+              {saveError || "Unable to load permissions page."}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -319,11 +356,11 @@ export default function EmployeePermissionsPage() {
 
       {saved && (
         <Alert className="bg-green-900/20 border-green-800 text-green-400">
-          <AlertDescription>Permissions saved successfully!</AlertDescription>
+          <AlertDescription>Permissions saved successfully.</AlertDescription>
         </Alert>
       )}
 
-      {saveError && (
+      {saveError && user && (
         <Alert className="bg-red-900/20 border-red-800 text-red-400">
           <AlertDescription>{saveError}</AlertDescription>
         </Alert>
@@ -336,7 +373,8 @@ export default function EmployeePermissionsPage() {
             <CardTitle className="text-white">Permission Overrides</CardTitle>
           </div>
           <p className="text-slate-400 text-sm">
-            Toggle permissions to override the default role-based permissions for this user.
+            Toggle permissions to override the default role-based permissions
+            for this user.
           </p>
         </CardHeader>
 
@@ -344,7 +382,10 @@ export default function EmployeePermissionsPage() {
           {isBootstrapping && !user ? (
             <div className="space-y-4 animate-pulse">
               {Array.from({ length: 8 }).map((_, index) => (
-                <div key={index} className="flex items-start justify-between gap-4">
+                <div
+                  key={index}
+                  className="flex items-start justify-between gap-4"
+                >
                   <div className="flex-1 space-y-2">
                     <div className="h-4 bg-slate-800 rounded w-32" />
                     <div className="h-4 bg-slate-800 rounded w-56" />
@@ -355,23 +396,31 @@ export default function EmployeePermissionsPage() {
             </div>
           ) : (
             <>
-              {Object.entries(permissionLabels).map(([key, { label, description }]) => (
-                <div key={key} className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <Label htmlFor={key} className="text-white font-medium cursor-pointer">
-                      {label}
-                    </Label>
-                    <p className="text-slate-500 text-sm">{description}</p>
-                  </div>
+              {Object.entries(permissionLabels).map(
+                ([key, { label, description }]) => (
+                  <div
+                    key={key}
+                    className="flex items-start justify-between gap-4"
+                  >
+                    <div className="flex-1">
+                      <Label
+                        htmlFor={key}
+                        className="text-white font-medium cursor-pointer"
+                      >
+                        {label}
+                      </Label>
+                      <p className="text-slate-500 text-sm">{description}</p>
+                    </div>
 
-                  <Switch
-                    id={key}
-                    checked={permissions[key] || false}
-                    onCheckedChange={() => handleToggle(key)}
-                    disabled={isSaving}
-                  />
-                </div>
-              ))}
+                    <Switch
+                      id={key}
+                      checked={permissions[key] || false}
+                      onCheckedChange={() => handleToggle(key)}
+                      disabled={isSaving}
+                    />
+                  </div>
+                )
+              )}
 
               <Separator className="bg-slate-800" />
 
@@ -401,13 +450,16 @@ export default function EmployeePermissionsPage() {
 
       <Card className="bg-slate-900/50 border-slate-800">
         <CardHeader>
-          <CardTitle className="text-white text-lg">Current Role Permissions</CardTitle>
+          <CardTitle className="text-white text-lg">
+            Current Role Permissions
+          </CardTitle>
         </CardHeader>
 
         <CardContent>
           <p className="text-slate-400 mb-4">
-            This user has the <Badge className="mx-1">{user?.role.toUpperCase()}</Badge> role which
-            grants the following default permissions:
+            This user has the{" "}
+            <Badge className="mx-1">{user?.role.toUpperCase()}</Badge> role
+            which grants the following default permissions:
           </p>
           <div className="flex flex-wrap gap-2">{roleBadges}</div>
         </CardContent>

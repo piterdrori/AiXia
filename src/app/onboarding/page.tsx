@@ -106,6 +106,13 @@ export default function OnboardingPage() {
 
     const profile = data as OnboardingProfileRow;
 
+    if (profile.status === "pending_verification") {
+  await supabase
+    .from("profiles")
+    .update({ status: "pending_profile" })
+    .eq("user_id", user.id);
+}
+
     if (profile.status === "pending_approval") {
       setError(
         "Your details were already submitted and are waiting for admin approval."

@@ -40,6 +40,10 @@ function getFriendlyAuthError(message: string) {
     return "We could not create your account right now due to a server issue. Please try again in a moment.";
   }
 
+  if (lower.includes("signup is disabled")) {
+    return "Registration is currently disabled.";
+  }
+
   return message;
 }
 
@@ -123,8 +127,8 @@ export default function RegisterPage() {
         throw signUpError;
       }
 
-      const userCreated = !!data.user;
-      const hasSession = !!data.session;
+      const userCreated = Boolean(data.user);
+      const hasSession = Boolean(data.session);
 
       if (!userCreated) {
         setSuccessMessage(
@@ -193,6 +197,7 @@ export default function RegisterPage() {
                 className="bg-slate-950 border-slate-800 text-white"
                 disabled={isLoading}
                 autoComplete="name"
+                required
               />
             </div>
 
@@ -210,6 +215,7 @@ export default function RegisterPage() {
                 disabled={isLoading}
                 autoComplete="email"
                 inputMode="email"
+                required
               />
             </div>
 
@@ -246,6 +252,7 @@ export default function RegisterPage() {
                 className="bg-slate-950 border-slate-800 text-white"
                 disabled={isLoading}
                 autoComplete="new-password"
+                required
               />
             </div>
 
@@ -262,6 +269,7 @@ export default function RegisterPage() {
                 className="bg-slate-950 border-slate-800 text-white"
                 disabled={isLoading}
                 autoComplete="new-password"
+                required
               />
             </div>
 

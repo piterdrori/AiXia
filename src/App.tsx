@@ -218,15 +218,14 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (
-    accessState === "pending_verification" ||
-    accessState === "pending_approval" ||
-    accessState === "rejected"
-  ) {
+  if (accessState === "pending_approval" || accessState === "rejected") {
     return <Navigate to="/login" replace />;
   }
 
-  if (accessState === "needs_profile" && location.pathname !== "/onboarding") {
+  if (
+    (accessState === "pending_verification" || accessState === "needs_profile") &&
+    location.pathname !== "/onboarding"
+  ) {
     return <Navigate to="/onboarding" replace />;
   }
 
@@ -248,7 +247,10 @@ function PublicRoute({ children }: { children: ReactNode }) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  if (accessState === "needs_profile") {
+  if (
+    accessState === "pending_verification" ||
+    accessState === "needs_profile"
+  ) {
     return <Navigate to="/onboarding" replace />;
   }
 

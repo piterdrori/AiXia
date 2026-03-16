@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 type Status =
   | "active"
   | "pending_verification"
+  | "pending_profile"
   | "pending_approval"
   | "rejected";
 
@@ -20,6 +21,28 @@ type LoginProfileRow = {
   full_name: string | null;
   profile_completed?: boolean | null;
 };
+
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function getFriendlyLoginError(message: string) {
+  const lower = message.toLowerCase();
+
+  if (lower.includes("invalid login credentials")) {
+    return "Invalid email or password.";
+  }
+
+  if (lower.includes("email not confirmed")) {
+    return "Please verify your email first.";
+  }
+
+  if (lower.includes("too many requests")) {
+    return "Too many login attempts. Please wait a moment and try again.";
+  }
+
+  return message;
+}
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -31,22 +54,35 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (isLoading) return;
 
     setError("");
     setInfoMessage("");
     setIsLoading(true);
 
     try {
-      const { error: signInError } =
-        await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
+      const normalizedEmail = normalizeEmail(email);
+
+      if (!normalizedEmail) {
+        setError("Email is required.");
+        return;
+      }
+
+      if (!password) {
+        setError("Password is required.");
+        return;
+      }
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
 
       if (signInError) {
-        setError(signInError.message);
+        setError(getFriendlyLoginError(signInError.message));
         return;
       }
 
@@ -61,12 +97,11 @@ export default function LoginPage() {
         return;
       }
 
-      const { data: profile, error: profileError } =
-        await supabase
-          .from("profiles")
-          .select("status, role, full_name, profile_completed")
-          .eq("user_id", user.id)
-          .maybeSingle();
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("status, role, full_name, profile_completed")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
       if (profileError || !profile) {
         setError("User profile not found.");
@@ -85,40 +120,43 @@ export default function LoginPage() {
       switch (typedProfile.status) {
         case "pending_verification":
           setInfoMessage(
-            "Please verify your email before logging in."
+            "Please verify your email first. Check your inbox and click the confirmation link."
           );
           await supabase.auth.signOut();
           return;
 
+        case "pending_profile":
+          navigate("/onboarding");
+          return;
+
         case "pending_approval":
           setInfoMessage(
-            "Your account is waiting for admin approval."
+            "Your profile was submitted and is waiting for admin approval."
           );
           await supabase.auth.signOut();
           return;
 
         case "rejected":
           setError(
-            "Your registration was rejected. Contact the administrator."
+            "Your registration was rejected. Please contact the administrator."
           );
           await supabase.auth.signOut();
           return;
 
         case "active":
-          break;
+          if (!typedProfile.profile_completed) {
+            navigate("/onboarding");
+            return;
+          }
+
+          navigate("/dashboard");
+          return;
 
         default:
           setError("Invalid account state.");
           await supabase.auth.signOut();
           return;
       }
-
-      if (!typedProfile.profile_completed) {
-        navigate("/onboarding");
-        return;
-      }
-
-      navigate("/dashboard");
     } catch (err) {
       console.error("Login error:", err);
       setError("Unexpected login error.");
@@ -133,12 +171,8 @@ export default function LoginPage() {
       <Card className="w-full max-w-md bg-slate-900/60 border-slate-800">
         <CardContent className="p-8">
           <div className="mb-8 text-center">
-            <h1 className="text-3xl font-bold text-white">
-              Sign In
-            </h1>
-            <p className="text-slate-400 mt-2">
-              Access your TaskFlow account
-            </p>
+            <h1 className="text-3xl font-bold text-white">Sign In</h1>
+            <p className="text-slate-400 mt-2">Access your TaskFlow account</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
@@ -155,13 +189,9 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-2">
-              <Label
-                htmlFor="email"
-                className="text-slate-300"
-              >
+              <Label htmlFor="email" className="text-slate-300">
                 Email
               </Label>
-
               <Input
                 id="email"
                 type="email"
@@ -171,28 +201,25 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
                 required
+                autoComplete="email"
+                inputMode="email"
               />
             </div>
 
             <div className="space-y-2">
-              <Label
-                htmlFor="password"
-                className="text-slate-300"
-              >
+              <Label htmlFor="password" className="text-slate-300">
                 Password
               </Label>
-
               <Input
                 id="password"
                 type="password"
                 placeholder="Enter your password"
                 className="bg-slate-950 border-slate-800 text-white"
                 value={password}
-                onChange={(e) =>
-                  setPassword(e.target.value)
-                }
+                onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
                 required
+                autoComplete="current-password"
               />
             </div>
 

@@ -27,6 +27,7 @@ export default function RegisterPage() {
     setError("");
     setSuccessMessage("");
 
+    // --- Basic validation ---
     if (!fullName.trim()) return setError("Full name is required.");
     if (!email.trim()) return setError("Email is required.");
     if (password.length < 6) return setError("Password must be at least 6 characters.");
@@ -35,8 +36,8 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // Sign up the user with metadata for onboarding
-      const { error: signUpError } = await supabase.auth.signUp({
+      // --- Sign up the user with metadata for the profiles trigger ---
+      const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
@@ -51,20 +52,21 @@ export default function RegisterPage() {
         },
       });
 
-      if (signUpError) throw signUpError;
+      if (error) throw error;
 
       setSuccessMessage(
-        "Registration successful! Please check your email to verify your account. After verification, complete your profile to submit the request for admin approval."
+        "Registration successful! Check your email to verify your account. " +
+        "After verification, you will be redirected to complete your profile and submit your request for admin approval."
       );
 
-      // Reset form fields
+      // reset fields
       setFullName("");
       setEmail("");
       setPassword("");
       setConfirmPassword("");
       setRequestedRole("employee");
     } catch (err: any) {
-      console.error(err);
+      console.error("Registration error:", err);
       setError(err.message || "Failed to register. Please try again.");
     } finally {
       setIsLoading(false);
@@ -85,6 +87,7 @@ export default function RegisterPage() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+
           {successMessage && (
             <Alert className="bg-emerald-900/20 border-emerald-800 text-emerald-300 mb-4">
               <AlertDescription>{successMessage}</AlertDescription>
@@ -172,7 +175,9 @@ export default function RegisterPage() {
 
           <div className="mt-6 text-center text-sm text-slate-400">
             Already have an account?{" "}
-            <Link to="/login" className="text-indigo-400 hover:text-indigo-300">Sign in</Link>
+            <Link to="/login" className="text-indigo-400 hover:text-indigo-300">
+              Sign in
+            </Link>
           </div>
         </CardContent>
       </Card>

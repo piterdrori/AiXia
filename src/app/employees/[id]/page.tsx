@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -321,13 +320,6 @@ export default function EmployeeDetailPage() {
         return "ACTIVE";
     }
   };
-
-  const displayPhone = useMemo(() => firstFilled(phones), [phones]);
-  const displayCompany = useMemo(() => firstFilled(companies), [companies]);
-  const displayDepartment = useMemo(() => firstFilled(departments), [departments]);
-  const displayJobTitle = useMemo(() => firstFilled(jobTitles), [jobTitles]);
-  const displayWhatsapp = useMemo(() => firstFilled(whatsapps), [whatsapps]);
-  const displayWechat = useMemo(() => firstFilled(wechats), [wechats]);
 
   const beginEditing = (fieldKey: string) => {
     setIsEditing(true);

@@ -13,7 +13,7 @@ import {
   deleteUploadedFile,
 } from "@/lib/file-upload";
 import { createRequestTracker } from "@/lib/safeAsync";
-
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -213,6 +213,9 @@ export default function ProjectDetailPage() {
 
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
+  const [isTeamDialogOpen, setIsTeamDialogOpen] = useState(false);
+  const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
+  const [isSavingTeamMembers, setIsSavingTeamMembers] = useState(false);
 
   const loadProjectPage = async (mode: "initial" | "refresh" = "initial") => {
     if (!id) {
@@ -380,6 +383,94 @@ export default function ProjectDetailPage() {
   const canManageComment = (comment: ProjectCommentRow) => {
     if (!currentUserId) return false;
     return currentUserRole === "admin" || comment.user_id === currentUserId;
+  };
+
+    const openTeamDialog = () => {
+    setSelectedTeamMembers(projectMembers.map((member) => member.user_id));
+    setIsTeamDialogOpen(true);
+  };
+
+  const toggleSelectedTeamMember = (userId: string) => {
+    setSelectedTeamMembers((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const handleSaveTeamMembers = async () => {
+    if (!id || !project || !canEdit) return;
+
+    setError("");
+    setIsSavingTeamMembers(true);
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        navigate("/login");
+        return;
+      }
+
+      const existingUserIds = projectMembers.map((member) => member.user_id);
+      const selectedSet = new Set(selectedTeamMembers);
+
+      const toInsert = selectedTeamMembers.filter((userId) => !existingUserIds.includes(userId));
+      const toDelete = projectMembers.filter((member) => !selectedSet.has(member.user_id));
+
+      if (toInsert.length > 0) {
+        const rows = toInsert.map((userId) => ({
+          project_id: id,
+          user_id: userId,
+          role: "member",
+        }));
+
+        const { error: insertError } = await supabase.from("project_members").insert(rows);
+
+        if (insertError) {
+          setError(insertError.message || "Failed to add team members.");
+          return;
+        }
+
+        await logActivity({
+          projectId: id,
+          actionType: "project_members_added",
+          entityType: "member",
+          entityId: id,
+          message: `Added ${toInsert.length} member(s) to project`,
+        });
+      }
+
+      if (toDelete.length > 0) {
+        const idsToDelete = toDelete.map((member) => member.id);
+
+        const { error: deleteError } = await supabase
+          .from("project_members")
+          .delete()
+          .in("id", idsToDelete);
+
+        if (deleteError) {
+          setError(deleteError.message || "Failed to remove team members.");
+          return;
+        }
+
+        await logActivity({
+          projectId: id,
+          actionType: "project_members_removed",
+          entityType: "member",
+          entityId: id,
+          message: `Removed ${toDelete.length} member(s) from project`,
+        });
+      }
+
+      await loadProjectPage("refresh");
+      setIsTeamDialogOpen(false);
+    } catch (err) {
+      console.error("Save team members error:", err);
+      setError("Something went wrong while updating team members.");
+    } finally {
+      setIsSavingTeamMembers(false);
+    }
   };
 
   const getStatusColor = (status: string | null) => {
@@ -1147,7 +1238,7 @@ const getProfileByUserId = (userId: string) => {
             {canEdit && (
               <Button
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                onClick={() => navigate(`/projects/${project.id}/edit`)}
+                onClick={openTeamDialog}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Team Member
@@ -1192,6 +1283,72 @@ const getProfileByUserId = (userId: string) => {
               </div>
             </CardContent>
           </Card>
+
+          <Dialog open={isTeamDialogOpen} onOpenChange={setIsTeamDialogOpen}>
+            <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Add Team Members</DialogTitle>
+              </DialogHeader>
+
+              <div className="space-y-3">
+                <div className="text-slate-300 text-sm font-medium">Assign Team Members</div>
+
+                {profiles.length === 0 ? (
+                  <div className="text-slate-500 text-sm">No active team members found.</div>
+                ) : (
+                  <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3 max-h-64 overflow-y-auto">
+                    {profiles.map((member) => (
+                      <label
+                        key={member.user_id}
+                        className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-900 cursor-pointer"
+                      >
+                        <div>
+                          <div className="text-white text-sm font-medium">
+                            {member.full_name || "Unnamed user"}
+                          </div>
+                          <div className="text-slate-500 text-xs">
+                            {member.role.toUpperCase()}
+                          </div>
+                        </div>
+
+                        <input
+                          type="checkbox"
+                          checked={selectedTeamMembers.includes(member.user_id)}
+                          onChange={() => toggleSelectedTeamMember(member.user_id)}
+                          className="h-4 w-4"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                <p className="text-slate-500 text-xs">
+                  Only assigned members, the creator, and admin will be able to see this project.
+                </p>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsTeamDialogOpen(false)}
+                    className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                    disabled={isSavingTeamMembers}
+                  >
+                    Cancel
+                  </Button>
+
+                  <Button
+                    type="button"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    onClick={() => void handleSaveTeamMembers()}
+                    disabled={isSavingTeamMembers}
+                  >
+                    {isSavingTeamMembers ? "Saving..." : "Save Members"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         <TabsContent value="files" className="space-y-4">

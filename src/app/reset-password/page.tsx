@@ -81,11 +81,13 @@ export default function ResetPasswordPage() {
         return;
       }
 
-      setMessage("Password updated successfully.");
+      setMessage("Password updated successfully. Redirecting to login...");
+
+      await supabase.auth.signOut();
 
       setTimeout(() => {
-        navigate("/login");
-      }, 2000);
+        navigate("/login?reset=success");
+      }, 1500);
     } catch (err) {
       setError("Unexpected error while updating password.");
     } finally {

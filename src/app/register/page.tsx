@@ -172,7 +172,7 @@ export default function RegisterPage() {
     <img
       src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
       alt="AiXia Logo"
-      className="h-12 w-auto object-contain"
+      className="h-24 w-auto object-contain"
     />
   </div>
   <h1 className="text-3xl font-bold text-white">Create Account</h1>

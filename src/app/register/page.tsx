@@ -293,46 +293,48 @@ export default function RegisterPage() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-slate-300">Requested Role</Label>
-              <Select
-                value={requestedRole}
-                onValueChange={(value) => {
-                  setRequestedRole(value as RequestedRole);
-                  setMemberType("");
-                }}
-                disabled={isLoading}
-              >
-                <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="employee">Employee</SelectItem>
-                  <SelectItem value="guest">Guest</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+<div className="grid grid-cols-2 gap-4 items-end">
+  <div className="space-y-2">
+    <Label className="text-slate-300">Requested Role</Label>
+    <Select
+      value={requestedRole}
+      onValueChange={(value) => {
+        setRequestedRole(value as RequestedRole);
+        setMemberType("");
+      }}
+      disabled={isLoading}
+    >
+      <SelectTrigger className="w-full bg-slate-950 border-slate-800 text-white">
+        <SelectValue placeholder="Select role" />
+      </SelectTrigger>
+      <SelectContent className="bg-slate-950 border-slate-800 text-white">
+        <SelectItem value="manager">Manager</SelectItem>
+        <SelectItem value="employee">Employee</SelectItem>
+        <SelectItem value="guest">Guest</SelectItem>
+      </SelectContent>
+    </Select>
+  </div>
 
-            <div className="space-y-2">
-              <Label className="text-slate-300">Member Type</Label>
-              <Select
-                value={memberType}
-                onValueChange={(value) => setMemberType(value as MemberType)}
-                disabled={isLoading}
-              >
-                <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                  <SelectValue placeholder="Select member type" />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                  {availableMemberTypes.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+  <div className="space-y-2">
+    <Label className="text-slate-300">Member Type</Label>
+    <Select
+      value={memberType}
+      onValueChange={(value) => setMemberType(value as MemberType)}
+      disabled={isLoading}
+    >
+      <SelectTrigger className="w-full bg-slate-950 border-slate-800 text-white">
+        <SelectValue placeholder="Select member type" />
+      </SelectTrigger>
+      <SelectContent className="bg-slate-950 border-slate-800 text-white">
+        {availableMemberTypes.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  </div>
+</div>
 
             <div className="space-y-2">
               <Label htmlFor="password" className="text-slate-300">

@@ -538,7 +538,7 @@ export default function DashboardLayout({
   <img
     src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
     alt="AiXia Logo"
-    className="h-20 w-auto object-contain"
+    className="h-40 w-auto object-contain"
   />
 </div>
 

@@ -533,25 +533,24 @@ export default function DashboardLayout({
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-4 border-b border-slate-800">
-     <div className="w-full flex items-center justify-start px-4 py-4">
+      <div className="relative flex items-center justify-center px-4 py-6 border-b border-slate-800 min-h-[120px]">
   <img
     src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
     alt="AiXia Logo"
-    className="h-20 w-auto object-contain"
+    className="block w-full max-w-[240px] h-auto object-contain"
   />
-</div>
 
-        {isMobile && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            <X className="w-5 h-5 text-slate-400" />
-          </Button>
-        )}
-      </div>
+  {isMobile && (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={() => setMobileMenuOpen(false)}
+      className="absolute right-3 top-3"
+    >
+      <X className="w-5 h-5 text-slate-400" />
+    </Button>
+  )}
+</div>
 
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         <TooltipProvider delayDuration={0}>
@@ -656,11 +655,11 @@ export default function DashboardLayout({
 ) : (
   <div className="flex flex-col h-full">
     <div className="p-4 border-b border-slate-800 flex justify-center">
-      <img
-        src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
-        alt="AiXia Logo"
-        className="h-8 w-auto object-contain"
-      />
+     <img
+  src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
+  alt="AiXia Logo"
+  className="block w-full max-w-[44px] h-auto object-contain"
+ />
     </div>
 
               <nav className="flex-1 p-2 space-y-1">

@@ -559,10 +559,10 @@ export default function EmployeesPage() {
                     </div>
 
                    <div className="grid sm:grid-cols-2 gap-2 text-sm">
-  <p className="text-slate-400">
-    <span className="text-slate-500">Email:</span>{" "}
-    {user.email || "—"}
-  </p>
+                     <p className="text-slate-400">
+                     <span className="text-slate-500">Email:</span>{" "}
+                        {user.email || "—"}
+                        </p>
   <p className="text-slate-400">
     <span className="text-slate-500">Phone:</span>{" "}
     {user.phone || "—"}

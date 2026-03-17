@@ -1110,7 +1110,6 @@ export default function EmployeeDetailPage() {
               </div>
             </div>
           </div>
-        </div>
       )}
     </CardContent>
   </Card>
@@ -1525,6 +1524,5 @@ export default function EmployeeDetailPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
   );
 }

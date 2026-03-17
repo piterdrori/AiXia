@@ -49,9 +49,9 @@ type ProjectRow = {
   created_at: string;
 };
 
-type ProfileRow = {
+type ProjectMemberRow = {
+  project_id: string;
   user_id: string;
-  role: Role;
 };
 
 export default function ProjectsPage() {
@@ -95,36 +95,112 @@ export default function ProjectsPage() {
 
       setCurrentUserId(user.id);
 
-      const [profileResult, projectsResult] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("user_id, role")
-          .eq("user_id", user.id)
-          .single(),
-        supabase
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("user_id, role")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (profileError) {
+        console.error("Load current profile error:", profileError);
+        setCurrentUserRole(null);
+        setProjects([]);
+        setLoadError(profileError.message || "Failed to load profile.");
+        return;
+      }
+
+      const currentProfile = (profileData as ProfileRow | null) || null;
+      const userRole = currentProfile?.role || null;
+      setCurrentUserRole(userRole);
+
+      if (userRole === "admin") {
+        const { data: projectsData, error: projectsError } = await supabase
           .from("projects")
           .select(
             "id, name, description, status, progress, created_by, start_date, end_date, created_at"
           )
-          .order("created_at", { ascending: false }),
-      ]);
+          .order("created_at", { ascending: false });
+
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        if (projectsError) {
+          console.error("Load projects error:", projectsError);
+          setProjects([]);
+          setLoadError(projectsError.message || "Failed to load projects.");
+        } else {
+          setProjects((projectsData || []) as ProjectRow[]);
+        }
+
+        return;
+      }
+
+      const [{ data: memberRows, error: membersError }, { data: createdProjects, error: createdError }] =
+        await Promise.all([
+          supabase
+            .from("project_members")
+            .select("project_id, user_id")
+            .eq("user_id", user.id),
+          supabase
+            .from("projects")
+            .select(
+              "id, name, description, status, progress, created_by, start_date, end_date, created_at"
+            )
+            .eq("created_by", user.id),
+        ]);
 
       if (!requestTracker.current.isLatest(requestId)) return;
 
-      if (profileResult.error) {
-        console.error("Load current profile error:", profileResult.error);
-        setCurrentUserRole(null);
-      } else {
-        setCurrentUserRole((profileResult.data as ProfileRow | null)?.role || null);
+      if (membersError) {
+        console.error("Load project members error:", membersError);
+        setProjects([]);
+        setLoadError(membersError.message || "Failed to load project memberships.");
+        return;
       }
 
-      if (projectsResult.error) {
-        console.error("Load projects error:", projectsResult.error);
+      if (createdError) {
+        console.error("Load created projects error:", createdError);
         setProjects([]);
-        setLoadError(projectsResult.error.message || "Failed to load projects.");
-      } else {
-        setProjects((projectsResult.data || []) as ProjectRow[]);
+        setLoadError(createdError.message || "Failed to load created projects.");
+        return;
       }
+
+      const visibleProjectIds = Array.from(
+        new Set((memberRows as ProjectMemberRow[] | null || []).map((row) => row.project_id))
+      );
+
+      let assignedProjects: ProjectRow[] = [];
+
+      if (visibleProjectIds.length > 0) {
+        const { data: assignedProjectsData, error: assignedProjectsError } = await supabase
+          .from("projects")
+          .select(
+            "id, name, description, status, progress, created_by, start_date, end_date, created_at"
+          )
+          .in("id", visibleProjectIds);
+
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        if (assignedProjectsError) {
+          console.error("Load assigned projects error:", assignedProjectsError);
+          setProjects([]);
+          setLoadError(assignedProjectsError.message || "Failed to load assigned projects.");
+          return;
+        }
+
+        assignedProjects = (assignedProjectsData || []) as ProjectRow[];
+      }
+
+      const mergedProjects = [...((createdProjects || []) as ProjectRow[]), ...assignedProjects];
+
+      const uniqueProjects = Array.from(
+        new Map(mergedProjects.map((project) => [project.id, project])).values()
+      ).sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setProjects(uniqueProjects);
     } catch (error) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Projects page load error:", error);

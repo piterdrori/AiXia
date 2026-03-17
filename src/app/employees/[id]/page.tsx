@@ -39,6 +39,9 @@ import {
   Briefcase,
   MessageCircle,
   AlertCircle,
+  Plus,
+  Mail,
+  Image as ImageIcon,
 } from "lucide-react";
 
 type Role = "admin" | "manager" | "employee" | "guest";
@@ -82,6 +85,10 @@ type CurrentUserRoleRow = {
 function normalizeOptional(value: string) {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function hasText(value: string) {
+  return value.trim().length > 0;
 }
 
 export default function EmployeeDetailPage() {
@@ -297,8 +304,6 @@ export default function EmployeeDetailPage() {
     }
   };
 
-  const hasValue = (value: string) => value.trim().length > 0;
-
   const beginEditing = (fieldKey: string) => {
     setIsEditing(true);
     setActiveEditor(fieldKey);
@@ -376,6 +381,60 @@ export default function EmployeeDetailPage() {
     }
   };
 
+  const renderActionButtons = ({
+    fieldKey,
+    filled,
+    canEditThisField,
+    addLabel = "Add",
+  }: {
+    fieldKey: string;
+    filled: boolean;
+    canEditThisField: boolean;
+    addLabel?: string;
+  }) => {
+    if (!canEditThisField) return null;
+
+    return (
+      <div className="flex items-center gap-2">
+        {!filled ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="border-slate-700 text-slate-200 hover:bg-slate-800"
+            onClick={() => beginEditing(fieldKey)}
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            {addLabel}
+          </Button>
+        ) : (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-slate-700 text-slate-200 hover:bg-slate-800"
+              onClick={() => beginEditing(fieldKey)}
+            >
+              <Edit className="w-4 h-4 mr-1" />
+              Edit
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-red-800 text-red-400 hover:bg-red-900/20"
+              onClick={() => clearField(fieldKey)}
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              Delete
+            </Button>
+          </>
+        )}
+      </div>
+    );
+  };
+
   const renderFieldCard = ({
     fieldKey,
     label,
@@ -383,6 +442,7 @@ export default function EmployeeDetailPage() {
     setValue,
     multiline = false,
     adminOnly = false,
+    helperText,
   }: {
     fieldKey: string;
     label: string;
@@ -390,70 +450,51 @@ export default function EmployeeDetailPage() {
     setValue: (value: string) => void;
     multiline?: boolean;
     adminOnly?: boolean;
+    helperText?: string;
   }) => {
     const canEditThisField = adminOnly ? canManage : canEditProfileFields;
     const isThisEditing = isEditing && activeEditor === fieldKey;
-    const filled = hasValue(value);
+    const filled = hasText(value);
 
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-medium text-white">{label}</p>
+      <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <h4 className="text-base font-semibold text-white">{label}</h4>
             <p className="text-xs text-slate-500">
-              {adminOnly ? "Admin-controlled field" : "Profile field"}
+              {helperText || (adminOnly ? "Admin-controlled field" : "Profile field")}
             </p>
           </div>
 
-          {canEditThisField && (
-            <div className="flex items-center gap-2">
-              {!isThisEditing && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                  onClick={() => beginEditing(fieldKey)}
-                >
-                  {filled ? "Edit" : "Add"}
-                </Button>
-              )}
+          {renderActionButtons({
+            fieldKey,
+            filled,
+            canEditThisField,
+          })}
+        </div>
 
-              {filled && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="border-red-800 text-red-400 hover:bg-red-900/20"
-                  onClick={() => clearField(fieldKey)}
-                >
-                  Delete
-                </Button>
-              )}
+        <div className="mt-4">
+          {isThisEditing ? (
+            multiline ? (
+              <Textarea
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                rows={5}
+                className="bg-slate-950 border-slate-800 text-white resize-none"
+              />
+            ) : (
+              <Input
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                className="bg-slate-950 border-slate-800 text-white"
+              />
+            )
+          ) : (
+            <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3 text-sm text-slate-200 whitespace-pre-wrap break-words min-h-[52px] flex items-center">
+              {filled ? value : <span className="text-slate-500">No value added yet</span>}
             </div>
           )}
         </div>
-
-        {isThisEditing ? (
-          multiline ? (
-            <Textarea
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              rows={5}
-              className="bg-slate-950 border-slate-800 text-white resize-none"
-            />
-          ) : (
-            <Input
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              className="bg-slate-950 border-slate-800 text-white"
-            />
-          )
-        ) : (
-          <div className="text-sm text-slate-300 whitespace-pre-wrap break-words">
-            {filled ? value : "—"}
-          </div>
-        )}
       </div>
     );
   };
@@ -615,7 +656,7 @@ export default function EmployeeDetailPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <Button
@@ -672,7 +713,7 @@ export default function EmployeeDetailPage() {
               disabled={isUploadingPhoto || isDeactivating || isDeleting}
             >
               <Edit className="w-4 h-4 mr-2" />
-              Edit
+              Edit Mode
             </Button>
           )}
 
@@ -713,8 +754,8 @@ export default function EmployeeDetailPage() {
         </Alert>
       )}
 
-      <div className="grid xl:grid-cols-[340px,1fr] gap-6">
-        <Card className="bg-slate-900/50 border-slate-800">
+      <div className="grid xl:grid-cols-[320px,1fr] gap-6">
+        <Card className="bg-slate-900/50 border-slate-800 overflow-hidden">
           <CardContent className="p-6">
             {isBootstrapping && !user ? (
               <div className="animate-pulse space-y-4">
@@ -730,7 +771,7 @@ export default function EmployeeDetailPage() {
               </div>
             ) : (
               <div className="flex flex-col items-center text-center">
-                <Avatar className="w-24 h-24 mb-4">
+                <Avatar className="w-28 h-28 mb-4 ring-4 ring-slate-800">
                   <AvatarImage src={avatarUrl || undefined} />
                   <AvatarFallback className="bg-indigo-600 text-white text-2xl">
                     {getInitials(fullName)}
@@ -759,52 +800,68 @@ export default function EmployeeDetailPage() {
                   )}
                 </div>
 
-                <div className="w-full mt-6 space-y-3 text-left">
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <div className="w-4 h-4 text-slate-500 flex items-center justify-center text-xs font-semibold">
-                      @
+                <div className="w-full mt-6 space-y-3">
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-left">
+                    <div className="flex items-center gap-2 text-slate-300">
+                      <Mail className="w-4 h-4 text-slate-500" />
+                      <span>{email || "No email"}</span>
                     </div>
-                    <span>{email || "No email"}</span>
                   </div>
 
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <Phone className="w-4 h-4 text-slate-500" />
-                    <span>{phone || "No phone"}</span>
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-left">
+                    <div className="flex items-center gap-2 text-slate-300">
+                      <Phone className="w-4 h-4 text-slate-500" />
+                      <span>{phone || "No phone"}</span>
+                    </div>
                   </div>
 
-                  <div className="flex items-start gap-2 text-slate-300">
-                    <MapPin className="w-4 h-4 text-slate-500 mt-0.5" />
-                    <div>
-                      <div>{[city, country].filter(Boolean).join(", ") || "No location"}</div>
-                      <div className="text-xs text-slate-500">
-                        {shippingAddress || "No shipping address"}
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-left">
+                    <div className="flex items-start gap-2 text-slate-300">
+                      <MapPin className="w-4 h-4 text-slate-500 mt-0.5" />
+                      <div>
+                        <div>
+                          {[city, country].filter(Boolean).join(", ") || "No location"}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">
+                          {shippingAddress || "No shipping address"}
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <Building2 className="w-4 h-4 text-slate-500" />
-                    <span>{company || "No company"}</span>
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-left">
+                    <div className="flex items-center gap-2 text-slate-300">
+                      <Building2 className="w-4 h-4 text-slate-500" />
+                      <span>{company || "No company"}</span>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <Briefcase className="w-4 h-4 text-slate-500" />
-                    <span>{jobTitle || "No job title"}</span>
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-left">
+                    <div className="flex items-center gap-2 text-slate-300">
+                      <Briefcase className="w-4 h-4 text-slate-500" />
+                      <span>{jobTitle || "No job title"}</span>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <User className="w-4 h-4 text-slate-500" />
-                    <span>{department || "No department"}</span>
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-left">
+                    <div className="flex items-center gap-2 text-slate-300">
+                      <User className="w-4 h-4 text-slate-500" />
+                      <span>{department || "No department"}</span>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <MessageCircle className="w-4 h-4 text-slate-500" />
-                    <span>WhatsApp: {whatsapp || "—"}</span>
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-left">
+                    <div className="flex items-center gap-2 text-slate-300">
+                      <MessageCircle className="w-4 h-4 text-slate-500" />
+                      <span>WhatsApp: {whatsapp || "—"}</span>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <MessageCircle className="w-4 h-4 text-slate-500" />
-                    <span>WeChat: {wechat || "—"}</span>
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-left">
+                    <div className="flex items-center gap-2 text-slate-300">
+                      <MessageCircle className="w-4 h-4 text-slate-500" />
+                      <span>WeChat: {wechat || "—"}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -813,17 +870,17 @@ export default function EmployeeDetailPage() {
         </Card>
 
         <Card className="bg-slate-900/50 border-slate-800">
-          <CardHeader>
+          <CardHeader className="border-b border-slate-800">
             <CardTitle className="text-white">
               {isEditing ? "Edit Profile Details" : "Profile Details"}
             </CardTitle>
           </CardHeader>
 
-          <CardContent className="space-y-6">
+          <CardContent className="p-6 space-y-6">
             {isBootstrapping && !user ? (
               <div className="space-y-6 animate-pulse">
                 <div className="grid md:grid-cols-2 gap-4">
-                  {Array.from({ length: 10 }).map((_, index) => (
+                  {Array.from({ length: 8 }).map((_, index) => (
                     <div key={index} className="space-y-2">
                       <div className="h-4 bg-slate-800 rounded w-24" />
                       <div className="h-10 bg-slate-800 rounded" />
@@ -837,13 +894,14 @@ export default function EmployeeDetailPage() {
               </div>
             ) : (
               <>
-                <div className="space-y-6">
-                  <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-4">
+                <div className="grid gap-6">
+                  <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
                     <div>
-                      <h3 className="text-white font-medium">Admin-Controlled Identity</h3>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Registered Email is the official system email and can only be
-                        changed by admin.
+                      <h3 className="text-lg font-semibold text-white">
+                        Admin-Controlled Identity
+                      </h3>
+                      <p className="text-sm text-slate-500 mt-1">
+                        Registered Email is the official system email and can only be changed by admin.
                       </p>
                     </div>
 
@@ -853,99 +911,87 @@ export default function EmployeeDetailPage() {
                       value: email,
                       setValue: setEmail,
                       adminOnly: true,
+                      helperText: "Only admin can add, edit, or remove this field.",
                     })}
-                  </div>
+                  </section>
 
-                  <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-4">
+                  <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
                     <div>
-                      <h3 className="text-white font-medium">User Profile</h3>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Each field supports Add, Edit, and Delete.
+                      <h3 className="text-lg font-semibold text-white">User Profile</h3>
+                      <p className="text-sm text-slate-500 mt-1">
+                        Cleaner profile layout with Add, Edit, and Delete for each field.
                       </p>
                     </div>
 
-                    <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium text-white">Location</p>
+                    <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="space-y-1">
+                          <h4 className="text-base font-semibold text-white">Location</h4>
                           <p className="text-xs text-slate-500">
-                            Country, City, and Shipping Address grouped together.
+                            Country, City, and Shipping Address are grouped here.
                           </p>
                         </div>
 
-                        {canEditProfileFields && (
-                          <div className="flex items-center gap-2">
-                            {!(isEditing && activeEditor === "location") && (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                                onClick={() => beginEditing("location")}
-                              >
-                                {country || city || shippingAddress ? "Edit" : "Add"}
-                              </Button>
-                            )}
+                        {renderActionButtons({
+                          fieldKey: "location",
+                          filled: Boolean(country || city || shippingAddress),
+                          canEditThisField: canEditProfileFields,
+                        })}
+                      </div>
 
-                            {(country || city || shippingAddress) && (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="border-red-800 text-red-400 hover:bg-red-900/20"
-                                onClick={() => clearField("location")}
-                              >
-                                Delete
-                              </Button>
-                            )}
+                      <div className="mt-4">
+                        {isEditing && activeEditor === "location" ? (
+                          <div className="grid md:grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-slate-300">Country</Label>
+                              <Input
+                                value={country}
+                                onChange={(e) => setCountry(e.target.value)}
+                                className="bg-slate-950 border-slate-800 text-white"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-slate-300">City</Label>
+                              <Input
+                                value={city}
+                                onChange={(e) => setCity(e.target.value)}
+                                className="bg-slate-950 border-slate-800 text-white"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-slate-300">Shipping Address</Label>
+                              <Input
+                                value={shippingAddress}
+                                onChange={(e) => setShippingAddress(e.target.value)}
+                                className="bg-slate-950 border-slate-800 text-white"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="grid md:grid-cols-3 gap-4">
+                            <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
+                              <div className="text-xs text-slate-500 mb-1">Country</div>
+                              <div className="text-sm text-slate-200">
+                                {country || "No value added yet"}
+                              </div>
+                            </div>
+                            <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
+                              <div className="text-xs text-slate-500 mb-1">City</div>
+                              <div className="text-sm text-slate-200">
+                                {city || "No value added yet"}
+                              </div>
+                            </div>
+                            <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
+                              <div className="text-xs text-slate-500 mb-1">Shipping Address</div>
+                              <div className="text-sm text-slate-200">
+                                {shippingAddress || "No value added yet"}
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>
-
-                      {isEditing && activeEditor === "location" ? (
-                        <div className="grid md:grid-cols-3 gap-4">
-                          <div className="space-y-2">
-                            <Label className="text-slate-300">Country</Label>
-                            <Input
-                              value={country}
-                              onChange={(e) => setCountry(e.target.value)}
-                              className="bg-slate-950 border-slate-800 text-white"
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label className="text-slate-300">City</Label>
-                            <Input
-                              value={city}
-                              onChange={(e) => setCity(e.target.value)}
-                              className="bg-slate-950 border-slate-800 text-white"
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label className="text-slate-300">Shipping Address</Label>
-                            <Input
-                              value={shippingAddress}
-                              onChange={(e) => setShippingAddress(e.target.value)}
-                              className="bg-slate-950 border-slate-800 text-white"
-                            />
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-sm text-slate-300 space-y-1">
-                          <div>
-                            <span className="text-slate-500">Country:</span>{" "}
-                            {country || "—"}
-                          </div>
-                          <div>
-                            <span className="text-slate-500">City:</span> {city || "—"}
-                          </div>
-                          <div>
-                            <span className="text-slate-500">Shipping Address:</span>{" "}
-                            {shippingAddress || "—"}
-                          </div>
-                        </div>
-                      )}
                     </div>
 
                     {renderFieldCard({
@@ -997,10 +1043,10 @@ export default function EmployeeDetailPage() {
                       setValue: setWechat,
                     })}
 
-                    <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium text-white">Profile Photo</p>
+                    <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="space-y-1">
+                          <h4 className="text-base font-semibold text-white">Profile Photo</h4>
                           <p className="text-xs text-slate-500">
                             Upload, replace, or remove the profile image.
                           </p>
@@ -1012,7 +1058,7 @@ export default function EmployeeDetailPage() {
                               type="button"
                               size="sm"
                               variant="outline"
-                              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                              className="border-slate-700 text-slate-200 hover:bg-slate-800"
                               onClick={() => {
                                 setIsEditing(true);
                                 setActiveEditor("profile_photo");
@@ -1020,7 +1066,17 @@ export default function EmployeeDetailPage() {
                               }}
                               disabled={isUploadingPhoto}
                             >
-                              {avatarUrl ? "Edit" : "Add"}
+                              {avatarUrl ? (
+                                <>
+                                  <Edit className="w-4 h-4 mr-1" />
+                                  Edit
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="w-4 h-4 mr-1" />
+                                  Add
+                                </>
+                              )}
                             </Button>
 
                             {avatarUrl && (
@@ -1032,6 +1088,7 @@ export default function EmployeeDetailPage() {
                                 onClick={() => clearField("profile_photo")}
                                 disabled={isUploadingPhoto}
                               >
+                                <Trash2 className="w-4 h-4 mr-1" />
                                 Delete
                               </Button>
                             )}
@@ -1047,23 +1104,31 @@ export default function EmployeeDetailPage() {
                         onChange={handleProfilePhotoUpload}
                       />
 
-                      {avatarUrl ? (
-                        <div className="space-y-3">
-                          <div className="flex justify-start">
+                      <div className="mt-4">
+                        {avatarUrl ? (
+                          <div className="flex items-center gap-4 rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-4">
                             <Avatar className="w-20 h-20">
                               <AvatarImage src={avatarUrl || undefined} />
                               <AvatarFallback className="bg-indigo-600 text-white">
                                 {getInitials(fullName)}
                               </AvatarFallback>
                             </Avatar>
+                            <div className="min-w-0">
+                              <div className="text-sm text-white font-medium">
+                                Profile image uploaded
+                              </div>
+                              <div className="text-xs text-slate-500 break-all mt-1">
+                                {avatarUrl}
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-xs text-slate-500 break-all">
-                            {avatarUrl}
+                        ) : (
+                          <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-4 text-sm text-slate-400 flex items-center gap-2">
+                            <ImageIcon className="w-4 h-4" />
+                            No profile photo added yet
                           </div>
-                        </div>
-                      ) : (
-                        <div className="text-sm text-slate-300">No profile photo</div>
-                      )}
+                        )}
+                      </div>
                     </div>
 
                     {renderFieldCard({
@@ -1073,13 +1138,13 @@ export default function EmployeeDetailPage() {
                       setValue: setBio,
                       multiline: true,
                     })}
-                  </div>
+                  </section>
 
-                  <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-4">
+                  <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
                     <div>
-                      <h3 className="text-white font-medium">Core Account Details</h3>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Standard profile and approval controls.
+                      <h3 className="text-lg font-semibold text-white">Core Account Details</h3>
+                      <p className="text-sm text-slate-500 mt-1">
+                        Main account information and approval controls.
                       </p>
                     </div>
 
@@ -1162,11 +1227,11 @@ export default function EmployeeDetailPage() {
                         </div>
                       </div>
                     )}
-                  </div>
+                  </section>
                 </div>
 
                 {(canManage || isOwnProfile) && isEditing && (
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="sticky bottom-4 flex items-center justify-end gap-2 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 backdrop-blur">
                     <Button
                       variant="outline"
                       className="border-slate-700 text-slate-300 hover:bg-slate-800"

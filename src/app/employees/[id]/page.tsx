@@ -570,46 +570,42 @@ export default function EmployeeDetailPage() {
                   )}
                 </div>
 
-                <<div className="w-full mt-6 space-y-3 text-left">
+                <div className="w-full mt-6 space-y-3 text-left">
   <div className="flex items-center gap-2 text-slate-300">
-    <span className="w-4 h-4 text-slate-500 flex items-center justify-center text-xs font-semibold">
+    <div className="w-4 h-4 text-slate-500 flex items-center justify-center text-xs font-semibold">
       @
-    </span>
+    </div>
     <span>{email || "No email"}</span>
   </div>
   <div className="flex items-center gap-2 text-slate-300">
     <Phone className="w-4 h-4 text-slate-500" />
     <span>{phone || "No phone"}</span>
-  </div>>
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <Phone className="w-4 h-4 text-slate-500" />
-                    <span>{phone || "No phone"}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <MapPin className="w-4 h-4 text-slate-500" />
-                    <span>{[city, country].filter(Boolean).join(", ") || "No location"}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <Building2 className="w-4 h-4 text-slate-500" />
-                    <span>{company || "No company"}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <Briefcase className="w-4 h-4 text-slate-500" />
-                    <span>{jobTitle || "No job title"}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <User className="w-4 h-4 text-slate-500" />
-                    <span>{department || "No department"}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <MessageCircle className="w-4 h-4 text-slate-500" />
-                    <span>WhatsApp: {whatsapp || "—"}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <MessageCircle className="w-4 h-4 text-slate-500" />
-                    <span>WeChat: {wechat || "—"}</span>
-                  </div>
-                </div>
+  </div>
+  <div className="flex items-center gap-2 text-slate-300">
+    <MapPin className="w-4 h-4 text-slate-500" />
+    <span>{[city, country].filter(Boolean).join(", ") || "No location"}</span>
+  </div>
+  <div className="flex items-center gap-2 text-slate-300">
+    <Building2 className="w-4 h-4 text-slate-500" />
+    <span>{company || "No company"}</span>
+  </div>
+  <div className="flex items-center gap-2 text-slate-300">
+    <Briefcase className="w-4 h-4 text-slate-500" />
+    <span>{jobTitle || "No job title"}</span>
+  </div>
+  <div className="flex items-center gap-2 text-slate-300">
+    <User className="w-4 h-4 text-slate-500" />
+    <span>{department || "No department"}</span>
+  </div>
+  <div className="flex items-center gap-2 text-slate-300">
+    <MessageCircle className="w-4 h-4 text-slate-500" />
+    <span>WhatsApp: {whatsapp || "—"}</span>
+  </div>
+  <div className="flex items-center gap-2 text-slate-300">
+    <MessageCircle className="w-4 h-4 text-slate-500" />
+    <span>WeChat: {wechat || "—"}</span>
+  </div>
+</div>
               </div>
             )}
           </CardContent>

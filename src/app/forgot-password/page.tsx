@@ -55,14 +55,23 @@ export default function ForgotPasswordPage() {
 
         <CardContent className="p-8">
 
-          <div className="mb-8 text-center">
-            <h1 className="text-3xl font-bold text-white">
-              Forgot Password
-            </h1>
-            <p className="text-slate-400 mt-2">
-              Enter your email to reset your password
-            </p>
-          </div>
+          <div className="mb-10 text-center">
+  <div className="flex justify-center mb-6">
+    <img
+      src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
+      alt="AiXia Logo"
+      className="h-24 w-auto object-contain"
+    />
+  </div>
+
+  <h1 className="text-3xl font-bold text-white">
+    Forgot Password
+  </h1>
+
+  <p className="text-slate-400 mt-2">
+    Enter your email to reset your password
+  </p>
+</div>
 
           <form onSubmit={handleReset} className="space-y-5">
 

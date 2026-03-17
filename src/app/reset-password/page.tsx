@@ -26,38 +26,26 @@ export default function ResetPasswordPage() {
   const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
-    const handleRecoverySession = async () => {
-      const hash = window.location.hash;
-
-      if (!hash) {
-        setError("Invalid or expired reset link.");
-        return;
-      }
-
-      const params = new URLSearchParams(hash.replace("#", ""));
-      const accessToken = params.get("access_token");
-      const refreshToken = params.get("refresh_token");
-      const type = params.get("type");
-
-      if (!accessToken || !refreshToken || type !== "recovery") {
-        setError("Invalid or expired reset link.");
-        return;
-      }
-
-      const { error } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
+    const checkRecoverySession = async () => {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
 
       if (error) {
         setError(error.message);
         return;
       }
 
+      if (!session) {
+        setError("Invalid or expired reset link.");
+        return;
+      }
+
       setSessionReady(true);
     };
 
-    void handleRecoverySession();
+    void checkRecoverySession();
   }, []);
 
   const handleResetPassword = async (e: React.FormEvent<HTMLFormElement>) => {

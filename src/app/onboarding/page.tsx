@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Image as ImageIcon, Upload, Trash2 } from "lucide-react";
+import { Upload, Trash2 } from "lucide-react";
 
 type Role = "admin" | "manager" | "employee" | "guest";
 

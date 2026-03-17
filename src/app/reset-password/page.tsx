@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 
 import { Button } from "@/components/ui/button";
@@ -11,9 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Eye, EyeOff } from "lucide-react";
 
 export default function ResetPasswordPage() {
-
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -28,17 +26,28 @@ export default function ResetPasswordPage() {
   const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
-
     const handleRecoverySession = async () => {
+      const hash = window.location.hash;
 
-      const code = searchParams.get("code");
-
-      if (!code) {
+      if (!hash) {
         setError("Invalid or expired reset link.");
         return;
       }
 
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      const params = new URLSearchParams(hash.replace("#", ""));
+      const accessToken = params.get("access_token");
+      const refreshToken = params.get("refresh_token");
+      const type = params.get("type");
+
+      if (!accessToken || !refreshToken || type !== "recovery") {
+        setError("Invalid or expired reset link.");
+        return;
+      }
+
+      const { error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
 
       if (error) {
         setError(error.message);
@@ -46,15 +55,12 @@ export default function ResetPasswordPage() {
       }
 
       setSessionReady(true);
-
     };
 
     void handleRecoverySession();
-
-  }, [searchParams]);
+  }, []);
 
   const handleResetPassword = async (e: React.FormEvent<HTMLFormElement>) => {
-
     e.preventDefault();
 
     setError("");
@@ -78,9 +84,8 @@ export default function ResetPasswordPage() {
     setIsLoading(true);
 
     try {
-
       const { error } = await supabase.auth.updateUser({
-        password: password,
+        password,
       });
 
       if (error) {
@@ -93,29 +98,18 @@ export default function ResetPasswordPage() {
       setTimeout(() => {
         navigate("/login");
       }, 2000);
-
     } catch (err) {
-
       setError("Unexpected error while updating password.");
-
     } finally {
-
       setIsLoading(false);
-
     }
-
   };
 
   return (
-
     <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
-
       <Card className="w-full max-w-md bg-slate-900/60 border-slate-800">
-
         <CardContent className="p-8">
-
           <div className="mb-8 text-center">
-
             <h1 className="text-3xl font-bold text-white">
               Reset Password
             </h1>
@@ -123,11 +117,9 @@ export default function ResetPasswordPage() {
             <p className="text-slate-400 mt-2">
               Enter your new password
             </p>
-
           </div>
 
           <form onSubmit={handleResetPassword} className="space-y-5">
-
             {error && (
               <Alert className="bg-red-900/20 border-red-800 text-red-300">
                 <AlertDescription>{error}</AlertDescription>
@@ -141,13 +133,11 @@ export default function ResetPasswordPage() {
             )}
 
             <div className="space-y-2">
-
               <Label htmlFor="password" className="text-slate-300">
                 New Password
               </Label>
 
               <div className="relative">
-
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
@@ -166,19 +156,15 @@ export default function ResetPasswordPage() {
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
-
               </div>
-
             </div>
 
             <div className="space-y-2">
-
               <Label htmlFor="confirmPassword" className="text-slate-300">
                 Confirm Password
               </Label>
 
               <div className="relative">
-
                 <Input
                   id="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
@@ -195,11 +181,13 @@ export default function ResetPasswordPage() {
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                 >
-                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showConfirmPassword ? (
+                    <EyeOff size={18} />
+                  ) : (
+                    <Eye size={18} />
+                  )}
                 </button>
-
               </div>
-
             </div>
 
             <Button
@@ -209,14 +197,9 @@ export default function ResetPasswordPage() {
             >
               {isLoading ? "Updating..." : "Update Password"}
             </Button>
-
           </form>
-
         </CardContent>
-
       </Card>
-
     </div>
-
   );
 }

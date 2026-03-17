@@ -18,6 +18,11 @@ import {
   Plus,
   Eye,
   AlertCircle,
+  Mail,
+  Phone,
+  MapPin,
+  Building2,
+  Briefcase,
 } from "lucide-react";
 
 type Role = "admin" | "manager" | "employee" | "guest";
@@ -71,7 +76,42 @@ function splitMultiValue(value?: string | null) {
     .filter(Boolean);
 }
 
-function buildEmployeeFields(user: ProfileRow) {
+function WhatsAppIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M20.52 3.48A11.86 11.86 0 0 0 12.07 0C5.5 0 .14 5.35.14 11.93c0 2.1.55 4.14 1.58 5.94L0 24l6.3-1.65a11.87 11.87 0 0 0 5.77 1.47h.01c6.57 0 11.93-5.35 11.93-11.93 0-3.18-1.24-6.17-3.49-8.41Zm-8.45 18.3h-.01a9.9 9.9 0 0 1-5.04-1.38l-.36-.21-3.74.98 1-3.65-.24-.38a9.88 9.88 0 0 1-1.51-5.21c0-5.46 4.44-9.9 9.91-9.9 2.64 0 5.11 1.03 6.98 2.89a9.82 9.82 0 0 1 2.9 7c0 5.46-4.45 9.9-9.89 9.9Zm5.43-7.41c-.3-.15-1.78-.88-2.06-.98-.28-.1-.48-.15-.69.15-.2.3-.79.98-.96 1.18-.18.2-.35.23-.65.08-.3-.15-1.28-.47-2.43-1.49-.89-.8-1.49-1.79-1.67-2.09-.18-.3-.02-.46.13-.61.14-.14.3-.35.45-.53.15-.18.2-.3.3-.5.1-.2.05-.38-.03-.53-.08-.15-.69-1.66-.94-2.27-.25-.6-.5-.51-.69-.52h-.59c-.2 0-.53.08-.8.38-.28.3-1.05 1.03-1.05 2.5 0 1.48 1.08 2.9 1.23 3.1.15.2 2.13 3.26 5.16 4.57.72.31 1.29.5 1.73.64.73.23 1.39.2 1.91.12.58-.09 1.78-.73 2.03-1.43.25-.7.25-1.3.18-1.42-.08-.13-.28-.2-.58-.35Z" />
+    </svg>
+  );
+}
+
+function WeChatIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M8.67 2C4.44 2 1 4.82 1 8.3c0 1.99 1.12 3.76 2.87 4.92L3.1 16l3.17-1.58c.45.09.91.14 1.4.14h.29c-.08-.39-.12-.79-.12-1.2 0-3.87 3.86-7.01 8.6-7.01.24 0 .47 0 .7.03C16.37 3.78 12.84 2 8.67 2Zm-3 5.14c-.48 0-.87-.39-.87-.87s.39-.87.87-.87.87.39.87.87-.39.87-.87.87Zm5.85 0c-.48 0-.87-.39-.87-.87s.39-.87.87-.87.87.39.87.87-.39.87-.87.87Z" />
+      <path d="M15.7 7.85c-4.03 0-7.3 2.58-7.3 5.76 0 1.73.98 3.28 2.52 4.34l-.7 2.55 2.8-1.4c.39.08.79.12 1.2.12 4.03 0 7.3-2.58 7.3-5.76s-3.27-5.61-7.3-5.61Zm-2.43 6.17c-.39 0-.7-.31-.7-.7s.31-.7.7-.7.7.31.7.7-.31.7-.7.7Zm4.83 0c-.39 0-.7-.31-.7-.7s.31-.7.7-.7.7.31.7.7-.31.7-.7.7Z" />
+    </svg>
+  );
+}
+
+type EmployeeField = {
+  key: string;
+  label: string;
+  values: string[];
+  icon: "email" | "phone" | "location" | "company" | "department" | "job" | "whatsapp" | "wechat" | "bio";
+  fullWidth?: boolean;
+};
+
+function buildEmployeeFields(user: ProfileRow): EmployeeField[] {
   const phones = splitMultiValue(user.phone);
   const additionalEmails = splitMultiValue(user.additional_emails);
   const companies = splitMultiValue(user.company);
@@ -85,42 +125,65 @@ function buildEmployeeFields(user: ProfileRow) {
 
   return [
     user.email
-      ? { label: "Registered Email", values: [user.email], fullWidth: false }
+      ? { key: "registered-email", label: "Registered Email", values: [user.email], icon: "email" }
       : null,
     additionalEmails.length > 0
-      ? { label: "Additional Emails", values: additionalEmails, fullWidth: false }
-      : null,
-    user.display_name
-      ? { label: "Display Name", values: [user.display_name], fullWidth: false }
+      ? { key: "additional-emails", label: "Additional Emails", values: additionalEmails, icon: "email" }
       : null,
     phones.length > 0
-      ? { label: "Phone", values: phones, fullWidth: false }
-      : null,
-    companies.length > 0
-      ? { label: "Company", values: companies, fullWidth: false }
-      : null,
-    departments.length > 0
-      ? { label: "Department", values: departments, fullWidth: false }
-      : null,
-    jobTitles.length > 0
-      ? { label: "Job Title", values: jobTitles, fullWidth: false }
+      ? { key: "phone", label: "Phone", values: phones, icon: "phone" }
       : null,
     locationValue
-      ? { label: "Location", values: [locationValue], fullWidth: true }
+      ? { key: "location", label: "Location", values: [locationValue], icon: "location" }
       : null,
     user.shipping_address
-      ? { label: "Shipping Address", values: [user.shipping_address], fullWidth: true }
+      ? { key: "shipping-address", label: "Shipping Address", values: [user.shipping_address], icon: "location" }
+      : null,
+    user.display_name
+      ? { key: "display-name", label: "Display Name", values: [user.display_name], icon: "department" }
+      : null,
+    companies.length > 0
+      ? { key: "company", label: "Company", values: companies, icon: "company" }
+      : null,
+    departments.length > 0
+      ? { key: "department", label: "Department", values: departments, icon: "department" }
+      : null,
+    jobTitles.length > 0
+      ? { key: "job-title", label: "Job Title", values: jobTitles, icon: "job" }
       : null,
     whatsapps.length > 0
-      ? { label: "WhatsApp", values: whatsapps, fullWidth: false }
+      ? { key: "whatsapp", label: "WhatsApp", values: whatsapps, icon: "whatsapp" }
       : null,
     wechats.length > 0
-      ? { label: "WeChat", values: wechats, fullWidth: false }
+      ? { key: "wechat", label: "WeChat", values: wechats, icon: "wechat" }
       : null,
     user.bio
-      ? { label: "Bio", values: [user.bio], fullWidth: true }
+      ? { key: "bio", label: "Bio", values: [user.bio], icon: "bio", fullWidth: true }
       : null,
-  ].filter(Boolean) as Array<{ label: string; values: string[]; fullWidth: boolean }>
+  ].filter(Boolean) as EmployeeField[];
+}
+
+function getFieldIcon(icon: EmployeeField["icon"]) {
+  switch (icon) {
+    case "email":
+      return <Mail className="w-4 h-4 text-slate-400 shrink-0" />;
+    case "phone":
+      return <Phone className="w-4 h-4 text-slate-400 shrink-0" />;
+    case "location":
+      return <MapPin className="w-4 h-4 text-slate-400 shrink-0" />;
+    case "company":
+      return <Building2 className="w-4 h-4 text-slate-400 shrink-0" />;
+    case "job":
+      return <Briefcase className="w-4 h-4 text-slate-400 shrink-0" />;
+    case "whatsapp":
+      return <WhatsAppIcon className="w-4 h-4 text-[#25D366] shrink-0" />;
+    case "wechat":
+      return <WeChatIcon className="w-4 h-4 text-[#07C160] shrink-0" />;
+    case "department":
+    case "bio":
+    default:
+      return <UserIcon className="w-4 h-4 text-slate-400 shrink-0" />;
+  }
 }
 
 export default function EmployeesPage() {
@@ -632,22 +695,34 @@ export default function EmployeesPage() {
                       const employeeFields = buildEmployeeFields(user);
 
                       return employeeFields.length > 0 ? (
-                        <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                           {employeeFields.map((field) => (
                             <div
-                              key={`${user.user_id}-${field.label}`}
-                              className={field.fullWidth ? "sm:col-span-2" : undefined}
+                              key={`${user.user_id}-${field.key}`}
+                              className={[
+                                "rounded-xl border border-slate-800 bg-slate-950/60 p-3 min-w-0",
+                                field.fullWidth ? "md:col-span-2" : "",
+                              ]
+                                .filter(Boolean)
+                                .join(" ")}
                             >
-                              <p className="text-slate-500 mb-1">{field.label}</p>
-                              <div className="space-y-1">
-                                {field.values.map((value, index) => (
-                                  <p
-                                    key={`${user.user_id}-${field.label}-${index}`}
-                                    className={field.label === "Bio" ? "text-slate-300 leading-relaxed break-words" : "text-slate-400 break-words"}
-                                  >
-                                    {value}
+                              <div className="flex items-start gap-3 min-w-0">
+                                <div className="mt-0.5">{getFieldIcon(field.icon)}</div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-slate-500 mb-1 text-xs uppercase tracking-[0.12em]">
+                                    {field.label}
                                   </p>
-                                ))}
+                                  <div className="space-y-1">
+                                    {field.values.map((value, index) => (
+                                      <p
+                                        key={`${user.user_id}-${field.key}-${index}`}
+                                        className={field.label === "Bio" ? "text-slate-300 leading-relaxed break-words whitespace-pre-wrap" : "text-slate-300 break-words"}
+                                      >
+                                        {value}
+                                      </p>
+                                    ))}
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           ))}

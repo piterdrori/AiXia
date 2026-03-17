@@ -49,6 +49,11 @@ type ProjectRow = {
   created_at: string;
 };
 
+type ProfileRow = {
+  user_id: string;
+  role: Role;
+};
+
 type ProjectMemberRow = {
   project_id: string;
   user_id: string;

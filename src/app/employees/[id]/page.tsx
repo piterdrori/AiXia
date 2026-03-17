@@ -57,6 +57,7 @@ type ProfileRow = {
   user_id: string;
   full_name: string | null;
   email?: string | null;
+  additional_emails?: string | null;
   role: Role;
   status: Status;
   requested_role: Role | null;
@@ -128,6 +129,7 @@ export default function EmployeeDetailPage() {
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [additionalEmails, setAdditionalEmails] = useState<string[]>([""]);
   const [displayName, setDisplayName] = useState("");
   const [phones, setPhones] = useState<string[]>([""]);
   const [country, setCountry] = useState("");
@@ -152,6 +154,7 @@ export default function EmployeeDetailPage() {
     setUser(profile);
     setFullName(profile.full_name || "");
     setEmail(profile.email || "");
+    setAdditionalEmails(splitMultiValue(profile.additional_emails));
     setDisplayName(profile.display_name || "");
     setPhones(splitMultiValue(profile.phone));
     setCountry(profile.country || "");
@@ -325,6 +328,9 @@ export default function EmployeeDetailPage() {
     switch (fieldKey) {
       case "registered_email":
         setEmail("");
+        break;
+      case "additional_emails":
+        setAdditionalEmails([""]);
         break;
       case "display_name":
         setDisplayName("");
@@ -647,6 +653,7 @@ export default function EmployeeDetailPage() {
     const payload: Record<string, unknown> = {
       full_name: fullName.trim() || null,
       display_name: displayName.trim() || null,
+      additional_emails: joinMultiValue(additionalEmails),
       phone: joinMultiValue(phones),
       country: country.trim() || null,
       city: city.trim() || null,
@@ -936,11 +943,31 @@ export default function EmployeeDetailPage() {
             )}
           </div>
 
-          <div className="w-full mt-6 space-y-3 text-left">
             <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+              <div className="text-xs text-slate-500 mb-2">Registered Email</div>
               <div className="flex items-center gap-2 text-slate-300">
                 <Mail className="w-4 h-4 text-slate-500" />
-                <span>{email || "No email"}</span>
+                <span>{email || "No registered email"}</span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+              <div className="text-xs text-slate-500 mb-2">Additional Emails</div>
+              <div className="space-y-2">
+                {additionalEmails.map((item, index) =>
+                  item.trim() ? (
+                    <div
+                      key={`sidebar-additional-email-${index}`}
+                      className="flex items-center gap-2 text-slate-300"
+                    >
+                      <Mail className="w-4 h-4 text-slate-500" />
+                      <span>{item}</span>
+                    </div>
+                  ) : null
+                )}
+                {!additionalEmails.some((item) => item.trim()) && (
+                  <div className="text-slate-500 text-sm">No additional email</div>
+                )}
               </div>
             </div>
 
@@ -1216,6 +1243,14 @@ export default function EmployeeDetailPage() {
                         label: "Display Name",
                         value: displayName,
                         setValue: setDisplayName,
+                      })}
+
+                      {renderMultiFieldCard({
+                        fieldKey: "additional_emails",
+                        label: "Additional Emails",
+                        values: additionalEmails,
+                        setValues: setAdditionalEmails,
+                        helperText: "User and admin can add, edit, or delete additional emails.",
                       })}
 
                       {renderMultiFieldCard({

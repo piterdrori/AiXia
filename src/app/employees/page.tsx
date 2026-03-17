@@ -32,6 +32,7 @@ type Status =
 type ProfileRow = {
   user_id: string;
   full_name: string | null;
+  email?: string | null;
   display_name?: string | null;
   phone?: string | null;
   country?: string | null;
@@ -253,18 +254,19 @@ export default function EmployeesPage() {
     const searchedUsers = normalizedQuery
       ? baseUsers.filter((profile) => {
           const searchableText = [
-            profile.full_name,
-            profile.display_name,
-            profile.phone,
-            profile.company,
-            profile.department,
-            profile.job_title,
-            profile.city,
-            profile.country,
-            profile.role,
-            profile.requested_role,
-            profile.status,
-          ]
+  profile.full_name,
+  profile.email,
+  profile.display_name,
+  profile.phone,
+  profile.company,
+  profile.department,
+  profile.job_title,
+  profile.city,
+  profile.country,
+  profile.role,
+  profile.requested_role,
+  profile.status,
+]
             .filter(Boolean)
             .join(" ")
             .toLowerCase();

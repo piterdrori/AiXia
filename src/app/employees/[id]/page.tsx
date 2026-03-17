@@ -1524,5 +1524,6 @@ export default function EmployeeDetailPage() {
           </CardContent>
         </Card>
       </div>
+    </div>
   );
 }

@@ -181,9 +181,16 @@ export default function LoginPage() {
       <Card className="w-full max-w-md bg-slate-900/60 border-slate-800">
         <CardContent className="p-8">
           <div className="mb-8 text-center">
-            <h1 className="text-3xl font-bold text-white">Sign In</h1>
-            <p className="text-slate-400 mt-2">Access your TaskFlow account</p>
-          </div>
+  <div className="flex justify-center mb-4">
+    <img
+      src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
+      alt="AiXia Logo"
+      className="h-12 w-auto object-contain"
+    />
+  </div>
+  <h1 className="text-3xl font-bold text-white">Sign In</h1>
+  <p className="text-slate-400 mt-2">Access your workspace</p>
+</div>
 
           <form onSubmit={handleLogin} className="space-y-5">
             {error && (

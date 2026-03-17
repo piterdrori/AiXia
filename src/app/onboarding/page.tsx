@@ -486,7 +486,7 @@ export default function OnboardingPage() {
               <div className="space-y-2">
                 <Label className="text-slate-300">Requested Role</Label>
                 <Input
-                  value={getRoleLabel(requestedRole)}
+                  value={getRoleLabel(requestedRole || null)}
                   className="bg-slate-950 border-slate-800 text-white"
                   disabled
                 />

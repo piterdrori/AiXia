@@ -19,6 +19,7 @@ type Status =
 type OnboardingProfileRow = {
   user_id: string;
   full_name: string | null;
+  email?: string | null;
   display_name?: string | null;
   phone?: string | null;
   country?: string | null;
@@ -45,6 +46,7 @@ export default function OnboardingPage() {
 
   const [userId, setUserId] = useState("");
   const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone] = useState("");
   const [country, setCountry] = useState("");
@@ -105,6 +107,7 @@ export default function OnboardingPage() {
       }
 
       setUserId(user.id);
+      setEmail(user.email || "");
 
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
@@ -170,6 +173,7 @@ export default function OnboardingPage() {
       }
 
       setFullName(profile.full_name || "");
+      setEmail(profile.email || user.email || "");
       setDisplayName(profile.display_name || "");
       setPhone(profile.phone || "");
       setCountry(profile.country || "");
@@ -228,25 +232,26 @@ export default function OnboardingPage() {
 
     try {
       const { error: saveError } = await supabase
-        .from("profiles")
-        .update({
-          full_name: fullName.trim(),
-          display_name: displayName.trim(),
-          phone: phone.trim(),
-          country: country.trim(),
-          city: city.trim(),
-          company: company.trim(),
-          department: department.trim(),
-          job_title: jobTitle.trim(),
-          bio: normalizeOptional(bio),
-          avatar_url: normalizeOptional(avatarUrl),
-          wechat: normalizeOptional(wechat),
-          whatsapp: normalizeOptional(whatsapp),
-          profile_completed: true,
-          status: "pending_approval",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", userId);
+  .from("profiles")
+  .update({
+    full_name: fullName.trim(),
+    email: email.trim() || null,
+    display_name: displayName.trim(),
+    phone: phone.trim(),
+    country: country.trim(),
+    city: city.trim(),
+    company: company.trim(),
+    department: department.trim(),
+    job_title: jobTitle.trim(),
+    bio: normalizeOptional(bio),
+    avatar_url: normalizeOptional(avatarUrl),
+    wechat: normalizeOptional(wechat),
+    whatsapp: normalizeOptional(whatsapp),
+    profile_completed: true,
+    status: "pending_approval",
+    updated_at: new Date().toISOString(),
+  })
+  .eq("user_id", userId);
 
       if (saveError) {
         setError(saveError.message || "Failed to submit your profile.");
@@ -330,17 +335,27 @@ export default function OnboardingPage() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Display Name *</Label>
-                <Input
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                  disabled={isSaving}
-                />
-              </div>
+  <Label className="text-slate-300">Display Name *</Label>
+  <Input
+    value={displayName}
+    onChange={(e) => setDisplayName(e.target.value)}
+    className="bg-slate-950 border-slate-800 text-white"
+    disabled={isSaving}
+  />
+</div>
 
-              <div className="space-y-2">
-                <Label className="text-slate-300">Phone *</Label>
+<div className="space-y-2 md:col-span-2">
+  <Label className="text-slate-300">Email</Label>
+  <Input
+    value={email}
+    onChange={(e) => setEmail(e.target.value)}
+    className="bg-slate-950 border-slate-800 text-white"
+    disabled={isSaving}
+  />
+</div>
+
+<div className="space-y-2">
+  <Label className="text-slate-300">Phone *</Label>
                 <Input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}

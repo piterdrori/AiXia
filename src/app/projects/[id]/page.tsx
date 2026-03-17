@@ -1141,6 +1141,20 @@ const getProfileByUserId = (userId: string) => {
         </TabsContent>
 
         <TabsContent value="team" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium text-white">Team Members</h3>
+
+            {canEdit && (
+              <Button
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={() => navigate(`/projects/${project.id}/edit`)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Team Member
+              </Button>
+            )}
+          </div>
+
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
               <CardTitle className="text-white">Team Members</CardTitle>

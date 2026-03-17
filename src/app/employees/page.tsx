@@ -10,6 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Search,
   UserCheck,
   UserX,
@@ -26,6 +33,29 @@ import {
 } from "lucide-react";
 
 type Role = "admin" | "manager" | "employee" | "guest";
+
+type MemberType =
+  | "client"
+  | "supplier"
+  | "investor"
+  | "consultant"
+  | "visitor"
+  | "partner"
+  | "engineer"
+  | "designer"
+  | "sourcing"
+  | "purchasing"
+  | "sales"
+  | "marketing"
+  | "finance"
+  | "operations"
+  | "qc"
+  | "assistant"
+  | "project_manager"
+  | "operations_manager"
+  | "department_manager"
+  | "sales_manager"
+  | "factory_manager";
 
 type Status =
   | "pending_verification"
@@ -45,7 +75,7 @@ type ProfileRow = {
   city?: string | null;
   shipping_address?: string | null;
   company?: string | null;
-  department?: string | null;
+  member_type?: MemberType | null;
   job_title?: string | null;
   wechat?: string | null;
   whatsapp?: string | null;
@@ -64,6 +94,55 @@ type CurrentUserRoleRow = {
 };
 
 type TabValue = "all" | "pending" | "active" | "rejected";
+type RoleFilterValue = "all" | Role;
+type MemberTypeFilterValue = "all" | MemberType;
+
+const MEMBER_TYPE_OPTIONS: Record<
+  Exclude<Role, "admin">,
+  Array<{ value: MemberType; label: string }>
+> = {
+  guest: [
+    { value: "client", label: "Client" },
+    { value: "supplier", label: "Supplier" },
+    { value: "investor", label: "Investor" },
+    { value: "consultant", label: "Consultant" },
+    { value: "visitor", label: "Visitor" },
+    { value: "partner", label: "Partner" },
+  ],
+  employee: [
+    { value: "engineer", label: "Engineer" },
+    { value: "designer", label: "Designer" },
+    { value: "sourcing", label: "Sourcing" },
+    { value: "purchasing", label: "Purchasing" },
+    { value: "sales", label: "Sales" },
+    { value: "marketing", label: "Marketing" },
+    { value: "finance", label: "Finance" },
+    { value: "operations", label: "Operations" },
+    { value: "qc", label: "QC" },
+    { value: "assistant", label: "Assistant" },
+  ],
+  manager: [
+    { value: "project_manager", label: "Project Manager" },
+    { value: "operations_manager", label: "Operations Manager" },
+    { value: "department_manager", label: "Department Manager" },
+    { value: "sales_manager", label: "Sales Manager" },
+    { value: "factory_manager", label: "Factory Manager" },
+  ],
+};
+
+function getMemberTypeLabel(value: string | null | undefined) {
+  if (!value) return "";
+
+  for (const options of Object.values(MEMBER_TYPE_OPTIONS)) {
+    const found = options.find((option) => option.value === value);
+    if (found) return found.label;
+  }
+
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
 
 function normalizeSearch(value: string) {
   return value.trim().toLowerCase();
@@ -107,7 +186,16 @@ type EmployeeField = {
   key: string;
   label: string;
   values: string[];
-  icon: "email" | "phone" | "location" | "company" | "department" | "job" | "whatsapp" | "wechat" | "bio";
+  icon:
+    | "email"
+    | "phone"
+    | "location"
+    | "company"
+    | "member_type"
+    | "job"
+    | "whatsapp"
+    | "wechat"
+    | "bio";
   fullWidth?: boolean;
 };
 
@@ -115,20 +203,30 @@ function buildEmployeeFields(user: ProfileRow): EmployeeField[] {
   const phones = splitMultiValue(user.phone);
   const additionalEmails = splitMultiValue(user.additional_emails);
   const companies = splitMultiValue(user.company);
-  const departments = splitMultiValue(user.department);
   const jobTitles = splitMultiValue(user.job_title);
   const whatsapps = splitMultiValue(user.whatsapp);
   const wechats = splitMultiValue(user.wechat);
 
   const locationParts = [user.city, user.country].filter(Boolean) as string[];
   const locationValue = locationParts.length > 0 ? locationParts.join(", ") : null;
+  const memberTypeLabel = getMemberTypeLabel(user.member_type);
 
   return [
     user.email
-      ? { key: "registered-email", label: "Registered Email", values: [user.email], icon: "email" }
+      ? {
+          key: "registered-email",
+          label: "Registered Email",
+          values: [user.email],
+          icon: "email",
+        }
       : null,
     additionalEmails.length > 0
-      ? { key: "additional-emails", label: "Additional Emails", values: additionalEmails, icon: "email" }
+      ? {
+          key: "additional-emails",
+          label: "Additional Emails",
+          values: additionalEmails,
+          icon: "email",
+        }
       : null,
     phones.length > 0
       ? { key: "phone", label: "Phone", values: phones, icon: "phone" }
@@ -137,16 +235,31 @@ function buildEmployeeFields(user: ProfileRow): EmployeeField[] {
       ? { key: "location", label: "Location", values: [locationValue], icon: "location" }
       : null,
     user.shipping_address
-      ? { key: "shipping-address", label: "Shipping Address", values: [user.shipping_address], icon: "location" }
+      ? {
+          key: "shipping-address",
+          label: "Shipping Address",
+          values: [user.shipping_address],
+          icon: "location",
+        }
       : null,
     user.display_name
-      ? { key: "display-name", label: "Display Name", values: [user.display_name], icon: "department" }
+      ? {
+          key: "display-name",
+          label: "Display Name",
+          values: [user.display_name],
+          icon: "member_type",
+        }
       : null,
     companies.length > 0
       ? { key: "company", label: "Company", values: companies, icon: "company" }
       : null,
-    departments.length > 0
-      ? { key: "department", label: "Department", values: departments, icon: "department" }
+    memberTypeLabel
+      ? {
+          key: "member-type",
+          label: "Member Type",
+          values: [memberTypeLabel],
+          icon: "member_type",
+        }
       : null,
     jobTitles.length > 0
       ? { key: "job-title", label: "Job Title", values: jobTitles, icon: "job" }
@@ -179,7 +292,7 @@ function getFieldIcon(icon: EmployeeField["icon"]) {
       return <WhatsAppIcon className="w-4 h-4 text-[#25D366] shrink-0" />;
     case "wechat":
       return <WeChatIcon className="w-4 h-4 text-[#07C160] shrink-0" />;
-    case "department":
+    case "member_type":
     case "bio":
     default:
       return <UserIcon className="w-4 h-4 text-slate-400 shrink-0" />;
@@ -198,8 +311,18 @@ export default function EmployeesPage() {
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<TabValue>("all");
+  const [roleFilter, setRoleFilter] = useState<RoleFilterValue>("all");
+  const [memberTypeFilter, setMemberTypeFilter] = useState<MemberTypeFilterValue>("all");
 
   const canManageUsers = currentUserRole === "admin";
+
+  const availableMemberTypeOptions = useMemo(() => {
+    if (roleFilter === "all" || roleFilter === "admin") {
+      return [];
+    }
+
+    return MEMBER_TYPE_OPTIONS[roleFilter];
+  }, [roleFilter]);
 
   const loadProfiles = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
@@ -228,15 +351,8 @@ export default function EmployeesPage() {
 
         const [{ data: me, error: meError }, { data: profilesData, error: profilesError }] =
           await Promise.all([
-            supabase
-              .from("profiles")
-              .select("role")
-              .eq("user_id", user.id)
-              .single(),
-            supabase
-              .from("profiles")
-              .select("*")
-              .order("created_at", { ascending: false }),
+            supabase.from("profiles").select("role").eq("user_id", user.id).single(),
+            supabase.from("profiles").select("*").order("created_at", { ascending: false }),
           ]);
 
         if (!requestTracker.current.isLatest(requestId)) return;
@@ -382,24 +498,25 @@ export default function EmployeesPage() {
     const searchedUsers = normalizedQuery
       ? baseUsers.filter((profile) => {
           const searchableText = [
-  profile.full_name,
-  profile.email,
-  profile.display_name,
-  profile.phone,
-  profile.additional_emails,
-  profile.company,
-  profile.department,
-  profile.job_title,
-  profile.city,
-  profile.country,
-  profile.shipping_address,
-  profile.whatsapp,
-  profile.wechat,
-  profile.bio,
-  profile.role,
-  profile.requested_role,
-  profile.status,
-]
+            profile.full_name,
+            profile.email,
+            profile.display_name,
+            profile.phone,
+            profile.additional_emails,
+            profile.company,
+            profile.member_type,
+            getMemberTypeLabel(profile.member_type),
+            profile.job_title,
+            profile.city,
+            profile.country,
+            profile.shipping_address,
+            profile.whatsapp,
+            profile.wechat,
+            profile.bio,
+            profile.role,
+            profile.requested_role,
+            profile.status,
+          ]
             .filter(Boolean)
             .join(" ")
             .toLowerCase();
@@ -408,21 +525,45 @@ export default function EmployeesPage() {
         })
       : baseUsers;
 
-    switch (activeTab) {
-      case "pending":
-        return searchedUsers.filter((profile) => profile.status === "pending_approval");
+    const roleFilteredUsers =
+      roleFilter === "all"
+        ? searchedUsers
+        : searchedUsers.filter((profile) => profile.role === roleFilter);
 
-      case "active":
-        return searchedUsers.filter((profile) => profile.status === "active");
+    const memberTypeFilteredUsers =
+      memberTypeFilter === "all"
+        ? roleFilteredUsers
+        : roleFilteredUsers.filter((profile) => profile.member_type === memberTypeFilter);
 
-      case "rejected":
-        return searchedUsers.filter((profile) => profile.status === "rejected");
+    const statusFilteredUsers = canManageUsers
+      ? (() => {
+          switch (activeTab) {
+            case "pending":
+              return memberTypeFilteredUsers.filter(
+                (profile) => profile.status === "pending_approval"
+              );
+            case "active":
+              return memberTypeFilteredUsers.filter((profile) => profile.status === "active");
+            case "rejected":
+              return memberTypeFilteredUsers.filter(
+                (profile) => profile.status === "rejected"
+              );
+            case "all":
+            default:
+              return memberTypeFilteredUsers;
+          }
+        })()
+      : memberTypeFilteredUsers;
 
-      case "all":
-      default:
-        return searchedUsers;
-    }
-  }, [profiles, searchQuery, activeTab]);
+    return statusFilteredUsers;
+  }, [
+    profiles,
+    searchQuery,
+    activeTab,
+    roleFilter,
+    memberTypeFilter,
+    canManageUsers,
+  ]);
 
   const getRoleColor = (role: Role) => {
     switch (role) {
@@ -550,7 +691,7 @@ export default function EmployeesPage() {
                     <p className="text-slate-500 text-sm truncate">
                       {[
                         user.company,
-                        user.department,
+                        getMemberTypeLabel(user.member_type),
                         user.job_title,
                         [user.city, user.country].filter(Boolean).join(", "),
                       ]
@@ -599,28 +740,85 @@ export default function EmployeesPage() {
         </Card>
       )}
 
-      <div className="flex flex-col lg:flex-row gap-4">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-4">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <Input
-            placeholder="Search by name, company, department, city, phone..."
+            placeholder="Search by name, company, member type, city, phone..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10 bg-slate-950 border-slate-800 text-white"
           />
         </div>
 
-        <Tabs
-          value={activeTab}
-          onValueChange={(value) => setActiveTab(value as TabValue)}
-        >
-          <TabsList className="bg-slate-900 border border-slate-800">
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="pending">Pending</TabsTrigger>
-            <TabsTrigger value="active">Active</TabsTrigger>
-            <TabsTrigger value="rejected">Rejected</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full xl:max-w-[560px]">
+            <div className="space-y-2">
+              <Select
+                value={roleFilter}
+                onValueChange={(value) => {
+                  const nextRole = value as RoleFilterValue;
+                  setRoleFilter(nextRole);
+                  setMemberTypeFilter("all");
+                }}
+              >
+                <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                  <SelectValue placeholder="Filter by role" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                  <SelectItem value="all">All Roles</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="employee">Employee</SelectItem>
+                  <SelectItem value="guest">Guest</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Select
+                value={memberTypeFilter}
+                onValueChange={(value) =>
+                  setMemberTypeFilter(value as MemberTypeFilterValue)
+                }
+              >
+                <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                  <SelectValue
+                    placeholder={
+                      roleFilter === "all"
+                        ? "Select role first"
+                        : roleFilter === "admin"
+                        ? "Admin has no member type"
+                        : "Filter by member type"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                  <SelectItem value="all">All Member Types</SelectItem>
+                  {availableMemberTypeOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {canManageUsers && (
+            <Tabs
+              value={activeTab}
+              onValueChange={(value) => setActiveTab(value as TabValue)}
+            >
+              <TabsList className="bg-slate-900 border border-slate-800">
+                <TabsTrigger value="all">All</TabsTrigger>
+                <TabsTrigger value="pending">Pending</TabsTrigger>
+                <TabsTrigger value="active">Active</TabsTrigger>
+                <TabsTrigger value="rejected">Rejected</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+        </div>
       </div>
 
       {isBootstrapping ? (
@@ -716,7 +914,11 @@ export default function EmployeesPage() {
                                     {field.values.map((value, index) => (
                                       <p
                                         key={`${user.user_id}-${field.key}-${index}`}
-                                        className={field.label === "Bio" ? "text-slate-300 leading-relaxed break-words whitespace-pre-wrap" : "text-slate-300 break-words"}
+                                        className={
+                                          field.label === "Bio"
+                                            ? "text-slate-300 leading-relaxed break-words whitespace-pre-wrap"
+                                            : "text-slate-300 break-words"
+                                        }
                                       >
                                         {value}
                                       </p>
@@ -728,7 +930,9 @@ export default function EmployeesPage() {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-sm text-slate-500">No profile details added yet.</p>
+                        <p className="text-sm text-slate-500">
+                          No profile details added yet.
+                        </p>
                       );
                     })()}
                   </div>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 
@@ -8,6 +8,38 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+type Role = "admin" | "manager" | "employee" | "guest";
+
+type MemberType =
+  | "client"
+  | "supplier"
+  | "investor"
+  | "consultant"
+  | "visitor"
+  | "partner"
+  | "engineer"
+  | "designer"
+  | "sourcing"
+  | "purchasing"
+  | "sales"
+  | "marketing"
+  | "finance"
+  | "operations"
+  | "qc"
+  | "assistant"
+  | "project_manager"
+  | "operations_manager"
+  | "department_manager"
+  | "sales_manager"
+  | "factory_manager";
 
 type Status =
   | "pending_verification"
@@ -25,7 +57,7 @@ type OnboardingProfileRow = {
   country?: string | null;
   city?: string | null;
   company?: string | null;
-  department?: string | null;
+  member_type?: MemberType | null;
   job_title?: string | null;
   bio?: string | null;
   avatar_url?: string | null;
@@ -33,11 +65,51 @@ type OnboardingProfileRow = {
   whatsapp?: string | null;
   profile_completed?: boolean | null;
   status: Status | null;
+  role?: Role | null;
+  requested_role?: Role | null;
+};
+
+const MEMBER_TYPE_OPTIONS: Record<
+  Exclude<Role, "admin">,
+  Array<{ value: MemberType; label: string }>
+> = {
+  guest: [
+    { value: "client", label: "Client" },
+    { value: "supplier", label: "Supplier" },
+    { value: "investor", label: "Investor" },
+    { value: "consultant", label: "Consultant" },
+    { value: "visitor", label: "Visitor" },
+    { value: "partner", label: "Partner" },
+  ],
+  employee: [
+    { value: "engineer", label: "Engineer" },
+    { value: "designer", label: "Designer" },
+    { value: "sourcing", label: "Sourcing" },
+    { value: "purchasing", label: "Purchasing" },
+    { value: "sales", label: "Sales" },
+    { value: "marketing", label: "Marketing" },
+    { value: "finance", label: "Finance" },
+    { value: "operations", label: "Operations" },
+    { value: "qc", label: "QC" },
+    { value: "assistant", label: "Assistant" },
+  ],
+  manager: [
+    { value: "project_manager", label: "Project Manager" },
+    { value: "operations_manager", label: "Operations Manager" },
+    { value: "department_manager", label: "Department Manager" },
+    { value: "sales_manager", label: "Sales Manager" },
+    { value: "factory_manager", label: "Factory Manager" },
+  ],
 };
 
 function normalizeOptional(value: string) {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function getRoleLabel(role: Role | null | undefined) {
+  if (!role) return "";
+  return role.charAt(0).toUpperCase() + role.slice(1);
 }
 
 export default function OnboardingPage() {
@@ -52,17 +124,26 @@ export default function OnboardingPage() {
   const [country, setCountry] = useState("");
   const [city, setCity] = useState("");
   const [company, setCompany] = useState("");
-  const [department, setDepartment] = useState("");
+  const [memberType, setMemberType] = useState<MemberType | "">("");
   const [jobTitle, setJobTitle] = useState("");
   const [bio, setBio] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [wechat, setWechat] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
+  const [requestedRole, setRequestedRole] = useState<Role | "">("");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+
+  const availableMemberTypes = useMemo(() => {
+    if (!requestedRole || requestedRole === "admin") {
+      return [];
+    }
+
+    return MEMBER_TYPE_OPTIONS[requestedRole];
+  }, [requestedRole]);
 
   const waitForAuthenticatedUser = useCallback(async () => {
     for (let i = 0; i < 12; i += 1) {
@@ -108,6 +189,10 @@ export default function OnboardingPage() {
 
       setUserId(user.id);
       setEmail(user.email || "");
+
+      const metadataRequestedRole = (user.user_metadata?.requested_role as Role | undefined) || null;
+      const metadataMemberType =
+        (user.user_metadata?.member_type as MemberType | undefined) || null;
 
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
@@ -172,6 +257,10 @@ export default function OnboardingPage() {
         return;
       }
 
+      const effectiveRole =
+        profile.requested_role || metadataRequestedRole || profile.role || "employee";
+
+      setRequestedRole(effectiveRole);
       setFullName(profile.full_name || "");
       setEmail(profile.email || user.email || "");
       setDisplayName(profile.display_name || "");
@@ -179,7 +268,7 @@ export default function OnboardingPage() {
       setCountry(profile.country || "");
       setCity(profile.city || "");
       setCompany(profile.company || "");
-      setDepartment(profile.department || "");
+      setMemberType(profile.member_type || metadataMemberType || "");
       setJobTitle(profile.job_title || "");
       setBio(profile.bio || "");
       setAvatarUrl(profile.avatar_url || "");
@@ -205,7 +294,7 @@ export default function OnboardingPage() {
     if (!country.trim()) return "Country is required.";
     if (!city.trim()) return "City is required.";
     if (!company.trim()) return "Company is required.";
-    if (!department.trim()) return "Department is required.";
+    if (!memberType) return "Member Type is required.";
     if (!jobTitle.trim()) return "Job title is required.";
     return "";
   };
@@ -232,26 +321,26 @@ export default function OnboardingPage() {
 
     try {
       const { error: saveError } = await supabase
-  .from("profiles")
-  .update({
-    full_name: fullName.trim(),
-    email: email.trim() || null,
-    display_name: displayName.trim(),
-    phone: phone.trim(),
-    country: country.trim(),
-    city: city.trim(),
-    company: company.trim(),
-    department: department.trim(),
-    job_title: jobTitle.trim(),
-    bio: normalizeOptional(bio),
-    avatar_url: normalizeOptional(avatarUrl),
-    wechat: normalizeOptional(wechat),
-    whatsapp: normalizeOptional(whatsapp),
-    profile_completed: true,
-    status: "pending_approval",
-    updated_at: new Date().toISOString(),
-  })
-  .eq("user_id", userId);
+        .from("profiles")
+        .update({
+          full_name: fullName.trim(),
+          email: email.trim() || null,
+          display_name: displayName.trim(),
+          phone: phone.trim(),
+          country: country.trim(),
+          city: city.trim(),
+          company: company.trim(),
+          member_type: memberType || null,
+          job_title: jobTitle.trim(),
+          bio: normalizeOptional(bio),
+          avatar_url: normalizeOptional(avatarUrl),
+          wechat: normalizeOptional(wechat),
+          whatsapp: normalizeOptional(whatsapp),
+          profile_completed: true,
+          status: "pending_approval",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId);
 
       if (saveError) {
         setError(saveError.message || "Failed to submit your profile.");
@@ -335,27 +424,27 @@ export default function OnboardingPage() {
               </div>
 
               <div className="space-y-2">
-  <Label className="text-slate-300">Display Name *</Label>
-  <Input
-    value={displayName}
-    onChange={(e) => setDisplayName(e.target.value)}
-    className="bg-slate-950 border-slate-800 text-white"
-    disabled={isSaving}
-  />
-</div>
+                <Label className="text-slate-300">Display Name *</Label>
+                <Input
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="bg-slate-950 border-slate-800 text-white"
+                  disabled={isSaving}
+                />
+              </div>
 
-<div className="space-y-2 md:col-span-2">
-  <Label className="text-slate-300">Email</Label>
-  <Input
-    value={email}
-    onChange={(e) => setEmail(e.target.value)}
-    className="bg-slate-950 border-slate-800 text-white"
-    disabled={isSaving}
-  />
-</div>
+              <div className="space-y-2 md:col-span-2">
+                <Label className="text-slate-300">Email</Label>
+                <Input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="bg-slate-950 border-slate-800 text-white"
+                  disabled={isSaving}
+                />
+              </div>
 
-<div className="space-y-2">
-  <Label className="text-slate-300">Phone *</Label>
+              <div className="space-y-2">
+                <Label className="text-slate-300">Phone *</Label>
                 <Input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
@@ -395,13 +484,32 @@ export default function OnboardingPage() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Department *</Label>
+                <Label className="text-slate-300">Requested Role</Label>
                 <Input
-                  value={department}
-                  onChange={(e) => setDepartment(e.target.value)}
+                  value={getRoleLabel(requestedRole)}
                   className="bg-slate-950 border-slate-800 text-white"
-                  disabled={isSaving}
+                  disabled
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-slate-300">Member Type *</Label>
+                <Select
+                  value={memberType}
+                  onValueChange={(value) => setMemberType(value as MemberType)}
+                  disabled={isSaving || !requestedRole || requestedRole === "admin"}
+                >
+                  <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                    <SelectValue placeholder="Select member type" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                    {availableMemberTypes.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">

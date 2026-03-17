@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { uploadProfilePhoto } from "@/lib/profilePhotoUpload";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Image as ImageIcon, Upload, Trash2 } from "lucide-react";
 
 type Role = "admin" | "manager" | "employee" | "guest";
 
@@ -56,6 +59,7 @@ type OnboardingProfileRow = {
   phone?: string | null;
   country?: string | null;
   city?: string | null;
+  shipping_address?: string | null;
   company?: string | null;
   member_type?: MemberType | null;
   job_title?: string | null;
@@ -112,9 +116,21 @@ function getRoleLabel(role: Role | null | undefined) {
   return role.charAt(0).toUpperCase() + role.slice(1);
 }
 
+function getInitials(name: string) {
+  if (!name.trim()) return "U";
+
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
 export default function OnboardingPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const profilePhotoInputRef = useRef<HTMLInputElement | null>(null);
 
   const [userId, setUserId] = useState("");
   const [fullName, setFullName] = useState("");
@@ -123,6 +139,7 @@ export default function OnboardingPage() {
   const [phone, setPhone] = useState("");
   const [country, setCountry] = useState("");
   const [city, setCity] = useState("");
+  const [shippingAddress, setShippingAddress] = useState("");
   const [company, setCompany] = useState("");
   const [memberType, setMemberType] = useState<MemberType | "">("");
   const [jobTitle, setJobTitle] = useState("");
@@ -134,6 +151,7 @@ export default function OnboardingPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -190,7 +208,8 @@ export default function OnboardingPage() {
       setUserId(user.id);
       setEmail(user.email || "");
 
-      const metadataRequestedRole = (user.user_metadata?.requested_role as Role | undefined) || null;
+      const metadataRequestedRole =
+        (user.user_metadata?.requested_role as Role | undefined) || null;
       const metadataMemberType =
         (user.user_metadata?.member_type as MemberType | undefined) || null;
 
@@ -267,6 +286,7 @@ export default function OnboardingPage() {
       setPhone(profile.phone || "");
       setCountry(profile.country || "");
       setCity(profile.city || "");
+      setShippingAddress(profile.shipping_address || "");
       setCompany(profile.company || "");
       setMemberType(profile.member_type || metadataMemberType || "");
       setJobTitle(profile.job_title || "");
@@ -293,10 +313,36 @@ export default function OnboardingPage() {
     if (!phone.trim()) return "Phone is required.";
     if (!country.trim()) return "Country is required.";
     if (!city.trim()) return "City is required.";
+    if (!shippingAddress.trim()) return "Shipping address is required.";
     if (!company.trim()) return "Company is required.";
     if (!memberType) return "Member Type is required.";
     if (!jobTitle.trim()) return "Job title is required.";
     return "";
+  };
+
+  const handleProfilePhotoUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userId) return;
+
+    setIsUploadingPhoto(true);
+    setError("");
+
+    try {
+      const result = await uploadProfilePhoto({
+        file,
+        userId,
+      });
+
+      setAvatarUrl(result.publicUrl);
+    } catch (err) {
+      console.error("Profile photo upload error:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to upload profile photo."
+      );
+    } finally {
+      setIsUploadingPhoto(false);
+      e.target.value = "";
+    }
   };
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -329,6 +375,7 @@ export default function OnboardingPage() {
           phone: phone.trim(),
           country: country.trim(),
           city: city.trim(),
+          shipping_address: shippingAddress.trim(),
           company: company.trim(),
           member_type: memberType || null,
           job_title: jobTitle.trim(),
@@ -483,6 +530,16 @@ export default function OnboardingPage() {
                 />
               </div>
 
+              <div className="space-y-2 md:col-span-2">
+                <Label className="text-slate-300">Shipping Address *</Label>
+                <Input
+                  value={shippingAddress}
+                  onChange={(e) => setShippingAddress(e.target.value)}
+                  className="bg-slate-950 border-slate-800 text-white"
+                  disabled={isSaving}
+                />
+              </div>
+
               <div className="space-y-2">
                 <Label className="text-slate-300">Requested Role</Label>
                 <Input
@@ -542,15 +599,65 @@ export default function OnboardingPage() {
                 />
               </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label className="text-slate-300">Profile Photo URL</Label>
-                <Input
-                  value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value)}
-                  placeholder="Optional image URL"
-                  className="bg-slate-950 border-slate-800 text-white"
-                  disabled={isSaving}
-                />
+              <div className="space-y-3 md:col-span-2">
+                <Label className="text-slate-300">Profile Photo</Label>
+
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                    <Avatar className="w-20 h-20">
+                      <AvatarImage src={avatarUrl || undefined} />
+                      <AvatarFallback className="bg-indigo-600 text-white">
+                        {getInitials(fullName)}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    <div className="flex-1 space-y-3">
+                      <div className="text-sm text-slate-400">
+                        {avatarUrl ? "Profile photo uploaded." : "No profile photo uploaded yet."}
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                          onClick={() => profilePhotoInputRef.current?.click()}
+                          disabled={isUploadingPhoto || isSaving}
+                        >
+                          <Upload className="w-4 h-4 mr-2" />
+                          {isUploadingPhoto ? "Uploading..." : "Upload Photo"}
+                        </Button>
+
+                        {avatarUrl && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="border-red-800 text-red-400 hover:bg-red-900/20"
+                            onClick={() => setAvatarUrl("")}
+                            disabled={isUploadingPhoto || isSaving}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Remove Photo
+                          </Button>
+                        )}
+                      </div>
+
+                      {avatarUrl && (
+                        <div className="text-xs text-slate-500 break-all">
+                          {avatarUrl}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <input
+                    ref={profilePhotoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleProfilePhotoUpload}
+                  />
+                </div>
               </div>
 
               <div className="space-y-2 md:col-span-2">
@@ -571,7 +678,7 @@ export default function OnboardingPage() {
                 variant="outline"
                 className="border-slate-700 text-slate-300 hover:bg-slate-800"
                 onClick={handleSignOut}
-                disabled={isSaving}
+                disabled={isSaving || isUploadingPhoto}
               >
                 Sign Out
               </Button>
@@ -579,7 +686,7 @@ export default function OnboardingPage() {
               <Button
                 type="submit"
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                disabled={isSaving}
+                disabled={isSaving || isUploadingPhoto}
               >
                 {isSaving ? "Submitting..." : "Submit For Approval"}
               </Button>

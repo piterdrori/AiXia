@@ -46,6 +46,7 @@ type Status =
 type ProfileRow = {
   user_id: string;
   full_name: string | null;
+  email?: string | null;
   role: Role;
   status: Status;
   requested_role: Role | null;
@@ -96,6 +97,7 @@ export default function EmployeeDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
 
   const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone] = useState("");
   const [country, setCountry] = useState("");
@@ -117,6 +119,7 @@ export default function EmployeeDetailPage() {
   const fillForm = useCallback((profile: ProfileRow) => {
     setUser(profile);
     setFullName(profile.full_name || "");
+    setEmail(profile.email || "");
     setDisplayName(profile.display_name || "");
     setPhone(profile.phone || "");
     setCountry(profile.country || "");
@@ -567,7 +570,17 @@ export default function EmployeeDetailPage() {
                   )}
                 </div>
 
-                <div className="w-full mt-6 space-y-3 text-left">
+                <<div className="w-full mt-6 space-y-3 text-left">
+  <div className="flex items-center gap-2 text-slate-300">
+    <span className="w-4 h-4 text-slate-500 flex items-center justify-center text-xs font-semibold">
+      @
+    </span>
+    <span>{email || "No email"}</span>
+  </div>
+  <div className="flex items-center gap-2 text-slate-300">
+    <Phone className="w-4 h-4 text-slate-500" />
+    <span>{phone || "No phone"}</span>
+  </div>>
                   <div className="flex items-center gap-2 text-slate-300">
                     <Phone className="w-4 h-4 text-slate-500" />
                     <span>{phone || "No phone"}</span>
@@ -628,25 +641,34 @@ export default function EmployeeDetailPage() {
             ) : (
               <>
                 <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Full Name</Label>
-                    <Input
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      disabled={!isEditing}
-                      className="bg-slate-950 border-slate-800 text-white"
-                    />
-                  </div>
+  <div className="space-y-2">
+    <Label className="text-slate-300">Full Name</Label>
+    <Input
+      value={fullName}
+      onChange={(e) => setFullName(e.target.value)}
+      disabled={!isEditing}
+      className="bg-slate-950 border-slate-800 text-white"
+    />
+  </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Display Name</Label>
-                    <Input
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      disabled={!isEditing}
-                      className="bg-slate-950 border-slate-800 text-white"
-                    />
-                  </div>
+  <div className="space-y-2">
+    <Label className="text-slate-300">Display Name</Label>
+    <Input
+      value={displayName}
+      onChange={(e) => setDisplayName(e.target.value)}
+      disabled={!isEditing}
+      className="bg-slate-950 border-slate-800 text-white"
+    />
+  </div>
+
+  <div className="space-y-2">
+    <Label className="text-slate-300">Email</Label>
+    <Input
+      value={email}
+      disabled
+      className="bg-slate-950 border-slate-800 text-white"
+    />
+  </div>
 
                   <div className="space-y-2">
                     <Label className="text-slate-300">Phone</Label>

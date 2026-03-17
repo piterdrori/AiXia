@@ -310,16 +310,26 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
 function PublicRoute({ children }: { children: ReactNode }) {
   const { isBootstrapping, accessState } = useAuthAccess();
+  const location = useLocation();
 
   if (isBootstrapping) {
     return <FullScreenLoader />;
   }
 
-  if (accessState === "ready") {
+  const allowAuthenticatedPublicPaths = [
+    "/reset-password",
+    "/forgot-password",
+  ];
+
+  const isAllowedAuthenticatedPublicPath = allowAuthenticatedPublicPaths.includes(
+    location.pathname
+  );
+
+  if (accessState === "ready" && !isAllowedAuthenticatedPublicPath) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  if (accessState === "needs_profile") {
+  if (accessState === "needs_profile" && !isAllowedAuthenticatedPublicPath) {
     return <Navigate to="/onboarding" replace />;
   }
 

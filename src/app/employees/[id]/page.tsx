@@ -104,11 +104,6 @@ function joinMultiValue(values: string[]) {
   const cleaned = values.map((item) => item.trim()).filter(Boolean).join("\n");
   return cleaned || null;
 }
-
-function firstFilled(values: string[]) {
-  return values.find((item) => item.trim()) || "";
-}
-
 export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();

@@ -47,12 +47,82 @@ import {
 
 type Role = "admin" | "manager" | "employee" | "guest";
 
+type MemberType =
+  | "client"
+  | "supplier"
+  | "investor"
+  | "consultant"
+  | "visitor"
+  | "partner"
+  | "engineer"
+  | "designer"
+  | "sourcing"
+  | "purchasing"
+  | "sales"
+  | "marketing"
+  | "finance"
+  | "operations"
+  | "qc"
+  | "assistant"
+  | "project_manager"
+  | "operations_manager"
+  | "department_manager"
+  | "sales_manager"
+  | "factory_manager";
+
 type Status =
   | "pending_verification"
   | "pending_profile"
   | "pending_approval"
   | "active"
   | "rejected";
+
+const MEMBER_TYPE_OPTIONS: Record<
+  Exclude<Role, "admin">,
+  Array<{ value: MemberType; label: string }>
+> = {
+  guest: [
+    { value: "client", label: "Client" },
+    { value: "supplier", label: "Supplier" },
+    { value: "investor", label: "Investor" },
+    { value: "consultant", label: "Consultant" },
+    { value: "visitor", label: "Visitor" },
+    { value: "partner", label: "Partner" },
+  ],
+  employee: [
+    { value: "engineer", label: "Engineer" },
+    { value: "designer", label: "Designer" },
+    { value: "sourcing", label: "Sourcing" },
+    { value: "purchasing", label: "Purchasing" },
+    { value: "sales", label: "Sales" },
+    { value: "marketing", label: "Marketing" },
+    { value: "finance", label: "Finance" },
+    { value: "operations", label: "Operations" },
+    { value: "qc", label: "QC" },
+    { value: "assistant", label: "Assistant" },
+  ],
+  manager: [
+    { value: "project_manager", label: "Project Manager" },
+    { value: "operations_manager", label: "Operations Manager" },
+    { value: "department_manager", label: "Department Manager" },
+    { value: "sales_manager", label: "Sales Manager" },
+    { value: "factory_manager", label: "Factory Manager" },
+  ],
+};
+
+function getMemberTypeLabel(value: string | null | undefined) {
+  if (!value) return "";
+
+  for (const options of Object.values(MEMBER_TYPE_OPTIONS)) {
+    const found = options.find((option) => option.value === value);
+    if (found) return found.label;
+  }
+
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
 
 type ProfileRow = {
   user_id: string;
@@ -69,7 +139,7 @@ type ProfileRow = {
   city?: string | null;
   shipping_address?: string | null;
   company?: string | null;
-  department?: string | null;
+  member_type?: MemberType | null;
   job_title?: string | null;
   avatar_url?: string | null;
   wechat?: string | null;
@@ -165,7 +235,7 @@ export default function EmployeeDetailPage() {
   const [city, setCity] = useState("");
   const [shippingAddress, setShippingAddress] = useState("");
   const [companies, setCompanies] = useState<string[]>([""]);
-  const [departments, setDepartments] = useState<string[]>([""]);
+  const [memberType, setMemberType] = useState<MemberType | "">("");
   const [jobTitles, setJobTitles] = useState<string[]>([""]);
   const [bio, setBio] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -190,7 +260,7 @@ export default function EmployeeDetailPage() {
     setCity(profile.city || "");
     setShippingAddress(profile.shipping_address || "");
     setCompanies(splitMultiValue(profile.company));
-    setDepartments(splitMultiValue(profile.department));
+    setMemberType(profile.member_type || "");
     setJobTitles(splitMultiValue(profile.job_title));
     setBio(profile.bio || "");
     setAvatarUrl(profile.avatar_url || "");
@@ -362,8 +432,8 @@ export default function EmployeeDetailPage() {
       case "company":
         setCompanies([""]);
         break;
-      case "department":
-        setDepartments([""]);
+      case "member_type":
+        setMemberType("");
         break;
       case "job_title":
         setJobTitles([""]);
@@ -686,7 +756,7 @@ export default function EmployeeDetailPage() {
       city: city.trim() || null,
       shipping_address: shippingAddress.trim() || null,
       company: joinMultiValue(companies),
-      department: joinMultiValue(departments),
+      member_type: memberType || null,
       job_title: joinMultiValue(jobTitles),
       bio: normalizeOptional(bio),
       avatar_url: normalizeOptional(avatarUrl),
@@ -1052,22 +1122,13 @@ export default function EmployeeDetailPage() {
                       "sidebar-companies"
                     )}
 
-                  {departments.some((item) => item.trim()) &&
+                  {memberType &&
                     renderSidebarCard(
-                      <div className="space-y-2 w-full">
-                        {departments.map((item, index) =>
-                          item.trim() ? (
-                            <div
-                              key={`sidebar-department-${index}`}
-                              className="flex items-center gap-2 text-slate-300"
-                            >
-                              <User className="w-4 h-4 text-slate-500 shrink-0" />
-                              <span>{item}</span>
-                            </div>
-                          ) : null
-                        )}
+                      <div className="flex items-center gap-2 text-slate-300">
+                        <User className="w-4 h-4 text-slate-500 shrink-0" />
+                        <span>{getMemberTypeLabel(memberType)}</span>
                       </div>,
-                      "sidebar-departments"
+                      "sidebar-member-type"
                     )}
 
                   {jobTitles.some((item) => item.trim()) &&
@@ -1279,12 +1340,57 @@ export default function EmployeeDetailPage() {
                         setValues: setCompanies,
                       })}
 
-                      {renderMultiFieldCard({
-                        fieldKey: "department",
-                        label: "Department",
-                        values: departments,
-                        setValues: setDepartments,
-                      })}
+                      <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="space-y-1">
+                            <h4 className="text-base font-semibold text-white">
+                              Member Type
+                            </h4>
+                          </div>
+
+                          {renderActionButtons({
+                            fieldKey: "member_type",
+                            filled: Boolean(memberType),
+                            canEditThisField: canEditProfileFields,
+                          })}
+                        </div>
+
+                        <div className="mt-4">
+                          {isEditing && activeEditor === "member_type" ? (
+                            role === "admin" ? (
+                              <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3 text-sm text-slate-500">
+                                Admin does not use Member Type
+                              </div>
+                            ) : (
+                              <Select
+                                value={memberType}
+                                onValueChange={(value) =>
+                                  setMemberType(value as MemberType)
+                                }
+                              >
+                                <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                                  <SelectValue placeholder="Select member type" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                  {MEMBER_TYPE_OPTIONS[role].map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )
+                          ) : (
+                            <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3 text-sm text-slate-200 min-h-[52px] flex items-center">
+                              {memberType ? (
+                                getMemberTypeLabel(memberType)
+                              ) : (
+                                <span className="text-slate-500">No value added yet</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
 
                       {renderMultiFieldCard({
                         fieldKey: "job_title",
@@ -1435,7 +1541,23 @@ export default function EmployeeDetailPage() {
                           <Label className="text-slate-300">Role</Label>
                           <Select
                             value={role}
-                            onValueChange={(value) => setRole(value as Role)}
+                            onValueChange={(value) => {
+                              const nextRole = value as Role;
+                              setRole(nextRole);
+
+                              if (nextRole === "admin") {
+                                setMemberType("");
+                                return;
+                              }
+
+                              const allowedValues = MEMBER_TYPE_OPTIONS[nextRole].map(
+                                (option) => option.value
+                              );
+
+                              if (memberType && !allowedValues.includes(memberType)) {
+                                setMemberType("");
+                              }
+                            }}
                             disabled={!isEditing}
                           >
                             <SelectTrigger className="bg-slate-950 border-slate-800 text-white">

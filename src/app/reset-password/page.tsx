@@ -99,15 +99,23 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
       <Card className="w-full max-w-md bg-slate-900/60 border-slate-800">
         <CardContent className="p-8">
-          <div className="mb-8 text-center">
-            <h1 className="text-3xl font-bold text-white">
-              Reset Password
-            </h1>
+          <div className="mb-10 text-center">
+  <div className="flex justify-center mb-6">
+    <img
+      src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
+      alt="AiXia Logo"
+      className="h-24 w-auto object-contain"
+    />
+  </div>
 
-            <p className="text-slate-400 mt-2">
-              Enter your new password
-            </p>
-          </div>
+  <h1 className="text-3xl font-bold text-white">
+    Reset Password
+  </h1>
+
+  <p className="text-slate-400 mt-2">
+    Enter your new password
+  </p>
+</div>
 
           <form onSubmit={handleResetPassword} className="space-y-5">
             {error && (

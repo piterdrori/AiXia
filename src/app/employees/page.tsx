@@ -558,32 +558,36 @@ export default function EmployeesPage() {
                       )}
                     </div>
 
-                    <div className="grid sm:grid-cols-2 gap-2 text-sm">
-                      <p className="text-slate-400">
-                        <span className="text-slate-500">Display:</span>{" "}
-                        {user.display_name || "—"}
-                      </p>
-                      <p className="text-slate-400">
-                        <span className="text-slate-500">Phone:</span>{" "}
-                        {user.phone || "—"}
-                      </p>
-                      <p className="text-slate-400">
-                        <span className="text-slate-500">Company:</span>{" "}
-                        {user.company || "—"}
-                      </p>
-                      <p className="text-slate-400">
-                        <span className="text-slate-500">Department:</span>{" "}
-                        {user.department || "—"}
-                      </p>
-                      <p className="text-slate-400">
-                        <span className="text-slate-500">Job Title:</span>{" "}
-                        {user.job_title || "—"}
-                      </p>
-                      <p className="text-slate-400">
-                        <span className="text-slate-500">Location:</span>{" "}
-                        {[user.city, user.country].filter(Boolean).join(", ") || "—"}
-                      </p>
-                    </div>
+                   <div className="grid sm:grid-cols-2 gap-2 text-sm">
+  <p className="text-slate-400">
+    <span className="text-slate-500">Email:</span>{" "}
+    {user.email || "—"}
+  </p>
+  <p className="text-slate-400">
+    <span className="text-slate-500">Phone:</span>{" "}
+    {user.phone || "—"}
+  </p>
+  <p className="text-slate-400">
+    <span className="text-slate-500">Display:</span>{" "}
+    {user.display_name || "—"}
+  </p>
+  <p className="text-slate-400">
+    <span className="text-slate-500">Department:</span>{" "}
+    {user.department || "—"}
+  </p>
+  <p className="text-slate-400">
+    <span className="text-slate-500">Company:</span>{" "}
+    {user.company || "—"}
+  </p>
+  <p className="text-slate-400">
+    <span className="text-slate-500">Job Title:</span>{" "}
+    {user.job_title || "—"}
+  </p>
+  <p className="text-slate-400 sm:col-span-2">
+    <span className="text-slate-500">Location:</span>{" "}
+    {[user.city, user.country].filter(Boolean).join(", ") || "—"}
+  </p>
+</div>
                   </div>
                 </div>
               </CardContent>

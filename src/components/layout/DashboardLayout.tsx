@@ -533,11 +533,11 @@ export default function DashboardLayout({
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      <div className="relative flex items-center justify-center px-4 py-6 border-b border-slate-800 min-h-[120px]">
+      <div className="relative flex items-center justify-center border-b border-slate-800 px-4 py-5">
   <img
     src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
     alt="AiXia Logo"
-    className="block w-full max-w-[240px] h-auto object-contain"
+    className="h-40 w-auto object-contain"
   />
 
   {isMobile && (

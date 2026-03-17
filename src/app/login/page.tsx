@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 
 import { Button } from "@/components/ui/button";
@@ -46,15 +46,23 @@ function getFriendlyLoginError(message: string) {
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [showPassword, setShowPassword] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
+
+  useEffect(() => {
+    if (searchParams.get("reset") === "success") {
+      setInfoMessage(
+        "Password updated successfully. Please sign in with your new password."
+      );
+    }
+  }, [searchParams]);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -178,7 +186,6 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
-
             {error && (
               <Alert className="bg-red-900/20 border-red-800 text-red-300">
                 <AlertDescription>{error}</AlertDescription>
@@ -195,7 +202,6 @@ export default function LoginPage() {
               <Label htmlFor="email" className="text-slate-300">
                 Email
               </Label>
-
               <Input
                 id="email"
                 type="email"
@@ -216,7 +222,6 @@ export default function LoginPage() {
               </Label>
 
               <div className="relative">
-
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
@@ -232,11 +237,10 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2 text-slate-400 hover:text-white"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
                 >
                   {showPassword ? "🙈" : "👁"}
                 </button>
-
               </div>
             </div>
 
@@ -256,7 +260,6 @@ export default function LoginPage() {
             >
               {isLoading ? "Signing in..." : "Sign In"}
             </Button>
-
           </form>
 
           <div className="mt-6 text-center text-sm text-slate-400">
@@ -268,7 +271,6 @@ export default function LoginPage() {
               Create one
             </Link>
           </div>
-
         </CardContent>
       </Card>
     </div>

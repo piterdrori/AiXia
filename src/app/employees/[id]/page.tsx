@@ -903,220 +903,205 @@ export default function EmployeeDetailPage() {
         </Alert>
       )}
 
-      <div className="grid xl:grid-cols-[320px,1fr] gap-6">
-        <Card className="bg-slate-900/50 border-slate-800 overflow-hidden">
-          <CardContent className="p-6">
-            {isBootstrapping && !user ? (
-              <div className="animate-pulse space-y-4">
-                <div className="w-24 h-24 rounded-full bg-slate-800 mx-auto" />
-                <div className="h-6 bg-slate-800 rounded w-40 mx-auto" />
-                <div className="h-4 bg-slate-800 rounded w-28 mx-auto" />
-                <div className="space-y-3 pt-4">
-                  <div className="h-4 bg-slate-800 rounded" />
-                  <div className="h-4 bg-slate-800 rounded" />
-                  <div className="h-4 bg-slate-800 rounded" />
-                  <div className="h-4 bg-slate-800 rounded" />
-                </div>
+<div className="grid xl:grid-cols-[320px,1fr] gap-6">
+  <Card className="bg-slate-900/50 border-slate-800 overflow-hidden">
+    <CardContent className="p-6">
+      {isBootstrapping && !user ? (
+        <div className="animate-pulse space-y-4">
+          <div className="w-24 h-24 rounded-full bg-slate-800 mx-auto" />
+          <div className="h-6 bg-slate-800 rounded w-40 mx-auto" />
+          <div className="h-4 bg-slate-800 rounded w-28 mx-auto" />
+          <div className="space-y-3 pt-4">
+            <div className="h-4 bg-slate-800 rounded" />
+            <div className="h-4 bg-slate-800 rounded" />
+            <div className="h-4 bg-slate-800 rounded" />
+            <div className="h-4 bg-slate-800 rounded" />
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center text-center">
+          <Avatar className="w-28 h-28 mb-4 ring-4 ring-slate-800">
+            <AvatarImage src={avatarUrl || undefined} />
+            <AvatarFallback className="bg-indigo-600 text-white text-2xl">
+              {getInitials(fullName)}
+            </AvatarFallback>
+          </Avatar>
+
+          <h2 className="text-xl font-semibold text-white">
+            {fullName || "Unnamed user"}
+          </h2>
+          <p className="text-slate-400">{displayName || "No display name"}</p>
+
+          <div className="flex items-center gap-2 flex-wrap justify-center mt-4">
+            <Badge className={getRoleColor(role)}>{role.toUpperCase()}</Badge>
+            <Badge className={getStatusColor(status)}>
+              {getStatusLabel(status)}
+            </Badge>
+            {!profileCompleted && (
+              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                PROFILE INCOMPLETE
+              </Badge>
+            )}
+            {user?.requested_role && user.requested_role !== role && (
+              <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30">
+                REQUESTED {user.requested_role.toUpperCase()}
+              </Badge>
+            )}
+          </div>
+
+          <div className="w-full mt-6 space-y-3 text-left">
+            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+              <div className="flex items-center gap-2 text-slate-300">
+                <Mail className="w-4 h-4 text-slate-500" />
+                <span>{email || "No email"}</span>
               </div>
-            ) : (
-<Card className="bg-slate-900/50 border-slate-800 overflow-hidden">
-  <CardContent className="p-6">
-    {isBootstrapping && !user ? (
-      <div className="animate-pulse space-y-4">
-        <div className="w-24 h-24 rounded-full bg-slate-800 mx-auto" />
-        <div className="h-6 bg-slate-800 rounded w-40 mx-auto" />
-        <div className="h-4 bg-slate-800 rounded w-28 mx-auto" />
-        <div className="space-y-3 pt-4">
-          <div className="h-4 bg-slate-800 rounded" />
-          <div className="h-4 bg-slate-800 rounded" />
-          <div className="h-4 bg-slate-800 rounded" />
-          <div className="h-4 bg-slate-800 rounded" />
-        </div>
-      </div>
-    ) : (
-      <div className="flex flex-col items-center text-center">
-        <Avatar className="w-28 h-28 mb-4 ring-4 ring-slate-800">
-          <AvatarImage src={avatarUrl || undefined} />
-          <AvatarFallback className="bg-indigo-600 text-white text-2xl">
-            {getInitials(fullName)}
-          </AvatarFallback>
-        </Avatar>
-
-        <h2 className="text-xl font-semibold text-white">
-          {fullName || "Unnamed user"}
-        </h2>
-        <p className="text-slate-400">{displayName || "No display name"}</p>
-
-        <div className="flex items-center gap-2 flex-wrap justify-center mt-4">
-          <Badge className={getRoleColor(role)}>{role.toUpperCase()}</Badge>
-          <Badge className={getStatusColor(status)}>
-            {getStatusLabel(status)}
-          </Badge>
-          {!profileCompleted && (
-            <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-              PROFILE INCOMPLETE
-            </Badge>
-          )}
-          {user?.requested_role && user.requested_role !== role && (
-            <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30">
-              REQUESTED {user.requested_role.toUpperCase()}
-            </Badge>
-          )}
-        </div>
-
-        <div className="w-full mt-6 space-y-3 text-left">
-          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
-            <div className="flex items-center gap-2 text-slate-300">
-              <Mail className="w-4 h-4 text-slate-500" />
-              <span>{email || "No email"}</span>
             </div>
-          </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
-            <div className="text-xs text-slate-500 mb-2">Phones</div>
-            <div className="space-y-2">
-              {phones.map((item, index) =>
-                item.trim() ? (
-                  <div
-                    key={`sidebar-phone-${index}`}
-                    className="flex items-center gap-2 text-slate-300"
-                  >
-                    <Phone className="w-4 h-4 text-slate-500" />
-                    <span>{item}</span>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+              <div className="text-xs text-slate-500 mb-2">Phones</div>
+              <div className="space-y-2">
+                {phones.map((item, index) =>
+                  item.trim() ? (
+                    <div
+                      key={`sidebar-phone-${index}`}
+                      className="flex items-center gap-2 text-slate-300"
+                    >
+                      <Phone className="w-4 h-4 text-slate-500" />
+                      <span>{item}</span>
+                    </div>
+                  ) : null
+                )}
+                {!phones.some((item) => item.trim()) && (
+                  <div className="text-slate-500 text-sm">No phone</div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+              <div className="flex items-start gap-2 text-slate-300">
+                <MapPin className="w-4 h-4 text-slate-500 mt-0.5" />
+                <div className="space-y-1">
+                  <div>{[city, country].filter(Boolean).join(", ") || "No location"}</div>
+                  <div className="text-xs text-slate-500">
+                    {shippingAddress || "No shipping address"}
                   </div>
-                ) : null
-              )}
-              {!phones.some((item) => item.trim()) && (
-                <div className="text-slate-500 text-sm">No phone</div>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
-            <div className="flex items-start gap-2 text-slate-300">
-              <MapPin className="w-4 h-4 text-slate-500 mt-0.5" />
-              <div className="space-y-1">
-                <div>{[city, country].filter(Boolean).join(", ") || "No location"}</div>
-                <div className="text-xs text-slate-500">
-                  {shippingAddress || "No shipping address"}
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
-            <div className="text-xs text-slate-500 mb-2">Companies</div>
-            <div className="space-y-2">
-              {companies.map((item, index) =>
-                item.trim() ? (
-                  <div
-                    key={`sidebar-company-${index}`}
-                    className="flex items-center gap-2 text-slate-300"
-                  >
-                    <Building2 className="w-4 h-4 text-slate-500" />
-                    <span>{item}</span>
-                  </div>
-                ) : null
-              )}
-              {!companies.some((item) => item.trim()) && (
-                <div className="text-slate-500 text-sm">No company</div>
-              )}
+            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+              <div className="text-xs text-slate-500 mb-2">Companies</div>
+              <div className="space-y-2">
+                {companies.map((item, index) =>
+                  item.trim() ? (
+                    <div
+                      key={`sidebar-company-${index}`}
+                      className="flex items-center gap-2 text-slate-300"
+                    >
+                      <Building2 className="w-4 h-4 text-slate-500" />
+                      <span>{item}</span>
+                    </div>
+                  ) : null
+                )}
+                {!companies.some((item) => item.trim()) && (
+                  <div className="text-slate-500 text-sm">No company</div>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
-            <div className="text-xs text-slate-500 mb-2">Departments</div>
-            <div className="space-y-2">
-              {departments.map((item, index) =>
-                item.trim() ? (
-                  <div
-                    key={`sidebar-department-${index}`}
-                    className="flex items-center gap-2 text-slate-300"
-                  >
-                    <User className="w-4 h-4 text-slate-500" />
-                    <span>{item}</span>
-                  </div>
-                ) : null
-              )}
-              {!departments.some((item) => item.trim()) && (
-                <div className="text-slate-500 text-sm">No department</div>
-              )}
+            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+              <div className="text-xs text-slate-500 mb-2">Departments</div>
+              <div className="space-y-2">
+                {departments.map((item, index) =>
+                  item.trim() ? (
+                    <div
+                      key={`sidebar-department-${index}`}
+                      className="flex items-center gap-2 text-slate-300"
+                    >
+                      <User className="w-4 h-4 text-slate-500" />
+                      <span>{item}</span>
+                    </div>
+                  ) : null
+                )}
+                {!departments.some((item) => item.trim()) && (
+                  <div className="text-slate-500 text-sm">No department</div>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
-            <div className="text-xs text-slate-500 mb-2">Job Titles</div>
-            <div className="space-y-2">
-              {jobTitles.map((item, index) =>
-                item.trim() ? (
-                  <div
-                    key={`sidebar-job-${index}`}
-                    className="flex items-center gap-2 text-slate-300"
-                  >
-                    <Briefcase className="w-4 h-4 text-slate-500" />
-                    <span>{item}</span>
-                  </div>
-                ) : null
-              )}
-              {!jobTitles.some((item) => item.trim()) && (
-                <div className="text-slate-500 text-sm">No job title</div>
-              )}
+            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+              <div className="text-xs text-slate-500 mb-2">Job Titles</div>
+              <div className="space-y-2">
+                {jobTitles.map((item, index) =>
+                  item.trim() ? (
+                    <div
+                      key={`sidebar-job-${index}`}
+                      className="flex items-center gap-2 text-slate-300"
+                    >
+                      <Briefcase className="w-4 h-4 text-slate-500" />
+                      <span>{item}</span>
+                    </div>
+                  ) : null
+                )}
+                {!jobTitles.some((item) => item.trim()) && (
+                  <div className="text-slate-500 text-sm">No job title</div>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
-            <div className="text-xs text-slate-500 mb-2">WhatsApp</div>
-            <div className="space-y-2">
-              {whatsapps.map((item, index) =>
-                item.trim() ? (
-                  <div
-                    key={`sidebar-whatsapp-${index}`}
-                    className="flex items-center gap-2 text-slate-300"
-                  >
-                    <MessageCircle className="w-4 h-4 text-slate-500" />
-                    <span>{item}</span>
-                  </div>
-                ) : null
-              )}
-              {!whatsapps.some((item) => item.trim()) && (
-                <div className="text-slate-500 text-sm">No WhatsApp</div>
-              )}
+            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+              <div className="text-xs text-slate-500 mb-2">WhatsApp</div>
+              <div className="space-y-2">
+                {whatsapps.map((item, index) =>
+                  item.trim() ? (
+                    <div
+                      key={`sidebar-whatsapp-${index}`}
+                      className="flex items-center gap-2 text-slate-300"
+                    >
+                      <MessageCircle className="w-4 h-4 text-slate-500" />
+                      <span>{item}</span>
+                    </div>
+                  ) : null
+                )}
+                {!whatsapps.some((item) => item.trim()) && (
+                  <div className="text-slate-500 text-sm">No WhatsApp</div>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
-            <div className="text-xs text-slate-500 mb-2">WeChat</div>
-            <div className="space-y-2">
-              {wechats.map((item, index) =>
-                item.trim() ? (
-                  <div
-                    key={`sidebar-wechat-${index}`}
-                    className="flex items-center gap-2 text-slate-300"
-                  >
-                    <MessageCircle className="w-4 h-4 text-slate-500" />
-                    <span>{item}</span>
-                  </div>
-                ) : null
-              )}
-              {!wechats.some((item) => item.trim()) && (
-                <div className="text-slate-500 text-sm">No WeChat</div>
-              )}
+            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+              <div className="text-xs text-slate-500 mb-2">WeChat</div>
+              <div className="space-y-2">
+                {wechats.map((item, index) =>
+                  item.trim() ? (
+                    <div
+                      key={`sidebar-wechat-${index}`}
+                      className="flex items-center gap-2 text-slate-300"
+                    >
+                      <MessageCircle className="w-4 h-4 text-slate-500" />
+                      <span>{item}</span>
+                    </div>
+                  ) : null
+                )}
+                {!wechats.some((item) => item.trim()) && (
+                  <div className="text-slate-500 text-sm">No WeChat</div>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
-            <div className="text-xs text-slate-500 mb-2">Bio</div>
-            <div className="text-sm text-slate-300 whitespace-pre-wrap break-words">
-              {bio || "No bio added yet"}
+            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+              <div className="text-xs text-slate-500 mb-2">Bio</div>
+              <div className="text-sm text-slate-300 whitespace-pre-wrap break-words">
+                {bio || "No bio added yet"}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    )}
-  </CardContent>
-</Card>
+      )}
+    </CardContent>
+  </Card>
 
-        <Card className="bg-slate-900/50 border-slate-800">
+  <Card className="bg-slate-900/50 border-slate-800">
           <CardHeader className="border-b border-slate-800">
             <CardTitle className="text-white">
               {isEditing ? "Edit Profile Details" : "Profile Details"}

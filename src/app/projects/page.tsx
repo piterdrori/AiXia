@@ -307,10 +307,10 @@ export default function ProjectsPage() {
 
       {isBootstrapping ? (
         viewMode === "grid" ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
             {Array.from({ length: 6 }).map((_, index) => (
               <Card key={index} className="bg-slate-900/50 border-slate-800">
-                <CardContent className="p-5">
+                <CardContent className="p-4">
                   <div className="animate-pulse space-y-4">
                     <div className="flex items-start justify-between">
                       <div className="w-10 h-10 rounded-lg bg-slate-800" />
@@ -357,17 +357,17 @@ export default function ProjectsPage() {
           </Card>
         )
       ) : viewMode === "grid" ? (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
           {filteredProjects.map((project) => (
             <Card
               key={project.id}
-              className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/30 transition-all cursor-pointer group"
+              className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/40 transition-all duration-300 cursor-pointer group hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(99,102,241,0.18)]"
               onClick={() => navigate(`/projects/${project.id}`)}
             >
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-                    <FolderKanban className="w-5 h-5 text-indigo-400" />
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110">
+                     <FolderKanban className="w-4 h-4 text-indigo-400" />
                   </div>
 
                   <DropdownMenu>
@@ -404,32 +404,32 @@ export default function ProjectsPage() {
                   </DropdownMenu>
                 </div>
 
-                <h3 className="text-lg font-semibold text-white mb-1 group-hover:text-indigo-400 transition-colors">
+                <h3 className="text-base font-semibold text-white mb-1 truncate group-hover:text-indigo-400 transition-colors">
                   {project.name}
                 </h3>
 
-                <p className="text-slate-400 text-sm mb-4 line-clamp-2">
+                <p className="text-slate-400 text-xs mb-3 line-clamp-2 min-h-[2.5rem]">
                   {project.description || "No description"}
                 </p>
 
-                <div className="flex items-center gap-2 mb-4">
+                <div className="flex items-center gap-2 mb-3">
                   <Badge className={getStatusColor(project.status)}>
                     {(project.status || "UNKNOWN").toUpperCase()}
                   </Badge>
                 </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500">Progress</span>
-                    <span className="text-white">{project.progress || 0}%</span>
-                  </div>
-                  <Progress value={project.progress || 0} className="h-2 bg-slate-800" />
+                <div className="space-y-2">
+                 <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Progress</span>
+                  <span className="text-white">{project.progress || 0}%</span>
                 </div>
+                <Progress value={project.progress || 0} className="h-1.5 bg-slate-800" />
+               </div>
 
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-800">
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-800">
                   <div className="flex items-center gap-4 text-sm text-slate-500">
                     <span className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
+                      <Calendar className="w-3.5 h-3.5" />
                       {project.end_date ? format(new Date(project.end_date), "MMM d") : "No date"}
                     </span>
                   </div>

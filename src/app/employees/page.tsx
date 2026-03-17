@@ -33,13 +33,19 @@ type ProfileRow = {
   user_id: string;
   full_name: string | null;
   email?: string | null;
+  additional_emails?: string | null;
   display_name?: string | null;
   phone?: string | null;
   country?: string | null;
   city?: string | null;
+  shipping_address?: string | null;
   company?: string | null;
   department?: string | null;
   job_title?: string | null;
+  wechat?: string | null;
+  whatsapp?: string | null;
+  bio?: string | null;
+  avatar_url?: string | null;
   requested_role: Role | null;
   role: Role;
   status: Status;
@@ -56,6 +62,65 @@ type TabValue = "all" | "pending" | "active" | "rejected";
 
 function normalizeSearch(value: string) {
   return value.trim().toLowerCase();
+}
+
+function splitMultiValue(value?: string | null) {
+  return (value || "")
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function buildEmployeeFields(user: ProfileRow) {
+  const phones = splitMultiValue(user.phone);
+  const additionalEmails = splitMultiValue(user.additional_emails);
+  const companies = splitMultiValue(user.company);
+  const departments = splitMultiValue(user.department);
+  const jobTitles = splitMultiValue(user.job_title);
+  const whatsapps = splitMultiValue(user.whatsapp);
+  const wechats = splitMultiValue(user.wechat);
+
+  const locationParts = [user.city, user.country].filter(Boolean) as string[];
+  const locationValue = locationParts.length > 0 ? locationParts.join(", ") : null;
+
+  return [
+    user.email
+      ? { label: "Registered Email", values: [user.email], fullWidth: false }
+      : null,
+    additionalEmails.length > 0
+      ? { label: "Additional Emails", values: additionalEmails, fullWidth: false }
+      : null,
+    user.display_name
+      ? { label: "Display Name", values: [user.display_name], fullWidth: false }
+      : null,
+    phones.length > 0
+      ? { label: "Phone", values: phones, fullWidth: false }
+      : null,
+    companies.length > 0
+      ? { label: "Company", values: companies, fullWidth: false }
+      : null,
+    departments.length > 0
+      ? { label: "Department", values: departments, fullWidth: false }
+      : null,
+    jobTitles.length > 0
+      ? { label: "Job Title", values: jobTitles, fullWidth: false }
+      : null,
+    locationValue
+      ? { label: "Location", values: [locationValue], fullWidth: true }
+      : null,
+    user.shipping_address
+      ? { label: "Shipping Address", values: [user.shipping_address], fullWidth: true }
+      : null,
+    whatsapps.length > 0
+      ? { label: "WhatsApp", values: whatsapps, fullWidth: false }
+      : null,
+    wechats.length > 0
+      ? { label: "WeChat", values: wechats, fullWidth: false }
+      : null,
+    user.bio
+      ? { label: "Bio", values: [user.bio], fullWidth: true }
+      : null,
+  ].filter(Boolean) as Array<{ label: string; values: string[]; fullWidth: boolean }>
 }
 
 export default function EmployeesPage() {
@@ -258,11 +323,16 @@ export default function EmployeesPage() {
   profile.email,
   profile.display_name,
   profile.phone,
+  profile.additional_emails,
   profile.company,
   profile.department,
   profile.job_title,
   profile.city,
   profile.country,
+  profile.shipping_address,
+  profile.whatsapp,
+  profile.wechat,
+  profile.bio,
   profile.role,
   profile.requested_role,
   profile.status,
@@ -558,36 +628,34 @@ export default function EmployeesPage() {
                       )}
                     </div>
 
-                   <div className="grid sm:grid-cols-2 gap-2 text-sm">
-                     <p className="text-slate-400">
-                     <span className="text-slate-500">Email:</span>{" "}
-                        {user.email || "—"}
-                        </p>
-  <p className="text-slate-400">
-    <span className="text-slate-500">Phone:</span>{" "}
-    {user.phone || "—"}
-  </p>
-  <p className="text-slate-400">
-    <span className="text-slate-500">Display:</span>{" "}
-    {user.display_name || "—"}
-  </p>
-  <p className="text-slate-400">
-    <span className="text-slate-500">Department:</span>{" "}
-    {user.department || "—"}
-  </p>
-  <p className="text-slate-400">
-    <span className="text-slate-500">Company:</span>{" "}
-    {user.company || "—"}
-  </p>
-  <p className="text-slate-400">
-    <span className="text-slate-500">Job Title:</span>{" "}
-    {user.job_title || "—"}
-  </p>
-  <p className="text-slate-400 sm:col-span-2">
-    <span className="text-slate-500">Location:</span>{" "}
-    {[user.city, user.country].filter(Boolean).join(", ") || "—"}
-  </p>
-</div>
+                    {(() => {
+                      const employeeFields = buildEmployeeFields(user);
+
+                      return employeeFields.length > 0 ? (
+                        <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                          {employeeFields.map((field) => (
+                            <div
+                              key={`${user.user_id}-${field.label}`}
+                              className={field.fullWidth ? "sm:col-span-2" : undefined}
+                            >
+                              <p className="text-slate-500 mb-1">{field.label}</p>
+                              <div className="space-y-1">
+                                {field.values.map((value, index) => (
+                                  <p
+                                    key={`${user.user_id}-${field.label}-${index}`}
+                                    className={field.label === "Bio" ? "text-slate-300 leading-relaxed break-words" : "text-slate-400 break-words"}
+                                  >
+                                    {value}
+                                  </p>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500">No profile details added yet.</p>
+                      );
+                    })()}
                   </div>
                 </div>
               </CardContent>

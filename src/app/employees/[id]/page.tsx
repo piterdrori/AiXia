@@ -1250,7 +1250,8 @@ export default function EmployeeDetailPage() {
                         label: "Additional Emails",
                         values: additionalEmails,
                         setValues: setAdditionalEmails,
-                        helperText: "User and admin can add, edit, or delete additional emails.",
+                        helperText:
+                          "User and admin can add, edit, or delete additional emails.",
                       })}
 
                       {renderMultiFieldCard({

@@ -16,6 +16,61 @@ import {
 } from "@/components/ui/select";
 
 type RequestedRole = "manager" | "employee" | "guest";
+type MemberType =
+  | "client"
+  | "supplier"
+  | "investor"
+  | "consultant"
+  | "visitor"
+  | "partner"
+  | "engineer"
+  | "designer"
+  | "sourcing"
+  | "purchasing"
+  | "sales"
+  | "marketing"
+  | "finance"
+  | "operations"
+  | "qc"
+  | "assistant"
+  | "project_manager"
+  | "operations_manager"
+  | "department_manager"
+  | "sales_manager"
+  | "factory_manager";
+
+const MEMBER_TYPE_OPTIONS: Record<
+  RequestedRole,
+  Array<{ value: MemberType; label: string }>
+> = {
+  guest: [
+    { value: "client", label: "Client" },
+    { value: "supplier", label: "Supplier" },
+    { value: "investor", label: "Investor" },
+    { value: "consultant", label: "Consultant" },
+    { value: "visitor", label: "Visitor" },
+    { value: "partner", label: "Partner" },
+  ],
+  employee: [
+    { value: "engineer", label: "Engineer" },
+    { value: "designer", label: "Designer" },
+    { value: "sourcing", label: "Sourcing" },
+    { value: "purchasing", label: "Purchasing" },
+    { value: "sales", label: "Sales" },
+    { value: "marketing", label: "Marketing" },
+    { value: "finance", label: "Finance" },
+    { value: "operations", label: "Operations" },
+    { value: "qc", label: "QC" },
+    { value: "assistant", label: "Assistant" },
+  ],
+  manager: [
+    { value: "project_manager", label: "Project Manager" },
+    { value: "operations_manager", label: "Operations Manager" },
+    { value: "department_manager", label: "Department Manager" },
+    { value: "sales_manager", label: "Sales Manager" },
+    { value: "factory_manager", label: "Factory Manager" },
+  ],
+};
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
@@ -54,6 +109,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [requestedRole, setRequestedRole] =
     useState<RequestedRole>("employee");
+  const [memberType, setMemberType] = useState<MemberType | "">("");
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -61,6 +117,10 @@ export default function RegisterPage() {
 
   const trimmedFullName = useMemo(() => fullName.trim(), [fullName]);
   const normalizedEmail = useMemo(() => normalizeEmail(email), [email]);
+  const availableMemberTypes = useMemo(
+    () => MEMBER_TYPE_OPTIONS[requestedRole],
+    [requestedRole]
+  );
 
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -83,6 +143,11 @@ export default function RegisterPage() {
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailPattern.test(normalizedEmail)) {
       setError("Please enter a valid email address.");
+      return;
+    }
+
+    if (!memberType) {
+      setError("Member Type is required.");
       return;
     }
 
@@ -119,6 +184,7 @@ export default function RegisterPage() {
           data: {
             full_name: trimmedFullName,
             requested_role: requestedRole,
+            member_type: memberType,
           },
         },
       });
@@ -149,6 +215,7 @@ export default function RegisterPage() {
       setPassword("");
       setConfirmPassword("");
       setRequestedRole("employee");
+      setMemberType("");
     } catch (err: unknown) {
       console.error("Register failed:", err);
 
@@ -168,16 +235,16 @@ export default function RegisterPage() {
       <Card className="w-full max-w-md bg-slate-900/60 border-slate-800">
         <CardContent className="p-8">
           <div className="mb-8 text-center">
-  <div className="flex justify-center mb-4">
-    <img
-      src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
-      alt="AiXia Logo"
-      className="h-24 w-auto object-contain"
-    />
-  </div>
-  <h1 className="text-3xl font-bold text-white">Create Account</h1>
-  <p className="text-slate-400 mt-2">Request access to the platform</p>
-</div>
+            <div className="flex justify-center mb-4">
+              <img
+                src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
+                alt="AiXia Logo"
+                className="h-24 w-auto object-contain"
+              />
+            </div>
+            <h1 className="text-3xl font-bold text-white">Create Account</h1>
+            <p className="text-slate-400 mt-2">Request access to the platform</p>
+          </div>
 
           {error ? (
             <Alert className="mb-4 border-red-800 bg-red-900/20 text-red-300">
@@ -230,9 +297,10 @@ export default function RegisterPage() {
               <Label className="text-slate-300">Requested Role</Label>
               <Select
                 value={requestedRole}
-                onValueChange={(value) =>
-                  setRequestedRole(value as RequestedRole)
-                }
+                onValueChange={(value) => {
+                  setRequestedRole(value as RequestedRole);
+                  setMemberType("");
+                }}
                 disabled={isLoading}
               >
                 <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
@@ -242,6 +310,26 @@ export default function RegisterPage() {
                   <SelectItem value="manager">Manager</SelectItem>
                   <SelectItem value="employee">Employee</SelectItem>
                   <SelectItem value="guest">Guest</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-slate-300">Member Type</Label>
+              <Select
+                value={memberType}
+                onValueChange={(value) => setMemberType(value as MemberType)}
+                disabled={isLoading}
+              >
+                <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                  <SelectValue placeholder="Select member type" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                  {availableMemberTypes.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -87,8 +88,22 @@ function normalizeOptional(value: string) {
   return trimmed ? trimmed : null;
 }
 
-function hasText(value: string) {
-  return value.trim().length > 0;
+function splitMultiValue(value?: string | null) {
+  const items = (value || "")
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return items.length > 0 ? items : [""];
+}
+
+function joinMultiValue(values: string[]) {
+  const cleaned = values.map((item) => item.trim()).filter(Boolean).join("\n");
+  return cleaned || null;
+}
+
+function firstFilled(values: string[]) {
+  return values.find((item) => item.trim()) || "";
 }
 
 export default function EmployeeDetailPage() {
@@ -99,7 +114,6 @@ export default function EmployeeDetailPage() {
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
-
   const [user, setUser] = useState<ProfileRow | null>(null);
 
   const [isBootstrapping, setIsBootstrapping] = useState(true);
@@ -117,17 +131,17 @@ export default function EmployeeDetailPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phones, setPhones] = useState<string[]>([""]);
   const [country, setCountry] = useState("");
   const [city, setCity] = useState("");
   const [shippingAddress, setShippingAddress] = useState("");
-  const [company, setCompany] = useState("");
-  const [department, setDepartment] = useState("");
-  const [jobTitle, setJobTitle] = useState("");
+  const [companies, setCompanies] = useState<string[]>([""]);
+  const [departments, setDepartments] = useState<string[]>([""]);
+  const [jobTitles, setJobTitles] = useState<string[]>([""]);
   const [bio, setBio] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
-  const [wechat, setWechat] = useState("");
-  const [whatsapp, setWhatsapp] = useState("");
+  const [wechats, setWechats] = useState<string[]>([""]);
+  const [whatsapps, setWhatsapps] = useState<string[]>([""]);
   const [role, setRole] = useState<Role>("employee");
   const [status, setStatus] = useState<Status>("active");
   const [profileCompleted, setProfileCompleted] = useState(false);
@@ -141,17 +155,17 @@ export default function EmployeeDetailPage() {
     setFullName(profile.full_name || "");
     setEmail(profile.email || "");
     setDisplayName(profile.display_name || "");
-    setPhone(profile.phone || "");
+    setPhones(splitMultiValue(profile.phone));
     setCountry(profile.country || "");
     setCity(profile.city || "");
     setShippingAddress(profile.shipping_address || "");
-    setCompany(profile.company || "");
-    setDepartment(profile.department || "");
-    setJobTitle(profile.job_title || "");
+    setCompanies(splitMultiValue(profile.company));
+    setDepartments(splitMultiValue(profile.department));
+    setJobTitles(splitMultiValue(profile.job_title));
     setBio(profile.bio || "");
     setAvatarUrl(profile.avatar_url || "");
-    setWechat(profile.wechat || "");
-    setWhatsapp(profile.whatsapp || "");
+    setWechats(splitMultiValue(profile.wechat));
+    setWhatsapps(splitMultiValue(profile.whatsapp));
     setRole(profile.role);
     setStatus(profile.status);
     setProfileCompleted(Boolean(profile.profile_completed));
@@ -304,6 +318,13 @@ export default function EmployeeDetailPage() {
     }
   };
 
+  const displayPhone = useMemo(() => firstFilled(phones), [phones]);
+  const displayCompany = useMemo(() => firstFilled(companies), [companies]);
+  const displayDepartment = useMemo(() => firstFilled(departments), [departments]);
+  const displayJobTitle = useMemo(() => firstFilled(jobTitles), [jobTitles]);
+  const displayWhatsapp = useMemo(() => firstFilled(whatsapps), [whatsapps]);
+  const displayWechat = useMemo(() => firstFilled(wechats), [wechats]);
+
   const beginEditing = (fieldKey: string) => {
     setIsEditing(true);
     setActiveEditor(fieldKey);
@@ -318,22 +339,22 @@ export default function EmployeeDetailPage() {
         setDisplayName("");
         break;
       case "phone":
-        setPhone("");
+        setPhones([""]);
         break;
       case "company":
-        setCompany("");
+        setCompanies([""]);
         break;
       case "department":
-        setDepartment("");
+        setDepartments([""]);
         break;
       case "job_title":
-        setJobTitle("");
+        setJobTitles([""]);
         break;
       case "whatsapp":
-        setWhatsapp("");
+        setWhatsapps([""]);
         break;
       case "wechat":
-        setWechat("");
+        setWechats([""]);
         break;
       case "bio":
         setBio("");
@@ -352,6 +373,34 @@ export default function EmployeeDetailPage() {
 
     setIsEditing(true);
     setActiveEditor(fieldKey);
+  };
+
+  const updateArrayValue = (
+    values: string[],
+    setValues: React.Dispatch<React.SetStateAction<string[]>>,
+    index: number,
+    nextValue: string
+  ) => {
+    setValues(values.map((item, itemIndex) => (itemIndex === index ? nextValue : item)));
+  };
+
+  const addArrayValue = (
+    values: string[],
+    setValues: React.Dispatch<React.SetStateAction<string[]>>
+  ) => {
+    const hasEmpty = values.some((item) => !item.trim());
+    if (!hasEmpty) {
+      setValues([...values, ""]);
+    }
+  };
+
+  const removeArrayValue = (
+    values: string[],
+    setValues: React.Dispatch<React.SetStateAction<string[]>>,
+    index: number
+  ) => {
+    const next = values.filter((_, itemIndex) => itemIndex !== index);
+    setValues(next.length > 0 ? next : [""]);
   };
 
   const handleProfilePhotoUpload = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -386,17 +435,19 @@ export default function EmployeeDetailPage() {
     filled,
     canEditThisField,
     addLabel = "Add",
+    alwaysShowAdd = false,
   }: {
     fieldKey: string;
     filled: boolean;
     canEditThisField: boolean;
     addLabel?: string;
+    alwaysShowAdd?: boolean;
   }) => {
     if (!canEditThisField) return null;
 
     return (
       <div className="flex items-center gap-2">
-        {!filled ? (
+        {(alwaysShowAdd || !filled) && (
           <Button
             type="button"
             size="sm"
@@ -407,7 +458,9 @@ export default function EmployeeDetailPage() {
             <Plus className="w-4 h-4 mr-1" />
             {addLabel}
           </Button>
-        ) : (
+        )}
+
+        {filled && (
           <>
             <Button
               type="button"
@@ -435,21 +488,21 @@ export default function EmployeeDetailPage() {
     );
   };
 
-  const renderFieldCard = ({
+  const renderSingleFieldCard = ({
     fieldKey,
     label,
     value,
     setValue,
-    multiline = false,
     adminOnly = false,
+    multiline = false,
     helperText,
   }: {
     fieldKey: string;
     label: string;
     value: string;
     setValue: (value: string) => void;
-    multiline?: boolean;
     adminOnly?: boolean;
+    multiline?: boolean;
     helperText?: string;
   }) => {
     const canEditThisField = adminOnly ? canManage : canEditProfileFields;
@@ -490,8 +543,100 @@ export default function EmployeeDetailPage() {
               />
             )
           ) : (
-            <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3 text-sm text-slate-200 whitespace-pre-wrap break-words min-h-[52px] flex items-center">
+            <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3 text-sm text-slate-200 min-h-[52px] flex items-center">
               {filled ? value : <span className="text-slate-500">No value added yet</span>}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderMultiFieldCard = ({
+    fieldKey,
+    label,
+    values,
+    setValues,
+    helperText,
+  }: {
+    fieldKey: string;
+    label: string;
+    values: string[];
+    setValues: React.Dispatch<React.SetStateAction<string[]>>;
+    helperText?: string;
+  }) => {
+    const filledValues = values.map((item) => item.trim()).filter(Boolean);
+    const isThisEditing = isEditing && activeEditor === fieldKey;
+    const filled = filledValues.length > 0;
+
+    return (
+      <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <h4 className="text-base font-semibold text-white">{label}</h4>
+            <p className="text-xs text-slate-500">
+              {helperText || "You can add more than one value here."}
+            </p>
+          </div>
+
+          {renderActionButtons({
+            fieldKey,
+            filled,
+            canEditThisField: canEditProfileFields,
+            alwaysShowAdd: true,
+            addLabel: "Add",
+          })}
+        </div>
+
+        <div className="mt-4">
+          {isThisEditing ? (
+            <div className="space-y-3">
+              {values.map((value, index) => (
+                <div key={`${fieldKey}-${index}`} className="flex items-center gap-2">
+                  <Input
+                    value={value}
+                    onChange={(e) =>
+                      updateArrayValue(values, setValues, index, e.target.value)
+                    }
+                    className="bg-slate-950 border-slate-800 text-white"
+                    placeholder={`${label} ${index + 1}`}
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className="border-red-800 text-red-400 hover:bg-red-900/20 shrink-0"
+                    onClick={() => removeArrayValue(values, setValues, index)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+
+              <Button
+                type="button"
+                variant="outline"
+                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                onClick={() => addArrayValue(values, setValues)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add another {label.toLowerCase()}
+              </Button>
+            </div>
+          ) : filled ? (
+            <div className="space-y-2">
+              {filledValues.map((item, index) => (
+                <div
+                  key={`${fieldKey}-display-${index}`}
+                  className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3 text-sm text-slate-200"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3 text-sm text-slate-500">
+              No value added yet
             </div>
           )}
         </div>
@@ -511,17 +656,17 @@ export default function EmployeeDetailPage() {
     const payload: Record<string, unknown> = {
       full_name: fullName.trim() || null,
       display_name: displayName.trim() || null,
-      phone: phone.trim() || null,
+      phone: joinMultiValue(phones),
       country: country.trim() || null,
       city: city.trim() || null,
       shipping_address: shippingAddress.trim() || null,
-      company: company.trim() || null,
-      department: department.trim() || null,
-      job_title: jobTitle.trim() || null,
+      company: joinMultiValue(companies),
+      department: joinMultiValue(departments),
+      job_title: joinMultiValue(jobTitles),
       bio: normalizeOptional(bio),
       avatar_url: normalizeOptional(avatarUrl),
-      wechat: normalizeOptional(wechat),
-      whatsapp: normalizeOptional(whatsapp),
+      wechat: joinMultiValue(wechats),
+      whatsapp: joinMultiValue(whatsapps),
       updated_at: nextUpdatedAt,
     };
 
@@ -811,7 +956,7 @@ export default function EmployeeDetailPage() {
                   <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-left">
                     <div className="flex items-center gap-2 text-slate-300">
                       <Phone className="w-4 h-4 text-slate-500" />
-                      <span>{phone || "No phone"}</span>
+                      <span>{displayPhone || "No phone"}</span>
                     </div>
                   </div>
 
@@ -832,35 +977,35 @@ export default function EmployeeDetailPage() {
                   <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-left">
                     <div className="flex items-center gap-2 text-slate-300">
                       <Building2 className="w-4 h-4 text-slate-500" />
-                      <span>{company || "No company"}</span>
+                      <span>{displayCompany || "No company"}</span>
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-left">
                     <div className="flex items-center gap-2 text-slate-300">
                       <Briefcase className="w-4 h-4 text-slate-500" />
-                      <span>{jobTitle || "No job title"}</span>
+                      <span>{displayJobTitle || "No job title"}</span>
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-left">
                     <div className="flex items-center gap-2 text-slate-300">
                       <User className="w-4 h-4 text-slate-500" />
-                      <span>{department || "No department"}</span>
+                      <span>{displayDepartment || "No department"}</span>
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-left">
                     <div className="flex items-center gap-2 text-slate-300">
                       <MessageCircle className="w-4 h-4 text-slate-500" />
-                      <span>WhatsApp: {whatsapp || "—"}</span>
+                      <span>WhatsApp: {displayWhatsapp || "—"}</span>
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-left">
                     <div className="flex items-center gap-2 text-slate-300">
                       <MessageCircle className="w-4 h-4 text-slate-500" />
-                      <span>WeChat: {wechat || "—"}</span>
+                      <span>WeChat: {displayWechat || "—"}</span>
                     </div>
                   </div>
                 </div>
@@ -887,10 +1032,6 @@ export default function EmployeeDetailPage() {
                     </div>
                   ))}
                 </div>
-                <div className="space-y-2">
-                  <div className="h-4 bg-slate-800 rounded w-28" />
-                  <div className="h-28 bg-slate-800 rounded" />
-                </div>
               </div>
             ) : (
               <>
@@ -905,7 +1046,7 @@ export default function EmployeeDetailPage() {
                       </p>
                     </div>
 
-                    {renderFieldCard({
+                    {renderSingleFieldCard({
                       fieldKey: "registered_email",
                       label: "Registered Email",
                       value: email,
@@ -919,225 +1060,238 @@ export default function EmployeeDetailPage() {
                     <div>
                       <h3 className="text-lg font-semibold text-white">User Profile</h3>
                       <p className="text-sm text-slate-500 mt-1">
-                        Cleaner profile layout with Add, Edit, and Delete for each field.
+                        Cleaner layout with compact cards and support for multiple values where needed.
                       </p>
                     </div>
 
-                    <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="space-y-1">
-                          <h4 className="text-base font-semibold text-white">Location</h4>
-                          <p className="text-xs text-slate-500">
-                            Country, City, and Shipping Address are grouped here.
-                          </p>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2 rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="space-y-1">
+                            <h4 className="text-base font-semibold text-white">Location</h4>
+                            <p className="text-xs text-slate-500">
+                              Country, City, and Shipping Address are grouped here.
+                            </p>
+                          </div>
+
+                          {renderActionButtons({
+                            fieldKey: "location",
+                            filled: Boolean(country || city || shippingAddress),
+                            canEditThisField: canEditProfileFields,
+                            alwaysShowAdd: true,
+                          })}
                         </div>
 
-                        {renderActionButtons({
-                          fieldKey: "location",
-                          filled: Boolean(country || city || shippingAddress),
-                          canEditThisField: canEditProfileFields,
-                        })}
-                      </div>
+                        <div className="mt-4">
+                          {isEditing && activeEditor === "location" ? (
+                            <div className="grid md:grid-cols-3 gap-4">
+                              <div className="space-y-2">
+                                <Label className="text-slate-300">Country</Label>
+                                <Input
+                                  value={country}
+                                  onChange={(e) => setCountry(e.target.value)}
+                                  className="bg-slate-950 border-slate-800 text-white"
+                                />
+                              </div>
 
-                      <div className="mt-4">
-                        {isEditing && activeEditor === "location" ? (
-                          <div className="grid md:grid-cols-3 gap-4">
-                            <div className="space-y-2">
-                              <Label className="text-slate-300">Country</Label>
-                              <Input
-                                value={country}
-                                onChange={(e) => setCountry(e.target.value)}
-                                className="bg-slate-950 border-slate-800 text-white"
-                              />
-                            </div>
+                              <div className="space-y-2">
+                                <Label className="text-slate-300">City</Label>
+                                <Input
+                                  value={city}
+                                  onChange={(e) => setCity(e.target.value)}
+                                  className="bg-slate-950 border-slate-800 text-white"
+                                />
+                              </div>
 
-                            <div className="space-y-2">
-                              <Label className="text-slate-300">City</Label>
-                              <Input
-                                value={city}
-                                onChange={(e) => setCity(e.target.value)}
-                                className="bg-slate-950 border-slate-800 text-white"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label className="text-slate-300">Shipping Address</Label>
-                              <Input
-                                value={shippingAddress}
-                                onChange={(e) => setShippingAddress(e.target.value)}
-                                className="bg-slate-950 border-slate-800 text-white"
-                              />
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="grid md:grid-cols-3 gap-4">
-                            <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
-                              <div className="text-xs text-slate-500 mb-1">Country</div>
-                              <div className="text-sm text-slate-200">
-                                {country || "No value added yet"}
+                              <div className="space-y-2">
+                                <Label className="text-slate-300">Shipping Address</Label>
+                                <Input
+                                  value={shippingAddress}
+                                  onChange={(e) => setShippingAddress(e.target.value)}
+                                  className="bg-slate-950 border-slate-800 text-white"
+                                />
                               </div>
                             </div>
-                            <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
-                              <div className="text-xs text-slate-500 mb-1">City</div>
-                              <div className="text-sm text-slate-200">
-                                {city || "No value added yet"}
+                          ) : (
+                            <div className="grid md:grid-cols-3 gap-4">
+                              <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
+                                <div className="text-xs text-slate-500 mb-1">Country</div>
+                                <div className="text-sm text-slate-200">
+                                  {country || "No value added yet"}
+                                </div>
+                              </div>
+                              <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
+                                <div className="text-xs text-slate-500 mb-1">City</div>
+                                <div className="text-sm text-slate-200">
+                                  {city || "No value added yet"}
+                                </div>
+                              </div>
+                              <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
+                                <div className="text-xs text-slate-500 mb-1">Shipping Address</div>
+                                <div className="text-sm text-slate-200">
+                                  {shippingAddress || "No value added yet"}
+                                </div>
                               </div>
                             </div>
-                            <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
-                              <div className="text-xs text-slate-500 mb-1">Shipping Address</div>
-                              <div className="text-sm text-slate-200">
-                                {shippingAddress || "No value added yet"}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {renderFieldCard({
-                      fieldKey: "display_name",
-                      label: "Display Name",
-                      value: displayName,
-                      setValue: setDisplayName,
-                    })}
-
-                    {renderFieldCard({
-                      fieldKey: "phone",
-                      label: "Phone",
-                      value: phone,
-                      setValue: setPhone,
-                    })}
-
-                    {renderFieldCard({
-                      fieldKey: "company",
-                      label: "Company",
-                      value: company,
-                      setValue: setCompany,
-                    })}
-
-                    {renderFieldCard({
-                      fieldKey: "department",
-                      label: "Department",
-                      value: department,
-                      setValue: setDepartment,
-                    })}
-
-                    {renderFieldCard({
-                      fieldKey: "job_title",
-                      label: "Job Title",
-                      value: jobTitle,
-                      setValue: setJobTitle,
-                    })}
-
-                    {renderFieldCard({
-                      fieldKey: "whatsapp",
-                      label: "WhatsApp",
-                      value: whatsapp,
-                      setValue: setWhatsapp,
-                    })}
-
-                    {renderFieldCard({
-                      fieldKey: "wechat",
-                      label: "WeChat",
-                      value: wechat,
-                      setValue: setWechat,
-                    })}
-
-                    <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="space-y-1">
-                          <h4 className="text-base font-semibold text-white">Profile Photo</h4>
-                          <p className="text-xs text-slate-500">
-                            Upload, replace, or remove the profile image.
-                          </p>
+                          )}
                         </div>
+                      </div>
 
-                        {canEditProfileFields && (
-                          <div className="flex items-center gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="border-slate-700 text-slate-200 hover:bg-slate-800"
-                              onClick={() => {
-                                setIsEditing(true);
-                                setActiveEditor("profile_photo");
-                                profilePhotoInputRef.current?.click();
-                              }}
-                              disabled={isUploadingPhoto}
-                            >
-                              {avatarUrl ? (
-                                <>
-                                  <Edit className="w-4 h-4 mr-1" />
-                                  Edit
-                                </>
-                              ) : (
-                                <>
-                                  <Plus className="w-4 h-4 mr-1" />
-                                  Add
-                                </>
-                              )}
-                            </Button>
+                      {renderSingleFieldCard({
+                        fieldKey: "display_name",
+                        label: "Display Name",
+                        value: displayName,
+                        setValue: setDisplayName,
+                      })}
 
-                            {avatarUrl && (
+                      {renderMultiFieldCard({
+                        fieldKey: "phone",
+                        label: "Phone",
+                        values: phones,
+                        setValues: setPhones,
+                      })}
+
+                      {renderMultiFieldCard({
+                        fieldKey: "company",
+                        label: "Company",
+                        values: companies,
+                        setValues: setCompanies,
+                      })}
+
+                      {renderMultiFieldCard({
+                        fieldKey: "department",
+                        label: "Department",
+                        values: departments,
+                        setValues: setDepartments,
+                      })}
+
+                      {renderMultiFieldCard({
+                        fieldKey: "job_title",
+                        label: "Job Title",
+                        values: jobTitles,
+                        setValues: setJobTitles,
+                      })}
+
+                      {renderMultiFieldCard({
+                        fieldKey: "whatsapp",
+                        label: "WhatsApp",
+                        values: whatsapps,
+                        setValues: setWhatsapps,
+                      })}
+
+                      {renderMultiFieldCard({
+                        fieldKey: "wechat",
+                        label: "WeChat",
+                        values: wechats,
+                        setValues: setWechats,
+                      })}
+
+                      <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="space-y-1">
+                            <h4 className="text-base font-semibold text-white">Profile Photo</h4>
+                            <p className="text-xs text-slate-500">
+                              Upload, replace, or remove the profile image.
+                            </p>
+                          </div>
+
+                          {canEditProfileFields && (
+                            <div className="flex items-center gap-2">
                               <Button
                                 type="button"
                                 size="sm"
                                 variant="outline"
-                                className="border-red-800 text-red-400 hover:bg-red-900/20"
-                                onClick={() => clearField("profile_photo")}
+                                className="border-slate-700 text-slate-200 hover:bg-slate-800"
+                                onClick={() => {
+                                  setIsEditing(true);
+                                  setActiveEditor("profile_photo");
+                                  profilePhotoInputRef.current?.click();
+                                }}
                                 disabled={isUploadingPhoto}
                               >
-                                <Trash2 className="w-4 h-4 mr-1" />
-                                Delete
+                                <Plus className="w-4 h-4 mr-1" />
+                                Add
                               </Button>
-                            )}
-                          </div>
-                        )}
-                      </div>
 
-                      <input
-                        ref={profilePhotoInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleProfilePhotoUpload}
-                      />
+                              {avatarUrl && (
+                                <>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-slate-700 text-slate-200 hover:bg-slate-800"
+                                    onClick={() => {
+                                      setIsEditing(true);
+                                      setActiveEditor("profile_photo");
+                                      profilePhotoInputRef.current?.click();
+                                    }}
+                                    disabled={isUploadingPhoto}
+                                  >
+                                    <Edit className="w-4 h-4 mr-1" />
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-red-800 text-red-400 hover:bg-red-900/20"
+                                    onClick={() => clearField("profile_photo")}
+                                    disabled={isUploadingPhoto}
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-1" />
+                                    Delete
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
 
-                      <div className="mt-4">
-                        {avatarUrl ? (
-                          <div className="flex items-center gap-4 rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-4">
-                            <Avatar className="w-20 h-20">
-                              <AvatarImage src={avatarUrl || undefined} />
-                              <AvatarFallback className="bg-indigo-600 text-white">
-                                {getInitials(fullName)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0">
-                              <div className="text-sm text-white font-medium">
-                                Profile image uploaded
-                              </div>
-                              <div className="text-xs text-slate-500 break-all mt-1">
-                                {avatarUrl}
+                        <input
+                          ref={profilePhotoInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleProfilePhotoUpload}
+                        />
+
+                        <div className="mt-4">
+                          {avatarUrl ? (
+                            <div className="flex items-center gap-4 rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-4">
+                              <Avatar className="w-20 h-20">
+                                <AvatarImage src={avatarUrl || undefined} />
+                                <AvatarFallback className="bg-indigo-600 text-white">
+                                  {getInitials(fullName)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0">
+                                <div className="text-sm text-white font-medium">
+                                  Profile image uploaded
+                                </div>
+                                <div className="text-xs text-slate-500 break-all mt-1">
+                                  {avatarUrl}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ) : (
-                          <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-4 text-sm text-slate-400 flex items-center gap-2">
-                            <ImageIcon className="w-4 h-4" />
-                            No profile photo added yet
-                          </div>
-                        )}
+                          ) : (
+                            <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-4 text-sm text-slate-400 flex items-center gap-2">
+                              <ImageIcon className="w-4 h-4" />
+                              No profile photo added yet
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        {renderSingleFieldCard({
+                          fieldKey: "bio",
+                          label: "Bio",
+                          value: bio,
+                          setValue: setBio,
+                          multiline: true,
+                        })}
                       </div>
                     </div>
-
-                    {renderFieldCard({
-                      fieldKey: "bio",
-                      label: "Bio",
-                      value: bio,
-                      setValue: setBio,
-                      multiline: true,
-                    })}
                   </section>
 
                   <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">

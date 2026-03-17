@@ -655,12 +655,12 @@ export default function DashboardLayout({
 ) : (
   <div className="flex flex-col h-full">
     <div className="p-4 border-b border-slate-800 flex justify-center">
-     <img
-  src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
-  alt="AiXia Logo"
-  className="block w-full max-w-[44px] h-auto object-contain"
- />
-    </div>
+  <img
+    src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
+    alt="AiXia Logo"
+    className="h-8 w-auto object-contain"
+  />
+</div>
 
               <nav className="flex-1 p-2 space-y-1">
                 <TooltipProvider delayDuration={0}>

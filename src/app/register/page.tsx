@@ -168,9 +168,16 @@ export default function RegisterPage() {
       <Card className="w-full max-w-md bg-slate-900/60 border-slate-800">
         <CardContent className="p-8">
           <div className="mb-8 text-center">
-            <h1 className="text-3xl font-bold text-white">Create Account</h1>
-            <p className="text-slate-400 mt-2">Request access to the platform</p>
-          </div>
+  <div className="flex justify-center mb-4">
+    <img
+      src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
+      alt="AiXia Logo"
+      className="h-12 w-auto object-contain"
+    />
+  </div>
+  <h1 className="text-3xl font-bold text-white">Create Account</h1>
+  <p className="text-slate-400 mt-2">Request access to the platform</p>
+</div>
 
           {error ? (
             <Alert className="mb-4 border-red-800 bg-red-900/20 text-red-300">

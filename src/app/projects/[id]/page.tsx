@@ -396,82 +396,107 @@ export default function ProjectDetailPage() {
     );
   };
 
-  const handleSaveTeamMembers = async () => {
-    if (!id || !project || !canEdit) return;
+const handleSaveTeamMembers = async () => {
+  if (!id || !project || !canEdit) return;
 
-    setError("");
-    setIsSavingTeamMembers(true);
+  setError("");
+  setIsSavingTeamMembers(true);
 
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (!user) {
-        navigate("/login");
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    const existingUserIds = projectMembers.map((member) => member.user_id);
+    const selectedSet = new Set(selectedTeamMembers);
+
+    const toInsert = selectedTeamMembers.filter(
+      (userId) => !existingUserIds.includes(userId)
+    );
+
+    const toDelete = projectMembers.filter(
+      (member) => !selectedSet.has(member.user_id)
+    );
+
+    // ✅ ADD MEMBERS
+    if (toInsert.length > 0) {
+      const rows = toInsert.map((userId) => ({
+        project_id: id,
+        user_id: userId,
+        role: "member",
+      }));
+
+      const { error: insertError } = await supabase
+        .from("project_members")
+        .insert(rows);
+
+      if (insertError) {
+        setError(insertError.message || "Failed to add team members.");
         return;
       }
 
-      const existingUserIds = projectMembers.map((member) => member.user_id);
-      const selectedSet = new Set(selectedTeamMembers);
+      await logActivity({
+        projectId: id,
+        actionType: "project_members_added",
+        entityType: "member",
+        entityId: id,
+        message: `Added ${toInsert.length} member(s) to project`,
+      });
 
-      const toInsert = selectedTeamMembers.filter((userId) => !existingUserIds.includes(userId));
-      const toDelete = projectMembers.filter((member) => !selectedSet.has(member.user_id));
+      // 🔔 NOTIFICATIONS (NEW PART)
+      for (const userId of toInsert) {
+        if (userId === user.id) continue;
 
-      if (toInsert.length > 0) {
-        const rows = toInsert.map((userId) => ({
-          project_id: id,
-          user_id: userId,
-          role: "member",
-        }));
-
-        const { error: insertError } = await supabase.from("project_members").insert(rows);
-
-        if (insertError) {
-          setError(insertError.message || "Failed to add team members.");
-          return;
-        }
-
-        await logActivity({
-          projectId: id,
-          actionType: "project_members_added",
-          entityType: "member",
-          entityId: id,
-          message: `Added ${toInsert.length} member(s) to project`,
+        await createNotification({
+          userId,
+          actorUserId: user.id,
+          type: "PROJECT_UPDATE",
+          title: "Added to Project",
+          message: `You were added to project "${project.name}"`,
+          link: `/projects/${project.id}`,
+          entityType: "project",
+          entityId: project.id,
         });
       }
-
-      if (toDelete.length > 0) {
-        const idsToDelete = toDelete.map((member) => member.id);
-
-        const { error: deleteError } = await supabase
-          .from("project_members")
-          .delete()
-          .in("id", idsToDelete);
-
-        if (deleteError) {
-          setError(deleteError.message || "Failed to remove team members.");
-          return;
-        }
-
-        await logActivity({
-          projectId: id,
-          actionType: "project_members_removed",
-          entityType: "member",
-          entityId: id,
-          message: `Removed ${toDelete.length} member(s) from project`,
-        });
-      }
-
-      await loadProjectPage("refresh");
-      setIsTeamDialogOpen(false);
-    } catch (err) {
-      console.error("Save team members error:", err);
-      setError("Something went wrong while updating team members.");
-    } finally {
-      setIsSavingTeamMembers(false);
     }
-  };
+
+    // ❌ REMOVE MEMBERS
+    if (toDelete.length > 0) {
+      const idsToDelete = toDelete.map((member) => member.id);
+
+      const { error: deleteError } = await supabase
+        .from("project_members")
+        .delete()
+        .in("id", idsToDelete);
+
+      if (deleteError) {
+        setError(deleteError.message || "Failed to remove team members.");
+        return;
+      }
+
+      await logActivity({
+        projectId: id,
+        actionType: "project_members_removed",
+        entityType: "member",
+        entityId: id,
+        message: `Removed ${toDelete.length} member(s) from project`,
+      });
+    }
+
+    await loadProjectPage("refresh");
+    setIsTeamDialogOpen(false);
+  } catch (err) {
+    console.error("Save team members error:", err);
+    setError("Something went wrong while updating team members.");
+  } finally {
+    setIsSavingTeamMembers(false);
+  }
+};
 
   const getStatusColor = (status: string | null) => {
     switch ((status || "").toUpperCase()) {

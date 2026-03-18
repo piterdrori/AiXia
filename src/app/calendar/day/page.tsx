@@ -21,6 +21,7 @@ type CalendarEventRow = {
   all_day: boolean | null;
   project_id: string | null;
   task_id: string | null;
+  created_by: string | null;
 };
 
 type TaskRow = {
@@ -29,6 +30,23 @@ type TaskRow = {
   due_date: string | null;
   status: string | null;
   project_id: string | null;
+};
+
+type Role = "admin" | "manager" | "employee" | "guest";
+
+type ProfileRow = {
+  user_id: string;
+  role: Role;
+};
+
+type ProjectRow = {
+  id: string;
+  created_by: string | null;
+};
+
+type ProjectMemberRow = {
+  project_id: string;
+  user_id: string;
 };
 
 function parseYYYYMMDD(value: string | undefined) {
@@ -68,12 +86,54 @@ export default function CalendarDayPage() {
     setLoadError("");
 
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (!user) {
+        navigate("/login");
+        return;
+      }
+
+      const [{ data: profileData, error: profileError }, { data: allProjects, error: projectsError }, { data: memberRows, error: membersError }] =
+        await Promise.all([
+          supabase.from("profiles").select("user_id, role").eq("user_id", user.id).single(),
+          supabase.from("projects").select("id, created_by"),
+          supabase.from("project_members").select("project_id, user_id").eq("user_id", user.id),
+        ]);
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (profileError || !profileData || projectsError || membersError) {
+        console.error("Load calendar day access error:", profileError || projectsError || membersError);
+        setEvents([]);
+        setTasks([]);
+        setLoadError("Failed to load this day.");
+        return;
+      }
+
+      const profile = profileData as ProfileRow;
+      const projectList = (allProjects || []) as ProjectRow[];
+      const membershipList = (memberRows || []) as ProjectMemberRow[];
+
+      const visibleProjectIds =
+        profile.role === "admin"
+          ? new Set(projectList.map((project) => project.id))
+          : new Set([
+              ...projectList
+                .filter((project) => project.created_by === user.id)
+                .map((project) => project.id),
+              ...membershipList.map((member) => member.project_id),
+            ]);
+
       const [{ data: eventsData, error: eventsError }, { data: tasksData, error: tasksError }] =
         await Promise.all([
           supabase
             .from("calendar_events")
             .select(
-              "id, title, description, event_type, start_date, start_time, end_date, end_time, all_day, project_id, task_id"
+              "id, title, description, event_type, start_date, start_time, end_date, end_time, all_day, project_id, task_id, created_by"
             )
             .eq("start_date", date)
             .order("start_time", { ascending: true }),
@@ -94,8 +154,20 @@ export default function CalendarDayPage() {
         console.error("Load calendar day tasks error:", tasksError);
       }
 
-      setEvents((eventsData || []) as CalendarEventRow[]);
-      setTasks((tasksData || []) as TaskRow[]);
+      const safeEvents = ((eventsData || []) as CalendarEventRow[]).filter((event) => {
+        if (profile.role === "admin") return true;
+        if (!event.project_id) return event.created_by === user.id;
+        return visibleProjectIds.has(event.project_id);
+      });
+
+      const safeTasks = ((tasksData || []) as TaskRow[]).filter((task) => {
+        if (profile.role === "admin") return true;
+        if (!task.project_id) return false;
+        return visibleProjectIds.has(task.project_id);
+      });
+
+      setEvents(safeEvents);
+      setTasks(safeTasks);
 
       if (eventsError || tasksError) {
         setLoadError("Some day data could not be loaded.");

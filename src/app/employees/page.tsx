@@ -355,21 +355,21 @@ const handleSendInvite = async () => {
   setIsSendingInvite(true);
 
   try {
-    const {
-  data: { user },
-  error: userError,
-} = await supabase.auth.getUser();
+        const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-if (userError || !user) {
-  throw new Error("User not authenticated.");
-}
+    if (userError || !user) {
+      throw new Error("User not authenticated.");
+    }
 
-const { data: sessionData } = await supabase.auth.getSession();
-const accessToken = sessionData.session?.access_token;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
 
-if (!accessToken) {
-  throw new Error("No valid session token found.");
-}
+    if (!accessToken) {
+      throw new Error("No valid session token found.");
+    }
 
     const accessToken = session?.access_token;
 

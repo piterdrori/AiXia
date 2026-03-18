@@ -38,6 +38,16 @@ type ProfileRow = {
   role: Role;
 };
 
+type ProjectRow = {
+  id: string;
+  created_by: string | null;
+};
+
+type ProjectMemberRow = {
+  project_id: string;
+  user_id: string;
+};
+
 type FilterType = "all" | "project" | "task" | "calendar_event" | "user";
 
 export default function ActivityPage() {
@@ -46,6 +56,8 @@ export default function ActivityPage() {
 
   const [logs, setLogs] = useState<ActivityLogRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [projects, setProjects] = useState<ProjectRow[]>([]);
+  const [projectMembers, setProjectMembers] = useState<ProjectMemberRow[]>([]);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [entityFilter, setEntityFilter] = useState<FilterType>("all");
@@ -79,11 +91,17 @@ export default function ActivityPage() {
 
       setCurrentUserId(user.id);
 
-      const [{ data: me, error: meError }, { data: profilesData, error: profilesError }] =
-        await Promise.all([
-          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
-          supabase.from("profiles").select("user_id, full_name, role").eq("status", "active"),
-        ]);
+      const [
+        { data: me, error: meError },
+        { data: profilesData, error: profilesError },
+        { data: projectsData, error: projectsError },
+        { data: projectMembersData, error: projectMembersError },
+      ] = await Promise.all([
+        supabase.from("profiles").select("role").eq("user_id", user.id).single(),
+        supabase.from("profiles").select("user_id, full_name, role").eq("status", "active"),
+        supabase.from("projects").select("id, created_by"),
+        supabase.from("project_members").select("project_id, user_id"),
+      ]);
 
       if (meError || !me) {
         setError("Failed to load current user role.");
@@ -99,18 +117,24 @@ export default function ActivityPage() {
         setProfiles((profilesData || []) as ProfileRow[]);
       }
 
-      let query = supabase
+      if (projectsError) {
+        setProjects([]);
+      } else {
+        setProjects((projectsData || []) as ProjectRow[]);
+      }
+
+      if (projectMembersError) {
+        setProjectMembers([]);
+      } else {
+        setProjectMembers((projectMembersData || []) as ProjectMemberRow[]);
+      }
+
+      const { data: logsData, error: logsError } = await supabase
         .from("activity_logs")
         .select(
           "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
         )
         .order("created_at", { ascending: false });
-
-      if (me.role !== "admin") {
-        query = query.eq("user_id", user.id);
-      }
-
-      const { data: logsData, error: logsError } = await query;
 
       if (logsError) {
         setError(logsError.message || "Failed to load activity logs.");
@@ -129,60 +153,90 @@ export default function ActivityPage() {
   };
 
   useEffect(() => {
-    loadActivity();
+    void loadActivity();
   }, []);
 
-useEffect(() => {
-  if (!currentUserId) return;
+  useEffect(() => {
+    if (!currentUserId) return;
 
-  const channelKey = `activity-page:${currentUserId}`;
+    const channelKey = `activity-page:${currentUserId}`;
 
-  registerRealtimeChannel(
-    channelKey,
-    supabase
-      .channel(channelKey)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "activity_logs",
-        },
-        (payload) => {
-          const newLog = payload.new as ActivityLogRow;
+    registerRealtimeChannel(
+      channelKey,
+      supabase
+        .channel(channelKey)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "activity_logs",
+          },
+          (payload) => {
+            const newLog = payload.new as ActivityLogRow;
 
-          setLogs((prev) => {
-            const alreadyExists = prev.some((log) => log.id === newLog.id);
-            if (alreadyExists) return prev;
-            return [newLog, ...prev];
-          });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "activity_logs",
-        },
-        (payload) => {
-          const deletedId = (payload.old as { id?: string } | null)?.id;
-          if (!deletedId) return;
+            setLogs((prev) => {
+              const alreadyExists = prev.some((log) => log.id === newLog.id);
+              if (alreadyExists) return prev;
+              return [newLog, ...prev];
+            });
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "DELETE",
+            schema: "public",
+            table: "activity_logs",
+          },
+          (payload) => {
+            const deletedId = (payload.old as { id?: string } | null)?.id;
+            if (!deletedId) return;
 
-          setLogs((prev) => prev.filter((log) => log.id !== deletedId));
-          setSelectedIds((prev) => prev.filter((id) => id !== deletedId));
-        }
-      )
-      .subscribe()
-  );
+            setLogs((prev) => prev.filter((log) => log.id !== deletedId));
+            setSelectedIds((prev) => prev.filter((id) => id !== deletedId));
+          }
+        )
+        .subscribe()
+    );
 
-  return () => {
-    void removeRealtimeChannel(channelKey);
-  };
-}, [currentUserId]);
+    return () => {
+      void removeRealtimeChannel(channelKey);
+    };
+  }, [currentUserId]);
+
+  const visibleProjectIds = useMemo(() => {
+    if (!currentUserId) return new Set<string>();
+
+    if (currentUserRole === "admin") {
+      return new Set(projects.map((project) => project.id));
+    }
+
+    return new Set(
+      projects
+        .filter(
+          (project) =>
+            project.created_by === currentUserId ||
+            projectMembers.some(
+              (member) =>
+                member.project_id === project.id && member.user_id === currentUserId
+            )
+        )
+        .map((project) => project.id)
+    );
+  }, [projects, projectMembers, currentUserId, currentUserRole]);
 
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
+      if (currentUserRole !== "admin") {
+        const hasProjectAccess =
+          !!log.project_id && visibleProjectIds.has(log.project_id);
+
+        const isOwnLog = log.user_id === currentUserId;
+
+        if (!hasProjectAccess && !isOwnLog) return false;
+      }
+
       const matchesEntity =
         entityFilter === "all" || log.entity_type === entityFilter;
 
@@ -202,7 +256,15 @@ useEffect(() => {
 
       return matchesEntity && matchesSearch;
     });
-  }, [entityFilter, logs, profiles, searchQuery]);
+  }, [
+    logs,
+    profiles,
+    searchQuery,
+    entityFilter,
+    currentUserId,
+    currentUserRole,
+    visibleProjectIds,
+  ]);
 
   const canDeleteLog = (log: ActivityLogRow) => {
     if (!currentUserId) return false;
@@ -322,7 +384,7 @@ useEffect(() => {
           <p className="text-slate-400">
             {isAdmin
               ? "Monitor and manage all system activity logs"
-              : "Monitor and manage your own activity logs"}
+              : "Monitor and manage your accessible activity logs"}
           </p>
         </div>
 
@@ -330,7 +392,7 @@ useEffect(() => {
           <Button
             variant="outline"
             className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            onClick={loadActivity}
+            onClick={() => void loadActivity()}
             disabled={isLoading}
           >
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -407,7 +469,7 @@ useEffect(() => {
             {isSelectionMode && (
               <Button
                 className="bg-red-600 hover:bg-red-700 text-white"
-                onClick={handleBulkDelete}
+                onClick={() => void handleBulkDelete()}
                 disabled={isDeleting || selectedIds.length === 0}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
@@ -489,7 +551,7 @@ useEffect(() => {
                                 size="sm"
                                 variant="outline"
                                 className="border-red-800 text-red-400 hover:bg-red-900/20"
-                                onClick={() => handleDeleteOne(log.id)}
+                                onClick={() => void handleDeleteOne(log.id)}
                                 disabled={isDeleting}
                               >
                                 <Trash2 className="w-4 h-4 mr-2" />
@@ -510,4 +572,3 @@ useEffect(() => {
     </div>
   );
 }
-

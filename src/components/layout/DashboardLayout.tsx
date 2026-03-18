@@ -7,7 +7,7 @@ import {
   markNotificationRead,
 } from "@/lib/notifications";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -54,6 +54,7 @@ type UserProfile = {
   email: string;
   fullName: string;
   role?: string | null;
+  avatarUrl?: string | null;
 };
 
 type NotificationRow = {
@@ -342,10 +343,10 @@ export default function DashboardLayout({
       }
 
       const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("full_name, role")
-        .eq("user_id", session.user.id)
-        .single();
+  .from("profiles")
+  .select("full_name, role, avatar_url")
+  .eq("user_id", session.user.id)
+  .single();
 
       if (requestId !== loadUserRequestIdRef.current) return;
 
@@ -354,11 +355,12 @@ export default function DashboardLayout({
       }
 
       const loadedUser: UserProfile = {
-        userId: session.user.id,
-        email: session.user.email || "",
-        fullName: profile?.full_name || "User",
-        role: profile?.role || null,
-      };
+  userId: session.user.id,
+  email: session.user.email || "",
+  fullName: profile?.full_name || "User",
+  role: profile?.role || null,
+  avatarUrl: profile?.avatar_url || null,
+};
 
       setUserProfile(loadedUser);
       writeLayoutCache(loadedUser, notifications);
@@ -627,10 +629,11 @@ export default function DashboardLayout({
           <DropdownMenuTrigger asChild>
             <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-slate-800/50">
               <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-indigo-600 text-sm text-white">
-                  {userInitials}
-                </AvatarFallback>
-              </Avatar>
+  <AvatarImage src={userProfile?.avatarUrl || undefined} />
+  <AvatarFallback className="bg-indigo-600 text-sm text-white">
+    {userInitials}
+  </AvatarFallback>
+</Avatar>
 
               <div className="flex-1 overflow-hidden text-left">
                 <p className="truncate text-sm font-medium text-slate-200">
@@ -729,10 +732,11 @@ export default function DashboardLayout({
                   <DropdownMenuTrigger asChild>
                     <button className="flex w-full justify-center rounded-lg p-2 transition-colors hover:bg-slate-800/50">
                       <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-indigo-600 text-sm text-white">
-                          {userInitials}
-                        </AvatarFallback>
-                      </Avatar>
+  <AvatarImage src={userProfile?.avatarUrl || undefined} />
+  <AvatarFallback className="bg-indigo-600 text-sm text-white">
+    {userInitials}
+  </AvatarFallback>
+</Avatar>
                     </button>
                   </DropdownMenuTrigger>
 

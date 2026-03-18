@@ -319,100 +319,126 @@ export default function TaskEditPage() {
     );
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!id) return;
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!id) return;
 
-    setError("");
+  setError("");
 
-    if (!title.trim()) {
-      setError("Task title is required.");
+  if (!title.trim()) {
+    setError("Task title is required.");
+    return;
+  }
+
+  if (!projectId) {
+    setError("Please select a project.");
+    return;
+  }
+
+  if (dueDate && Number.isNaN(new Date(dueDate).getTime())) {
+    setError("Due date is invalid.");
+    return;
+  }
+
+  const requestId = pageRequestTracker.current.next();
+  setIsSaving(true);
+
+  try {
+    // 🔹 get current user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const currentUserId = user?.id;
+
+    const { error: updateError } = await supabase
+      .from("tasks")
+      .update({
+        title: title.trim(),
+        description: description.trim() || null,
+        project_id: projectId,
+        priority,
+        status,
+        due_date: dueDate || null,
+        assignee_id: selectedAssignees.length > 0 ? selectedAssignees[0] : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+
+    if (!pageRequestTracker.current.isLatest(requestId)) return;
+
+    if (updateError) {
+      setError(updateError.message || "Failed to update task.");
       return;
     }
 
-    if (!projectId) {
-      setError("Please select a project.");
-      return;
-    }
+    const existingUserIds = existingTaskMembers.map((m) => m.user_id);
+    const toInsert = selectedAssignees.filter((u) => !existingUserIds.includes(u));
+    const toDelete = existingTaskMembers.filter((m) => !selectedSet.has(m.user_id));
 
-    if (dueDate && Number.isNaN(new Date(dueDate).getTime())) {
-      setError("Due date is invalid.");
-      return;
-    }
+    // ✅ INSERT NEW MEMBERS + NOTIFY
+    if (toInsert.length > 0) {
+      const rows = toInsert.map((userId) => ({
+        task_id: id,
+        user_id: userId,
+        role: "assignee",
+      }));
 
-    const requestId = pageRequestTracker.current.next();
-    setIsSaving(true);
-
-    try {
-      const { error: updateError } = await supabase
-        .from("tasks")
-        .update({
-          title: title.trim(),
-          description: description.trim() || null,
-          project_id: projectId,
-          priority,
-          status,
-          due_date: dueDate || null,
-          assignee_id: selectedAssignees.length > 0 ? selectedAssignees[0] : null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
+      const { error: insertError } = await supabase.from("task_members").insert(rows);
 
       if (!pageRequestTracker.current.isLatest(requestId)) return;
 
-      if (updateError) {
-        setError(updateError.message || "Failed to update task.");
+      if (insertError) {
+        setError(insertError.message || "Failed to add assignees.");
         return;
       }
 
-      const existingUserIds = existingTaskMembers.map((member) => member.user_id);
-      const toInsert = selectedAssignees.filter((userId) => !existingUserIds.includes(userId));
-      const toDelete = existingTaskMembers.filter((member) => !selectedSet.has(member.user_id));
+      // 🔥 NOTIFICATIONS FOR NEW MEMBERS
+      for (const userId of toInsert) {
+        if (userId === currentUserId) continue;
 
-      if (toInsert.length > 0) {
-        const rows = toInsert.map((userId) => ({
-          task_id: id,
-          user_id: userId,
-          role: "assignee",
-        }));
-
-        const { error: insertError } = await supabase.from("task_members").insert(rows);
-
-        if (!pageRequestTracker.current.isLatest(requestId)) return;
-
-        if (insertError) {
-          setError(insertError.message || "Failed to add assignees.");
-          return;
-        }
+        await createNotification({
+          userId,
+          actorUserId: currentUserId,
+          type: "TASK_ASSIGNED",
+          title: "You were assigned to a task",
+          message: `You were added to task "${title}"`,
+          link: `/tasks/${id}`,
+          entityType: "task",
+          entityId: id,
+        });
       }
-
-      if (toDelete.length > 0) {
-        const idsToDelete = toDelete.map((member) => member.id);
-
-        const { error: deleteError } = await supabase
-          .from("task_members")
-          .delete()
-          .in("id", idsToDelete);
-
-        if (!pageRequestTracker.current.isLatest(requestId)) return;
-
-        if (deleteError) {
-          setError(deleteError.message || "Failed to remove assignees.");
-          return;
-        }
-      }
-
-      if (!pageRequestTracker.current.isLatest(requestId)) return;
-      navigate(`/tasks/${id}`);
-    } catch (err) {
-      if (!pageRequestTracker.current.isLatest(requestId)) return;
-      console.error("Update task error:", err);
-      setError("Something went wrong while updating the task.");
-    } finally {
-      if (!pageRequestTracker.current.isLatest(requestId)) return;
-      setIsSaving(false);
     }
-  };
+
+    // ✅ DELETE REMOVED MEMBERS
+    if (toDelete.length > 0) {
+      const idsToDelete = toDelete.map((m) => m.id);
+
+      const { error: deleteError } = await supabase
+        .from("task_members")
+        .delete()
+        .in("id", idsToDelete);
+
+      if (!pageRequestTracker.current.isLatest(requestId)) return;
+
+      if (deleteError) {
+        setError(deleteError.message || "Failed to remove assignees.");
+        return;
+      }
+    }
+
+    if (!pageRequestTracker.current.isLatest(requestId)) return;
+
+    navigate(`/tasks/${id}`);
+  } catch (err) {
+    if (!pageRequestTracker.current.isLatest(requestId)) return;
+    console.error("Update task error:", err);
+    setError("Something went wrong while updating the task.");
+  } finally {
+    if (!pageRequestTracker.current.isLatest(requestId)) return;
+    setIsSaving(false);
+  }
+};
 
   if (isBootstrapping) {
     return (

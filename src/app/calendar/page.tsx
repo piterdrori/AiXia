@@ -36,6 +36,7 @@ type TaskRow = {
   title: string;
   due_date: string | null;
   status: string | null;
+  project_id: string | null;
 };
 
 type Role = "admin" | "manager" | "employee" | "guest";

@@ -355,18 +355,38 @@ const handleSendInvite = async () => {
   setIsSendingInvite(true);
 
   try {
-    const { data, error } = await supabase.functions.invoke("invite-member", {
-      body: {
-        email: normalizedEmail,
-        fullName: trimmedFullName,
-        role: inviteRole,
-        memberType: inviteRole === "admin" ? null : inviteMemberType,
-        redirectTo: `${window.location.origin}/onboarding`,
-      },
-    });
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    if (error) {
-      throw error;
+    const accessToken = session?.access_token;
+
+    if (!accessToken) {
+      throw new Error("You must be logged in to send an invite.");
+    }
+
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-member`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          email: normalizedEmail,
+          fullName: trimmedFullName,
+          role: inviteRole,
+          memberType: inviteRole === "admin" ? null : inviteMemberType,
+          redirectTo: `${window.location.origin}/onboarding`,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data?.error || "Failed to send invite.");
     }
 
     if (!data?.success) {

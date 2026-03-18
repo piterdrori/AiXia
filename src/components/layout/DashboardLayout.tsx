@@ -339,14 +339,13 @@ export default function DashboardLayout({
 
       if (requestId !== loadUserRequestIdRef.current) return;
 
-      if (sessionError || !session?.user) {
-        setUserProfile(null);
-        setNotifications([]);
-        setHasLoadedNotifications(false);
-        setCalendarTodayCount(0);
-        clearLayoutCache();
-        return;
-      }
+     if (sessionError || !session?.user) {
+  setUserProfile(null);
+  setNotifications([]);
+  setCalendarTodayCount(0);
+  clearLayoutCache();
+  return;
+}
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
@@ -402,13 +401,12 @@ export default function DashboardLayout({
         if (!mounted) return;
 
         if (!session?.user) {
-          setUserProfile(null);
-          setNotifications([]);
-          setHasLoadedNotifications(false);
-          setCalendarTodayCount(0);
-          clearLayoutCache();
-          return;
-        }
+  setUserProfile(null);
+  setNotifications([]);
+  setCalendarTodayCount(0);
+  clearLayoutCache();
+  return;
+}
 
         void loadUser();
       }, 0);
@@ -420,36 +418,35 @@ export default function DashboardLayout({
     };
   }, []);
 
-  useEffect(() => {
-    if (!userProfile?.userId) return;
+useEffect(() => {
+  if (!userProfile?.userId) return;
 
-    const channelKey = `notifications:${userProfile.userId}`;
+  const channelKey = `notifications:${userProfile.userId}`;
 
-    registerRealtimeChannel(
-      channelKey,
-      supabase
-        .channel(channelKey)
-        .on(
-  "postgres_changes",
-  {
-    event: "*",
-    schema: "public",
-    table: "notifications",
-    filter: `user_id=eq.${userProfile.userId}`,
-  },
-  (payload) => {
-    setNotifications((prev) => {
-      // INSERT
-      if (payload.eventType === "INSERT") {
-        return [payload.new as NotificationRow, ...prev];
-      }
+  registerRealtimeChannel(
+    channelKey,
+    supabase
+      .channel(channelKey)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userProfile.userId}`,
+        },
+        () => {
+          void loadNotifications(userProfile.userId);
+          void loadCalendarBadge(userProfile.userId, userProfile.role || null);
+        }
+      )
+      .subscribe()
+  );
 
-      // UPDATE
-      if (payload.eventType === "UPDATE") {
-        return prev.map((n) =>
-          n.id === payload.new.id ? (payload.new as NotificationRow) : n
-        );
-      }
+  return () => {
+    void removeRealtimeChannel(channelKey);
+  };
+}, [userProfile?.userId, userProfile?.role]);
 
       // DELETE
       if (payload.eventType === "DELETE") {
@@ -463,7 +460,7 @@ export default function DashboardLayout({
     writeLayoutCache(userProfile, notifications);
 
     // optional refresh fallback (safe)
-    void loadNotifications(userId)
+    void loadNotifications(userProfile.userId);
 
     void loadCalendarBadge(userProfile.userId, userProfile.role || null);
   }
@@ -476,11 +473,11 @@ export default function DashboardLayout({
     };
   }, [userProfile?.userId, userProfile?.role]);
 
-  useEffect(() => {
-    if (notificationsOpen && userProfile?.userId) {
-      void loadNotifications(userId)
-    }
-  }, [notificationsOpen, userProfile?.userId]);
+useEffect(() => {
+  if (notificationsOpen && userProfile?.userId) {
+    void loadNotifications(userProfile.userId);
+  }
+}, [notificationsOpen, userProfile?.userId]);
 
   const navItems: NavItem[] = useMemo(
     () => [

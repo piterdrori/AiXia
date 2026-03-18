@@ -364,8 +364,14 @@ const handleSendInvite = async () => {
       throw new Error("User not authenticated.");
     }
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData.session?.access_token;
+    const { data: refreshedSessionData, error: refreshError } =
+      await supabase.auth.refreshSession();
+
+    if (refreshError) {
+      throw new Error(refreshError.message || "Failed to refresh session.");
+    }
+
+    const accessToken = refreshedSessionData.session?.access_token;
 
     if (!accessToken) {
       throw new Error("No valid session token found.");
@@ -377,6 +383,7 @@ const handleSendInvite = async () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({

@@ -379,7 +379,8 @@ export default function EmployeesPage() {
     setInviteRole("employee");
     setInviteMemberType("");
     void loadProfiles("refresh");
-    } catch (err: any) {
+    
+  } catch (err: any) {
     console.error("Invite member error:", err);
 
     let message = "Failed to send invite.";

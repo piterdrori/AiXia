@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { logActivity } from "@/lib/activity";
 import { createRequestTracker } from "@/lib/safeAsync";
-
+import { createNotification } from "@/lib/notifications";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -244,176 +244,142 @@ export default function ProjectEditPage() {
   }, [id, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!id) return;
+  if (!id) return;
 
-    setError("");
+  setError("");
 
-    if (!name.trim()) {
-      setError("Project name is required.");
+  if (!name.trim()) {
+    setError("Project name is required.");
+    return;
+  }
+
+  if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+    setError("End date cannot be earlier than start date.");
+    return;
+  }
+
+  const requestId = requestTracker.current.next();
+  setIsSaving(true);
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!requestTracker.current.isLatest(requestId)) return;
+
+    if (!user) {
+      navigate("/login");
       return;
     }
 
-    if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
-      setError("End date cannot be earlier than start date.");
+    const currentUserId = user.id;
+
+    const { data: me } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("user_id", user.id)
+      .single();
+
+    const { data: existingProject } = await supabase
+      .from("projects")
+      .select("id, created_by")
+      .eq("id", id)
+      .single();
+
+    const canEdit = me?.role === "admin" || existingProject?.created_by === user.id;
+
+    if (!canEdit) {
+      setError("You do not have permission to edit this project.");
+      setIsSaving(false);
       return;
     }
 
-    const requestId = requestTracker.current.next();
-    setIsSaving(true);
+    await supabase
+      .from("projects")
+      .update({
+        name: name.trim(),
+        description: description.trim() || null,
+        status,
+        start_date: startDate || null,
+        end_date: endDate || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
 
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    await logActivity({
+      projectId: id,
+      actionType: "project_updated",
+      entityType: "project",
+      entityId: id,
+      message: `Updated project "${name.trim()}"`,
+    });
 
-      if (!requestTracker.current.isLatest(requestId)) return;
+    const existingUserIds = existingMembers.map((m) => m.user_id);
+    const toInsert = selectedMembers.filter((u) => !existingUserIds.includes(u));
+    const toDelete = existingMembers.filter((m) => !selectedSet.has(m.user_id));
 
-      if (!user) {
-        navigate("/login");
-        return;
-      }
+    // ✅ ADD MEMBERS
+    if (toInsert.length > 0) {
+      const rows = toInsert.map((userId) => ({
+        project_id: id,
+        user_id: userId,
+        role: "member",
+      }));
 
-      const { data: me, error: meError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("user_id", user.id)
-        .single();
+      await supabase.from("project_members").insert(rows);
 
-      if (!requestTracker.current.isLatest(requestId)) return;
+      for (const userId of toInsert) {
+        if (userId === currentUserId) continue;
 
-      if (meError || !me) {
-        setError("Failed to validate your permissions.");
-        setIsSaving(false);
-        return;
-      }
-
-      const currentUserRole = (me.role as Role) || null;
-
-      const { data: existingProject, error: existingProjectError } = await supabase
-        .from("projects")
-        .select("id, created_by")
-        .eq("id", id)
-        .single();
-
-      if (!requestTracker.current.isLatest(requestId)) return;
-
-      if (existingProjectError || !existingProject) {
-        setError("Project not found.");
-        setIsSaving(false);
-        return;
-      }
-
-      const canEdit = currentUserRole === "admin" || existingProject.created_by === user.id;
-
-      if (!canEdit) {
-        setError("You do not have permission to edit this project.");
-        setIsSaving(false);
-        return;
-      }
-
-      const { error: updateError } = await supabase
-        .from("projects")
-        .update({
-          name: name.trim(),
-          description: description.trim() || null,
-          status,
-          start_date: startDate || null,
-          end_date: endDate || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
-
-      if (!requestTracker.current.isLatest(requestId)) return;
-
-      if (updateError) {
-        console.error("Update project error:", updateError);
-        setError(updateError.message || "Failed to update project.");
-        setIsSaving(false);
-        return;
-      }
-
-      await logActivity({
-        projectId: id,
-        actionType: "project_updated",
-        entityType: "project",
-        entityId: id,
-        message: `Updated project "${name.trim()}"`,
-      });
-
-      const existingUserIds = existingMembers.map((member) => member.user_id);
-      const toInsert = selectedMembers.filter((userId) => !existingUserIds.includes(userId));
-      const toDelete = existingMembers.filter((member) => !selectedSet.has(member.user_id));
-
-      if (toInsert.length > 0) {
-        const rows = toInsert.map((userId) => ({
-          project_id: id,
-          user_id: userId,
-          role: "member",
-        }));
-
-        const { error: insertMembersError } = await supabase
-          .from("project_members")
-          .insert(rows);
-
-        if (!requestTracker.current.isLatest(requestId)) return;
-
-        if (insertMembersError) {
-          console.error("Insert project members error:", insertMembersError);
-          setError(insertMembersError.message || "Failed to add some members.");
-          setIsSaving(false);
-          return;
-        }
-
-        await logActivity({
-          projectId: id,
-          actionType: "project_members_added",
-          entityType: "member",
+        await createNotification({
+          userId,
+          actorUserId: currentUserId,
+          type: "PROJECT_UPDATE",
+          title: "Added to Project",
+          message: `You were added to project "${name}"`,
+          link: `/projects/${id}`,
+          entityType: "project",
           entityId: id,
-          message: `Added ${toInsert.length} member(s) to project`,
         });
       }
-
-      if (toDelete.length > 0) {
-        const idsToDelete = toDelete.map((member) => member.id);
-
-        const { error: deleteMembersError } = await supabase
-          .from("project_members")
-          .delete()
-          .in("id", idsToDelete);
-
-        if (!requestTracker.current.isLatest(requestId)) return;
-
-        if (deleteMembersError) {
-          console.error("Delete project members error:", deleteMembersError);
-          setError(deleteMembersError.message || "Failed to remove some members.");
-          setIsSaving(false);
-          return;
-        }
-
-        await logActivity({
-          projectId: id,
-          actionType: "project_members_removed",
-          entityType: "member",
-          entityId: id,
-          message: `Removed ${toDelete.length} member(s) from project`,
-        });
-      }
-
-      if (!requestTracker.current.isLatest(requestId)) return;
-      navigate(`/projects/${id}`);
-    } catch (err) {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      console.error("Update project error:", err);
-      setError("Something went wrong while updating the project.");
-      setIsSaving(false);
-    } finally {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setIsSaving(false);
     }
-  };
 
+    // ❌ REMOVE MEMBERS
+    if (toDelete.length > 0) {
+      const idsToDelete = toDelete.map((m) => m.id);
+
+      await supabase
+        .from("project_members")
+        .delete()
+        .in("id", idsToDelete);
+
+      for (const member of toDelete) {
+        if (member.user_id === currentUserId) continue;
+
+        await createNotification({
+          userId: member.user_id,
+          actorUserId: currentUserId,
+          type: "PROJECT_UPDATE",
+          title: "Removed from Project",
+          message: `You were removed from project "${name}"`,
+          link: `/projects/${id}`,
+          entityType: "project",
+          entityId: id,
+        });
+      }
+    }
+
+    navigate(`/projects/${id}`);
+  } catch (err) {
+    console.error("Update project error:", err);
+    setError("Something went wrong while updating the project.");
+  } finally {
+    setIsSaving(false);
+  }
+};
   if (isLoading && !hasLoadedOnce) {
     return <ProjectEditSkeleton />;
   }

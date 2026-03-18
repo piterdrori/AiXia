@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
-
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -313,9 +313,82 @@ export default function EmployeesPage() {
   const [activeTab, setActiveTab] = useState<TabValue>("all");
   const [roleFilter, setRoleFilter] = useState<RoleFilterValue>("all");
   const [memberTypeFilter, setMemberTypeFilter] = useState<MemberTypeFilterValue>("all");
-
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<Role>("employee");
+  const [inviteMemberType, setInviteMemberType] = useState<MemberType | "">("");
+  const [inviteFullName, setInviteFullName] = useState("");
+  const [inviteError, setInviteError] = useState("");
+  const [inviteSuccess, setInviteSuccess] = useState("");
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
   const canManageUsers = currentUserRole === "admin";
+  const handleSendInvite = async () => {
+  if (isSendingInvite) return;
 
+  setInviteError("");
+  setInviteSuccess("");
+
+  const normalizedEmail = inviteEmail.trim().toLowerCase();
+  const trimmedFullName = inviteFullName.trim();
+
+  if (!normalizedEmail) {
+    setInviteError("Email is required.");
+    return;
+  }
+
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailPattern.test(normalizedEmail)) {
+    setInviteError("Please enter a valid email address.");
+    return;
+  }
+
+  if (!trimmedFullName) {
+    setInviteError("Full name is required.");
+    return;
+  }
+
+  if (inviteRole !== "admin" && !inviteMemberType) {
+    setInviteError("Member Type is required.");
+    return;
+  }
+
+  setIsSendingInvite(true);
+
+  try {
+    const { data, error } = await supabase.functions.invoke("invite-member", {
+      body: {
+        email: normalizedEmail,
+        fullName: trimmedFullName,
+        role: inviteRole,
+        memberType: inviteRole === "admin" ? null : inviteMemberType,
+        redirectTo: `${window.location.origin}/onboarding`,
+      },
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data?.success) {
+      throw new Error(data?.error || "Failed to send invite.");
+    }
+
+    setInviteSuccess("Invitation email sent successfully.");
+    setInviteEmail("");
+    setInviteFullName("");
+    setInviteRole("employee");
+    setInviteMemberType("");
+    void loadProfiles("refresh");
+  } catch (err) {
+    console.error("Invite member error:", err);
+    setInviteError(
+      err instanceof Error ? err.message : "Failed to send invite."
+    );
+  } finally {
+    setIsSendingInvite(false);
+  }
+};
+  
   const availableMemberTypeOptions = useMemo(() => {
     if (roleFilter === "all" || roleFilter === "admin") {
       return [];
@@ -620,7 +693,7 @@ export default function EmployeesPage() {
       .toUpperCase()
       .slice(0, 2);
   };
-
+  
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -644,7 +717,7 @@ export default function EmployeesPage() {
           {canManageUsers && (
             <Button
               className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              onClick={() => navigate("/register")}
+              onClick={() => setInviteDialogOpen(true)}
             >
               <Plus className="w-4 h-4 mr-2" />
               Invite Member
@@ -948,6 +1021,116 @@ export default function EmployeesPage() {
           </CardContent>
         </Card>
       )}
+         <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+        <DialogContent className="bg-slate-950 border-slate-800 text-white sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Invite Member</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {inviteError && (
+              <div className="rounded-lg border border-red-800 bg-red-900/20 px-3 py-2 text-sm text-red-300">
+                {inviteError}
+              </div>
+            )}
+
+            {inviteSuccess && (
+              <div className="rounded-lg border border-green-800 bg-green-900/20 px-3 py-2 text-sm text-green-300">
+                {inviteSuccess}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-sm text-slate-300">Full Name</label>
+              <Input
+                value={inviteFullName}
+                onChange={(e) => setInviteFullName(e.target.value)}
+                className="bg-slate-950 border-slate-800 text-white"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm text-slate-300">Email</label>
+              <Input
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                className="bg-slate-950 border-slate-800 text-white"
+              />
+            </div>
+
+             <div className="space-y-2">
+              <label className="text-sm text-slate-300">Role</label>
+              <Select
+                value={inviteRole}
+                onValueChange={(value) => {
+                  const nextRole = value as Role;
+                  setInviteRole(nextRole);
+                  if (nextRole === "admin") {
+                    setInviteMemberType("");
+                  }
+                }}
+              >
+                <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="employee">Employee</SelectItem>
+                  <SelectItem value="guest">Guest</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {inviteRole !== "admin" && (
+              <div className="space-y-2">
+                <label className="text-sm text-slate-300">Member Type</label>
+                <Select
+                  value={inviteMemberType}
+                  onValueChange={(value) => setInviteMemberType(value as MemberType)}
+                >
+                  <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                    <SelectValue placeholder="Select member type" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                    {MEMBER_TYPE_OPTIONS[inviteRole].map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="border-slate-700 text-slate-300"
+                onClick={() => {
+  setInviteDialogOpen(false);
+  setInviteError("");
+  setInviteSuccess("");
+  setInviteEmail("");
+  setInviteFullName("");
+  setInviteRole("employee");
+  setInviteMemberType("");
+}}
+              >
+                Cancel
+              </Button>
+
+              <Button
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={() => void handleSendInvite()}
+                disabled={isSendingInvite}
+              >
+                {isSendingInvite ? "Sending..." : "Send Invite"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

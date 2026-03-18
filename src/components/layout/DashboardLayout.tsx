@@ -203,41 +203,44 @@ export default function DashboardLayout({
   }, []);
 
   const loadNotifications = async (userId: string, force = false) => {
-    const requestId = ++loadNotificationsRequestIdRef.current;
+  const requestId = ++loadNotificationsRequestIdRef.current;
 
-    if (!force && hasLoadedNotifications) return;
+  setIsLoadingNotifications(true);
 
-    setIsLoadingNotifications(true);
+  try {
+    const { data, error } = await supabase
+      .from("notifications")
+      .select(
+        "id, user_id, actor_user_id, type, title, message, link, is_read, entity_type, entity_id, created_at"
+      )
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(20);
 
-    try {
-      const { data, error } = await supabase
-        .from("notifications")
-        .select(
-          "id, user_id, actor_user_id, type, title, message, link, is_read, entity_type, entity_id, created_at"
-        )
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(20);
+    if (requestId !== loadNotificationsRequestIdRef.current) return;
 
-      if (requestId !== loadNotificationsRequestIdRef.current) return;
-
-      if (error) {
-        console.error("Failed to load notifications:", error);
-        return;
-      }
-
-      const nextNotifications = (data || []) as NotificationRow[];
-      setNotifications(nextNotifications);
-      setHasLoadedNotifications(true);
-      writeLayoutCache(userProfile, nextNotifications);
-    } catch (error) {
-      if (requestId !== loadNotificationsRequestIdRef.current) return;
-      console.error("Load notifications error:", error);
-    } finally {
-      if (requestId !== loadNotificationsRequestIdRef.current) return;
-      setIsLoadingNotifications(false);
+    if (error) {
+      console.error("Failed to load notifications:", error);
+      return;
     }
-  };
+
+    const nextNotifications = (data || []) as NotificationRow[];
+
+    // 🔥 IMPORTANT: instant UI update
+    setNotifications(nextNotifications);
+
+    // 🔥 cache sync
+    writeLayoutCache(userProfile, nextNotifications);
+
+    setHasLoadedNotifications(true);
+  } catch (error) {
+    if (requestId !== loadNotificationsRequestIdRef.current) return;
+    console.error("Load notifications error:", error);
+  } finally {
+    if (requestId !== loadNotificationsRequestIdRef.current) return;
+    setIsLoadingNotifications(false);
+  }
+};
 
   const loadCalendarBadge = async (
     userId: string,
@@ -430,18 +433,44 @@ export default function DashboardLayout({
       supabase
         .channel(channelKey)
         .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "notifications",
-            filter: `user_id=eq.${userProfile.userId}`,
-          },
-          () => {
-            void loadNotifications(userProfile.userId, true);
-            void loadCalendarBadge(userProfile.userId, userProfile.role || null);
-          }
-        )
+  "postgres_changes",
+  {
+    event: "*",
+    schema: "public",
+    table: "notifications",
+    filter: `user_id=eq.${userProfile.userId}`,
+  },
+  (payload) => {
+    setNotifications((prev) => {
+      // INSERT
+      if (payload.eventType === "INSERT") {
+        return [payload.new as NotificationRow, ...prev];
+      }
+
+      // UPDATE
+      if (payload.eventType === "UPDATE") {
+        return prev.map((n) =>
+          n.id === payload.new.id ? (payload.new as NotificationRow) : n
+        );
+      }
+
+      // DELETE
+      if (payload.eventType === "DELETE") {
+        return prev.filter((n) => n.id !== payload.old.id);
+      }
+
+      return prev;
+    });
+
+    // keep cache in sync
+    writeLayoutCache(userProfile, notifications);
+
+    // optional refresh fallback (safe)
+    void loadNotifications(userProfile.userId, true);
+
+    void loadCalendarBadge(userProfile.userId, userProfile.role || null);
+  }
+)
         .subscribe()
     );
 

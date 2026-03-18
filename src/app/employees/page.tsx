@@ -379,15 +379,29 @@ export default function EmployeesPage() {
     setInviteRole("employee");
     setInviteMemberType("");
     void loadProfiles("refresh");
-  } catch (err) {
+    } catch (err: any) {
     console.error("Invite member error:", err);
-    setInviteError(
-      err instanceof Error ? err.message : "Failed to send invite."
-    );
+
+    let message = "Failed to send invite.";
+
+    try {
+      if (err?.context) {
+        const data = await err.context.json();
+        if (data?.error) {
+          message = data.error;
+        }
+      } else if (err instanceof Error && err.message) {
+        message = err.message;
+      }
+    } catch (parseError) {
+      console.error("Failed to parse function error response:", parseError);
+      if (err instanceof Error && err.message) {
+        message = err.message;
+      }
+    }
+
+    setInviteError(message);
   } finally {
-    setIsSendingInvite(false);
-  }
-};
   
   const availableMemberTypeOptions = useMemo(() => {
     if (roleFilter === "all" || roleFilter === "admin") {

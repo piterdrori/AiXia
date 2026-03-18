@@ -344,12 +344,11 @@ const handleSubmit = async (e: React.FormEvent) => {
   setIsSaving(true);
 
   try {
-    // 🔹 get current user
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const currentUserId = user?.id;
+    const currentUserId = user?.id || null;
 
     const { error: updateError } = await supabase
       .from("tasks")
@@ -372,11 +371,10 @@ const handleSubmit = async (e: React.FormEvent) => {
       return;
     }
 
-    const existingUserIds = existingTaskMembers.map((m) => m.user_id);
-    const toInsert = selectedAssignees.filter((u) => !existingUserIds.includes(u));
-    const toDelete = existingTaskMembers.filter((m) => !selectedSet.has(m.user_id));
+    const existingUserIds = existingTaskMembers.map((member) => member.user_id);
+    const toInsert = selectedAssignees.filter((userId) => !existingUserIds.includes(userId));
+    const toDelete = existingTaskMembers.filter((member) => !selectedSet.has(member.user_id));
 
-    // ✅ INSERT NEW MEMBERS + NOTIFY
     if (toInsert.length > 0) {
       const rows = toInsert.map((userId) => ({
         task_id: id,
@@ -393,16 +391,15 @@ const handleSubmit = async (e: React.FormEvent) => {
         return;
       }
 
-      // 🔥 NOTIFICATIONS FOR NEW MEMBERS
       for (const userId of toInsert) {
         if (userId === currentUserId) continue;
 
         await createNotification({
           userId,
-          actorUserId: currentUserId,
+          actorUserId: currentUserId || undefined,
           type: "TASK_ASSIGNED",
           title: "You were assigned to a task",
-          message: `You were added to task "${title}"`,
+          message: `You were added to task "${title.trim()}"`,
           link: `/tasks/${id}`,
           entityType: "task",
           entityId: id,
@@ -410,9 +407,8 @@ const handleSubmit = async (e: React.FormEvent) => {
       }
     }
 
-    // ✅ DELETE REMOVED MEMBERS
     if (toDelete.length > 0) {
-      const idsToDelete = toDelete.map((m) => m.id);
+      const idsToDelete = toDelete.map((member) => member.id);
 
       const { error: deleteError } = await supabase
         .from("task_members")
@@ -424,6 +420,21 @@ const handleSubmit = async (e: React.FormEvent) => {
       if (deleteError) {
         setError(deleteError.message || "Failed to remove assignees.");
         return;
+      }
+
+      for (const member of toDelete) {
+        if (member.user_id === currentUserId) continue;
+
+        await createNotification({
+          userId: member.user_id,
+          actorUserId: currentUserId || undefined,
+          type: "TASK_UPDATED",
+          title: "Removed from Task",
+          message: `You were removed from task "${title.trim()}"`,
+          link: `/tasks/${id}`,
+          entityType: "task",
+          entityId: id,
+        });
       }
     }
 

@@ -97,17 +97,23 @@ export default function CalendarDayPage() {
         return;
       }
 
-      const [{ data: profileData, error: profileError }, { data: allProjects, error: projectsError }, { data: memberRows, error: membersError }] =
-        await Promise.all([
-          supabase.from("profiles").select("user_id, role").eq("user_id", user.id).single(),
-          supabase.from("projects").select("id, created_by"),
-          supabase.from("project_members").select("project_id, user_id").eq("user_id", user.id),
-        ]);
+      const [
+        { data: profileData, error: profileError },
+        { data: allProjects, error: projectsError },
+        { data: memberRows, error: membersError },
+      ] = await Promise.all([
+        supabase.from("profiles").select("user_id, role").eq("user_id", user.id).single(),
+        supabase.from("projects").select("id, created_by"),
+        supabase.from("project_members").select("project_id, user_id").eq("user_id", user.id),
+      ]);
 
       if (!requestTracker.current.isLatest(requestId)) return;
 
       if (profileError || !profileData || projectsError || membersError) {
-        console.error("Load calendar day access error:", profileError || projectsError || membersError);
+        console.error(
+          "Load calendar day access error:",
+          profileError || projectsError || membersError
+        );
         setEvents([]);
         setTasks([]);
         setLoadError("Failed to load this day.");

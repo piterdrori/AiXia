@@ -27,6 +27,8 @@ type CalendarEventRow = {
   event_type: string | null;
   start_date: string;
   all_day: boolean | null;
+  project_id: string | null;
+  created_by: string | null;
 };
 
 type TaskRow = {
@@ -34,6 +36,34 @@ type TaskRow = {
   title: string;
   due_date: string | null;
   status: string | null;
+};
+
+type Role = "admin" | "manager" | "employee" | "guest";
+
+type ProfileRow = {
+  user_id: string;
+  role: Role;
+};
+
+type ProjectRow = {
+  id: string;
+  created_by: string | null;
+};
+
+type ProjectMemberRow = {
+  project_id: string;
+  user_id: string;
+};
+
+type CalendarEventAccessRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  event_type: string | null;
+  start_date: string;
+  all_day: boolean | null;
+  project_id: string | null;
+  created_by: string | null;
 };
 
 function toYYYYMMDD(date: Date) {
@@ -85,17 +115,88 @@ export default function CalendarPage() {
     const monthEnd = format(endOfMonth(cursor), "yyyy-MM-dd");
 
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (!user) {
+        navigate("/login");
+        return;
+      }
+
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("user_id, role")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (profileError || !profileData) {
+        console.error("Load profile error:", profileError);
+        setEvents([]);
+        setTasks([]);
+        setLoadError("Failed to load calendar.");
+        return;
+      }
+
+      const currentProfile = profileData as ProfileRow;
+      const isAdmin = currentProfile.role === "admin";
+
+      let visibleProjectIds = new Set<string>();
+
+      if (isAdmin) {
+        const { data: allProjects, error: projectsError } = await supabase
+          .from("projects")
+          .select("id, created_by");
+
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        if (projectsError) {
+          console.error("Load projects error:", projectsError);
+          setEvents([]);
+          setTasks([]);
+          setLoadError("Failed to load calendar.");
+          return;
+        }
+
+        visibleProjectIds = new Set(((allProjects || []) as ProjectRow[]).map((p) => p.id));
+      } else {
+        const [{ data: createdProjects, error: createdError }, { data: memberRows, error: membersError }] =
+          await Promise.all([
+            supabase.from("projects").select("id, created_by").eq("created_by", user.id),
+            supabase.from("project_members").select("project_id, user_id").eq("user_id", user.id),
+          ]);
+
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        if (createdError || membersError) {
+          console.error("Load visible projects error:", createdError || membersError);
+          setEvents([]);
+          setTasks([]);
+          setLoadError("Failed to load calendar.");
+          return;
+        }
+
+        visibleProjectIds = new Set([
+          ...((createdProjects || []) as ProjectRow[]).map((p) => p.id),
+          ...((memberRows || []) as ProjectMemberRow[]).map((m) => m.project_id),
+        ]);
+      }
+
       const [{ data: eventsData, error: eventsError }, { data: tasksData, error: tasksError }] =
         await Promise.all([
           supabase
             .from("calendar_events")
-            .select("id, title, description, event_type, start_date, all_day")
+            .select("id, title, description, event_type, start_date, all_day, project_id, created_by")
             .gte("start_date", monthStart)
             .lte("start_date", monthEnd)
             .order("start_date", { ascending: true }),
           supabase
             .from("tasks")
-            .select("id, title, due_date, status")
+            .select("id, title, due_date, status, project_id")
             .gte("due_date", monthStart)
             .lte("due_date", monthEnd)
             .order("due_date", { ascending: true }),
@@ -111,8 +212,20 @@ export default function CalendarPage() {
         console.error("Load calendar tasks error:", tasksError);
       }
 
-      setEvents((eventsData || []) as CalendarEventRow[]);
-      setTasks((tasksData || []) as TaskRow[]);
+      const safeEvents = ((eventsData || []) as CalendarEventAccessRow[]).filter((event) => {
+        if (isAdmin) return true;
+        if (!event.project_id) return event.created_by === user.id;
+        return visibleProjectIds.has(event.project_id);
+      });
+
+      const safeTasks = ((tasksData || []) as TaskRow[]).filter((task) => {
+        if (isAdmin) return true;
+        if (!task.project_id) return false;
+        return visibleProjectIds.has(task.project_id);
+      });
+
+      setEvents(safeEvents);
+      setTasks(safeTasks);
 
       if (eventsError || tasksError) {
         setLoadError("Some calendar data could not be loaded.");

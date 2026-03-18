@@ -145,6 +145,7 @@ function clearLayoutCache() {
     // ignore cache errors
   }
 }
+
 export default function DashboardLayout({
   children,
 }: {
@@ -152,7 +153,6 @@ export default function DashboardLayout({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
-
   const cached = readLayoutCache();
 
   const [isMobile, setIsMobile] = useState(false);
@@ -171,11 +171,10 @@ export default function DashboardLayout({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
 
-
   const [calendarTodayCount, setCalendarTodayCount] = useState(0);
   const [chatUnreadCount] = useState(0);
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const unreadCount = notifications.filter((notification) => !notification.is_read).length;
 
   const loadUserRequestIdRef = useRef(0);
   const loadNotificationsRequestIdRef = useRef(0);
@@ -197,52 +196,47 @@ export default function DashboardLayout({
 
     checkMobile();
     window.addEventListener("resize", checkMobile);
+
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  const loadNotifications = async (userId: string) => {
-  const requestId = ++loadNotificationsRequestIdRef.current;
-
-  setIsLoadingNotifications(true);
-
-  try {
-    const { data, error } = await supabase
-      .from("notifications")
-      .select(
-        "id, user_id, actor_user_id, type, title, message, link, is_read, entity_type, entity_id, created_at"
-      )
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(20);
-
-    if (requestId !== loadNotificationsRequestIdRef.current) return;
-
-    if (error) {
-      console.error("Failed to load notifications:", error);
-      return;
-    }
-
-    const nextNotifications = (data || []) as NotificationRow[];
-
-    // 🔥 IMPORTANT: instant UI update
-    setNotifications(nextNotifications);
-
-    // 🔥 cache sync
-    writeLayoutCache(userProfile, nextNotifications);
-
-  } catch (error) {
-    if (requestId !== loadNotificationsRequestIdRef.current) return;
-    console.error("Load notifications error:", error);
-  } finally {
-    if (requestId !== loadNotificationsRequestIdRef.current) return;
-    setIsLoadingNotifications(false);
-  }
-};
-
-  const loadCalendarBadge = async (
+  const loadNotifications = async (
     userId: string,
-    role?: string | null
+    profileForCache?: UserProfile | null
   ) => {
+    const requestId = ++loadNotificationsRequestIdRef.current;
+    setIsLoadingNotifications(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("notifications")
+        .select(
+          "id, user_id, actor_user_id, type, title, message, link, is_read, entity_type, entity_id, created_at"
+        )
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (requestId !== loadNotificationsRequestIdRef.current) return;
+
+      if (error) {
+        console.error("Failed to load notifications:", error);
+        return;
+      }
+
+      const nextNotifications = (data || []) as NotificationRow[];
+      setNotifications(nextNotifications);
+      writeLayoutCache(profileForCache ?? userProfile, nextNotifications);
+    } catch (error) {
+      if (requestId !== loadNotificationsRequestIdRef.current) return;
+      console.error("Load notifications error:", error);
+    } finally {
+      if (requestId !== loadNotificationsRequestIdRef.current) return;
+      setIsLoadingNotifications(false);
+    }
+  };
+
+  const loadCalendarBadge = async (userId: string, role?: string | null) => {
     const requestId = ++loadCalendarBadgeRequestIdRef.current;
 
     try {
@@ -339,13 +333,13 @@ export default function DashboardLayout({
 
       if (requestId !== loadUserRequestIdRef.current) return;
 
-     if (sessionError || !session?.user) {
-  setUserProfile(null);
-  setNotifications([]);
-  setCalendarTodayCount(0);
-  clearLayoutCache();
-  return;
-}
+      if (sessionError || !session?.user) {
+        setUserProfile(null);
+        setNotifications([]);
+        setCalendarTodayCount(0);
+        clearLayoutCache();
+        return;
+      }
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
@@ -369,7 +363,10 @@ export default function DashboardLayout({
       setUserProfile(loadedUser);
       writeLayoutCache(loadedUser, notifications);
 
-      void loadCalendarBadge(session.user.id, loadedUser.role || null);
+      await Promise.all([
+        loadNotifications(session.user.id, loadedUser),
+        loadCalendarBadge(session.user.id, loadedUser.role || null),
+      ]);
     } catch (error) {
       if (requestId !== loadUserRequestIdRef.current) return;
       console.error("DashboardLayout user load error:", error);
@@ -386,12 +383,11 @@ export default function DashboardLayout({
       void loadUser();
     } else {
       setIsLoadingUser(false);
-      if (cached.userProfile?.userId) {
-        void loadCalendarBadge(
-          cached.userProfile.userId,
-          cached.userProfile.role || null
-        );
-      }
+      void loadNotifications(cached.userProfile.userId, cached.userProfile);
+      void loadCalendarBadge(
+        cached.userProfile.userId,
+        cached.userProfile.role || null
+      );
     }
 
     const {
@@ -401,12 +397,12 @@ export default function DashboardLayout({
         if (!mounted) return;
 
         if (!session?.user) {
-  setUserProfile(null);
-  setNotifications([]);
-  setCalendarTodayCount(0);
-  clearLayoutCache();
-  return;
-}
+          setUserProfile(null);
+          setNotifications([]);
+          setCalendarTodayCount(0);
+          clearLayoutCache();
+          return;
+        }
 
         void loadUser();
       }, 0);
@@ -418,53 +414,48 @@ export default function DashboardLayout({
     };
   }, []);
 
-useEffect(() => {
-  if (!userProfile?.userId) return;
+  useEffect(() => {
+    if (!userProfile?.userId) return;
 
-  const channelKey = `notifications:${userProfile.userId}`;
+    const channelKey = `notifications:${userProfile.userId}`;
 
-  registerRealtimeChannel(
-    channelKey,
-    supabase
-      .channel(channelKey)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${userProfile.userId}`,
-        },
-        () => {
-          void loadNotifications(userProfile.userId);
-          void loadCalendarBadge(userProfile.userId, userProfile.role || null);
-        }
-      )
-      .subscribe()
-  );
+    registerRealtimeChannel(
+      channelKey,
+      supabase
+        .channel(channelKey)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${userProfile.userId}`,
+          },
+          (payload) => {
+            setNotifications((prev) => {
+              let next = prev;
 
-  return () => {
-    void removeRealtimeChannel(channelKey);
-  };
-}, [userProfile?.userId, userProfile?.role]);
+              if (payload.eventType === "INSERT") {
+                next = [payload.new as NotificationRow, ...prev];
+              } else if (payload.eventType === "UPDATE") {
+                next = prev.map((notification) =>
+                  notification.id === (payload.new as NotificationRow).id
+                    ? (payload.new as NotificationRow)
+                    : notification
+                );
+              } else if (payload.eventType === "DELETE") {
+                const deletedId = (payload.old as { id?: string } | null)?.id;
+                next = prev.filter((notification) => notification.id !== deletedId);
+              }
 
-      // DELETE
-      if (payload.eventType === "DELETE") {
-        return prev.filter((n) => n.id !== payload.old.id);
-      }
+              writeLayoutCache(userProfile, next);
+              return next;
+            });
 
-      return prev;
-    });
-
-    // keep cache in sync
-    writeLayoutCache(userProfile, notifications);
-
-    // optional refresh fallback (safe)
-    void loadNotifications(userProfile.userId);
-
-    void loadCalendarBadge(userProfile.userId, userProfile.role || null);
-  }
-)
+            void loadNotifications(userProfile.userId, userProfile);
+            void loadCalendarBadge(userProfile.userId, userProfile.role || null);
+          }
+        )
         .subscribe()
     );
 
@@ -473,20 +464,30 @@ useEffect(() => {
     };
   }, [userProfile?.userId, userProfile?.role]);
 
-useEffect(() => {
-  if (notificationsOpen && userProfile?.userId) {
-    void loadNotifications(userProfile.userId);
-  }
-}, [notificationsOpen, userProfile?.userId]);
+  useEffect(() => {
+    if (notificationsOpen && userProfile?.userId) {
+      void loadNotifications(userProfile.userId, userProfile);
+    }
+  }, [notificationsOpen, userProfile?.userId]);
 
   const navItems: NavItem[] = useMemo(
     () => [
       { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
       { label: "Projects", icon: FolderKanban, href: "/projects" },
       { label: "Tasks", icon: CheckSquare, href: "/tasks" },
-      { label: "Calendar", icon: Calendar, href: "/calendar", badge: calendarTodayCount },
-      { label: "Chat", icon: MessageSquare, href: "/chat", badge: chatUnreadCount || undefined },
-      { label: "Inbox", icon: Bell, href: "/inbox", badge: unreadCount },
+      {
+        label: "Calendar",
+        icon: Calendar,
+        href: "/calendar",
+        badge: calendarTodayCount || undefined,
+      },
+      {
+        label: "Chat",
+        icon: MessageSquare,
+        href: "/chat",
+        badge: chatUnreadCount || undefined,
+      },
+      { label: "Inbox", icon: Bell, href: "/inbox", badge: unreadCount || undefined },
       { label: "Employees", icon: Users, href: "/employees" },
       { label: "Settings", icon: Settings, href: "/settings" },
     ],
@@ -507,7 +508,7 @@ useEffect(() => {
   const userInitials =
     userProfile?.fullName
       ?.split(" ")
-      .map((n) => n[0])
+      .map((name) => name[0])
       .join("")
       .toUpperCase() || "U";
 
@@ -557,25 +558,25 @@ useEffect(() => {
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       <div className="relative flex items-center justify-center border-b border-slate-800 px-4 py-5">
-  <img
-    src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
-    alt="AiXia Logo"
-    className="h-40 w-auto object-contain"
-  />
+        <img
+          src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
+          alt="AiXia Logo"
+          className="h-40 w-auto object-contain"
+        />
 
-  {isMobile && (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={() => setMobileMenuOpen(false)}
-      className="absolute right-3 top-3"
-    >
-      <X className="w-5 h-5 text-slate-400" />
-    </Button>
-  )}
-</div>
+        {isMobile && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setMobileMenuOpen(false)}
+            className="absolute right-3 top-3"
+          >
+            <X className="w-5 h-5 text-slate-400" />
+          </Button>
+        )}
+      </div>
 
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 space-y-1 overflow-y-auto p-4">
         <TooltipProvider delayDuration={0}>
           {navItems.map((item) => (
             <Tooltip key={item.href}>
@@ -585,22 +586,27 @@ useEffect(() => {
                     navigate(item.href);
                     if (isMobile) setMobileMenuOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
+                  className={`w-full rounded-lg px-3 py-2.5 transition-all duration-200 ${
                     isActive(item.href)
-                      ? "bg-indigo-600/20 text-indigo-400 border border-indigo-500/30"
-                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50"
-                  }`}
+                      ? "border border-indigo-500/30 bg-indigo-600/20 text-indigo-400"
+                      : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
+                  } flex items-center gap-3`}
                 >
                   <item.icon
-                    className={`w-5 h-5 ${isActive(item.href) ? "text-indigo-400" : ""}`}
+                    className={`h-5 w-5 ${isActive(item.href) ? "text-indigo-400" : ""}`}
                   />
                   <span className="flex-1 text-left">{item.label}</span>
+
                   {item.badge ? (
                     <Badge
                       variant="default"
-                      className="bg-indigo-600 text-white text-xs"
+                      className={
+                        item.href === "/inbox"
+                          ? "bg-red-600 text-white text-xs"
+                          : "bg-indigo-600 text-white text-xs"
+                      }
                     >
-                      {item.badge}
+                      {item.badge > 99 ? "99+" : item.badge}
                     </Badge>
                   ) : null}
                 </button>
@@ -616,21 +622,21 @@ useEffect(() => {
         </TooltipProvider>
       </nav>
 
-      <div className="p-4 border-t border-slate-800">
+      <div className="border-t border-slate-800 p-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-800/50 transition-colors">
-              <Avatar className="w-8 h-8">
-                <AvatarFallback className="bg-indigo-600 text-white text-sm">
+            <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-slate-800/50">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="bg-indigo-600 text-sm text-white">
                   {userInitials}
                 </AvatarFallback>
               </Avatar>
 
-              <div className="flex-1 text-left overflow-hidden">
-                <p className="text-sm font-medium text-slate-200 truncate">
+              <div className="flex-1 overflow-hidden text-left">
+                <p className="truncate text-sm font-medium text-slate-200">
                   {isLoadingUser ? "Loading..." : userProfile?.fullName || "User"}
                 </p>
-                <p className="text-xs text-slate-500 truncate">
+                <p className="truncate text-xs text-slate-500">
                   {userProfile?.email || ""}
                 </p>
               </div>
@@ -639,24 +645,22 @@ useEffect(() => {
 
           <DropdownMenuContent
             align="end"
-            className="w-56 bg-slate-900 border-slate-800"
+            className="w-56 border-slate-800 bg-slate-900"
           >
-            <DropdownMenuLabel className="text-slate-400">
-              My Account
-            </DropdownMenuLabel>
+            <DropdownMenuLabel className="text-slate-400">My Account</DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-slate-800" />
             <DropdownMenuItem
               onClick={() => navigate("/settings")}
               className="text-slate-300 focus:bg-slate-800 focus:text-slate-100"
             >
-              <Settings className="w-4 h-4 mr-2" />
+              <Settings className="mr-2 h-4 w-4" />
               Settings
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={handleLogout}
               className="text-red-400 focus:bg-slate-800 focus:text-red-400"
             >
-              <LogOut className="w-4 h-4 mr-2" />
+              <LogOut className="mr-2 h-4 w-4" />
               Logout
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -666,41 +670,52 @@ useEffect(() => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 flex">
+    <div className="flex min-h-screen bg-slate-950">
       {!isMobile && (
         <aside
-          className={`fixed left-0 top-0 h-full bg-slate-900/95 backdrop-blur-xl border-r border-slate-800 z-40 transition-all duration-300 ${
+          className={`fixed left-0 top-0 z-40 h-full border-r border-slate-800 bg-slate-900/95 backdrop-blur-xl transition-all duration-300 ${
             sidebarOpen ? "w-64" : "w-16"
           }`}
         >
-{sidebarOpen ? (
-  <SidebarContent />
-) : (
-  <div className="flex flex-col h-full">
-    <div className="p-4 border-b border-slate-800 flex justify-center">
-  <img
-    src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
-    alt="AiXia Logo"
-    className="h-8 w-auto object-contain"
-  />
-</div>
+          {sidebarOpen ? (
+            <SidebarContent />
+          ) : (
+            <div className="flex h-full flex-col">
+              <div className="flex justify-center border-b border-slate-800 p-4">
+                <img
+                  src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
+                  alt="AiXia Logo"
+                  className="h-8 w-auto object-contain"
+                />
+              </div>
 
-              <nav className="flex-1 p-2 space-y-1">
+              <nav className="flex-1 space-y-1 p-2">
                 <TooltipProvider delayDuration={0}>
                   {navItems.map((item) => (
                     <Tooltip key={item.href}>
                       <TooltipTrigger asChild>
                         <button
                           onClick={() => navigate(item.href)}
-                          className={`w-full flex items-center justify-center p-2.5 rounded-lg transition-all duration-200 ${
+                          className={`relative flex w-full items-center justify-center rounded-lg p-2.5 transition-all duration-200 ${
                             isActive(item.href)
                               ? "bg-indigo-600/20 text-indigo-400"
-                              : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50"
+                              : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
                           }`}
                         >
-                          <item.icon className="w-5 h-5" />
+                          <item.icon className="h-5 w-5" />
+
+                          {item.badge ? (
+                            <span
+                              className={`absolute -right-0.5 -top-0.5 min-w-[16px] rounded-full px-1 text-[10px] text-white ${
+                                item.href === "/inbox" ? "bg-red-600" : "bg-indigo-600"
+                              }`}
+                            >
+                              {item.badge > 99 ? "99+" : item.badge}
+                            </span>
+                          ) : null}
                         </button>
                       </TooltipTrigger>
+
                       <TooltipContent side="right">
                         <p>{item.label}</p>
                       </TooltipContent>
@@ -709,12 +724,12 @@ useEffect(() => {
                 </TooltipProvider>
               </nav>
 
-              <div className="p-2 border-t border-slate-800">
+              <div className="border-t border-slate-800 p-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="w-full flex justify-center p-2 rounded-lg hover:bg-slate-800/50 transition-colors">
-                      <Avatar className="w-8 h-8">
-                        <AvatarFallback className="bg-indigo-600 text-white text-sm">
+                    <button className="flex w-full justify-center rounded-lg p-2 transition-colors hover:bg-slate-800/50">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-indigo-600 text-sm text-white">
                           {userInitials}
                         </AvatarFallback>
                       </Avatar>
@@ -723,7 +738,7 @@ useEffect(() => {
 
                   <DropdownMenuContent
                     align="end"
-                    className="w-56 bg-slate-900 border-slate-800"
+                    className="w-56 border-slate-800 bg-slate-900"
                   >
                     <DropdownMenuLabel className="text-slate-400">
                       {userProfile?.fullName || "User"}
@@ -733,14 +748,14 @@ useEffect(() => {
                       onClick={() => navigate("/settings")}
                       className="text-slate-300 focus:bg-slate-800"
                     >
-                      <Settings className="w-4 h-4 mr-2" />
+                      <Settings className="mr-2 h-4 w-4" />
                       Settings
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={handleLogout}
                       className="text-red-400 focus:bg-slate-800"
                     >
-                      <LogOut className="w-4 h-4 mr-2" />
+                      <LogOut className="mr-2 h-4 w-4" />
                       Logout
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -754,10 +769,10 @@ useEffect(() => {
       {isMobile && mobileMenuOpen && (
         <>
           <div
-            className="fixed inset-0 bg-black/50 z-40"
+            className="fixed inset-0 z-40 bg-black/50"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <aside className="fixed left-0 top-0 h-full w-64 bg-slate-900/95 backdrop-blur-xl border-r border-slate-800 z-50">
+          <aside className="fixed left-0 top-0 z-50 h-full w-64 border-r border-slate-800 bg-slate-900/95 backdrop-blur-xl">
             <SidebarContent />
           </aside>
         </>
@@ -765,10 +780,10 @@ useEffect(() => {
 
       <main
         className={`flex-1 transition-all duration-300 ${
-       !isMobile && sidebarOpen ? "ml-64" : !isMobile ? "ml-16" : ""
+          !isMobile && sidebarOpen ? "ml-64" : !isMobile ? "ml-16" : ""
         }`}
       >
-        <header className="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800">
+        <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-950/80 backdrop-blur-xl">
           <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-4">
               {isMobile && (
@@ -777,7 +792,7 @@ useEffect(() => {
                   size="icon"
                   onClick={() => setMobileMenuOpen(true)}
                 >
-                  <Menu className="w-5 h-5 text-slate-400" />
+                  <Menu className="h-5 w-5 text-slate-400" />
                 </Button>
               )}
 
@@ -788,35 +803,32 @@ useEffect(() => {
                   onClick={() => setSidebarOpen((prev) => !prev)}
                 >
                   {sidebarOpen ? (
-                    <ChevronLeft className="w-5 h-5 text-slate-400" />
+                    <ChevronLeft className="h-5 w-5 text-slate-400" />
                   ) : (
-                    <ChevronRight className="w-5 h-5 text-slate-400" />
+                    <ChevronRight className="h-5 w-5 text-slate-400" />
                   )}
                 </Button>
               )}
 
               <div className="relative hidden sm:block">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                 <Input
                   type="text"
                   placeholder="Search..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 w-64 bg-slate-900 border-slate-800 text-slate-200 placeholder:text-slate-500"
+                  className="w-64 border-slate-800 bg-slate-900 pl-10 text-slate-200 placeholder:text-slate-500"
                 />
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <DropdownMenu
-                open={notificationsOpen}
-                onOpenChange={setNotificationsOpen}
-              >
+              <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="relative">
-                    <Bell className="w-5 h-5 text-slate-400" />
+                    <Bell className="h-5 w-5 text-slate-400" />
                     {unreadCount > 0 && (
-                      <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-indigo-600 rounded-full text-[10px] flex items-center justify-center text-white">
+                      <span className="absolute right-1 top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] text-white">
                         {unreadCount > 9 ? "9+" : unreadCount}
                       </span>
                     )}
@@ -825,7 +837,7 @@ useEffect(() => {
 
                 <DropdownMenuContent
                   align="end"
-                  className="w-96 bg-slate-900 border-slate-800 p-0"
+                  className="w-96 border-slate-800 bg-slate-900 p-0"
                 >
                   <div className="flex items-center justify-between px-4 py-3">
                     <DropdownMenuLabel className="p-0 text-slate-200">
@@ -858,37 +870,34 @@ useEffect(() => {
                         <DropdownMenuItem
                           key={notification.id}
                           onClick={() => handleNotificationClick(notification)}
-                          className="flex flex-col items-start gap-1 px-4 py-3 cursor-pointer focus:bg-slate-800"
+                          className="flex cursor-pointer flex-col items-start gap-1 px-4 py-3 focus:bg-slate-800"
                         >
-                          <div className="flex items-start justify-between w-full gap-3">
+                          <div className="flex w-full items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p
-                                className={`text-sm truncate ${
+                                className={`truncate text-sm ${
                                   notification.is_read
                                     ? "text-slate-300"
-                                    : "text-white font-medium"
+                                    : "font-medium text-white"
                                 }`}
                               >
                                 {notification.title}
                               </p>
 
                               {notification.message && (
-                                <p className="text-xs text-slate-500 line-clamp-2">
+                                <p className="line-clamp-2 text-xs text-slate-500">
                                   {notification.message}
                                 </p>
                               )}
                             </div>
 
                             {!notification.is_read && (
-                              <span className="mt-1 w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0" />
+                              <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-indigo-500" />
                             )}
                           </div>
 
                           <p className="text-[11px] text-slate-600">
-                            {format(
-                              new Date(notification.created_at),
-                              "MMM d, h:mm a"
-                            )}
+                            {format(new Date(notification.created_at), "MMM d, h:mm a")}
                           </p>
                         </DropdownMenuItem>
                       ))

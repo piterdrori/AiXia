@@ -322,7 +322,7 @@ export default function EmployeesPage() {
   const [inviteSuccess, setInviteSuccess] = useState("");
   const [isSendingInvite, setIsSendingInvite] = useState(false);
   const canManageUsers = currentUserRole === "admin";
-  const handleSendInvite = async () => {
+const handleSendInvite = async () => {
   if (isSendingInvite) return;
 
   setInviteError("");
@@ -379,31 +379,36 @@ export default function EmployeesPage() {
     setInviteRole("employee");
     setInviteMemberType("");
     void loadProfiles("refresh");
-    
   } catch (err) {
-  console.error("Invite member error:", err);
+    console.error("Invite member error:", err);
 
-  let message = "Failed to send invite.";
+    let message = "Failed to send invite.";
 
-  if (typeof err === "object" && err !== null) {
-    const anyErr = err as any;
+    if (typeof err === "object" && err !== null) {
+      const anyErr = err as {
+        message?: string;
+        context?: { json?: () => Promise<any> };
+      };
 
-    if (anyErr.context && typeof anyErr.context.json === "function") {
-      try {
-        const data = await anyErr.context.json();
-        if (data?.error) {
-          message = data.error;
+      if (anyErr.context && typeof anyErr.context.json === "function") {
+        try {
+          const data = await anyErr.context.json();
+          if (data?.error) {
+            message = data.error;
+          }
+        } catch (parseError) {
+          console.error("Failed to parse function error response:", parseError);
         }
-      } catch (e) {
-        console.error("Error parsing response:", e);
+      } else if (typeof anyErr.message === "string" && anyErr.message) {
+        message = anyErr.message;
       }
-    } else if (err instanceof Error) {
-      message = err.message;
     }
-  }
 
-  setInviteError(message);
-} finally {
+    setInviteError(message);
+  } finally {
+    setIsSendingInvite(false);
+  }
+};
   
   const availableMemberTypeOptions = useMemo(() => {
     if (roleFilter === "all" || roleFilter === "admin") {

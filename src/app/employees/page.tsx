@@ -355,7 +355,7 @@ const handleSendInvite = async () => {
   setIsSendingInvite(true);
 
   try {
-        const {
+    const {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser();
@@ -369,12 +369,6 @@ const handleSendInvite = async () => {
 
     if (!accessToken) {
       throw new Error("No valid session token found.");
-    }
-
-    const accessToken = session?.access_token;
-
-    if (!accessToken) {
-      throw new Error("You must be logged in to send an invite.");
     }
 
     const response = await fetch(
@@ -411,6 +405,7 @@ const handleSendInvite = async () => {
     setInviteRole("employee");
     setInviteMemberType("");
     void loadProfiles("refresh");
+    
   } catch (err) {
     console.error("Invite member error:", err);
 

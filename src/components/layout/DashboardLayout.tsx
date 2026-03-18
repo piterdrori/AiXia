@@ -170,9 +170,7 @@ export default function DashboardLayout({
   );
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
-  const [hasLoadedNotifications, setHasLoadedNotifications] = useState(
-    Boolean(cached?.notifications)
-  );
+
 
   const [calendarTodayCount, setCalendarTodayCount] = useState(0);
   const [chatUnreadCount] = useState(0);
@@ -202,7 +200,7 @@ export default function DashboardLayout({
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  const loadNotifications = async (userId: string, force = false) => {
+  const loadNotifications = async (userId: string) => {
   const requestId = ++loadNotificationsRequestIdRef.current;
 
   setIsLoadingNotifications(true);
@@ -232,7 +230,6 @@ export default function DashboardLayout({
     // 🔥 cache sync
     writeLayoutCache(userProfile, nextNotifications);
 
-    setHasLoadedNotifications(true);
   } catch (error) {
     if (requestId !== loadNotificationsRequestIdRef.current) return;
     console.error("Load notifications error:", error);
@@ -466,7 +463,7 @@ export default function DashboardLayout({
     writeLayoutCache(userProfile, notifications);
 
     // optional refresh fallback (safe)
-    void loadNotifications(userProfile.userId, true);
+    void loadNotifications(userId)
 
     void loadCalendarBadge(userProfile.userId, userProfile.role || null);
   }
@@ -481,7 +478,7 @@ export default function DashboardLayout({
 
   useEffect(() => {
     if (notificationsOpen && userProfile?.userId) {
-      void loadNotifications(userProfile.userId, true);
+      void loadNotifications(userId)
     }
   }, [notificationsOpen, userProfile?.userId]);
 

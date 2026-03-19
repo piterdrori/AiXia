@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { useLanguage } from "@/lib/i18n";
 import { registerRealtimeChannel, removeRealtimeChannel } from "@/lib/realtime";
 import {
   markAllNotificationsRead,
@@ -154,6 +155,7 @@ export default function DashboardLayout({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useLanguage();
   const cached = readLayoutCache();
 
   const [isMobile, setIsMobile] = useState(false);
@@ -474,26 +476,51 @@ export default function DashboardLayout({
 
   const navItems: NavItem[] = useMemo(
     () => [
-      { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
-      { label: "Projects", icon: FolderKanban, href: "/projects" },
-      { label: "Tasks", icon: CheckSquare, href: "/tasks" },
       {
-        label: "Calendar",
+        label: t("common.dashboard", "Dashboard"),
+        icon: LayoutDashboard,
+        href: "/dashboard",
+      },
+      {
+        label: t("common.projects", "Projects"),
+        icon: FolderKanban,
+        href: "/projects",
+      },
+      {
+        label: t("common.tasks", "Tasks"),
+        icon: CheckSquare,
+        href: "/tasks",
+      },
+      {
+        label: t("common.calendar", "Calendar"),
         icon: Calendar,
         href: "/calendar",
         badge: calendarTodayCount || undefined,
       },
       {
-        label: "Chat",
+        label: t("common.chat", "Chat"),
         icon: MessageSquare,
         href: "/chat",
         badge: chatUnreadCount || undefined,
       },
-      { label: "Inbox", icon: Bell, href: "/inbox", badge: unreadCount || undefined },
-      { label: "Employees", icon: Users, href: "/employees" },
-      { label: "Settings", icon: Settings, href: "/settings" },
+      {
+        label: t("common.inbox", "Inbox"),
+        icon: Bell,
+        href: "/inbox",
+        badge: unreadCount || undefined,
+      },
+      {
+        label: t("common.employees", "Employees"),
+        icon: Users,
+        href: "/employees",
+      },
+      {
+        label: t("common.settings", {t("common.settings", "Settings")}),
+        icon: Settings,
+        href: "/settings",
+      },
     ],
-    [calendarTodayCount, chatUnreadCount, unreadCount]
+    [calendarTodayCount, chatUnreadCount, unreadCount, t]
   );
 
   const handleLogout = async () => {
@@ -637,7 +664,9 @@ export default function DashboardLayout({
 
               <div className="flex-1 overflow-hidden text-left">
                 <p className="truncate text-sm font-medium text-foreground">
-                  {isLoadingUser ? "Loading..." : userProfile?.fullName || "User"}
+                  {isLoadingUser
+  ? t("common.loading", "Loading...")
+  : userProfile?.fullName || t("common.user", "User")}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
                   {userProfile?.email || ""}
@@ -650,7 +679,9 @@ export default function DashboardLayout({
             align="end"
             className="w-56 border-border bg-popover"
           >
-            <DropdownMenuLabel className="text-muted-foreground">My Account</DropdownMenuLabel>
+           <DropdownMenuLabel className="text-muted-foreground">
+  {t("common.myAccount", "My Account")}
+</DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-border" />
             <DropdownMenuItem
               onClick={() => navigate("/settings")}
@@ -746,7 +777,7 @@ export default function DashboardLayout({
                     className="w-56 border-border bg-popover"
                   >
                     <DropdownMenuLabel className="text-muted-foreground">
-                      {userProfile?.fullName || "User"}
+                      {userProfile?.fullName || t("common.user", "User")}
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator className="bg-border" />
                     <DropdownMenuItem
@@ -819,7 +850,7 @@ export default function DashboardLayout({
                                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="text"
-                  placeholder="Search..."
+                  placeholder={t("common.searchPlaceholder", "Search...")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-64 border-border bg-card pl-10 text-foreground placeholder:text-muted-foreground"

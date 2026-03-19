@@ -387,13 +387,25 @@ export default function SettingsPage() {
     });
   };
 
-  const handleSaveAppearance = async () => {
+    const handleSaveAppearance = async () => {
     await updateProfile("appearance", {
       theme,
       accent_color: accentColor,
       font_size: fontSize,
       compact_mode: compactMode,
     });
+
+    const root = document.documentElement;
+
+    root.setAttribute("data-theme", theme || "dark");
+    root.setAttribute("data-accent", accentColor || "indigo");
+    root.setAttribute("data-font-size", fontSize || "medium");
+
+    if (compactMode) {
+      root.classList.add("compact");
+    } else {
+      root.classList.remove("compact");
+    }
   };
 
   const handleProfilePhotoUpload = async (

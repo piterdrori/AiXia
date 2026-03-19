@@ -599,6 +599,63 @@ function AppRoutes() {
 }
 
 function App() {
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+  useEffect(() => {
+    const applyUserSettings = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        const root = document.documentElement;
+
+        // default values before login or if profile settings are missing
+        root.setAttribute("data-theme", "dark");
+        root.setAttribute("data-accent", "indigo");
+        root.setAttribute("data-font-size", "medium");
+        root.classList.remove("compact");
+
+        if (!session?.user) {
+          setSettingsLoaded(true);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("theme, accent_color, font_size, compact_mode")
+          .eq("user_id", session.user.id)
+          .single();
+
+        if (error) {
+          console.error("Failed to load appearance settings:", error);
+          setSettingsLoaded(true);
+          return;
+        }
+
+        root.setAttribute("data-theme", data?.theme || "dark");
+        root.setAttribute("data-accent", data?.accent_color || "indigo");
+        root.setAttribute("data-font-size", data?.font_size || "medium");
+
+        if (data?.compact_mode) {
+          root.classList.add("compact");
+        } else {
+          root.classList.remove("compact");
+        }
+      } catch (error) {
+        console.error("Failed to apply user settings:", error);
+      } finally {
+        setSettingsLoaded(true);
+      }
+    };
+
+    void applyUserSettings();
+  }, []);
+
+  if (!settingsLoaded) {
+    return <FullScreenLoader />;
+  }
+
   return (
     <Router>
       <AuthAccessProvider>

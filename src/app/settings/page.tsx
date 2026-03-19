@@ -373,7 +373,7 @@ export default function SettingsPage() {
     });
   };
 
-    const handleSaveAccount = async () => {
+  const handleSaveAccount = async () => {
     await updateProfile("account", {
       language,
       timezone,
@@ -396,7 +396,7 @@ export default function SettingsPage() {
     });
   };
 
-    const handleSaveAppearance = async () => {
+  const handleSaveAppearance = async () => {
     await updateProfile("appearance", {
       theme,
       accent_color: accentColor,
@@ -461,21 +461,21 @@ export default function SettingsPage() {
 
   const SkeletonBlock = () => (
     <div className="space-y-6 animate-pulse">
-      <div className="h-10 bg-slate-800 rounded-lg" />
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="h-10 bg-slate-800 rounded-lg" />
-        <div className="h-10 bg-slate-800 rounded-lg" />
-        <div className="h-10 bg-slate-800 rounded-lg" />
-        <div className="h-10 bg-slate-800 rounded-lg" />
+      <div className="h-10 rounded-lg bg-slate-800" />
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="h-10 rounded-lg bg-slate-800" />
+        <div className="h-10 rounded-lg bg-slate-800" />
+        <div className="h-10 rounded-lg bg-slate-800" />
+        <div className="h-10 rounded-lg bg-slate-800" />
       </div>
-      <div className="h-28 bg-slate-800 rounded-lg" />
-      <div className="h-10 bg-slate-800 rounded-lg w-40" />
+      <div className="h-28 rounded-lg bg-slate-800" />
+      <div className="h-10 w-40 rounded-lg bg-slate-800" />
     </div>
   );
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Settings</h1>
           <p className="text-slate-400">
@@ -494,70 +494,75 @@ export default function SettingsPage() {
       </div>
 
       {saved && (
-        <Alert className="bg-green-900/20 border-green-800 text-green-400">
+        <Alert className="border-green-800 bg-green-900/20 text-green-400">
           <AlertDescription>Settings saved successfully.</AlertDescription>
         </Alert>
       )}
 
       {saveError && (
-        <Alert className="bg-red-900/20 border-red-800 text-red-400">
+        <Alert className="border-red-800 bg-red-900/20 text-red-400">
           <AlertDescription>{saveError}</AlertDescription>
         </Alert>
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto">
+        <TabsList className="h-auto flex-wrap border border-slate-800 bg-slate-900">
           <TabsTrigger
             value="profile"
             className="data-[state=active]:bg-slate-800"
           >
-            <User className="w-4 h-4 mr-2" />
+            <User className="mr-2 h-4 w-4" />
             Profile
           </TabsTrigger>
+
           <TabsTrigger
             value="account"
             className="data-[state=active]:bg-slate-800"
           >
-            <Mail className="w-4 h-4 mr-2" />
+            <Mail className="mr-2 h-4 w-4" />
             Account
           </TabsTrigger>
+
           <TabsTrigger
             value="notifications"
             className="data-[state=active]:bg-slate-800"
           >
-            <Bell className="w-4 h-4 mr-2" />
+            <Bell className="mr-2 h-4 w-4" />
             Notifications
           </TabsTrigger>
+
           <TabsTrigger
             value="appearance"
             className="data-[state=active]:bg-slate-800"
           >
-            <Palette className="w-4 h-4 mr-2" />
+            <Palette className="mr-2 h-4 w-4" />
             Appearance
           </TabsTrigger>
+
           <TabsTrigger
             value="security"
             className="data-[state=active]:bg-slate-800"
           >
-            <Shield className="w-4 h-4 mr-2" />
+            <Shield className="mr-2 h-4 w-4" />
             Security
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile" className="space-y-6">
-          <Card className="bg-slate-900/50 border-slate-800">
+          <Card className="border-slate-800 bg-slate-900/50">
             <CardHeader>
               <CardTitle className="text-white">Profile Information</CardTitle>
             </CardHeader>
+
             <CardContent className="space-y-6">
               {isBootstrapping ? (
                 <SkeletonBlock />
               ) : (
                 <>
                   <div className="flex items-center gap-4">
-                    <Avatar className="w-20 h-20">
+                    <Avatar className="h-20 w-20">
                       <AvatarImage src={avatarUrl || undefined} />
-                      <AvatarFallback className="bg-indigo-600 text-white text-2xl">
+                      <AvatarFallback className="bg-indigo-600 text-2xl text-white">
                         {initials}
                       </AvatarFallback>
                     </Avatar>
@@ -565,7 +570,7 @@ export default function SettingsPage() {
                     <div className="flex-1 space-y-3">
                       <Label className="text-slate-300">Profile Photo</Label>
 
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Button
                           type="button"
                           variant="outline"
@@ -573,7 +578,7 @@ export default function SettingsPage() {
                           onClick={() => profilePhotoInputRef.current?.click()}
                           disabled={isUploadingPhoto || isSavingProfile}
                         >
-                          <Upload className="w-4 h-4 mr-2" />
+                          <Upload className="mr-2 h-4 w-4" />
                           {isUploadingPhoto ? "Uploading..." : "Upload Photo"}
                         </Button>
 
@@ -585,14 +590,14 @@ export default function SettingsPage() {
                             onClick={() => setAvatarUrl("")}
                             disabled={isUploadingPhoto || isSavingProfile}
                           >
-                            <Trash2 className="w-4 h-4 mr-2" />
+                            <Trash2 className="mr-2 h-4 w-4" />
                             Remove Photo
                           </Button>
                         )}
                       </div>
 
                       {avatarUrl ? (
-                        <div className="text-xs text-slate-500 break-all">
+                        <div className="break-all text-xs text-slate-500">
                           {avatarUrl}
                         </div>
                       ) : (
@@ -611,7 +616,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-4">
+                  <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="fullName" className="text-slate-300">
                         Full Name
@@ -620,7 +625,7 @@ export default function SettingsPage() {
                         id="fullName"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
-                        className="bg-slate-950 border-slate-800 text-white"
+                        className="border-slate-800 bg-slate-950 text-white"
                       />
                     </div>
 
@@ -632,7 +637,7 @@ export default function SettingsPage() {
                         id="displayName"
                         value={displayName}
                         onChange={(e) => setDisplayName(e.target.value)}
-                        className="bg-slate-950 border-slate-800 text-white"
+                        className="border-slate-800 bg-slate-950 text-white"
                       />
                     </div>
 
@@ -644,7 +649,7 @@ export default function SettingsPage() {
                         id="phone"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        className="bg-slate-950 border-slate-800 text-white"
+                        className="border-slate-800 bg-slate-950 text-white"
                       />
                     </div>
 
@@ -656,7 +661,7 @@ export default function SettingsPage() {
                         id="country"
                         value={country}
                         onChange={(e) => setCountry(e.target.value)}
-                        className="bg-slate-950 border-slate-800 text-white"
+                        className="border-slate-800 bg-slate-950 text-white"
                       />
                     </div>
 
@@ -668,7 +673,7 @@ export default function SettingsPage() {
                         id="city"
                         value={city}
                         onChange={(e) => setCity(e.target.value)}
-                        className="bg-slate-950 border-slate-800 text-white"
+                        className="border-slate-800 bg-slate-950 text-white"
                       />
                     </div>
 
@@ -683,7 +688,7 @@ export default function SettingsPage() {
                         id="shippingAddress"
                         value={shippingAddress}
                         onChange={(e) => setShippingAddress(e.target.value)}
-                        className="bg-slate-950 border-slate-800 text-white"
+                        className="border-slate-800 bg-slate-950 text-white"
                       />
                     </div>
 
@@ -695,7 +700,7 @@ export default function SettingsPage() {
                         id="company"
                         value={company}
                         onChange={(e) => setCompany(e.target.value)}
-                        className="bg-slate-950 border-slate-800 text-white"
+                        className="border-slate-800 bg-slate-950 text-white"
                       />
                     </div>
 
@@ -704,7 +709,7 @@ export default function SettingsPage() {
                       <Input
                         value={getRoleLabel(requestedRole || role)}
                         disabled
-                        className="bg-slate-950 border-slate-800 text-slate-400"
+                        className="border-slate-800 bg-slate-950 text-slate-400"
                       />
                     </div>
 
@@ -717,10 +722,10 @@ export default function SettingsPage() {
                         }
                         disabled={effectiveRoleForMemberType === "admin"}
                       >
-                        <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                        <SelectTrigger className="border-slate-800 bg-slate-950 text-white">
                           <SelectValue placeholder="Select member type" />
                         </SelectTrigger>
-                        <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                        <SelectContent className="border-slate-800 bg-slate-950 text-white">
                           {availableMemberTypes.map((option) => (
                             <SelectItem key={option.value} value={option.value}>
                               {option.label}
@@ -738,7 +743,7 @@ export default function SettingsPage() {
                         id="jobTitle"
                         value={jobTitle}
                         onChange={(e) => setJobTitle(e.target.value)}
-                        className="bg-slate-950 border-slate-800 text-white"
+                        className="border-slate-800 bg-slate-950 text-white"
                       />
                     </div>
 
@@ -750,7 +755,7 @@ export default function SettingsPage() {
                         id="whatsapp"
                         value={whatsapp}
                         onChange={(e) => setWhatsapp(e.target.value)}
-                        className="bg-slate-950 border-slate-800 text-white"
+                        className="border-slate-800 bg-slate-950 text-white"
                       />
                     </div>
 
@@ -762,7 +767,7 @@ export default function SettingsPage() {
                         id="wechat"
                         value={wechat}
                         onChange={(e) => setWechat(e.target.value)}
-                        className="bg-slate-950 border-slate-800 text-white"
+                        className="border-slate-800 bg-slate-950 text-white"
                       />
                     </div>
                   </div>
@@ -777,7 +782,7 @@ export default function SettingsPage() {
                       onChange={(e) => setBio(e.target.value)}
                       placeholder="Tell us about yourself..."
                       rows={4}
-                      className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 resize-none"
+                      className="resize-none border-slate-800 bg-slate-950 text-white placeholder:text-slate-600"
                     />
                   </div>
 
@@ -789,10 +794,10 @@ export default function SettingsPage() {
                         setProfileCompleted(value === "completed")
                       }
                     >
-                      <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                      <SelectTrigger className="border-slate-800 bg-slate-950 text-white">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                      <SelectContent className="border-slate-800 bg-slate-950 text-white">
                         <SelectItem value="completed">Completed</SelectItem>
                         <SelectItem value="incomplete">Incomplete</SelectItem>
                       </SelectContent>
@@ -801,10 +806,10 @@ export default function SettingsPage() {
 
                   <Button
                     onClick={() => void handleSaveProfile()}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    className="bg-indigo-600 text-white hover:bg-indigo-700"
                     disabled={isSavingProfile || isUploadingPhoto}
                   >
-                    <Save className="w-4 h-4 mr-2" />
+                    <Save className="mr-2 h-4 w-4" />
                     {isSavingProfile ? "Saving..." : "Save Profile"}
                   </Button>
                 </>
@@ -814,12 +819,13 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="account" className="space-y-6">
-          <Card className="bg-slate-900/50 border-slate-800">
+          <Card className="border-slate-800 bg-slate-900/50">
             <CardHeader>
               <CardTitle className="text-white">
                 {t("settings.accountSettings", "Account Settings")}
-                  </CardTitle>
+              </CardTitle>
             </CardHeader>
+
             <CardContent className="space-y-6">
               {isBootstrapping ? (
                 <SkeletonBlock />
@@ -827,31 +833,35 @@ export default function SettingsPage() {
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="email" className="text-slate-300">
-                    {t("settings.emailAddress", "Email Address")}
-                      </Label>
+                      {t("settings.emailAddress", "Email Address")}
+                    </Label>
                     <Input
                       id="email"
                       type="email"
                       value={authEmail}
                       disabled
-                      className="bg-slate-950 border-slate-800 text-slate-400"
+                      className="border-slate-800 bg-slate-950 text-slate-400"
                     />
-                    <p className="text-slate-500 text-sm">
-                     {t("settings.authManagedEmail", "Email is managed by authentication settings.")}
-                          </p>
+                    <p className="text-sm text-slate-500">
+                      {t(
+                        "settings.authManagedEmail",
+                        "Email is managed by authentication settings."
+                      )}
+                    </p>
+                  </div>
 
                   <Separator className="bg-slate-800" />
 
-                  <div className="grid md:grid-cols-3 gap-4">
+                  <div className="grid gap-4 md:grid-cols-3">
                     <div className="space-y-2">
                       <Label className="text-slate-300">
-                       {t("common.language", "Language")}
-                         </Label>
+                        {t("common.language", "Language")}
+                      </Label>
                       <Select value={language} onValueChange={setLanguage}>
-                        <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                        <SelectTrigger className="border-slate-800 bg-slate-950 text-white">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                        <SelectContent className="border-slate-800 bg-slate-950 text-white">
                           <SelectItem value="en">English</SelectItem>
                           <SelectItem value="zh">Chinese</SelectItem>
                           <SelectItem value="ru">Russian</SelectItem>
@@ -859,15 +869,15 @@ export default function SettingsPage() {
                       </Select>
                     </div>
 
-                                        <div className="space-y-2">
+                    <div className="space-y-2">
                       <Label className="text-slate-300">
-                       {t("settings.timezone", "Timezone")}
-                         </Label>
+                        {t("settings.timezone", "Timezone")}
+                      </Label>
                       <Select value={timezone} onValueChange={setTimezone}>
-                        <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                        <SelectTrigger className="border-slate-800 bg-slate-950 text-white">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                        <SelectContent className="border-slate-800 bg-slate-950 text-white">
                           <SelectItem value="UTC">UTC</SelectItem>
                           <SelectItem value="Asia/Shanghai">
                             Asia/Shanghai
@@ -884,13 +894,13 @@ export default function SettingsPage() {
 
                     <div className="space-y-2">
                       <Label className="text-slate-300">
-                       {t("settings.dateFormat", "Date Format")}
-                         </Label>
+                        {t("settings.dateFormat", "Date Format")}
+                      </Label>
                       <Select value={dateFormat} onValueChange={setDateFormat}>
-                        <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                        <SelectTrigger className="border-slate-800 bg-slate-950 text-white">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                        <SelectContent className="border-slate-800 bg-slate-950 text-white">
                           <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
                           <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
                           <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
@@ -901,13 +911,13 @@ export default function SettingsPage() {
 
                   <Button
                     onClick={() => void handleSaveAccount()}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    className="bg-indigo-600 text-white hover:bg-indigo-700"
                     disabled={isSavingAccount}
                   >
-                    <Save className="w-4 h-4 mr-2" />
+                    <Save className="mr-2 h-4 w-4" />
                     {isSavingAccount
-                     ? t("settings.saveAccountSaving", "Saving...")
-                     : t("settings.saveAccount", "Save Account")}
+                      ? t("settings.saveAccountSaving", "Saving...")
+                      : t("settings.saveAccount", "Save Account")}
                   </Button>
                 </>
               )}
@@ -916,12 +926,13 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="notifications" className="space-y-6">
-          <Card className="bg-slate-900/50 border-slate-800">
+          <Card className="border-slate-800 bg-slate-900/50">
             <CardHeader>
               <CardTitle className="text-white">
                 Notification Preferences
               </CardTitle>
             </CardHeader>
+
             <CardContent className="space-y-6">
               {isBootstrapping ? (
                 <SkeletonBlock />
@@ -1002,10 +1013,10 @@ export default function SettingsPage() {
                       value={digestFrequency}
                       onValueChange={setDigestFrequency}
                     >
-                      <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                      <SelectTrigger className="border-slate-800 bg-slate-950 text-white">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                      <SelectContent className="border-slate-800 bg-slate-950 text-white">
                         <SelectItem value="realtime">Realtime</SelectItem>
                         <SelectItem value="daily">Daily</SelectItem>
                         <SelectItem value="weekly">Weekly</SelectItem>
@@ -1016,11 +1027,13 @@ export default function SettingsPage() {
 
                   <Button
                     onClick={() => void handleSaveNotifications()}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    className="bg-indigo-600 text-white hover:bg-indigo-700"
                     disabled={isSavingNotifications}
                   >
-                    <Save className="w-4 h-4 mr-2" />
-                    {isSavingNotifications ? "Saving..." : "Save Notifications"}
+                    <Save className="mr-2 h-4 w-4" />
+                    {isSavingNotifications
+                      ? "Saving..."
+                      : "Save Notifications"}
                   </Button>
                 </>
               )}
@@ -1029,10 +1042,11 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="appearance" className="space-y-6">
-          <Card className="bg-slate-900/50 border-slate-800">
+          <Card className="border-slate-800 bg-slate-900/50">
             <CardHeader>
               <CardTitle className="text-white">Appearance</CardTitle>
             </CardHeader>
+
             <CardContent className="space-y-6">
               {isBootstrapping ? (
                 <SkeletonBlock />
@@ -1041,25 +1055,25 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <Label className="text-slate-300">Theme</Label>
                     <Select value={theme} onValueChange={setTheme}>
-                      <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                      <SelectTrigger className="border-slate-800 bg-slate-950 text-white">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                      <SelectContent className="border-slate-800 bg-slate-950 text-white">
                         <SelectItem value="light">
                           <div className="flex items-center gap-2">
-                            <Sun className="w-4 h-4" />
+                            <Sun className="h-4 w-4" />
                             Light
                           </div>
                         </SelectItem>
                         <SelectItem value="dark">
                           <div className="flex items-center gap-2">
-                            <Moon className="w-4 h-4" />
+                            <Moon className="h-4 w-4" />
                             Dark
                           </div>
                         </SelectItem>
                         <SelectItem value="system">
                           <div className="flex items-center gap-2">
-                            <Monitor className="w-4 h-4" />
+                            <Monitor className="h-4 w-4" />
                             System
                           </div>
                         </SelectItem>
@@ -1067,14 +1081,17 @@ export default function SettingsPage() {
                     </Select>
                   </div>
 
-                  <div className="grid md:grid-cols-3 gap-4">
+                  <div className="grid gap-4 md:grid-cols-3">
                     <div className="space-y-2">
                       <Label className="text-slate-300">Accent Color</Label>
-                      <Select value={accentColor} onValueChange={setAccentColor}>
-                        <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                      <Select
+                        value={accentColor}
+                        onValueChange={setAccentColor}
+                      >
+                        <SelectTrigger className="border-slate-800 bg-slate-950 text-white">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                        <SelectContent className="border-slate-800 bg-slate-950 text-white">
                           <SelectItem value="indigo">Indigo</SelectItem>
                           <SelectItem value="blue">Blue</SelectItem>
                           <SelectItem value="green">Green</SelectItem>
@@ -1087,10 +1104,10 @@ export default function SettingsPage() {
                     <div className="space-y-2">
                       <Label className="text-slate-300">Font Size</Label>
                       <Select value={fontSize} onValueChange={setFontSize}>
-                        <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                        <SelectTrigger className="border-slate-800 bg-slate-950 text-white">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                        <SelectContent className="border-slate-800 bg-slate-950 text-white">
                           <SelectItem value="small">Small</SelectItem>
                           <SelectItem value="medium">Medium</SelectItem>
                           <SelectItem value="large">Large</SelectItem>
@@ -1098,7 +1115,7 @@ export default function SettingsPage() {
                       </Select>
                     </div>
 
-                    <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950 px-4 py-3 mt-7">
+                    <div className="mt-7 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950 px-4 py-3">
                       <div>
                         <p className="text-white">Compact Mode</p>
                         <p className="text-xs text-slate-500">Denser layout</p>
@@ -1112,10 +1129,10 @@ export default function SettingsPage() {
 
                   <Button
                     onClick={() => void handleSaveAppearance()}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    className="bg-indigo-600 text-white hover:bg-indigo-700"
                     disabled={isSavingAppearance}
                   >
-                    <Save className="w-4 h-4 mr-2" />
+                    <Save className="mr-2 h-4 w-4" />
                     {isSavingAppearance ? "Saving..." : "Save Appearance"}
                   </Button>
                 </>
@@ -1125,33 +1142,34 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="security" className="space-y-6">
-          <Card className="bg-slate-900/50 border-slate-800">
+          <Card className="border-slate-800 bg-slate-900/50">
             <CardHeader>
               <CardTitle className="text-white">Security</CardTitle>
             </CardHeader>
+
             <CardContent className="space-y-4">
               {isBootstrapping ? (
                 <SkeletonBlock />
               ) : (
                 <>
                   <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-                    <p className="text-white font-medium">Authentication</p>
-                    <p className="text-sm text-slate-500 mt-1">
+                    <p className="font-medium text-white">Authentication</p>
+                    <p className="mt-1 text-sm text-slate-500">
                       Password and email authentication settings are managed
                       through Supabase Auth.
                     </p>
                   </div>
 
                   <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-                    <p className="text-white font-medium">Current Role</p>
-                    <p className="text-sm text-slate-400 mt-1">
+                    <p className="font-medium text-white">Current Role</p>
+                    <p className="mt-1 text-sm text-slate-400">
                       {getRoleLabel(role)}
                     </p>
                   </div>
 
                   <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-                    <p className="text-white font-medium">Requested Role</p>
-                    <p className="text-sm text-slate-400 mt-1">
+                    <p className="font-medium text-white">Requested Role</p>
+                    <p className="mt-1 text-sm text-slate-400">
                       {getRoleLabel(requestedRole || role)}
                     </p>
                   </div>

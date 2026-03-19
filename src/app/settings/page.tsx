@@ -477,9 +477,14 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Settings</h1>
+          <h1 className="text-2xl font-bold text-white">
+            {t("settings.settingsTitle", "Settings")}
+          </h1>
           <p className="text-slate-400">
-            Manage your account settings and preferences
+            {t(
+              "settings.settingsSubtitle",
+              "Manage your account settings and preferences"
+            )}
           </p>
         </div>
 
@@ -489,13 +494,17 @@ export default function SettingsPage() {
           onClick={() => void loadSettings("refresh")}
           disabled={isRefreshing || savingSection !== null || isUploadingPhoto}
         >
-          {isRefreshing ? "Refreshing..." : "Refresh"}
+          {isRefreshing
+            ? t("settings.refreshing", "Refreshing...")
+            : t("settings.refresh", "Refresh")}
         </Button>
       </div>
 
       {saved && (
         <Alert className="border-green-800 bg-green-900/20 text-green-400">
-          <AlertDescription>Settings saved successfully.</AlertDescription>
+          <AlertDescription>
+            {t("settings.savedSuccessfully", "Settings saved successfully.")}
+          </AlertDescription>
         </Alert>
       )}
 
@@ -512,7 +521,7 @@ export default function SettingsPage() {
             className="data-[state=active]:bg-slate-800"
           >
             <User className="mr-2 h-4 w-4" />
-            Profile
+            {t("settings.profileTab", "Profile")}
           </TabsTrigger>
 
           <TabsTrigger
@@ -520,7 +529,7 @@ export default function SettingsPage() {
             className="data-[state=active]:bg-slate-800"
           >
             <Mail className="mr-2 h-4 w-4" />
-            Account
+            {t("settings.accountTab", "Account")}
           </TabsTrigger>
 
           <TabsTrigger
@@ -528,7 +537,7 @@ export default function SettingsPage() {
             className="data-[state=active]:bg-slate-800"
           >
             <Bell className="mr-2 h-4 w-4" />
-            Notifications
+            {t("settings.notificationsTab", "Notifications")}
           </TabsTrigger>
 
           <TabsTrigger
@@ -536,7 +545,7 @@ export default function SettingsPage() {
             className="data-[state=active]:bg-slate-800"
           >
             <Palette className="mr-2 h-4 w-4" />
-            Appearance
+            {t("settings.appearanceTab", "Appearance")}
           </TabsTrigger>
 
           <TabsTrigger
@@ -544,14 +553,16 @@ export default function SettingsPage() {
             className="data-[state=active]:bg-slate-800"
           >
             <Shield className="mr-2 h-4 w-4" />
-            Security
+            {t("settings.securityTab", "Security")}
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile" className="space-y-6">
           <Card className="border-slate-800 bg-slate-900/50">
             <CardHeader>
-              <CardTitle className="text-white">Profile Information</CardTitle>
+              <CardTitle className="text-white">
+                {t("settings.profileInformation", "Profile Information")}
+              </CardTitle>
             </CardHeader>
 
             <CardContent className="space-y-6">
@@ -568,7 +579,9 @@ export default function SettingsPage() {
                     </Avatar>
 
                     <div className="flex-1 space-y-3">
-                      <Label className="text-slate-300">Profile Photo</Label>
+                      <Label className="text-slate-300">
+                        {t("settings.profilePhoto", "Profile Photo")}
+                      </Label>
 
                       <div className="flex flex-wrap items-center gap-2">
                         <Button
@@ -579,7 +592,9 @@ export default function SettingsPage() {
                           disabled={isUploadingPhoto || isSavingProfile}
                         >
                           <Upload className="mr-2 h-4 w-4" />
-                          {isUploadingPhoto ? "Uploading..." : "Upload Photo"}
+                          {isUploadingPhoto
+                            ? t("settings.uploadingPhoto", "Uploading...")
+                            : t("settings.uploadPhoto", "Upload Photo")}
                         </Button>
 
                         {avatarUrl && (
@@ -591,7 +606,7 @@ export default function SettingsPage() {
                             disabled={isUploadingPhoto || isSavingProfile}
                           >
                             <Trash2 className="mr-2 h-4 w-4" />
-                            Remove Photo
+                            {t("settings.removePhoto", "Remove Photo")}
                           </Button>
                         )}
                       </div>
@@ -602,7 +617,10 @@ export default function SettingsPage() {
                         </div>
                       ) : (
                         <div className="text-sm text-slate-500">
-                          No profile photo uploaded yet.
+                          {t(
+                            "settings.noProfilePhoto",
+                            "No profile photo uploaded yet."
+                          )}
                         </div>
                       )}
 
@@ -619,7 +637,7 @@ export default function SettingsPage() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="fullName" className="text-slate-300">
-                        Full Name
+                        {t("settings.fullName", "Full Name")}
                       </Label>
                       <Input
                         id="fullName"
@@ -631,7 +649,7 @@ export default function SettingsPage() {
 
                     <div className="space-y-2">
                       <Label htmlFor="displayName" className="text-slate-300">
-                        Display Name
+                        {t("settings.displayName", "Display Name")}
                       </Label>
                       <Input
                         id="displayName"
@@ -643,7 +661,7 @@ export default function SettingsPage() {
 
                     <div className="space-y-2">
                       <Label htmlFor="phone" className="text-slate-300">
-                        Phone
+                        {t("settings.phone", "Phone")}
                       </Label>
                       <Input
                         id="phone"
@@ -655,7 +673,7 @@ export default function SettingsPage() {
 
                     <div className="space-y-2">
                       <Label htmlFor="country" className="text-slate-300">
-                        Country
+                        {t("settings.country", "Country")}
                       </Label>
                       <Input
                         id="country"
@@ -667,7 +685,7 @@ export default function SettingsPage() {
 
                     <div className="space-y-2">
                       <Label htmlFor="city" className="text-slate-300">
-                        City
+                        {t("settings.city", "City")}
                       </Label>
                       <Input
                         id="city"
@@ -682,7 +700,7 @@ export default function SettingsPage() {
                         htmlFor="shippingAddress"
                         className="text-slate-300"
                       >
-                        Shipping Address
+                        {t("settings.shippingAddress", "Shipping Address")}
                       </Label>
                       <Input
                         id="shippingAddress"
@@ -694,7 +712,7 @@ export default function SettingsPage() {
 
                     <div className="space-y-2">
                       <Label htmlFor="company" className="text-slate-300">
-                        Company
+                        {t("settings.company", "Company")}
                       </Label>
                       <Input
                         id="company"
@@ -705,7 +723,9 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-slate-300">Role</Label>
+                      <Label className="text-slate-300">
+                        {t("settings.role", "Role")}
+                      </Label>
                       <Input
                         value={getRoleLabel(requestedRole || role)}
                         disabled
@@ -714,7 +734,9 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-slate-300">Member Type</Label>
+                      <Label className="text-slate-300">
+                        {t("settings.memberType", "Member Type")}
+                      </Label>
                       <Select
                         value={memberType}
                         onValueChange={(value) =>
@@ -723,7 +745,12 @@ export default function SettingsPage() {
                         disabled={effectiveRoleForMemberType === "admin"}
                       >
                         <SelectTrigger className="border-slate-800 bg-slate-950 text-white">
-                          <SelectValue placeholder="Select member type" />
+                          <SelectValue
+                            placeholder={t(
+                              "settings.selectMemberType",
+                              "Select member type"
+                            )}
+                          />
                         </SelectTrigger>
                         <SelectContent className="border-slate-800 bg-slate-950 text-white">
                           {availableMemberTypes.map((option) => (
@@ -737,7 +764,7 @@ export default function SettingsPage() {
 
                     <div className="space-y-2">
                       <Label htmlFor="jobTitle" className="text-slate-300">
-                        Job Title
+                        {t("settings.jobTitle", "Job Title")}
                       </Label>
                       <Input
                         id="jobTitle"
@@ -749,7 +776,7 @@ export default function SettingsPage() {
 
                     <div className="space-y-2">
                       <Label htmlFor="whatsapp" className="text-slate-300">
-                        WhatsApp
+                        {t("settings.whatsapp", "WhatsApp")}
                       </Label>
                       <Input
                         id="whatsapp"
@@ -761,7 +788,7 @@ export default function SettingsPage() {
 
                     <div className="space-y-2">
                       <Label htmlFor="wechat" className="text-slate-300">
-                        WeChat
+                        {t("settings.wechat", "WeChat")}
                       </Label>
                       <Input
                         id="wechat"
@@ -774,20 +801,25 @@ export default function SettingsPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="bio" className="text-slate-300">
-                      Short Bio
+                      {t("settings.shortBio", "Short Bio")}
                     </Label>
                     <Textarea
                       id="bio"
                       value={bio}
                       onChange={(e) => setBio(e.target.value)}
-                      placeholder="Tell us about yourself..."
+                      placeholder={t(
+                        "settings.bioPlaceholder",
+                        "Tell us about yourself..."
+                      )}
                       rows={4}
                       className="resize-none border-slate-800 bg-slate-950 text-white placeholder:text-slate-600"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-slate-300">Profile Completion</Label>
+                    <Label className="text-slate-300">
+                      {t("settings.profileCompletion", "Profile Completion")}
+                    </Label>
                     <Select
                       value={profileCompleted ? "completed" : "incomplete"}
                       onValueChange={(value) =>
@@ -798,8 +830,12 @@ export default function SettingsPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="border-slate-800 bg-slate-950 text-white">
-                        <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="incomplete">Incomplete</SelectItem>
+                        <SelectItem value="completed">
+                          {t("settings.completed", "Completed")}
+                        </SelectItem>
+                        <SelectItem value="incomplete">
+                          {t("settings.incomplete", "Incomplete")}
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -810,7 +846,9 @@ export default function SettingsPage() {
                     disabled={isSavingProfile || isUploadingPhoto}
                   >
                     <Save className="mr-2 h-4 w-4" />
-                    {isSavingProfile ? "Saving..." : "Save Profile"}
+                    {isSavingProfile
+                      ? t("settings.saveProfileSaving", "Saving...")
+                      : t("settings.saveProfile", "Save Profile")}
                   </Button>
                 </>
               )}
@@ -929,7 +967,10 @@ export default function SettingsPage() {
           <Card className="border-slate-800 bg-slate-900/50">
             <CardHeader>
               <CardTitle className="text-white">
-                Notification Preferences
+                {t(
+                  "settings.notificationPreferences",
+                  "Notification Preferences"
+                )}
               </CardTitle>
             </CardHeader>
 
@@ -940,9 +981,17 @@ export default function SettingsPage() {
                 <>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-white">Email Notifications</p>
+                      <p className="text-white">
+                        {t(
+                          "settings.emailNotifications",
+                          "Email Notifications"
+                        )}
+                      </p>
                       <p className="text-sm text-slate-500">
-                        Receive notifications by email
+                        {t(
+                          "settings.emailNotificationsDesc",
+                          "Receive notifications by email"
+                        )}
                       </p>
                     </div>
                     <Switch
@@ -955,9 +1004,14 @@ export default function SettingsPage() {
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-white">Push Notifications</p>
+                      <p className="text-white">
+                        {t("settings.pushNotifications", "Push Notifications")}
+                      </p>
                       <p className="text-sm text-slate-500">
-                        Receive notifications in app
+                        {t(
+                          "settings.pushNotificationsDesc",
+                          "Receive notifications in app"
+                        )}
                       </p>
                     </div>
                     <Switch
@@ -970,9 +1024,14 @@ export default function SettingsPage() {
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-white">Task Assigned</p>
+                      <p className="text-white">
+                        {t("settings.taskAssigned", "Task Assigned")}
+                      </p>
                       <p className="text-sm text-slate-500">
-                        Notify when a task is assigned
+                        {t(
+                          "settings.taskAssignedDesc",
+                          "Notify when a task is assigned"
+                        )}
                       </p>
                     </div>
                     <Switch
@@ -985,9 +1044,14 @@ export default function SettingsPage() {
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-white">Due Soon</p>
+                      <p className="text-white">
+                        {t("settings.dueSoon", "Due Soon")}
+                      </p>
                       <p className="text-sm text-slate-500">
-                        Notify when task due date is near
+                        {t(
+                          "settings.dueSoonDesc",
+                          "Notify when task due date is near"
+                        )}
                       </p>
                     </div>
                     <Switch checked={dueSoon} onCheckedChange={setDueSoon} />
@@ -997,9 +1061,14 @@ export default function SettingsPage() {
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-white">Mentions</p>
+                      <p className="text-white">
+                        {t("settings.mentions", "Mentions")}
+                      </p>
                       <p className="text-sm text-slate-500">
-                        Notify when someone mentions you
+                        {t(
+                          "settings.mentionsDesc",
+                          "Notify when someone mentions you"
+                        )}
                       </p>
                     </div>
                     <Switch checked={mentions} onCheckedChange={setMentions} />
@@ -1008,7 +1077,9 @@ export default function SettingsPage() {
                   <Separator className="bg-slate-800" />
 
                   <div className="space-y-2">
-                    <Label className="text-slate-300">Digest Frequency</Label>
+                    <Label className="text-slate-300">
+                      {t("settings.digestFrequency", "Digest Frequency")}
+                    </Label>
                     <Select
                       value={digestFrequency}
                       onValueChange={setDigestFrequency}
@@ -1017,10 +1088,18 @@ export default function SettingsPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="border-slate-800 bg-slate-950 text-white">
-                        <SelectItem value="realtime">Realtime</SelectItem>
-                        <SelectItem value="daily">Daily</SelectItem>
-                        <SelectItem value="weekly">Weekly</SelectItem>
-                        <SelectItem value="never">Never</SelectItem>
+                        <SelectItem value="realtime">
+                          {t("settings.realtime", "Realtime")}
+                        </SelectItem>
+                        <SelectItem value="daily">
+                          {t("settings.daily", "Daily")}
+                        </SelectItem>
+                        <SelectItem value="weekly">
+                          {t("settings.weekly", "Weekly")}
+                        </SelectItem>
+                        <SelectItem value="never">
+                          {t("settings.never", "Never")}
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1032,8 +1111,8 @@ export default function SettingsPage() {
                   >
                     <Save className="mr-2 h-4 w-4" />
                     {isSavingNotifications
-                      ? "Saving..."
-                      : "Save Notifications"}
+                      ? t("settings.saveNotificationsSaving", "Saving...")
+                      : t("settings.saveNotifications", "Save Notifications")}
                   </Button>
                 </>
               )}
@@ -1044,7 +1123,9 @@ export default function SettingsPage() {
         <TabsContent value="appearance" className="space-y-6">
           <Card className="border-slate-800 bg-slate-900/50">
             <CardHeader>
-              <CardTitle className="text-white">Appearance</CardTitle>
+              <CardTitle className="text-white">
+                {t("settings.appearanceTitle", "Appearance")}
+              </CardTitle>
             </CardHeader>
 
             <CardContent className="space-y-6">
@@ -1053,7 +1134,9 @@ export default function SettingsPage() {
               ) : (
                 <>
                   <div className="space-y-2">
-                    <Label className="text-slate-300">Theme</Label>
+                    <Label className="text-slate-300">
+                      {t("settings.theme", "Theme")}
+                    </Label>
                     <Select value={theme} onValueChange={setTheme}>
                       <SelectTrigger className="border-slate-800 bg-slate-950 text-white">
                         <SelectValue />
@@ -1062,19 +1145,19 @@ export default function SettingsPage() {
                         <SelectItem value="light">
                           <div className="flex items-center gap-2">
                             <Sun className="h-4 w-4" />
-                            Light
+                            {t("settings.light", "Light")}
                           </div>
                         </SelectItem>
                         <SelectItem value="dark">
                           <div className="flex items-center gap-2">
                             <Moon className="h-4 w-4" />
-                            Dark
+                            {t("settings.dark", "Dark")}
                           </div>
                         </SelectItem>
                         <SelectItem value="system">
                           <div className="flex items-center gap-2">
                             <Monitor className="h-4 w-4" />
-                            System
+                            {t("settings.system", "System")}
                           </div>
                         </SelectItem>
                       </SelectContent>
@@ -1083,7 +1166,9 @@ export default function SettingsPage() {
 
                   <div className="grid gap-4 md:grid-cols-3">
                     <div className="space-y-2">
-                      <Label className="text-slate-300">Accent Color</Label>
+                      <Label className="text-slate-300">
+                        {t("settings.accentColor", "Accent Color")}
+                      </Label>
                       <Select
                         value={accentColor}
                         onValueChange={setAccentColor}
@@ -1092,33 +1177,55 @@ export default function SettingsPage() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="border-slate-800 bg-slate-950 text-white">
-                          <SelectItem value="indigo">Indigo</SelectItem>
-                          <SelectItem value="blue">Blue</SelectItem>
-                          <SelectItem value="green">Green</SelectItem>
-                          <SelectItem value="purple">Purple</SelectItem>
-                          <SelectItem value="red">Red</SelectItem>
+                          <SelectItem value="indigo">
+                            {t("settings.indigo", "Indigo")}
+                          </SelectItem>
+                          <SelectItem value="blue">
+                            {t("settings.blue", "Blue")}
+                          </SelectItem>
+                          <SelectItem value="green">
+                            {t("settings.green", "Green")}
+                          </SelectItem>
+                          <SelectItem value="purple">
+                            {t("settings.purple", "Purple")}
+                          </SelectItem>
+                          <SelectItem value="red">
+                            {t("settings.red", "Red")}
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-slate-300">Font Size</Label>
+                      <Label className="text-slate-300">
+                        {t("settings.fontSize", "Font Size")}
+                      </Label>
                       <Select value={fontSize} onValueChange={setFontSize}>
                         <SelectTrigger className="border-slate-800 bg-slate-950 text-white">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="border-slate-800 bg-slate-950 text-white">
-                          <SelectItem value="small">Small</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="large">Large</SelectItem>
+                          <SelectItem value="small">
+                            {t("settings.small", "Small")}
+                          </SelectItem>
+                          <SelectItem value="medium">
+                            {t("settings.medium", "Medium")}
+                          </SelectItem>
+                          <SelectItem value="large">
+                            {t("settings.large", "Large")}
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
                     <div className="mt-7 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950 px-4 py-3">
                       <div>
-                        <p className="text-white">Compact Mode</p>
-                        <p className="text-xs text-slate-500">Denser layout</p>
+                        <p className="text-white">
+                          {t("settings.compactMode", "Compact Mode")}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {t("settings.compactModeDesc", "Denser layout")}
+                        </p>
                       </div>
                       <Switch
                         checked={compactMode}
@@ -1133,7 +1240,9 @@ export default function SettingsPage() {
                     disabled={isSavingAppearance}
                   >
                     <Save className="mr-2 h-4 w-4" />
-                    {isSavingAppearance ? "Saving..." : "Save Appearance"}
+                    {isSavingAppearance
+                      ? t("settings.saveAppearanceSaving", "Saving...")
+                      : t("settings.saveAppearance", "Save Appearance")}
                   </Button>
                 </>
               )}
@@ -1144,7 +1253,9 @@ export default function SettingsPage() {
         <TabsContent value="security" className="space-y-6">
           <Card className="border-slate-800 bg-slate-900/50">
             <CardHeader>
-              <CardTitle className="text-white">Security</CardTitle>
+              <CardTitle className="text-white">
+                {t("settings.securityTitle", "Security")}
+              </CardTitle>
             </CardHeader>
 
             <CardContent className="space-y-4">
@@ -1153,22 +1264,30 @@ export default function SettingsPage() {
               ) : (
                 <>
                   <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-                    <p className="font-medium text-white">Authentication</p>
+                    <p className="font-medium text-white">
+                      {t("settings.authentication", "Authentication")}
+                    </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Password and email authentication settings are managed
-                      through Supabase Auth.
+                      {t(
+                        "settings.authenticationDesc",
+                        "Password and email authentication settings are managed through Supabase Auth."
+                      )}
                     </p>
                   </div>
 
                   <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-                    <p className="font-medium text-white">Current Role</p>
+                    <p className="font-medium text-white">
+                      {t("settings.currentRole", "Current Role")}
+                    </p>
                     <p className="mt-1 text-sm text-slate-400">
                       {getRoleLabel(role)}
                     </p>
                   </div>
 
                   <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-                    <p className="font-medium text-white">Requested Role</p>
+                    <p className="font-medium text-white">
+                      {t("settings.requestedRole", "Requested Role")}
+                    </p>
                     <p className="mt-1 text-sm text-slate-400">
                       {getRoleLabel(requestedRole || role)}
                     </p>

@@ -352,3 +352,75 @@ html.compact .px-4 {
   --tw-gradient-from: hsl(var(--primary)) var(--tw-gradient-from-position) !important;
   --tw-gradient-to: hsl(var(--primary)) / 0 var(--tw-gradient-to-position) !important;
 }
+
+/* ========================================
+   EXTRA LIGHT THEME FIXES
+   ======================================== */
+
+/* top bar / sidebar / cards that still use slate backgrounds */
+:root[data-theme="light"] .bg-slate-800,
+:root[data-theme="light"] .bg-slate-850,
+:root[data-theme="light"] .bg-slate-900\/80 {
+  background-color: hsl(var(--card)) !important;
+  color: hsl(var(--card-foreground)) !important;
+}
+
+/* inputs / selects / textareas */
+:root[data-theme="light"] input,
+:root[data-theme="light"] textarea,
+:root[data-theme="light"] button[role="combobox"],
+:root[data-theme="light"] [data-radix-select-trigger] {
+  background-color: #ffffff !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+/* dropdown content */
+:root[data-theme="light"] [data-radix-popper-content-wrapper] *,
+:root[data-theme="light"] [role="listbox"],
+:root[data-theme="light"] [data-radix-select-content] {
+  color: hsl(var(--foreground));
+}
+
+/* tabs list */
+:root[data-theme="light"] [role="tablist"] {
+  background-color: hsl(var(--card)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+/* inactive tabs */
+:root[data-theme="light"] [role="tab"] {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* active tabs */
+:root[data-theme="light"] [role="tab"][data-state="active"] {
+  background-color: hsl(var(--secondary)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+/* sidebar selected item */
+:root[data-theme="light"] .bg-indigo-600\/20,
+:root[data-theme="light"] .bg-indigo-500\/10,
+:root[data-theme="light"] .bg-indigo-500\/20 {
+  background-color: hsl(var(--secondary)) !important;
+}
+
+/* muted panels */
+:root[data-theme="light"] .bg-slate-950\/40,
+:root[data-theme="light"] .bg-slate-950\/50,
+:root[data-theme="light"] .bg-slate-900\/40 {
+  background-color: hsl(var(--card)) !important;
+}
+
+/* placeholders */
+:root[data-theme="light"] input::placeholder,
+:root[data-theme="light"] textarea::placeholder {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+/* icons that remain too dark */
+:root[data-theme="light"] svg {
+  color: inherit;
+}

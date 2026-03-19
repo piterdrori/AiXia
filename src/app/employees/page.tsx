@@ -421,58 +421,10 @@ const handleSendInvite = async () => {
   }
 };
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data?.error || "Failed to send invite.");
-    }
-
-    if (!data?.success) {
-      throw new Error(data?.error || "Failed to send invite.");
-    }
-
-    setInviteSuccess("Invitation email sent successfully.");
-    setInviteEmail("");
-    setInviteFullName("");
-    setInviteRole("employee");
-    setInviteMemberType("");
-    void loadProfiles("refresh");
-    
-  } catch (err) {
-    console.error("Invite member error:", err);
-
-    let message = "Failed to send invite.";
-
-    if (typeof err === "object" && err !== null) {
-      const anyErr = err as {
-        message?: string;
-        context?: { json?: () => Promise<any> };
-      };
-
-      if (anyErr.context && typeof anyErr.context.json === "function") {
-        try {
-          const data = await anyErr.context.json();
-          if (data?.error) {
-            message = data.error;
-          }
-        } catch (parseError) {
-          console.error("Failed to parse function error response:", parseError);
-        }
-      } else if (typeof anyErr.message === "string" && anyErr.message) {
-        message = anyErr.message;
-      }
-    }
-
-    setInviteError(message);
-  } finally {
-    setIsSendingInvite(false);
+const availableMemberTypeOptions = useMemo(() => {
+  if (roleFilter === "all" || roleFilter === "admin") {
+    return [];
   }
-};
-  
-  const availableMemberTypeOptions = useMemo(() => {
-    if (roleFilter === "all" || roleFilter === "admin") {
-      return [];
-    }
 
     return MEMBER_TYPE_OPTIONS[roleFilter];
   }, [roleFilter]);

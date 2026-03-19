@@ -227,7 +227,7 @@ function buildEmployeeFields(user: ProfileRow): EmployeeField[] {
   const jobTitles = splitMultiValue(user.job_title);
   const whatsapps = splitMultiValue(user.whatsapp);
   const wechats = splitMultiValue(user.wechat);
-
+  
   const locationParts = [user.city, user.country].filter(Boolean) as string[];
   const locationValue = locationParts.length > 0 ? locationParts.join(", ") : null;
   const memberTypeLabel = getMemberTypeLabel(user.member_type);
@@ -344,6 +344,7 @@ export default function EmployeesPage() {
   const [isSendingInvite, setIsSendingInvite] = useState(false);
   const [invitations, setInvitations] = useState<InvitationRow[]>([]);
   const [invitationActionId, setInvitationActionId] = useState<string | null>(null);
+  const [showInviteHistory, setShowInviteHistory] = useState(false);
   const canManageUsers = currentUserRole === "admin";
   
 const handleSendInvite = async () => {
@@ -738,9 +739,19 @@ const availableMemberTypeOptions = useMemo(() => {
   };
 
   const visibleInvitations = useMemo(() => {
-    if (!canManageUsers) return [];
+  if (!canManageUsers) return [];
+
+  if (showInviteHistory) {
     return invitations;
-  }, [invitations, canManageUsers]);
+  }
+
+  return invitations.filter(
+    (invitation) =>
+      invitation.status === "pending" ||
+      invitation.status === "expired" ||
+      invitation.status === "failed"
+  );
+}, [invitations, canManageUsers, showInviteHistory]);
 
   const visibleUsers = useMemo(() => {
     const baseUsers = profiles.filter(
@@ -996,106 +1007,113 @@ const availableMemberTypeOptions = useMemo(() => {
         </Card>
       )}
 
-            {canManageUsers && (
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-4 space-y-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h3 className="text-lg font-medium text-white">
-                  Invitation Management
-                </h3>
-                <p className="text-sm text-slate-400">
-                  Track pending, accepted, expired, cancelled, and failed invites
-                </p>
-              </div>
-              <Badge className="bg-slate-800 text-slate-200 border-slate-700">
-                {visibleInvitations.length} Total
-              </Badge>
-            </div>
+{canManageUsers && (
+  <Card className="bg-slate-900/50 border-slate-800">
+    <CardContent className="p-4 space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-medium text-white">
+            Invitation Management
+          </h3>
+          <p className="text-sm text-slate-400">
+            {showInviteHistory ? "All invitations (history view)" : "Active invite queue"}
+          </p>
+        </div>
 
-            {visibleInvitations.length > 0 ? (
-              <div className="space-y-3">
-                {visibleInvitations.map((invitation) => (
-                  <div
-                    key={invitation.id}
-                    className="rounded-xl border border-slate-800 bg-slate-950/60 p-4"
-                  >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0 space-y-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-white font-medium break-all">
-                            {invitation.full_name}
-                          </p>
-                          <Badge className={getInvitationStatusColor(invitation.status)}>
-                            {getInvitationStatusLabel(invitation.status)}
-                          </Badge>
-                          <Badge className={getRoleColor(invitation.role)}>
-                            {invitation.role.toUpperCase()}
-                          </Badge>
-                        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            onClick={() => setShowInviteHistory((prev) => !prev)}
+          >
+            {showInviteHistory ? "Hide History" : "Show History"}
+          </Button>
 
-                        <div className="space-y-1 text-sm text-slate-400">
-                          <p className="break-all">{invitation.email}</p>
-                          <p>
-                            {invitation.role === "admin"
-                              ? "Admin"
-                              : getMemberTypeLabel(invitation.member_type)}
-                          </p>
-                          <p>Sent: {new Date(invitation.last_invited_at).toLocaleString()}</p>
-                          <p>Expires: {new Date(invitation.expires_at).toLocaleString()}</p>
-                          <p>Invite Count: {invitation.invite_count}</p>
-                          {invitation.accepted_at && (
-                            <p>
-                              Accepted: {new Date(invitation.accepted_at).toLocaleString()}
-                            </p>
-                          )}
-                          {invitation.error_message && (
-                            <p className="text-red-400">
-                              Error: {invitation.error_message}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        {(invitation.status === "pending" ||
-                          invitation.status === "expired" ||
-                          invitation.status === "failed") && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                            onClick={() => void handleResendInvite(invitation)}
-                            disabled={invitationActionId === invitation.id}
-                          >
-                            {invitationActionId === invitation.id ? "Sending..." : "Resend"}
-                          </Button>
-                        )}
-
-                        {invitation.status === "pending" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-red-800 text-red-400 hover:bg-red-900/20"
-                            onClick={() => void handleCancelInvite(invitation.id)}
-                            disabled={invitationActionId === invitation.id}
-                          >
-                            Cancel Invite
-                          </Button>
-                        )}
-                      </div>
-                    </div>
+          <Badge className="bg-slate-800 text-slate-200 border-slate-700">
+            {visibleInvitations.length}
+          </Badge>
+        </div>
+      </div>
+     
+      {visibleInvitations.length > 0 ? (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          {visibleInvitations.map((invitation) => (
+            <div
+              key={invitation.id}
+              className="rounded-lg border border-slate-800 bg-slate-950/60 p-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-white font-medium break-all text-sm">
+                      {invitation.full_name}
+                    </p>
+                    <Badge className={getInvitationStatusColor(invitation.status)}>
+                      {getInvitationStatusLabel(invitation.status)}
+                    </Badge>
+                    <Badge className={getRoleColor(invitation.role)}>
+                      {invitation.role.toUpperCase()}
+                    </Badge>
                   </div>
-                ))}
+
+                  <div className="space-y-1 text-xs text-slate-400">
+                    <p className="break-all">{invitation.email}</p>
+                    <p>
+                      {invitation.role === "admin"
+                        ? "Admin"
+                        : getMemberTypeLabel(invitation.member_type)}
+                    </p>
+                    <p>Sent: {new Date(invitation.last_invited_at).toLocaleString()}</p>
+                    <p>Expires: {new Date(invitation.expires_at).toLocaleString()}</p>
+                    <p>Invite Count: {invitation.invite_count}</p>
+                    {invitation.error_message && (
+                      <p className="text-red-400 break-words">
+                        Error: {invitation.error_message}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 shrink-0">
+                  {(invitation.status === "pending" ||
+                    invitation.status === "expired" ||
+                    invitation.status === "failed") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                      onClick={() => void handleResendInvite(invitation)}
+                      disabled={invitationActionId === invitation.id}
+                    >
+                      {invitationActionId === invitation.id ? "Sending..." : "Resend"}
+                    </Button>
+                  )}
+
+                  {invitation.status === "pending" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-800 text-red-400 hover:bg-red-900/20"
+                      onClick={() => void handleCancelInvite(invitation.id)}
+                      disabled={invitationActionId === invitation.id}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                </div>
               </div>
-            ) : (
-              <div className="text-sm text-slate-500">
-                No invitations tracked yet.
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-sm text-slate-500">
+          No active invitations right now.
+        </div>
       )}
+    </CardContent>
+  </Card>
+)}
 
       <div className="flex flex-col gap-4">
         <div className="relative">

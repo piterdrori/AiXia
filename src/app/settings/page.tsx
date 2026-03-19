@@ -10,6 +10,9 @@ import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { uploadProfilePhoto } from "@/lib/profilePhotoUpload";
 
+import { useLanguage } from "@/lib/i18n";
+import type { Language } from "@/lib/translations";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -156,6 +159,8 @@ function normalizeOptional(value: string) {
 export default function SettingsPage() {
   const requestTracker = useRef(createRequestTracker());
   const profilePhotoInputRef = useRef<HTMLInputElement | null>(null);
+
+  const { t, setLanguage: applyLanguage } = useLanguage();
 
   const [activeTab, setActiveTab] = useState("profile");
   const [saved, setSaved] = useState(false);
@@ -368,12 +373,16 @@ export default function SettingsPage() {
     });
   };
 
-  const handleSaveAccount = async () => {
+    const handleSaveAccount = async () => {
     await updateProfile("account", {
       language,
       timezone,
       date_format: dateFormat,
     });
+
+    if (language === "en" || language === "zh" || language === "ru") {
+      applyLanguage(language as Language);
+    }
   };
 
   const handleSaveNotifications = async () => {
@@ -807,7 +816,9 @@ export default function SettingsPage() {
         <TabsContent value="account" className="space-y-6">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
-              <CardTitle className="text-white">Account Settings</CardTitle>
+              <CardTitle className="text-white">
+                {t("settings.accountSettings", "Account Settings")}
+                  </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               {isBootstrapping ? (
@@ -816,8 +827,8 @@ export default function SettingsPage() {
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="email" className="text-slate-300">
-                      Email Address
-                    </Label>
+                    {t("settings.emailAddress", "Email Address")}
+                      </Label>
                     <Input
                       id="email"
                       type="email"
@@ -826,15 +837,16 @@ export default function SettingsPage() {
                       className="bg-slate-950 border-slate-800 text-slate-400"
                     />
                     <p className="text-slate-500 text-sm">
-                      Email is managed by authentication settings.
-                    </p>
-                  </div>
+                     {t("settings.authManagedEmail", "Email is managed by authentication settings.")}
+                          </p>
 
                   <Separator className="bg-slate-800" />
 
                   <div className="grid md:grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-slate-300">Language</Label>
+                      <Label className="text-slate-300">
+                       {t("common.language", "Language")}
+                         </Label>
                       <Select value={language} onValueChange={setLanguage}>
                         <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                           <SelectValue />
@@ -848,7 +860,9 @@ export default function SettingsPage() {
                     </div>
 
                                         <div className="space-y-2">
-                      <Label className="text-slate-300">Timezone</Label>
+                      <Label className="text-slate-300">
+                       {t("settings.timezone", "Timezone")}
+                         </Label>
                       <Select value={timezone} onValueChange={setTimezone}>
                         <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                           <SelectValue />
@@ -869,7 +883,9 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-slate-300">Date Format</Label>
+                      <Label className="text-slate-300">
+                       {t("settings.dateFormat", "Date Format")}
+                         </Label>
                       <Select value={dateFormat} onValueChange={setDateFormat}>
                         <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                           <SelectValue />
@@ -889,7 +905,9 @@ export default function SettingsPage() {
                     disabled={isSavingAccount}
                   >
                     <Save className="w-4 h-4 mr-2" />
-                    {isSavingAccount ? "Saving..." : "Save Account"}
+                    {isSavingAccount
+                     ? t("settings.saveAccountSaving", "Saving...")
+                     : t("settings.saveAccount", "Save Account")}
                   </Button>
                 </>
               )}

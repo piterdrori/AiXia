@@ -64,6 +64,27 @@ type Status =
   | "active"
   | "rejected";
 
+type InvitationStatus = "pending" | "accepted" | "expired" | "cancelled" | "failed";
+
+type InvitationRow = {
+  id: string;
+  email: string;
+  full_name: string;
+  role: Role;
+  member_type?: MemberType | null;
+  status: InvitationStatus;
+  invited_by: string;
+  invite_count: number;
+  last_invited_at: string;
+  expires_at: string;
+  accepted_at?: string | null;
+  cancelled_at?: string | null;
+  auth_user_id?: string | null;
+  error_message?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type ProfileRow = {
   user_id: string;
   full_name: string | null;
@@ -321,7 +342,10 @@ export default function EmployeesPage() {
   const [inviteError, setInviteError] = useState("");
   const [inviteSuccess, setInviteSuccess] = useState("");
   const [isSendingInvite, setIsSendingInvite] = useState(false);
+  const [invitations, setInvitations] = useState<InvitationRow[]>([]);
+  const [invitationActionId, setInvitationActionId] = useState<string | null>(null);
   const canManageUsers = currentUserRole === "admin";
+  
 const handleSendInvite = async () => {
   if (isSendingInvite) return;
 
@@ -355,46 +379,47 @@ const handleSendInvite = async () => {
   setIsSendingInvite(true);
 
   try {
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    const { data, error } = await supabase.functions.invoke("invite-member", {
+      body: {
+        email: normalizedEmail,
+        fullName: trimmedFullName,
+        role: inviteRole,
+        memberType: inviteRole === "admin" ? null : inviteMemberType,
+        redirectTo: `${window.location.origin}/onboarding`,
+        resend: false,
+      },
+    });
 
-    if (userError || !user) {
-      throw new Error("User not authenticated.");
+    if (error) {
+      throw error;
     }
 
-    const { data: refreshedSessionData, error: refreshError } =
-      await supabase.auth.refreshSession();
-
-    if (refreshError) {
-      throw new Error(refreshError.message || "Failed to refresh session.");
+    if (!data?.success) {
+      throw new Error(data?.error || "Failed to send invite.");
     }
 
-    const accessToken = refreshedSessionData.session?.access_token;
-
-    if (!accessToken) {
-      throw new Error("No valid session token found.");
-    }
-
-    const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-member`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          email: normalizedEmail,
-          fullName: trimmedFullName,
-          role: inviteRole,
-          memberType: inviteRole === "admin" ? null : inviteMemberType,
-          redirectTo: `${window.location.origin}/onboarding`,
-        }),
-      }
+    setInviteSuccess(
+      data?.resent
+        ? "Invitation email resent successfully."
+        : "Invitation email sent successfully."
     );
+
+    setInviteEmail("");
+    setInviteFullName("");
+    setInviteRole("employee");
+    setInviteMemberType("");
+    setInviteDialogOpen(false);
+
+    void loadProfiles("refresh");
+  } catch (err) {
+    console.error("Invite member error:", err);
+    setInviteError(
+      err instanceof Error ? err.message : "Failed to send invite."
+    );
+  } finally {
+    setIsSendingInvite(false);
+  }
+};
 
     const data = await response.json();
 
@@ -477,11 +502,20 @@ const handleSendInvite = async () => {
           return;
         }
 
-        const [{ data: me, error: meError }, { data: profilesData, error: profilesError }] =
-          await Promise.all([
-            supabase.from("profiles").select("role").eq("user_id", user.id).single(),
-            supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-          ]);
+        await supabase.rpc("expire_old_member_invitations");
+
+        const [
+          { data: me, error: meError },
+          { data: profilesData, error: profilesError },
+          { data: invitationsData, error: invitationsError },
+        ] = await Promise.all([
+          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
+          supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+          supabase
+            .from("member_invitations")
+            .select("*")
+            .order("created_at", { ascending: false }),
+        ]);
 
         if (!requestTracker.current.isLatest(requestId)) return;
 
@@ -492,13 +526,23 @@ const handleSendInvite = async () => {
 
         setCurrentUserRole((me as CurrentUserRoleRow).role);
 
-        if (profilesError) {
+         if (profilesError) {
           setProfiles([]);
+          setInvitations([]);
           setError(profilesError.message || "Failed to load employees.");
           return;
         }
 
+        if (invitationsError) {
+          setProfiles((profilesData as ProfileRow[]) || []);
+          setInvitations([]);
+          setError(invitationsError.message || "Failed to load invitations.");
+          return;
+        }
+
         setProfiles((profilesData as ProfileRow[]) || []);
+        setInvitations((invitationsData as InvitationRow[]) || []);
+        
       } catch (err) {
         if (!requestTracker.current.isLatest(requestId)) return;
         console.error("Employees page load error:", err);
@@ -606,6 +650,83 @@ const handleSendInvite = async () => {
       setError("Failed to reject user.");
     } finally {
       setActionLoadingUserId(null);
+    }
+  };
+
+  const handleResendInvite = async (invitation: InvitationRow) => {
+    if (!canManageUsers) return;
+
+    setInvitationActionId(invitation.id);
+    setInviteError("");
+    setInviteSuccess("");
+
+    try {
+      const { data, error } = await supabase.functions.invoke("invite-member", {
+        body: {
+          email: invitation.email,
+          fullName: invitation.full_name,
+          role: invitation.role,
+          memberType: invitation.role === "admin" ? null : invitation.member_type,
+          redirectTo: `${window.location.origin}/onboarding`,
+          resend: true,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.success) {
+        throw new Error(data?.error || "Failed to resend invite.");
+      }
+
+      setInviteSuccess("Invitation email resent successfully.");
+      void loadProfiles("refresh");
+    } catch (err) {
+      console.error("Resend invite error:", err);
+      setInviteError(
+        err instanceof Error ? err.message : "Failed to resend invite."
+      );
+    } finally {
+      setInvitationActionId(null);
+    }
+  };
+
+  const handleCancelInvite = async (invitationId: string) => {
+    if (!canManageUsers) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to cancel this invitation?"
+    );
+    if (!confirmed) return;
+
+    setInvitationActionId(invitationId);
+    setInviteError("");
+    setInviteSuccess("");
+
+    try {
+      const { error } = await supabase
+        .from("member_invitations")
+        .update({
+          status: "cancelled",
+          cancelled_at: new Date().toISOString(),
+        })
+        .eq("id", invitationId)
+        .eq("status", "pending");
+
+      if (error) {
+        throw error;
+      }
+
+      setInviteSuccess("Invitation cancelled successfully.");
+      void loadProfiles("refresh");
+    } catch (err) {
+      console.error("Cancel invite error:", err);
+      setInviteError(
+        err instanceof Error ? err.message : "Failed to cancel invite."
+      );
+    } finally {
+      setInvitationActionId(null);
     }
   };
 
@@ -738,6 +859,43 @@ const handleSendInvite = async () => {
     }
   };
 
+  const getInvitationStatusColor = (status: InvitationStatus) => {
+    switch (status) {
+      case "accepted":
+        return "bg-green-500/20 text-green-400 border-green-500/30";
+      case "expired":
+        return "bg-amber-500/20 text-amber-400 border-amber-500/30";
+      case "cancelled":
+        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
+      case "failed":
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+      case "pending":
+      default:
+        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+    }
+  };
+
+  const getInvitationStatusLabel = (status: InvitationStatus) => {
+    switch (status) {
+      case "accepted":
+        return "ACCEPTED";
+      case "expired":
+        return "EXPIRED";
+      case "cancelled":
+        return "CANCELLED";
+      case "failed":
+        return "FAILED";
+      case "pending":
+      default:
+        return "PENDING";
+    }
+  };
+
+  const visibleInvitations = useMemo(() => {
+    if (!canManageUsers) return [];
+    return invitations;
+  }, [invitations, canManageUsers]);
+
   const getInitials = (fullName: string | null) => {
     if (!fullName) return "U";
 
@@ -864,6 +1022,107 @@ const handleSendInvite = async () => {
                 </div>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      )}
+
+            {canManageUsers && (
+        <Card className="bg-slate-900/50 border-slate-800">
+          <CardContent className="p-4 space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-medium text-white">
+                  Invitation Management
+                </h3>
+                <p className="text-sm text-slate-400">
+                  Track pending, accepted, expired, cancelled, and failed invites
+                </p>
+              </div>
+              <Badge className="bg-slate-800 text-slate-200 border-slate-700">
+                {visibleInvitations.length} Total
+              </Badge>
+            </div>
+
+            {visibleInvitations.length > 0 ? (
+              <div className="space-y-3">
+                {visibleInvitations.map((invitation) => (
+                  <div
+                    key={invitation.id}
+                    className="rounded-xl border border-slate-800 bg-slate-950/60 p-4"
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0 space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-white font-medium break-all">
+                            {invitation.full_name}
+                          </p>
+                          <Badge className={getInvitationStatusColor(invitation.status)}>
+                            {getInvitationStatusLabel(invitation.status)}
+                          </Badge>
+                          <Badge className={getRoleColor(invitation.role)}>
+                            {invitation.role.toUpperCase()}
+                          </Badge>
+                        </div>
+
+                        <div className="space-y-1 text-sm text-slate-400">
+                          <p className="break-all">{invitation.email}</p>
+                          <p>
+                            {invitation.role === "admin"
+                              ? "Admin"
+                              : getMemberTypeLabel(invitation.member_type)}
+                          </p>
+                          <p>Sent: {new Date(invitation.last_invited_at).toLocaleString()}</p>
+                          <p>Expires: {new Date(invitation.expires_at).toLocaleString()}</p>
+                          <p>Invite Count: {invitation.invite_count}</p>
+                          {invitation.accepted_at && (
+                            <p>
+                              Accepted: {new Date(invitation.accepted_at).toLocaleString()}
+                            </p>
+                          )}
+                          {invitation.error_message && (
+                            <p className="text-red-400">
+                              Error: {invitation.error_message}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {(invitation.status === "pending" ||
+                          invitation.status === "expired" ||
+                          invitation.status === "failed") && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                            onClick={() => void handleResendInvite(invitation)}
+                            disabled={invitationActionId === invitation.id}
+                          >
+                            {invitationActionId === invitation.id ? "Sending..." : "Resend"}
+                          </Button>
+                        )}
+
+                        {invitation.status === "pending" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-red-800 text-red-400 hover:bg-red-900/20"
+                            onClick={() => void handleCancelInvite(invitation.id)}
+                            disabled={invitationActionId === invitation.id}
+                          >
+                            Cancel Invite
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-slate-500">
+                No invitations tracked yet.
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -1159,18 +1418,18 @@ const handleSendInvite = async () => {
             )}
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button
+               <Button
                 variant="outline"
                 className="border-slate-700 text-slate-300"
                 onClick={() => {
-  setInviteDialogOpen(false);
-  setInviteError("");
-  setInviteSuccess("");
-  setInviteEmail("");
-  setInviteFullName("");
-  setInviteRole("employee");
-  setInviteMemberType("");
-}}
+                  setInviteDialogOpen(false);
+                  setInviteError("");
+                  setInviteSuccess("");
+                  setInviteEmail("");
+                  setInviteFullName("");
+                  setInviteRole("employee");
+                  setInviteMemberType("");
+                }}
               >
                 Cancel
               </Button>

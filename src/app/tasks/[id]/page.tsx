@@ -13,6 +13,7 @@ import {
   deleteUploadedFile,
 } from "@/lib/file-upload";
 import { createRequestTracker } from "@/lib/safeAsync";
+import { useLanguage } from "@/lib/i18n";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -115,6 +116,7 @@ type FileUploadRow = {
 };
 
 export default function TaskDetailPage() {
+  const { t } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
@@ -275,7 +277,7 @@ export default function TaskDetailPage() {
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Load task detail error:", err);
-      setError("Failed to load task.");
+      setError(t("taskDetail.errors.loadTask"));
     } finally {
       if (!requestTracker.current.isLatest(requestId)) return;
       setIsBootstrapping(false);
@@ -323,8 +325,8 @@ export default function TaskDetailPage() {
   }, [task]);
 
   const getProfileName = (userId: string | null) => {
-    if (!userId) return "Unknown";
-    return profiles.find((profile) => profile.user_id === userId)?.full_name || "Unknown";
+    if (!userId) return t("taskDetail.fallbacks.unknown");
+    return profiles.find((profile) => profile.user_id === userId)?.full_name || t("taskDetail.fallbacks.unknown");
   };
 
   const getProfileRole = (userId: string | null) => {
@@ -359,7 +361,7 @@ export default function TaskDetailPage() {
   };
 
   const getInitials = (fullName: string | null) => {
-    if (!fullName) return "U";
+    if (!fullName) return t("taskDetail.fallbacks.userInitial");
     return fullName
       .split(" ")
       .map((n) => n[0])
@@ -442,7 +444,7 @@ export default function TaskDetailPage() {
       if (!requestTracker.current.isLatest(requestId)) return;
 
       if (updateError) {
-        setError(updateError.message || "Failed to update task status.");
+        setError(updateError.message || t("taskDetail.errors.updateStatus"));
         return;
       }
 
@@ -467,8 +469,12 @@ export default function TaskDetailPage() {
           userId,
           actorUserId: currentUserId || undefined,
           type: "TASK_UPDATED",
-          title: "Task Status Updated",
-          message: `Task "${task.title}" changed from ${previousStatus} to ${newStatus}`,
+          title: t("taskDetail.notifications.taskStatusUpdatedTitle"),
+          message: t("taskDetail.notifications.taskStatusUpdatedMessage", {
+            title: task.title,
+            previousStatus,
+            newStatus,
+          }),
           link: `/tasks/${task.id}`,
           entityType: "task",
           entityId: task.id,
@@ -488,7 +494,7 @@ export default function TaskDetailPage() {
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Status update error:", err);
-      setError("Failed to update task status.");
+      setError(t("taskDetail.errors.updateStatus"));
     } finally {
       if (!requestTracker.current.isLatest(requestId)) return;
       setStatusSaving(false);
@@ -498,7 +504,7 @@ export default function TaskDetailPage() {
   const handleDelete = async () => {
     if (!task || !canDeleteTask) return;
 
-    const confirmed = window.confirm("Are you sure you want to delete this task?");
+    const confirmed = window.confirm(t("taskDetail.confirmations.deleteTask"));
     if (!confirmed) return;
 
     const requestId = requestTracker.current.next();
@@ -510,7 +516,7 @@ export default function TaskDetailPage() {
     if (!requestTracker.current.isLatest(requestId)) return;
 
     if (deleteError) {
-      setError(deleteError.message || "Failed to delete task.");
+      setError(deleteError.message || t("taskDetail.errors.deleteTask"));
       setDeleteSaving(false);
       return;
     }
@@ -539,7 +545,7 @@ export default function TaskDetailPage() {
     if (!requestTracker.current.isLatest(requestId)) return;
 
     if (commentError) {
-      setError(commentError.message || "Failed to add comment.");
+      setError(commentError.message || t("taskDetail.errors.addComment"));
       setCommentSaving(false);
       return;
     }
@@ -565,8 +571,10 @@ export default function TaskDetailPage() {
         userId,
         actorUserId: currentUserId,
         type: "COMMENT",
-        title: "New Task Comment",
-        message: `New comment on task "${task.title}"`,
+        title: t("taskDetail.notifications.newTaskCommentTitle"),
+        message: t("taskDetail.notifications.newTaskCommentMessage", {
+          title: task.title,
+        }),
         link: `/tasks/${task.id}`,
         entityType: "task_comment",
         entityId: data.id,
@@ -586,8 +594,10 @@ export default function TaskDetailPage() {
         userId,
         actorUserId: currentUserId,
         type: "MENTION",
-        title: "You were mentioned in a task comment",
-        message: `You were mentioned in task "${task.title}"`,
+        title: t("taskDetail.notifications.mentionedTitle"),
+        message: t("taskDetail.notifications.mentionedMessage", {
+          title: task.title,
+        }),
         link: `/tasks/${task.id}`,
         entityType: "task_comment",
         entityId: data.id,
@@ -613,7 +623,7 @@ export default function TaskDetailPage() {
 
   const handleSaveEditedComment = async (comment: TaskCommentRow) => {
     if (!editingCommentText.trim()) {
-      setError("Comment cannot be empty.");
+      setError(t("taskDetail.errors.commentEmpty"));
       return;
     }
 
@@ -631,7 +641,7 @@ export default function TaskDetailPage() {
     if (!requestTracker.current.isLatest(requestId)) return;
 
     if (updateError) {
-      setError(updateError.message || "Failed to update comment.");
+      setError(updateError.message || t("taskDetail.errors.updateComment"));
       setCommentActionLoading(null);
       return;
     }
@@ -664,7 +674,7 @@ export default function TaskDetailPage() {
   };
 
   const handleDeleteComment = async (comment: TaskCommentRow) => {
-    const confirmed = window.confirm("Are you sure you want to delete this comment?");
+    const confirmed = window.confirm(t("taskDetail.confirmations.deleteComment"));
     if (!confirmed) return;
 
     const requestId = requestTracker.current.next();
@@ -679,7 +689,7 @@ export default function TaskDetailPage() {
     if (!requestTracker.current.isLatest(requestId)) return;
 
     if (deleteError) {
-      setError(deleteError.message || "Failed to delete comment.");
+      setError(deleteError.message || t("taskDetail.errors.deleteComment"));
       setCommentActionLoading(null);
       return;
     }
@@ -739,8 +749,11 @@ export default function TaskDetailPage() {
           userId,
           actorUserId: currentUserId || undefined,
           type: "FILE_UPLOAD",
-          title: "New Task File Uploaded",
-          message: `A file was uploaded to task "${task.title}": ${uploaded.file_name}`,
+          title: t("taskDetail.notifications.fileUploadedTitle"),
+          message: t("taskDetail.notifications.fileUploadedMessage", {
+            title: task.title,
+            fileName: uploaded.file_name,
+          }),
           link: `/tasks/${task.id}`,
           entityType: "task_file",
           entityId: uploaded.id,
@@ -749,7 +762,7 @@ export default function TaskDetailPage() {
     } catch (err: any) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Task file upload error:", err);
-      setError(err?.message || "Failed to upload file.");
+      setError(err?.message || t("taskDetail.errors.uploadFile"));
     } finally {
       if (!requestTracker.current.isLatest(requestId)) return;
       setIsUploading(false);
@@ -763,14 +776,14 @@ export default function TaskDetailPage() {
       window.open(signedUrl, "_blank");
     } catch (err: any) {
       console.error("Download file error:", err);
-      setError(err?.message || "Failed to open file.");
+      setError(err?.message || t("taskDetail.errors.openFile"));
     }
   };
 
   const handleDeleteFile = async (fileId: string, filePath: string, fileName: string) => {
     if (!task) return;
 
-    const confirmed = window.confirm("Are you sure you want to delete this file?");
+    const confirmed = window.confirm(t("taskDetail.confirmations.deleteFile"));
     if (!confirmed) return;
 
     const requestId = requestTracker.current.next();
@@ -787,7 +800,7 @@ export default function TaskDetailPage() {
     } catch (err: any) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Delete task file error:", err);
-      setError(err?.message || "Failed to delete file.");
+      setError(err?.message || t("taskDetail.errors.deleteFile"));
     }
   };
 
@@ -850,7 +863,7 @@ export default function TaskDetailPage() {
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-white">{task.title}</h1>
           <p className="text-slate-400">
-            {project ? `Project: ${project.name}` : "Task details"}
+            {project ? t("taskDetail.header.projectLabel", { name: project.name }) : t("taskDetail.header.taskDetails")}
           </p>
         </div>
 
@@ -861,7 +874,7 @@ export default function TaskDetailPage() {
             onClick={() => void loadTaskPage("refresh")}
             disabled={isRefreshing}
           >
-            {isRefreshing ? "Refreshing..." : "Refresh"}
+            {isRefreshing ? t("taskDetail.actions.refreshing") : t("taskDetail.actions.refresh")}
           </Button>
 
           {canEditTask && (
@@ -871,7 +884,7 @@ export default function TaskDetailPage() {
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
             >
               <Edit className="w-4 h-4 mr-2" />
-              Edit
+              {t("taskDetail.actions.edit")}
             </Button>
           )}
 
@@ -883,7 +896,7 @@ export default function TaskDetailPage() {
               className="border-red-800 text-red-400 hover:bg-red-900/20"
             >
               <Trash2 className="w-4 h-4 mr-2" />
-              Delete
+              {t("taskDetail.actions.delete")}
             </Button>
           )}
         </div>
@@ -899,7 +912,7 @@ export default function TaskDetailPage() {
         <div className="lg:col-span-2 space-y-6">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
-              <CardTitle className="text-white">Task Overview</CardTitle>
+              <CardTitle className="text-white">{t("taskDetail.overview.title")}</CardTitle>
             </CardHeader>
 
             <CardContent className="space-y-5">
@@ -910,13 +923,13 @@ export default function TaskDetailPage() {
 
               <div>
                 <p className="text-slate-300 whitespace-pre-wrap">
-                  {task.description || "No description"}
+                  {task.description || t("taskDetail.fallbacks.noDescription")}
                 </p>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-slate-400 text-sm">Progress</span>
+                  <span className="text-slate-400 text-sm">{t("taskDetail.overview.progress")}</span>
                   <span className="text-white text-sm">{progressValue}%</span>
                 </div>
                 <Progress value={progressValue} className="h-2 bg-slate-800" />
@@ -924,7 +937,7 @@ export default function TaskDetailPage() {
 
               {canUpdateStatus && (
                 <div className="space-y-2">
-                  <div className="text-slate-300 text-sm font-medium">Update Status</div>
+                  <div className="text-slate-300 text-sm font-medium">{t("taskDetail.overview.updateStatus")}</div>
                   <Select
                     value={(task.status || "TODO").toUpperCase()}
                     onValueChange={(value) => void handleStatusUpdate(value)}
@@ -934,10 +947,10 @@ export default function TaskDetailPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="TODO">To Do</SelectItem>
-                      <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                      <SelectItem value="IN_REVIEW">In Review</SelectItem>
-                      <SelectItem value="DONE">Done</SelectItem>
+                      <SelectItem value="TODO">{t("taskDetail.status.todo")}</SelectItem>
+                      <SelectItem value="IN_PROGRESS">{t("taskDetail.status.inProgress")}</SelectItem>
+                      <SelectItem value="IN_REVIEW">{t("taskDetail.status.inReview")}</SelectItem>
+                      <SelectItem value="DONE">{t("taskDetail.status.done")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -948,7 +961,7 @@ export default function TaskDetailPage() {
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
               <div className="flex items-center justify-between gap-4">
-                <CardTitle className="text-white">Task Files</CardTitle>
+                <CardTitle className="text-white">{t("taskDetail.files.title")}</CardTitle>
 
                 <>
                   <input
@@ -966,7 +979,7 @@ export default function TaskDetailPage() {
                     onClick={() => taskFileInputRef.current?.click()}
                   >
                     <Upload className="w-4 h-4 mr-2" />
-                    {isUploading ? "Uploading..." : "Upload File"}
+                    {isUploading ? t("taskDetail.files.uploading") : t("taskDetail.files.uploadFile")}
                   </Button>
                 </>
               </div>
@@ -974,7 +987,7 @@ export default function TaskDetailPage() {
 
             <CardContent>
               {files.length === 0 ? (
-                <p className="text-slate-500">No task files uploaded yet.</p>
+                <p className="text-slate-500">{t("taskDetail.files.empty")}</p>
               ) : (
                 <div className="space-y-3">
                   {files.map((file) => (
@@ -1001,7 +1014,7 @@ export default function TaskDetailPage() {
                           onClick={() => void handleDownloadFile(file.file_path)}
                         >
                           <Download className="w-4 h-4 mr-2" />
-                          Open
+                          {t("taskDetail.files.open")}
                         </Button>
 
                         {canDeleteThisFile(file) && (
@@ -1013,7 +1026,7 @@ export default function TaskDetailPage() {
                             }
                           >
                             <Trash2 className="w-4 h-4 mr-2" />
-                            Delete
+                            {t("taskDetail.actions.delete")}
                           </Button>
                         )}
                       </div>
@@ -1027,21 +1040,21 @@ export default function TaskDetailPage() {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-indigo-400" />
-                <CardTitle className="text-white">Task Discussion</CardTitle>
+                <CardTitle className="text-white">{t("taskDetail.discussion.title")}</CardTitle>
               </div>
             </CardHeader>
 
             <CardContent className="space-y-5">
               <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
                 <div className="mb-2">
-                  <p className="text-sm font-medium text-white">Add Update</p>
+                  <p className="text-sm font-medium text-white">{t("taskDetail.discussion.addUpdate")}</p>
                   <p className="text-xs text-slate-500">
-                    Share progress, blockers, approvals, or notes with the team
+                    {t("taskDetail.discussion.addUpdateHelper")}
                   </p>
                 </div>
 
                 <Textarea
-                  placeholder="Write an update, status note, blocker, or team comment..."
+                  placeholder={t("taskDetail.discussion.placeholder")}
                   value={newComment}
                   onChange={(e) => handleCommentInputChange(e.target.value)}
                   rows={4}
@@ -1052,7 +1065,7 @@ export default function TaskDetailPage() {
                   <div className="mt-2 rounded-lg border border-slate-800 bg-slate-900 shadow-lg overflow-hidden">
                     {filteredMentionCandidates.length === 0 ? (
                       <div className="px-3 py-2 text-sm text-slate-500">
-                        No matching participants
+                        {t("taskDetail.discussion.noMatchingParticipants")}
                       </div>
                     ) : (
                       filteredMentionCandidates.map((profile) => (
@@ -1064,7 +1077,7 @@ export default function TaskDetailPage() {
                         >
                           <div>
                             <div className="text-sm font-medium text-white">
-                              {profile.full_name || "Unknown"}
+                              {profile.full_name || t("taskDetail.fallbacks.unknown")}
                             </div>
                             <div className="text-xs text-slate-500">
                               {profile.role.toUpperCase()}
@@ -1078,7 +1091,7 @@ export default function TaskDetailPage() {
 
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <p className="text-xs text-slate-500">
-                    This update will be visible to people who can access this task.
+                    {t("taskDetail.discussion.visibilityNote")}
                   </p>
 
                   <Button
@@ -1088,7 +1101,7 @@ export default function TaskDetailPage() {
                     className="bg-indigo-600 hover:bg-indigo-700 text-white"
                   >
                     <Send className="w-4 h-4 mr-2" />
-                    {commentSaving ? "Posting..." : "Post Update"}
+                    {commentSaving ? t("taskDetail.discussion.posting") : t("taskDetail.discussion.postUpdate")}
                   </Button>
                 </div>
               </div>
@@ -1097,9 +1110,9 @@ export default function TaskDetailPage() {
                 {comments.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-slate-800 bg-slate-950/40 p-8 text-center">
                     <MessageSquare className="mx-auto mb-3 h-10 w-10 text-slate-600" />
-                    <p className="text-white font-medium">No discussion yet</p>
+                    <p className="text-white font-medium">{t("taskDetail.discussion.emptyTitle")}</p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Start the thread with the first progress update or note.
+                      {t("taskDetail.discussion.emptyDescription")}
                     </p>
                   </div>
                 ) : (
@@ -1136,7 +1149,7 @@ export default function TaskDetailPage() {
 
                                 {isMine && (
                                   <Badge className="bg-indigo-500/20 text-indigo-300 text-[10px] px-2 py-0.5">
-                                    YOU
+                                    {t("taskDetail.discussion.you")}
                                   </Badge>
                                 )}
                               </div>
@@ -1161,7 +1174,7 @@ export default function TaskDetailPage() {
                                 disabled={commentActionLoading === comment.id}
                               >
                                 <Edit className="w-3 h-3 mr-1" />
-                                Edit
+                                {t("taskDetail.actions.edit")}
                               </Button>
 
                               <Button
@@ -1173,7 +1186,7 @@ export default function TaskDetailPage() {
                                 disabled={commentActionLoading === comment.id}
                               >
                                 <Trash2 className="w-3 h-3 mr-1" />
-                                Delete
+                                {t("taskDetail.actions.delete")}
                               </Button>
                             </div>
                           )}
@@ -1201,7 +1214,7 @@ export default function TaskDetailPage() {
                                   }
                                 >
                                   <Save className="w-3 h-3 mr-1" />
-                                  Save
+                                  {t("taskDetail.actions.save")}
                                 </Button>
 
                                 <Button
@@ -1213,7 +1226,7 @@ export default function TaskDetailPage() {
                                   disabled={commentActionLoading === comment.id}
                                 >
                                   <X className="w-3 h-3 mr-1" />
-                                  Cancel
+                                  {t("taskDetail.actions.cancel")}
                                 </Button>
                               </div>
                             </div>
@@ -1235,32 +1248,32 @@ export default function TaskDetailPage() {
         <div className="space-y-6">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
-              <CardTitle className="text-white">Details</CardTitle>
+              <CardTitle className="text-white">{t("taskDetail.details.title")}</CardTitle>
             </CardHeader>
 
             <CardContent className="space-y-4">
               <InfoRow
                 icon={<FolderKanban className="w-4 h-4 text-indigo-400" />}
-                label="Project"
-                value={project?.name || "No project"}
+                label={t("taskDetail.details.project")}
+                value={project?.name || t("taskDetail.fallbacks.noProject")}
               />
               <InfoRow
                 icon={<Flag className="w-4 h-4 text-amber-400" />}
-                label="Priority"
+                label={t("taskDetail.details.priority")}
                 value={task.priority || "LOW"}
               />
               <InfoRow
                 icon={<CheckSquare className="w-4 h-4 text-blue-400" />}
-                label="Status"
+                label={t("taskDetail.details.status")}
                 value={task.status || "TODO"}
               />
               <InfoRow
                 icon={<Calendar className="w-4 h-4 text-green-400" />}
-                label="Due Date"
+                label={t("taskDetail.details.dueDate")}
                 value={
                   task.due_date
                     ? format(new Date(task.due_date), "MMM d, yyyy")
-                    : "No due date"
+                    : t("taskDetail.fallbacks.noDueDate")
                 }
               />
             </CardContent>
@@ -1268,12 +1281,12 @@ export default function TaskDetailPage() {
 
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
-              <CardTitle className="text-white">Assigned Members</CardTitle>
+              <CardTitle className="text-white">{t("taskDetail.members.title")}</CardTitle>
             </CardHeader>
 
             <CardContent className="space-y-3">
               {taskMembers.length === 0 ? (
-                <p className="text-slate-500">No assigned members.</p>
+                <p className="text-slate-500">{t("taskDetail.members.empty")}</p>
               ) : (
                 taskMembers.map((member) => (
                   <div key={member.id} className="flex items-center justify-between">

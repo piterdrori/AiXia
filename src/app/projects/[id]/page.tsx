@@ -13,6 +13,7 @@ import {
   deleteUploadedFile,
 } from "@/lib/file-upload";
 import { createRequestTracker } from "@/lib/safeAsync";
+import { useLanguage } from "@/lib/i18n";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -114,6 +115,8 @@ type ProjectCommentRow = {
 };
 
 function ProjectDetailSkeleton() {
+  const { t } = useLanguage();
+
   return (
     <div className="space-y-6 animate-pulse">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -185,6 +188,7 @@ export default function ProjectDetailPage() {
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
   const projectFileInputRef = useRef<HTMLInputElement | null>(null);
+  const { t } = useLanguage();
 
   const [activeTab, setActiveTab] = useState("overview");
   const [isLoading, setIsLoading] = useState(true);
@@ -316,7 +320,7 @@ export default function ProjectDetailPage() {
 
       if (projectError || !projectData) {
         setProject(null);
-        setError("Project not found.");
+        setError(t("projects.projectNotFound", "Project not found."));
         return;
       }
 
@@ -348,7 +352,12 @@ export default function ProjectDetailPage() {
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Load project page error:", err);
-      setError("Something went wrong while loading the project.");
+      setError(
+        t(
+          "projects.somethingWentWrongWhileLoadingProject",
+          "Something went wrong while loading the project."
+        )
+      );
     } finally {
       if (!requestTracker.current.isLatest(requestId)) return;
       setIsLoading(false);
@@ -385,7 +394,7 @@ export default function ProjectDetailPage() {
     return currentUserRole === "admin" || comment.user_id === currentUserId;
   };
 
-    const openTeamDialog = () => {
+  const openTeamDialog = () => {
     setSelectedTeamMembers(projectMembers.map((member) => member.user_id));
     setIsTeamDialogOpen(true);
   };
@@ -396,107 +405,109 @@ export default function ProjectDetailPage() {
     );
   };
 
-const handleSaveTeamMembers = async () => {
-  if (!id || !project || !canEdit) return;
+  const handleSaveTeamMembers = async () => {
+    if (!id || !project || !canEdit) return;
 
-  setError("");
-  setIsSavingTeamMembers(true);
+    setError("");
+    setIsSavingTeamMembers(true);
 
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (!user) {
-      navigate("/login");
-      return;
-    }
-
-    const existingUserIds = projectMembers.map((member) => member.user_id);
-    const selectedSet = new Set(selectedTeamMembers);
-
-    const toInsert = selectedTeamMembers.filter(
-      (userId) => !existingUserIds.includes(userId)
-    );
-
-    const toDelete = projectMembers.filter(
-      (member) => !selectedSet.has(member.user_id)
-    );
-
-    // ✅ ADD MEMBERS
-    if (toInsert.length > 0) {
-      const rows = toInsert.map((userId) => ({
-        project_id: id,
-        user_id: userId,
-        role: "member",
-      }));
-
-      const { error: insertError } = await supabase
-        .from("project_members")
-        .insert(rows);
-
-      if (insertError) {
-        setError(insertError.message || "Failed to add team members.");
+      if (!user) {
+        navigate("/login");
         return;
       }
 
-      await logActivity({
-        projectId: id,
-        actionType: "project_members_added",
-        entityType: "member",
-        entityId: id,
-        message: `Added ${toInsert.length} member(s) to project`,
-      });
+      const existingUserIds = projectMembers.map((member) => member.user_id);
+      const selectedSet = new Set(selectedTeamMembers);
 
-      // 🔔 NOTIFICATIONS (NEW PART)
-      for (const userId of toInsert) {
-        if (userId === user.id) continue;
+      const toInsert = selectedTeamMembers.filter(
+        (userId) => !existingUserIds.includes(userId)
+      );
 
-        await createNotification({
-          userId,
-          actorUserId: user.id,
-          type: "PROJECT_UPDATE",
-          title: "Added to Project",
-          message: `You were added to project "${project.name}"`,
-          link: `/projects/${project.id}`,
-          entityType: "project",
-          entityId: project.id,
+      const toDelete = projectMembers.filter(
+        (member) => !selectedSet.has(member.user_id)
+      );
+
+      if (toInsert.length > 0) {
+        const rows = toInsert.map((userId) => ({
+          project_id: id,
+          user_id: userId,
+          role: "member",
+        }));
+
+        const { error: insertError } = await supabase
+          .from("project_members")
+          .insert(rows);
+
+        if (insertError) {
+          setError(insertError.message || t("projects.failedToAddTeamMembers", "Failed to add team members."));
+          return;
+        }
+
+        await logActivity({
+          projectId: id,
+          actionType: "project_members_added",
+          entityType: "member",
+          entityId: id,
+          message: `Added ${toInsert.length} member(s) to project`,
+        });
+
+        for (const userId of toInsert) {
+          if (userId === user.id) continue;
+
+          await createNotification({
+            userId,
+            actorUserId: user.id,
+            type: "PROJECT_UPDATE",
+            title: t("projects.addedToProject", "Added to Project"),
+            message: t("projects.youWereAddedToProject", `You were added to project "${project.name}"`),
+            link: `/projects/${project.id}`,
+            entityType: "project",
+            entityId: project.id,
+          });
+        }
+      }
+
+      if (toDelete.length > 0) {
+        const idsToDelete = toDelete.map((member) => member.id);
+
+        const { error: deleteError } = await supabase
+          .from("project_members")
+          .delete()
+          .in("id", idsToDelete);
+
+        if (deleteError) {
+          setError(deleteError.message || t("projects.failedToRemoveTeamMembers", "Failed to remove team members."));
+          return;
+        }
+
+        await logActivity({
+          projectId: id,
+          actionType: "project_members_removed",
+          entityType: "member",
+          entityId: id,
+          message: `Removed ${toDelete.length} member(s) from project`,
         });
       }
+
+      await loadProjectPage("refresh");
+      setIsTeamDialogOpen(false);
+    } catch (err) {
+      console.error("Save team members error:", err);
+      setError(
+        t(
+          "projects.somethingWentWrongWhileUpdatingTeamMembers",
+          "Something went wrong while updating team members."
+        )
+      );
+    } finally {
+      setIsSavingTeamMembers(false);
     }
-
-    // ❌ REMOVE MEMBERS
-    if (toDelete.length > 0) {
-      const idsToDelete = toDelete.map((member) => member.id);
-
-      const { error: deleteError } = await supabase
-        .from("project_members")
-        .delete()
-        .in("id", idsToDelete);
-
-      if (deleteError) {
-        setError(deleteError.message || "Failed to remove team members.");
-        return;
-      }
-
-      await logActivity({
-        projectId: id,
-        actionType: "project_members_removed",
-        entityType: "member",
-        entityId: id,
-        message: `Removed ${toDelete.length} member(s) from project`,
-      });
-    }
-
-    await loadProjectPage("refresh");
-    setIsTeamDialogOpen(false);
-  } catch (err) {
-    console.error("Save team members error:", err);
-    setError("Something went wrong while updating team members.");
-  } finally {
-    setIsSavingTeamMembers(false);
-  }
-};
+  };
 
   const getStatusColor = (status: string | null) => {
     switch ((status || "").toUpperCase()) {
@@ -549,13 +560,14 @@ const handleSaveTeamMembers = async () => {
       .join("")
       .toUpperCase();
   };
-const getProfileByUserId = (userId: string) => {
+
+  const getProfileByUserId = (userId: string) => {
     return profiles.find((profile) => profile.user_id === userId);
   };
 
   const getProfileName = (userId: string | null) => {
-    if (!userId) return "Unknown";
-    return profiles.find((profile) => profile.user_id === userId)?.full_name || "Unknown";
+    if (!userId) return t("projects.unknown", "Unknown");
+    return profiles.find((profile) => profile.user_id === userId)?.full_name || t("projects.unknown", "Unknown");
   };
 
   const getProfileRole = (userId: string | null) => {
@@ -616,7 +628,9 @@ const getProfileByUserId = (userId: string) => {
   const handleDelete = async () => {
     if (!project) return;
 
-    const confirmed = window.confirm("Are you sure you want to delete this project?");
+    const confirmed = window.confirm(
+      t("projects.deleteProjectConfirm", "Are you sure you want to delete this project?")
+    );
     if (!confirmed) return;
 
     setIsDeleting(true);
@@ -646,7 +660,7 @@ const getProfileByUserId = (userId: string) => {
         .eq("id", project.id);
 
       if (deleteProjectError) {
-        setError(deleteProjectError.message || "Failed to delete project.");
+        setError(deleteProjectError.message || t("projects.failedToDeleteProject", "Failed to delete project."));
         setIsDeleting(false);
         return;
       }
@@ -654,7 +668,12 @@ const getProfileByUserId = (userId: string) => {
       navigate("/projects");
     } catch (err) {
       console.error("Delete project error:", err);
-      setError("Something went wrong while deleting the project.");
+      setError(
+        t(
+          "projects.somethingWentWrongWhileDeletingProject",
+          "Something went wrong while deleting the project."
+        )
+      );
       setIsDeleting(false);
     }
   };
@@ -700,8 +719,11 @@ const getProfileByUserId = (userId: string) => {
           userId,
           actorUserId: currentUserId || undefined,
           type: "FILE_UPLOAD",
-          title: "New Project File Uploaded",
-          message: `A file was uploaded to project "${project.name}": ${uploaded.file_name}`,
+          title: t("projects.newProjectFileUploaded", "New Project File Uploaded"),
+          message: t(
+            "projects.fileUploadedToProject",
+            `A file was uploaded to project "${project.name}": ${uploaded.file_name}`
+          ),
           link: `/projects/${project.id}`,
           entityType: "project_file",
           entityId: uploaded.id,
@@ -711,7 +733,7 @@ const getProfileByUserId = (userId: string) => {
       await refreshActivityLogs(project.id);
     } catch (err: any) {
       console.error("Project file upload error:", err);
-      setError(err?.message || "Failed to upload file.");
+      setError(err?.message || t("projects.failedToUploadFile", "Failed to upload file."));
     } finally {
       setIsUploading(false);
       e.target.value = "";
@@ -724,12 +746,14 @@ const getProfileByUserId = (userId: string) => {
       window.open(signedUrl, "_blank");
     } catch (err: any) {
       console.error("Download file error:", err);
-      setError(err?.message || "Failed to open file.");
+      setError(err?.message || t("projects.failedToOpenFile", "Failed to open file."));
     }
   };
 
   const handleDeleteFile = async (fileId: string, filePath: string, fileName: string) => {
-    const confirmed = window.confirm("Are you sure you want to delete this file?");
+    const confirmed = window.confirm(
+      t("projects.deleteFileConfirm", "Are you sure you want to delete this file?")
+    );
     if (!confirmed) return;
 
     try {
@@ -746,7 +770,7 @@ const getProfileByUserId = (userId: string) => {
       }
     } catch (err: any) {
       console.error("Delete file error:", err);
-      setError(err?.message || "Failed to delete file.");
+      setError(err?.message || t("projects.failedToDeleteFile", "Failed to delete file."));
     }
   };
 
@@ -769,7 +793,7 @@ const getProfileByUserId = (userId: string) => {
       .single();
 
     if (commentError) {
-      setError(commentError.message || "Failed to add comment.");
+      setError(commentError.message || t("projects.failedToAddComment", "Failed to add comment."));
       setCommentSaving(false);
       return;
     }
@@ -795,8 +819,8 @@ const getProfileByUserId = (userId: string) => {
         userId,
         actorUserId: currentUserId,
         type: "COMMENT",
-        title: "New Project Comment",
-        message: `New comment on project "${project.name}"`,
+        title: t("projects.newProjectComment", "New Project Comment"),
+        message: t("projects.newCommentOnProject", `New comment on project "${project.name}"`),
         link: `/projects/${project.id}`,
         entityType: "project_comment",
         entityId: data.id,
@@ -816,8 +840,8 @@ const getProfileByUserId = (userId: string) => {
         userId,
         actorUserId: currentUserId,
         type: "MENTION",
-        title: "You were mentioned in a project comment",
-        message: `You were mentioned in project "${project.name}"`,
+        title: t("projects.youWereMentionedInProjectComment", "You were mentioned in a project comment"),
+        message: t("projects.youWereMentionedInProject", `You were mentioned in project "${project.name}"`),
         link: `/projects/${project.id}`,
         entityType: "project_comment",
         entityId: data.id,
@@ -842,7 +866,7 @@ const getProfileByUserId = (userId: string) => {
 
   const handleSaveEditedComment = async (comment: ProjectCommentRow) => {
     if (!editingCommentText.trim()) {
-      setError("Comment cannot be empty.");
+      setError(t("projects.commentCannotBeEmpty", "Comment cannot be empty."));
       return;
     }
 
@@ -857,7 +881,7 @@ const getProfileByUserId = (userId: string) => {
       .eq("id", comment.id);
 
     if (updateError) {
-      setError(updateError.message || "Failed to update comment.");
+      setError(updateError.message || t("projects.failedToUpdateComment", "Failed to update comment."));
       setCommentActionLoading(null);
       return;
     }
@@ -892,7 +916,9 @@ const getProfileByUserId = (userId: string) => {
   };
 
   const handleDeleteComment = async (comment: ProjectCommentRow) => {
-    const confirmed = window.confirm("Are you sure you want to delete this comment?");
+    const confirmed = window.confirm(
+      t("projects.deleteCommentConfirm", "Are you sure you want to delete this comment?")
+    );
     if (!confirmed) return;
 
     setCommentActionLoading(comment.id);
@@ -904,7 +930,7 @@ const getProfileByUserId = (userId: string) => {
       .eq("id", comment.id);
 
     if (deleteError) {
-      setError(deleteError.message || "Failed to delete comment.");
+      setError(deleteError.message || t("projects.failedToDeleteComment", "Failed to delete comment."));
       setCommentActionLoading(null);
       return;
     }
@@ -952,7 +978,9 @@ const getProfileByUserId = (userId: string) => {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        <div className="text-center text-slate-400">Project not found.</div>
+        <div className="text-center text-slate-400">
+          {t("projects.projectNotFound", "Project not found.")}
+        </div>
       </div>
     );
   }
@@ -981,11 +1009,17 @@ const getProfileByUserId = (userId: string) => {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-white">{project.name}</h1>
               <Badge className={getStatusColor(project.status)}>
-                {project.status || "UNKNOWN"}
+                {project.status || t("projects.unknownUpper", "UNKNOWN")}
               </Badge>
-              {pageBusy && <span className="text-xs text-slate-500">Refreshing...</span>}
+              {pageBusy && (
+                <span className="text-xs text-slate-500">
+                  {t("projects.refreshing", "Refreshing...")}
+                </span>
+              )}
             </div>
-            <p className="text-slate-400">{project.description || "No description"}</p>
+            <p className="text-slate-400">
+              {project.description || t("projects.noDescription", "No description")}
+            </p>
           </div>
         </div>
 
@@ -996,7 +1030,9 @@ const getProfileByUserId = (userId: string) => {
             onClick={() => void loadProjectPage("refresh")}
             disabled={isRefreshing}
           >
-            {isRefreshing ? "Refreshing..." : "Refresh"}
+            {isRefreshing
+              ? t("projects.refreshing", "Refreshing...")
+              : t("projects.refresh", "Refresh")}
           </Button>
 
           {canEdit && (
@@ -1006,7 +1042,7 @@ const getProfileByUserId = (userId: string) => {
               onClick={() => navigate(`/projects/${project.id}/edit`)}
             >
               <Edit className="w-4 h-4 mr-2" />
-              Edit
+              {t("projects.edit", "Edit")}
             </Button>
           )}
 
@@ -1018,7 +1054,9 @@ const getProfileByUserId = (userId: string) => {
               disabled={isDeleting}
             >
               <Trash2 className="w-4 h-4 mr-2" />
-              {isDeleting ? "Deleting..." : "Delete"}
+              {isDeleting
+                ? t("projects.deleting", "Deleting...")
+                : t("projects.delete", "Delete")}
             </Button>
           )}
         </div>
@@ -1027,7 +1065,9 @@ const getProfileByUserId = (userId: string) => {
       <Card className="bg-slate-900/50 border-slate-800">
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-slate-400">Project Progress</span>
+            <span className="text-slate-400">
+              {t("projects.projectProgress", "Project Progress")}
+            </span>
             <span className="text-white font-medium">{project.progress || 0}%</span>
           </div>
 
@@ -1036,23 +1076,23 @@ const getProfileByUserId = (userId: string) => {
           <div className="grid grid-cols-5 gap-4 mt-6">
             <div className="text-center">
               <p className="text-2xl font-bold text-white">{taskStats.total}</p>
-              <p className="text-xs text-slate-500">Total</p>
+              <p className="text-xs text-slate-500">{t("projects.total", "Total")}</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold text-slate-400">{taskStats.todo}</p>
-              <p className="text-xs text-slate-500">To Do</p>
+              <p className="text-xs text-slate-500">{t("projects.toDo", "To Do")}</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold text-blue-400">{taskStats.inProgress}</p>
-              <p className="text-xs text-slate-500">In Progress</p>
+              <p className="text-xs text-slate-500">{t("projects.inProgress", "In Progress")}</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold text-purple-400">{taskStats.inReview}</p>
-              <p className="text-xs text-slate-500">In Review</p>
+              <p className="text-xs text-slate-500">{t("projects.inReview", "In Review")}</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold text-green-400">{taskStats.done}</p>
-              <p className="text-xs text-slate-500">Done</p>
+              <p className="text-xs text-slate-500">{t("projects.done", "Done")}</p>
             </div>
           </div>
         </CardContent>
@@ -1061,22 +1101,22 @@ const getProfileByUserId = (userId: string) => {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-slate-900 border border-slate-800">
           <TabsTrigger value="overview" className="data-[state=active]:bg-slate-800">
-            Overview
+            {t("projects.overview", "Overview")}
           </TabsTrigger>
           <TabsTrigger value="tasks" className="data-[state=active]:bg-slate-800">
-            Tasks
+            {t("projects.tasks", "Tasks")}
           </TabsTrigger>
           <TabsTrigger value="team" className="data-[state=active]:bg-slate-800">
-            Team
+            {t("projects.team", "Team")}
           </TabsTrigger>
           <TabsTrigger value="files" className="data-[state=active]:bg-slate-800">
-            Files
+            {t("projects.files", "Files")}
           </TabsTrigger>
           <TabsTrigger value="discussion" className="data-[state=active]:bg-slate-800">
-            Discussion
+            {t("projects.discussion", "Discussion")}
           </TabsTrigger>
           <TabsTrigger value="activity" className="data-[state=active]:bg-slate-800">
-            Activity
+            {t("projects.activity", "Activity")}
           </TabsTrigger>
         </TabsList>
 
@@ -1084,43 +1124,45 @@ const getProfileByUserId = (userId: string) => {
           <div className="grid md:grid-cols-2 gap-6">
             <Card className="bg-slate-900/50 border-slate-800">
               <CardHeader>
-                <CardTitle className="text-white text-lg">Project Details</CardTitle>
+                <CardTitle className="text-white text-lg">
+                  {t("projects.projectDetails", "Project Details")}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Status</span>
+                  <span className="text-slate-400">{t("projects.status", "Status")}</span>
                   <Badge className={getStatusColor(project.status)}>
-                    {project.status || "UNKNOWN"}
+                    {project.status || t("projects.unknownUpper", "UNKNOWN")}
                   </Badge>
                 </div>
 
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Start Date</span>
+                  <span className="text-slate-400">{t("projects.startDate", "Start Date")}</span>
                   <span className="text-white">
                     {project.start_date
                       ? format(new Date(project.start_date), "MMM d, yyyy")
-                      : "Not set"}
+                      : t("projects.notSet", "Not set")}
                   </span>
                 </div>
 
                 <div className="flex justify-between">
-                  <span className="text-slate-400">End Date</span>
+                  <span className="text-slate-400">{t("projects.endDate", "End Date")}</span>
                   <span className="text-white">
                     {project.end_date
                       ? format(new Date(project.end_date), "MMM d, yyyy")
-                      : "Not set"}
+                      : t("projects.notSet", "Not set")}
                   </span>
                 </div>
 
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Created</span>
+                  <span className="text-slate-400">{t("projects.created", "Created")}</span>
                   <span className="text-white">
                     {format(new Date(project.created_at), "MMM d, yyyy")}
                   </span>
                 </div>
 
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Assigned Members</span>
+                  <span className="text-slate-400">{t("projects.assignedMembers", "Assigned Members")}</span>
                   <span className="text-white">{projectMembers.length}</span>
                 </div>
               </CardContent>
@@ -1128,12 +1170,16 @@ const getProfileByUserId = (userId: string) => {
 
             <Card className="bg-slate-900/50 border-slate-800">
               <CardHeader>
-                <CardTitle className="text-white text-lg">Team Members</CardTitle>
+                <CardTitle className="text-white text-lg">
+                  {t("projects.teamMembers", "Team Members")}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {projectMembers.length === 0 ? (
-                    <p className="text-slate-500">No team members assigned</p>
+                    <p className="text-slate-500">
+                      {t("projects.noTeamMembersAssigned", "No team members assigned")}
+                    </p>
                   ) : (
                     projectMembers.map((member) => {
                       const profile = getProfileByUserId(member.user_id);
@@ -1148,7 +1194,7 @@ const getProfileByUserId = (userId: string) => {
 
                           <div className="flex-1">
                             <p className="text-white text-sm">
-                              {profile?.full_name || "Unnamed user"}
+                              {profile?.full_name || t("projects.unnamedUser", "Unnamed user")}
                             </p>
                             <p className="text-slate-500 text-xs">{member.role}</p>
                           </div>
@@ -1164,14 +1210,16 @@ const getProfileByUserId = (userId: string) => {
 
         <TabsContent value="tasks" className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-medium text-white">Project Tasks</h3>
+            <h3 className="text-lg font-medium text-white">
+              {t("projects.projectTasks", "Project Tasks")}
+            </h3>
 
             <Button
               className="bg-indigo-600 hover:bg-indigo-700 text-white"
               onClick={() => navigate(`/tasks/new?projectId=${project.id}`)}
             >
               <Plus className="w-4 h-4 mr-2" />
-              Add Task
+              {t("projects.addTask", "Add Task")}
             </Button>
           </div>
 
@@ -1243,13 +1291,13 @@ const getProfileByUserId = (userId: string) => {
             {tasks.length === 0 && (
               <div className="text-center py-12">
                 <CheckSquare className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-                <p className="text-slate-500">No tasks yet</p>
+                <p className="text-slate-500">{t("projects.noTasksYet", "No tasks yet")}</p>
                 <Button
                   className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white"
                   onClick={() => navigate(`/tasks/new?projectId=${project.id}`)}
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Add First Task
+                  {t("projects.addFirstTask", "Add First Task")}
                 </Button>
               </div>
             )}
@@ -1258,7 +1306,9 @@ const getProfileByUserId = (userId: string) => {
 
         <TabsContent value="team" className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-medium text-white">Team Members</h3>
+            <h3 className="text-lg font-medium text-white">
+              {t("projects.teamMembers", "Team Members")}
+            </h3>
 
             {canEdit && (
               <Button
@@ -1266,19 +1316,23 @@ const getProfileByUserId = (userId: string) => {
                 onClick={openTeamDialog}
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Add Team Member
+                {t("projects.addTeamMember", "Add Team Member")}
               </Button>
             )}
           </div>
 
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
-              <CardTitle className="text-white">Team Members</CardTitle>
+              <CardTitle className="text-white">
+                {t("projects.teamMembers", "Team Members")}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="divide-y divide-slate-800">
                 {projectMembers.length === 0 ? (
-                  <p className="text-slate-500 py-4">No team members assigned</p>
+                  <p className="text-slate-500 py-4">
+                    {t("projects.noTeamMembersAssigned", "No team members assigned")}
+                  </p>
                 ) : (
                   projectMembers.map((member) => {
                     const profile = getProfileByUserId(member.user_id);
@@ -1293,7 +1347,7 @@ const getProfileByUserId = (userId: string) => {
 
                         <div className="flex-1">
                           <p className="text-white font-medium">
-                            {profile?.full_name || "Unnamed user"}
+                            {profile?.full_name || t("projects.unnamedUser", "Unnamed user")}
                           </p>
                           <p className="text-slate-500 text-sm">
                             {profile?.role?.toUpperCase() || "USER"}
@@ -1312,14 +1366,18 @@ const getProfileByUserId = (userId: string) => {
           <Dialog open={isTeamDialogOpen} onOpenChange={setIsTeamDialogOpen}>
             <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Add Team Members</DialogTitle>
+                <DialogTitle>{t("projects.addTeamMembers", "Add Team Members")}</DialogTitle>
               </DialogHeader>
 
               <div className="space-y-3">
-                <div className="text-slate-300 text-sm font-medium">Assign Team Members</div>
+                <div className="text-slate-300 text-sm font-medium">
+                  {t("projects.assignTeamMembers", "Assign Team Members")}
+                </div>
 
                 {profiles.length === 0 ? (
-                  <div className="text-slate-500 text-sm">No active team members found.</div>
+                  <div className="text-slate-500 text-sm">
+                    {t("projects.noActiveTeamMembersFound", "No active team members found.")}
+                  </div>
                 ) : (
                   <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3 max-h-64 overflow-y-auto">
                     {profiles.map((member) => (
@@ -1329,7 +1387,7 @@ const getProfileByUserId = (userId: string) => {
                       >
                         <div>
                           <div className="text-white text-sm font-medium">
-                            {member.full_name || "Unnamed user"}
+                            {member.full_name || t("projects.unnamedUser", "Unnamed user")}
                           </div>
                           <div className="text-slate-500 text-xs">
                             {member.role.toUpperCase()}
@@ -1348,7 +1406,10 @@ const getProfileByUserId = (userId: string) => {
                 )}
 
                 <p className="text-slate-500 text-xs">
-                  Only assigned members, the creator, and admin will be able to see this project.
+                  {t(
+                    "projects.projectVisibilityNote",
+                    "Only assigned members, the creator, and admin will be able to see this project."
+                  )}
                 </p>
 
                 <div className="flex items-center justify-end gap-3 pt-2">
@@ -1359,7 +1420,7 @@ const getProfileByUserId = (userId: string) => {
                     className="border-slate-700 text-slate-300 hover:bg-slate-800"
                     disabled={isSavingTeamMembers}
                   >
-                    Cancel
+                    {t("projects.cancel", "Cancel")}
                   </Button>
 
                   <Button
@@ -1368,7 +1429,9 @@ const getProfileByUserId = (userId: string) => {
                     onClick={() => void handleSaveTeamMembers()}
                     disabled={isSavingTeamMembers}
                   >
-                    {isSavingTeamMembers ? "Saving..." : "Save Members"}
+                    {isSavingTeamMembers
+                      ? t("common.saving", "Saving...")
+                      : t("projects.saveMembers", "Save Members")}
                   </Button>
                 </div>
               </div>
@@ -1378,7 +1441,9 @@ const getProfileByUserId = (userId: string) => {
 
         <TabsContent value="files" className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-medium text-white">Project Files</h3>
+            <h3 className="text-lg font-medium text-white">
+              {t("projects.projectFiles", "Project Files")}
+            </h3>
 
             <>
               <input
@@ -1396,7 +1461,9 @@ const getProfileByUserId = (userId: string) => {
                 onClick={() => projectFileInputRef.current?.click()}
               >
                 <Upload className="w-4 h-4 mr-2" />
-                {isUploading ? "Uploading..." : "Upload File"}
+                {isUploading
+                  ? t("projects.uploading", "Uploading...")
+                  : t("projects.uploadFile", "Upload File")}
               </Button>
             </>
           </div>
@@ -1404,7 +1471,9 @@ const getProfileByUserId = (userId: string) => {
           <Card className="bg-slate-900/50 border-slate-800">
             <CardContent className="p-4">
               {files.length === 0 ? (
-                <p className="text-slate-500">No project files uploaded yet.</p>
+                <p className="text-slate-500">
+                  {t("projects.noProjectFilesUploadedYet", "No project files uploaded yet.")}
+                </p>
               ) : (
                 <div className="space-y-3">
                   {files.map((file) => {
@@ -1420,7 +1489,7 @@ const getProfileByUserId = (userId: string) => {
                           <div className="min-w-0">
                             <p className="text-white text-sm truncate">{file.file_name}</p>
                             <p className="text-slate-500 text-xs">
-                              {uploader?.full_name || "Unknown user"} •{" "}
+                              {uploader?.full_name || t("projects.unknownUser", "Unknown user")} •{" "}
                               {format(new Date(file.created_at), "MMM d, yyyy h:mm a")}
                             </p>
                           </div>
@@ -1433,7 +1502,7 @@ const getProfileByUserId = (userId: string) => {
                             onClick={() => void handleDownloadFile(file.file_path)}
                           >
                             <Download className="w-4 h-4 mr-2" />
-                            Open
+                            {t("projects.open", "Open")}
                           </Button>
 
                           {canDeleteThisProjectFile(file) && (
@@ -1445,7 +1514,7 @@ const getProfileByUserId = (userId: string) => {
                               }
                             >
                               <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
+                              {t("projects.delete", "Delete")}
                             </Button>
                           )}
                         </div>
@@ -1463,20 +1532,30 @@ const getProfileByUserId = (userId: string) => {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-indigo-400" />
-                <CardTitle className="text-white">Project Discussion</CardTitle>
+                <CardTitle className="text-white">
+                  {t("projects.projectDiscussion", "Project Discussion")}
+                </CardTitle>
               </div>
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
                 <div className="mb-2">
-                  <p className="text-sm font-medium text-white">Add Update</p>
+                  <p className="text-sm font-medium text-white">
+                    {t("projects.addUpdate", "Add Update")}
+                  </p>
                   <p className="text-xs text-slate-500">
-                    Share project-wide updates, blockers, notes, and decisions
+                    {t(
+                      "projects.shareProjectWideUpdates",
+                      "Share project-wide updates, blockers, notes, and decisions"
+                    )}
                   </p>
                 </div>
 
                 <Textarea
-                  placeholder="Write a project update, decision, blocker, or note..."
+                  placeholder={t(
+                    "projects.writeProjectUpdatePlaceholder",
+                    "Write a project update, decision, blocker, or note..."
+                  )}
                   value={newComment}
                   onChange={(e) => handleCommentInputChange(e.target.value)}
                   rows={4}
@@ -1487,7 +1566,7 @@ const getProfileByUserId = (userId: string) => {
                   <div className="mt-2 rounded-lg border border-slate-800 bg-slate-900 shadow-lg overflow-hidden">
                     {filteredMentionCandidates.length === 0 ? (
                       <div className="px-3 py-2 text-sm text-slate-500">
-                        No matching participants
+                        {t("projects.noMatchingParticipants", "No matching participants")}
                       </div>
                     ) : (
                       filteredMentionCandidates.map((profile) => (
@@ -1499,7 +1578,7 @@ const getProfileByUserId = (userId: string) => {
                         >
                           <div>
                             <div className="text-sm font-medium text-white">
-                              {profile.full_name || "Unknown"}
+                              {profile.full_name || t("projects.unknown", "Unknown")}
                             </div>
                             <div className="text-xs text-slate-500">
                               {profile.role.toUpperCase()}
@@ -1511,209 +1590,220 @@ const getProfileByUserId = (userId: string) => {
                   </div>
                 )}
 
-              <div className="mt-3 flex items-center justify-between gap-3">
-  <p className="text-xs text-slate-500">
-    This update will be visible to people who can access this project.
-  </p>
-
-  <Button
-    type="button"
-    onClick={() => void handleAddComment()}
-    disabled={commentSaving || !newComment.trim()}
-    className="bg-indigo-600 hover:bg-indigo-700 text-white"
-  >
-    <MessageSquare className="w-4 h-4 mr-2" />
-    {commentSaving ? "Posting..." : "Post Update"}
-  </Button>
-</div>
-</div>
-
-<div className="space-y-4">
-  {comments.length === 0 ? (
-    <div className="rounded-xl border border-dashed border-slate-800 bg-slate-950/40 p-8 text-center">
-      <MessageSquare className="mx-auto mb-3 h-10 w-10 text-slate-600" />
-      <p className="text-white font-medium">No discussion yet</p>
-      <p className="mt-1 text-sm text-slate-500">
-        Start the thread with the first project-wide update.
-      </p>
-    </div>
-  ) : (
-    comments.map((comment) => {
-      const isMine = comment.user_id === currentUserId;
-      const authorName = getProfileName(comment.user_id);
-      const authorRole = getProfileRole(comment.user_id);
-      const isEditing = editingCommentId === comment.id;
-
-      return (
-        <div
-          key={comment.id}
-          className={`rounded-xl border p-4 ${
-            isMine
-              ? "border-indigo-800/40 bg-indigo-950/20"
-              : "border-slate-800 bg-slate-950/50"
-          }`}
-        >
-          <div className="mb-3 flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-xs font-medium text-white">
-                {getInitials(authorName)}
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-medium text-white">{authorName}</p>
-
-                  {authorRole && (
-                    <Badge className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5">
-                      {authorRole.toUpperCase()}
-                    </Badge>
-                  )}
-
-                  {isMine && (
-                    <Badge className="bg-indigo-500/20 text-indigo-300 text-[10px] px-2 py-0.5">
-                      YOU
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-                  <Clock3 className="h-3 w-3" />
-                  <span>
-                    {format(new Date(comment.created_at), "MMM d, yyyy • h:mm a")}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {canManageComment(comment) && !isEditing && (
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                  onClick={() => startEditingComment(comment)}
-                  disabled={commentActionLoading === comment.id}
-                >
-                  <Edit className="w-3 h-3 mr-1" />
-                  Edit
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="border-red-800 text-red-400 hover:bg-red-900/20"
-                  onClick={() => void handleDeleteComment(comment)}
-                  disabled={commentActionLoading === comment.id}
-                >
-                  <Trash2 className="w-3 h-3 mr-1" />
-                  Delete
-                </Button>
-              </div>
-            )}
-          </div>
-
-          <div className="pl-12">
-            {isEditing ? (
-              <div className="space-y-3">
-                <Textarea
-                  value={editingCommentText}
-                  onChange={(e) => setEditingCommentText(e.target.value)}
-                  rows={4}
-                  className="bg-slate-900 border-slate-800 text-white resize-none"
-                />
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                    onClick={() => void handleSaveEditedComment(comment)}
-                    disabled={
-                      commentActionLoading === comment.id ||
-                      !editingCommentText.trim()
-                    }
-                  >
-                    <Save className="w-3 h-3 mr-1" />
-                    Save
-                  </Button>
-
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                    onClick={cancelEditingComment}
-                    disabled={commentActionLoading === comment.id}
-                  >
-                    <X className="w-3 h-3 mr-1" />
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">
-                {comment.content}
-              </p>
-            )}
-          </div>
-        </div>
-      );
-    })
-  )}
-</div>
-</CardContent>
-</Card>
-</TabsContent>
-
-<TabsContent value="activity" className="space-y-4">
-  <Card className="bg-slate-900/50 border-slate-800">
-    <CardHeader>
-      <CardTitle className="text-white">Project Activity</CardTitle>
-    </CardHeader>
-    <CardContent>
-      {activityLogs.length === 0 ? (
-        <p className="text-slate-500">No activity yet.</p>
-      ) : (
-        <div className="space-y-4">
-          {activityLogs.map((log) => {
-            const actor = log.user_id ? getProfileByUserId(log.user_id) : null;
-
-            return (
-              <div
-                key={log.id}
-                className="flex items-start justify-between gap-4 border-b border-slate-800 pb-4 last:border-b-0"
-              >
-                <div>
-                  <p className="text-white text-sm">
-                    {actor?.full_name ? (
-                      <>
-                        <span className="font-medium">{actor.full_name}</span>{" "}
-                        <span className="text-slate-300">{log.message}</span>
-                      </>
-                    ) : (
-                      <span className="text-slate-300">{log.message}</span>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <p className="text-xs text-slate-500">
+                    {t(
+                      "projects.updateVisibilityNote",
+                      "This update will be visible to people who can access this project."
                     )}
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {log.action_type} • {log.entity_type}
-                  </p>
-                </div>
 
-                <div className="text-xs text-slate-500 whitespace-nowrap">
-                  {format(new Date(log.created_at), "MMM d, h:mm a")}
+                  <Button
+                    type="button"
+                    onClick={() => void handleAddComment()}
+                    disabled={commentSaving || !newComment.trim()}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                  >
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    {commentSaving
+                      ? t("projects.posting", "Posting...")
+                      : t("projects.postUpdate", "Post Update")}
+                  </Button>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
-    </CardContent>
-  </Card>
-</TabsContent>
-</Tabs>
-</div>
-);
+
+              <div className="space-y-4">
+                {comments.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-800 bg-slate-950/40 p-8 text-center">
+                    <MessageSquare className="mx-auto mb-3 h-10 w-10 text-slate-600" />
+                    <p className="text-white font-medium">
+                      {t("projects.noDiscussionYet", "No discussion yet")}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {t(
+                        "projects.startThreadWithFirstUpdate",
+                        "Start the thread with the first project-wide update."
+                      )}
+                    </p>
+                  </div>
+                ) : (
+                  comments.map((comment) => {
+                    const isMine = comment.user_id === currentUserId;
+                    const authorName = getProfileName(comment.user_id);
+                    const authorRole = getProfileRole(comment.user_id);
+                    const isEditing = editingCommentId === comment.id;
+
+                    return (
+                      <div
+                        key={comment.id}
+                        className={`rounded-xl border p-4 ${
+                          isMine
+                            ? "border-indigo-800/40 bg-indigo-950/20"
+                            : "border-slate-800 bg-slate-950/50"
+                        }`}
+                      >
+                        <div className="mb-3 flex items-start justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-xs font-medium text-white">
+                              {getInitials(authorName)}
+                            </div>
+
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-medium text-white">{authorName}</p>
+
+                                {authorRole && (
+                                  <Badge className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5">
+                                    {authorRole.toUpperCase()}
+                                  </Badge>
+                                )}
+
+                                {isMine && (
+                                  <Badge className="bg-indigo-500/20 text-indigo-300 text-[10px] px-2 py-0.5">
+                                    {t("projects.youUpper", "YOU")}
+                                  </Badge>
+                                )}
+                              </div>
+
+                              <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                                <Clock3 className="h-3 w-3" />
+                                <span>
+                                  {format(new Date(comment.created_at), "MMM d, yyyy • h:mm a")}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {canManageComment(comment) && !isEditing && (
+                            <div className="flex items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                                onClick={() => startEditingComment(comment)}
+                                disabled={commentActionLoading === comment.id}
+                              >
+                                <Edit className="w-3 h-3 mr-1" />
+                                {t("projects.edit", "Edit")}
+                              </Button>
+
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="border-red-800 text-red-400 hover:bg-red-900/20"
+                                onClick={() => void handleDeleteComment(comment)}
+                                disabled={commentActionLoading === comment.id}
+                              >
+                                <Trash2 className="w-3 h-3 mr-1" />
+                                {t("projects.delete", "Delete")}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="pl-12">
+                          {isEditing ? (
+                            <div className="space-y-3">
+                              <Textarea
+                                value={editingCommentText}
+                                onChange={(e) => setEditingCommentText(e.target.value)}
+                                rows={4}
+                                className="bg-slate-900 border-slate-800 text-white resize-none"
+                              />
+
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                                  onClick={() => void handleSaveEditedComment(comment)}
+                                  disabled={
+                                    commentActionLoading === comment.id ||
+                                    !editingCommentText.trim()
+                                  }
+                                >
+                                  <Save className="w-3 h-3 mr-1" />
+                                  {t("common.save", "Save")}
+                                </Button>
+
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                                  onClick={cancelEditingComment}
+                                  disabled={commentActionLoading === comment.id}
+                                >
+                                  <X className="w-3 h-3 mr-1" />
+                                  {t("projects.cancel", "Cancel")}
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">
+                              {comment.content}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="activity" className="space-y-4">
+          <Card className="bg-slate-900/50 border-slate-800">
+            <CardHeader>
+              <CardTitle className="text-white">
+                {t("projects.projectActivity", "Project Activity")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {activityLogs.length === 0 ? (
+                <p className="text-slate-500">{t("projects.noActivityYet", "No activity yet.")}</p>
+              ) : (
+                <div className="space-y-4">
+                  {activityLogs.map((log) => {
+                    const actor = log.user_id ? getProfileByUserId(log.user_id) : null;
+
+                    return (
+                      <div
+                        key={log.id}
+                        className="flex items-start justify-between gap-4 border-b border-slate-800 pb-4 last:border-b-0"
+                      >
+                        <div>
+                          <p className="text-white text-sm">
+                            {actor?.full_name ? (
+                              <>
+                                <span className="font-medium">{actor.full_name}</span>{" "}
+                                <span className="text-slate-300">{log.message}</span>
+                              </>
+                            ) : (
+                              <span className="text-slate-300">{log.message}</span>
+                            )}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {log.action_type} • {log.entity_type}
+                          </p>
+                        </div>
+
+                        <div className="text-xs text-slate-500 whitespace-nowrap">
+                          {format(new Date(log.created_at), "MMM d, h:mm a")}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
 }
-  

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
+import { useLanguage } from "@/lib/i18n";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +63,7 @@ type ProjectMemberRow = {
 export default function ProjectsPage() {
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
+  const { t } = useLanguage();
 
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
@@ -112,7 +114,7 @@ export default function ProjectsPage() {
         console.error("Load current profile error:", profileError);
         setCurrentUserRole(null);
         setProjects([]);
-        setLoadError(profileError.message || "Failed to load profile.");
+        setLoadError(profileError.message || t("projects.failedToLoadProfile", "Failed to load profile."));
         return;
       }
 
@@ -133,7 +135,7 @@ export default function ProjectsPage() {
         if (projectsError) {
           console.error("Load projects error:", projectsError);
           setProjects([]);
-          setLoadError(projectsError.message || "Failed to load projects.");
+          setLoadError(projectsError.message || t("projects.failedToLoadProjects", "Failed to load projects."));
         } else {
           setProjects((projectsData || []) as ProjectRow[]);
         }
@@ -160,19 +162,25 @@ export default function ProjectsPage() {
       if (membersError) {
         console.error("Load project members error:", membersError);
         setProjects([]);
-        setLoadError(membersError.message || "Failed to load project memberships.");
+        setLoadError(
+          membersError.message ||
+            t("projects.failedToLoadProjectMemberships", "Failed to load project memberships.")
+        );
         return;
       }
 
       if (createdError) {
         console.error("Load created projects error:", createdError);
         setProjects([]);
-        setLoadError(createdError.message || "Failed to load created projects.");
+        setLoadError(
+          createdError.message ||
+            t("projects.failedToLoadCreatedProjects", "Failed to load created projects.")
+        );
         return;
       }
 
       const visibleProjectIds = Array.from(
-        new Set((memberRows as ProjectMemberRow[] | null || []).map((row) => row.project_id))
+        new Set(((memberRows as ProjectMemberRow[] | null) || []).map((row) => row.project_id))
       );
 
       let assignedProjects: ProjectRow[] = [];
@@ -190,7 +198,10 @@ export default function ProjectsPage() {
         if (assignedProjectsError) {
           console.error("Load assigned projects error:", assignedProjectsError);
           setProjects([]);
-          setLoadError(assignedProjectsError.message || "Failed to load assigned projects.");
+          setLoadError(
+            assignedProjectsError.message ||
+              t("projects.failedToLoadAssignedProjects", "Failed to load assigned projects.")
+          );
           return;
         }
 
@@ -201,16 +212,14 @@ export default function ProjectsPage() {
 
       const uniqueProjects = Array.from(
         new Map(mergedProjects.map((project) => [project.id, project])).values()
-      ).sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
+      ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setProjects(uniqueProjects);
     } catch (error) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Projects page load error:", error);
       setProjects([]);
-      setLoadError("Failed to load projects.");
+      setLoadError(t("projects.failedToLoadProjects", "Failed to load projects."));
     } finally {
       if (!requestTracker.current.isLatest(requestId)) return;
       setIsBootstrapping(false);
@@ -281,8 +290,27 @@ export default function ProjectsPage() {
     }
   };
 
+  const getStatusLabel = (status: string | null) => {
+    switch ((status || "").toUpperCase()) {
+      case "ACTIVE":
+        return t("projects.statusActive", "Active");
+      case "PLANNING":
+        return t("projects.statusPlanning", "Planning");
+      case "ON_HOLD":
+        return t("projects.statusOnHold", "On Hold");
+      case "COMPLETED":
+        return t("projects.statusCompleted", "Completed");
+      case "CANCELLED":
+        return t("projects.statusCancelled", "Cancelled");
+      default:
+        return t("projects.statusUnknown", "Unknown");
+    }
+  };
+
   const handleDelete = async (projectId: string) => {
-    const confirmed = window.confirm("Are you sure you want to delete this project?");
+    const confirmed = window.confirm(
+      t("projects.deleteProjectConfirm", "Are you sure you want to delete this project?")
+    );
     if (!confirmed) return;
 
     const previousProjects = projects;
@@ -293,7 +321,7 @@ export default function ProjectsPage() {
     if (error) {
       console.error("Delete project error:", error);
       setProjects(previousProjects);
-      alert(error.message || "Failed to delete project");
+      alert(error.message || t("projects.failedToDeleteProject", "Failed to delete project"));
     }
   };
 
@@ -301,8 +329,12 @@ export default function ProjectsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Projects</h1>
-          <p className="text-slate-400">Manage and track your projects</p>
+          <h1 className="text-2xl font-bold text-white">
+            {t("projects.projectsTitle", "Projects")}
+          </h1>
+          <p className="text-slate-400">
+            {t("projects.projectsSubtitle", "Manage and track your projects")}
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -312,7 +344,9 @@ export default function ProjectsPage() {
             onClick={() => void loadProjects("refresh")}
             disabled={isRefreshing}
           >
-            {isRefreshing ? "Refreshing..." : "Refresh"}
+            {isRefreshing
+              ? t("projects.refreshing", "Refreshing...")
+              : t("projects.refresh", "Refresh")}
           </Button>
 
           {canCreateProjects && (
@@ -321,7 +355,7 @@ export default function ProjectsPage() {
               onClick={() => navigate("/projects/new")}
             >
               <Plus className="w-4 h-4 mr-2" />
-              New Project
+              {t("projects.newProject", "New Project")}
             </Button>
           )}
         </div>
@@ -331,7 +365,7 @@ export default function ProjectsPage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <Input
-            placeholder="Search projects..."
+            placeholder={t("projects.searchProjectsPlaceholder", "Search projects...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10 bg-slate-900 border-slate-800 text-white placeholder:text-slate-600"
@@ -340,27 +374,27 @@ export default function ProjectsPage() {
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-full sm:w-40 bg-slate-900 border-slate-800 text-white">
-            <SelectValue placeholder="Status" />
+            <SelectValue placeholder={t("projects.status", "Status")} />
           </SelectTrigger>
           <SelectContent className="bg-slate-900 border-slate-800">
-            <SelectItem value="ALL">All Status</SelectItem>
-            <SelectItem value="PLANNING">Planning</SelectItem>
-            <SelectItem value="ACTIVE">Active</SelectItem>
-            <SelectItem value="ON_HOLD">On Hold</SelectItem>
-            <SelectItem value="COMPLETED">Completed</SelectItem>
-            <SelectItem value="CANCELLED">Cancelled</SelectItem>
+            <SelectItem value="ALL">{t("projects.allStatus", "All Status")}</SelectItem>
+            <SelectItem value="PLANNING">{t("projects.statusPlanning", "Planning")}</SelectItem>
+            <SelectItem value="ACTIVE">{t("projects.statusActive", "Active")}</SelectItem>
+            <SelectItem value="ON_HOLD">{t("projects.statusOnHold", "On Hold")}</SelectItem>
+            <SelectItem value="COMPLETED">{t("projects.statusCompleted", "Completed")}</SelectItem>
+            <SelectItem value="CANCELLED">{t("projects.statusCancelled", "Cancelled")}</SelectItem>
           </SelectContent>
         </Select>
 
         <Select value={sortBy} onValueChange={setSortBy}>
           <SelectTrigger className="w-full sm:w-40 bg-slate-900 border-slate-800 text-white">
-            <SelectValue placeholder="Sort by" />
+            <SelectValue placeholder={t("projects.sortBy", "Sort by")} />
           </SelectTrigger>
           <SelectContent className="bg-slate-900 border-slate-800">
-            <SelectItem value="newest">Newest First</SelectItem>
-            <SelectItem value="oldest">Oldest First</SelectItem>
-            <SelectItem value="name">Name</SelectItem>
-            <SelectItem value="progress">Progress</SelectItem>
+            <SelectItem value="newest">{t("projects.newestFirst", "Newest First")}</SelectItem>
+            <SelectItem value="oldest">{t("projects.oldestFirst", "Oldest First")}</SelectItem>
+            <SelectItem value="name">{t("projects.name", "Name")}</SelectItem>
+            <SelectItem value="progress">{t("projects.progress", "Progress")}</SelectItem>
           </SelectContent>
         </Select>
 
@@ -448,7 +482,7 @@ export default function ProjectsPage() {
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-3">
                   <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110">
-                     <FolderKanban className="w-4 h-4 text-indigo-400" />
+                    <FolderKanban className="w-4 h-4 text-indigo-400" />
                   </div>
 
                   <DropdownMenu>
@@ -466,7 +500,7 @@ export default function ProjectsPage() {
                         }}
                       >
                         <Edit className="w-4 h-4 mr-2" />
-                        Edit
+                        {t("projects.edit", "Edit")}
                       </DropdownMenuItem>
 
                       {canDeleteProject(project) && (
@@ -478,7 +512,7 @@ export default function ProjectsPage() {
                           className="text-red-400"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
+                          {t("projects.delete", "Delete")}
                         </DropdownMenuItem>
                       )}
                     </DropdownMenuContent>
@@ -490,28 +524,30 @@ export default function ProjectsPage() {
                 </h3>
 
                 <p className="text-slate-400 text-xs mb-3 line-clamp-2 min-h-[2.5rem]">
-                  {project.description || "No description"}
+                  {project.description || t("projects.noDescription", "No description")}
                 </p>
 
                 <div className="flex items-center gap-2 mb-3">
                   <Badge className={getStatusColor(project.status)}>
-                    {(project.status || "UNKNOWN").toUpperCase()}
+                    {getStatusLabel(project.status)}
                   </Badge>
                 </div>
 
                 <div className="space-y-2">
-                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-500">Progress</span>
-                  <span className="text-white">{project.progress || 0}%</span>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500">{t("projects.progress", "Progress")}</span>
+                    <span className="text-white">{project.progress || 0}%</span>
+                  </div>
+                  <Progress value={project.progress || 0} className="h-1.5 bg-slate-800" />
                 </div>
-                <Progress value={project.progress || 0} className="h-1.5 bg-slate-800" />
-               </div>
 
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-800">
                   <div className="flex items-center gap-4 text-sm text-slate-500">
                     <span className="flex items-center gap-1">
                       <Calendar className="w-3.5 h-3.5" />
-                      {project.end_date ? format(new Date(project.end_date), "MMM d") : "No date"}
+                      {project.end_date
+                        ? format(new Date(project.end_date), "MMM d")
+                        : t("projects.noDate", "No date")}
                     </span>
                   </div>
                 </div>
@@ -536,13 +572,13 @@ export default function ProjectsPage() {
                   <div className="flex-1 min-w-0">
                     <h4 className="text-white font-medium truncate">{project.name}</h4>
                     <p className="text-slate-500 text-sm truncate">
-                      {project.description || "No description"}
+                      {project.description || t("projects.noDescription", "No description")}
                     </p>
                   </div>
 
                   <div className="hidden sm:flex items-center gap-4">
                     <Badge className={getStatusColor(project.status)}>
-                      {(project.status || "UNKNOWN").toUpperCase()}
+                      {getStatusLabel(project.status)}
                     </Badge>
 
                     <div className="w-32">
@@ -550,7 +586,9 @@ export default function ProjectsPage() {
                     </div>
 
                     <span className="text-sm text-slate-500">
-                      {project.end_date ? format(new Date(project.end_date), "MMM d") : "No date"}
+                      {project.end_date
+                        ? format(new Date(project.end_date), "MMM d")
+                        : t("projects.noDate", "No date")}
                     </span>
                   </div>
 
@@ -569,7 +607,7 @@ export default function ProjectsPage() {
                         }}
                       >
                         <Edit className="w-4 h-4 mr-2" />
-                        Edit
+                        {t("projects.edit", "Edit")}
                       </DropdownMenuItem>
 
                       {canDeleteProject(project) && (
@@ -581,7 +619,7 @@ export default function ProjectsPage() {
                           className="text-red-400"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
+                          {t("projects.delete", "Delete")}
                         </DropdownMenuItem>
                       )}
                     </DropdownMenuContent>
@@ -596,12 +634,13 @@ export default function ProjectsPage() {
       {!isBootstrapping && filteredProjects.length === 0 && (
         <div className="text-center py-12">
           <FolderKanban className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-          <h3
-            className="text-lg font-medium text-white mb-2">No projects found</h3>
+          <h3 className="text-lg font-medium text-white mb-2">
+            {t("projects.noProjectsFound", "No projects found")}
+          </h3>
           <p className="text-slate-500 mb-4">
             {searchQuery || statusFilter !== "ALL"
-              ? "Try adjusting your filters"
-              : "Create your first project to get started"}
+              ? t("projects.tryAdjustingYourFilters", "Try adjusting your filters")
+              : t("projects.createYourFirstProject", "Create your first project to get started")}
           </p>
 
           {!searchQuery && statusFilter === "ALL" && canCreateProjects && (
@@ -610,7 +649,7 @@ export default function ProjectsPage() {
               onClick={() => navigate("/projects/new")}
             >
               <Plus className="w-4 h-4 mr-2" />
-              Create Project
+              {t("projects.createProject", "Create Project")}
             </Button>
           )}
         </div>

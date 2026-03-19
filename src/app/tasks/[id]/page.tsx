@@ -879,13 +879,15 @@ export default function TaskDetailPage() {
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-white">{task.title}</h1>
           <p className="text-slate-400">
-            (project
-  ? t(
-      "taskDetail.header.projectLabel",
-      undefined,
-      { name: project.name }
-    )
-  : t("taskDetail.header.taskDetails"))
+            {project ? (
+  t(
+    "taskDetail.header.projectLabel",
+    undefined,
+    { name: project.name }
+  )
+) : (
+  t("taskDetail.header.taskDetails")
+)}
           </p>
         </div>
 

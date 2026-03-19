@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { logActivity } from "@/lib/activity";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { createNotification } from "@/lib/notifications";
+import { useLanguage } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -118,6 +119,7 @@ export default function ProjectEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
+  const { t } = useLanguage();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -204,7 +206,7 @@ export default function ProjectEditPage() {
       const currentUserRole = (me.role as Role) || null;
 
       if (projectError || !projectData) {
-        setError("Failed to load project.");
+        setError(t("projects.failedToLoadProject", "Failed to load project."));
         return;
       }
 
@@ -231,7 +233,12 @@ export default function ProjectEditPage() {
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Load project error:", err);
-      setError("Something went wrong while loading the project.");
+      setError(
+        t(
+          "projects.somethingWentWrongWhileLoadingProject",
+          "Something went wrong while loading the project."
+        )
+      );
     } finally {
       if (!requestTracker.current.isLatest(requestId)) return;
       setIsLoading(false);
@@ -244,142 +251,159 @@ export default function ProjectEditPage() {
   }, [id, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!id) return;
+    if (!id) return;
 
-  setError("");
+    setError("");
 
-  if (!name.trim()) {
-    setError("Project name is required.");
-    return;
-  }
-
-  if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
-    setError("End date cannot be earlier than start date.");
-    return;
-  }
-
-  const requestId = requestTracker.current.next();
-  setIsSaving(true);
-
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!requestTracker.current.isLatest(requestId)) return;
-
-    if (!user) {
-      navigate("/login");
+    if (!name.trim()) {
+      setError(t("projects.projectNameIsRequired", "Project name is required."));
       return;
     }
 
-    const currentUserId = user.id;
-
-    const { data: me } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("user_id", user.id)
-      .single();
-
-    const { data: existingProject } = await supabase
-      .from("projects")
-      .select("id, created_by")
-      .eq("id", id)
-      .single();
-
-    const canEdit = me?.role === "admin" || existingProject?.created_by === user.id;
-
-    if (!canEdit) {
-      setError("You do not have permission to edit this project.");
-      setIsSaving(false);
+    if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+      setError(
+        t(
+          "projects.endDateCannotBeEarlierThanStartDate",
+          "End date cannot be earlier than start date."
+        )
+      );
       return;
     }
 
-    await supabase
-      .from("projects")
-      .update({
-        name: name.trim(),
-        description: description.trim() || null,
-        status,
-        start_date: startDate || null,
-        end_date: endDate || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id);
+    const requestId = requestTracker.current.next();
+    setIsSaving(true);
 
-    await logActivity({
-      projectId: id,
-      actionType: "project_updated",
-      entityType: "project",
-      entityId: id,
-      message: `Updated project "${name.trim()}"`,
-    });
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    const existingUserIds = existingMembers.map((m) => m.user_id);
-    const toInsert = selectedMembers.filter((u) => !existingUserIds.includes(u));
-    const toDelete = existingMembers.filter((m) => !selectedSet.has(m.user_id));
+      if (!requestTracker.current.isLatest(requestId)) return;
 
-    // ✅ ADD MEMBERS
-    if (toInsert.length > 0) {
-      const rows = toInsert.map((userId) => ({
-        project_id: id,
-        user_id: userId,
-        role: "member",
-      }));
-
-      await supabase.from("project_members").insert(rows);
-
-      for (const userId of toInsert) {
-        if (userId === currentUserId) continue;
-
-        await createNotification({
-          userId,
-          actorUserId: currentUserId,
-          type: "PROJECT_UPDATE",
-          title: "Added to Project",
-          message: `You were added to project "${name}"`,
-          link: `/projects/${id}`,
-          entityType: "project",
-          entityId: id,
-        });
+      if (!user) {
+        navigate("/login");
+        return;
       }
-    }
 
-    // ❌ REMOVE MEMBERS
-    if (toDelete.length > 0) {
-      const idsToDelete = toDelete.map((m) => m.id);
+      const currentUserId = user.id;
+
+      const { data: me } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("user_id", user.id)
+        .single();
+
+      const { data: existingProject } = await supabase
+        .from("projects")
+        .select("id, created_by")
+        .eq("id", id)
+        .single();
+
+      const canEdit = me?.role === "admin" || existingProject?.created_by === user.id;
+
+      if (!canEdit) {
+        setError(
+          t(
+            "projects.noPermissionToEditProject",
+            "You do not have permission to edit this project."
+          )
+        );
+        setIsSaving(false);
+        return;
+      }
 
       await supabase
-        .from("project_members")
-        .delete()
-        .in("id", idsToDelete);
+        .from("projects")
+        .update({
+          name: name.trim(),
+          description: description.trim() || null,
+          status,
+          start_date: startDate || null,
+          end_date: endDate || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
 
-      for (const member of toDelete) {
-        if (member.user_id === currentUserId) continue;
+      await logActivity({
+        projectId: id,
+        actionType: "project_updated",
+        entityType: "project",
+        entityId: id,
+        message: `Updated project "${name.trim()}"`,
+      });
 
-        await createNotification({
-          userId: member.user_id,
-          actorUserId: currentUserId,
-          type: "PROJECT_UPDATE",
-          title: "Removed from Project",
-          message: `You were removed from project "${name}"`,
-          link: `/projects/${id}`,
-          entityType: "project",
-          entityId: id,
-        });
+      const existingUserIds = existingMembers.map((m) => m.user_id);
+      const toInsert = selectedMembers.filter((u) => !existingUserIds.includes(u));
+      const toDelete = existingMembers.filter((m) => !selectedSet.has(m.user_id));
+
+      if (toInsert.length > 0) {
+        const rows = toInsert.map((userId) => ({
+          project_id: id,
+          user_id: userId,
+          role: "member",
+        }));
+
+        await supabase.from("project_members").insert(rows);
+
+        for (const userId of toInsert) {
+          if (userId === currentUserId) continue;
+
+          await createNotification({
+            userId,
+            actorUserId: currentUserId,
+            type: "PROJECT_UPDATE",
+            title: t("projects.addedToProject", "Added to Project"),
+            message: t("projects.youWereAddedToProject", `You were added to project "${name}"`),
+            link: `/projects/${id}`,
+            entityType: "project",
+            entityId: id,
+          });
+        }
       }
-    }
 
-    navigate(`/projects/${id}`);
-  } catch (err) {
-    console.error("Update project error:", err);
-    setError("Something went wrong while updating the project.");
-  } finally {
-    setIsSaving(false);
-  }
-};
+      if (toDelete.length > 0) {
+        const idsToDelete = toDelete.map((m) => m.id);
+
+        await supabase
+          .from("project_members")
+          .delete()
+          .in("id", idsToDelete);
+
+        for (const member of toDelete) {
+          if (member.user_id === currentUserId) continue;
+
+          await createNotification({
+            userId: member.user_id,
+            actorUserId: currentUserId,
+            type: "PROJECT_UPDATE",
+            title: t("projects.removedFromProject", "Removed from Project"),
+            message: t(
+              "projects.youWereRemovedFromProject",
+              `You were removed from project "${name}"`
+            ),
+            link: `/projects/${id}`,
+            entityType: "project",
+            entityId: id,
+          });
+        }
+      }
+
+      navigate(`/projects/${id}`);
+    } catch (err) {
+      console.error("Update project error:", err);
+      setError(
+        t(
+          "projects.somethingWentWrongWhileUpdatingProject",
+          "Something went wrong while updating the project."
+        )
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   if (isLoading && !hasLoadedOnce) {
     return <ProjectEditSkeleton />;
   }
@@ -398,10 +422,18 @@ export default function ProjectEditPage() {
 
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-white">Edit Project</h1>
-            {isRefreshing && <span className="text-xs text-slate-500">Refreshing...</span>}
+            <h1 className="text-2xl font-bold text-white">
+              {t("projects.editProject", "Edit Project")}
+            </h1>
+            {isRefreshing && (
+              <span className="text-xs text-slate-500">
+                {t("projects.refreshing", "Refreshing...")}
+              </span>
+            )}
           </div>
-          <p className="text-slate-400">Update your project details and team</p>
+          <p className="text-slate-400">
+            {t("projects.updateProjectDetailsAndTeam", "Update your project details and team")}
+          </p>
         </div>
       </div>
 
@@ -422,17 +454,20 @@ export default function ProjectEditPage() {
                 className="border-slate-700 text-slate-300 hover:bg-slate-800"
                 disabled={isRefreshing}
               >
-                {isRefreshing ? "Refreshing..." : "Refresh"}
+                {isRefreshing
+                  ? t("projects.refreshing", "Refreshing...")
+                  : t("projects.refresh", "Refresh")}
               </Button>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="name" className="text-slate-300">
-                Project Name <span className="text-red-400">*</span>
+                {t("projects.projectName", "Project Name")}{" "}
+                <span className="text-red-400">*</span>
               </Label>
               <Input
                 id="name"
-                placeholder="Enter project name"
+                placeholder={t("projects.enterProjectName", "Enter project name")}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -442,11 +477,11 @@ export default function ProjectEditPage() {
 
             <div className="space-y-2">
               <Label htmlFor="description" className="text-slate-300">
-                Description
+                {t("projects.description", "Description")}
               </Label>
               <Textarea
                 id="description"
-                placeholder="Describe your project..."
+                placeholder={t("projects.describeYourProject", "Describe your project...")}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={4}
@@ -456,18 +491,28 @@ export default function ProjectEditPage() {
 
             <div className="space-y-2">
               <Label htmlFor="status" className="text-slate-300">
-                Status
+                {t("projects.status", "Status")}
               </Label>
               <Select value={status} onValueChange={(v) => setStatus(v as ProjectStatus)}>
                 <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                  <SelectValue placeholder="Select status" />
+                  <SelectValue placeholder={t("projects.selectStatus", "Select status")} />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-900 border-slate-800">
-                  <SelectItem value="PLANNING">Planning</SelectItem>
-                  <SelectItem value="ACTIVE">Active</SelectItem>
-                  <SelectItem value="ON_HOLD">On Hold</SelectItem>
-                  <SelectItem value="COMPLETED">Completed</SelectItem>
-                  <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                  <SelectItem value="PLANNING">
+                    {t("projects.statusPlanning", "Planning")}
+                  </SelectItem>
+                  <SelectItem value="ACTIVE">
+                    {t("projects.statusActive", "Active")}
+                  </SelectItem>
+                  <SelectItem value="ON_HOLD">
+                    {t("projects.statusOnHold", "On Hold")}
+                  </SelectItem>
+                  <SelectItem value="COMPLETED">
+                    {t("projects.statusCompleted", "Completed")}
+                  </SelectItem>
+                  <SelectItem value="CANCELLED">
+                    {t("projects.statusCancelled", "Cancelled")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -475,7 +520,7 @@ export default function ProjectEditPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="startDate" className="text-slate-300">
-                  Start Date
+                  {t("projects.startDate", "Start Date")}
                 </Label>
                 <Input
                   id="startDate"
@@ -488,7 +533,7 @@ export default function ProjectEditPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="endDate" className="text-slate-300">
-                  End Date
+                  {t("projects.endDate", "End Date")}
                 </Label>
                 <Input
                   id="endDate"
@@ -501,10 +546,14 @@ export default function ProjectEditPage() {
             </div>
 
             <div className="space-y-3">
-              <Label className="text-slate-300">Assign Team Members</Label>
+              <Label className="text-slate-300">
+                {t("projects.assignTeamMembers", "Assign Team Members")}
+              </Label>
 
               {teamMembers.length === 0 ? (
-                <div className="text-slate-500 text-sm">No active team members found.</div>
+                <div className="text-slate-500 text-sm">
+                  {t("projects.noActiveTeamMembersFound", "No active team members found.")}
+                </div>
               ) : (
                 <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3 max-h-64 overflow-y-auto">
                   {teamMembers.map((member) => (
@@ -514,7 +563,7 @@ export default function ProjectEditPage() {
                     >
                       <div>
                         <div className="text-white text-sm font-medium">
-                          {member.full_name || "Unnamed user"}
+                          {member.full_name || t("projects.unnamedUser", "Unnamed user")}
                         </div>
                         <div className="text-slate-500 text-xs">
                           {member.role.toUpperCase()}
@@ -533,7 +582,10 @@ export default function ProjectEditPage() {
               )}
 
               <p className="text-slate-500 text-xs">
-                Only assigned members, the creator, and admin will be able to see this project.
+                {t(
+                  "projects.projectVisibilityNote",
+                  "Only assigned members, the creator, and admin will be able to see this project."
+                )}
               </p>
             </div>
 
@@ -544,7 +596,7 @@ export default function ProjectEditPage() {
                 onClick={() => navigate(`/projects/${id}`)}
                 className="border-slate-700 text-slate-300 hover:bg-slate-800"
               >
-                Cancel
+                {t("projects.cancel", "Cancel")}
               </Button>
 
               <Button
@@ -555,10 +607,10 @@ export default function ProjectEditPage() {
                 {isSaving ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Saving...
+                    {t("common.saving", "Saving...")}
                   </>
                 ) : (
-                  "Save Changes"
+                  t("projects.saveChanges", "Save Changes")
                 )}
               </Button>
             </div>

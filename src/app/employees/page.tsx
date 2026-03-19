@@ -511,10 +511,11 @@ const availableMemberTypeOptions = useMemo(() => {
           setInvitations([]);
         }
         
-      } catch (err) {
+            } catch (err) {
         if (!requestTracker.current.isLatest(requestId)) return;
         console.error("Employees page load error:", err);
         setProfiles([]);
+        setInvitations([]);
         setError("Failed to load employees.");
       } finally {
         if (!requestTracker.current.isLatest(requestId)) return;

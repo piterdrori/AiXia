@@ -177,7 +177,9 @@ export default function DashboardLayout({
   const [calendarTodayCount, setCalendarTodayCount] = useState(0);
   const [chatUnreadCount] = useState(0);
 
-  const unreadCount = notifications.filter((notification) => !notification.is_read).length;
+  const unreadCount = notifications.filter(
+    (notification) => !notification.is_read
+  ).length;
 
   const loadUserRequestIdRef = useRef(0);
   const loadNotificationsRequestIdRef = useRef(0);
@@ -288,7 +290,8 @@ export default function DashboardLayout({
                     project.created_by === userId ||
                     projectMembers.some(
                       (member) =>
-                        member.project_id === project.id && member.user_id === userId
+                        member.project_id === project.id &&
+                        member.user_id === userId
                     )
                 )
                 .map((project) => project.id)
@@ -345,10 +348,10 @@ export default function DashboardLayout({
       }
 
       const { data: profile, error: profileError } = await supabase
-  .from("profiles")
-  .select("full_name, role, avatar_url")
-  .eq("user_id", session.user.id)
-  .single();
+        .from("profiles")
+        .select("full_name, role, avatar_url")
+        .eq("user_id", session.user.id)
+        .single();
 
       if (requestId !== loadUserRequestIdRef.current) return;
 
@@ -357,12 +360,12 @@ export default function DashboardLayout({
       }
 
       const loadedUser: UserProfile = {
-  userId: session.user.id,
-  email: session.user.email || "",
-  fullName: profile?.full_name || "User",
-  role: profile?.role || null,
-  avatarUrl: profile?.avatar_url || null,
-};
+        userId: session.user.id,
+        email: session.user.email || "",
+        fullName: profile?.full_name || "User",
+        role: profile?.role || null,
+        avatarUrl: profile?.avatar_url || null,
+      };
 
       setUserProfile(loadedUser);
       writeLayoutCache(loadedUser, notifications);
@@ -515,7 +518,7 @@ export default function DashboardLayout({
         href: "/employees",
       },
       {
-        label: t("common.settings", {t("common.settings", "Settings")}),
+        label: t("common.settings", "Settings"),
         icon: Settings,
         href: "/settings",
       },
@@ -600,7 +603,7 @@ export default function DashboardLayout({
             onClick={() => setMobileMenuOpen(false)}
             className="absolute right-3 top-3"
           >
-                        <X className="w-5 h-5 text-muted-foreground" />
+            <X className="w-5 h-5 text-muted-foreground" />
           </Button>
         )}
       </div>
@@ -615,14 +618,14 @@ export default function DashboardLayout({
                     navigate(item.href);
                     if (isMobile) setMobileMenuOpen(false);
                   }}
-                  className={`w-full rounded-lg px-3 py-2.5 transition-all duration-200 ${
-                  isActive(item.href)
-                  ? "border border-primary/30 bg-primary/15 text-primary"
-                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                     } flex items-center gap-3`}
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-200 ${
+                    isActive(item.href)
+                      ? "border border-primary/30 bg-primary/15 text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
                 >
                   <item.icon
-                                        className={`h-5 w-5 ${isActive(item.href) ? "text-primary" : ""}`}
+                    className={`h-5 w-5 ${isActive(item.href) ? "text-primary" : ""}`}
                   />
                   <span className="flex-1 text-left">{item.label}</span>
 
@@ -631,9 +634,9 @@ export default function DashboardLayout({
                       variant="default"
                       className={
                         item.href === "/inbox"
-                          ? "bg-red-600 text-white text-xs"
-                            : "bg-primary text-primary-foreground text-xs"
-                               }
+                          ? "bg-red-600 text-xs text-white"
+                          : "bg-primary text-xs text-primary-foreground"
+                      }
                     >
                       {item.badge > 99 ? "99+" : item.badge}
                     </Badge>
@@ -651,7 +654,7 @@ export default function DashboardLayout({
         </TooltipProvider>
       </nav>
 
-            <div className="border-t border-border p-4">
+      <div className="border-t border-border p-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted">
@@ -665,8 +668,8 @@ export default function DashboardLayout({
               <div className="flex-1 overflow-hidden text-left">
                 <p className="truncate text-sm font-medium text-foreground">
                   {isLoadingUser
-  ? t("common.loading", "Loading...")
-  : userProfile?.fullName || t("common.user", "User")}
+                    ? t("common.loading", "Loading...")
+                    : userProfile?.fullName || t("common.user", "User")}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
                   {userProfile?.email || ""}
@@ -679,23 +682,23 @@ export default function DashboardLayout({
             align="end"
             className="w-56 border-border bg-popover"
           >
-           <DropdownMenuLabel className="text-muted-foreground">
-  {t("common.myAccount", "My Account")}
-</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-muted-foreground">
+              {t("common.myAccount", "My Account")}
+            </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-border" />
             <DropdownMenuItem
               onClick={() => navigate("/settings")}
               className="text-foreground focus:bg-muted focus:text-foreground"
             >
               <Settings className="mr-2 h-4 w-4" />
-              Settings
+              {t("common.settings", "Settings")}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={handleLogout}
               className="text-red-500 focus:bg-muted focus:text-red-500"
             >
               <LogOut className="mr-2 h-4 w-4" />
-              Logout
+              {t("common.signOut", "Logout")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -705,13 +708,12 @@ export default function DashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-           {!isMobile && (
+      {!isMobile && (
         <aside
           className={`fixed left-0 top-0 z-40 h-full border-r border-border bg-card/95 backdrop-blur-xl transition-all duration-300 ${
             sidebarOpen ? "w-64" : "w-16"
           }`}
-      
->
+        >
           {sidebarOpen ? (
             <SidebarContent />
           ) : (
@@ -732,18 +734,18 @@ export default function DashboardLayout({
                         <button
                           onClick={() => navigate(item.href)}
                           className={`relative flex w-full items-center justify-center rounded-lg p-2.5 transition-all duration-200 ${
-                           isActive(item.href)
-                             ? "bg-primary/15 text-primary"
-                               : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                                   }`}
+                            isActive(item.href)
+                              ? "bg-primary/15 text-primary"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          }`}
                         >
                           <item.icon className="h-5 w-5" />
 
                           {item.badge ? (
                             <span
                               className={`absolute -right-0.5 -top-0.5 min-w-[16px] rounded-full px-1 text-[10px] text-white ${
-                               item.href === "/inbox" ? "bg-red-600" : "bg-primary"
-                                 }`}
+                                item.href === "/inbox" ? "bg-red-600" : "bg-primary"
+                              }`}
                             >
                               {item.badge > 99 ? "99+" : item.badge}
                             </span>
@@ -762,17 +764,17 @@ export default function DashboardLayout({
               <div className="border-t border-border p-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                                        <button className="flex w-full justify-center rounded-lg p-2 transition-colors hover:bg-muted">
+                    <button className="flex w-full justify-center rounded-lg p-2 transition-colors hover:bg-muted">
                       <Avatar className="h-8 w-8">
-  <AvatarImage src={userProfile?.avatarUrl || undefined} />
-  <AvatarFallback className="bg-primary text-sm text-primary-foreground">
-    {userInitials}
-  </AvatarFallback>
-</Avatar>
-</button>
+                        <AvatarImage src={userProfile?.avatarUrl || undefined} />
+                        <AvatarFallback className="bg-primary text-sm text-primary-foreground">
+                          {userInitials}
+                        </AvatarFallback>
+                      </Avatar>
+                    </button>
                   </DropdownMenuTrigger>
 
-                   <DropdownMenuContent
+                  <DropdownMenuContent
                     align="end"
                     className="w-56 border-border bg-popover"
                   >
@@ -785,14 +787,14 @@ export default function DashboardLayout({
                       className="text-foreground focus:bg-muted"
                     >
                       <Settings className="mr-2 h-4 w-4" />
-                      Settings
+                      {t("common.settings", "Settings")}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={handleLogout}
                       className="text-red-500 focus:bg-muted"
                     >
                       <LogOut className="mr-2 h-4 w-4" />
-                      Logout
+                      {t("common.signOut", "Logout")}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -828,7 +830,7 @@ export default function DashboardLayout({
                   size="icon"
                   onClick={() => setMobileMenuOpen(true)}
                 >
-                                    <Menu className="h-5 w-5 text-muted-foreground" />
+                  <Menu className="h-5 w-5 text-muted-foreground" />
                 </Button>
               )}
 
@@ -839,15 +841,15 @@ export default function DashboardLayout({
                   onClick={() => setSidebarOpen((prev) => !prev)}
                 >
                   {sidebarOpen ? (
-                                        <ChevronLeft className="h-5 w-5 text-muted-foreground" />
+                    <ChevronLeft className="h-5 w-5 text-muted-foreground" />
                   ) : (
-                                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
                   )}
                 </Button>
               )}
 
               <div className="relative hidden sm:block">
-                                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="text"
                   placeholder={t("common.searchPlaceholder", "Search...")}
@@ -859,10 +861,13 @@ export default function DashboardLayout({
             </div>
 
             <div className="flex items-center gap-2">
-              <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+              <DropdownMenu
+                open={notificationsOpen}
+                onOpenChange={setNotificationsOpen}
+              >
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="relative">
-                                        <Bell className="h-5 w-5 text-muted-foreground" />
+                    <Bell className="h-5 w-5 text-muted-foreground" />
                     {unreadCount > 0 && (
                       <span className="absolute right-1 top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] text-white">
                         {unreadCount > 9 ? "9+" : unreadCount}
@@ -890,7 +895,7 @@ export default function DashboardLayout({
                     )}
                   </div>
 
-                                    <DropdownMenuSeparator className="bg-border" />
+                  <DropdownMenuSeparator className="bg-border" />
 
                   <div className="max-h-96 overflow-y-auto">
                     {isLoadingNotifications ? (
@@ -912,10 +917,10 @@ export default function DashboardLayout({
                             <div className="min-w-0">
                               <p
                                 className={`truncate text-sm ${
-                                 notification.is_read
-                                   ? "text-muted-foreground"
-                                     : "font-medium text-foreground"
-                                        }`}
+                                  notification.is_read
+                                    ? "text-muted-foreground"
+                                    : "font-medium text-foreground"
+                                }`}
                               >
                                 {notification.title}
                               </p>
@@ -928,7 +933,7 @@ export default function DashboardLayout({
                             </div>
 
                             {!notification.is_read && (
-                                                            <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-primary" />
+                              <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-primary" />
                             )}
                           </div>
 
@@ -940,7 +945,7 @@ export default function DashboardLayout({
                     )}
                   </div>
 
-                                    <DropdownMenuSeparator className="bg-border" />
+                  <DropdownMenuSeparator className="bg-border" />
 
                   <DropdownMenuItem
                     onClick={() => {

@@ -454,20 +454,11 @@ const availableMemberTypeOptions = useMemo(() => {
           return;
         }
 
-        await supabase.rpc("expire_old_member_invitations");
-
-        const [
-          { data: me, error: meError },
-          { data: profilesData, error: profilesError },
-          { data: invitationsData, error: invitationsError },
-        ] = await Promise.all([
-          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
-          supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-          supabase
-            .from("member_invitations")
-            .select("*")
-            .order("created_at", { ascending: false }),
-        ]);
+        const { data: me, error: meError } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("user_id", user.id)
+          .single();
 
         if (!requestTracker.current.isLatest(requestId)) return;
 
@@ -476,24 +467,49 @@ const availableMemberTypeOptions = useMemo(() => {
           return;
         }
 
-        setCurrentUserRole((me as CurrentUserRoleRow).role);
+        const currentRole = (me as CurrentUserRoleRow).role;
+        setCurrentUserRole(currentRole);
 
-         if (profilesError) {
+        if (currentRole === "admin") {
+          
+          await supabase.rpc("expire_old_member_invitations");
+        }
+
+        const { data: profilesData, error: profilesError } = await supabase
+          .from("profiles")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        if (profilesError) {
           setProfiles([]);
           setInvitations([]);
           setError(profilesError.message || "Failed to load employees.");
           return;
         }
 
-        if (invitationsError) {
+        if (currentRole === "admin") {
+          const { data: invitationsData, error: invitationsError } = await supabase
+            .from("member_invitations")
+            .select("*")
+            .order("created_at", { ascending: false });
+
+          if (!requestTracker.current.isLatest(requestId)) return;
+
+          if (invitationsError) {
+            setProfiles((profilesData as ProfileRow[]) || []);
+            setInvitations([]);
+            setError(invitationsError.message || "Failed to load invitations.");
+            return;
+          }
+
+          setProfiles((profilesData as ProfileRow[]) || []);
+          setInvitations((invitationsData as InvitationRow[]) || []);
+        } else {
           setProfiles((profilesData as ProfileRow[]) || []);
           setInvitations([]);
-          setError(invitationsError.message || "Failed to load invitations.");
-          return;
         }
-
-        setProfiles((profilesData as ProfileRow[]) || []);
-        setInvitations((invitationsData as InvitationRow[]) || []);
         
       } catch (err) {
         if (!requestTracker.current.isLatest(requestId)) return;

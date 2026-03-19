@@ -401,7 +401,11 @@ const handleSubmit = async (e: React.FormEvent) => {
           actorUserId: currentUserId || undefined,
           type: "TASK_ASSIGNED",
           title: t("taskEdit.notifications.assignedTitle"),
-          message: t("taskEdit.notifications.assignedMessage", { title: title.trim() }),
+          message: t(
+  "taskEdit.notifications.assignedMessage",
+  undefined,
+  { title: title.trim() }
+),
           link: `/tasks/${id}`,
           entityType: "task",
           entityId: id,
@@ -432,7 +436,11 @@ const handleSubmit = async (e: React.FormEvent) => {
           actorUserId: currentUserId || undefined,
           type: "TASK_UPDATED",
           title: t("taskEdit.notifications.removedTitle"),
-          message: t("taskEdit.notifications.removedMessage", { title: title.trim() }),
+          message: t(
+  "taskEdit.notifications.removedMessage",
+  undefined,
+  { title: title.trim() }
+),
           link: `/tasks/${id}`,
           entityType: "task",
           entityId: id,

@@ -632,45 +632,72 @@ const availableMemberTypeOptions = useMemo(() => {
     }
   };
 
-  const handleResendInvite = async (invitation: InvitationRow) => {
-    if (!canManageUsers) return;
+const handleResendInvite = async (invitation: InvitationRow) => {
+  if (!canManageUsers) return;
 
-    setInvitationActionId(invitation.id);
-    setInviteError("");
-    setInviteSuccess("");
+  setInvitationActionId(invitation.id);
+  setInviteError("");
+  setInviteSuccess("");
 
-    try {
-      const { data, error } = await supabase.functions.invoke("invite-member", {
-        body: {
-          email: invitation.email,
-          fullName: invitation.full_name,
-          role: invitation.role,
-          memberType:
-            invitation.role === "admin" ? null : invitation.member_type,
-          redirectTo: `${window.location.origin}/onboarding`,
-          resend: true,
-        },
-      });
+  try {
+    const { data, error } = await supabase.functions.invoke("invite-member", {
+      body: {
+        email: invitation.email,
+        fullName: invitation.full_name,
+        role: invitation.role,
+        memberType:
+          invitation.role === "admin" ? null : invitation.member_type,
+        redirectTo: `${window.location.origin}/onboarding`,
+        resend: true,
+      },
+    });
 
-      if (error) {
-        throw error;
-      }
-
-      if (!data?.success) {
-        throw new Error(data?.error || "Failed to resend invite.");
-      }
-
-      setInviteSuccess("Invitation email resent successfully.");
-      void loadProfiles("refresh");
-    } catch (err) {
-      console.error("Resend invite error:", err);
-      setInviteError(
-        err instanceof Error ? err.message : "Failed to resend invite."
-      );
-    } finally {
-      setInvitationActionId(null);
+    if (error) {
+      throw error;
     }
-  };
+
+    if (!data?.success) {
+      throw new Error(data?.error || "Failed to resend invite.");
+    }
+
+    if (data?.inviteUrl) {
+      await navigator.clipboard.writeText(data.inviteUrl);
+      setInviteSuccess("Fresh invite link copied to clipboard.");
+    } else {
+      setInviteSuccess("Invitation link regenerated successfully.");
+    }
+
+    void loadProfiles("refresh");
+  } catch (err) {
+    console.error("Resend invite error:", err);
+
+    let message = "Failed to resend invite.";
+
+    if (typeof err === "object" && err !== null) {
+      const anyErr = err as {
+        message?: string;
+        context?: { json?: () => Promise<any> };
+      };
+
+      if (anyErr.context && typeof anyErr.context.json === "function") {
+        try {
+          const data = await anyErr.context.json();
+          if (data?.error) {
+            message = data.error;
+          }
+        } catch (parseError) {
+          console.error("Failed to parse function error response:", parseError);
+        }
+      } else if (typeof anyErr.message === "string" && anyErr.message) {
+        message = anyErr.message;
+      }
+    }
+
+    setInviteError(message);
+  } finally {
+    setInvitationActionId(null);
+  }
+};
 
   const handleCancelInvite = async (invitationId: string) => {
     if (!canManageUsers) return;

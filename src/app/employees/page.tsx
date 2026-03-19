@@ -30,6 +30,7 @@ import {
   MapPin,
   Building2,
   Briefcase,
+  MessageSquare,
 } from "lucide-react";
 
 type Role = "admin" | "manager" | "employee" | "guest";
@@ -174,6 +175,10 @@ function splitMultiValue(value?: string | null) {
     .split("\n")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function buildDirectKey(a: string, b: string) {
+  return [a, b].sort().join("__");
 }
 
 function WhatsAppIcon({ className = "w-4 h-4" }: { className?: string }) {
@@ -325,6 +330,7 @@ export default function EmployeesPage() {
   const requestTracker = useRef(createRequestTracker());
 
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -345,6 +351,7 @@ export default function EmployeesPage() {
   const [invitations, setInvitations] = useState<InvitationRow[]>([]);
   const [invitationActionId, setInvitationActionId] = useState<string | null>(null);
   const [showInviteHistory, setShowInviteHistory] = useState(false);
+  const [directMessageLoadingUserId, setDirectMessageLoadingUserId] = useState<string | null>(null);
   const canManageUsers = currentUserRole === "admin";
   
 const handleSendInvite = async () => {
@@ -450,10 +457,12 @@ const availableMemberTypeOptions = useMemo(() => {
 
         if (!requestTracker.current.isLatest(requestId)) return;
 
-        if (authError || !user) {
+       if (authError || !user) {
           navigate("/login");
           return;
         }
+
+        setCurrentUserId(user.id);
 
         const { data: me, error: meError } = await supabase
           .from("profiles")
@@ -701,6 +710,85 @@ const availableMemberTypeOptions = useMemo(() => {
     }
   };
 
+  const handleStartDirectMessage = async (targetUserId: string) => {
+    if (!currentUserId) {
+      setError("You must be logged in to start a chat.");
+      return;
+    }
+
+    if (targetUserId === currentUserId) {
+      return;
+    }
+
+    setDirectMessageLoadingUserId(targetUserId);
+    setError("");
+
+    try {
+      const directKey = buildDirectKey(currentUserId, targetUserId);
+
+      const { data: existingChat, error: existingError } = await supabase
+        .from("chat_groups")
+        .select("id")
+        .eq("type", "DIRECT")
+        .eq("direct_key", directKey)
+        .maybeSingle();
+
+      if (existingError) {
+        throw existingError;
+      }
+
+      if (existingChat?.id) {
+        navigate(`/chat/${existingChat.id}`);
+        return;
+      }
+
+      const { data: newChat, error: createChatError } = await supabase
+        .from("chat_groups")
+        .insert({
+          name: null,
+          type: "DIRECT",
+          project_id: null,
+          task_id: null,
+          created_by: currentUserId,
+          direct_key: directKey,
+        })
+        .select("id")
+        .single();
+
+      if (createChatError || !newChat) {
+        throw createChatError || new Error("Failed to create direct chat.");
+      }
+
+      const { error: membersError } = await supabase
+        .from("chat_group_members")
+        .insert([
+          {
+            group_id: newChat.id,
+            user_id: currentUserId,
+            role: "member",
+          },
+          {
+            group_id: newChat.id,
+            user_id: targetUserId,
+            role: "member",
+          },
+        ]);
+
+      if (membersError) {
+        throw membersError;
+      }
+
+      navigate(`/chat/${newChat.id}`);
+    } catch (err) {
+      console.error("Start direct message error:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to open direct chat."
+      );
+    } finally {
+      setDirectMessageLoadingUserId(null);
+    }
+  };
+  
   const pendingUsers = useMemo(
     () => profiles.filter((profile) => profile.status === "pending_approval"),
     [profiles]
@@ -1250,7 +1338,7 @@ const availableMemberTypeOptions = useMemo(() => {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 flex-wrap mb-3">
+                   <div className="flex items-center gap-2 flex-wrap mb-3">
                       <Badge className={getRoleColor(user.role)}>
                         {user.role.toUpperCase()}
                       </Badge>
@@ -1262,6 +1350,24 @@ const availableMemberTypeOptions = useMemo(() => {
                           PROFILE INCOMPLETE
                         </Badge>
                       )}
+                    </div>
+
+                    <div className="mb-3 flex justify-end">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleStartDirectMessage(user.user_id);
+                        }}
+                        disabled={directMessageLoadingUserId === user.user_id}
+                      >
+                        <MessageSquare className="w-4 h-4 mr-2" />
+                        {directMessageLoadingUserId === user.user_id
+                          ? "Opening..."
+                          : "Send Message"}
+                      </Button>
                     </div>
 
                     {(() => {

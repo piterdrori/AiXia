@@ -39,11 +39,15 @@
   * {
     @apply border-border;
   }
+
   html {
     @apply scroll-smooth;
   }
+
   body {
-    @apply bg-slate-950 text-slate-100 antialiased;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    @apply antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
@@ -175,4 +179,176 @@ button {
   padding-top: 4px !important;
   padding-bottom: 4px !important;
   gap: 6px !important;
+}
+
+/* ========================================
+   GLOBAL APP SETTINGS OVERRIDES
+   ======================================== */
+
+:root[data-theme="dark"] {
+  --background: 222 47% 4%;
+  --foreground: 210 40% 98%;
+  --card: 222 47% 6%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222 47% 6%;
+  --popover-foreground: 210 40% 98%;
+  --secondary: 217 33% 17%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+  --border: 217 33% 17%;
+  --input: 217 33% 17%;
+}
+
+:root[data-theme="light"] {
+  --background: 210 20% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 40%;
+  --border: 214 32% 88%;
+  --input: 214 32% 88%;
+}
+
+/* Accent colors */
+:root[data-accent="indigo"] {
+  --primary: 239 84% 67%;
+  --ring: 239 84% 67%;
+  --accent: 239 84% 67%;
+  --sidebar-primary: 239 84% 67%;
+}
+
+:root[data-accent="blue"] {
+  --primary: 217 91% 60%;
+  --ring: 217 91% 60%;
+  --accent: 217 91% 60%;
+  --sidebar-primary: 217 91% 60%;
+}
+
+:root[data-accent="green"] {
+  --primary: 142 71% 45%;
+  --ring: 142 71% 45%;
+  --accent: 142 71% 45%;
+  --sidebar-primary: 142 71% 45%;
+}
+
+:root[data-accent="purple"] {
+  --primary: 271 91% 65%;
+  --ring: 271 91% 65%;
+  --accent: 271 91% 65%;
+  --sidebar-primary: 271 91% 65%;
+}
+
+:root[data-accent="red"] {
+  --primary: 0 84% 60%;
+  --ring: 0 84% 60%;
+  --accent: 0 84% 60%;
+  --sidebar-primary: 0 84% 60%;
+}
+
+/* Font size */
+:root[data-font-size="small"] {
+  font-size: 14px;
+}
+
+:root[data-font-size="medium"] {
+  font-size: 16px;
+}
+
+:root[data-font-size="large"] {
+  font-size: 18px;
+}
+
+/* Compact mode */
+html.compact .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 1rem !important;
+}
+
+html.compact .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.75rem !important;
+}
+
+html.compact .p-6 {
+  padding: 1rem !important;
+}
+
+html.compact .p-4 {
+  padding: 0.75rem !important;
+}
+
+html.compact .py-3 {
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
+}
+
+html.compact .px-4 {
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+}
+
+/* Theme overrides for existing Tailwind utility classes used across the app */
+:root[data-theme="light"] body,
+:root[data-theme="light"] .bg-slate-950 {
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+:root[data-theme="light"] .bg-slate-900,
+:root[data-theme="light"] .bg-slate-900\/50,
+:root[data-theme="light"] .bg-slate-950\/60 {
+  background-color: hsl(var(--card)) !important;
+  color: hsl(var(--card-foreground)) !important;
+}
+
+:root[data-theme="light"] .border-slate-800,
+:root[data-theme="light"] .border-slate-700 {
+  border-color: hsl(var(--border)) !important;
+}
+
+:root[data-theme="light"] .text-white,
+:root[data-theme="light"] .text-slate-100,
+:root[data-theme="light"] .text-slate-200,
+:root[data-theme="light"] .text-slate-300,
+:root[data-theme="light"] .text-slate-400 {
+  color: hsl(var(--foreground)) !important;
+}
+
+:root[data-theme="light"] .text-slate-500,
+:root[data-theme="light"] .text-slate-600 {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+/* Accent overrides for main action buttons */
+:root[data-accent] .bg-indigo-600 {
+  background-color: hsl(var(--primary)) !important;
+}
+
+:root[data-accent] .hover\:bg-indigo-700:hover {
+  background-color: hsl(var(--primary)) !important;
+  filter: brightness(0.92);
+}
+
+:root[data-accent] .text-indigo-400,
+:root[data-accent] .text-indigo-500,
+:root[data-accent] .text-indigo-600 {
+  color: hsl(var(--primary)) !important;
+}
+
+:root[data-accent] .border-indigo-500,
+:root[data-accent] .border-indigo-600,
+:root[data-accent] .border-indigo-700 {
+  border-color: hsl(var(--primary)) !important;
+}
+
+:root[data-accent] .from-indigo-400,
+:root[data-accent] .from-indigo-500,
+:root[data-accent] .to-purple-400,
+:root[data-accent] .to-purple-600 {
+  --tw-gradient-from: hsl(var(--primary)) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: hsl(var(--primary)) / 0 var(--tw-gradient-to-position) !important;
 }

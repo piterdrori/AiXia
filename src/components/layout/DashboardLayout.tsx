@@ -735,9 +735,10 @@ export default function DashboardLayout({
                       <Avatar className="h-8 w-8">
   <AvatarImage src={userProfile?.avatarUrl || undefined} />
   <AvatarFallback className="bg-primary text-sm text-primary-foreground">
-  {userInitials}
-</AvatarFallback>
-                    </button>
+    {userInitials}
+  </AvatarFallback>
+</Avatar>
+</button>
                   </DropdownMenuTrigger>
 
                    <DropdownMenuContent

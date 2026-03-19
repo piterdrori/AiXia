@@ -559,7 +559,7 @@ export default function DashboardLayout({
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      <div className="relative flex items-center justify-center border-b border-slate-800 px-4 py-5">
+      <div className="relative flex items-center justify-center border-b border-border px-4 py-5">
         <img
           src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
           alt="AiXia Logo"
@@ -573,7 +573,7 @@ export default function DashboardLayout({
             onClick={() => setMobileMenuOpen(false)}
             className="absolute right-3 top-3"
           >
-            <X className="w-5 h-5 text-slate-400" />
+                        <X className="w-5 h-5 text-muted-foreground" />
           </Button>
         )}
       </div>
@@ -589,13 +589,13 @@ export default function DashboardLayout({
                     if (isMobile) setMobileMenuOpen(false);
                   }}
                   className={`w-full rounded-lg px-3 py-2.5 transition-all duration-200 ${
-                    isActive(item.href)
-                      ? "border border-indigo-500/30 bg-indigo-600/20 text-indigo-400"
-                      : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
-                  } flex items-center gap-3`}
+                  isActive(item.href)
+                  ? "border border-primary/30 bg-primary/15 text-primary"
+                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                     } flex items-center gap-3`}
                 >
                   <item.icon
-                    className={`h-5 w-5 ${isActive(item.href) ? "text-indigo-400" : ""}`}
+                                        className={`h-5 w-5 ${isActive(item.href) ? "text-primary" : ""}`}
                   />
                   <span className="flex-1 text-left">{item.label}</span>
 
@@ -605,8 +605,8 @@ export default function DashboardLayout({
                       className={
                         item.href === "/inbox"
                           ? "bg-red-600 text-white text-xs"
-                          : "bg-indigo-600 text-white text-xs"
-                      }
+                            : "bg-primary text-primary-foreground text-xs"
+                               }
                     >
                       {item.badge > 99 ? "99+" : item.badge}
                     </Badge>
@@ -624,22 +624,22 @@ export default function DashboardLayout({
         </TooltipProvider>
       </nav>
 
-      <div className="border-t border-slate-800 p-4">
+            <div className="border-t border-border p-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-slate-800/50">
+            <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted">
               <Avatar className="h-8 w-8">
-  <AvatarImage src={userProfile?.avatarUrl || undefined} />
-  <AvatarFallback className="bg-indigo-600 text-sm text-white">
-    {userInitials}
-  </AvatarFallback>
-</Avatar>
+                <AvatarImage src={userProfile?.avatarUrl || undefined} />
+                <AvatarFallback className="bg-primary text-sm text-primary-foreground">
+                  {userInitials}
+                </AvatarFallback>
+              </Avatar>
 
               <div className="flex-1 overflow-hidden text-left">
-                <p className="truncate text-sm font-medium text-slate-200">
+                <p className="truncate text-sm font-medium text-foreground">
                   {isLoadingUser ? "Loading..." : userProfile?.fullName || "User"}
                 </p>
-                <p className="truncate text-xs text-slate-500">
+                <p className="truncate text-xs text-muted-foreground">
                   {userProfile?.email || ""}
                 </p>
               </div>
@@ -648,20 +648,20 @@ export default function DashboardLayout({
 
           <DropdownMenuContent
             align="end"
-            className="w-56 border-slate-800 bg-slate-900"
+            className="w-56 border-border bg-popover"
           >
-            <DropdownMenuLabel className="text-slate-400">My Account</DropdownMenuLabel>
-            <DropdownMenuSeparator className="bg-slate-800" />
+            <DropdownMenuLabel className="text-muted-foreground">My Account</DropdownMenuLabel>
+            <DropdownMenuSeparator className="bg-border" />
             <DropdownMenuItem
               onClick={() => navigate("/settings")}
-              className="text-slate-300 focus:bg-slate-800 focus:text-slate-100"
+              className="text-foreground focus:bg-muted focus:text-foreground"
             >
               <Settings className="mr-2 h-4 w-4" />
               Settings
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={handleLogout}
-              className="text-red-400 focus:bg-slate-800 focus:text-red-400"
+              className="text-red-500 focus:bg-muted focus:text-red-500"
             >
               <LogOut className="mr-2 h-4 w-4" />
               Logout
@@ -673,18 +673,19 @@ export default function DashboardLayout({
   );
 
   return (
-    <div className="flex min-h-screen bg-slate-950">
-      {!isMobile && (
+    <div className="flex min-h-screen bg-background text-foreground">
+           {!isMobile && (
         <aside
-          className={`fixed left-0 top-0 z-40 h-full border-r border-slate-800 bg-slate-900/95 backdrop-blur-xl transition-all duration-300 ${
+          className={`fixed left-0 top-0 z-40 h-full border-r border-border bg-card/95 backdrop-blur-xl transition-all duration-300 ${
             sidebarOpen ? "w-64" : "w-16"
           }`}
-        >
+      
+>
           {sidebarOpen ? (
             <SidebarContent />
           ) : (
             <div className="flex h-full flex-col">
-              <div className="flex justify-center border-b border-slate-800 p-4">
+              <div className="flex justify-center border-b border-border p-4">
                 <img
                   src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
                   alt="AiXia Logo"
@@ -700,18 +701,18 @@ export default function DashboardLayout({
                         <button
                           onClick={() => navigate(item.href)}
                           className={`relative flex w-full items-center justify-center rounded-lg p-2.5 transition-all duration-200 ${
-                            isActive(item.href)
-                              ? "bg-indigo-600/20 text-indigo-400"
-                              : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
-                          }`}
+                           isActive(item.href)
+                             ? "bg-primary/15 text-primary"
+                               : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                   }`}
                         >
                           <item.icon className="h-5 w-5" />
 
                           {item.badge ? (
                             <span
                               className={`absolute -right-0.5 -top-0.5 min-w-[16px] rounded-full px-1 text-[10px] text-white ${
-                                item.href === "/inbox" ? "bg-red-600" : "bg-indigo-600"
-                              }`}
+                               item.href === "/inbox" ? "bg-red-600" : "bg-primary"
+                                 }`}
                             >
                               {item.badge > 99 ? "99+" : item.badge}
                             </span>
@@ -727,37 +728,36 @@ export default function DashboardLayout({
                 </TooltipProvider>
               </nav>
 
-              <div className="border-t border-slate-800 p-2">
+              <div className="border-t border-border p-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="flex w-full justify-center rounded-lg p-2 transition-colors hover:bg-slate-800/50">
+                                        <button className="flex w-full justify-center rounded-lg p-2 transition-colors hover:bg-muted">
                       <Avatar className="h-8 w-8">
   <AvatarImage src={userProfile?.avatarUrl || undefined} />
-  <AvatarFallback className="bg-indigo-600 text-sm text-white">
-    {userInitials}
-  </AvatarFallback>
-</Avatar>
+  <AvatarFallback className="bg-primary text-sm text-primary-foreground">
+  {userInitials}
+</AvatarFallback>
                     </button>
                   </DropdownMenuTrigger>
 
-                  <DropdownMenuContent
+                   <DropdownMenuContent
                     align="end"
-                    className="w-56 border-slate-800 bg-slate-900"
+                    className="w-56 border-border bg-popover"
                   >
-                    <DropdownMenuLabel className="text-slate-400">
+                    <DropdownMenuLabel className="text-muted-foreground">
                       {userProfile?.fullName || "User"}
                     </DropdownMenuLabel>
-                    <DropdownMenuSeparator className="bg-slate-800" />
+                    <DropdownMenuSeparator className="bg-border" />
                     <DropdownMenuItem
                       onClick={() => navigate("/settings")}
-                      className="text-slate-300 focus:bg-slate-800"
+                      className="text-foreground focus:bg-muted"
                     >
                       <Settings className="mr-2 h-4 w-4" />
                       Settings
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={handleLogout}
-                      className="text-red-400 focus:bg-slate-800"
+                      className="text-red-500 focus:bg-muted"
                     >
                       <LogOut className="mr-2 h-4 w-4" />
                       Logout
@@ -776,7 +776,7 @@ export default function DashboardLayout({
             className="fixed inset-0 z-40 bg-black/50"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <aside className="fixed left-0 top-0 z-50 h-full w-64 border-r border-slate-800 bg-slate-900/95 backdrop-blur-xl">
+          <aside className="fixed left-0 top-0 z-50 h-full w-64 border-r border-border bg-card/95 backdrop-blur-xl">
             <SidebarContent />
           </aside>
         </>
@@ -787,7 +787,7 @@ export default function DashboardLayout({
           !isMobile && sidebarOpen ? "ml-64" : !isMobile ? "ml-16" : ""
         }`}
       >
-        <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-950/80 backdrop-blur-xl">
+        <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
           <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-4">
               {isMobile && (
@@ -796,7 +796,7 @@ export default function DashboardLayout({
                   size="icon"
                   onClick={() => setMobileMenuOpen(true)}
                 >
-                  <Menu className="h-5 w-5 text-slate-400" />
+                                    <Menu className="h-5 w-5 text-muted-foreground" />
                 </Button>
               )}
 
@@ -807,21 +807,21 @@ export default function DashboardLayout({
                   onClick={() => setSidebarOpen((prev) => !prev)}
                 >
                   {sidebarOpen ? (
-                    <ChevronLeft className="h-5 w-5 text-slate-400" />
+                                        <ChevronLeft className="h-5 w-5 text-muted-foreground" />
                   ) : (
-                    <ChevronRight className="h-5 w-5 text-slate-400" />
+                                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
                   )}
                 </Button>
               )}
 
               <div className="relative hidden sm:block">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="text"
                   placeholder="Search..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-64 border-slate-800 bg-slate-900 pl-10 text-slate-200 placeholder:text-slate-500"
+                  className="w-64 border-border bg-card pl-10 text-foreground placeholder:text-muted-foreground"
                 />
               </div>
             </div>
@@ -830,7 +830,7 @@ export default function DashboardLayout({
               <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="relative">
-                    <Bell className="h-5 w-5 text-slate-400" />
+                                        <Bell className="h-5 w-5 text-muted-foreground" />
                     {unreadCount > 0 && (
                       <span className="absolute right-1 top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] text-white">
                         {unreadCount > 9 ? "9+" : unreadCount}
@@ -841,32 +841,32 @@ export default function DashboardLayout({
 
                 <DropdownMenuContent
                   align="end"
-                  className="w-96 border-slate-800 bg-slate-900 p-0"
+                  className="w-96 border-border bg-popover p-0"
                 >
                   <div className="flex items-center justify-between px-4 py-3">
-                    <DropdownMenuLabel className="p-0 text-slate-200">
+                    <DropdownMenuLabel className="p-0 text-foreground">
                       Notifications
                     </DropdownMenuLabel>
 
                     {unreadCount > 0 && (
                       <button
                         onClick={handleMarkAllRead}
-                        className="text-xs text-indigo-400 hover:text-indigo-300"
+                        className="text-xs text-primary hover:opacity-80"
                       >
                         Mark all as read
                       </button>
                     )}
                   </div>
 
-                  <DropdownMenuSeparator className="bg-slate-800" />
+                                    <DropdownMenuSeparator className="bg-border" />
 
                   <div className="max-h-96 overflow-y-auto">
                     {isLoadingNotifications ? (
-                      <div className="px-4 py-6 text-sm text-slate-500">
+                      <div className="px-4 py-6 text-sm text-muted-foreground">
                         Loading notifications...
                       </div>
                     ) : notifications.length === 0 ? (
-                      <div className="px-4 py-6 text-sm text-slate-500">
+                      <div className="px-4 py-6 text-sm text-muted-foreground">
                         No notifications yet.
                       </div>
                     ) : (
@@ -874,33 +874,33 @@ export default function DashboardLayout({
                         <DropdownMenuItem
                           key={notification.id}
                           onClick={() => handleNotificationClick(notification)}
-                          className="flex cursor-pointer flex-col items-start gap-1 px-4 py-3 focus:bg-slate-800"
+                          className="flex cursor-pointer flex-col items-start gap-1 px-4 py-3 focus:bg-muted"
                         >
                           <div className="flex w-full items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p
                                 className={`truncate text-sm ${
-                                  notification.is_read
-                                    ? "text-slate-300"
-                                    : "font-medium text-white"
-                                }`}
+                                 notification.is_read
+                                   ? "text-muted-foreground"
+                                     : "font-medium text-foreground"
+                                        }`}
                               >
                                 {notification.title}
                               </p>
 
                               {notification.message && (
-                                <p className="line-clamp-2 text-xs text-slate-500">
+                                <p className="line-clamp-2 text-xs text-muted-foreground">
                                   {notification.message}
                                 </p>
                               )}
                             </div>
 
                             {!notification.is_read && (
-                              <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-indigo-500" />
+                                                            <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-primary" />
                             )}
                           </div>
 
-                          <p className="text-[11px] text-slate-600">
+                          <p className="text-[11px] text-muted-foreground">
                             {format(new Date(notification.created_at), "MMM d, h:mm a")}
                           </p>
                         </DropdownMenuItem>
@@ -908,14 +908,14 @@ export default function DashboardLayout({
                     )}
                   </div>
 
-                  <DropdownMenuSeparator className="bg-slate-800" />
+                                    <DropdownMenuSeparator className="bg-border" />
 
                   <DropdownMenuItem
                     onClick={() => {
                       setNotificationsOpen(false);
                       navigate("/inbox");
                     }}
-                    className="justify-center text-slate-300 focus:bg-slate-800"
+                    className="justify-center text-foreground focus:bg-muted"
                   >
                     Open Inbox
                   </DropdownMenuItem>

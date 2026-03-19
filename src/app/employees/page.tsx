@@ -1572,3 +1572,4 @@ const handleResendInvite = async (invitation: InvitationRow) => {
           </div>
         </DialogContent>
       </Dialog>
+    </div>

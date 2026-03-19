@@ -1318,107 +1318,109 @@ const availableMemberTypeOptions = useMemo(() => {
               className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/30 transition-all cursor-pointer"
               onClick={() => navigate(`/employees/${user.user_id}`)}
             >
-              <CardContent className="p-5">
-                <div className="flex items-start gap-4">
-                  <Avatar className="w-12 h-12">
-                    <AvatarFallback className="bg-indigo-600 text-white">
-                      {getInitials(user.full_name)}
-                    </AvatarFallback>
-                  </Avatar>
+              <CardContent className="p-4">
+  <div className="flex items-start gap-3">
+    <Avatar className="w-10 h-10 shrink-0">
+      <AvatarFallback className="bg-indigo-600 text-white text-sm">
+        {getInitials(user.full_name)}
+      </AvatarFallback>
+    </Avatar>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-2">
-                      <h3 className="text-white font-semibold truncate">
-                        {user.full_name || "Unnamed user"}
-                      </h3>
-                      {user.role === "admin" ? (
-                        <Shield className="w-4 h-4 text-red-400" />
-                      ) : (
-                        <UserIcon className="w-4 h-4 text-slate-400" />
-                      )}
-                    </div>
+    <div className="flex-1 min-w-0 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-white font-semibold text-sm break-words">
+              {user.full_name || "Unnamed user"}
+            </h3>
+            {user.role === "admin" ? (
+              <Shield className="w-4 h-4 text-red-400 shrink-0" />
+            ) : (
+              <UserIcon className="w-4 h-4 text-slate-400 shrink-0" />
+            )}
+          </div>
 
-                   <div className="flex items-center gap-2 flex-wrap mb-3">
-                      <Badge className={getRoleColor(user.role)}>
-                        {user.role.toUpperCase()}
-                      </Badge>
-                      <Badge className={getStatusColor(user.status)}>
-                        {getStatusLabel(user.status)}
-                      </Badge>
-                      {!user.profile_completed && user.status === "active" && (
-                        <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-                          PROFILE INCOMPLETE
-                        </Badge>
-                      )}
-                    </div>
+          <div className="mt-2 flex items-center gap-2 flex-wrap">
+            <Badge className={getRoleColor(user.role)}>
+              {user.role.toUpperCase()}
+            </Badge>
+            <Badge className={getStatusColor(user.status)}>
+              {getStatusLabel(user.status)}
+            </Badge>
+            {!user.profile_completed && user.status === "active" && (
+              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                PROFILE INCOMPLETE
+              </Badge>
+            )}
+          </div>
+        </div>
 
-                    <div className="mb-3 flex justify-end">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleStartDirectMessage(user.user_id);
-                        }}
-                        disabled={directMessageLoadingUserId === user.user_id}
-                      >
-                        <MessageSquare className="w-4 h-4 mr-2" />
-                        {directMessageLoadingUserId === user.user_id
-                          ? "Opening..."
-                          : "Send Message"}
-                      </Button>
-                    </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="border-slate-700 text-slate-300 hover:bg-slate-800 shrink-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            void handleStartDirectMessage(user.user_id);
+          }}
+          disabled={directMessageLoadingUserId === user.user_id}
+        >
+          <MessageSquare className="w-4 h-4 mr-2" />
+          {directMessageLoadingUserId === user.user_id
+            ? "Opening..."
+            : "Send Message"}
+        </Button>
+      </div>
 
-                    {(() => {
-                      const employeeFields = buildEmployeeFields(user);
+      {(() => {
+        const employeeFields = buildEmployeeFields(user);
 
-                      return employeeFields.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                          {employeeFields.map((field) => (
-                            <div
-                              key={`${user.user_id}-${field.key}`}
-                              className={[
-                                "rounded-xl border border-slate-800 bg-slate-950/60 p-3 min-w-0",
-                                field.fullWidth ? "md:col-span-2" : "",
-                              ]
-                                .filter(Boolean)
-                                .join(" ")}
-                            >
-                              <div className="flex items-start gap-3 min-w-0">
-                                <div className="mt-0.5">{getFieldIcon(field.icon)}</div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-slate-500 mb-1 text-xs uppercase tracking-[0.12em]">
-                                    {field.label}
-                                  </p>
-                                  <div className="space-y-1">
-                                    {field.values.map((value, index) => (
-                                      <p
-                                        key={`${user.user_id}-${field.key}-${index}`}
-                                        className={
-                                          field.label === "Bio"
-                                            ? "text-slate-300 leading-relaxed break-words whitespace-pre-wrap"
-                                            : "text-slate-300 break-words"
-                                        }
-                                      >
-                                        {value}
-                                      </p>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-500">
-                          No profile details added yet.
+        return employeeFields.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+            {employeeFields.map((field) => (
+              <div
+                key={`${user.user_id}-${field.key}`}
+                className={[
+                  "rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 min-w-0",
+                  field.fullWidth ? "md:col-span-2" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                <div className="flex items-start gap-2 min-w-0">
+                  <div className="mt-0.5 shrink-0">{getFieldIcon(field.icon)}</div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-slate-500 mb-1 text-[10px] uppercase tracking-[0.12em]">
+                      {field.label}
+                    </p>
+                    <div className="space-y-1">
+                      {field.values.map((value, index) => (
+                        <p
+                          key={`${user.user_id}-${field.key}-${index}`}
+                          className={
+                            field.label === "Bio"
+                              ? "text-slate-300 leading-relaxed break-words whitespace-pre-wrap text-xs"
+                              : "text-slate-300 break-words text-xs"
+                          }
+                        >
+                          {value}
                         </p>
-                      );
-                    })()}
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </CardContent>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">
+            No profile details added yet.
+          </p>
+        );
+      })()}
+    </div>
+  </div>
+</CardContent>>
             </Card>
           ))}
         </div>

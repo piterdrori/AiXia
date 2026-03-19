@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { createNotification } from "@/lib/notifications";
+import { useLanguage } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,6 +65,7 @@ type TaskMemberRow = {
 };
 
 export default function TaskEditPage() {
+  const { t } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -188,21 +190,21 @@ export default function TaskEditPage() {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
 
       if (projectsError) {
-        setError(projectsError.message || "Failed to load projects.");
+        setError(projectsError.message || t("taskEdit.errors.loadProjects"));
         setProjects([]);
       }
 
       if (profilesError) {
-        setError(profilesError.message || "Failed to load team members.");
+        setError(profilesError.message || t("taskEdit.errors.loadTeamMembers"));
         setProfiles([]);
       }
 
       if (taskMembersError) {
-        setError(taskMembersError.message || "Failed to load current assignees.");
+        setError(taskMembersError.message || t("taskEdit.errors.loadCurrentAssignees"));
       }
 
       if (allProjectMembersError) {
-        setError(allProjectMembersError.message || "Failed to load project members.");
+        setError(allProjectMembersError.message || t("taskEdit.errors.loadProjectMembers"));
       }
 
       const projectsData = (allProjects || []) as ProjectRow[];
@@ -241,7 +243,7 @@ export default function TaskEditPage() {
     } catch (err) {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
       console.error("Load task edit error:", err);
-      setError("Failed to load task.");
+      setError(t("taskEdit.errors.loadTask"));
     } finally {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
       setIsBootstrapping(false);
@@ -326,17 +328,17 @@ const handleSubmit = async (e: React.FormEvent) => {
   setError("");
 
   if (!title.trim()) {
-    setError("Task title is required.");
+    setError(t("taskEdit.errors.taskTitleRequired"));
     return;
   }
 
   if (!projectId) {
-    setError("Please select a project.");
+    setError(t("taskEdit.errors.projectRequired"));
     return;
   }
 
   if (dueDate && Number.isNaN(new Date(dueDate).getTime())) {
-    setError("Due date is invalid.");
+    setError(t("taskEdit.errors.invalidDueDate"));
     return;
   }
 
@@ -367,7 +369,7 @@ const handleSubmit = async (e: React.FormEvent) => {
     if (!pageRequestTracker.current.isLatest(requestId)) return;
 
     if (updateError) {
-      setError(updateError.message || "Failed to update task.");
+      setError(updateError.message || t("taskEdit.errors.updateTask"));
       return;
     }
 
@@ -387,7 +389,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
 
       if (insertError) {
-        setError(insertError.message || "Failed to add assignees.");
+        setError(insertError.message || t("taskEdit.errors.addAssignees"));
         return;
       }
 
@@ -398,8 +400,8 @@ const handleSubmit = async (e: React.FormEvent) => {
           userId,
           actorUserId: currentUserId || undefined,
           type: "TASK_ASSIGNED",
-          title: "You were assigned to a task",
-          message: `You were added to task "${title.trim()}"`,
+          title: t("taskEdit.notifications.assignedTitle"),
+          message: t("taskEdit.notifications.assignedMessage", { title: title.trim() }),
           link: `/tasks/${id}`,
           entityType: "task",
           entityId: id,
@@ -418,7 +420,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
 
       if (deleteError) {
-        setError(deleteError.message || "Failed to remove assignees.");
+        setError(deleteError.message || t("taskEdit.errors.removeAssignees"));
         return;
       }
 
@@ -429,8 +431,8 @@ const handleSubmit = async (e: React.FormEvent) => {
           userId: member.user_id,
           actorUserId: currentUserId || undefined,
           type: "TASK_UPDATED",
-          title: "Removed from Task",
-          message: `You were removed from task "${title.trim()}"`,
+          title: t("taskEdit.notifications.removedTitle"),
+          message: t("taskEdit.notifications.removedMessage", { title: title.trim() }),
           link: `/tasks/${id}`,
           entityType: "task",
           entityId: id,
@@ -444,7 +446,7 @@ const handleSubmit = async (e: React.FormEvent) => {
   } catch (err) {
     if (!pageRequestTracker.current.isLatest(requestId)) return;
     console.error("Update task error:", err);
-    setError("Something went wrong while updating the task.");
+    setError(t("taskEdit.errors.genericUpdate"));
   } finally {
     if (!pageRequestTracker.current.isLatest(requestId)) return;
     setIsSaving(false);
@@ -490,8 +492,8 @@ const handleSubmit = async (e: React.FormEvent) => {
         </Button>
 
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">Edit Task</h1>
-          <p className="text-slate-400">Update task details</p>
+          <h1 className="text-2xl font-bold text-white">{t("taskEdit.header.title")}</h1>
+          <p className="text-slate-400">{t("taskEdit.header.subtitle")}</p>
         </div>
 
         <Button
@@ -500,7 +502,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           onClick={() => void loadPage("refresh")}
           disabled={isRefreshing}
         >
-          {isRefreshing ? "Refreshing..." : "Refresh"}
+          {isRefreshing ? t("taskEdit.actions.refreshing") : t("taskEdit.actions.refresh")}
         </Button>
       </div>
 
@@ -515,11 +517,11 @@ const handleSubmit = async (e: React.FormEvent) => {
 
             <div className="space-y-2">
               <Label htmlFor="title" className="text-slate-300">
-                Task Title <span className="text-red-400">*</span>
+                {t("taskEdit.form.taskTitle")} <span className="text-red-400">*</span>
               </Label>
               <Input
                 id="title"
-                placeholder="Enter task title"
+                placeholder={t("taskEdit.form.taskTitlePlaceholder")}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
@@ -529,11 +531,11 @@ const handleSubmit = async (e: React.FormEvent) => {
 
             <div className="space-y-2">
               <Label htmlFor="description" className="text-slate-300">
-                Description
+                {t("taskEdit.form.description")}
               </Label>
               <Textarea
                 id="description"
-                placeholder="Describe the task..."
+                placeholder={t("taskEdit.form.descriptionPlaceholder")}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={4}
@@ -544,11 +546,11 @@ const handleSubmit = async (e: React.FormEvent) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-slate-300">
-                  Project <span className="text-red-400">*</span>
+                  {t("taskEdit.form.project")} <span className="text-red-400">*</span>
                 </Label>
                 <Select value={projectId} onValueChange={setProjectId}>
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                    <SelectValue placeholder="Select project" />
+                    <SelectValue placeholder={t("taskEdit.form.selectProject")} />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-slate-800">
                     {projects.map((project) => (
@@ -561,38 +563,38 @@ const handleSubmit = async (e: React.FormEvent) => {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Priority</Label>
+                <Label className="text-slate-300">{t("taskEdit.form.priority")}</Label>
                 <Select value={priority} onValueChange={(v) => setPriority(v as TaskPriority)}>
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                    <SelectValue placeholder="Select priority" />
+                    <SelectValue placeholder={t("taskEdit.form.selectPriority")} />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-slate-800">
-                    <SelectItem value="LOW">Low</SelectItem>
-                    <SelectItem value="MEDIUM">Medium</SelectItem>
-                    <SelectItem value="HIGH">High</SelectItem>
-                    <SelectItem value="URGENT">Urgent</SelectItem>
+                    <SelectItem value="LOW">{t("taskEdit.priority.low")}</SelectItem>
+                    <SelectItem value="MEDIUM">{t("taskEdit.priority.medium")}</SelectItem>
+                    <SelectItem value="HIGH">{t("taskEdit.priority.high")}</SelectItem>
+                    <SelectItem value="URGENT">{t("taskEdit.priority.urgent")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Status</Label>
+                <Label className="text-slate-300">{t("taskEdit.form.status")}</Label>
                 <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)}>
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                    <SelectValue placeholder="Select status" />
+                    <SelectValue placeholder={t("taskEdit.form.selectStatus")} />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-slate-800">
-                    <SelectItem value="TODO">To Do</SelectItem>
-                    <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                    <SelectItem value="IN_REVIEW">In Review</SelectItem>
-                    <SelectItem value="DONE">Done</SelectItem>
+                    <SelectItem value="TODO">{t("taskEdit.status.todo")}</SelectItem>
+                    <SelectItem value="IN_PROGRESS">{t("taskEdit.status.inProgress")}</SelectItem>
+                    <SelectItem value="IN_REVIEW">{t("taskEdit.status.inReview")}</SelectItem>
+                    <SelectItem value="DONE">{t("taskEdit.status.done")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="dueDate" className="text-slate-300">
-                  Due Date
+                  {t("taskEdit.form.dueDate")}
                 </Label>
                 <Input
                   id="dueDate"
@@ -605,15 +607,15 @@ const handleSubmit = async (e: React.FormEvent) => {
             </div>
 
             <div className="space-y-3">
-              <Label className="text-slate-300">Assignees</Label>
+              <Label className="text-slate-300">{t("taskEdit.form.assignees")}</Label>
 
               {!projectId ? (
-                <div className="text-slate-500 text-sm">Select a project first.</div>
+                <div className="text-slate-500 text-sm">{t("taskEdit.assignees.selectProjectFirst")}</div>
               ) : isMembersLoading ? (
-                <div className="text-slate-500 text-sm">Loading project members...</div>
+                <div className="text-slate-500 text-sm">{t("taskEdit.assignees.loadingProjectMembers")}</div>
               ) : availableAssignees.length === 0 ? (
                 <div className="text-slate-500 text-sm">
-                  No available members found for this project.
+                  {t("taskEdit.assignees.noneAvailable")}
                 </div>
               ) : (
                 <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3 max-h-64 overflow-y-auto">
@@ -624,7 +626,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                     >
                       <div>
                         <div className="text-white text-sm font-medium">
-                          {member.full_name || "Unnamed user"}
+                          {member.full_name || t("taskEdit.assignees.unnamedUser")}
                         </div>
                         <div className="text-slate-500 text-xs">
                           {member.role.toUpperCase()}
@@ -650,7 +652,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 onClick={() => navigate(`/tasks/${id}`)}
                 className="border-slate-700 text-slate-300 hover:bg-slate-800"
               >
-                Cancel
+                {t("taskEdit.actions.cancel")}
               </Button>
 
               <Button
@@ -661,10 +663,10 @@ const handleSubmit = async (e: React.FormEvent) => {
                 {isSaving ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Saving...
+                    {t("taskEdit.actions.saving")}
                   </>
                 ) : (
-                  "Save Changes"
+                  t("taskEdit.actions.saveChanges")
                 )}
               </Button>
             </div>

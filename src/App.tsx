@@ -17,6 +17,9 @@ import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import { Toaster } from "@/components/ui/sonner";
 
+import { LanguageProvider, useLanguage } from "@/lib/i18n";
+import type { Language } from "@/lib/translations";
+
 import LandingPage from "@/app/page";
 import LoginPage from "@/app/login/page";
 import RegisterPage from "@/app/register/page";
@@ -598,8 +601,9 @@ function AppRoutes() {
   );
 }
 
-function App() {
+function AppContent() {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const { setLanguage } = useLanguage();
 
   useEffect(() => {
     const applyUserSettings = async () => {
@@ -610,11 +614,11 @@ function App() {
 
         const root = document.documentElement;
 
-        // default values before login or if profile settings are missing
         root.setAttribute("data-theme", "dark");
         root.setAttribute("data-accent", "indigo");
         root.setAttribute("data-font-size", "medium");
         root.classList.remove("compact");
+        setLanguage("en");
 
         if (!session?.user) {
           setSettingsLoaded(true);
@@ -623,7 +627,7 @@ function App() {
 
         const { data, error } = await supabase
           .from("profiles")
-          .select("theme, accent_color, font_size, compact_mode")
+          .select("theme, accent_color, font_size, compact_mode, language")
           .eq("user_id", session.user.id)
           .single();
 
@@ -642,6 +646,13 @@ function App() {
         } else {
           root.classList.remove("compact");
         }
+
+        const profileLanguage =
+          data?.language === "zh" || data?.language === "ru" || data?.language === "en"
+            ? (data.language as Language)
+            : "en";
+
+        setLanguage(profileLanguage);
       } catch (error) {
         console.error("Failed to apply user settings:", error);
       } finally {
@@ -650,7 +661,7 @@ function App() {
     };
 
     void applyUserSettings();
-  }, []);
+  }, [setLanguage]);
 
   if (!settingsLoaded) {
     return <FullScreenLoader />;
@@ -664,6 +675,14 @@ function App() {
         <Toaster />
       </AuthAccessProvider>
     </Router>
+  );
+}
+
+function App() {
+  return (
+    <LanguageProvider>
+      <AppContent />
+    </LanguageProvider>
   );
 }
 

@@ -470,11 +470,15 @@ export default function TaskDetailPage() {
           actorUserId: currentUserId || undefined,
           type: "TASK_UPDATED",
           title: t("taskDetail.notifications.taskStatusUpdatedTitle"),
-          message: t("taskDetail.notifications.taskStatusUpdatedMessage", {
-            title: task.title,
-            previousStatus,
-            newStatus,
-          }),
+          message: t(
+  "taskDetail.notifications.taskStatusUpdatedMessage",
+  undefined,
+  {
+    title: task.title,
+    previousStatus,
+    newStatus,
+  }
+),
           link: `/tasks/${task.id}`,
           entityType: "task",
           entityId: task.id,
@@ -572,9 +576,13 @@ export default function TaskDetailPage() {
         actorUserId: currentUserId,
         type: "COMMENT",
         title: t("taskDetail.notifications.newTaskCommentTitle"),
-        message: t("taskDetail.notifications.newTaskCommentMessage", {
-          title: task.title,
-        }),
+        message: t(
+  "taskDetail.notifications.newTaskCommentMessage",
+  undefined,
+  {
+    title: task.title,
+  }
+),
         link: `/tasks/${task.id}`,
         entityType: "task_comment",
         entityId: data.id,
@@ -595,9 +603,13 @@ export default function TaskDetailPage() {
         actorUserId: currentUserId,
         type: "MENTION",
         title: t("taskDetail.notifications.mentionedTitle"),
-        message: t("taskDetail.notifications.mentionedMessage", {
-          title: task.title,
-        }),
+        message: t(
+  "taskDetail.notifications.mentionedMessage",
+  undefined,
+  {
+    title: task.title,
+  }
+),
         link: `/tasks/${task.id}`,
         entityType: "task_comment",
         entityId: data.id,
@@ -750,10 +762,14 @@ export default function TaskDetailPage() {
           actorUserId: currentUserId || undefined,
           type: "FILE_UPLOAD",
           title: t("taskDetail.notifications.fileUploadedTitle"),
-          message: t("taskDetail.notifications.fileUploadedMessage", {
-            title: task.title,
-            fileName: uploaded.file_name,
-          }),
+          message: t(
+  "taskDetail.notifications.fileUploadedMessage",
+  undefined,
+  {
+    title: task.title,
+    fileName: uploaded.file_name,
+  }
+),
           link: `/tasks/${task.id}`,
           entityType: "task_file",
           entityId: uploaded.id,
@@ -863,7 +879,13 @@ export default function TaskDetailPage() {
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-white">{task.title}</h1>
           <p className="text-slate-400">
-            {project ? t("taskDetail.header.projectLabel", { name: project.name }) : t("taskDetail.header.taskDetails")}
+            (project
+  ? t(
+      "taskDetail.header.projectLabel",
+      undefined,
+      { name: project.name }
+    )
+  : t("taskDetail.header.taskDetails"))
           </p>
         </div>
 

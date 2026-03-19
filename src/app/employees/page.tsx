@@ -666,7 +666,8 @@ const handleSendInvite = async () => {
           email: invitation.email,
           fullName: invitation.full_name,
           role: invitation.role,
-          memberType: invitation.role === "admin" ? null : invitation.member_type,
+          memberType:
+            invitation.role === "admin" ? null : invitation.member_type,
           redirectTo: `${window.location.origin}/onboarding`,
           resend: true,
         },
@@ -734,6 +735,43 @@ const handleSendInvite = async () => {
     () => profiles.filter((profile) => profile.status === "pending_approval"),
     [profiles]
   );
+
+  const getInvitationStatusColor = (status: InvitationStatus) => {
+    switch (status) {
+      case "accepted":
+        return "bg-green-500/20 text-green-400 border-green-500/30";
+      case "expired":
+        return "bg-amber-500/20 text-amber-400 border-amber-500/30";
+      case "cancelled":
+        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
+      case "failed":
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+      case "pending":
+      default:
+        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+    }
+  };
+
+  const getInvitationStatusLabel = (status: InvitationStatus) => {
+    switch (status) {
+      case "accepted":
+        return "ACCEPTED";
+      case "expired":
+        return "EXPIRED";
+      case "cancelled":
+        return "CANCELLED";
+      case "failed":
+        return "FAILED";
+      case "pending":
+      default:
+        return "PENDING";
+    }
+  };
+
+  const visibleInvitations = useMemo(() => {
+    if (!canManageUsers) return [];
+    return invitations;
+  }, [invitations, canManageUsers]);
 
   const visibleUsers = useMemo(() => {
     const baseUsers = profiles.filter(

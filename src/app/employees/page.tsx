@@ -680,18 +680,19 @@ const handleResendInvite = async (invitation: InvitationRow) => {
       throw new Error(data?.error || "Failed to resend invite.");
     }
 
-    if (data?.inviteUrl) {
-      await navigator.clipboard.writeText(data.inviteUrl);
-      setInviteSuccess("Fresh invite link copied to clipboard.");
-    } else {
-      setInviteSuccess("Invitation link regenerated successfully.");
-    }
+    setInviteError("");
+    setInviteSuccess("Invitation resent successfully.");
+
+    window.setTimeout(() => {
+      setInviteSuccess("");
+    }, 3000);
 
     void loadProfiles("refresh");
   } catch (err) {
     console.error("Resend invite error:", err);
+    setInviteSuccess("");
     setInviteError(
-      err instanceof Error ? err.message : "Failed to resend invite."
+      err instanceof Error ? err.message : "Failed to resend invitation email."
     );
   } finally {
     setInvitationActionId(null);
@@ -1149,7 +1150,19 @@ const handleResendInvite = async (invitation: InvitationRow) => {
           </Badge>
         </div>
       </div>
-     
+
+            {inviteError && (
+        <div className="rounded-lg border border-red-800 bg-red-950/30 px-3 py-2 text-sm text-red-300">
+          {inviteError}
+        </div>
+      )}
+
+      {inviteSuccess && (
+        <div className="rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-300">
+          {inviteSuccess}
+        </div>
+      )}
+      
       {visibleInvitations.length > 0 ? (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
           {visibleInvitations.map((invitation) => (
@@ -1459,25 +1472,13 @@ const handleResendInvite = async (invitation: InvitationRow) => {
           </CardContent>
         </Card>
       )}
-         <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+                 <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
         <DialogContent className="bg-slate-950 border-slate-800 text-white sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Invite Member</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
-            {inviteError && (
-              <div className="rounded-lg border border-red-800 bg-red-900/20 px-3 py-2 text-sm text-red-300">
-                {inviteError}
-              </div>
-            )}
-
-            {inviteSuccess && (
-              <div className="rounded-lg border border-green-800 bg-green-900/20 px-3 py-2 text-sm text-green-300">
-                {inviteSuccess}
-              </div>
-            )}
-
             <div className="space-y-2">
               <label className="text-sm text-slate-300">Full Name</label>
               <Input
@@ -1496,7 +1497,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
               />
             </div>
 
-             <div className="space-y-2">
+            <div className="space-y-2">
               <label className="text-sm text-slate-300">Role</label>
               <Select
                 value={inviteRole}
@@ -1525,7 +1526,9 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                 <label className="text-sm text-slate-300">Member Type</label>
                 <Select
                   value={inviteMemberType}
-                  onValueChange={(value) => setInviteMemberType(value as MemberType)}
+                  onValueChange={(value) =>
+                    setInviteMemberType(value as MemberType)
+                  }
                 >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
                     <SelectValue placeholder="Select member type" />
@@ -1542,7 +1545,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
             )}
 
             <div className="flex justify-end gap-2 pt-2">
-               <Button
+              <Button
                 variant="outline"
                 className="border-slate-700 text-slate-300"
                 onClick={() => {
@@ -1569,6 +1572,3 @@ const handleResendInvite = async (invitation: InvitationRow) => {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}

@@ -110,6 +110,87 @@ serve(async (req) => {
       },
     });
 
+        const resend = body.resend === true || body.resend === "true";
+
+    const { data: pendingInvitation } = await adminClient
+      .from("member_invitations")
+      .select("id, invite_count, status")
+      .eq("email", email)
+      .eq("status", "pending")
+      .maybeSingle();
+
+    if (resend) {
+      if (!pendingInvitation) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "No pending invitation found to resend.",
+          }),
+          {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      const { data, error } = await adminClient.auth.admin.inviteUserByEmail(
+        email,
+        {
+          redirectTo,
+          data: {
+            full_name: fullName,
+            requested_role: role,
+            member_type: memberType,
+          },
+        }
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      const { error: updateError } = await adminClient
+        .from("member_invitations")
+        .update({
+          invite_count: (pendingInvitation.invite_count ?? 0) + 1,
+          last_invited_at: new Date().toISOString(),
+          expires_at: new Date(
+            Date.now() + 7 * 24 * 60 * 60 * 1000
+          ).toISOString(),
+          error_message: null,
+        })
+        .eq("id", pendingInvitation.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          resent: true,
+          user: data.user,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (pendingInvitation) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "This email already has a pending invite.",
+        }),
+        {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     const { data, error } = await adminClient.auth.admin.inviteUserByEmail(
       email,
       {
@@ -126,9 +207,31 @@ serve(async (req) => {
       throw error;
     }
 
+    const { error: insertError } = await adminClient
+      .from("member_invitations")
+      .insert({
+        email,
+        full_name: fullName,
+        role,
+        member_type: memberType,
+        status: "pending",
+        invited_by: requester.id,
+        invite_count: 1,
+        last_invited_at: new Date().toISOString(),
+        expires_at: new Date(
+          Date.now() + 7 * 24 * 60 * 60 * 1000
+        ).toISOString(),
+        error_message: null,
+      });
+
+    if (insertError) {
+      throw insertError;
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
+        resent: false,
         user: data.user,
       }),
       {
@@ -136,6 +239,7 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
+    
   } catch (error) {
     return new Response(
       JSON.stringify({

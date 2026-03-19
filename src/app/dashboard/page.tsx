@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { addDays, format, isBefore, parseISO } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { registerRealtimeChannel, removeRealtimeChannel } from "@/lib/realtime";
 import { createRequestTracker } from "@/lib/safeAsync";
+import { useLanguage } from "@/lib/i18n";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -113,7 +114,7 @@ function PanelSkeleton({
   icon,
 }: {
   title: string;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
 }) {
   return (
     <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
@@ -144,6 +145,7 @@ function PanelSkeleton({
 export default function DashboardPage() {
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
+  const { t } = useLanguage();
 
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -192,12 +194,20 @@ export default function DashboardPage() {
         { data: eventsData, error: eventsError },
         { data: logsData, error: logsError },
       ] = await Promise.all([
-        supabase.from("profiles").select("full_name, role").eq("user_id", user.id).single(),
+        supabase
+          .from("profiles")
+          .select("full_name, role")
+          .eq("user_id", user.id)
+          .single(),
         supabase
           .from("projects")
-          .select("id, name, description, status, progress, created_by, end_date, created_at")
+          .select(
+            "id, name, description, status, progress, created_by, end_date, created_at"
+          )
           .order("created_at", { ascending: false }),
-        supabase.from("project_members").select("id, project_id, user_id, role, created_at"),
+        supabase
+          .from("project_members")
+          .select("id, project_id, user_id, role, created_at"),
         supabase
           .from("tasks")
           .select(
@@ -238,7 +248,7 @@ export default function DashboardPage() {
       if (logsError) console.error("Dashboard activity load error:", logsError);
 
       setCurrentUserId(user.id);
-      setCurrentUserName(myProfile.full_name || "User");
+      setCurrentUserName(myProfile.full_name || t("common.user", "User"));
       setCurrentUserRole((myProfile.role as Role) || null);
       setProjects((projectsData || []) as ProjectRow[]);
       setProjectMembers((projectMembersData || []) as ProjectMemberRow[]);
@@ -255,12 +265,17 @@ export default function DashboardPage() {
         eventsError ||
         logsError
       ) {
-        setLoadError("Some dashboard data could not be loaded.");
+        setLoadError(
+          t(
+            "dashboard.someDataCouldNotBeLoaded",
+            "Some dashboard data could not be loaded."
+          )
+        );
       }
     } catch (error) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Dashboard load error:", error);
-      setLoadError("Failed to load dashboard.");
+      setLoadError(t("dashboard.failedToLoad", "Failed to load dashboard."));
     } finally {
       if (!requestTracker.current.isLatest(requestId)) return;
       setIsBootstrapping(false);
@@ -324,7 +339,8 @@ export default function DashboardPage() {
           (project) =>
             project.created_by === currentUserId ||
             projectMembers.some(
-              (member) => member.project_id === project.id && member.user_id === currentUserId
+              (member) =>
+                member.project_id === project.id && member.user_id === currentUserId
             )
         )
         .map((project) => project.id)
@@ -407,7 +423,7 @@ export default function DashboardPage() {
         title: task.title,
         date: task.due_date,
         link: `/tasks/${task.id}`,
-        meta: task.status || "Task",
+        meta: task.status || t("dashboard.taskLabel", "Task"),
       });
     }
 
@@ -421,7 +437,7 @@ export default function DashboardPage() {
         title: event.title,
         date: event.start_date,
         link: `/calendar/day/${event.start_date}`,
-        meta: event.event_type || "Event",
+        meta: event.event_type || t("dashboard.eventLabel", "Event"),
       });
     }
 
@@ -436,14 +452,14 @@ export default function DashboardPage() {
         title: project.name,
         date: project.end_date,
         link: `/projects/${project.id}`,
-        meta: "Project deadline",
+        meta: t("dashboard.projectDeadline", "Project deadline"),
       });
     }
 
     return items
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .slice(0, 12);
-  }, [activeProjectsForProgress, activeTasksForCompletion, visibleEvents]);
+  }, [activeProjectsForProgress, activeTasksForCompletion, visibleEvents, t]);
 
   const visibleActivity = useMemo(() => {
     const filtered = activityLogs.filter((log) => {
@@ -461,15 +477,27 @@ export default function DashboardPage() {
     });
   }, [activityLogs, currentUserId, currentUserRole, visibleProjectIds, visibleTasks]);
 
+  const completionPercent =
+    totalRelevantTasks === 0
+      ? 0
+      : Math.round((completedTasks / totalRelevantTasks) * 100);
+
   return (
     <div className="min-h-[calc(100vh-126px)] flex flex-col gap-5">
       <div className="flex flex-wrap items-start justify-between gap-4 shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-white">
-            {isBootstrapping ? "Welcome," : `Welcome, ${currentUserName}`}
+            {isBootstrapping
+              ? t("dashboard.welcome", "Welcome,")
+              : t("dashboard.welcomeUser", "Welcome, {{name}}", {
+                  name: currentUserName || t("common.user", "User"),
+                })}
           </h1>
           <p className="text-slate-400">
-            Here is a live overview of your projects, tasks, and events
+            {t(
+              "dashboard.subtitle",
+              "Here is a live overview of your projects, tasks, and events"
+            )}
           </p>
         </div>
 
@@ -479,7 +507,7 @@ export default function DashboardPage() {
             onClick={() => navigate("/projects/new")}
           >
             <Plus className="w-4 h-4 mr-2" />
-            New Project
+            {t("dashboard.newProject", "New Project")}
           </Button>
 
           <Button
@@ -488,7 +516,7 @@ export default function DashboardPage() {
             onClick={() => navigate("/calendar/new")}
           >
             <CalendarDays className="w-4 h-4 mr-2" />
-            New Event
+            {t("dashboard.newEvent", "New Event")}
           </Button>
 
           <Button
@@ -497,7 +525,9 @@ export default function DashboardPage() {
             onClick={() => void loadDashboard("refresh")}
             disabled={isRefreshing}
           >
-            {isRefreshing ? "Refreshing..." : "Refresh"}
+            {isRefreshing
+              ? t("dashboard.refreshing", "Refreshing...")
+              : t("dashboard.refresh", "Refresh")}
           </Button>
         </div>
       </div>
@@ -527,7 +557,9 @@ export default function DashboardPage() {
                   <div className="text-xl font-bold text-white">
                     {activeProjectsForProgress.length}
                   </div>
-                  <div className="text-sm text-slate-400">Active Projects</div>
+                  <div className="text-sm text-slate-400">
+                    {t("dashboard.activeProjects", "Active Projects")}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -541,7 +573,9 @@ export default function DashboardPage() {
                   <div className="text-xl font-bold text-white">
                     {activeTasksForCompletion.length}
                   </div>
-                  <div className="text-sm text-slate-400">Active Tasks</div>
+                  <div className="text-sm text-slate-400">
+                    {t("dashboard.activeTasks", "Active Tasks")}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -553,7 +587,9 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <div className="text-xl font-bold text-white">{profiles.length}</div>
-                  <div className="text-sm text-slate-400">Active Members</div>
+                  <div className="text-sm text-slate-400">
+                    {t("dashboard.activeMembers", "Active Members")}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -565,7 +601,9 @@ export default function DashboardPage() {
                 </div>
                 <div className="w-full">
                   <div className="text-xl font-bold text-white">{averageProgress}%</div>
-                  <div className="text-sm text-slate-400 mb-2">Average Project Progress</div>
+                  <div className="text-sm text-slate-400 mb-2">
+                    {t("dashboard.averageProjectProgress", "Average Project Progress")}
+                  </div>
                   <Progress value={averageProgress} />
                 </div>
               </CardContent>
@@ -579,215 +617,237 @@ export default function DashboardPage() {
           {isBootstrapping ? (
             <>
               <PanelSkeleton
-                title="Upcoming Deadlines"
+                title={t("dashboard.upcomingDeadlines", "Upcoming Deadlines")}
                 icon={<AlertCircle className="w-5 h-5 text-amber-400" />}
               />
-              <PanelSkeleton title="Project Progress" />
+              <PanelSkeleton title={t("dashboard.projectProgress", "Project Progress")} />
             </>
           ) : (
             <>
               <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
                 <CardHeader className="flex flex-row items-center justify-between shrink-0 pb-4">
                   <CardTitle className="text-white flex items-center gap-2">
-  <AlertCircle className="w-5 h-5 text-amber-400" />
-  Upcoming Deadlines
-</CardTitle>
-<Button
-  variant="ghost"
-  className="text-slate-400 hover:text-white"
-  onClick={() => navigate("/calendar")}
->
-  View Calendar
-  <ArrowRight className="w-4 h-4 ml-2" />
-</Button>
-</CardHeader>
-
-<CardContent className="flex-1 overflow-hidden">
-  {upcomingItems.length === 0 ? (
-    <div className="text-slate-400">No upcoming deadlines or events.</div>
-  ) : (
-    <ScrollArea className="h-full pr-3">
-      <div className="space-y-3">
-        {upcomingItems.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => navigate(item.link)}
-            className="w-full text-left p-4 rounded-lg border border-slate-800 bg-slate-950/40 hover:border-indigo-500/30 transition"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-white font-medium truncate">{item.title}</div>
-                <div className="text-sm text-slate-400">
-                  {format(parseISO(item.date), "MMM d, yyyy")}
-                </div>
-              </div>
-
-              <div className="shrink-0">
-                <Badge
-                  className={
-                    item.type === "task"
-                      ? "bg-emerald-500/20 text-emerald-300"
-                      : item.type === "event"
-                      ? "bg-indigo-500/20 text-indigo-300"
-                      : "bg-amber-500/20 text-amber-300"
-                  }
-                >
-                  {item.meta || item.type}
-                </Badge>
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
-    </ScrollArea>
-  )}
-</CardContent>
-</Card>
-
-<Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
-  <CardHeader className="shrink-0 pb-4">
-    <CardTitle className="text-white">Project Progress</CardTitle>
-  </CardHeader>
-
-  <CardContent className="flex-1 overflow-hidden">
-    {activeProjectsForProgress.length === 0 ? (
-      <div className="text-slate-400">No active projects available.</div>
-    ) : (
-      <ScrollArea className="h-full pr-3">
-        <div className="space-y-4">
-          {activeProjectsForProgress.map((project) => (
-            <div key={project.id} className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <button
-                  className="text-white hover:text-indigo-300 truncate"
-                  onClick={() => navigate(`/projects/${project.id}`)}
-                >
-                  {project.name}
-                </button>
-                <span className="text-sm text-slate-400">
-                  {project.progress || 0}%
-                </span>
-              </div>
-              <Progress value={project.progress || 0} />
-            </div>
-          ))}
-        </div>
-      </ScrollArea>
-    )}
-  </CardContent>
-</Card>
-</>
-)}
-</div>
-
-<div className="grid gap-5 content-start" style={{ gridTemplateRows: "520px 520px" }}>
-  {isBootstrapping ? (
-    <>
-      <PanelSkeleton
-        title="Activity Feed"
-        icon={<Activity className="w-5 h-5 text-indigo-400" />}
-      />
-      <PanelSkeleton title="Task Completion" />
-    </>
-  ) : (
-    <>
-      <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
-        <CardHeader className="shrink-0 pb-4">
-          <CardTitle className="text-white flex items-center gap-2">
-            <Activity className="w-5 h-5 text-indigo-400" />
-            Activity Feed
-          </CardTitle>
-        </CardHeader>
-
-        <CardContent className="flex-1 overflow-hidden">
-          {visibleActivity.length === 0 ? (
-            <div className="text-slate-400">No recent activity yet.</div>
-          ) : (
-            <ScrollArea className="h-full pr-3">
-              <div className="space-y-3">
-                {visibleActivity.map((log) => (
-                  <div
-                    key={log.id}
-                    className="p-3 rounded-lg border border-slate-800 bg-slate-950/40"
+                    <AlertCircle className="w-5 h-5 text-amber-400" />
+                    {t("dashboard.upcomingDeadlines", "Upcoming Deadlines")}
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    className="text-slate-400 hover:text-white"
+                    onClick={() => navigate("/calendar")}
                   >
-                    <div className="text-white text-sm">{log.message}</div>
-                    <div className="text-xs text-slate-500 mt-1">
-                      {format(parseISO(log.created_at), "MMM d, yyyy h:mm a")}
+                    {t("dashboard.viewCalendar", "View Calendar")}
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </CardHeader>
+
+                <CardContent className="flex-1 overflow-hidden">
+                  {upcomingItems.length === 0 ? (
+                    <div className="text-slate-400">
+                      {t(
+                        "dashboard.noUpcomingDeadlinesOrEvents",
+                        "No upcoming deadlines or events."
+                      )}
+                    </div>
+                  ) : (
+                    <ScrollArea className="h-full pr-3">
+                      <div className="space-y-3">
+                        {upcomingItems.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => navigate(item.link)}
+                            className="w-full text-left p-4 rounded-lg border border-slate-800 bg-slate-950/40 hover:border-indigo-500/30 transition"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="text-white font-medium truncate">
+                                  {item.title}
+                                </div>
+                                <div className="text-sm text-slate-400">
+                                  {format(parseISO(item.date), "MMM d, yyyy")}
+                                </div>
+                              </div>
+
+                              <div className="shrink-0">
+                                <Badge
+                                  className={
+                                    item.type === "task"
+                                      ? "bg-emerald-500/20 text-emerald-300"
+                                      : item.type === "event"
+                                        ? "bg-indigo-500/20 text-indigo-300"
+                                        : "bg-amber-500/20 text-amber-300"
+                                  }
+                                >
+                                  {item.meta || item.type}
+                                </Badge>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
+                <CardHeader className="shrink-0 pb-4">
+                  <CardTitle className="text-white">
+                    {t("dashboard.projectProgress", "Project Progress")}
+                  </CardTitle>
+                </CardHeader>
+
+                <CardContent className="flex-1 overflow-hidden">
+                  {activeProjectsForProgress.length === 0 ? (
+                    <div className="text-slate-400">
+                      {t("dashboard.noActiveProjectsAvailable", "No active projects available.")}
+                    </div>
+                  ) : (
+                    <ScrollArea className="h-full pr-3">
+                      <div className="space-y-4">
+                        {activeProjectsForProgress.map((project) => (
+                          <div key={project.id} className="space-y-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <button
+                                className="text-white hover:text-indigo-300 truncate"
+                                onClick={() => navigate(`/projects/${project.id}`)}
+                              >
+                                {project.name}
+                              </button>
+                              <span className="text-sm text-slate-400">
+                                {project.progress || 0}%
+                              </span>
+                            </div>
+                            <Progress value={project.progress || 0} />
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </div>
+
+        <div className="grid gap-5 content-start" style={{ gridTemplateRows: "520px 520px" }}>
+          {isBootstrapping ? (
+            <>
+              <PanelSkeleton
+                title={t("dashboard.activityFeed", "Activity Feed")}
+                icon={<Activity className="w-5 h-5 text-indigo-400" />}
+              />
+              <PanelSkeleton title={t("dashboard.taskCompletion", "Task Completion")} />
+            </>
+          ) : (
+            <>
+              <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
+                <CardHeader className="shrink-0 pb-4">
+                  <CardTitle className="text-white flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-indigo-400" />
+                    {t("dashboard.activityFeed", "Activity Feed")}
+                  </CardTitle>
+                </CardHeader>
+
+                <CardContent className="flex-1 overflow-hidden">
+                  {visibleActivity.length === 0 ? (
+                    <div className="text-slate-400">
+                      {t("dashboard.noRecentActivityYet", "No recent activity yet.")}
+                    </div>
+                  ) : (
+                    <ScrollArea className="h-full pr-3">
+                      <div className="space-y-3">
+                        {visibleActivity.map((log) => (
+                          <div
+                            key={log.id}
+                            className="p-3 rounded-lg border border-slate-800 bg-slate-950/40"
+                          >
+                            <div className="text-white text-sm">{log.message}</div>
+                            <div className="text-xs text-slate-500 mt-1">
+                              {format(parseISO(log.created_at), "MMM d, yyyy h:mm a")}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
+                <CardHeader className="shrink-0 pb-3">
+                  <CardTitle className="text-white">
+                    {t("dashboard.taskCompletion", "Task Completion")}
+                  </CardTitle>
+                </CardHeader>
+
+                <CardContent className="flex flex-col flex-1 overflow-hidden">
+                  <div className="shrink-0 space-y-3 pb-3">
+                    <div className="text-white text-lg font-semibold">
+                      {t("dashboard.completedSummary", "{{completed}} / {{total}} completed", {
+                        completed: completedTasks,
+                        total: totalRelevantTasks,
+                      })}
+                    </div>
+
+                    <Progress value={completionPercent} />
+
+                    <div className="text-sm text-slate-400">
+                      {totalRelevantTasks === 0
+                        ? t("dashboard.noRelevantTasksYet", "No relevant tasks yet.")
+                        : t(
+                            "dashboard.percentTasksComplete",
+                            "{{percent}}% of tasks are complete",
+                            { percent: completionPercent }
+                          )}
                     </div>
                   </div>
-                ))}
-              </div>
-            </ScrollArea>
-          )}
-        </CardContent>
-      </Card>
 
-      <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
-        <CardHeader className="shrink-0 pb-3">
-          <CardTitle className="text-white">Task Completion</CardTitle>
-        </CardHeader>
+                  <div className="flex-1 overflow-hidden">
+                    {activeTasksForCompletion.length > 0 ? (
+                      <ScrollArea className="h-full pr-3">
+                        <div className="space-y-3">
+                          {activeTasksForCompletion.map((task) => (
+                            <button
+                              key={task.id}
+                              type="button"
+                              onClick={() => navigate(`/tasks/${task.id}`)}
+                              className="w-full text-left p-3 rounded-lg border border-slate-800 bg-slate-950/40 hover:border-indigo-500/30 transition"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-white truncate">{task.title}</div>
+                                  {task.due_date && (
+                                    <div className="text-xs text-slate-400">
+                                      {t("dashboard.dueLabel", "Due")}{" "}
+                                      {format(parseISO(task.due_date), "MMM d, yyyy")}
+                                    </div>
+                                  )}
+                                </div>
 
-        <CardContent className="flex flex-col flex-1 overflow-hidden">
-          <div className="shrink-0 space-y-3 pb-3">
-            <div className="text-white text-lg font-semibold">
-              {completedTasks} / {totalRelevantTasks} completed
-            </div>
-
-            <Progress
-              value={
-                totalRelevantTasks === 0
-                  ? 0
-                  : Math.round((completedTasks / totalRelevantTasks) * 100)
-              }
-            />
-
-            <div className="text-sm text-slate-400">
-              {totalRelevantTasks === 0
-                ? "No relevant tasks yet."
-                : `${Math.round((completedTasks / totalRelevantTasks) * 100)}% of tasks are complete`}
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-hidden">
-            {activeTasksForCompletion.length > 0 ? (
-              <ScrollArea className="h-full pr-3">
-                <div className="space-y-3">
-                  {activeTasksForCompletion.map((task) => (
-                    <button
-                      key={task.id}
-                      type="button"
-                      onClick={() => navigate(`/tasks/${task.id}`)}
-                      className="w-full text-left p-3 rounded-lg border border-slate-800 bg-slate-950/40 hover:border-indigo-500/30 transition"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-white truncate">{task.title}</div>
-                          {task.due_date && (
-                            <div className="text-xs text-slate-400">
-                              Due {format(parseISO(task.due_date), "MMM d, yyyy")}
-                            </div>
-                          )}
+                                <Badge className="bg-emerald-500/20 text-emerald-300 shrink-0">
+                                  {(task.status || t("dashboard.taskLabel", "Task")).replaceAll(
+                                    "_",
+                                    " "
+                                  )}
+                                </Badge>
+                              </div>
+                            </button>
+                          ))}
                         </div>
-
-                        <Badge className="bg-emerald-500/20 text-emerald-300 shrink-0">
-                          {(task.status || "task").replaceAll("_", " ")}
-                        </Badge>
+                      </ScrollArea>
+                    ) : (
+                      <div className="text-slate-400">
+                        {t("dashboard.noActiveTasksToDisplay", "No active tasks to display.")}
                       </div>
-                    </button>
-                  ))}
-                </div>
-              </ScrollArea>
-            ) : (
-              <div className="text-slate-400">No active tasks to display.</div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </>
-  )}
-</div>
-</div>
-</div>
-);
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

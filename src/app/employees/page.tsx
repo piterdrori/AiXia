@@ -640,20 +640,40 @@ const handleResendInvite = async (invitation: InvitationRow) => {
   setInviteSuccess("");
 
   try {
-    const { data, error } = await supabase.functions.invoke("invite-member", {
-      body: {
-        email: invitation.email,
-        fullName: invitation.full_name,
-        role: invitation.role,
-        memberType:
-          invitation.role === "admin" ? null : invitation.member_type,
-        redirectTo: `${window.location.origin}/onboarding`,
-        resend: true,
-      },
-    });
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
 
-    if (error) {
-      throw error;
+    if (sessionError || !session?.access_token) {
+      throw new Error("You must be logged in to resend invites.");
+    }
+
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-member`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          email: invitation.email,
+          fullName: invitation.full_name,
+          role: invitation.role,
+          memberType:
+            invitation.role === "admin" ? null : invitation.member_type,
+          redirectTo: `${window.location.origin}/onboarding`,
+          resend: true,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data?.error || "Failed to resend invite.");
     }
 
     if (!data?.success) {
@@ -670,30 +690,9 @@ const handleResendInvite = async (invitation: InvitationRow) => {
     void loadProfiles("refresh");
   } catch (err) {
     console.error("Resend invite error:", err);
-
-    let message = "Failed to resend invite.";
-
-    if (typeof err === "object" && err !== null) {
-      const anyErr = err as {
-        message?: string;
-        context?: { json?: () => Promise<any> };
-      };
-
-      if (anyErr.context && typeof anyErr.context.json === "function") {
-        try {
-          const data = await anyErr.context.json();
-          if (data?.error) {
-            message = data.error;
-          }
-        } catch (parseError) {
-          console.error("Failed to parse function error response:", parseError);
-        }
-      } else if (typeof anyErr.message === "string" && anyErr.message) {
-        message = anyErr.message;
-      }
-    }
-
-    setInviteError(message);
+    setInviteError(
+      err instanceof Error ? err.message : "Failed to resend invite."
+    );
   } finally {
     setInvitationActionId(null);
   }

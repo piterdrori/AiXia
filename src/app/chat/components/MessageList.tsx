@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { useLanguage } from "@/lib/i18n";
 
 export default function MessageList({
   currentUserId,
@@ -29,6 +30,8 @@ export default function MessageList({
   onCancelEdit,
   onDeleteMessage,
 }: MessageListProps) {
+  const { t } = useLanguage();
+
   const canManageMessage = (message: ChatMessageRow) => {
     if (!currentUserId) return false;
     return currentUserRole === "admin" || message.user_id === currentUserId;
@@ -45,7 +48,9 @@ export default function MessageList({
       {(isSelectionMode || selectedMessageIds.length > 0) && (
         <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-800 bg-slate-950/60 shrink-0">
           <div className="text-sm text-slate-300">
-            {selectedMessageIds.length} selected
+            {t("chat.messageList.selectedCount", undefined, {
+              total: selectedMessageIds.length,
+            })}
           </div>
 
           <div className="flex items-center gap-2">
@@ -62,12 +67,12 @@ export default function MessageList({
               {allSelected ? (
                 <>
                   <Square className="w-4 h-4 mr-2" />
-                  Clear All
+                  {t("chat.messageList.clearAll")}
                 </>
               ) : (
                 <>
                   <Check className="w-4 h-4 mr-2" />
-                  Select Mode Active
+                  {t("chat.messageList.selectModeActive")}
                 </>
               )}
             </Button>
@@ -85,11 +90,13 @@ export default function MessageList({
                 disabled={isLoadingOlder}
                 className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
               >
-                {isLoadingOlder ? "Loading older messages..." : "Load older messages"}
+                {isLoadingOlder
+                  ? t("chat.messageList.loadingOlderMessages")
+                  : t("chat.messageList.loadOlderMessages")}
               </Button>
             ) : (
               <div className="text-xs text-slate-500 px-3 py-1 rounded-md bg-slate-900/80 border border-slate-800">
-                Beginning of conversation
+                {t("chat.messageList.beginningOfConversation")}
               </div>
             )}
           </div>
@@ -131,7 +138,7 @@ export default function MessageList({
                   <div className={`max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
                     {showAvatar && (
                       <p className="text-xs text-slate-500 mb-1">
-                        {user?.full_name || "Unknown"} • {formatMessageTime(message.created_at)}
+                        {user?.full_name || t("chat.common.unknown")} • {formatMessageTime(message.created_at, t)}
                       </p>
                     )}
 
@@ -163,7 +170,7 @@ export default function MessageList({
                               }
                             >
                               <Save className="w-3 h-3 mr-1" />
-                              Save
+                              {t("chat.messageList.save")}
                             </Button>
                             <Button
                               size="sm"
@@ -173,7 +180,7 @@ export default function MessageList({
                               disabled={messageActionLoading === message.id}
                             >
                               <X className="w-3 h-3 mr-1" />
-                              Cancel
+                              {t("chat.messageList.cancel")}
                             </Button>
                           </div>
                         </div>
@@ -189,14 +196,14 @@ export default function MessageList({
                           onClick={() => onStartEdit(message)}
                           disabled={messageActionLoading === message.id}
                         >
-                          Edit
+                          {t("chat.messageList.edit")}
                         </button>
                         <button
                           className="text-xs text-red-400 hover:text-red-300"
                           onClick={() => onDeleteMessage(message)}
                           disabled={messageActionLoading === message.id}
                         >
-                          Delete
+                          {t("chat.messageList.delete")}
                         </button>
                       </div>
                     )}
@@ -210,8 +217,8 @@ export default function MessageList({
                 <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4">
                   <MessageSquare className="w-8 h-8 text-slate-500" />
                 </div>
-                <p className="text-slate-500">No messages yet</p>
-                <p className="text-slate-600 text-sm">Start the conversation!</p>
+                <p className="text-slate-500">{t("chat.messageList.noMessagesYet")}</p>
+                <p className="text-slate-600 text-sm">{t("chat.messageList.startConversation")}</p>
               </div>
             )}
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
+import { useTranslation } from "@/lib/i18n";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,6 +97,7 @@ export default function CalendarEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const pageRequestTracker = useRef(createRequestTracker());
+  const { t } = useTranslation();
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
@@ -226,7 +228,7 @@ export default function CalendarEditPage() {
     } catch (err) {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
       console.error("Load calendar edit page error:", err);
-      setError("Failed to load event.");
+      setError(t("calendarEdit.errors.loadEvent"));
       setProjects([]);
       setTasks([]);
     } finally {
@@ -321,22 +323,22 @@ export default function CalendarEditPage() {
     e.preventDefault();
 
     if (!id || !currentUserId) {
-      setError("User session not found.");
+      setError(t("calendarEdit.errors.userSessionNotFound"));
       return;
     }
 
     if (!title.trim()) {
-      setError("Title is required.");
+      setError(t("calendarEdit.errors.titleRequired"));
       return;
     }
 
     if (!startDate) {
-      setError("Start date is required.");
+      setError(t("calendarEdit.errors.startDateRequired"));
       return;
     }
 
     if (!allDay && !startTime) {
-      setError("Start time is required.");
+      setError(t("calendarEdit.errors.startTimeRequired"));
       return;
     }
 
@@ -355,7 +357,7 @@ export default function CalendarEditPage() {
           : endTime || null;
 
     if (!allDay && needsStartAndEnd && !computedEndTime) {
-      setError("End time is required.");
+      setError(t("calendarEdit.errors.endTimeRequired"));
       return;
     }
 
@@ -365,7 +367,7 @@ export default function CalendarEditPage() {
       computedEndTime &&
       isEndBeforeStart(startDate, startTime, computedEndDate, computedEndTime)
     ) {
-      setError("End date/time cannot be earlier than start date/time.");
+      setError(t("calendarEdit.errors.endBeforeStart"));
       return;
     }
 
@@ -395,7 +397,7 @@ export default function CalendarEditPage() {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
 
       if (updateError) {
-        setError(updateError.message || "Failed to update event.");
+        setError(updateError.message || t("calendarEdit.errors.updateEvent"));
         return;
       }
 
@@ -414,7 +416,7 @@ export default function CalendarEditPage() {
     } catch (err) {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
       console.error("Update calendar event error:", err);
-      setError("Failed to update event.");
+      setError(t("calendarEdit.errors.updateEvent"));
     } finally {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
       setIsSaving(false);
@@ -424,7 +426,7 @@ export default function CalendarEditPage() {
   const handleDelete = async () => {
     if (!id || !currentUserId) return;
 
-    const confirmed = window.confirm("Are you sure you want to delete this event?");
+    const confirmed = window.confirm(t("calendarEdit.confirmations.deleteEvent"));
     if (!confirmed) return;
 
     const requestId = pageRequestTracker.current.next();
@@ -440,7 +442,7 @@ export default function CalendarEditPage() {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
 
       if (deleteError) {
-        setError(deleteError.message || "Failed to delete event.");
+        setError(deleteError.message || t("calendarEdit.errors.deleteEvent"));
         return;
       }
 
@@ -459,7 +461,7 @@ export default function CalendarEditPage() {
     } catch (err) {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
       console.error("Delete calendar event error:", err);
-      setError("Failed to delete event.");
+      setError(t("calendarEdit.errors.deleteEvent"));
     } finally {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
       setIsDeleting(false);
@@ -479,8 +481,8 @@ export default function CalendarEditPage() {
           </Button>
 
           <div>
-            <h1 className="text-2xl font-bold text-white">Edit Event</h1>
-            <p className="text-slate-400">Update or delete this calendar event</p>
+            <h1 className="text-2xl font-bold text-white">{t("calendarEdit.header.title")}</h1>
+            <p className="text-slate-400">{t("calendarEdit.header.subtitle")}</p>
           </div>
         </div>
 
@@ -491,7 +493,7 @@ export default function CalendarEditPage() {
           onClick={() => void loadPage("refresh")}
           disabled={isRefreshing}
         >
-          {isRefreshing ? "Refreshing..." : "Refresh"}
+          {isRefreshing ? t("calendarEdit.buttons.refreshing") : t("calendarEdit.buttons.refresh")}
         </Button>
       </div>
 
@@ -508,14 +510,14 @@ export default function CalendarEditPage() {
               <Alert className="bg-indigo-900/20 border-indigo-800 text-indigo-200">
                 <AlertDescription className="flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Loading event details...
+                  {t("calendarEdit.status.loadingEventDetails")}
                 </AlertDescription>
               </Alert>
             )}
 
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2 md:col-span-2">
-                <Label className="text-slate-300">Title</Label>
+                <Label className="text-slate-300">{t("calendarEdit.fields.title")}</Label>
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -525,7 +527,7 @@ export default function CalendarEditPage() {
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <Label className="text-slate-300">Description</Label>
+                <Label className="text-slate-300">{t("calendarEdit.fields.description")}</Label>
                 <Textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -536,7 +538,7 @@ export default function CalendarEditPage() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Event Type</Label>
+                <Label className="text-slate-300">{t("calendarEdit.fields.eventType")}</Label>
                 <Select
                   value={eventType}
                   onValueChange={(value) => setEventType(value as EventType)}
@@ -546,19 +548,19 @@ export default function CalendarEditPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                    <SelectItem value="meeting">Meeting</SelectItem>
-                    <SelectItem value="task">Task</SelectItem>
-                    <SelectItem value="reminder">Reminder</SelectItem>
-                    <SelectItem value="deadline">Deadline</SelectItem>
-                    <SelectItem value="call">Call</SelectItem>
-                    <SelectItem value="personal">Personal</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="meeting">{t("calendarEdit.eventTypes.meeting")}</SelectItem>
+                    <SelectItem value="task">{t("calendarEdit.eventTypes.task")}</SelectItem>
+                    <SelectItem value="reminder">{t("calendarEdit.eventTypes.reminder")}</SelectItem>
+                    <SelectItem value="deadline">{t("calendarEdit.eventTypes.deadline")}</SelectItem>
+                    <SelectItem value="call">{t("calendarEdit.eventTypes.call")}</SelectItem>
+                    <SelectItem value="personal">{t("calendarEdit.eventTypes.personal")}</SelectItem>
+                    <SelectItem value="other">{t("calendarEdit.eventTypes.other")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Reminder</Label>
+                <Label className="text-slate-300">{t("calendarEdit.fields.reminder")}</Label>
                 <Select
                   value={reminderMinutes}
                   onValueChange={(value) => setReminderMinutes(value as ReminderValue)}
@@ -568,12 +570,12 @@ export default function CalendarEditPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                    <SelectItem value="NONE">No reminder</SelectItem>
-                    <SelectItem value="5">5 minutes before</SelectItem>
-                    <SelectItem value="10">10 minutes before</SelectItem>
-                    <SelectItem value="15">15 minutes before</SelectItem>
-                    <SelectItem value="30">30 minutes before</SelectItem>
-                    <SelectItem value="60">1 hour before</SelectItem>
+                    <SelectItem value="NONE">{t("calendarEdit.reminders.none")}</SelectItem>
+                    <SelectItem value="5">{t("calendarEdit.reminders.fiveMinutes")}</SelectItem>
+                    <SelectItem value="10">{t("calendarEdit.reminders.tenMinutes")}</SelectItem>
+                    <SelectItem value="15">{t("calendarEdit.reminders.fifteenMinutes")}</SelectItem>
+                    <SelectItem value="30">{t("calendarEdit.reminders.thirtyMinutes")}</SelectItem>
+                    <SelectItem value="60">{t("calendarEdit.reminders.oneHour")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -584,11 +586,11 @@ export default function CalendarEditPage() {
                   onCheckedChange={(checked) => setAllDay(Boolean(checked))}
                   disabled={isPageBusy}
                 />
-                <Label className="text-slate-300">All Day Event</Label>
+                <Label className="text-slate-300">{t("calendarEdit.fields.allDayEvent")}</Label>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Start Date</Label>
+                <Label className="text-slate-300">{t("calendarEdit.fields.startDate")}</Label>
                 <Input
                   type="date"
                   value={startDate}
@@ -610,7 +612,7 @@ export default function CalendarEditPage() {
 
               {!allDay && (
                 <div className="space-y-2">
-                  <Label className="text-slate-300">Start Time</Label>
+                  <Label className="text-slate-300">{t("calendarEdit.fields.startTime")}</Label>
                   <Input
                     type="time"
                     step="60"
@@ -643,7 +645,7 @@ export default function CalendarEditPage() {
 
               {usesDuration && !allDay && (
                 <div className="space-y-2">
-                  <Label className="text-slate-300">Duration</Label>
+                  <Label className="text-slate-300">{t("calendarEdit.fields.duration")}</Label>
                   <Select
                     value={meetingDuration}
                     onValueChange={(value) => setMeetingDuration(value as MeetingDurationValue)}
@@ -653,10 +655,10 @@ export default function CalendarEditPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                      <SelectItem value="30">30 minutes</SelectItem>
-                      <SelectItem value="60">1 hour</SelectItem>
-                      <SelectItem value="90">1.5 hours</SelectItem>
-                      <SelectItem value="120">2 hours</SelectItem>
+                      <SelectItem value="30">{t("calendarEdit.durations.thirtyMinutes")}</SelectItem>
+                      <SelectItem value="60">{t("calendarEdit.durations.oneHour")}</SelectItem>
+                      <SelectItem value="90">{t("calendarEdit.durations.oneAndHalfHours")}</SelectItem>
+                      <SelectItem value="120">{t("calendarEdit.durations.twoHours")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -664,7 +666,7 @@ export default function CalendarEditPage() {
 
               {(needsStartAndEnd || usesDuration) && (
                 <div className="space-y-2">
-                  <Label className="text-slate-300">End Date</Label>
+                  <Label className="text-slate-300">{t("calendarEdit.fields.endDate")}</Label>
                   <Input
                     type="date"
                     value={endDate}
@@ -678,7 +680,7 @@ export default function CalendarEditPage() {
 
               {needsStartAndEnd && !allDay && (
                 <div className="space-y-2">
-                  <Label className="text-slate-300">End Time</Label>
+                  <Label className="text-slate-300">{t("calendarEdit.fields.endTime")}</Label>
                   <Input
                     type="time"
                     step="60"
@@ -693,7 +695,7 @@ export default function CalendarEditPage() {
               )}
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Related Project</Label>
+                <Label className="text-slate-300">{t("calendarEdit.fields.relatedProject")}</Label>
                 <Select
                   value={selectedProjectId}
                   onValueChange={(value) => {
@@ -706,7 +708,7 @@ export default function CalendarEditPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                    <SelectItem value="NONE">None</SelectItem>
+                    <SelectItem value="NONE">{t("calendarEdit.common.none")}</SelectItem>
                     {projects.map((project) => (
                       <SelectItem key={project.id} value={project.id}>
                         {project.name}
@@ -717,7 +719,7 @@ export default function CalendarEditPage() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Related Task</Label>
+                <Label className="text-slate-300">{t("calendarEdit.fields.relatedTask")}</Label>
                 <Select
                   value={selectedTaskId}
                   onValueChange={setSelectedTaskId}
@@ -727,7 +729,7 @@ export default function CalendarEditPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                    <SelectItem value="NONE">None</SelectItem>
+                    <SelectItem value="NONE">{t("calendarEdit.common.none")}</SelectItem>
                     {filteredTasks.map((task) => (
                       <SelectItem key={task.id} value={task.id}>
                         {task.title}
@@ -747,7 +749,7 @@ export default function CalendarEditPage() {
                 disabled={isDeleting || isPageBusy}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                {isDeleting ? "Deleting..." : "Delete"}
+                {isDeleting ? t("calendarEdit.buttons.deleting") : t("calendarEdit.buttons.delete")}
               </Button>
 
               <div className="flex gap-3">
@@ -757,7 +759,7 @@ export default function CalendarEditPage() {
                   className="border-slate-700 text-slate-300 hover:bg-slate-800"
                   onClick={() => navigate("/calendar")}
                 >
-                  Cancel
+                  {t("calendarEdit.buttons.cancel")}
                 </Button>
 
                 <Button
@@ -765,7 +767,11 @@ export default function CalendarEditPage() {
                   className="bg-indigo-600 hover:bg-indigo-700 text-white"
                   disabled={isSaving || isPageBusy}
                 >
-                  {isSaving ? "Saving..." : isPageBusy ? "Loading..." : "Save Changes"}
+                  {isSaving
+                    ? t("calendarEdit.buttons.saving")
+                    : isPageBusy
+                      ? t("calendarEdit.buttons.loading")
+                      : t("calendarEdit.buttons.saveChanges")}
                 </Button>
               </div>
             </div>

@@ -7,6 +7,7 @@ import {
   createNotification,
   extractMentionedUserIds,
 } from "@/lib/notifications";
+import { useLanguage } from "@/lib/i18n";
 
 import { useChatBootstrap } from "./hooks/useChatBootstrap";
 import { useChatMessages } from "./hooks/useChatMessages";
@@ -35,6 +36,7 @@ import { Card } from "@/components/ui/card";
 export default function ChatPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const { t } = useLanguage();
 
   const {
     currentUserId,
@@ -244,7 +246,7 @@ export default function ChatPage() {
       .maybeSingle();
 
     if (existingError) {
-      setError(existingError.message || "Failed to check direct chat.");
+      setError(existingError.message || t("chat.errors.checkDirectChat"));
       return;
     }
 
@@ -286,7 +288,7 @@ export default function ChatPage() {
       .single();
 
     if (groupError || !newGroup) {
-      setError(groupError?.message || "Failed to create direct chat.");
+      setError(groupError?.message || t("chat.errors.createDirectChat"));
       return;
     }
 
@@ -318,7 +320,7 @@ export default function ChatPage() {
       ]);
 
     if (memberInsertError) {
-      setError(memberInsertError.message || "Failed to add direct chat members.");
+      setError(memberInsertError.message || t("chat.errors.addDirectChatMembers"));
     }
 
     void reloadChatShell(newGroup.id);
@@ -328,12 +330,12 @@ export default function ChatPage() {
     if (!currentUserId) return;
 
     if (!groupName.trim()) {
-      setError("Group name is required.");
+      setError(t("chat.errors.groupNameRequired"));
       return;
     }
 
     if (selectedGroupMembers.length === 0) {
-      setError("Select at least one member.");
+      setError(t("chat.errors.selectAtLeastOneMember"));
       return;
     }
 
@@ -354,7 +356,7 @@ export default function ChatPage() {
       .single();
 
     if (groupError || !newGroup) {
-      setError(groupError?.message || "Failed to create group chat.");
+      setError(groupError?.message || t("chat.errors.createGroupChat"));
       setIsCreatingGroup(false);
       return;
     }
@@ -396,7 +398,7 @@ export default function ChatPage() {
       ]);
 
     if (membersError) {
-      setError(membersError.message || "Failed to add group members.");
+      setError(membersError.message || t("chat.errors.addGroupMembers"));
     }
 
     void reloadChatShell(newGroup.id);
@@ -444,7 +446,7 @@ export default function ChatPage() {
     if (sendError || !insertedMessage) {
       deleteMessageLocally(selectedConversationId, tempId);
       setMessageInput(contentToSend);
-      setError(sendError?.message || "Failed to send message.");
+      setError(sendError?.message || t("chat.errors.sendMessage"));
       setIsSending(false);
       return;
     }
@@ -470,7 +472,9 @@ export default function ChatPage() {
         userId: member.user_id,
         actorUserId: currentUserId,
         type: "MESSAGE",
-        title: `New message in ${conversationTitle}`,
+        title: t("chat.notifications.newMessageTitle", undefined, {
+          conversationTitle,
+        }),
         message: contentToSend,
         link: `/chat/${selectedConversationId}`,
         entityType: "chat_message",
@@ -483,8 +487,10 @@ export default function ChatPage() {
         userId,
         actorUserId: currentUserId,
         type: "MENTION",
-        title: "You were mentioned in chat",
-        message: `You were mentioned in ${conversationTitle}`,
+        title: t("chat.notifications.mentionedTitle"),
+        message: t("chat.notifications.mentionedMessage", undefined, {
+          conversationTitle,
+        }),
         link: `/chat/${selectedConversationId}`,
         entityType: "chat_message",
         entityId: insertedMessage.id,
@@ -508,7 +514,7 @@ export default function ChatPage() {
 
   const handleSaveEditedMessage = async (message: ChatMessageRow) => {
     if (!editingMessageText.trim()) {
-      setError("Message cannot be empty.");
+      setError(t("chat.errors.messageCannotBeEmpty"));
       return;
     }
 
@@ -521,7 +527,7 @@ export default function ChatPage() {
       .eq("id", message.id);
 
     if (updateError) {
-      setError(updateError.message || "Failed to update message.");
+      setError(updateError.message || t("chat.errors.updateMessage"));
       setMessageActionLoading(null);
       return;
     }
@@ -537,7 +543,7 @@ export default function ChatPage() {
   };
 
   const handleDeleteMessage = async (message: ChatMessageRow) => {
-    const confirmed = window.confirm("Are you sure you want to delete this message?");
+    const confirmed = window.confirm(t("chat.confirms.deleteMessage"));
     if (!confirmed) return;
 
     setMessageActionLoading(message.id);
@@ -549,7 +555,7 @@ export default function ChatPage() {
       .eq("id", message.id);
 
     if (deleteError) {
-      setError(deleteError.message || "Failed to delete message.");
+      setError(deleteError.message || t("chat.errors.deleteMessage"));
       setMessageActionLoading(null);
       return;
     }
@@ -577,12 +583,14 @@ export default function ChatPage() {
     const idsToDelete = selectedMessageIds.filter((id) => allowedIds.has(id));
 
     if (idsToDelete.length === 0) {
-      setError("No deletable messages selected.");
+      setError(t("chat.errors.noDeletableMessagesSelected"));
       return;
     }
 
     const confirmed = window.confirm(
-      `Are you sure you want to delete ${idsToDelete.length} selected message(s)?`
+      t("chat.confirms.deleteSelectedMessages", undefined, {
+        total: idsToDelete.length,
+      })
     );
     if (!confirmed) return;
 
@@ -595,7 +603,7 @@ export default function ChatPage() {
       .in("id", idsToDelete);
 
     if (deleteError) {
-      setError(deleteError.message || "Failed to delete selected messages.");
+      setError(deleteError.message || t("chat.errors.deleteSelectedMessages"));
       setBulkDeleteLoading(false);
       return;
     }
@@ -615,7 +623,7 @@ export default function ChatPage() {
   };
 
   const handleDeleteChat = async (group: ChatGroupRow) => {
-    const confirmed = window.confirm("Are you sure you want to delete this chat?");
+    const confirmed = window.confirm(t("chat.confirms.deleteChat"));
     if (!confirmed) return;
 
     setGroupActionLoading(group.id);
@@ -627,7 +635,7 @@ export default function ChatPage() {
       .eq("id", group.id);
 
     if (deleteError) {
-      setError(deleteError.message || "Failed to delete chat.");
+      setError(deleteError.message || t("chat.errors.deleteChat"));
       setGroupActionLoading(null);
       return;
     }
@@ -677,7 +685,9 @@ export default function ChatPage() {
             {(isSelectionMode || selectedMessageIds.length > 0) && (
               <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-800 bg-slate-950/60 shrink-0">
                 <div className="text-sm text-slate-300">
-                  {selectedMessageIds.length} selected
+                  {t("chat.selection.selectedCount", undefined, {
+                    total: selectedMessageIds.length,
+                  })}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -692,12 +702,12 @@ export default function ChatPage() {
                     {allSelected ? (
                       <>
                         <Square className="w-4 h-4 mr-2" />
-                        Clear All
+                        {t("chat.selection.clearAll")}
                       </>
                     ) : (
                       <>
                         <Check className="w-4 h-4 mr-2" />
-                        Select All
+                        {t("chat.selection.selectAll")}
                       </>
                     )}
                   </Button>
@@ -709,7 +719,9 @@ export default function ChatPage() {
                     onClick={() => void handleBulkDeleteMessages()}
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
-                    {bulkDeleteLoading ? "Deleting..." : "Delete Selected"}
+                    {bulkDeleteLoading
+                      ? t("chat.selection.deleting")
+                      : t("chat.selection.deleteSelected")}
                   </Button>
                 </div>
               </div>
@@ -754,8 +766,10 @@ export default function ChatPage() {
 
             <div className="px-4 py-2 text-xs text-slate-500">
               {isLoadingMessages && !messages[selectedConversation.id]
-                ? "Opening conversation..."
-                : `Loaded ${selectedMessages.length} message(s)`}
+                ? t("chat.status.openingConversation")
+                : t("chat.status.loadedMessages", undefined, {
+                    total: selectedMessages.length,
+                  })}
             </div>
 
             <MessageComposer
@@ -772,12 +786,14 @@ export default function ChatPage() {
           <Card className="flex-1 bg-slate-900/50 border-slate-800 flex items-center justify-center min-h-0">
             <div className="text-center">
               <div className="text-white text-lg font-medium mb-2">
-                {isBootstrapping ? "Loading chats..." : "Select a conversation"}
+                {isBootstrapping
+                  ? t("chat.empty.loadingTitle")
+                  : t("chat.empty.selectTitle")}
               </div>
               <p className="text-slate-500">
                 {isBootstrapping
-                  ? "Preparing your chat workspace"
-                  : "Choose a conversation from the sidebar to start chatting"}
+                  ? t("chat.empty.loadingDescription")
+                  : t("chat.empty.selectDescription")}
               </p>
             </div>
           </Card>

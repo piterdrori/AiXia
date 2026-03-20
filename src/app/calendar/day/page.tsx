@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
+import { useLanguage } from "@/lib/i18n";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,6 +63,7 @@ export default function CalendarDayPage() {
   const { date } = useParams<{ date: string }>();
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
+  const { t } = useLanguage();
 
   const [events, setEvents] = useState<CalendarEventRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
@@ -116,7 +118,7 @@ export default function CalendarDayPage() {
         );
         setEvents([]);
         setTasks([]);
-        setLoadError("Failed to load this day.");
+        setLoadError(t("calendarDay.errors.failedToLoadDay"));
         return;
       }
 
@@ -176,14 +178,14 @@ export default function CalendarDayPage() {
       setTasks(safeTasks);
 
       if (eventsError || tasksError) {
-        setLoadError("Some day data could not be loaded.");
+        setLoadError(t("calendarDay.errors.someDayDataCouldNotBeLoaded"));
       }
     } catch (error) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Load calendar day error:", error);
       setEvents([]);
       setTasks([]);
-      setLoadError("Failed to load this day.");
+      setLoadError(t("calendarDay.errors.failedToLoadDay"));
     } finally {
       if (!requestTracker.current.isLatest(requestId)) return;
       setIsBootstrapping(false);
@@ -200,12 +202,14 @@ export default function CalendarDayPage() {
       <div className="max-w-3xl mx-auto p-6">
         <Card className="bg-slate-900/50 border-slate-800">
           <CardHeader>
-            <CardTitle className="text-white">Invalid date</CardTitle>
+            <CardTitle className="text-white">{t("calendarDay.invalidDate.title")}</CardTitle>
           </CardHeader>
           <CardContent className="text-slate-300">
-            The URL date is invalid.
+            {t("calendarDay.invalidDate.description")}
             <div className="mt-4">
-              <Button onClick={() => navigate("/calendar")}>Back</Button>
+              <Button onClick={() => navigate("/calendar")}>
+                {t("calendarDay.invalidDate.back")}
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -231,10 +235,12 @@ export default function CalendarDayPage() {
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold text-white">{dateLabel}</h1>
             <Badge className="bg-indigo-600 text-white">
-              {events.length + tasks.length} item{events.length + tasks.length === 1 ? "" : "s"}
+              {t("calendarDay.header.itemsCount", {
+                total: events.length + tasks.length,
+              })}
             </Badge>
           </div>
-          <p className="text-slate-400">Day view with calendar events and due tasks</p>
+          <p className="text-slate-400">{t("calendarDay.header.subtitle")}</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -244,7 +250,9 @@ export default function CalendarDayPage() {
             onClick={() => void loadDay("refresh")}
             disabled={isRefreshing}
           >
-            {isRefreshing ? "Refreshing..." : "Refresh"}
+            {isRefreshing
+              ? t("calendarDay.buttons.refreshing")
+              : t("calendarDay.buttons.refresh")}
           </Button>
 
           <Button
@@ -252,7 +260,7 @@ export default function CalendarDayPage() {
             onClick={() => navigate(`/calendar/new?date=${encodeURIComponent(dateStr)}`)}
           >
             <Plus className="w-4 h-4 mr-2" />
-            New Event
+            {t("calendarDay.buttons.newEvent")}
           </Button>
         </div>
       </div>
@@ -266,7 +274,7 @@ export default function CalendarDayPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-slate-900/50 border-slate-800">
           <CardHeader>
-            <CardTitle className="text-white">Events</CardTitle>
+            <CardTitle className="text-white">{t("calendarDay.sections.events")}</CardTitle>
           </CardHeader>
 
           <CardContent className="space-y-3">
@@ -287,7 +295,7 @@ export default function CalendarDayPage() {
                 </div>
               ))
             ) : events.length === 0 ? (
-              <p className="text-slate-400">No events for this day.</p>
+              <p className="text-slate-400">{t("calendarDay.empty.noEvents")}</p>
             ) : (
               events.map((event) => (
                 <div
@@ -299,7 +307,9 @@ export default function CalendarDayPage() {
 
                     <div className="flex items-center gap-2">
                       {event.all_day ? (
-                        <Badge className="bg-indigo-500/20 text-indigo-300">All Day</Badge>
+                        <Badge className="bg-indigo-500/20 text-indigo-300">
+                          {t("calendarDay.badges.allDay")}
+                        </Badge>
                       ) : (
                         <Badge className="bg-slate-700 text-slate-200">
                           {event.start_time || "--:--"}
@@ -318,7 +328,8 @@ export default function CalendarDayPage() {
                   </div>
 
                   <Badge className="bg-slate-800 text-slate-300 border border-slate-700">
-                    {(event.event_type || "other").toUpperCase()}
+                    {(event.event_type || t("calendarDay.common.other"))
+                      .toUpperCase()}
                   </Badge>
 
                   {event.description && (
@@ -327,8 +338,14 @@ export default function CalendarDayPage() {
 
                   {(event.project_id || event.task_id) && (
                     <div className="text-xs text-slate-500 space-y-1">
-                      {event.project_id && <div>Linked project: {event.project_id}</div>}
-                      {event.task_id && <div>Linked task: {event.task_id}</div>}
+                      {event.project_id && (
+                        <div>
+                          {t("calendarDay.labels.linkedProject", { id: event.project_id })}
+                        </div>
+                      )}
+                      {event.task_id && (
+                        <div>{t("calendarDay.labels.linkedTask", { id: event.task_id })}</div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -339,7 +356,7 @@ export default function CalendarDayPage() {
 
         <Card className="bg-slate-900/50 border-slate-800">
           <CardHeader>
-            <CardTitle className="text-white">Tasks Due</CardTitle>
+            <CardTitle className="text-white">{t("calendarDay.sections.tasksDue")}</CardTitle>
           </CardHeader>
 
           <CardContent className="space-y-3">
@@ -360,7 +377,7 @@ export default function CalendarDayPage() {
                 </div>
               ))
             ) : tasks.length === 0 ? (
-              <p className="text-slate-400">No tasks due on this day.</p>
+              <p className="text-slate-400">{t("calendarDay.empty.noTasksDue")}</p>
             ) : (
               tasks.map((task) => (
                 <div
@@ -378,7 +395,9 @@ export default function CalendarDayPage() {
                   </div>
 
                   {task.project_id && (
-                    <div className="text-xs text-slate-500">Project: {task.project_id}</div>
+                    <div className="text-xs text-slate-500">
+                      {t("calendarDay.labels.project", { id: task.project_id })}
+                    </div>
                   )}
 
                   <Button
@@ -387,7 +406,7 @@ export default function CalendarDayPage() {
                     className="border-slate-700 text-slate-300 hover:bg-slate-800"
                     onClick={() => navigate(`/tasks/${task.id}`)}
                   >
-                    Open Task
+                    {t("calendarDay.buttons.openTask")}
                   </Button>
                 </div>
               ))

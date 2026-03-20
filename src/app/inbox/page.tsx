@@ -80,7 +80,7 @@ const notificationColors: Record<NotificationType, string> = {
 export default function InboxPage() {
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);

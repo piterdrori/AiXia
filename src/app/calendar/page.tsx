@@ -14,6 +14,7 @@ import {
 } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
+import { useLanguage } from "@/lib/i18n";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -91,6 +92,7 @@ function buildMonthGrid(cursor: Date) {
 export default function CalendarPage() {
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
+  const { t } = useLanguage();
 
   const [cursor, setCursor] = useState(new Date());
   const [events, setEvents] = useState<CalendarEventRow[]>([]);
@@ -139,7 +141,7 @@ export default function CalendarPage() {
         console.error("Load profile error:", profileError);
         setEvents([]);
         setTasks([]);
-        setLoadError("Failed to load calendar.");
+        setLoadError(t("calendar.errors.failedToLoadCalendar"));
         return;
       }
 
@@ -159,7 +161,7 @@ export default function CalendarPage() {
           console.error("Load projects error:", projectsError);
           setEvents([]);
           setTasks([]);
-          setLoadError("Failed to load calendar.");
+          setLoadError(t("calendar.errors.failedToLoadCalendar"));
           return;
         }
 
@@ -177,7 +179,7 @@ export default function CalendarPage() {
           console.error("Load visible projects error:", createdError || membersError);
           setEvents([]);
           setTasks([]);
-          setLoadError("Failed to load calendar.");
+          setLoadError(t("calendar.errors.failedToLoadCalendar"));
           return;
         }
 
@@ -229,14 +231,14 @@ export default function CalendarPage() {
       setTasks(safeTasks);
 
       if (eventsError || tasksError) {
-        setLoadError("Some calendar data could not be loaded.");
+        setLoadError(t("calendar.errors.someCalendarDataCouldNotBeLoaded"));
       }
     } catch (error) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Load calendar error:", error);
       setEvents([]);
       setTasks([]);
-      setLoadError("Failed to load calendar.");
+      setLoadError(t("calendar.errors.failedToLoadCalendar"));
     } finally {
       if (!requestTracker.current.isLatest(requestId)) return;
       setIsBootstrapping(false);
@@ -293,15 +295,15 @@ export default function CalendarPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-3xl font-bold text-white">Calendar</h1>
+            <h1 className="text-3xl font-bold text-white">{t("calendar.header.title")}</h1>
             {todayCount > 0 && (
               <Badge className="bg-indigo-600 text-white">
-                {todayCount} today
+                {t("calendar.header.todayCount", undefined, { total: todayCount })}
               </Badge>
             )}
           </div>
           <p className="text-slate-400">
-            View calendar events, tasks, and deadlines together
+            {t("calendar.header.subtitle")}
           </p>
         </div>
 
@@ -312,7 +314,7 @@ export default function CalendarPage() {
             onClick={() => void loadCalendar("refresh")}
             disabled={isRefreshing}
           >
-            {isRefreshing ? "Refreshing..." : "Refresh"}
+            {isRefreshing ? t("calendar.buttons.refreshing") : t("calendar.buttons.refresh")}
           </Button>
 
           <Button
@@ -320,7 +322,7 @@ export default function CalendarPage() {
             onClick={() => navigate("/calendar/new")}
           >
             <Plus className="w-4 h-4 mr-2" />
-            New Event
+            {t("calendar.buttons.newEvent")}
           </Button>
         </div>
       </div>
@@ -353,7 +355,7 @@ export default function CalendarPage() {
           onClick={goToday}
           className="border-slate-800 text-slate-300 hover:bg-slate-900"
         >
-          Today
+          {t("calendar.buttons.today")}
         </Button>
       </div>
 
@@ -365,7 +367,15 @@ export default function CalendarPage() {
 
       <Card className="bg-slate-900/40 border-slate-800 p-4">
         <div className="grid grid-cols-7 gap-3 text-slate-400 text-sm mb-3">
-          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName) => (
+          {[
+            t("calendar.weekdays.sun"),
+            t("calendar.weekdays.mon"),
+            t("calendar.weekdays.tue"),
+            t("calendar.weekdays.wed"),
+            t("calendar.weekdays.thu"),
+            t("calendar.weekdays.fri"),
+            t("calendar.weekdays.sat"),
+          ].map((dayName) => (
             <div key={dayName} className="px-2">
               {dayName}
             </div>
@@ -430,7 +440,7 @@ export default function CalendarPage() {
 
                         {isTodayDate && (
                           <Badge className="bg-indigo-500/20 text-indigo-300">
-                            Today
+                            {t("calendar.badges.today")}
                           </Badge>
                         )}
                       </div>
@@ -451,13 +461,13 @@ export default function CalendarPage() {
                           key={task.id}
                           className="text-xs rounded-md px-2 py-1 bg-emerald-500/15 text-emerald-200 truncate"
                         >
-                          Task: {task.title}
+                          {t("calendar.labels.taskPrefix", undefined, { title: task.title })}
                         </div>
                       ))}
 
                       {totalCount > 4 && (
                         <div className="text-[11px] text-slate-400">
-                          +{totalCount - 4} more
+                          {t("calendar.labels.moreItems", undefined, { total: totalCount - 4 })}
                         </div>
                       )}
                     </div>

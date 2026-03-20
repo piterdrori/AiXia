@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
+import { useLanguage } from "@/lib/i18n";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,13 +83,6 @@ type ProfileRow = {
   status: "active" | "pending" | "inactive" | "denied";
 };
 
-const columns: { id: TaskStatus; label: string; color: string }[] = [
-  { id: "TODO", label: "To Do", color: "bg-slate-500" },
-  { id: "IN_PROGRESS", label: "In Progress", color: "bg-blue-500" },
-  { id: "IN_REVIEW", label: "In Review", color: "bg-purple-500" },
-  { id: "DONE", label: "Done", color: "bg-green-500" },
-];
-
 function MemberStack({
   profiles,
   size = "small",
@@ -96,6 +90,8 @@ function MemberStack({
   profiles: ProfileRow[];
   size?: "small" | "medium";
 }) {
+  const { t } = useLanguage();
+
   const avatarClass =
     size === "medium"
       ? "w-7 h-7 border-2 border-slate-900"
@@ -107,7 +103,7 @@ function MemberStack({
       {profiles.slice(0, 3).map((profile) => (
         <Avatar key={profile.user_id} className={avatarClass}>
           <AvatarFallback className={`bg-indigo-600 text-white ${textClass}`}>
-            {(profile.full_name || "U")
+            {(profile.full_name || t("tasks.fallbacks.userInitial"))
               .split(" ")
               .map((n) => n[0])
               .join("")
@@ -131,6 +127,7 @@ export default function TasksPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const requestTracker = useRef(createRequestTracker());
+  const { t } = useLanguage();
 
   const initialProjectId = searchParams.get("projectId") || "ALL";
 
@@ -152,6 +149,13 @@ export default function TasksPage() {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [taskMembers, setTaskMembers] = useState<TaskMemberRow[]>([]);
+
+  const columns: { id: TaskStatus; label: string; color: string }[] = [
+    { id: "TODO", label: t("tasks.columns.todo"), color: "bg-slate-500" },
+    { id: "IN_PROGRESS", label: t("tasks.columns.inProgress"), color: "bg-blue-500" },
+    { id: "IN_REVIEW", label: t("tasks.columns.inReview"), color: "bg-purple-500" },
+    { id: "DONE", label: t("tasks.columns.done"), color: "bg-green-500" },
+  ];
 
   const loadTasksPage = async (mode: "initial" | "refresh" = "initial") => {
     const requestId = requestTracker.current.next();
@@ -270,7 +274,7 @@ export default function TasksPage() {
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Load tasks page error:", err);
-      setError("Failed to load tasks.");
+      setError(t("tasks.errors.loadTasks"));
       setTasks([]);
       setProjects([]);
       setProfiles([]);
@@ -304,8 +308,11 @@ export default function TasksPage() {
   }, [tasks, searchQuery, statusFilter, priorityFilter, projectFilter]);
 
   const getProjectName = (projectId: string | null) => {
-    if (!projectId) return "No project";
-    return projects.find((project) => project.id === projectId)?.name || "Unknown project";
+    if (!projectId) return t("tasks.fallbacks.noProject");
+    return (
+      projects.find((project) => project.id === projectId)?.name ||
+      t("tasks.fallbacks.unknownProject")
+    );
   };
 
   const getPriorityColor = (priority: string | null) => {
@@ -397,14 +404,14 @@ export default function TasksPage() {
     if (updateError) {
       console.error("Move task error:", updateError);
       setTasks(previousTasks);
-      setError(updateError.message || "Failed to update task status.");
+      setError(updateError.message || t("tasks.errors.updateTaskStatus"));
     }
 
     setDraggedTask(null);
   };
 
   const handleDelete = async (taskId: string) => {
-    const confirmed = window.confirm("Are you sure you want to delete this task?");
+    const confirmed = window.confirm(t("tasks.confirmations.deleteTask"));
     if (!confirmed) return;
 
     setError("");
@@ -421,7 +428,7 @@ export default function TasksPage() {
       console.error("Delete task error:", deleteError);
       setTasks(previousTasks);
       setTaskMembers(previousMembers);
-      setError(deleteError.message || "Failed to delete task.");
+      setError(deleteError.message || t("tasks.errors.deleteTask"));
     }
   };
 
@@ -498,8 +505,8 @@ export default function TasksPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Tasks</h1>
-          <p className="text-slate-400">Manage and organize your tasks</p>
+          <h1 className="text-2xl font-bold text-white">{t("tasks.header.title")}</h1>
+          <p className="text-slate-400">{t("tasks.header.subtitle")}</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -509,7 +516,7 @@ export default function TasksPage() {
             onClick={() => void loadTasksPage("refresh")}
             disabled={isRefreshing}
           >
-            {isRefreshing ? "Refreshing..." : "Refresh"}
+            {isRefreshing ? t("tasks.actions.refreshing") : t("tasks.actions.refresh")}
           </Button>
 
           {canCreateTasks && (
@@ -522,7 +529,7 @@ export default function TasksPage() {
               }
             >
               <Plus className="w-4 h-4 mr-2" />
-              New Task
+              {t("tasks.actions.newTask")}
             </Button>
           )}
         </div>
@@ -538,7 +545,7 @@ export default function TasksPage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <Input
-            placeholder="Search tasks..."
+            placeholder={t("tasks.filters.searchPlaceholder")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10 bg-slate-900 border-slate-800 text-white placeholder:text-slate-600"
@@ -548,36 +555,36 @@ export default function TasksPage() {
         <div className="flex flex-wrap gap-2">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-36 bg-slate-900 border-slate-800 text-white">
-              <SelectValue placeholder="Status" />
+              <SelectValue placeholder={t("tasks.filters.status")} />
             </SelectTrigger>
             <SelectContent className="bg-slate-900 border-slate-800">
-              <SelectItem value="ALL">All Status</SelectItem>
-              <SelectItem value="TODO">To Do</SelectItem>
-              <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-              <SelectItem value="IN_REVIEW">In Review</SelectItem>
-              <SelectItem value="DONE">Done</SelectItem>
+              <SelectItem value="ALL">{t("tasks.filters.allStatus")}</SelectItem>
+              <SelectItem value="TODO">{t("tasks.status.todo")}</SelectItem>
+              <SelectItem value="IN_PROGRESS">{t("tasks.status.inProgress")}</SelectItem>
+              <SelectItem value="IN_REVIEW">{t("tasks.status.inReview")}</SelectItem>
+              <SelectItem value="DONE">{t("tasks.status.done")}</SelectItem>
             </SelectContent>
           </Select>
 
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
             <SelectTrigger className="w-36 bg-slate-900 border-slate-800 text-white">
-              <SelectValue placeholder="Priority" />
+              <SelectValue placeholder={t("tasks.filters.priority")} />
             </SelectTrigger>
             <SelectContent className="bg-slate-900 border-slate-800">
-              <SelectItem value="ALL">All Priorities</SelectItem>
-              <SelectItem value="URGENT">Urgent</SelectItem>
-              <SelectItem value="HIGH">High</SelectItem>
-              <SelectItem value="MEDIUM">Medium</SelectItem>
-              <SelectItem value="LOW">Low</SelectItem>
+              <SelectItem value="ALL">{t("tasks.filters.allPriorities")}</SelectItem>
+              <SelectItem value="URGENT">{t("tasks.priority.urgent")}</SelectItem>
+              <SelectItem value="HIGH">{t("tasks.priority.high")}</SelectItem>
+              <SelectItem value="MEDIUM">{t("tasks.priority.medium")}</SelectItem>
+              <SelectItem value="LOW">{t("tasks.priority.low")}</SelectItem>
             </SelectContent>
           </Select>
 
           <Select value={projectFilter} onValueChange={setProjectFilter}>
             <SelectTrigger className="w-44 bg-slate-900 border-slate-800 text-white">
-              <SelectValue placeholder="Project" />
+              <SelectValue placeholder={t("tasks.filters.project")} />
             </SelectTrigger>
             <SelectContent className="bg-slate-900 border-slate-800">
-              <SelectItem value="ALL">All Projects</SelectItem>
+              <SelectItem value="ALL">{t("tasks.filters.allProjects")}</SelectItem>
               {projects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
                   {project.name}
@@ -640,7 +647,7 @@ export default function TasksPage() {
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between mb-2">
                             <Badge className={getPriorityColor(task.priority)}>
-                              {task.priority || "LOW"}
+                              {task.priority || t("tasks.priority.low")}
                             </Badge>
 
                             {(canEditTask(task) || canDeleteTask(task)) && (
@@ -667,7 +674,7 @@ export default function TasksPage() {
                                       }}
                                     >
                                       <Edit className="w-4 h-4 mr-2" />
-                                      Edit
+                                      {t("tasks.actions.edit")}
                                     </DropdownMenuItem>
                                   )}
 
@@ -680,7 +687,7 @@ export default function TasksPage() {
                                       className="text-red-400"
                                     >
                                       <Trash2 className="w-4 h-4 mr-2" />
-                                      Delete
+                                      {t("tasks.actions.delete")}
                                     </DropdownMenuItem>
                                   )}
                                 </DropdownMenuContent>
@@ -691,7 +698,7 @@ export default function TasksPage() {
                           <h4 className="text-white font-medium mb-2">{task.title}</h4>
 
                           <p className="text-slate-500 text-sm mb-3 line-clamp-2">
-                            {task.description || "No description"}
+                            {task.description || t("tasks.fallbacks.noDescription")}
                           </p>
 
                           <div className="text-xs text-slate-500 mb-3">
@@ -749,13 +756,13 @@ export default function TasksPage() {
                         {task.title}
                       </h4>
                       <p className="text-slate-500 text-sm truncate">
-                        {task.description || "No description"}
+                        {task.description || t("tasks.fallbacks.noDescription")}
                       </p>
                     </div>
 
                     <div className="hidden sm:flex items-center gap-4">
                       <Badge className={getPriorityColor(task.priority)}>
-                        {task.priority || "LOW"}
+                        {task.priority || t("tasks.priority.low")}
                       </Badge>
 
                       <span className="text-sm text-slate-500">
@@ -791,7 +798,7 @@ export default function TasksPage() {
                               }}
                             >
                               <Edit className="w-4 h-4 mr-2" />
-                              Edit
+                              {t("tasks.actions.edit")}
                             </DropdownMenuItem>
                           )}
 
@@ -804,7 +811,7 @@ export default function TasksPage() {
                               className="text-red-400"
                             >
                               <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
+                              {t("tasks.actions.delete")}
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
@@ -821,14 +828,14 @@ export default function TasksPage() {
       {!isBootstrapping && filteredTasks.length === 0 && (
         <div className="text-center py-12">
           <CheckSquare className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-white mb-2">No tasks found</h3>
+          <h3 className="text-lg font-medium text-white mb-2">{t("tasks.empty.title")}</h3>
           <p className="text-slate-500 mb-4">
             {searchQuery ||
             statusFilter !== "ALL" ||
             priorityFilter !== "ALL" ||
             projectFilter !== "ALL"
-              ? "Try adjusting your filters"
-              : "No visible tasks for your account yet"}
+              ? t("tasks.empty.adjustFilters")
+              : t("tasks.empty.noVisibleTasks")}
           </p>
 
           {!searchQuery &&
@@ -841,7 +848,7 @@ export default function TasksPage() {
                 onClick={() => navigate("/tasks/new")}
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Create Task
+                {t("tasks.actions.createTask")}
               </Button>
             )}
         </div>

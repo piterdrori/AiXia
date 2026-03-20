@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { useLanguage } from "@/lib/i18n";
 import type { ChatGroupRow, ChatGroupMemberRow, ProfileRow } from "../types";
 import {
   getConversationInitials,
@@ -44,10 +45,11 @@ export default function ChatSidebar({
   onStartDirectMessage,
   onDeleteChat,
 }: Props) {
+  const { t } = useLanguage();
   const q = searchQuery.trim().toLowerCase();
 
   const filteredConversations = groups.filter((group) =>
-    getConversationName(group, currentUserId, profiles, groupMembers)
+    getConversationName(group, currentUserId, profiles, groupMembers, t)
       .toLowerCase()
       .includes(q)
   );
@@ -89,17 +91,19 @@ export default function ChatSidebar({
             ) : (
               <Avatar className="w-10 h-10 shrink-0">
                 <AvatarFallback className="bg-indigo-600 text-white">
-                  {getConversationInitials(group, currentUserId, profiles, groupMembers)}
+                  {getConversationInitials(group, currentUserId, profiles, groupMembers, t)}
                 </AvatarFallback>
               </Avatar>
             )}
 
             <div className="flex-1 min-w-0">
               <p className="text-white font-medium text-sm truncate">
-                {getConversationName(group, currentUserId, profiles, groupMembers)}
+                {getConversationName(group, currentUserId, profiles, groupMembers, t)}
               </p>
               <p className="text-slate-500 text-xs">
-                {getMembersForGroup(groupMembers, group.id).length} participants
+                {t("chat.sidebar.participantsCount", undefined, {
+                  total: getMembersForGroup(groupMembers, group.id).length,
+                })}
               </p>
             </div>
           </button>
@@ -126,7 +130,7 @@ export default function ChatSidebar({
         <div className="relative mb-4 shrink-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <Input
-            placeholder="Search conversations..."
+            placeholder={t("chat.sidebar.searchPlaceholder")}
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             className="pl-10 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
@@ -139,14 +143,14 @@ export default function ChatSidebar({
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
           >
             <Plus className="w-4 h-4 mr-2" />
-            New Group Chat
+            {t("chat.sidebar.newGroupChat")}
           </Button>
         </div>
 
         <ScrollArea className="flex-1 min-h-0 -mx-2">
           <div className="space-y-1 px-2">
             <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">
-              Direct Messages
+              {t("chat.sidebar.directMessages")}
             </h3>
             {directConversations.map((group) => renderConversationButton(group))}
 
@@ -154,7 +158,7 @@ export default function ChatSidebar({
               <>
                 <Separator className="my-3 bg-slate-800" />
                 <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">
-                  Project Chats
+                  {t("chat.sidebar.projectChats")}
                 </h3>
                 {projectConversations.map((group) => renderConversationButton(group, "project"))}
               </>
@@ -164,7 +168,7 @@ export default function ChatSidebar({
               <>
                 <Separator className="my-3 bg-slate-800" />
                 <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">
-                  Task Chats
+                  {t("chat.sidebar.taskChats")}
                 </h3>
                 {taskConversations.map((group) => renderConversationButton(group, "task"))}
               </>
@@ -174,14 +178,16 @@ export default function ChatSidebar({
               <>
                 <Separator className="my-3 bg-slate-800" />
                 <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">
-                  Group Chats
+                  {t("chat.sidebar.groupChats")}
                 </h3>
                 {groupConversations.map((group) => renderConversationButton(group, "group"))}
               </>
             )}
 
             <Separator className="my-3 bg-slate-800" />
-            <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">Team Members</h3>
+            <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">
+              {t("chat.sidebar.teamMembers")}
+            </h3>
 
             {profiles
               .filter((user) => user.user_id !== currentUserId && user.status === "active")
@@ -199,7 +205,7 @@ export default function ChatSidebar({
 
                   <div className="flex-1 text-left min-w-0">
                     <p className="text-white font-medium text-sm truncate">
-                      {user.full_name || "Unknown"}
+                      {user.full_name || t("chat.common.unknown")}
                     </p>
                     <p className="text-slate-500 text-xs">{user.role}</p>
                   </div>

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
@@ -63,7 +62,7 @@ export default function CalendarDayPage() {
   const { date } = useParams<{ date: string }>();
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   const [events, setEvents] = useState<CalendarEventRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
@@ -217,7 +216,15 @@ export default function CalendarDayPage() {
     );
   }
 
-  const dateLabel = format(selectedDate, "EEEE, MMMM d, yyyy");
+  const dateLabel = new Intl.DateTimeFormat(
+    language === "ru" ? "ru-RU" : language === "zh" ? "zh-CN" : "en-US",
+    {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }
+  ).format(selectedDate);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -236,8 +243,8 @@ export default function CalendarDayPage() {
             <h1 className="text-2xl font-bold text-white">{dateLabel}</h1>
             <Badge className="bg-indigo-600 text-white">
               {t("calendarDay.header.itemsCount", undefined, {
-  total: events.length + tasks.length,
-})}
+                total: events.length + tasks.length,
+              })}
             </Badge>
           </div>
           <p className="text-slate-400">{t("calendarDay.header.subtitle")}</p>

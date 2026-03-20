@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
-import { useTranslation } from "@/lib/i18n";
+import { useLanguage } from "@/lib/i18n";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -97,7 +97,7 @@ export default function CalendarEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const pageRequestTracker = useRef(createRequestTracker());
-  const { t } = useTranslation();
+  const { t } = useLanguage();
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 

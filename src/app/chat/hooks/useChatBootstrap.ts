@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { useLanguage } from "@/lib/i18n";
 import type {
   ChatGroupMemberRow,
   ChatGroupRow,
@@ -30,6 +31,7 @@ function dedupeGroups(items: ChatGroupRow[]) {
 
 export function useChatBootstrap(preferredId: string | null) {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
@@ -132,7 +134,7 @@ export function useChatBootstrap(preferredId: string | null) {
           setError(
             profileError?.message ||
               allProfilesError?.message ||
-              "Failed to load chat users."
+              t("chat.errors.loadChatUsers")
           );
           return;
         }
@@ -155,7 +157,7 @@ export function useChatBootstrap(preferredId: string | null) {
             .eq("user_id", user.id);
 
           if (membershipsError) {
-            setError(membershipsError.message || "Failed to load chat memberships.");
+            setError(membershipsError.message || t("chat.errors.loadChatMemberships"));
             return;
           }
 
@@ -177,7 +179,7 @@ export function useChatBootstrap(preferredId: string | null) {
         const { data: groupsData, error: groupsError } = await groupsQuery;
 
         if (groupsError) {
-          setError(groupsError.message || "Failed to load chat groups.");
+          setError(groupsError.message || t("chat.errors.loadChatGroups"));
           return;
         }
 
@@ -198,7 +200,7 @@ export function useChatBootstrap(preferredId: string | null) {
           .in("group_id", groupIds);
 
         if (membersError) {
-          setError(membersError.message || "Failed to load group members.");
+          setError(membersError.message || t("chat.errors.loadGroupMembers"));
           return;
         }
 
@@ -226,12 +228,12 @@ export function useChatBootstrap(preferredId: string | null) {
         }
       } catch (err) {
         console.error("loadChatShell error:", err);
-        setError("Failed to load chat.");
+        setError(t("chat.errors.loadChat"));
       } finally {
         setIsBootstrapping(false);
       }
     },
-    [navigate, preferredId]
+    [navigate, preferredId, t]
   );
 
   const reloadChatShell = useCallback(

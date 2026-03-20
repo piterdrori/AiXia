@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
+import { useLanguage } from "@/lib/i18n";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,6 +124,7 @@ function Time24Field({
   onChange: (next: string) => void;
   disabled?: boolean;
 }) {
+  const { t } = useLanguage();
   const hour = getHour(value);
   const minute = getMinute(value);
 
@@ -136,7 +138,7 @@ function Time24Field({
           disabled={disabled}
         >
           <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-            <SelectValue placeholder="Hour" />
+            <SelectValue placeholder={t("calendarNew.time.hour")} />
           </SelectTrigger>
           <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-64">
             {HOUR_OPTIONS.map((option) => (
@@ -153,7 +155,7 @@ function Time24Field({
           disabled={disabled}
         >
           <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-            <SelectValue placeholder="Minute" />
+            <SelectValue placeholder={t("calendarNew.time.minute")} />
           </SelectTrigger>
           <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-64">
             {MINUTE_OPTIONS.map((option) => (
@@ -202,6 +204,7 @@ export default function CalendarNewPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const requestTracker = useRef(createRequestTracker());
+  const { t } = useLanguage();
 
   const presetDate = searchParams.get("date") || format(new Date(), "yyyy-MM-dd");
 
@@ -296,7 +299,7 @@ export default function CalendarNewPage() {
       const taskList = (allTasks || []) as TaskRow[];
 
       if (projectsError) {
-        setError(projectsError.message || "Failed to load projects.");
+        setError(projectsError.message || t("calendarNew.errors.failedToLoadProjects"));
         setProjects([]);
       } else {
         const visibleProjectIds =
@@ -344,7 +347,7 @@ export default function CalendarNewPage() {
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Load calendar new page error:", err);
-      setError("Failed to load calendar form.");
+      setError(t("calendarNew.errors.failedToLoadForm"));
       setProjects([]);
       setTasks([]);
     } finally {
@@ -454,22 +457,22 @@ const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!currentUserId) {
-      setError("User session not found.");
+      setError(t("calendarNew.errors.userSessionNotFound"));
       return;
     }
 
     if (!title.trim()) {
-      setError("Title is required.");
+      setError(t("calendarNew.errors.titleRequired"));
       return;
     }
 
     if (!startDate) {
-      setError("Start date is required.");
+      setError(t("calendarNew.errors.startDateRequired"));
       return;
     }
 
     if (!allDay && !startTime) {
-      setError("Start time is required.");
+      setError(t("calendarNew.errors.startTimeRequired"));
       return;
     }
 
@@ -488,7 +491,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       : normalizeTime(endTime);
 
     if (!allDay && needsStartAndEnd && !computedEndTime) {
-      setError("End time is required.");
+      setError(t("calendarNew.errors.endTimeRequired"));
       return;
     }
 
@@ -498,7 +501,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       computedEndTime &&
       isEndBeforeStart(startDate, startTime, computedEndDate, computedEndTime)
     ) {
-      setError("End date/time cannot be earlier than start date/time.");
+      setError(t("calendarNew.errors.endBeforeStart"));
       return;
     }
 
@@ -531,7 +534,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       if (!requestTracker.current.isLatest(requestId)) return;
 
       if (insertError || !insertedEvent) {
-        setError(insertError?.message || "Failed to create event.");
+        setError(insertError?.message || t("calendarNew.errors.failedToCreateEvent"));
         return;
       }
 
@@ -550,7 +553,7 @@ const handleSubmit = async (e: React.FormEvent) => {
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Create event error:", err);
-      setError("Failed to create event.");
+      setError(t("calendarNew.errors.failedToCreateEvent"));
     } finally {
       if (!requestTracker.current.isLatest(requestId)) return;
       setIsSaving(false);
@@ -575,9 +578,9 @@ const handleSubmit = async (e: React.FormEvent) => {
           </Button>
 
           <div>
-            <h1 className="text-2xl font-bold text-white">Create New Event</h1>
+            <h1 className="text-2xl font-bold text-white">{t("calendarNew.header.title")}</h1>
             <p className="text-slate-400">
-              Add a calendar event and connect it to projects or tasks
+              {t("calendarNew.header.subtitle")}
             </p>
           </div>
         </div>
@@ -589,7 +592,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           onClick={() => void loadPage("refresh")}
           disabled={isRefreshing}
         >
-          {isRefreshing ? "Refreshing..." : "Refresh"}
+          {isRefreshing ? t("calendarNew.buttons.refreshing") : t("calendarNew.buttons.refresh")}
         </Button>
       </div>
 
@@ -604,28 +607,28 @@ const handleSubmit = async (e: React.FormEvent) => {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2 md:col-span-2">
-                <Label className="text-slate-300">Title</Label>
+                <Label className="text-slate-300">{t("calendarNew.fields.title")}</Label>
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Enter event title"
+                  placeholder={t("calendarNew.placeholders.enterEventTitle")}
                   className="bg-slate-950 border-slate-800 text-white"
                 />
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <Label className="text-slate-300">Description</Label>
+                <Label className="text-slate-300">{t("calendarNew.fields.description")}</Label>
                 <Textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Optional description"
+                  placeholder={t("calendarNew.placeholders.optionalDescription")}
                   rows={4}
                   className="bg-slate-950 border-slate-800 text-white resize-none"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Event Type</Label>
+                <Label className="text-slate-300">{t("calendarNew.fields.eventType")}</Label>
                 <Select
                   value={eventType}
                   onValueChange={(value) => setEventType(value as EventType)}
@@ -634,19 +637,19 @@ const handleSubmit = async (e: React.FormEvent) => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                    <SelectItem value="meeting">Meeting</SelectItem>
-                    <SelectItem value="task">Task</SelectItem>
-                    <SelectItem value="reminder">Reminder</SelectItem>
-                    <SelectItem value="deadline">Deadline</SelectItem>
-                    <SelectItem value="call">Call</SelectItem>
-                    <SelectItem value="personal">Personal</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="meeting">{t("calendarNew.eventTypes.meeting")}</SelectItem>
+                    <SelectItem value="task">{t("calendarNew.eventTypes.task")}</SelectItem>
+                    <SelectItem value="reminder">{t("calendarNew.eventTypes.reminder")}</SelectItem>
+                    <SelectItem value="deadline">{t("calendarNew.eventTypes.deadline")}</SelectItem>
+                    <SelectItem value="call">{t("calendarNew.eventTypes.call")}</SelectItem>
+                    <SelectItem value="personal">{t("calendarNew.eventTypes.personal")}</SelectItem>
+                    <SelectItem value="other">{t("calendarNew.eventTypes.other")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Reminder</Label>
+                <Label className="text-slate-300">{t("calendarNew.fields.reminder")}</Label>
                 <Select
                   value={reminderMinutes}
                   onValueChange={(value) => setReminderMinutes(value as ReminderValue)}
@@ -655,12 +658,12 @@ const handleSubmit = async (e: React.FormEvent) => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                    <SelectItem value="NONE">No reminder</SelectItem>
-                    <SelectItem value="5">5 minutes before</SelectItem>
-                    <SelectItem value="10">10 minutes before</SelectItem>
-                    <SelectItem value="15">15 minutes before</SelectItem>
-                    <SelectItem value="30">30 minutes before</SelectItem>
-                    <SelectItem value="60">1 hour before</SelectItem>
+                    <SelectItem value="NONE">{t("calendarNew.reminders.none")}</SelectItem>
+                    <SelectItem value="5">{t("calendarNew.reminders.fiveMinutesBefore")}</SelectItem>
+                    <SelectItem value="10">{t("calendarNew.reminders.tenMinutesBefore")}</SelectItem>
+                    <SelectItem value="15">{t("calendarNew.reminders.fifteenMinutesBefore")}</SelectItem>
+                    <SelectItem value="30">{t("calendarNew.reminders.thirtyMinutesBefore")}</SelectItem>
+                    <SelectItem value="60">{t("calendarNew.reminders.oneHourBefore")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -670,11 +673,11 @@ const handleSubmit = async (e: React.FormEvent) => {
                   checked={allDay}
                   onCheckedChange={(checked) => setAllDay(Boolean(checked))}
                 />
-                <Label className="text-slate-300">All Day Event</Label>
+                <Label className="text-slate-300">{t("calendarNew.fields.allDayEvent")}</Label>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Start Date</Label>
+                <Label className="text-slate-300">{t("calendarNew.fields.startDate")}</Label>
                 <Input
                   type="date"
                   value={startDate}
@@ -695,7 +698,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 
               {!allDay && (
                 <Time24Field
-                  label="Start Time"
+                  label={t("calendarNew.fields.startTime")}
                   value={startTime}
                   onChange={(nextStartTime) => {
                     setStartTime(nextStartTime);
@@ -721,7 +724,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 
               {usesDuration && !allDay && (
                 <div className="space-y-2">
-                  <Label className="text-slate-300">Duration</Label>
+                  <Label className="text-slate-300">{t("calendarNew.fields.duration")}</Label>
                   <Select
                     value={meetingDuration}
                     onValueChange={(value) =>
@@ -732,10 +735,10 @@ const handleSubmit = async (e: React.FormEvent) => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                      <SelectItem value="30">30 minutes</SelectItem>
-                      <SelectItem value="60">1 hour</SelectItem>
-                      <SelectItem value="90">1.5 hours</SelectItem>
-                      <SelectItem value="120">2 hours</SelectItem>
+                      <SelectItem value="30">{t("calendarNew.durations.thirtyMinutes")}</SelectItem>
+                      <SelectItem value="60">{t("calendarNew.durations.oneHour")}</SelectItem>
+                      <SelectItem value="90">{t("calendarNew.durations.oneAndHalfHours")}</SelectItem>
+                      <SelectItem value="120">{t("calendarNew.durations.twoHours")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -743,7 +746,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 
               {(needsStartAndEnd || usesDuration) && (
                 <div className="space-y-2">
-                  <Label className="text-slate-300">End Date</Label>
+                  <Label className="text-slate-300">{t("calendarNew.fields.endDate")}</Label>
                   <Input
                     type="date"
                     value={endDate}
@@ -757,14 +760,14 @@ const handleSubmit = async (e: React.FormEvent) => {
 
               {needsStartAndEnd && !allDay && (
                 <Time24Field
-                  label="End Time"
+                  label={t("calendarNew.fields.endTime")}
                   value={endTime}
                   onChange={setEndTime}
                 />
               )}
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Related Project</Label>
+                <Label className="text-slate-300">{t("calendarNew.fields.relatedProject")}</Label>
                 <Select
                   value={selectedProjectId}
                   onValueChange={(value) => {
@@ -773,10 +776,10 @@ const handleSubmit = async (e: React.FormEvent) => {
                   }}
                 >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                    <SelectValue placeholder="Select project" />
+                    <SelectValue placeholder={t("calendarNew.placeholders.selectProject")} />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                    <SelectItem value="NONE">None</SelectItem>
+                    <SelectItem value="NONE">{t("calendarNew.common.none")}</SelectItem>
                     {projects.map((project) => (
                       <SelectItem key={project.id} value={project.id}>
                         {project.name}
@@ -787,17 +790,17 @@ const handleSubmit = async (e: React.FormEvent) => {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Related Task</Label>
+                <Label className="text-slate-300">{t("calendarNew.fields.relatedTask")}</Label>
                 <Select
                   value={selectedTaskId}
                   onValueChange={setSelectedTaskId}
                   disabled={selectedProjectId === "NONE"}
                 >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                    <SelectValue placeholder="Select task" />
+                    <SelectValue placeholder={t("calendarNew.placeholders.selectTask")} />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                    <SelectItem value="NONE">None</SelectItem>
+                    <SelectItem value="NONE">{t("calendarNew.common.none")}</SelectItem>
                     {filteredTasks.map((task) => (
                       <SelectItem key={task.id} value={task.id}>
                         {task.title}
@@ -815,7 +818,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 className="border-slate-700 text-slate-300 hover:bg-slate-800"
                 onClick={() => navigate("/calendar")}
               >
-                Cancel
+                {t("calendarNew.buttons.cancel")}
               </Button>
 
               <Button
@@ -823,7 +826,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
                 disabled={isSaving}
               >
-                {isSaving ? "Creating..." : "Create Event"}
+                {isSaving ? t("calendarNew.buttons.creating") : t("calendarNew.buttons.createEvent")}
               </Button>
             </div>
           </form>

@@ -718,120 +718,113 @@ calendarNew: {
   },
 },
 
-calendarEdit: {
+// 🔧 PASTE THIS BLOCK inside EACH language (en / zh / ru)
+// 👉 RIGHT AFTER taskDetail section and BEFORE the language closing }
+
+calendar: {
   header: {
-    title: "Edit Event",
-    subtitle: "Update your calendar event",
+    title: "Calendar",
+    subtitle: "Manage your schedule",
+    todayCount: "{{count}} today",
+  },
+  buttons: {
+    today: "Today",
+    refresh: "Refresh",
+    newEvent: "New Event",
+  },
+  weekdays: {
+    sun: "Sun",
+    mon: "Mon",
+    tue: "Tue",
+    wed: "Wed",
+    thu: "Thu",
+    fri: "Fri",
+    sat: "Sat",
+  },
+  labels: {
+    taskPrefix: "Task",
+  },
+  badges: {
+    today: "Today",
+  },
+},
+
+calendarDay: {
+  header: {
+    itemsCount: "{{total}} items",
+    subtitle: "Daily overview",
   },
   buttons: {
     refresh: "Refresh",
-    refreshing: "Refreshing...",
-    delete: "Delete",
-    deleting: "Deleting...",
+    newEvent: "New Event",
+  },
+  sections: {
+    events: "Events",
+    tasksDue: "Tasks Due",
+  },
+  empty: {
+    noEvents: "No events",
+    noTasksDue: "No tasks due",
+  },
+  labels: {
+    linkedProject: "Project {{id}}",
+    linkedTask: "Task {{id}}",
+    project: "Project {{id}}",
+  },
+},
+
+calendarNew: {
+  header: {
+    title: "Create Event",
+    subtitle: "Add a new calendar event",
+  },
+  buttons: {
+    refresh: "Refresh",
     cancel: "Cancel",
-    saving: "Saving...",
-    loading: "Loading...",
-    saveChanges: "Save Changes",
+    createEvent: "Create Event",
   },
   fields: {
     title: "Title",
     description: "Description",
     eventType: "Event Type",
     reminder: "Reminder",
-    allDayEvent: "All-day event",
+    allDayEvent: "All Day Event",
     startDate: "Start Date",
     startTime: "Start Time",
     duration: "Duration",
     endDate: "End Date",
-    endTime: "End Time",
     relatedProject: "Related Project",
     relatedTask: "Related Task",
   },
+  placeholders: {
+    enterEventTitle: "Enter event title",
+    optionalDescription: "Optional description",
+  },
   eventTypes: {
     meeting: "Meeting",
-    task: "Task",
-    reminder: "Reminder",
-    deadline: "Deadline",
-    call: "Call",
-    personal: "Personal",
-    other: "Other",
   },
   reminders: {
-    none: "No reminder",
-    fiveMinutes: "5 minutes before",
-    tenMinutes: "10 minutes before",
-    fifteenMinutes: "15 minutes before",
-    thirtyMinutes: "30 minutes before",
-    oneHour: "1 hour before",
+    fiveMinutesBefore: "5 minutes before",
   },
   durations: {
-    thirtyMinutes: "30 minutes",
     oneHour: "1 hour",
-    oneAndHalfHours: "1.5 hours",
-    twoHours: "2 hours",
   },
   common: {
     none: "None",
   },
-  status: {
-    loadingEventDetails: "Loading event details...",
-  },
-  confirmations: {
-    deleteEvent: "Are you sure you want to delete this event?",
-  },
-  errors: {
-    loadEvent: "Failed to load event.",
-    userSessionNotFound: "User session not found.",
-    titleRequired: "Title is required.",
-    startDateRequired: "Start date is required.",
-    startTimeRequired: "Start time is required.",
-    endTimeRequired: "End time is required.",
-    endBeforeStart: "End time cannot be earlier than start time.",
-    updateEvent: "Failed to update event.",
-    deleteEvent: "Failed to delete event.",
-  },
 },
 
-calendarDay: {
+calendarEdit: {
   header: {
-    subtitle: "Events and tasks for this day",
-    itemsCount: "{{total}} items",
+    title: "Edit Event",
+    subtitle: "Update event details",
   },
   buttons: {
-    refresh: "Refresh",
-    refreshing: "Refreshing...",
-    newEvent: "New Event",
-    openTask: "Open Task",
+    save: "Save",
+    cancel: "Cancel",
+    delete: "Delete",
   },
-  sections: {
-    events: "Events",
-    tasksDue: "Tasks Due",
-  },
-  badges: {
-    allDay: "All Day",
-  },
-  labels: {
-    linkedProject: "Linked project: {{id}}",
-    linkedTask: "Linked task: {{id}}",
-    project: "Project: {{id}}",
-  },
-  common: {
-    other: "Other",
-  },
-  empty: {
-    noEvents: "No events for this day.",
-    noTasksDue: "No tasks due for this day.",
-  },
-  invalidDate: {
-    title: "Invalid date",
-    description: "The selected date is invalid.",
-    back: "Back to Calendar",
-  },
-  errors: {
-    failedToLoadDay: "Failed to load day.",
-    someDayDataCouldNotBeLoaded: "Some day data could not be loaded.",
-  },
-},
+}
       
     },
     

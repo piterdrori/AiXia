@@ -1221,6 +1221,46 @@ employeePermissions: {
     saved: "Permissions saved successfully.",
   },
 },
+
+inbox: {
+  header: {
+    title: "Inbox",
+    unreadCount: "{{total}} unread notification(s)",
+    allCaughtUp: "All caught up!",
+  },
+  buttons: {
+    markAllRead: "Mark All Read",
+  },
+  filters: {
+    placeholder: "Filter",
+    all: "All Notifications",
+    unread: "Unread",
+    messages: "Messages",
+    taskAssigned: "Task Assigned",
+    taskUpdated: "Task Updated",
+    comments: "Comments",
+    fileUploads: "File Uploads",
+    projectUpdates: "Project Updates",
+  },
+  states: {
+    loading: {
+      title: "Loading notifications",
+      description: "Please wait...",
+    },
+    error: {
+      title: "Something went wrong",
+    },
+    empty: {
+      title: "No notifications",
+      all: "You're all caught up!",
+      filtered: "No notifications match your filter",
+    },
+  },
+  errors: {
+    loadNotifications: "Failed to load notifications.",
+    loadInbox: "Failed to load inbox.",
+  },
+},
     
   },
 
@@ -2420,7 +2460,46 @@ employeePermissions: {
     saved: "权限已成功保存。",
   },
 },
-    
+
+inbox: {
+  header: {
+    title: "收件箱",
+    unreadCount: "{{total}} 条未读通知",
+    allCaughtUp: "全部已查看！",
+  },
+  buttons: {
+    markAllRead: "全部标记为已读",
+  },
+  filters: {
+    placeholder: "筛选",
+    all: "所有通知",
+    unread: "未读",
+    messages: "消息",
+    taskAssigned: "任务已分配",
+    taskUpdated: "任务已更新",
+    comments: "评论",
+    fileUploads: "文件上传",
+    projectUpdates: "项目更新",
+  },
+  states: {
+    loading: {
+      title: "正在加载通知",
+      description: "请稍候...",
+    },
+    error: {
+      title: "出现错误",
+    },
+    empty: {
+      title: "没有通知",
+      all: "您已全部查看！",
+      filtered: "没有符合当前筛选条件的通知",
+    },
+  },
+  errors: {
+    loadNotifications: "加载通知失败。",
+    loadInbox: "加载收件箱失败。",
+  },
+},    
   },
 
   ru: {
@@ -3636,6 +3715,46 @@ employeePermissions: {
   },
   success: {
     saved: "Права доступа успешно сохранены.",
+  },
+},
+
+inbox: {
+  header: {
+    title: "Входящие",
+    unreadCount: "{{total}} непрочитанное(-ых) уведомление(-ий)",
+    allCaughtUp: "Все просмотрено!",
+  },
+  buttons: {
+    markAllRead: "Отметить все как прочитанные",
+  },
+  filters: {
+    placeholder: "Фильтр",
+    all: "Все уведомления",
+    unread: "Непрочитанные",
+    messages: "Сообщения",
+    taskAssigned: "Задача назначена",
+    taskUpdated: "Задача обновлена",
+    comments: "Комментарии",
+    fileUploads: "Загрузки файлов",
+    projectUpdates: "Обновления проектов",
+  },
+  states: {
+    loading: {
+      title: "Загрузка уведомлений",
+      description: "Пожалуйста, подождите...",
+    },
+    error: {
+      title: "Что-то пошло не так",
+    },
+    empty: {
+      title: "Нет уведомлений",
+      all: "Все просмотрено!",
+      filtered: "Нет уведомлений, соответствующих фильтру",
+    },
+  },
+  errors: {
+    loadNotifications: "Не удалось загрузить уведомления.",
+    loadInbox: "Не удалось загрузить входящие.",
   },
 },
     

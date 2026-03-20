@@ -11,6 +11,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { uploadProfilePhoto } from "@/lib/profilePhotoUpload";
+import { useLanguage } from "@/lib/i18n";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -205,6 +206,7 @@ function joinMultiValue(values: string[]) {
 }
 
 export default function EmployeeDetailPage() {
+  const { t, language } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
@@ -248,6 +250,60 @@ export default function EmployeeDetailPage() {
   const canManage = currentUserRole === "admin";
   const isOwnProfile = currentUserId === id;
   const canEditProfileFields = canManage || isOwnProfile;
+
+  const getTranslatedMemberTypeLabel = useCallback(
+    (value: string | null | undefined) => {
+      if (!value) return "";
+
+      switch (value) {
+        case "client":
+          return t("employeeDetail.memberTypes.client");
+        case "supplier":
+          return t("employeeDetail.memberTypes.supplier");
+        case "investor":
+          return t("employeeDetail.memberTypes.investor");
+        case "consultant":
+          return t("employeeDetail.memberTypes.consultant");
+        case "visitor":
+          return t("employeeDetail.memberTypes.visitor");
+        case "partner":
+          return t("employeeDetail.memberTypes.partner");
+        case "engineer":
+          return t("employeeDetail.memberTypes.engineer");
+        case "designer":
+          return t("employeeDetail.memberTypes.designer");
+        case "sourcing":
+          return t("employeeDetail.memberTypes.sourcing");
+        case "purchasing":
+          return t("employeeDetail.memberTypes.purchasing");
+        case "sales":
+          return t("employeeDetail.memberTypes.sales");
+        case "marketing":
+          return t("employeeDetail.memberTypes.marketing");
+        case "finance":
+          return t("employeeDetail.memberTypes.finance");
+        case "operations":
+          return t("employeeDetail.memberTypes.operations");
+        case "qc":
+          return t("employeeDetail.memberTypes.qc");
+        case "assistant":
+          return t("employeeDetail.memberTypes.assistant");
+        case "project_manager":
+          return t("employeeDetail.memberTypes.projectManager");
+        case "operations_manager":
+          return t("employeeDetail.memberTypes.operationsManager");
+        case "department_manager":
+          return t("employeeDetail.memberTypes.departmentManager");
+        case "sales_manager":
+          return t("employeeDetail.memberTypes.salesManager");
+        case "factory_manager":
+          return t("employeeDetail.memberTypes.factoryManager");
+        default:
+          return getMemberTypeLabel(value);
+      }
+    },
+    [t]
+  );
 
   const fillForm = useCallback((profile: ProfileRow) => {
     setUser(profile);
@@ -321,7 +377,7 @@ export default function EmployeeDetailPage() {
         setCurrentUserRole((me as CurrentUserRoleRow).role);
 
         if (profileError || !profileData) {
-          setSaveError("User not found.");
+          setSaveError(t("employeeDetail.errors.userNotFound"));
           setUser(null);
           return;
         }
@@ -330,7 +386,7 @@ export default function EmployeeDetailPage() {
       } catch (err) {
         if (!requestTracker.current.isLatest(requestId)) return;
         console.error("Employee detail load error:", err);
-        setSaveError("Failed to load user profile.");
+        setSaveError(t("employeeDetail.errors.loadFailed"));
       } finally {
         if (!requestTracker.current.isLatest(requestId)) return;
 
@@ -341,7 +397,7 @@ export default function EmployeeDetailPage() {
         }
       }
     },
-    [fillForm, id, navigate]
+    [fillForm, id, navigate, t]
   );
 
   useEffect(() => {
@@ -397,16 +453,16 @@ export default function EmployeeDetailPage() {
   const getStatusLabel = (value: Status) => {
     switch (value) {
       case "pending_verification":
-        return "EMAIL NOT VERIFIED";
+        return t("employeeDetail.status.emailNotVerified");
       case "pending_profile":
-        return "PROFILE NOT SUBMITTED";
+        return t("employeeDetail.status.profileNotSubmitted");
       case "pending_approval":
-        return "PENDING APPROVAL";
+        return t("employeeDetail.status.pendingApproval");
       case "rejected":
-        return "REJECTED";
+        return t("employeeDetail.status.rejected");
       case "active":
       default:
-        return "ACTIVE";
+        return t("employeeDetail.status.active");
     }
   };
 
@@ -510,7 +566,7 @@ export default function EmployeeDetailPage() {
     } catch (err) {
       console.error("Profile photo upload error:", err);
       setSaveError(
-        err instanceof Error ? err.message : "Failed to upload profile photo."
+        err instanceof Error ? err.message : t("employeeDetail.errors.photoUploadFailed")
       );
     } finally {
       setIsUploadingPhoto(false);
@@ -522,7 +578,7 @@ export default function EmployeeDetailPage() {
     fieldKey,
     filled,
     canEditThisField,
-    addLabel = "Add",
+    addLabel = t("employeeDetail.actions.add"),
     alwaysShowAdd = false,
   }: {
     fieldKey: string;
@@ -563,7 +619,7 @@ export default function EmployeeDetailPage() {
               onClick={() => beginEditing(fieldKey)}
             >
               <Edit className="w-4 h-4 mr-1" />
-              Edit
+              {t("employeeDetail.actions.edit")}
             </Button>
             <Button
               type="button"
@@ -573,7 +629,7 @@ export default function EmployeeDetailPage() {
               onClick={() => clearField(fieldKey)}
             >
               <Trash2 className="w-4 h-4 mr-1" />
-              Delete
+              {t("employeeDetail.actions.delete")}
             </Button>
           </>
         )}
@@ -632,7 +688,7 @@ export default function EmployeeDetailPage() {
             )
           ) : (
             <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3 text-sm text-slate-200 min-h-[52px] flex items-center">
-              {filled ? value : <span className="text-slate-500">No value added yet</span>}
+              {filled ? value : <span className="text-slate-500">{t("employeeDetail.empty.noValue")}</span>}
             </div>
           )}
         </div>
@@ -669,7 +725,7 @@ export default function EmployeeDetailPage() {
             filled,
             canEditThisField: canEditProfileFields,
             alwaysShowAdd,
-            addLabel: "Add",
+            addLabel: t("employeeDetail.actions.add"),
           })}
         </div>
 
@@ -684,7 +740,10 @@ export default function EmployeeDetailPage() {
                       updateArrayValue(values, setValues, index, e.target.value)
                     }
                     className="bg-slate-950 border-slate-800 text-white"
-                    placeholder={`${label} ${index + 1}`}
+                    placeholder={t("employeeDetail.placeholders.numberedField", undefined, {
+                      label,
+                      index: index + 1,
+                    })}
                   />
                   <Button
                     type="button"
@@ -705,7 +764,19 @@ export default function EmployeeDetailPage() {
                 onClick={() => addArrayValue(values, setValues)}
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Add another {label.toLowerCase()}
+                {fieldKey === "additional_emails"
+                  ? t("employeeDetail.actions.addAnotherAdditionalEmail")
+                  : fieldKey === "phone"
+                    ? t("employeeDetail.actions.addAnotherPhone")
+                    : fieldKey === "company"
+                      ? t("employeeDetail.actions.addAnotherCompany")
+                      : fieldKey === "job_title"
+                        ? t("employeeDetail.actions.addAnotherJobTitle")
+                        : fieldKey === "whatsapp"
+                          ? t("employeeDetail.actions.addAnotherWhatsApp")
+                          : fieldKey === "wechat"
+                            ? t("employeeDetail.actions.addAnotherWeChat")
+                            : t("employeeDetail.actions.add")}
               </Button>
             </div>
           ) : filled ? (
@@ -721,7 +792,7 @@ export default function EmployeeDetailPage() {
             </div>
           ) : (
             <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3 text-sm text-slate-500">
-              No value added yet
+              {t("employeeDetail.empty.noValue")}
             </div>
           )}
         </div>
@@ -779,7 +850,7 @@ export default function EmployeeDetailPage() {
         .eq("user_id", id);
 
       if (error) {
-        setSaveError(error.message || "Failed to save user.");
+        setSaveError(error.message || t("employeeDetail.errors.saveFailed"));
         return;
       }
 
@@ -799,7 +870,7 @@ export default function EmployeeDetailPage() {
       showSaved();
     } catch (err) {
       console.error("Save employee error:", err);
-      setSaveError("Failed to save user.");
+      setSaveError(t("employeeDetail.errors.saveFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -809,7 +880,7 @@ export default function EmployeeDetailPage() {
     if (!id || !canManage) return;
 
     const confirmed = window.confirm(
-      "Are you sure you want to reject/deactivate this user? They will not be able to access the system."
+      t("employeeDetail.confirmations.deactivateUser")
     );
     if (!confirmed) return;
 
@@ -828,7 +899,7 @@ export default function EmployeeDetailPage() {
         .eq("user_id", id);
 
       if (error) {
-        setSaveError(error.message || "Failed to deactivate user.");
+        setSaveError(error.message || t("employeeDetail.errors.deactivateFailed"));
         return;
       }
 
@@ -845,7 +916,7 @@ export default function EmployeeDetailPage() {
       }
     } catch (err) {
       console.error("Deactivate employee error:", err);
-      setSaveError("Failed to deactivate user.");
+      setSaveError(t("employeeDetail.errors.deactivateFailed"));
     } finally {
       setIsDeactivating(false);
     }
@@ -855,7 +926,7 @@ export default function EmployeeDetailPage() {
     if (!id || !canManage) return;
 
     const confirmed = window.confirm(
-      "This will permanently delete the user. This cannot be undone. Continue?"
+      t("employeeDetail.confirmations.deleteUser")
     );
     if (!confirmed) return;
 
@@ -868,15 +939,15 @@ export default function EmployeeDetailPage() {
       });
 
       if (error) {
-        setSaveError(error.message || "Failed to delete user.");
+        setSaveError(error.message || t("employeeDetail.errors.deleteFailed"));
         return;
       }
 
-      window.alert("User deleted successfully.");
+      window.alert(t("employeeDetail.success.deleted"));
       navigate("/employees");
     } catch (err) {
       console.error("Delete user error:", err);
-      setSaveError("Failed to delete user.");
+      setSaveError(t("employeeDetail.errors.deleteFailed"));
     } finally {
       setIsDeleting(false);
     }
@@ -888,7 +959,7 @@ export default function EmployeeDetailPage() {
         <Card className="bg-red-900/10 border-red-800/30">
           <CardContent className="p-6 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
-            <div className="text-red-300">{saveError || "User not found."}</div>
+            <div className="text-red-300">{saveError || t("employeeDetail.errors.userNotFound")}</div>
           </CardContent>
         </Card>
       </div>
@@ -906,12 +977,12 @@ export default function EmployeeDetailPage() {
             disabled={isSaving || isUploadingPhoto || isDeactivating || isDeleting}
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
+            {t("employeeDetail.actions.back")}
           </Button>
 
           <div>
-            <h1 className="text-2xl font-bold text-white">User Profile</h1>
-            <p className="text-slate-400">View and manage user details</p>
+            <h1 className="text-2xl font-bold text-white">{t("employeeDetail.header.title")}</h1>
+            <p className="text-slate-400">{t("employeeDetail.header.subtitle")}</p>
           </div>
         </div>
 
@@ -928,7 +999,7 @@ export default function EmployeeDetailPage() {
               isDeleting
             }
           >
-            {isRefreshing ? "Refreshing..." : "Refresh"}
+            {isRefreshing ? t("employeeDetail.actions.refreshing") : t("employeeDetail.actions.refresh")}
           </Button>
 
           {canManage && (
@@ -939,7 +1010,7 @@ export default function EmployeeDetailPage() {
               disabled={isSaving || isUploadingPhoto || isDeactivating || isDeleting}
             >
               <Shield className="w-4 h-4 mr-2" />
-              Permissions
+              {t("employeeDetail.actions.permissions")}
             </Button>
           )}
 
@@ -953,7 +1024,7 @@ export default function EmployeeDetailPage() {
               disabled={isUploadingPhoto || isDeactivating || isDeleting}
             >
               <Edit className="w-4 h-4 mr-2" />
-              Edit Mode
+              {t("employeeDetail.actions.editMode")}
             </Button>
           )}
 
@@ -965,7 +1036,7 @@ export default function EmployeeDetailPage() {
               disabled={isDeactivating || isSaving || isUploadingPhoto || isDeleting}
             >
               <Trash2 className="w-4 h-4 mr-2" />
-              {isDeactivating ? "Deactivating..." : "Reject / Deactivate"}
+              {isDeactivating ? t("employeeDetail.actions.deactivating") : t("employeeDetail.actions.deactivate")}
             </Button>
           )}
 
@@ -976,7 +1047,7 @@ export default function EmployeeDetailPage() {
               onClick={() => void handleDeleteUser()}
               disabled={isDeleting || isSaving || isUploadingPhoto || isDeactivating}
             >
-              {isDeleting ? "Deleting..." : "Delete User"}
+              {isDeleting ? t("employeeDetail.actions.deleting") : t("employeeDetail.actions.deleteUser")}
             </Button>
           )}
         </div>
@@ -984,7 +1055,7 @@ export default function EmployeeDetailPage() {
 
       {saved && (
         <Alert className="bg-green-900/20 border-green-800 text-green-400">
-          <AlertDescription>User profile saved successfully.</AlertDescription>
+          <AlertDescription>{t("employeeDetail.success.saved")}</AlertDescription>
         </Alert>
       )}
 
@@ -1020,10 +1091,10 @@ export default function EmployeeDetailPage() {
                   </Avatar>
 
                   <h2 className="text-xl font-semibold text-white text-center">
-                    {fullName || "Unnamed user"}
+                    {fullName || t("employeeDetail.empty.unnamedUser")}
                   </h2>
                   <p className="text-slate-400 text-center">
-                    {displayName || "No display name"}
+                    {displayName || t("employeeDetail.empty.noDisplayName")}
                   </p>
 
                   <div className="flex items-center gap-2 flex-wrap justify-center mt-4">
@@ -1033,12 +1104,14 @@ export default function EmployeeDetailPage() {
                     </Badge>
                     {!profileCompleted && (
                       <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-                        PROFILE INCOMPLETE
+                        {t("employeeDetail.badges.profileIncomplete")}
                       </Badge>
                     )}
                     {user?.requested_role && user.requested_role !== role && (
                       <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30">
-                        REQUESTED {user.requested_role.toUpperCase()}
+                        {t("employeeDetail.badges.requestedRole", undefined, {
+                          role: user.requested_role.toUpperCase(),
+                        })}
                       </Badge>
                     )}
                   </div>
@@ -1126,7 +1199,7 @@ export default function EmployeeDetailPage() {
                     renderSidebarCard(
                       <div className="flex items-center gap-2 text-slate-300">
                         <User className="w-4 h-4 text-slate-500 shrink-0" />
-                        <span>{getMemberTypeLabel(memberType)}</span>
+                        <span>{getTranslatedMemberTypeLabel(memberType)}</span>
                       </div>,
                       "sidebar-member-type"
                     )}
@@ -1201,7 +1274,7 @@ export default function EmployeeDetailPage() {
         <Card className="bg-slate-900/50 border-slate-800">
           <CardHeader className="border-b border-slate-800">
             <CardTitle className="text-white">
-              {isEditing ? "Edit Profile Details" : "Profile Details"}
+              {isEditing ? t("employeeDetail.sections.editProfileDetails") : t("employeeDetail.sections.profileDetails")}
             </CardTitle>
           </CardHeader>
 
@@ -1223,13 +1296,13 @@ export default function EmployeeDetailPage() {
                   <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
                     <div>
                       <h3 className="text-lg font-semibold text-white">
-                        Admin-Controlled Identity
+                        {t("employeeDetail.sections.adminControlledIdentity")}
                       </h3>
                     </div>
 
                     {renderSingleFieldCard({
                       fieldKey: "registered_email",
-                      label: "Registered Email",
+                      label: t("employeeDetail.fields.registeredEmail"),
                       value: email,
                       setValue: setEmail,
                       adminOnly: true,
@@ -1237,7 +1310,7 @@ export default function EmployeeDetailPage() {
 
                     {renderMultiFieldCard({
                       fieldKey: "additional_emails",
-                      label: "Additional Emails",
+                      label: t("employeeDetail.fields.additionalEmails"),
                       values: additionalEmails,
                       setValues: setAdditionalEmails,
                       alwaysShowAdd: true,
@@ -1246,14 +1319,14 @@ export default function EmployeeDetailPage() {
 
                   <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-white">User Profile</h3>
+                      <h3 className="text-lg font-semibold text-white">{t("employeeDetail.sections.userProfile")}</h3>
                     </div>
 
                     <div className="grid md:grid-cols-2 gap-4">
                       <div className="md:col-span-2 rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                           <div className="space-y-1">
-                            <h4 className="text-base font-semibold text-white">Location</h4>
+                            <h4 className="text-base font-semibold text-white">{t("employeeDetail.fields.location")}</h4>
                           </div>
 
                           {renderActionButtons({
@@ -1268,7 +1341,7 @@ export default function EmployeeDetailPage() {
                           {isEditing && activeEditor === "location" ? (
                             <div className="grid md:grid-cols-3 gap-4">
                               <div className="space-y-2">
-                                <Label className="text-slate-300">Country</Label>
+                                <Label className="text-slate-300">{t("employeeDetail.fields.country")}</Label>
                                 <Input
                                   value={country}
                                   onChange={(e) => setCountry(e.target.value)}
@@ -1277,7 +1350,7 @@ export default function EmployeeDetailPage() {
                               </div>
 
                               <div className="space-y-2">
-                                <Label className="text-slate-300">City</Label>
+                                <Label className="text-slate-300">{t("employeeDetail.fields.city")}</Label>
                                 <Input
                                   value={city}
                                   onChange={(e) => setCity(e.target.value)}
@@ -1286,7 +1359,7 @@ export default function EmployeeDetailPage() {
                               </div>
 
                               <div className="space-y-2">
-                                <Label className="text-slate-300">Shipping Address</Label>
+                                <Label className="text-slate-300">{t("employeeDetail.fields.shippingAddress")}</Label>
                                 <Input
                                   value={shippingAddress}
                                   onChange={(e) => setShippingAddress(e.target.value)}
@@ -1297,21 +1370,21 @@ export default function EmployeeDetailPage() {
                           ) : (
                             <div className="grid md:grid-cols-3 gap-4">
                               <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
-                                <div className="text-xs text-slate-500 mb-1">Country</div>
+                                <div className="text-xs text-slate-500 mb-1">{t("employeeDetail.fields.country")}</div>
                                 <div className="text-sm text-slate-200">
-                                  {country || "No value added yet"}
+                                  {country || t("employeeDetail.empty.noValue")}
                                 </div>
                               </div>
                               <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
-                                <div className="text-xs text-slate-500 mb-1">City</div>
+                                <div className="text-xs text-slate-500 mb-1">{t("employeeDetail.fields.city")}</div>
                                 <div className="text-sm text-slate-200">
-                                  {city || "No value added yet"}
+                                  {city || t("employeeDetail.empty.noValue")}
                                 </div>
                               </div>
                               <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
-                                <div className="text-xs text-slate-500 mb-1">Shipping Address</div>
+                                <div className="text-xs text-slate-500 mb-1">{t("employeeDetail.fields.shippingAddress")}</div>
                                 <div className="text-sm text-slate-200">
-                                  {shippingAddress || "No value added yet"}
+                                  {shippingAddress || t("employeeDetail.empty.noValue")}
                                 </div>
                               </div>
                             </div>
@@ -1321,21 +1394,21 @@ export default function EmployeeDetailPage() {
 
                       {renderSingleFieldCard({
                         fieldKey: "display_name",
-                        label: "Display Name",
+                        label: t("employeeDetail.fields.displayName"),
                         value: displayName,
                         setValue: setDisplayName,
                       })}
 
                       {renderMultiFieldCard({
                         fieldKey: "phone",
-                        label: "Phone",
+                        label: t("employeeDetail.fields.phone"),
                         values: phones,
                         setValues: setPhones,
                       })}
 
                       {renderMultiFieldCard({
                         fieldKey: "company",
-                        label: "Company",
+                        label: t("employeeDetail.fields.company"),
                         values: companies,
                         setValues: setCompanies,
                       })}
@@ -1344,7 +1417,7 @@ export default function EmployeeDetailPage() {
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                           <div className="space-y-1">
                             <h4 className="text-base font-semibold text-white">
-                              Member Type
+                              {t("employeeDetail.fields.memberType")}
                             </h4>
                           </div>
 
@@ -1359,7 +1432,7 @@ export default function EmployeeDetailPage() {
                           {isEditing && activeEditor === "member_type" ? (
                             role === "admin" ? (
                               <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3 text-sm text-slate-500">
-                                Admin does not use Member Type
+                                {t("employeeDetail.messages.adminNoMemberType")}
                               </div>
                             ) : (
                               <Select
@@ -1369,12 +1442,12 @@ export default function EmployeeDetailPage() {
                                 }
                               >
                                 <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                                  <SelectValue placeholder="Select member type" />
+                                  <SelectValue placeholder={t("employeeDetail.placeholders.selectMemberType")} />
                                 </SelectTrigger>
                                 <SelectContent className="bg-slate-950 border-slate-800 text-white">
                                   {MEMBER_TYPE_OPTIONS[role].map((option) => (
                                     <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
+                                      {getTranslatedMemberTypeLabel(option.value)}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -1383,9 +1456,9 @@ export default function EmployeeDetailPage() {
                           ) : (
                             <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3 text-sm text-slate-200 min-h-[52px] flex items-center">
                               {memberType ? (
-                                getMemberTypeLabel(memberType)
+                                getTranslatedMemberTypeLabel(memberType)
                               ) : (
-                                <span className="text-slate-500">No value added yet</span>
+                                <span className="text-slate-500">{t("employeeDetail.empty.noValue")}</span>
                               )}
                             </div>
                           )}
@@ -1394,21 +1467,21 @@ export default function EmployeeDetailPage() {
 
                       {renderMultiFieldCard({
                         fieldKey: "job_title",
-                        label: "Job Title",
+                        label: t("employeeDetail.fields.jobTitle"),
                         values: jobTitles,
                         setValues: setJobTitles,
                       })}
 
                       {renderMultiFieldCard({
                         fieldKey: "whatsapp",
-                        label: "WhatsApp",
+                        label: t("employeeDetail.fields.whatsApp"),
                         values: whatsapps,
                         setValues: setWhatsapps,
                       })}
 
                       {renderMultiFieldCard({
                         fieldKey: "wechat",
-                        label: "WeChat",
+                        label: t("employeeDetail.fields.weChat"),
                         values: wechats,
                         setValues: setWechats,
                       })}
@@ -1416,7 +1489,7 @@ export default function EmployeeDetailPage() {
                       <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                           <div className="space-y-1">
-                            <h4 className="text-base font-semibold text-white">Profile Photo</h4>
+                            <h4 className="text-base font-semibold text-white">{t("employeeDetail.fields.profilePhoto")}</h4>
                           </div>
 
                           {canEditProfileFields && (
@@ -1434,7 +1507,7 @@ export default function EmployeeDetailPage() {
                                 disabled={isUploadingPhoto}
                               >
                                 <Plus className="w-4 h-4 mr-1" />
-                                Add
+                                {t("employeeDetail.actions.add")}
                               </Button>
 
                               {avatarUrl && (
@@ -1452,7 +1525,7 @@ export default function EmployeeDetailPage() {
                                     disabled={isUploadingPhoto}
                                   >
                                     <Edit className="w-4 h-4 mr-1" />
-                                    Edit
+                                    {t("employeeDetail.actions.edit")}
                                   </Button>
                                   <Button
                                     type="button"
@@ -1463,7 +1536,7 @@ export default function EmployeeDetailPage() {
                                     disabled={isUploadingPhoto}
                                   >
                                     <Trash2 className="w-4 h-4 mr-1" />
-                                    Delete
+                                    {t("employeeDetail.actions.delete")}
                                   </Button>
                                 </>
                               )}
@@ -1490,7 +1563,7 @@ export default function EmployeeDetailPage() {
                               </Avatar>
                               <div className="min-w-0">
                                 <div className="text-sm text-white font-medium">
-                                  Profile image uploaded
+                                  {t("employeeDetail.messages.profileImageUploaded")}
                                 </div>
                                 <div className="text-xs text-slate-500 break-all mt-1">
                                   {avatarUrl}
@@ -1500,7 +1573,7 @@ export default function EmployeeDetailPage() {
                           ) : (
                             <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-4 text-sm text-slate-400 flex items-center gap-2">
                               <ImageIcon className="w-4 h-4" />
-                              No profile photo added yet
+                              {t("employeeDetail.empty.noProfilePhoto")}
                             </div>
                           )}
                         </div>
@@ -1509,7 +1582,7 @@ export default function EmployeeDetailPage() {
                       <div className="md:col-span-2">
                         {renderSingleFieldCard({
                           fieldKey: "bio",
-                          label: "Bio",
+                          label: t("employeeDetail.fields.bio"),
                           value: bio,
                           setValue: setBio,
                           multiline: true,
@@ -1520,12 +1593,12 @@ export default function EmployeeDetailPage() {
 
                   <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-white">Core Account Details</h3>
+                      <h3 className="text-lg font-semibold text-white">{t("employeeDetail.sections.coreAccountDetails")}</h3>
                     </div>
 
                     <div className="grid md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label className="text-slate-300">Full Name</Label>
+                        <Label className="text-slate-300">{t("employeeDetail.fields.fullName")}</Label>
                         <Input
                           value={fullName}
                           onChange={(e) => setFullName(e.target.value)}
@@ -1538,7 +1611,7 @@ export default function EmployeeDetailPage() {
                     {canManage && (
                       <div className="grid md:grid-cols-3 gap-4">
                         <div className="space-y-2">
-                          <Label className="text-slate-300">Role</Label>
+                          <Label className="text-slate-300">{t("employeeDetail.fields.role")}</Label>
                           <Select
                             value={role}
                             onValueChange={(value) => {
@@ -1564,16 +1637,16 @@ export default function EmployeeDetailPage() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                              <SelectItem value="admin">Admin</SelectItem>
-                              <SelectItem value="manager">Manager</SelectItem>
-                              <SelectItem value="employee">Employee</SelectItem>
-                              <SelectItem value="guest">Guest</SelectItem>
+                              <SelectItem value="admin">{t("employeeDetail.roles.admin")}</SelectItem>
+                              <SelectItem value="manager">{t("employeeDetail.roles.manager")}</SelectItem>
+                              <SelectItem value="employee">{t("employeeDetail.roles.employee")}</SelectItem>
+                              <SelectItem value="guest">{t("employeeDetail.roles.guest")}</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-slate-300">Status</Label>
+                          <Label className="text-slate-300">{t("employeeDetail.fields.status")}</Label>
                           <Select
                             value={status}
                             onValueChange={(value) => setStatus(value as Status)}
@@ -1583,23 +1656,23 @@ export default function EmployeeDetailPage() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                              <SelectItem value="active">Active</SelectItem>
+                              <SelectItem value="active">{t("employeeDetail.status.activeLabel")}</SelectItem>
                               <SelectItem value="pending_verification">
-                                Pending Verification
+                                {t("employeeDetail.status.pendingVerificationLabel")}
                               </SelectItem>
                               <SelectItem value="pending_profile">
-                                Pending Profile
+                                {t("employeeDetail.status.pendingProfileLabel")}
                               </SelectItem>
                               <SelectItem value="pending_approval">
-                                Pending Approval
+                                {t("employeeDetail.status.pendingApprovalLabel")}
                               </SelectItem>
-                              <SelectItem value="rejected">Rejected</SelectItem>
+                              <SelectItem value="rejected">{t("employeeDetail.status.rejectedLabel")}</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-slate-300">Profile Completion</Label>
+                          <Label className="text-slate-300">{t("employeeDetail.fields.profileCompletion")}</Label>
                           <Select
                             value={profileCompleted ? "yes" : "no"}
                             onValueChange={(value) =>
@@ -1611,8 +1684,8 @@ export default function EmployeeDetailPage() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                              <SelectItem value="yes">Completed</SelectItem>
-                              <SelectItem value="no">Incomplete</SelectItem>
+                              <SelectItem value="yes">{t("employeeDetail.profile.completed")}</SelectItem>
+                              <SelectItem value="no">{t("employeeDetail.profile.incomplete")}</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -1634,7 +1707,7 @@ export default function EmployeeDetailPage() {
                       disabled={isSaving || isUploadingPhoto}
                     >
                       <X className="w-4 h-4 mr-2" />
-                      Cancel
+                      {t("employeeDetail.actions.cancel")}
                     </Button>
 
                     <Button
@@ -1643,7 +1716,7 @@ export default function EmployeeDetailPage() {
                       disabled={isSaving || isUploadingPhoto}
                     >
                       <Save className="w-4 h-4 mr-2" />
-                      {isSaving ? "Saving..." : "Save Changes"}
+                      {isSaving ? t("employeeDetail.actions.saving") : t("employeeDetail.actions.saveChanges")}
                     </Button>
                   </div>
                 )}

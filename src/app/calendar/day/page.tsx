@@ -235,9 +235,9 @@ export default function CalendarDayPage() {
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold text-white">{dateLabel}</h1>
             <Badge className="bg-indigo-600 text-white">
-              {t("calendarDay.header.itemsCount", {
-                total: events.length + tasks.length,
-              })}
+              {t("calendarDay.header.itemsCount", undefined, {
+  total: events.length + tasks.length,
+})}
             </Badge>
           </div>
           <p className="text-slate-400">{t("calendarDay.header.subtitle")}</p>
@@ -340,11 +340,11 @@ export default function CalendarDayPage() {
                     <div className="text-xs text-slate-500 space-y-1">
                       {event.project_id && (
                         <div>
-                          {t("calendarDay.labels.linkedProject", { id: event.project_id })}
+                          {t("calendarDay.labels.linkedProject", undefined, { id: event.project_id })}
                         </div>
                       )}
                       {event.task_id && (
-                        <div>{t("calendarDay.labels.linkedTask", { id: event.task_id })}</div>
+                        <div>{t("calendarDay.labels.linkedTask", undefined, { id: event.task_id })}</div>
                       )}
                     </div>
                   )}
@@ -396,7 +396,7 @@ export default function CalendarDayPage() {
 
                   {task.project_id && (
                     <div className="text-xs text-slate-500">
-                      {t("calendarDay.labels.project", { id: task.project_id })}
+                      {t("calendarDay.labels.project", undefined, { id: task.project_id })}
                     </div>
                   )}
 

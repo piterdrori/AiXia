@@ -32,6 +32,7 @@ import {
   Briefcase,
   MessageSquare,
 } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 
 type Role = "admin" | "manager" | "employee" | "guest";
 
@@ -326,6 +327,7 @@ function getFieldIcon(icon: EmployeeField["icon"]) {
 }
 
 export default function EmployeesPage() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
 
@@ -364,23 +366,23 @@ const handleSendInvite = async () => {
   const trimmedFullName = inviteFullName.trim();
 
   if (!normalizedEmail) {
-    setInviteError("Email is required.");
+    setInviteError(t("employees.errors.emailRequired"));
     return;
   }
 
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailPattern.test(normalizedEmail)) {
-    setInviteError("Please enter a valid email address.");
+    setInviteError(t("employees.errors.validEmailRequired"));
     return;
   }
 
   if (!trimmedFullName) {
-    setInviteError("Full name is required.");
+    setInviteError(t("employees.errors.fullNameRequired"));
     return;
   }
 
   if (inviteRole !== "admin" && !inviteMemberType) {
-    setInviteError("Member Type is required.");
+    setInviteError(t("employees.errors.memberTypeRequired"));
     return;
   }
 
@@ -403,13 +405,13 @@ const handleSendInvite = async () => {
     }
 
     if (!data?.success) {
-      throw new Error(data?.error || "Failed to send invite.");
+      throw new Error(data?.error || t("employees.errors.sendInviteFailed"));
     }
 
     setInviteSuccess(
       data?.resent
-        ? "Invitation email resent successfully."
-        : "Invitation email sent successfully."
+        ? t("employees.success.invitationResent")
+        : t("employees.success.invitationSent")
     );
 
     setInviteEmail("");
@@ -422,7 +424,7 @@ const handleSendInvite = async () => {
   } catch (err) {
     console.error("Invite member error:", err);
     setInviteError(
-      err instanceof Error ? err.message : "Failed to send invite."
+      err instanceof Error ? err.message : t("employees.errors.sendInviteFailed")
     );
   } finally {
     setIsSendingInvite(false);
@@ -436,6 +438,94 @@ const availableMemberTypeOptions = useMemo(() => {
 
     return MEMBER_TYPE_OPTIONS[roleFilter];
   }, [roleFilter]);
+
+  const getTranslatedMemberTypeLabel = useCallback(
+    (value: string | null | undefined) => {
+      if (!value) return "";
+
+      switch (value) {
+        case "client":
+          return t("employees.memberTypes.client");
+        case "supplier":
+          return t("employees.memberTypes.supplier");
+        case "investor":
+          return t("employees.memberTypes.investor");
+        case "consultant":
+          return t("employees.memberTypes.consultant");
+        case "visitor":
+          return t("employees.memberTypes.visitor");
+        case "partner":
+          return t("employees.memberTypes.partner");
+        case "engineer":
+          return t("employees.memberTypes.engineer");
+        case "designer":
+          return t("employees.memberTypes.designer");
+        case "sourcing":
+          return t("employees.memberTypes.sourcing");
+        case "purchasing":
+          return t("employees.memberTypes.purchasing");
+        case "sales":
+          return t("employees.memberTypes.sales");
+        case "marketing":
+          return t("employees.memberTypes.marketing");
+        case "finance":
+          return t("employees.memberTypes.finance");
+        case "operations":
+          return t("employees.memberTypes.operations");
+        case "qc":
+          return t("employees.memberTypes.qc");
+        case "assistant":
+          return t("employees.memberTypes.assistant");
+        case "project_manager":
+          return t("employees.memberTypes.projectManager");
+        case "operations_manager":
+          return t("employees.memberTypes.operationsManager");
+        case "department_manager":
+          return t("employees.memberTypes.departmentManager");
+        case "sales_manager":
+          return t("employees.memberTypes.salesManager");
+        case "factory_manager":
+          return t("employees.memberTypes.factoryManager");
+        default:
+          return getMemberTypeLabel(value);
+      }
+    },
+    [t]
+  );
+
+  const getEmployeeFieldLabel = useCallback(
+    (fieldKey: string) => {
+      switch (fieldKey) {
+        case "registered-email":
+          return t("employees.fields.registeredEmail");
+        case "additional-emails":
+          return t("employees.fields.additionalEmails");
+        case "phone":
+          return t("employees.fields.phone");
+        case "location":
+          return t("employees.fields.location");
+        case "shipping-address":
+          return t("employees.fields.shippingAddress");
+        case "display-name":
+          return t("employees.fields.displayName");
+        case "company":
+          return t("employees.fields.company");
+        case "member-type":
+          return t("employees.fields.memberType");
+        case "job-title":
+          return t("employees.fields.jobTitle");
+        case "whatsapp":
+          return t("employees.fields.whatsApp");
+        case "wechat":
+          return t("employees.fields.weChat");
+        case "bio":
+          return t("employees.fields.bio");
+        default:
+          return fieldKey;
+      }
+    },
+    [t]
+  );
 
   const loadProfiles = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
@@ -495,7 +585,7 @@ const availableMemberTypeOptions = useMemo(() => {
         if (profilesError) {
           setProfiles([]);
           setInvitations([]);
-          setError(profilesError.message || "Failed to load employees.");
+          setError(profilesError.message || t("employees.errors.loadEmployeesFailed"));
           return;
         }
 
@@ -510,7 +600,7 @@ const availableMemberTypeOptions = useMemo(() => {
           if (invitationsError) {
             setProfiles((profilesData as ProfileRow[]) || []);
             setInvitations([]);
-            setError(invitationsError.message || "Failed to load invitations.");
+            setError(invitationsError.message || t("employees.errors.loadInvitationsFailed"));
             return;
           }
 
@@ -526,7 +616,7 @@ const availableMemberTypeOptions = useMemo(() => {
         console.error("Employees page load error:", err);
         setProfiles([]);
         setInvitations([]);
-        setError("Failed to load employees.");
+        setError(t("employees.errors.loadEmployeesFailed"));
       } finally {
         if (!requestTracker.current.isLatest(requestId)) return;
 
@@ -537,7 +627,7 @@ const availableMemberTypeOptions = useMemo(() => {
         }
       }
     },
-    [navigate]
+    [navigate, t]
   );
 
   useEffect(() => {
@@ -586,7 +676,7 @@ const availableMemberTypeOptions = useMemo(() => {
       );
     } catch (err) {
       console.error("Approve user error:", err);
-      setError("Failed to approve user.");
+      setError(t("employees.errors.approveFailed"));
     } finally {
       setActionLoadingUserId(null);
     }
@@ -626,7 +716,7 @@ const availableMemberTypeOptions = useMemo(() => {
       );
     } catch (err) {
       console.error("Reject user error:", err);
-      setError("Failed to reject user.");
+      setError(t("employees.errors.rejectFailed"));
     } finally {
       setActionLoadingUserId(null);
     }
@@ -646,7 +736,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
     } = await supabase.auth.getSession();
 
     if (sessionError || !session?.access_token) {
-      throw new Error("You must be logged in to resend invites.");
+      throw new Error(t("employees.errors.loginRequiredToResend"));
     }
 
     const response = await fetch(
@@ -673,15 +763,15 @@ const handleResendInvite = async (invitation: InvitationRow) => {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data?.error || "Failed to resend invite.");
+      throw new Error(data?.error || t("employees.errors.resendInviteFailed"));
     }
 
     if (!data?.success) {
-      throw new Error(data?.error || "Failed to resend invite.");
+      throw new Error(data?.error || t("employees.errors.resendInviteFailed"));
     }
 
     setInviteError("");
-    setInviteSuccess("Invitation resent successfully.");
+    setInviteSuccess(t("employees.success.invitationResentShort"));
 
     window.setTimeout(() => {
       setInviteSuccess("");
@@ -692,7 +782,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
     console.error("Resend invite error:", err);
     setInviteSuccess("");
     setInviteError(
-      err instanceof Error ? err.message : "Failed to resend invitation email."
+      err instanceof Error ? err.message : t("employees.errors.resendInvitationEmailFailed")
     );
   } finally {
     setInvitationActionId(null);
@@ -703,7 +793,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
     if (!canManageUsers) return;
 
     const confirmed = window.confirm(
-      "Are you sure you want to cancel this invitation?"
+      t("employees.confirmations.cancelInvitation")
     );
     if (!confirmed) return;
 
@@ -725,12 +815,12 @@ const handleResendInvite = async (invitation: InvitationRow) => {
         throw error;
       }
 
-      setInviteSuccess("Invitation cancelled successfully.");
+      setInviteSuccess(t("employees.success.invitationCancelled"));
       void loadProfiles("refresh");
     } catch (err) {
       console.error("Cancel invite error:", err);
       setInviteError(
-        err instanceof Error ? err.message : "Failed to cancel invite."
+        err instanceof Error ? err.message : t("employees.errors.cancelInviteFailed")
       );
     } finally {
       setInvitationActionId(null);
@@ -739,7 +829,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
 
   const handleStartDirectMessage = async (targetUserId: string) => {
     if (!currentUserId) {
-      setError("You must be logged in to start a chat.");
+      setError(t("employees.errors.loginRequiredForChat"));
       return;
     }
 
@@ -783,7 +873,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
         .single();
 
       if (createChatError || !newChat) {
-        throw createChatError || new Error("Failed to create direct chat.");
+        throw createChatError || new Error(t("employees.errors.createDirectChatFailed"));
       }
 
       const { error: membersError } = await supabase
@@ -809,7 +899,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
     } catch (err) {
       console.error("Start direct message error:", err);
       setError(
-        err instanceof Error ? err.message : "Failed to open direct chat."
+        err instanceof Error ? err.message : t("employees.errors.openDirectChatFailed")
       );
     } finally {
       setDirectMessageLoadingUserId(null);
@@ -840,16 +930,16 @@ const handleResendInvite = async (invitation: InvitationRow) => {
   const getInvitationStatusLabel = (status: InvitationStatus) => {
     switch (status) {
       case "accepted":
-        return "ACCEPTED";
+        return t("employees.invitationStatus.accepted");
       case "expired":
-        return "EXPIRED";
+        return t("employees.invitationStatus.expired");
       case "cancelled":
-        return "CANCELLED";
+        return t("employees.invitationStatus.cancelled");
       case "failed":
-        return "FAILED";
+        return t("employees.invitationStatus.failed");
       case "pending":
       default:
-        return "PENDING";
+        return t("employees.invitationStatus.pending");
     }
   };
 
@@ -979,16 +1069,16 @@ const handleResendInvite = async (invitation: InvitationRow) => {
   const getStatusLabel = (status: Status) => {
     switch (status) {
       case "pending_verification":
-        return "EMAIL NOT VERIFIED";
+        return t("employees.status.emailNotVerified");
       case "pending_profile":
-        return "PROFILE NOT SUBMITTED";
+        return t("employees.status.profileNotSubmitted");
       case "pending_approval":
-        return "PENDING APPROVAL";
+        return t("employees.status.pendingApproval");
       case "rejected":
-        return "REJECTED";
+        return t("employees.status.rejected");
       case "active":
       default:
-        return "ACTIVE";
+        return t("employees.status.active");
     }
   };
 
@@ -1007,9 +1097,9 @@ const handleResendInvite = async (invitation: InvitationRow) => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Employees</h1>
+          <h1 className="text-2xl font-bold text-white">{t("employees.header.title")}</h1>
           <p className="text-slate-400">
-            View, approve, and manage platform members
+            {t("employees.header.subtitle")}
           </p>
         </div>
 
@@ -1020,7 +1110,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
             onClick={() => void loadProfiles("refresh")}
             disabled={isRefreshing}
           >
-            {isRefreshing ? "Refreshing..." : "Refresh"}
+            {isRefreshing ? t("employees.actions.refreshing") : t("employees.actions.refresh")}
           </Button>
 
           {canManageUsers && (
@@ -1029,7 +1119,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
               onClick={() => setInviteDialogOpen(true)}
             >
               <Plus className="w-4 h-4 mr-2" />
-              Invite Member
+              {t("employees.actions.inviteMember")}
             </Button>
           )}
         </div>
@@ -1048,7 +1138,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
         <Card className="bg-amber-900/10 border-amber-800/30">
           <CardContent className="p-4 space-y-3">
             <h3 className="text-lg font-medium text-amber-400">
-              Pending Approvals ({pendingUsers.length})
+              {t("employees.pendingApprovals.title", undefined, { count: pendingUsers.length })}
             </h3>
 
             {pendingUsers.map((user) => (
@@ -1065,20 +1155,22 @@ const handleResendInvite = async (invitation: InvitationRow) => {
 
                   <div className="min-w-0">
                     <p className="text-white font-medium truncate">
-                      {user.full_name || "Unnamed user"}
+                      {user.full_name || t("employees.empty.unnamedUser")}
                     </p>
                     <p className="text-slate-500 text-sm">
-                      requested: {(user.requested_role || "employee").toUpperCase()}
+                      {t("employees.pendingApprovals.requestedRole", undefined, {
+                        role: (user.requested_role || "employee").toUpperCase(),
+                      })}
                     </p>
                     <p className="text-slate-500 text-sm truncate">
                       {[
                         user.company,
-                        getMemberTypeLabel(user.member_type),
+                        getTranslatedMemberTypeLabel(user.member_type),
                         user.job_title,
                         [user.city, user.country].filter(Boolean).join(", "),
                       ]
                         .filter(Boolean)
-                        .join(" • ") || "No full details provided"}
+                        .join(" • ") || t("employees.empty.noFullDetails")}
                     </p>
                   </div>
                 </div>
@@ -1091,7 +1183,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                     disabled={actionLoadingUserId === user.user_id}
                   >
                     <UserCheck className="w-4 h-4 mr-1" />
-                    Approve
+                    {t("employees.actions.approve")}
                   </Button>
 
                   <Button
@@ -1102,7 +1194,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                     disabled={actionLoadingUserId === user.user_id}
                   >
                     <UserX className="w-4 h-4 mr-1" />
-                    Reject
+                    {t("employees.actions.reject")}
                   </Button>
 
                   <Button
@@ -1113,7 +1205,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                     disabled={actionLoadingUserId === user.user_id}
                   >
                     <Eye className="w-4 h-4 mr-1" />
-                    View
+                    {t("employees.actions.view")}
                   </Button>
                 </div>
               </div>
@@ -1128,10 +1220,10 @@ const handleResendInvite = async (invitation: InvitationRow) => {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-medium text-white">
-            Invitation Management
+            {t("employees.invitationManagement.title")}
           </h3>
           <p className="text-sm text-slate-400">
-            {showInviteHistory ? "All invitations (history view)" : "Active invite queue"}
+            {showInviteHistory ? t("employees.invitationManagement.historyView") : t("employees.invitationManagement.activeQueue")}
           </p>
         </div>
 
@@ -1142,7 +1234,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
             className="border-slate-700 text-slate-300 hover:bg-slate-800"
             onClick={() => setShowInviteHistory((prev) => !prev)}
           >
-            {showInviteHistory ? "Hide History" : "Show History"}
+            {showInviteHistory ? t("employees.actions.hideHistory") : t("employees.actions.showHistory")}
           </Button>
 
           <Badge className="bg-slate-800 text-slate-200 border-slate-700">
@@ -1188,15 +1280,15 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                     <p className="break-all">{invitation.email}</p>
                     <p>
                       {invitation.role === "admin"
-                        ? "Admin"
-                        : getMemberTypeLabel(invitation.member_type)}
+                        ? t("employees.roles.admin")
+                        : getTranslatedMemberTypeLabel(invitation.member_type)}
                     </p>
-                    <p>Sent: {new Date(invitation.last_invited_at).toLocaleString()}</p>
-                    <p>Expires: {new Date(invitation.expires_at).toLocaleString()}</p>
-                    <p>Invite Count: {invitation.invite_count}</p>
+                    <p>{t("employees.invitationManagement.sentAt", undefined, { date: new Date(invitation.last_invited_at).toLocaleString() })}</p>
+                    <p>{t("employees.invitationManagement.expiresAt", undefined, { date: new Date(invitation.expires_at).toLocaleString() })}</p>
+                    <p>{t("employees.invitationManagement.inviteCount", undefined, { count: invitation.invite_count })}</p>
                     {invitation.error_message && (
                       <p className="text-red-400 break-words">
-                        Error: {invitation.error_message}
+                        {t("employees.invitationManagement.error", undefined, { message: invitation.error_message })}
                       </p>
                     )}
                   </div>
@@ -1213,7 +1305,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                       onClick={() => void handleResendInvite(invitation)}
                       disabled={invitationActionId === invitation.id}
                     >
-                      {invitationActionId === invitation.id ? "Sending..." : "Resend"}
+                      {invitationActionId === invitation.id ? t("employees.actions.sending") : t("employees.actions.resend")}
                     </Button>
                   )}
 
@@ -1225,7 +1317,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                       onClick={() => void handleCancelInvite(invitation.id)}
                       disabled={invitationActionId === invitation.id}
                     >
-                      Cancel
+                      {t("employees.actions.cancel")}
                     </Button>
                   )}
                 </div>
@@ -1235,7 +1327,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
         </div>
       ) : (
         <div className="text-sm text-slate-500">
-          No active invitations right now.
+          {t("employees.empty.noActiveInvitations")}
         </div>
       )}
     </CardContent>
@@ -1246,7 +1338,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <Input
-            placeholder="Search by name, company, member type, city, phone..."
+            placeholder={t("employees.search.placeholder")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10 bg-slate-950 border-slate-800 text-white"
@@ -1265,14 +1357,14 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                 }}
               >
                 <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                  <SelectValue placeholder="Filter by role" />
+                  <SelectValue placeholder={t("employees.filters.filterByRole")} />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                  <SelectItem value="all">All Roles</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="employee">Employee</SelectItem>
-                  <SelectItem value="guest">Guest</SelectItem>
+                  <SelectItem value="all">{t("employees.filters.allRoles")}</SelectItem>
+                  <SelectItem value="admin">{t("employees.roles.admin")}</SelectItem>
+                  <SelectItem value="manager">{t("employees.roles.manager")}</SelectItem>
+                  <SelectItem value="employee">{t("employees.roles.employee")}</SelectItem>
+                  <SelectItem value="guest">{t("employees.roles.guest")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1288,18 +1380,18 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                   <SelectValue
                     placeholder={
                       roleFilter === "all"
-                        ? "Select role first"
+                        ? t("employees.filters.selectRoleFirst")
                         : roleFilter === "admin"
-                        ? "Admin has no member type"
-                        : "Filter by member type"
+                        ? t("employees.filters.adminHasNoMemberType")
+                        : t("employees.filters.filterByMemberType")
                     }
                   />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                  <SelectItem value="all">All Member Types</SelectItem>
+                  <SelectItem value="all">{t("employees.filters.allMemberTypes")}</SelectItem>
                   {availableMemberTypeOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                      {getTranslatedMemberTypeLabel(option.value)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1313,10 +1405,10 @@ const handleResendInvite = async (invitation: InvitationRow) => {
               onValueChange={(value) => setActiveTab(value as TabValue)}
             >
               <TabsList className="bg-slate-900 border border-slate-800">
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="pending">Pending</TabsTrigger>
-                <TabsTrigger value="active">Active</TabsTrigger>
-                <TabsTrigger value="rejected">Rejected</TabsTrigger>
+                <TabsTrigger value="all">{t("employees.tabs.all")}</TabsTrigger>
+                <TabsTrigger value="pending">{t("employees.tabs.pending")}</TabsTrigger>
+                <TabsTrigger value="active">{t("employees.tabs.active")}</TabsTrigger>
+                <TabsTrigger value="rejected">{t("employees.tabs.rejected")}</TabsTrigger>
               </TabsList>
             </Tabs>
           )}
@@ -1370,7 +1462,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-white font-semibold text-sm break-words">
-                            {user.full_name || "Unnamed user"}
+                            {user.full_name || t("employees.empty.unnamedUser")}
                           </h3>
                           {user.role === "admin" ? (
                             <Shield className="w-4 h-4 text-red-400 shrink-0" />
@@ -1388,7 +1480,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                           </Badge>
                           {!user.profile_completed && user.status === "active" && (
                             <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-                              PROFILE INCOMPLETE
+                              {t("employees.badges.profileIncomplete")}
                             </Badge>
                           )}
                         </div>
@@ -1406,8 +1498,8 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                       >
                         <MessageSquare className="w-4 h-4 mr-2" />
                         {directMessageLoadingUserId === user.user_id
-                          ? "Opening..."
-                          : "Send Message"}
+                          ? t("employees.actions.opening")
+                          : t("employees.actions.sendMessage")}
                       </Button>
                     </div>
 
@@ -1432,19 +1524,23 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="text-slate-500 mb-1 text-[10px] uppercase tracking-[0.12em]">
-                                    {field.label}
+                                    {field.key === "member-type"
+                                      ? getEmployeeFieldLabel(field.key)
+                                      : getEmployeeFieldLabel(field.key)}
                                   </p>
                                   <div className="space-y-1">
                                     {field.values.map((value, index) => (
                                       <p
                                         key={`${user.user_id}-${field.key}-${index}`}
                                         className={
-                                          field.label === "Bio"
+                                          field.key === "bio"
                                             ? "text-slate-300 leading-relaxed break-words whitespace-pre-wrap text-xs"
                                             : "text-slate-300 break-words text-xs"
                                         }
                                       >
-                                        {value}
+                                        {field.key === "member-type"
+                                          ? getTranslatedMemberTypeLabel(value)
+                                          : value}
                                       </p>
                                     ))}
                                   </div>
@@ -1455,7 +1551,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                         </div>
                       ) : (
                         <p className="text-sm text-slate-500">
-                          No profile details added yet.
+                          {t("employees.empty.noProfileDetails")}
                         </p>
                       );
                     })()}
@@ -1468,19 +1564,19 @@ const handleResendInvite = async (invitation: InvitationRow) => {
       ) : (
         <Card className="bg-slate-900/50 border-slate-800">
           <CardContent className="p-10 text-center text-slate-500">
-            No users found.
+            {t("employees.empty.noUsersFound")}
           </CardContent>
         </Card>
       )}
                  <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
         <DialogContent className="bg-slate-950 border-slate-800 text-white sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Invite Member</DialogTitle>
+            <DialogTitle>{t("employees.dialog.inviteMember")}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm text-slate-300">Full Name</label>
+              <label className="text-sm text-slate-300">{t("employees.dialog.fullName")}</label>
               <Input
                 value={inviteFullName}
                 onChange={(e) => setInviteFullName(e.target.value)}
@@ -1489,7 +1585,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm text-slate-300">Email</label>
+              <label className="text-sm text-slate-300">{t("employees.dialog.email")}</label>
               <Input
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
@@ -1498,7 +1594,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm text-slate-300">Role</label>
+              <label className="text-sm text-slate-300">{t("employees.dialog.role")}</label>
               <Select
                 value={inviteRole}
                 onValueChange={(value) => {
@@ -1513,17 +1609,17 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="employee">Employee</SelectItem>
-                  <SelectItem value="guest">Guest</SelectItem>
+                  <SelectItem value="admin">{t("employees.roles.admin")}</SelectItem>
+                  <SelectItem value="manager">{t("employees.roles.manager")}</SelectItem>
+                  <SelectItem value="employee">{t("employees.roles.employee")}</SelectItem>
+                  <SelectItem value="guest">{t("employees.roles.guest")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {inviteRole !== "admin" && (
               <div className="space-y-2">
-                <label className="text-sm text-slate-300">Member Type</label>
+                <label className="text-sm text-slate-300">{t("employees.dialog.memberType")}</label>
                 <Select
                   value={inviteMemberType}
                   onValueChange={(value) =>
@@ -1531,12 +1627,12 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                   }
                 >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                    <SelectValue placeholder="Select member type" />
+                    <SelectValue placeholder={t("employees.dialog.selectMemberType")} />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-slate-800 text-white">
                     {MEMBER_TYPE_OPTIONS[inviteRole].map((option) => (
                       <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                        {getTranslatedMemberTypeLabel(option.value)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1558,7 +1654,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                   setInviteMemberType("");
                 }}
               >
-                Cancel
+                {t("employees.actions.cancel")}
               </Button>
 
               <Button
@@ -1566,7 +1662,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
                 onClick={() => void handleSendInvite()}
                 disabled={isSendingInvite}
               >
-                {isSendingInvite ? "Sending..." : "Send Invite"}
+                {isSendingInvite ? t("employees.actions.sending") : t("employees.actions.sendInvite")}
               </Button>
             </div>
           </div>

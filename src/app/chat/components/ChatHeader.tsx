@@ -1,6 +1,7 @@
 import { CheckSquare, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useLanguage } from "@/lib/i18n";
 
 type Props = {
   title: string;
@@ -17,6 +18,8 @@ export default function ChatHeader({
   isSelectionMode,
   onToggleSelectionMode,
 }: Props) {
+  const { t } = useLanguage();
+
   return (
     <div className="flex items-center justify-between p-4 border-b border-slate-800 shrink-0">
       <div className="flex items-center gap-3 min-w-0">
@@ -28,7 +31,9 @@ export default function ChatHeader({
 
         <div className="min-w-0">
           <h3 className="text-white font-medium truncate">{title}</h3>
-          <p className="text-slate-500 text-sm">{participantCount} participants</p>
+          <p className="text-slate-500 text-sm">
+            {t("chat.header.participantsCount", undefined, { total: participantCount })}
+          </p>
         </div>
       </div>
 
@@ -42,12 +47,12 @@ export default function ChatHeader({
           {isSelectionMode ? (
             <>
               <X className="w-4 h-4 mr-2" />
-              Cancel Selection
+              {t("chat.header.cancelSelection")}
             </>
           ) : (
             <>
               <CheckSquare className="w-4 h-4 mr-2" />
-              Select Messages
+              {t("chat.header.selectMessages")}
             </>
           )}
         </Button>

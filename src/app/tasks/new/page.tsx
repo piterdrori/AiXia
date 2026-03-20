@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { logActivity } from "@/lib/activity";
 import { createNotification } from "@/lib/notifications";
 import { createRequestTracker } from "@/lib/safeAsync";
+import { useLanguage } from "@/lib/i18n";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +49,7 @@ type ProfileRow = {
 export default function TaskNewPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { t } = useLanguage();
 
   const pageRequestTracker = useRef(createRequestTracker());
   const membersRequestTracker = useRef(createRequestTracker());
@@ -130,17 +132,17 @@ export default function TaskNewPage() {
 
         if (projectsError) {
           setProjects([]);
-          setError(projectsError.message || "Failed to load projects.");
+          setError(projectsError.message || t("taskNew.errors.loadProjects"));
         }
 
         if (profilesError) {
           setProfiles([]);
-          setError(profilesError.message || "Failed to load team members.");
+          setError(profilesError.message || t("taskNew.errors.loadTeamMembers"));
         }
 
         if (projectMembersError) {
           setAllProjectMembers([]);
-          setError(projectMembersError.message || "Failed to load project members.");
+          setError(projectMembersError.message || t("taskNew.errors.loadProjectMembers"));
         }
 
         const projectsData = (allProjects || []) as ProjectRow[];
@@ -181,7 +183,7 @@ export default function TaskNewPage() {
       } catch (err) {
         if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
         console.error("Load task new page error:", err);
-        setError("Something went wrong while loading the page.");
+        setError(t("taskNew.errors.loadPage"));
       } finally {
         if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
         setIsBootstrapping(false);
@@ -193,7 +195,7 @@ export default function TaskNewPage() {
     return () => {
       mounted = false;
     };
-  }, [navigate, initialProjectId]);
+  }, [navigate, initialProjectId, t]);
 
   useEffect(() => {
     let mounted = true;
@@ -288,22 +290,22 @@ export default function TaskNewPage() {
     setError("");
 
     if (!currentUserId) {
-      setError("User session not found.");
+      setError(t("taskNew.errors.userSessionNotFound"));
       return;
     }
 
     if (!title.trim()) {
-      setError("Task title is required.");
+      setError(t("taskNew.errors.taskTitleRequired"));
       return;
     }
 
     if (!projectId) {
-      setError("Please select a project.");
+      setError(t("taskNew.errors.projectRequired"));
       return;
     }
 
     if (dueDate && Number.isNaN(new Date(dueDate).getTime())) {
-      setError("Due date is invalid.");
+      setError(t("taskNew.errors.invalidDueDate"));
       return;
     }
 
@@ -316,7 +318,7 @@ export default function TaskNewPage() {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
 
       if (!selectedProject) {
-        setError("Selected project is not available.");
+        setError(t("taskNew.errors.selectedProjectUnavailable"));
         return;
       }
 
@@ -339,7 +341,7 @@ export default function TaskNewPage() {
 
       if (taskError || !taskData) {
         console.error("Create task error:", taskError);
-        setError(taskError?.message || "Failed to create task.");
+        setError(taskError?.message || t("taskNew.errors.createTask"));
         return;
       }
 
@@ -349,7 +351,9 @@ export default function TaskNewPage() {
         actionType: "task_created",
         entityType: "task",
         entityId: taskData.id,
-        message: `Created task "${title.trim()}"`,
+        message: t("taskNew.activity.createdTask", undefined, {
+          title: title.trim(),
+        }),
       });
 
       if (selectedAssignees.length > 0) {
@@ -367,7 +371,9 @@ export default function TaskNewPage() {
 
         if (taskMembersError) {
           console.error("Create task members error:", taskMembersError);
-          setError(taskMembersError.message || "Task created, but failed to assign some members.");
+          setError(
+            taskMembersError.message || t("taskNew.errors.assignMembersAfterCreate")
+          );
           return;
         }
 
@@ -377,7 +383,10 @@ export default function TaskNewPage() {
           actionType: "task_assignees_added",
           entityType: "member",
           entityId: taskData.id,
-          message: `Assigned ${selectedAssignees.length} member(s) to task "${title.trim()}"`,
+          message: t("taskNew.activity.assignedMembers", undefined, {
+            count: selectedAssignees.length,
+            title: title.trim(),
+          }),
         });
 
         for (const assigneeId of selectedAssignees) {
@@ -387,8 +396,10 @@ export default function TaskNewPage() {
             userId: assigneeId,
             actorUserId: currentUserId,
             type: "TASK_ASSIGNED",
-            title: "New Task Assigned",
-            message: `You were assigned task "${taskData.title}"`,
+            title: t("taskNew.notifications.newTaskAssignedTitle"),
+            message: t("taskNew.notifications.newTaskAssignedMessage", undefined, {
+              title: taskData.title,
+            }),
             link: `/tasks/${taskData.id}`,
             entityType: "task",
             entityId: taskData.id,
@@ -401,7 +412,7 @@ export default function TaskNewPage() {
     } catch (err) {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
       console.error("Create task submit error:", err);
-      setError("Something went wrong while creating the task.");
+      setError(t("taskNew.errors.createTaskUnexpected"));
     } finally {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
       setIsSaving(false);
@@ -420,8 +431,8 @@ export default function TaskNewPage() {
         </Button>
 
         <div>
-          <h1 className="text-2xl font-bold text-white">Create New Task</h1>
-          <p className="text-slate-400">Add a new task to your project</p>
+          <h1 className="text-2xl font-bold text-white">{t("taskNew.header.title")}</h1>
+          <p className="text-slate-400">{t("taskNew.header.subtitle")}</p>
         </div>
       </div>
 
@@ -447,11 +458,11 @@ export default function TaskNewPage() {
 
             <div className="space-y-2">
               <Label htmlFor="title" className="text-slate-300">
-                Task Title <span className="text-red-400">*</span>
+                {t("taskNew.form.taskTitle")} <span className="text-red-400">*</span>
               </Label>
               <Input
                 id="title"
-                placeholder="Enter task title"
+                placeholder={t("taskNew.form.taskTitlePlaceholder")}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
@@ -462,11 +473,11 @@ export default function TaskNewPage() {
 
             <div className="space-y-2">
               <Label htmlFor="description" className="text-slate-300">
-                Description
+                {t("taskNew.form.description")}
               </Label>
               <Textarea
                 id="description"
-                placeholder="Describe the task..."
+                placeholder={t("taskNew.form.descriptionPlaceholder")}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={4}
@@ -478,7 +489,7 @@ export default function TaskNewPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-slate-300">
-                  Project <span className="text-red-400">*</span>
+                  {t("taskNew.form.project")} <span className="text-red-400">*</span>
                 </Label>
                 <Select
                   value={projectId}
@@ -486,7 +497,7 @@ export default function TaskNewPage() {
                   disabled={isBootstrapping || isSaving}
                 >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                    <SelectValue placeholder="Select project" />
+                    <SelectValue placeholder={t("taskNew.form.selectProject")} />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-slate-800">
                     {projects.map((project) => (
@@ -499,46 +510,46 @@ export default function TaskNewPage() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Priority</Label>
+                <Label className="text-slate-300">{t("taskNew.form.priority")}</Label>
                 <Select
                   value={priority}
                   onValueChange={(v) => setPriority(v as TaskPriority)}
                   disabled={isBootstrapping || isSaving}
                 >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                    <SelectValue placeholder="Select priority" />
+                    <SelectValue placeholder={t("taskNew.form.selectPriority")} />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-slate-800">
-                    <SelectItem value="LOW">Low</SelectItem>
-                    <SelectItem value="MEDIUM">Medium</SelectItem>
-                    <SelectItem value="HIGH">High</SelectItem>
-                    <SelectItem value="URGENT">Urgent</SelectItem>
+                    <SelectItem value="LOW">{t("taskNew.priority.low")}</SelectItem>
+                    <SelectItem value="MEDIUM">{t("taskNew.priority.medium")}</SelectItem>
+                    <SelectItem value="HIGH">{t("taskNew.priority.high")}</SelectItem>
+                    <SelectItem value="URGENT">{t("taskNew.priority.urgent")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Status</Label>
+                <Label className="text-slate-300">{t("taskNew.form.status")}</Label>
                 <Select
                   value={status}
                   onValueChange={(v) => setStatus(v as TaskStatus)}
                   disabled={isBootstrapping || isSaving}
                 >
                   <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                    <SelectValue placeholder="Select status" />
+                    <SelectValue placeholder={t("taskNew.form.selectStatus")} />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-slate-800">
-                    <SelectItem value="TODO">To Do</SelectItem>
-                    <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                    <SelectItem value="IN_REVIEW">In Review</SelectItem>
-                    <SelectItem value="DONE">Done</SelectItem>
+                    <SelectItem value="TODO">{t("taskNew.status.todo")}</SelectItem>
+                    <SelectItem value="IN_PROGRESS">{t("taskNew.status.inProgress")}</SelectItem>
+                    <SelectItem value="IN_REVIEW">{t("taskNew.status.inReview")}</SelectItem>
+                    <SelectItem value="DONE">{t("taskNew.status.done")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="dueDate" className="text-slate-300">
-                  Due Date
+                  {t("taskNew.form.dueDate")}
                 </Label>
                 <Input
                   id="dueDate"
@@ -552,17 +563,19 @@ export default function TaskNewPage() {
             </div>
 
             <div className="space-y-3">
-              <Label className="text-slate-300">Assign Members</Label>
+              <Label className="text-slate-300">{t("taskNew.form.assignMembers")}</Label>
 
               {!projectId ? (
                 <div className="text-slate-500 text-sm">
-                  Select a project first to choose assignees.
+                  {t("taskNew.assignees.selectProjectFirst")}
                 </div>
               ) : isMembersLoading ? (
-                <div className="text-slate-500 text-sm">Loading project members...</div>
+                <div className="text-slate-500 text-sm">
+                  {t("taskNew.assignees.loadingProjectMembers")}
+                </div>
               ) : availableAssignees.length === 0 ? (
                 <div className="text-slate-500 text-sm">
-                  No available members found for this project.
+                  {t("taskNew.assignees.noAvailableMembers")}
                 </div>
               ) : (
                 <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3 max-h-64 overflow-y-auto">
@@ -573,7 +586,7 @@ export default function TaskNewPage() {
                     >
                       <div>
                         <div className="text-white text-sm font-medium">
-                          {member.full_name || "Unnamed user"}
+                          {member.full_name || t("taskNew.assignees.unnamedUser")}
                         </div>
                         <div className="text-slate-500 text-xs">
                           {member.role.toUpperCase()}
@@ -593,8 +606,7 @@ export default function TaskNewPage() {
               )}
 
               <p className="text-slate-500 text-xs">
-                Only assigned members, admin, project creator, and task creator should be able to
-                see this task.
+                {t("taskNew.form.visibilityNote")}
               </p>
             </div>
 
@@ -606,7 +618,7 @@ export default function TaskNewPage() {
                 disabled={isSaving}
                 className="border-slate-700 text-slate-300 hover:bg-slate-800"
               >
-                Cancel
+                {t("taskNew.actions.cancel")}
               </Button>
 
               <Button
@@ -617,10 +629,10 @@ export default function TaskNewPage() {
                 {isSaving ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
+                    {t("taskNew.actions.creating")}
                   </>
                 ) : (
-                  "Create Task"
+                  t("taskNew.actions.createTask")
                 )}
               </Button>
             </div>

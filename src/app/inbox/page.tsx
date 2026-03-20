@@ -35,6 +35,7 @@ import {
   FileText,
 } from "lucide-react";
 import { format } from "date-fns";
+import { useLanguage } from "@/lib/i18n";
 
 type NotificationType =
   | "MESSAGE"
@@ -79,6 +80,7 @@ const notificationColors: Record<NotificationType, string> = {
 export default function InboxPage() {
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
+  const { t, language } = useLanguage();
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
@@ -116,7 +118,10 @@ export default function InboxPage() {
 
         if (notificationsError) {
           console.error("Load inbox notifications error:", notificationsError);
-          setError(notificationsError.message || "Failed to load notifications.");
+          setError(
+            notificationsError.message ||
+              t("inbox.errors.loadNotifications")
+          );
           setNotifications([]);
           return;
         }
@@ -125,7 +130,7 @@ export default function InboxPage() {
       } catch (err) {
         if (!requestTracker.current.isLatest(requestId)) return;
         console.error("Fetch notifications error:", err);
-        setError("Failed to load notifications.");
+        setError(t("inbox.errors.loadNotifications"));
         setNotifications([]);
       } finally {
         if (!requestTracker.current.isLatest(requestId)) return;
@@ -134,7 +139,7 @@ export default function InboxPage() {
         }
       }
     },
-    []
+    [t]
   );
 
   useEffect(() => {
@@ -163,7 +168,7 @@ export default function InboxPage() {
       } catch (err) {
         if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         console.error("Inbox init error:", err);
-        setError("Failed to load inbox.");
+        setError(t("inbox.errors.loadInbox"));
       } finally {
         if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         setIsLoading(false);
@@ -175,7 +180,7 @@ export default function InboxPage() {
     return () => {
       mounted = false;
     };
-  }, [fetchNotifications, navigate]);
+  }, [fetchNotifications, navigate, t]);
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -289,11 +294,13 @@ export default function InboxPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Inbox</h1>
+          <h1 className="text-2xl font-bold text-white">
+            {t("inbox.header.title")}
+          </h1>
           <p className="text-slate-400">
             {unreadCount > 0
-              ? `${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}`
-              : "All caught up!"}
+              ? t("inbox.header.unreadCount", undefined, { total: unreadCount })
+              : t("inbox.header.allCaughtUp")}
           </p>
         </div>
 
@@ -305,7 +312,7 @@ export default function InboxPage() {
               onClick={() => void handleMarkAllRead()}
             >
               <CheckCheck className="w-4 h-4 mr-2" />
-              Mark All Read
+              {t("inbox.buttons.markAllRead")}
             </Button>
           )}
         </div>
@@ -320,18 +327,28 @@ export default function InboxPage() {
         >
           <SelectTrigger className="w-48 bg-slate-900 border-slate-800 text-white">
             <Filter className="w-4 h-4 mr-2" />
-            <SelectValue placeholder="Filter" />
+            <SelectValue placeholder={t("inbox.filters.placeholder")} />
           </SelectTrigger>
 
           <SelectContent className="bg-slate-900 border-slate-800">
-            <SelectItem value="ALL">All Notifications</SelectItem>
-            <SelectItem value="UNREAD">Unread</SelectItem>
-            <SelectItem value="MESSAGE">Messages</SelectItem>
-            <SelectItem value="TASK_ASSIGNED">Task Assigned</SelectItem>
-            <SelectItem value="TASK_UPDATED">Task Updated</SelectItem>
-            <SelectItem value="COMMENT">Comments</SelectItem>
-            <SelectItem value="FILE_UPLOAD">File Uploads</SelectItem>
-            <SelectItem value="PROJECT_UPDATE">Project Updates</SelectItem>
+            <SelectItem value="ALL">{t("inbox.filters.all")}</SelectItem>
+            <SelectItem value="UNREAD">{t("inbox.filters.unread")}</SelectItem>
+            <SelectItem value="MESSAGE">{t("inbox.filters.messages")}</SelectItem>
+            <SelectItem value="TASK_ASSIGNED">
+              {t("inbox.filters.taskAssigned")}
+            </SelectItem>
+            <SelectItem value="TASK_UPDATED">
+              {t("inbox.filters.taskUpdated")}
+            </SelectItem>
+            <SelectItem value="COMMENT">
+              {t("inbox.filters.comments")}
+            </SelectItem>
+            <SelectItem value="FILE_UPLOAD">
+              {t("inbox.filters.fileUploads")}
+            </SelectItem>
+            <SelectItem value="PROJECT_UPDATE">
+              {t("inbox.filters.projectUpdates")}
+            </SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -344,15 +361,17 @@ export default function InboxPage() {
                 <div className="text-center py-12">
                   <Bell className="w-12 h-12 text-slate-600 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-white mb-2">
-                    Loading notifications
+                    {t("inbox.states.loading.title")}
                   </h3>
-                  <p className="text-slate-500">Please wait...</p>
+                  <p className="text-slate-500">
+                    {t("inbox.states.loading.description")}
+                  </p>
                 </div>
               ) : error ? (
                 <div className="text-center py-12">
                   <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-white mb-2">
-                    Something went wrong
+                    {t("inbox.states.error.title")}
                   </h3>
                   <p className="text-slate-500">{error}</p>
                 </div>
@@ -360,12 +379,12 @@ export default function InboxPage() {
                 <div className="text-center py-12">
                   <Bell className="w-12 h-12 text-slate-600 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-white mb-2">
-                    No notifications
+                    {t("inbox.states.empty.title")}
                   </h3>
                   <p className="text-slate-500">
                     {filter === "ALL"
-                      ? "You're all caught up!"
-                      : "No notifications match your filter"}
+                      ? t("inbox.states.empty.all")
+                      : t("inbox.states.empty.filtered")}
                   </p>
                 </div>
               ) : (

@@ -6,10 +6,15 @@ import type {
   ConversationBuckets,
   ProfileRow,
 } from "./types";
-import type { Language } from "@/lib/i18n";
 
 export const PAGE_SIZE = 20;
 export const NEAR_BOTTOM_PX = 120;
+
+type TranslateFn = (
+  key: string,
+  fallback?: string,
+  params?: Record<string, string | number>
+) => string;
 
 export function buildDirectKey(a: string, b: string) {
   return [a, b].sort().join("__");
@@ -35,38 +40,13 @@ export function dedupeMessages(items: ChatMessageRow[]) {
   return sortMessagesAscending(Array.from(map.values()));
 }
 
-export function formatMessageTime(
-  value: string,
-  t: (key: string, fallback?: string, params?: Record<string, string | number>) => string,
-  language: Language
-) {
+export function formatMessageTime(value: string, t?: TranslateFn) {
   const date = new Date(value);
-  const locale =
-    language === "ru" ? "ru-RU" : language === "zh" ? "zh-CN" : "en-US";
 
-  if (isToday(date)) {
-    return new Intl.DateTimeFormat(locale, {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(date);
-  }
-
-  if (isYesterday(date)) {
-    return `${t("chat.time.yesterday")} ${new Intl.DateTimeFormat(locale, {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(date)}`;
-  }
-
-  return new Intl.DateTimeFormat(locale, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(date);
+  if (isToday(date)) return format(date, "HH:mm");
+  if (isYesterday(date))
+    return `${t ? t("chat.time.yesterday") : "Yesterday"} ${format(date, "HH:mm")}`;
+  return format(date, "MMM d, HH:mm");
 }
 
 export function getProfileByUserId(
@@ -89,7 +69,7 @@ export function getConversationName(
   currentUserId: string | null,
   profiles: ProfileRow[],
   groupMembers: ChatGroupMemberRow[],
-  t: (key: string, fallback?: string, params?: Record<string, string | number>) => string
+  t?: TranslateFn
 ) {
   if (group.name) return group.name;
 
@@ -98,12 +78,12 @@ export function getConversationName(
   if (group.type === "DIRECT") {
     const otherMember = members.find((member) => member.user_id !== currentUserId);
     const otherProfile = getProfileByUserId(profiles, otherMember?.user_id);
-    return otherProfile?.full_name || t("chat.fallbacks.directChat");
+    return otherProfile?.full_name || (t ? t("chat.fallbacks.directChat") : "Direct Chat");
   }
 
-  if (group.type === "PROJECT") return t("chat.fallbacks.projectChat");
-  if (group.type === "TASK") return t("chat.fallbacks.taskChat");
-  return t("chat.fallbacks.groupChat");
+  if (group.type === "PROJECT") return t ? t("chat.fallbacks.projectChat") : "Project Chat";
+  if (group.type === "TASK") return t ? t("chat.fallbacks.taskChat") : "Task Chat";
+  return t ? t("chat.fallbacks.groupChat") : "Group Chat";
 }
 
 export function getConversationInitials(
@@ -111,7 +91,7 @@ export function getConversationInitials(
   currentUserId: string | null,
   profiles: ProfileRow[],
   groupMembers: ChatGroupMemberRow[],
-  t: (key: string, fallback?: string, params?: Record<string, string | number>) => string
+  t?: TranslateFn
 ) {
   const name = getConversationName(group, currentUserId, profiles, groupMembers, t);
 
@@ -138,7 +118,7 @@ export function bucketConversations(
   currentUserId: string | null,
   profiles: ProfileRow[],
   groupMembers: ChatGroupMemberRow[],
-  t: (key: string, fallback?: string, params?: Record<string, string | number>) => string
+  t?: TranslateFn
 ): ConversationBuckets {
   const q = searchQuery.trim().toLowerCase();
 

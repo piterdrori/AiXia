@@ -608,6 +608,231 @@ export const translations = {
         fileUploadedMessage:
           'A new file "{{fileName}}" was uploaded to task "{{title}}"',
       },
+
+calendar: {
+  header: {
+    title: "Calendar",
+    subtitle: "View calendar events, tasks, and deadlines together",
+    todayCount: "{{total}} today",
+  },
+  buttons: {
+    refresh: "Refresh",
+    refreshing: "Refreshing...",
+    newEvent: "New Event",
+    today: "Today",
+  },
+  badges: {
+    today: "Today",
+  },
+  labels: {
+    taskPrefix: "Task: {{title}}",
+    moreItems: "+{{total}} more",
+  },
+  weekdays: {
+    sun: "Sun",
+    mon: "Mon",
+    tue: "Tue",
+    wed: "Wed",
+    thu: "Thu",
+    fri: "Fri",
+    sat: "Sat",
+  },
+  errors: {
+    failedToLoadCalendar: "Failed to load calendar.",
+    someCalendarDataCouldNotBeLoaded: "Some calendar data could not be loaded.",
+  },
+},
+
+calendarNew: {
+  header: {
+    title: "Create Event",
+    subtitle: "Add a new calendar event",
+  },
+  buttons: {
+    refresh: "Refresh",
+    refreshing: "Refreshing...",
+    cancel: "Cancel",
+    creating: "Creating...",
+    createEvent: "Create Event",
+  },
+  fields: {
+    title: "Title",
+    description: "Description",
+    eventType: "Event Type",
+    reminder: "Reminder",
+    allDayEvent: "All-day event",
+    startDate: "Start Date",
+    startTime: "Start Time",
+    duration: "Duration",
+    endDate: "End Date",
+    endTime: "End Time",
+    relatedProject: "Related Project",
+    relatedTask: "Related Task",
+  },
+  placeholders: {
+    enterEventTitle: "Enter event title",
+    optionalDescription: "Optional description...",
+    selectProject: "Select project",
+    selectTask: "Select task",
+  },
+  eventTypes: {
+    meeting: "Meeting",
+    task: "Task",
+    reminder: "Reminder",
+    deadline: "Deadline",
+    call: "Call",
+    personal: "Personal",
+    other: "Other",
+  },
+  reminders: {
+    none: "No reminder",
+    fiveMinutesBefore: "5 minutes before",
+    tenMinutesBefore: "10 minutes before",
+    fifteenMinutesBefore: "15 minutes before",
+    thirtyMinutesBefore: "30 minutes before",
+    oneHourBefore: "1 hour before",
+  },
+  durations: {
+    thirtyMinutes: "30 minutes",
+    oneHour: "1 hour",
+    oneAndHalfHours: "1.5 hours",
+    twoHours: "2 hours",
+  },
+  time: {
+    hour: "Hour",
+    minute: "Minute",
+  },
+  common: {
+    none: "None",
+  },
+  errors: {
+    failedToLoadProjects: "Failed to load projects.",
+    failedToLoadForm: "Failed to load form.",
+    userSessionNotFound: "User session not found.",
+    titleRequired: "Title is required.",
+    startDateRequired: "Start date is required.",
+    startTimeRequired: "Start time is required.",
+    endTimeRequired: "End time is required.",
+    endBeforeStart: "End time cannot be earlier than start time.",
+    failedToCreateEvent: "Failed to create event.",
+  },
+},
+
+calendarEdit: {
+  header: {
+    title: "Edit Event",
+    subtitle: "Update your calendar event",
+  },
+  buttons: {
+    refresh: "Refresh",
+    refreshing: "Refreshing...",
+    delete: "Delete",
+    deleting: "Deleting...",
+    cancel: "Cancel",
+    saving: "Saving...",
+    loading: "Loading...",
+    saveChanges: "Save Changes",
+  },
+  fields: {
+    title: "Title",
+    description: "Description",
+    eventType: "Event Type",
+    reminder: "Reminder",
+    allDayEvent: "All-day event",
+    startDate: "Start Date",
+    startTime: "Start Time",
+    duration: "Duration",
+    endDate: "End Date",
+    endTime: "End Time",
+    relatedProject: "Related Project",
+    relatedTask: "Related Task",
+  },
+  eventTypes: {
+    meeting: "Meeting",
+    task: "Task",
+    reminder: "Reminder",
+    deadline: "Deadline",
+    call: "Call",
+    personal: "Personal",
+    other: "Other",
+  },
+  reminders: {
+    none: "No reminder",
+    fiveMinutes: "5 minutes before",
+    tenMinutes: "10 minutes before",
+    fifteenMinutes: "15 minutes before",
+    thirtyMinutes: "30 minutes before",
+    oneHour: "1 hour before",
+  },
+  durations: {
+    thirtyMinutes: "30 minutes",
+    oneHour: "1 hour",
+    oneAndHalfHours: "1.5 hours",
+    twoHours: "2 hours",
+  },
+  common: {
+    none: "None",
+  },
+  status: {
+    loadingEventDetails: "Loading event details...",
+  },
+  confirmations: {
+    deleteEvent: "Are you sure you want to delete this event?",
+  },
+  errors: {
+    loadEvent: "Failed to load event.",
+    userSessionNotFound: "User session not found.",
+    titleRequired: "Title is required.",
+    startDateRequired: "Start date is required.",
+    startTimeRequired: "Start time is required.",
+    endTimeRequired: "End time is required.",
+    endBeforeStart: "End time cannot be earlier than start time.",
+    updateEvent: "Failed to update event.",
+    deleteEvent: "Failed to delete event.",
+  },
+},
+
+calendarDay: {
+  header: {
+    subtitle: "Events and tasks for this day",
+    itemsCount: "{{total}} items",
+  },
+  buttons: {
+    refresh: "Refresh",
+    refreshing: "Refreshing...",
+    newEvent: "New Event",
+    openTask: "Open Task",
+  },
+  sections: {
+    events: "Events",
+    tasksDue: "Tasks Due",
+  },
+  badges: {
+    allDay: "All Day",
+  },
+  labels: {
+    linkedProject: "Linked project: {{id}}",
+    linkedTask: "Linked task: {{id}}",
+    project: "Project: {{id}}",
+  },
+  common: {
+    other: "Other",
+  },
+  empty: {
+    noEvents: "No events for this day.",
+    noTasksDue: "No tasks due for this day.",
+  },
+  invalidDate: {
+    title: "Invalid date",
+    description: "The selected date is invalid.",
+    back: "Back to Calendar",
+  },
+  errors: {
+    failedToLoadDay: "Failed to load day.",
+    someDayDataCouldNotBeLoaded: "Some day data could not be loaded.",
+  },
+},
+      
     },
     
   },
@@ -1196,6 +1421,231 @@ export const translations = {
         fileUploadedMessage:
           '新文件“{{fileName}}”已上传到任务“{{title}}”',
       },
+
+calendar: {
+  header: {
+    title: "日历",
+    subtitle: "一起查看日历事件、任务和截止日期",
+    todayCount: "今天 {{total}} 项",
+  },
+  buttons: {
+    refresh: "刷新",
+    refreshing: "刷新中...",
+    newEvent: "新建事件",
+    today: "今天",
+  },
+  badges: {
+    today: "今天",
+  },
+  labels: {
+    taskPrefix: "任务：{{title}}",
+    moreItems: "还有 {{total}} 项",
+  },
+  weekdays: {
+    sun: "日",
+    mon: "一",
+    tue: "二",
+    wed: "三",
+    thu: "四",
+    fri: "五",
+    sat: "六",
+  },
+  errors: {
+    failedToLoadCalendar: "加载日历失败。",
+    someCalendarDataCouldNotBeLoaded: "部分日历数据无法加载。",
+  },
+},
+
+calendarNew: {
+  header: {
+    title: "创建事件",
+    subtitle: "添加一个新的日历事件",
+  },
+  buttons: {
+    refresh: "刷新",
+    refreshing: "刷新中...",
+    cancel: "取消",
+    creating: "创建中...",
+    createEvent: "创建事件",
+  },
+  fields: {
+    title: "标题",
+    description: "描述",
+    eventType: "事件类型",
+    reminder: "提醒",
+    allDayEvent: "全天事件",
+    startDate: "开始日期",
+    startTime: "开始时间",
+    duration: "时长",
+    endDate: "结束日期",
+    endTime: "结束时间",
+    relatedProject: "关联项目",
+    relatedTask: "关联任务",
+  },
+  placeholders: {
+    enterEventTitle: "输入事件标题",
+    optionalDescription: "可选描述...",
+    selectProject: "选择项目",
+    selectTask: "选择任务",
+  },
+  eventTypes: {
+    meeting: "会议",
+    task: "任务",
+    reminder: "提醒",
+    deadline: "截止日期",
+    call: "电话",
+    personal: "个人",
+    other: "其他",
+  },
+  reminders: {
+    none: "无提醒",
+    fiveMinutesBefore: "5 分钟前",
+    tenMinutesBefore: "10 分钟前",
+    fifteenMinutesBefore: "15 分钟前",
+    thirtyMinutesBefore: "30 分钟前",
+    oneHourBefore: "1 小时前",
+  },
+  durations: {
+    thirtyMinutes: "30 分钟",
+    oneHour: "1 小时",
+    oneAndHalfHours: "1.5 小时",
+    twoHours: "2 小时",
+  },
+  time: {
+    hour: "小时",
+    minute: "分钟",
+  },
+  common: {
+    none: "无",
+  },
+  errors: {
+    failedToLoadProjects: "加载项目失败。",
+    failedToLoadForm: "加载表单失败。",
+    userSessionNotFound: "未找到用户会话。",
+    titleRequired: "标题为必填项。",
+    startDateRequired: "开始日期为必填项。",
+    startTimeRequired: "开始时间为必填项。",
+    endTimeRequired: "结束时间为必填项。",
+    endBeforeStart: "结束时间不能早于开始时间。",
+    failedToCreateEvent: "创建事件失败。",
+  },
+},
+
+calendarEdit: {
+  header: {
+    title: "编辑事件",
+    subtitle: "更新您的日历事件",
+  },
+  buttons: {
+    refresh: "刷新",
+    refreshing: "刷新中...",
+    delete: "删除",
+    deleting: "删除中...",
+    cancel: "取消",
+    saving: "保存中...",
+    loading: "加载中...",
+    saveChanges: "保存更改",
+  },
+  fields: {
+    title: "标题",
+    description: "描述",
+    eventType: "事件类型",
+    reminder: "提醒",
+    allDayEvent: "全天事件",
+    startDate: "开始日期",
+    startTime: "开始时间",
+    duration: "时长",
+    endDate: "结束日期",
+    endTime: "结束时间",
+    relatedProject: "关联项目",
+    relatedTask: "关联任务",
+  },
+  eventTypes: {
+    meeting: "会议",
+    task: "任务",
+    reminder: "提醒",
+    deadline: "截止日期",
+    call: "电话",
+    personal: "个人",
+    other: "其他",
+  },
+  reminders: {
+    none: "无提醒",
+    fiveMinutes: "5 分钟前",
+    tenMinutes: "10 分钟前",
+    fifteenMinutes: "15 分钟前",
+    thirtyMinutes: "30 分钟前",
+    oneHour: "1 小时前",
+  },
+  durations: {
+    thirtyMinutes: "30 分钟",
+    oneHour: "1 小时",
+    oneAndHalfHours: "1.5 小时",
+    twoHours: "2 小时",
+  },
+  common: {
+    none: "无",
+  },
+  status: {
+    loadingEventDetails: "正在加载事件详情...",
+  },
+  confirmations: {
+    deleteEvent: "您确定要删除此事件吗？",
+  },
+  errors: {
+    loadEvent: "加载事件失败。",
+    userSessionNotFound: "未找到用户会话。",
+    titleRequired: "标题为必填项。",
+    startDateRequired: "开始日期为必填项。",
+    startTimeRequired: "开始时间为必填项。",
+    endTimeRequired: "结束时间为必填项。",
+    endBeforeStart: "结束时间不能早于开始时间。",
+    updateEvent: "更新事件失败。",
+    deleteEvent: "删除事件失败。",
+  },
+},
+
+calendarDay: {
+  header: {
+    subtitle: "当天的事件和任务",
+    itemsCount: "{{total}} 项",
+  },
+  buttons: {
+    refresh: "刷新",
+    refreshing: "刷新中...",
+    newEvent: "新建事件",
+    openTask: "打开任务",
+  },
+  sections: {
+    events: "事件",
+    tasksDue: "到期任务",
+  },
+  badges: {
+    allDay: "全天",
+  },
+  labels: {
+    linkedProject: "关联项目：{{id}}",
+    linkedTask: "关联任务：{{id}}",
+    project: "项目：{{id}}",
+  },
+  common: {
+    other: "其他",
+  },
+  empty: {
+    noEvents: "当天没有事件。",
+    noTasksDue: "当天没有到期任务。",
+  },
+  invalidDate: {
+    title: "日期无效",
+    description: "所选日期无效。",
+    back: "返回日历",
+  },
+  errors: {
+    failedToLoadDay: "加载当天数据失败。",
+    someDayDataCouldNotBeLoaded: "部分当天数据无法加载。",
+  },
+},
+      
     },
     
   },
@@ -1799,6 +2249,231 @@ export const translations = {
         fileUploadedMessage:
           'Новый файл "{{fileName}}" был загружен в задачу "{{title}}"',
       },
+
+calendar: {
+  header: {
+    title: "Календарь",
+    subtitle: "Просматривайте события, задачи и сроки в одном месте",
+    todayCount: "{{total}} на сегодня",
+  },
+  buttons: {
+    refresh: "Обновить",
+    refreshing: "Обновление...",
+    newEvent: "Новое событие",
+    today: "Сегодня",
+  },
+  badges: {
+    today: "Сегодня",
+  },
+  labels: {
+    taskPrefix: "Задача: {{title}}",
+    moreItems: "ещё {{total}}",
+  },
+  weekdays: {
+    sun: "Вс",
+    mon: "Пн",
+    tue: "Вт",
+    wed: "Ср",
+    thu: "Чт",
+    fri: "Пт",
+    sat: "Сб",
+  },
+  errors: {
+    failedToLoadCalendar: "Не удалось загрузить календарь.",
+    someCalendarDataCouldNotBeLoaded: "Некоторые данные календаря не удалось загрузить.",
+  },
+},
+
+calendarNew: {
+  header: {
+    title: "Создать событие",
+    subtitle: "Добавьте новое событие в календарь",
+  },
+  buttons: {
+    refresh: "Обновить",
+    refreshing: "Обновление...",
+    cancel: "Отмена",
+    creating: "Создание...",
+    createEvent: "Создать событие",
+  },
+  fields: {
+    title: "Название",
+    description: "Описание",
+    eventType: "Тип события",
+    reminder: "Напоминание",
+    allDayEvent: "Событие на весь день",
+    startDate: "Дата начала",
+    startTime: "Время начала",
+    duration: "Длительность",
+    endDate: "Дата окончания",
+    endTime: "Время окончания",
+    relatedProject: "Связанный проект",
+    relatedTask: "Связанная задача",
+  },
+  placeholders: {
+    enterEventTitle: "Введите название события",
+    optionalDescription: "Необязательное описание...",
+    selectProject: "Выберите проект",
+    selectTask: "Выберите задачу",
+  },
+  eventTypes: {
+    meeting: "Встреча",
+    task: "Задача",
+    reminder: "Напоминание",
+    deadline: "Срок",
+    call: "Звонок",
+    personal: "Личное",
+    other: "Другое",
+  },
+  reminders: {
+    none: "Без напоминания",
+    fiveMinutesBefore: "За 5 минут",
+    tenMinutesBefore: "За 10 минут",
+    fifteenMinutesBefore: "За 15 минут",
+    thirtyMinutesBefore: "За 30 минут",
+    oneHourBefore: "За 1 час",
+  },
+  durations: {
+    thirtyMinutes: "30 минут",
+    oneHour: "1 час",
+    oneAndHalfHours: "1,5 часа",
+    twoHours: "2 часа",
+  },
+  time: {
+    hour: "Час",
+    minute: "Минута",
+  },
+  common: {
+    none: "Нет",
+  },
+  errors: {
+    failedToLoadProjects: "Не удалось загрузить проекты.",
+    failedToLoadForm: "Не удалось загрузить форму.",
+    userSessionNotFound: "Сессия пользователя не найдена.",
+    titleRequired: "Название обязательно.",
+    startDateRequired: "Дата начала обязательна.",
+    startTimeRequired: "Время начала обязательно.",
+    endTimeRequired: "Время окончания обязательно.",
+    endBeforeStart: "Время окончания не может быть раньше времени начала.",
+    failedToCreateEvent: "Не удалось создать событие.",
+  },
+},
+
+calendarEdit: {
+  header: {
+    title: "Редактировать событие",
+    subtitle: "Обновите событие календаря",
+  },
+  buttons: {
+    refresh: "Обновить",
+    refreshing: "Обновление...",
+    delete: "Удалить",
+    deleting: "Удаление...",
+    cancel: "Отмена",
+    saving: "Сохранение...",
+    loading: "Загрузка...",
+    saveChanges: "Сохранить изменения",
+  },
+  fields: {
+    title: "Название",
+    description: "Описание",
+    eventType: "Тип события",
+    reminder: "Напоминание",
+    allDayEvent: "Событие на весь день",
+    startDate: "Дата начала",
+    startTime: "Время начала",
+    duration: "Длительность",
+    endDate: "Дата окончания",
+    endTime: "Время окончания",
+    relatedProject: "Связанный проект",
+    relatedTask: "Связанная задача",
+  },
+  eventTypes: {
+    meeting: "Встреча",
+    task: "Задача",
+    reminder: "Напоминание",
+    deadline: "Срок",
+    call: "Звонок",
+    personal: "Личное",
+    other: "Другое",
+  },
+  reminders: {
+    none: "Без напоминания",
+    fiveMinutes: "За 5 минут",
+    tenMinutes: "За 10 минут",
+    fifteenMinutes: "За 15 минут",
+    thirtyMinutes: "За 30 минут",
+    oneHour: "За 1 час",
+  },
+  durations: {
+    thirtyMinutes: "30 минут",
+    oneHour: "1 час",
+    oneAndHalfHours: "1,5 часа",
+    twoHours: "2 часа",
+  },
+  common: {
+    none: "Нет",
+  },
+  status: {
+    loadingEventDetails: "Загрузка данных события...",
+  },
+  confirmations: {
+    deleteEvent: "Вы уверены, что хотите удалить это событие?",
+  },
+  errors: {
+    loadEvent: "Не удалось загрузить событие.",
+    userSessionNotFound: "Сессия пользователя не найдена.",
+    titleRequired: "Название обязательно.",
+    startDateRequired: "Дата начала обязательна.",
+    startTimeRequired: "Время начала обязательно.",
+    endTimeRequired: "Время окончания обязательно.",
+    endBeforeStart: "Время окончания не может быть раньше времени начала.",
+    updateEvent: "Не удалось обновить событие.",
+    deleteEvent: "Не удалось удалить событие.",
+  },
+},
+
+calendarDay: {
+  header: {
+    subtitle: "События и задачи на этот день",
+    itemsCount: "{{total}} элементов",
+  },
+  buttons: {
+    refresh: "Обновить",
+    refreshing: "Обновление...",
+    newEvent: "Новое событие",
+    openTask: "Открыть задачу",
+  },
+  sections: {
+    events: "События",
+    tasksDue: "Задачи на срок",
+  },
+  badges: {
+    allDay: "Весь день",
+  },
+  labels: {
+    linkedProject: "Связанный проект: {{id}}",
+    linkedTask: "Связанная задача: {{id}}",
+    project: "Проект: {{id}}",
+  },
+  common: {
+    other: "Другое",
+  },
+  empty: {
+    noEvents: "На этот день нет событий.",
+    noTasksDue: "На этот день нет задач со сроком.",
+  },
+  invalidDate: {
+    title: "Неверная дата",
+    description: "Выбранная дата недействительна.",
+    back: "Назад в календарь",
+  },
+  errors: {
+    failedToLoadDay: "Не удалось загрузить данные дня.",
+    someDayDataCouldNotBeLoaded: "Некоторые данные дня не удалось загрузить.",
+  },
+},
+      
     },
     
   },

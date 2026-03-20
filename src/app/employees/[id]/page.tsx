@@ -206,7 +206,7 @@ function joinMultiValue(values: string[]) {
 }
 
 export default function EmployeeDetailPage() {
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());

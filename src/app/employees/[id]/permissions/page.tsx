@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
+import { useLanguage } from "@/lib/i18n";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -87,6 +88,7 @@ const permissionLabels: Record<
 };
 
 export default function EmployeePermissionsPage() {
+  const { t } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
@@ -161,7 +163,7 @@ export default function EmployeePermissionsPage() {
 
         if (targetUserError || !targetUser) {
           setUser(null);
-          setSaveError("Unable to load permissions page.");
+          setSaveError(t("employeePermissions.errors.loadPage"));
           return;
         }
 
@@ -171,7 +173,7 @@ export default function EmployeePermissionsPage() {
       } catch (err) {
         if (!requestTracker.current.isLatest(requestId)) return;
         console.error("Permissions page load error:", err);
-        setSaveError("Failed to load permissions page.");
+        setSaveError(t("employeePermissions.errors.loadPageFailed"));
       } finally {
         if (!requestTracker.current.isLatest(requestId)) return;
 
@@ -182,7 +184,7 @@ export default function EmployeePermissionsPage() {
         }
       }
     },
-    [id, navigate]
+    [id, navigate, t]
   );
 
   useEffect(() => {
@@ -217,7 +219,7 @@ export default function EmployeePermissionsPage() {
         .eq("user_id", id);
 
       if (error) {
-        setSaveError(error.message || "Failed to save permissions.");
+        setSaveError(error.message || t("employeePermissions.errors.saveFailed"));
         return;
       }
 
@@ -235,7 +237,7 @@ export default function EmployeePermissionsPage() {
       window.setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       console.error("Permissions save error:", err);
-      setSaveError("Unexpected error while saving permissions.");
+      setSaveError(t("employeePermissions.errors.unexpectedSaveError"));
     } finally {
       setIsSaving(false);
     }
@@ -247,7 +249,7 @@ export default function EmployeePermissionsPage() {
     if (user.role === "admin") {
       return (
         <Badge className="bg-green-500/20 text-green-400">
-          All Permissions
+          {t("employeePermissions.roleBadges.allPermissions")}
         </Badge>
       );
     }
@@ -256,19 +258,19 @@ export default function EmployeePermissionsPage() {
       return (
         <>
           <Badge className="bg-blue-500/20 text-blue-400">
-            Create Projects
+            {t("employeePermissions.roleBadges.createProjects")}
           </Badge>
           <Badge className="bg-blue-500/20 text-blue-400">
-            Edit Projects
+            {t("employeePermissions.roleBadges.editProjects")}
           </Badge>
           <Badge className="bg-blue-500/20 text-blue-400">
-            Create Tasks
+            {t("employeePermissions.roleBadges.createTasks")}
           </Badge>
           <Badge className="bg-blue-500/20 text-blue-400">
-            Edit Tasks
+            {t("employeePermissions.roleBadges.editTasks")}
           </Badge>
           <Badge className="bg-blue-500/20 text-blue-400">
-            View Reports
+            {t("employeePermissions.roleBadges.viewReports")}
           </Badge>
         </>
       );
@@ -278,13 +280,13 @@ export default function EmployeePermissionsPage() {
       return (
         <>
           <Badge className="bg-slate-500/20 text-slate-400">
-            Create Tasks
+            {t("employeePermissions.roleBadges.createTasks")}
           </Badge>
           <Badge className="bg-slate-500/20 text-slate-400">
-            Edit Own Tasks
+            {t("employeePermissions.roleBadges.editOwnTasks")}
           </Badge>
           <Badge className="bg-slate-500/20 text-slate-400">
-            Access Chat
+            {t("employeePermissions.roleBadges.accessChat")}
           </Badge>
         </>
       );
@@ -293,17 +295,17 @@ export default function EmployeePermissionsPage() {
     return (
       <>
         <Badge className="bg-slate-500/20 text-slate-400">
-          View Projects
+          {t("employeePermissions.roleBadges.viewProjects")}
         </Badge>
         <Badge className="bg-slate-500/20 text-slate-400">
-          Create Tasks
+          {t("employeePermissions.roleBadges.createTasks")}
         </Badge>
         <Badge className="bg-slate-500/20 text-slate-400">
-          View Reports
+          {t("employeePermissions.roleBadges.viewReports")}
         </Badge>
       </>
     );
-  }, [user]);
+  }, [t, user]);
 
   if (!user && !isBootstrapping) {
     return (
@@ -312,7 +314,7 @@ export default function EmployeePermissionsPage() {
           <CardContent className="p-6 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
             <div className="text-red-300">
-              {saveError || "Unable to load permissions page."}
+              {saveError || t("employeePermissions.errors.loadPage")}
             </div>
           </CardContent>
         </Card>
@@ -338,9 +340,11 @@ export default function EmployeePermissionsPage() {
         </Button>
 
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">Edit Permissions</h1>
+          <h1 className="text-2xl font-bold text-white">{t("employeePermissions.header.title")}</h1>
           <p className="text-slate-400">
-            Manage permissions for {user?.full_name || "Unnamed user"}
+            {t("employeePermissions.header.subtitle", undefined, {
+              name: user?.full_name || t("employeePermissions.empty.unnamedUser"),
+            })}
           </p>
         </div>
 
@@ -350,13 +354,13 @@ export default function EmployeePermissionsPage() {
           onClick={() => void loadData("refresh")}
           disabled={isRefreshing || isSaving}
         >
-          {isRefreshing ? "Refreshing..." : "Refresh"}
+          {isRefreshing ? t("employeePermissions.actions.refreshing") : t("employeePermissions.actions.refresh")}
         </Button>
       </div>
 
       {saved && (
         <Alert className="bg-green-900/20 border-green-800 text-green-400">
-          <AlertDescription>Permissions saved successfully.</AlertDescription>
+          <AlertDescription>{t("employeePermissions.success.saved")}</AlertDescription>
         </Alert>
       )}
 
@@ -370,11 +374,10 @@ export default function EmployeePermissionsPage() {
         <CardHeader>
           <div className="flex items-center gap-3">
             <Shield className="w-5 h-5 text-indigo-400" />
-            <CardTitle className="text-white">Permission Overrides</CardTitle>
+            <CardTitle className="text-white">{t("employeePermissions.sections.permissionOverrides")}</CardTitle>
           </div>
           <p className="text-slate-400 text-sm">
-            Toggle permissions to override the default role-based permissions
-            for this user.
+            {t("employeePermissions.sections.permissionOverridesDescription")}
           </p>
         </CardHeader>
 
@@ -407,9 +410,55 @@ export default function EmployeePermissionsPage() {
                         htmlFor={key}
                         className="text-white font-medium cursor-pointer"
                       >
-                        {label}
+                        {key === "createProjects"
+                          ? t("employeePermissions.permissions.createProjects.label")
+                          : key === "editAllProjects"
+                            ? t("employeePermissions.permissions.editAllProjects.label")
+                            : key === "deleteProjects"
+                              ? t("employeePermissions.permissions.deleteProjects.label")
+                              : key === "createTasks"
+                                ? t("employeePermissions.permissions.createTasks.label")
+                                : key === "editTasks"
+                                  ? t("employeePermissions.permissions.editTasks.label")
+                                  : key === "deleteTasks"
+                                    ? t("employeePermissions.permissions.deleteTasks.label")
+                                    : key === "manageUsers"
+                                      ? t("employeePermissions.permissions.manageUsers.label")
+                                      : key === "viewReports"
+                                        ? t("employeePermissions.permissions.viewReports.label")
+                                        : key === "accessChat"
+                                          ? t("employeePermissions.permissions.accessChat.label")
+                                          : key === "changeSettings"
+                                            ? t("employeePermissions.permissions.changeSettings.label")
+                                            : key === "visibility"
+                                              ? t("employeePermissions.permissions.visibility.label")
+                                              : label}
                       </Label>
-                      <p className="text-slate-500 text-sm">{description}</p>
+                      <p className="text-slate-500 text-sm">
+                        {key === "createProjects"
+                          ? t("employeePermissions.permissions.createProjects.description")
+                          : key === "editAllProjects"
+                            ? t("employeePermissions.permissions.editAllProjects.description")
+                            : key === "deleteProjects"
+                              ? t("employeePermissions.permissions.deleteProjects.description")
+                              : key === "createTasks"
+                                ? t("employeePermissions.permissions.createTasks.description")
+                                : key === "editTasks"
+                                  ? t("employeePermissions.permissions.editTasks.description")
+                                  : key === "deleteTasks"
+                                    ? t("employeePermissions.permissions.deleteTasks.description")
+                                    : key === "manageUsers"
+                                      ? t("employeePermissions.permissions.manageUsers.description")
+                                      : key === "viewReports"
+                                        ? t("employeePermissions.permissions.viewReports.description")
+                                        : key === "accessChat"
+                                          ? t("employeePermissions.permissions.accessChat.description")
+                                          : key === "changeSettings"
+                                            ? t("employeePermissions.permissions.changeSettings.description")
+                                            : key === "visibility"
+                                              ? t("employeePermissions.permissions.visibility.description")
+                                              : description}
+                      </p>
                     </div>
 
                     <Switch
@@ -431,7 +480,7 @@ export default function EmployeePermissionsPage() {
                   className="border-slate-700 text-slate-300 hover:bg-slate-800"
                   disabled={isSaving}
                 >
-                  Cancel
+                  {t("employeePermissions.actions.cancel")}
                 </Button>
 
                 <Button
@@ -440,7 +489,7 @@ export default function EmployeePermissionsPage() {
                   disabled={isSaving}
                 >
                   <Save className="w-4 h-4 mr-2" />
-                  {isSaving ? "Saving..." : "Save Permissions"}
+                  {isSaving ? t("employeePermissions.actions.saving") : t("employeePermissions.actions.savePermissions")}
                 </Button>
               </div>
             </>
@@ -451,15 +500,15 @@ export default function EmployeePermissionsPage() {
       <Card className="bg-slate-900/50 border-slate-800">
         <CardHeader>
           <CardTitle className="text-white text-lg">
-            Current Role Permissions
+            {t("employeePermissions.sections.currentRolePermissions")}
           </CardTitle>
         </CardHeader>
 
         <CardContent>
           <p className="text-slate-400 mb-4">
-            This user has the{" "}
-            <Badge className="mx-1">{user?.role.toUpperCase()}</Badge> role
-            which grants the following default permissions:
+            {t("employeePermissions.sections.currentRoleDescription.before")}
+            <Badge className="mx-1">{user?.role.toUpperCase()}</Badge>
+            {t("employeePermissions.sections.currentRoleDescription.after")}
           </p>
           <div className="flex flex-wrap gap-2">{roleBadges}</div>
         </CardContent>

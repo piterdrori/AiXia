@@ -1,5 +1,11 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -26,14 +32,15 @@ async function callTranslate(text: string, target: string) {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   try {
     const { messageId, text, targetLang } = await req.json();
 
     const normalized = normalize(text);
 
-    // =========================
-    // 1. CHECK MESSAGE CACHE
-    // =========================
     const { data: msgCache } = await supabase
       .from("message_translations")
       .select("translated_text")
@@ -43,14 +50,19 @@ Deno.serve(async (req) => {
 
     if (msgCache) {
       return new Response(
-        JSON.stringify({ translatedText: msgCache.translated_text, source: "message_cache" }),
-        { headers: { "Content-Type": "application/json" } }
+        JSON.stringify({
+          translatedText: msgCache.translated_text,
+          source: "message_cache",
+        }),
+        {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
       );
     }
 
-    // =========================
-    // 2. CHECK GLOBAL MEMORY
-    // =========================
     const { data: memory } = await supabase
       .from("translation_memory")
       .select("translated_text")
@@ -59,46 +71,79 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (memory) {
-      // save to message cache
-      await supabase.from("message_translations").insert({
-        message_id: messageId,
-        language: targetLang,
-        translated_text: memory.translated_text,
-      });
+      await supabase.from("message_translations").upsert(
+        {
+          message_id: messageId,
+          language: targetLang,
+          translated_text: memory.translated_text,
+        },
+        {
+          onConflict: "message_id,language",
+        }
+      );
 
       return new Response(
-        JSON.stringify({ translatedText: memory.translated_text, source: "memory" }),
-        { headers: { "Content-Type": "application/json" } }
+        JSON.stringify({
+          translatedText: memory.translated_text,
+          source: "memory",
+        }),
+        {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
       );
     }
 
-    // =========================
-    // 3. CALL TRANSLATION API
-    // =========================
     const translated = await callTranslate(text, targetLang);
 
-    // save to both
-    await supabase.from("message_translations").insert({
-      message_id: messageId,
-      language: targetLang,
-      translated_text: translated,
-    });
-
-    await supabase.from("translation_memory").insert({
-      source_text_normalized: normalized,
-      language: targetLang,
-      translated_text: translated,
-    });
-
-    return new Response(
-      JSON.stringify({ translatedText: translated, source: "api" }),
-      { headers: { "Content-Type": "application/json" } }
+    await supabase.from("message_translations").upsert(
+      {
+        message_id: messageId,
+        language: targetLang,
+        translated_text: translated,
+      },
+      {
+        onConflict: "message_id,language",
+      }
     );
 
+    await supabase.from("translation_memory").upsert(
+      {
+        source_text_normalized: normalized,
+        language: targetLang,
+        translated_text: translated,
+      },
+      {
+        onConflict: "source_text_normalized,language",
+      }
+    );
+
+    return new Response(
+      JSON.stringify({
+        translatedText: translated,
+        source: "api",
+      }),
+      {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      }
+    );
   } catch (err) {
     return new Response(
-      JSON.stringify({ error: err.message }),
-      { status: 500 }
+      JSON.stringify({
+        error: err instanceof Error ? err.message : "Unknown error",
+      }),
+      {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      }
     );
   }
 });

@@ -456,19 +456,30 @@ export default function ChatPage() {
     }
 
     replaceTempMessageWithRealOne(selectedConversationId, insertedMessage as ChatMessageRow);
-        const normalizedSeed = normalizeTranslationSeed(contentToSend);
+    const normalizedSeed = normalizeTranslationSeed(contentToSend);
 
-    await supabase.from("translation_memory").upsert(
-      {
+    const { data: existingSeed } = await supabase
+      .from("translation_memory")
+      .select("id, usage_count")
+      .eq("source_text_normalized", normalizedSeed)
+      .eq("language", "seed")
+      .maybeSingle();
+
+    if (existingSeed) {
+      await supabase
+        .from("translation_memory")
+        .update({
+          usage_count: (existingSeed.usage_count || 0) + 1,
+        })
+        .eq("id", existingSeed.id);
+    } else {
+      await supabase.from("translation_memory").insert({
         source_text_normalized: normalizedSeed,
         language: "seed",
         translated_text: contentToSend,
         usage_count: 1,
-      },
-      {
-        onConflict: "source_text_normalized,language",
-      }
-    );
+      });
+    }
 
     const mentionedUserIds = extractMentionedUserIds(
       contentToSend,

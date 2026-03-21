@@ -1,5 +1,10 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { startInstance, stopInstance } from "./alibaba-ecs";
+import {
+  getInstanceStatus,
+  startInstance,
+  waitForInstanceRunning,
+  sleep,
+} from "./alibaba-ecs.ts";
 import {
   getInstanceStatus,
   startInstance,

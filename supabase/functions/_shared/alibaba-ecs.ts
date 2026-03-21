@@ -1,5 +1,3 @@
-import { sleep } from "./translation-utils.ts";
-
 const ECS_API_VERSION = "2014-05-26";
 
 function percentEncode(value: string): string {
@@ -15,16 +13,21 @@ async function hmacSha1Base64(secret: string, data: string): Promise<string> {
     new TextEncoder().encode(secret),
     { name: "HMAC", hash: "SHA-1" },
     false,
-    ["sign"],
+    ["sign"]
   );
 
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));
-  return btoa(String.fromCharCode(...new Uint8Array(sig)));
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(data)
+  );
+
+  return btoa(String.fromCharCode(...new Uint8Array(signature)));
 }
 
 async function signAlibabaQuery(
   params: Record<string, string>,
-  accessKeySecret: string,
+  accessKeySecret: string
 ): Promise<string> {
   const sorted = Object.keys(params)
     .sort()
@@ -33,19 +36,20 @@ async function signAlibabaQuery(
 
   const stringToSign = `GET&%2F&${percentEncode(sorted)}`;
   const signature = await hmacSha1Base64(`${accessKeySecret}&`, stringToSign);
+
   return `${sorted}&Signature=${percentEncode(signature)}`;
 }
 
 async function callAlibabaEcs(
   action: string,
-  extra: Record<string, string>,
+  extra: Record<string, string>
 ): Promise<any> {
-  const accessKeyId = Deno.env.get("ALIBABA_ACCESS_KEY_ID");
-  const accessKeySecret = Deno.env.get("ALIBABA_ACCESS_KEY_SECRET");
-  const regionId = Deno.env.get("ALIBABA_REGION_ID");
+  const accessKeyId = Deno.env.get("ALIYUN_ACCESS_KEY_ID");
+  const accessKeySecret = Deno.env.get("ALIYUN_ACCESS_KEY_SECRET");
+  const regionId = Deno.env.get("ALIYUN_REGION");
 
   if (!accessKeyId || !accessKeySecret || !regionId) {
-    throw new Error("Missing Alibaba ECS credentials or region.");
+    throw new Error("Missing Alibaba ECS secrets.");
   }
 
   const params: Record<string, string> = {
@@ -74,6 +78,15 @@ async function callAlibabaEcs(
   return JSON.parse(bodyText);
 }
 
+export async function getInstanceStatus(instanceId: string): Promise<string> {
+  const data = await callAlibabaEcs("DescribeInstances", {
+    InstanceIds: JSON.stringify([instanceId]),
+  });
+
+  const item = data?.Instances?.Instance?.[0];
+  return String(item?.Status ?? "Unknown");
+}
+
 export async function startInstance(instanceId: string): Promise<void> {
   await callAlibabaEcs("StartInstance", {
     InstanceId: instanceId,
@@ -88,26 +101,44 @@ export async function stopInstance(instanceId: string): Promise<void> {
   });
 }
 
-export async function getInstanceStatus(instanceId: string): Promise<string> {
-  const data = await callAlibabaEcs("DescribeInstances", {
-    InstanceIds: JSON.stringify([instanceId]),
-  });
-
-  const item = data?.Instances?.Instance?.[0];
-  return String(item?.Status ?? "Unknown");
+export async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function waitForInstanceRunning(
   instanceId: string,
-  timeoutMs = 60_000,
+  timeoutMs = 120000
 ): Promise<void> {
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < timeoutMs) {
     const status = await getInstanceStatus(instanceId);
-    if (status === "Running") return;
+
+    if (status === "Running") {
+      return;
+    }
+
     await sleep(4000);
   }
 
   throw new Error("ECS instance did not become Running before timeout.");
+}
+
+export async function waitForInstanceStopped(
+  instanceId: string,
+  timeoutMs = 120000
+): Promise<void> {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const status = await getInstanceStatus(instanceId);
+
+    if (status === "Stopped") {
+      return;
+    }
+
+    await sleep(4000);
+  }
+
+  throw new Error("ECS instance did not become Stopped before timeout.");
 }

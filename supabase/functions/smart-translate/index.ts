@@ -2,7 +2,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -65,7 +66,7 @@ Deno.serve(async (req) => {
 
     const { data: memory } = await supabase
       .from("translation_memory")
-      .select("translated_text")
+      .select("id, translated_text, usage_count")
       .eq("source_text_normalized", normalized)
       .eq("language", targetLang)
       .maybeSingle();
@@ -81,6 +82,13 @@ Deno.serve(async (req) => {
           onConflict: "message_id,language",
         }
       );
+
+      await supabase
+        .from("translation_memory")
+        .update({
+          usage_count: (memory.usage_count || 0) + 1,
+        })
+        .eq("id", memory.id);
 
       return new Response(
         JSON.stringify({
@@ -109,16 +117,29 @@ Deno.serve(async (req) => {
       }
     );
 
-    await supabase.from("translation_memory").upsert(
-      {
+    const { data: existingTranslatedMemory } = await supabase
+      .from("translation_memory")
+      .select("id, usage_count")
+      .eq("source_text_normalized", normalized)
+      .eq("language", targetLang)
+      .maybeSingle();
+
+    if (existingTranslatedMemory) {
+      await supabase
+        .from("translation_memory")
+        .update({
+          translated_text: translated,
+          usage_count: (existingTranslatedMemory.usage_count || 0) + 1,
+        })
+        .eq("id", existingTranslatedMemory.id);
+    } else {
+      await supabase.from("translation_memory").insert({
         source_text_normalized: normalized,
         language: targetLang,
         translated_text: translated,
-      },
-      {
-        onConflict: "source_text_normalized,language",
-      }
-    );
+        usage_count: 1,
+      });
+    }
 
     return new Response(
       JSON.stringify({

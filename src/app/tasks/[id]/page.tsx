@@ -14,6 +14,7 @@ import {
 } from "@/lib/file-upload";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
+import { smartTranslate } from "@/lib/smartTranslate";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -143,6 +144,9 @@ export default function TaskDetailPage() {
 
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
+
+  const [translatedComments, setTranslatedComments] = useState<Record<string, string>>({});
+  const [translatingCommentId, setTranslatingCommentId] = useState<string | null>(null);
 
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -727,6 +731,35 @@ export default function TaskDetailPage() {
     setCommentActionLoading(null);
   };
 
+    const handleTranslateComment = async (comment: TaskCommentRow) => {
+    if (translatedComments[comment.id]) {
+      setTranslatedComments((prev) => {
+        const next = { ...prev };
+        delete next[comment.id];
+        return next;
+      });
+      return;
+    }
+
+    try {
+      setTranslatingCommentId(comment.id);
+      const translatedText = await smartTranslate({
+        messageId: comment.id,
+        text: comment.content,
+      });
+
+      setTranslatedComments((prev) => ({
+        ...prev,
+        [comment.id]: translatedText,
+      }));
+    } catch (err) {
+      console.error("Task comment translate error:", err);
+      setError("Failed to translate comment.");
+    } finally {
+      setTranslatingCommentId(null);
+    }
+  };
+
   const handleTaskFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -1254,10 +1287,25 @@ export default function TaskDetailPage() {
                                 </Button>
                               </div>
                             </div>
-                          ) : (
-                            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">
-                              {comment.content}
-                            </p>
+                                                    ) : (
+                            <div className="space-y-2">
+                              <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">
+                                {translatedComments[comment.id] || comment.content}
+                              </p>
+
+                              <button
+                                type="button"
+                                className="text-xs text-indigo-400 hover:text-indigo-300"
+                                onClick={() => void handleTranslateComment(comment)}
+                                disabled={translatingCommentId === comment.id}
+                              >
+                                {translatingCommentId === comment.id
+                                  ? "Translating..."
+                                  : translatedComments[comment.id]
+                                  ? "Original"
+                                  : "Translate"}
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>

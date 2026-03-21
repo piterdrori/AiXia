@@ -33,10 +33,6 @@ import CreateGroupDialog from "./components/CreateGroupDialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-function normalizeTranslationSeed(text: string) {
-  return text.toLowerCase().trim().replace(/\s+/g, " ");
-}
-
 export default function ChatPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -456,30 +452,6 @@ export default function ChatPage() {
     }
 
     replaceTempMessageWithRealOne(selectedConversationId, insertedMessage as ChatMessageRow);
-    const normalizedSeed = normalizeTranslationSeed(contentToSend);
-
-    const { data: existingSeed } = await supabase
-      .from("translation_memory")
-      .select("id, usage_count")
-      .eq("source_text_normalized", normalizedSeed)
-      .eq("language", "seed")
-      .maybeSingle();
-
-    if (existingSeed) {
-      await supabase
-        .from("translation_memory")
-        .update({
-          usage_count: (existingSeed.usage_count || 0) + 1,
-        })
-        .eq("id", existingSeed.id);
-    } else {
-      await supabase.from("translation_memory").insert({
-        source_text_normalized: normalizedSeed,
-        language: "seed",
-        translated_text: contentToSend,
-        usage_count: 1,
-      });
-    }
 
     const mentionedUserIds = extractMentionedUserIds(
       contentToSend,

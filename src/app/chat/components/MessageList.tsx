@@ -34,7 +34,9 @@ export default function MessageList({
 }: MessageListProps) {
   const { t } = useLanguage();
 
-    const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({});
+    const [translatedMessages, setTranslatedMessages] = useState<
+  Record<string, { text: string; source: string }>
+>({});
   const [translatingMessageId, setTranslatingMessageId] = useState<string | null>(null);
 
   const handleTranslateMessage = async (message: ChatMessageRow) => {
@@ -49,15 +51,18 @@ export default function MessageList({
 
     try {
       setTranslatingMessageId(message.id);
-      const translatedText = await smartTranslate({
-        messageId: message.id,
-        text: message.content,
-      });
+      const result = await smartTranslate({
+  messageId: message.id,
+  text: message.content,
+});
 
-      setTranslatedMessages((prev) => ({
-        ...prev,
-        [message.id]: translatedText,
-      }));
+setTranslatedMessages((prev) => ({
+  ...prev,
+  [message.id]: {
+    text: result.translatedText,
+    source: result.source,
+  },
+}));
     } catch (error) {
       console.error("Translate message error:", error);
     } finally {
@@ -217,11 +222,19 @@ export default function MessageList({
                             </Button>
                           </div>
                         </div>
-                                            ) : (
-                        <p className="whitespace-pre-wrap break-words">
-                          {translatedMessages[message.id] || message.content}
-                        </p>
-                      )}
+                         ) : (
+  <div className="space-y-1">
+    <p className="whitespace-pre-wrap break-words">
+      {translatedMessages[message.id]?.text || message.content}
+    </p>
+
+    {translatedMessages[message.id]?.source && (
+      <p className="text-[10px] opacity-70">
+        Source: {translatedMessages[message.id].source}
+      </p>
+    )}
+  </div>
+)}
                     </div>
 
                                         {!isEditing && !isSelectionMode && (

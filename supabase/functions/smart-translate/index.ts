@@ -11,12 +11,6 @@ import {
   waitForInstanceRunning,
   sleep,
 } from "./translation-utils.ts";
-import {
-  getInstanceStatus,
-  startInstance,
-  waitForInstanceRunning,
-  sleep,
-} from "../_shared/alibaba-ecs.ts";
 
 declare const EdgeRuntime:
   | {

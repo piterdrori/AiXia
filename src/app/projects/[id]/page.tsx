@@ -214,7 +214,9 @@ export default function ProjectDetailPage() {
   const [commentSaving, setCommentSaving] = useState(false);
   const [commentActionLoading, setCommentActionLoading] = useState<string | null>(null);
 
-  const [translatedComments, setTranslatedComments] = useState<Record<string, string>>({});
+  const [translatedComments, setTranslatedComments] = useState<
+  Record<string, { text: string; source: string }>
+>({});
   const [translatingCommentId, setTranslatingCommentId] = useState<string | null>(null);
 
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
@@ -972,15 +974,18 @@ export default function ProjectDetailPage() {
 
     try {
       setTranslatingCommentId(comment.id);
-      const translatedText = await smartTranslate({
-        messageId: comment.id,
-        text: comment.content,
-      });
+      const result = await smartTranslate({
+  messageId: comment.id,
+  text: comment.content,
+});
 
-      setTranslatedComments((prev) => ({
-        ...prev,
-        [comment.id]: translatedText,
-      }));
+setTranslatedComments((prev) => ({
+  ...prev,
+  [comment.id]: {
+    text: result.translatedText,
+    source: result.source,
+  },
+}));
     } catch (err) {
       console.error("Project comment translate error:", err);
       setError("Failed to translate comment.");
@@ -1774,23 +1779,30 @@ export default function ProjectDetailPage() {
                             </div>
                                                     ) : (
                             <div className="space-y-2">
-                              <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">
-                                {translatedComments[comment.id] || comment.content}
-                              </p>
+  <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">
+    {translatedComments[comment.id]?.text || comment.content}
+  </p>
 
-                              <button
-                                type="button"
-                                className="text-xs text-indigo-400 hover:text-indigo-300"
-                                onClick={() => void handleTranslateComment(comment)}
-                                disabled={translatingCommentId === comment.id}
-                              >
-                                {translatingCommentId === comment.id
-                                  ? "Translating..."
-                                  : translatedComments[comment.id]
-                                  ? "Original"
-                                  : "Translate"}
-                              </button>
-                            </div>
+  {/* ✅ ADD THIS BLOCK (THIS IS STEP 4) */}
+  {translatedComments[comment.id]?.source && (
+    <p className="text-[10px] opacity-70 text-slate-400">
+      Source: {translatedComments[comment.id].source}
+    </p>
+  )}
+
+  <button
+    type="button"
+    className="text-xs text-indigo-400 hover:text-indigo-300"
+    onClick={() => void handleTranslateComment(comment)}
+    disabled={translatingCommentId === comment.id}
+  >
+    {translatingCommentId === comment.id
+      ? "Translating..."
+      : translatedComments[comment.id]
+      ? "Original"
+      : "Translate"}
+  </button>
+</div>
                           )}
                         </div>
                       </div>

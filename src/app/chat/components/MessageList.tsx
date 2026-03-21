@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Check, MessageSquare, Save, Square, X } from "lucide-react";
 import { formatMessageTime, getProfileByUserId, getUserInitials } from "../utils";
 import type { ChatMessageRow, MessageListProps } from "../types";
@@ -7,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/lib/i18n";
+import { smartTranslate } from "@/lib/smartTranslate";
 
 export default function MessageList({
   currentUserId,
@@ -31,6 +33,37 @@ export default function MessageList({
   onDeleteMessage,
 }: MessageListProps) {
   const { t } = useLanguage();
+
+    const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({});
+  const [translatingMessageId, setTranslatingMessageId] = useState<string | null>(null);
+
+  const handleTranslateMessage = async (message: ChatMessageRow) => {
+    if (translatedMessages[message.id]) {
+      setTranslatedMessages((prev) => {
+        const next = { ...prev };
+        delete next[message.id];
+        return next;
+      });
+      return;
+    }
+
+    try {
+      setTranslatingMessageId(message.id);
+      const translatedText = await smartTranslate({
+        messageId: message.id,
+        text: message.content,
+      });
+
+      setTranslatedMessages((prev) => ({
+        ...prev,
+        [message.id]: translatedText,
+      }));
+    } catch (error) {
+      console.error("Translate message error:", error);
+    } finally {
+      setTranslatingMessageId(null);
+    }
+  };
 
   const canManageMessage = (message: ChatMessageRow) => {
     if (!currentUserId) return false;
@@ -184,27 +217,45 @@ export default function MessageList({
                             </Button>
                           </div>
                         </div>
-                      ) : (
-                        <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                                            ) : (
+                        <p className="whitespace-pre-wrap break-words">
+                          {translatedMessages[message.id] || message.content}
+                        </p>
                       )}
                     </div>
 
-                    {canManageMessage(message) && !isEditing && !isSelectionMode && (
+                                        {!isEditing && !isSelectionMode && (
                       <div className={`mt-1 flex gap-2 ${isOwn ? "justify-end" : "justify-start"}`}>
                         <button
-                          className="text-xs text-slate-400 hover:text-white"
-                          onClick={() => onStartEdit(message)}
-                          disabled={messageActionLoading === message.id}
+                          className="text-xs text-indigo-400 hover:text-indigo-300"
+                          onClick={() => void handleTranslateMessage(message)}
+                          disabled={translatingMessageId === message.id}
                         >
-                          {t("chat.messageList.edit")}
+                          {translatingMessageId === message.id
+                            ? "Translating..."
+                            : translatedMessages[message.id]
+                            ? "Original"
+                            : "Translate"}
                         </button>
-                        <button
-                          className="text-xs text-red-400 hover:text-red-300"
-                          onClick={() => onDeleteMessage(message)}
-                          disabled={messageActionLoading === message.id}
-                        >
-                          {t("chat.messageList.delete")}
-                        </button>
+
+                        {canManageMessage(message) && (
+                          <>
+                            <button
+                              className="text-xs text-slate-400 hover:text-white"
+                              onClick={() => onStartEdit(message)}
+                              disabled={messageActionLoading === message.id}
+                            >
+                              {t("chat.messageList.edit")}
+                            </button>
+                            <button
+                              className="text-xs text-red-400 hover:text-red-300"
+                              onClick={() => onDeleteMessage(message)}
+                              disabled={messageActionLoading === message.id}
+                            >
+                              {t("chat.messageList.delete")}
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>

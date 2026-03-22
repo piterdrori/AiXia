@@ -19,7 +19,7 @@ import { Toaster } from "@/components/ui/sonner";
 
 import { LanguageProvider, useLanguage } from "@/lib/i18n";
 import type { Language } from "@/lib/translations";
-
+import { ClockProvider } from "@/lib/clock/provider";
 import LandingPage from "@/app/page";
 import LoginPage from "@/app/login/page";
 import RegisterPage from "@/app/register/page";
@@ -681,7 +681,9 @@ function AppContent() {
 function App() {
   return (
     <LanguageProvider>
-      <AppContent />
+      <ClockProvider>
+        <AppContent />
+      </ClockProvider>
     </LanguageProvider>
   );
 }

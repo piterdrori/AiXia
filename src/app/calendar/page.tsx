@@ -15,7 +15,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
-
+import { useAppClock } from "@/lib/clock/provider";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -68,8 +68,8 @@ type CalendarEventAccessRow = {
   created_by: string | null;
 };
 
-function toYYYYMMDD(date: Date) {
-  return format(date, "yyyy-MM-dd");
+function toYYYYMMDD(date: Date, clock?: ReturnType<typeof useAppClock>) {
+  return format(clock ? clock.shiftDate(date) : date, "yyyy-MM-dd");
 }
 
 function buildMonthGrid(cursor: Date) {
@@ -93,8 +93,9 @@ export default function CalendarPage() {
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
   const { t } = useLanguage();
+  const clock = useAppClock();
 
-  const [cursor, setCursor] = useState(new Date());
+  const [cursor, setCursor] = useState(clock.now);
   const [events, setEvents] = useState<CalendarEventRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
@@ -276,7 +277,7 @@ export default function CalendarPage() {
     return map;
   }, [tasks]);
 
-  const todayKey = toYYYYMMDD(new Date());
+  const todayKey = clock.todayKey;
 
   const todayCount = useMemo(() => {
     const dayEvents = eventsByDay.get(todayKey) || [];
@@ -284,11 +285,11 @@ export default function CalendarPage() {
     return dayEvents.length + dayTasks.length;
   }, [eventsByDay, tasksByDay, todayKey]);
 
-  const monthLabel = format(cursor, "MMMM yyyy");
+  const monthLabel = format(clock.shiftDate(cursor), "MMMM yyyy");
 
   const goPrevMonth = () => setCursor((prev) => subMonths(prev, 1));
   const goNextMonth = () => setCursor((prev) => addMonths(prev, 1));
-  const goToday = () => setCursor(new Date());
+  const goToday = () => setCursor(clock.now);
 
   return (
     <div className="space-y-6">
@@ -402,9 +403,9 @@ export default function CalendarPage() {
                 </div>
               ))
             : gridDays.map((day) => {
-                const key = toYYYYMMDD(day);
+                const key = toYYYYMMDD(day, clock);
                 const inMonth = isSameMonth(day, cursor);
-                const isTodayDate = isSameDay(day, new Date());
+                const isTodayDate = isSameDay(day, clock.now);
 
                 const dayEvents = eventsByDay.get(key) || [];
                 const dayTasks = tasksByDay.get(key) || [];

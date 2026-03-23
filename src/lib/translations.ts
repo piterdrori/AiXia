@@ -610,6 +610,24 @@ export const translations = {
         fileUploadedMessage:
           'A new file "{{fileName}}" was uploaded to task "{{title}}"',
       },
+
+      actions: {
+  close: "Close",
+  addRemove: "Add / Remove",
+  addMember: "Add member",
+  selectMember: "Select employee or manager",
+  noAvailableMembers: "No available employees or managers",
+  adding: "Adding...",
+  add: "Add",
+  remove: "Remove",
+},
+errors: {
+  addFailed: "Failed to add member.",
+  removeFailed: "Failed to remove member.",
+},
+confirmations: {
+  removeMember: "Remove this member from the task?",
+},
     },
 
     calendar: {
@@ -1958,6 +1976,24 @@ chat: {
         fileUploadedMessage:
           '新文件“{{fileName}}”已上传到任务“{{title}}”',
       },
+
+      actions: {
+  close: "关闭",
+  addRemove: "添加 / 移除",
+  addMember: "添加成员",
+  selectMember: "选择员工或经理",
+  noAvailableMembers: "没有可用的员工或经理",
+  adding: "添加中...",
+  add: "添加",
+  remove: "移除",
+},
+errors: {
+  addFailed: "添加成员失败。",
+  removeFailed: "移除成员失败。",
+},
+confirmations: {
+  removeMember: "要将此成员从任务中移除吗？",
+},
     },
 
     calendar: {
@@ -3319,6 +3355,24 @@ chat: {
         fileUploadedMessage:
           'Новый файл "{{fileName}}" был загружен в задачу "{{title}}"',
       },
+actions: {
+  close: "Закрыть",
+  addRemove: "Добавить / Удалить",
+  addMember: "Добавить участника",
+  selectMember: "Выберите сотрудника или менеджера",
+  noAvailableMembers: "Нет доступных сотрудников или менеджеров",
+  adding: "Добавление...",
+  add: "Добавить",
+  remove: "Удалить",
+},
+errors: {
+  addFailed: "Не удалось добавить участника.",
+  removeFailed: "Не удалось удалить участника.",
+},
+confirmations: {
+  removeMember: "Удалить этого участника из задачи?",
+},
+      
     },
 
     calendar: {

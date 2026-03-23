@@ -449,7 +449,7 @@ export default function SettingsPage() {
     });
   };
 
-  const handleSaveAccount = async () => {
+const handleSaveAccount = async () => {
   await updateProfile("account", {
     language,
     timezone,

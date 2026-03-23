@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
+import { useAppClock } from "@/lib/clock/provider";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,6 +92,7 @@ function MemberStack({
   size?: "small" | "medium";
 }) {
   const { t } = useLanguage();
+  const clock = useAppClock();
 
   const avatarClass =
     size === "medium"
@@ -397,7 +399,7 @@ export default function TasksPage() {
       .from("tasks")
       .update({
         status: nextStatus,
-        updated_at: new Date().toISOString(),
+        updated_at: clock.nowIso,
       })
       .eq("id", draggedTask);
 
@@ -711,7 +713,7 @@ export default function TasksPage() {
                             {task.due_date && (
                               <span className="text-xs text-slate-500 flex items-center gap-1">
                                 <Calendar className="w-3 h-3" />
-                                {format(new Date(task.due_date), "MMM d")}
+                                {format(clock.shiftDate(task.due_date), "MMM d")}
                               </span>
                             )}
                           </div>
@@ -773,7 +775,7 @@ export default function TasksPage() {
 
                       {task.due_date && (
                         <span className="text-sm text-slate-500">
-                          {format(new Date(task.due_date), "MMM d")}
+                          {format(clock.shiftDate(task.due_date), "MMM d")}
                         </span>
                       )}
                     </div>

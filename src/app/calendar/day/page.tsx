@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
+import { useUserPreferences } from "@/lib/useUserPreferences";
+import { formatDateTimeInTimezone, formatTimeInTimezone } from "@/lib/datetime";
 import { useAppClock } from "@/lib/clock/provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +51,7 @@ type ProjectMemberRow = {
   user_id: string;
 };
 
+const CHINA_TIMEZONE = "Asia/Shanghai";
 function parseYYYYMMDD(value: string | undefined) {
   if (!value) return null;
   const [year, month, day] = value.split("-").map(Number);
@@ -63,6 +66,7 @@ export default function CalendarDayPage() {
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
   const { t, language } = useLanguage();
+  const { timezone } = useUserPreferences();
   const clock = useAppClock();
 
   const [events, setEvents] = useState<CalendarEventRow[]>([]);
@@ -318,14 +322,28 @@ export default function CalendarDayPage() {
 
                     <div className="flex items-center gap-2">
                       {event.all_day ? (
-                        <Badge className="bg-indigo-500/20 text-indigo-300">
-                          {t("calendarDay.badges.allDay")}
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-slate-700 text-slate-200">
-                          {event.start_time || "--:--"}
-                        </Badge>
-                      )}
+  <Badge className="bg-indigo-500/20 text-indigo-300">
+    {t("calendarDay.badges.allDay")}
+  </Badge>
+) : (
+  <div className="text-right">
+    <div className="text-sm text-slate-200">
+      {formatTimeInTimezone(
+        `${event.start_date}T${event.start_time || "00:00"}`,
+        language,
+        timezone
+      )}
+    </div>
+    <div className="text-xs text-slate-500">
+      {t("timezone.chinaTimeLabel", "China")}:{" "}
+      {formatTimeInTimezone(
+        `${event.start_date}T${event.start_time || "00:00"}`,
+        language,
+        CHINA_TIMEZONE
+      )}
+    </div>
+  </div>
+)}
 
                       <Button
                         size="icon"
@@ -343,9 +361,27 @@ export default function CalendarDayPage() {
                       .toUpperCase()}
                   </Badge>
 
-                  {event.description && (
-                    <div className="text-slate-400 text-sm">{event.description}</div>
-                  )}
+                  <div className="text-xs text-slate-500 space-y-1">
+  <div>
+    {formatDateTimeInTimezone(
+      `${event.start_date}T${event.start_time || "00:00"}`,
+      language,
+      timezone
+    )}
+  </div>
+  <div>
+    {t("timezone.chinaTimeLabel", "China")}:{" "}
+    {formatDateTimeInTimezone(
+      `${event.start_date}T${event.start_time || "00:00"}`,
+      language,
+      CHINA_TIMEZONE
+    )}
+  </div>
+</div>
+
+{event.description && (
+  <div className="text-slate-400 text-sm">{event.description}</div>
+)}
 
                   {(event.project_id || event.task_id) && (
                     <div className="text-xs text-slate-500 space-y-1">

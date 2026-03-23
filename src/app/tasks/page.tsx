@@ -7,6 +7,14 @@ import { useLanguage } from "@/lib/i18n";
 import { useUserPreferences } from "@/lib/useUserPreferences";
 import { formatDateInTimezone } from "@/lib/datetime";
 import { useAppClock } from "@/lib/clock/provider";
+import {
+  canCreateTask,
+  canDeleteTaskEntity,
+  canEditTaskEntity,
+  canMoveTask,
+  canViewTask,
+  getVisibleProjectIds,
+} from "@/lib/permissions";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -267,41 +275,28 @@ export default function TasksPage() {
       const projectMembersData = (allProjectMembers || []) as ProjectMemberRow[];
       const taskMembersData = (allTaskMembers || []) as TaskMemberRow[];
 
+      const visibleProjectIds = getVisibleProjectIds(
+        user.id,
+        role,
+        projectsData,
+        projectMembersData
+      );
+
       const visibleProjects =
         role === "admin"
           ? projectsData
-          : projectsData.filter((project) => {
-              const isCreator = project.created_by === user.id;
-              const isAssignedProjectMember = projectMembersData.some(
-                (member) =>
-                  member.project_id === project.id && member.user_id === user.id
-              );
-              return isCreator || isAssignedProjectMember;
-            });
+          : projectsData.filter((project) => visibleProjectIds.has(project.id));
 
-      const visibleProjectIds = new Set(
-        visibleProjects.map((project) => project.id)
+      const visibleTasks = tasksData.filter((task) =>
+        canViewTask(
+          task,
+          user.id,
+          role,
+          projectMembersData,
+          taskMembersData,
+          visibleProjectIds
+        )
       );
-
-      const visibleTasks =
-        role === "admin"
-          ? tasksData
-          : tasksData.filter((task) => {
-              const isTaskCreator = task.created_by === user.id;
-              const isMainAssignee = task.assignee_id === user.id;
-              const isTaskMember = taskMembersData.some(
-                (member) => member.task_id === task.id && member.user_id === user.id
-              );
-              const isInsideVisibleProject =
-                !!task.project_id && visibleProjectIds.has(task.project_id);
-
-              return (
-                isTaskCreator ||
-                isMainAssignee ||
-                isTaskMember ||
-                isInsideVisibleProject
-              );
-            });
 
       setTasks(visibleTasks);
       setProjects(visibleProjects);
@@ -411,20 +406,16 @@ export default function TasksPage() {
   };
 
   const canEditTask = (task: TaskRow) => {
-    if (!currentUserId || !currentUserRole) return false;
-    return currentUserRole === "admin" || task.created_by === currentUserId;
+    return canEditTaskEntity(task, currentUserId, currentUserRole as Role);
   };
 
   const canDeleteTask = (task: TaskRow) => {
-    if (!currentUserId || !currentUserRole) return false;
-    return currentUserRole === "admin" || task.created_by === currentUserId;
+    return canDeleteTaskEntity(task, currentUserId, currentUserRole as Role);
   };
 
-  const canCreateTasks =
-    currentUserRole === "admin" ||
-    currentUserRole === "manager" ||
-    currentUserRole === "employee" ||
-    currentUserRole === "guest";
+  const canCreateTasks = currentUserRole
+    ? canCreateTask(currentUserRole)
+    : false;
 
   const handleDragStart = (taskId: string) => {
     setDraggedTask(taskId);
@@ -438,6 +429,10 @@ export default function TasksPage() {
     e.preventDefault();
 
     if (!draggedTask) return;
+    if (!currentUserId || !currentUserRole) {
+      setDraggedTask(null);
+      return;
+    }
 
     const task = tasks.find((item) => item.id === draggedTask);
     if (!task) {
@@ -445,13 +440,12 @@ export default function TasksPage() {
       return;
     }
 
-    const canMove =
-      currentUserRole === "admin" ||
-      task.created_by === currentUserId ||
-      taskMembers.some(
-        (member) => member.task_id === draggedTask && member.user_id === currentUserId
-      ) ||
-      task.assignee_id === currentUserId;
+    const canMove = canMoveTask(
+      task,
+      currentUserId,
+      currentUserRole,
+      taskMembers
+    );
 
     if (!canMove) {
       setDraggedTask(null);

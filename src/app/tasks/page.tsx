@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
+import { useUserPreferences } from "@/lib/useUserPreferences";
+import { formatDateInTimezone } from "@/lib/datetime";
 import { useAppClock } from "@/lib/clock/provider";
 
 import { Button } from "@/components/ui/button";
@@ -84,7 +86,8 @@ type ProfileRow = {
   status: "active" | "pending" | "inactive" | "denied";
 };
 
-function MemberStack({
+const CHINA_TIMEZONE = "Asia/Shanghai";
+  function MemberStack({
   profiles,
   size = "small",
 }: {
@@ -128,7 +131,8 @@ export default function TasksPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const requestTracker = useRef(createRequestTracker());
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { timezone } = useUserPreferences();
   const clock = useAppClock();
 
   const getTaskDateStatus = (dueDate: string | null) => {
@@ -756,12 +760,17 @@ export default function TasksPage() {
       : "text-slate-500";
 
   return (
-    <span className={`text-xs flex items-center gap-1 ${color}`}>
-      <Calendar className="w-3 h-3" />
-      {format(clock.shiftDate(task.due_date), "MMM d")}
-      {status === "overdue" && " • Overdue"}
-      {status === "today" && " • Today"}
-    </span>
+    <div className={`text-sm ${color}`}>
+      <div>
+        {formatDateInTimezone(clock.shiftDate(task.due_date), language, timezone)}
+        {status === "overdue" && " • Overdue"}
+        {status === "today" && " • Today"}
+      </div>
+      <div className="text-[10px] text-slate-500">
+        {t("timezone.chinaTimeLabel", "China")}:{" "}
+        {formatDateInTimezone(clock.shiftDate(task.due_date), language, CHINA_TIMEZONE)}
+      </div>
+    </div>
   );
 })()}
                           </div>
@@ -821,7 +830,7 @@ export default function TasksPage() {
 
                       <MemberStack profiles={assigneeProfiles} size="medium" />
 
-                      {task.due_date && (() => {
+                     {task.due_date && (() => {
   const status = getTaskDateStatus(task.due_date);
 
   const color =
@@ -832,11 +841,20 @@ export default function TasksPage() {
       : "text-slate-500";
 
   return (
-    <span className={`text-sm ${color}`}>
-      {format(clock.shiftDate(task.due_date), "MMM d")}
-      {status === "overdue" && " • Overdue"}
-      {status === "today" && " • Today"}
-    </span>
+    <div className={`text-xs ${color}`}>
+      <div className="flex items-center gap-1">
+        <Calendar className="w-3 h-3" />
+        <span>
+          {formatDateInTimezone(clock.shiftDate(task.due_date), language, timezone)}
+          {status === "overdue" && " • Overdue"}
+          {status === "today" && " • Today"}
+        </span>
+      </div>
+      <div className="pl-4 text-[10px] text-slate-500">
+        {t("timezone.chinaTimeLabel", "China")}:{" "}
+        {formatDateInTimezone(clock.shiftDate(task.due_date), language, CHINA_TIMEZONE)}
+      </div>
+    </div>
   );
 })()}
                     </div>

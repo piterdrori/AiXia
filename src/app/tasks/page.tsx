@@ -292,7 +292,6 @@ export default function TasksPage() {
           task,
           user.id,
           role,
-          projectMembersData,
           taskMembersData,
           visibleProjectIds
         )

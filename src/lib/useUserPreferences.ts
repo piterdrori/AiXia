@@ -9,6 +9,34 @@ type UserPreferences = {
   isLoading: boolean;
 };
 
+const USER_PREFERENCES_UPDATED_EVENT = "taskflow:user-preferences-updated";
+
+async function loadUserPreferences() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      language: "en" as Language,
+      timezone: "UTC",
+      dateFormat: "MM/DD/YYYY",
+    };
+  }
+
+  const { data } = await supabase
+    .from("profiles")
+    .select("language, timezone, date_format")
+    .eq("user_id", user.id)
+    .single();
+
+  return {
+    language: ((data?.language as Language) || "en") as Language,
+    timezone: data?.timezone || "UTC",
+    dateFormat: data?.date_format || "MM/DD/YYYY",
+  };
+}
+
 export function useUserPreferences(): UserPreferences {
   const [language, setLanguage] = useState<Language>("en");
   const [timezone, setTimezone] = useState("UTC");
@@ -18,29 +46,14 @@ export function useUserPreferences(): UserPreferences {
   useEffect(() => {
     let isMounted = true;
 
-    const load = async () => {
+    const applyLatest = async () => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user || !isMounted) {
-          setIsLoading(false);
-          return;
-        }
-
-        const { data } = await supabase
-          .from("profiles")
-          .select("language, timezone, date_format")
-          .eq("user_id", user.id)
-          .single();
-
+        const next = await loadUserPreferences();
         if (!isMounted) return;
 
-        setLanguage((data?.language as Language) || "en");
-        setTimezone(data?.timezone || "UTC");
-        setDateFormat(data?.date_format || "MM/DD/YYYY");
-      } catch {
+        setLanguage(next.language);
+        setTimezone(next.timezone);
+        setDateFormat(next.dateFormat);
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -48,10 +61,23 @@ export function useUserPreferences(): UserPreferences {
       }
     };
 
-    void load();
+    void applyLatest();
+
+    const handlePreferencesUpdated = () => {
+      void applyLatest();
+    };
+
+    window.addEventListener(
+      USER_PREFERENCES_UPDATED_EVENT,
+      handlePreferencesUpdated
+    );
 
     return () => {
       isMounted = false;
+      window.removeEventListener(
+        USER_PREFERENCES_UPDATED_EVENT,
+        handlePreferencesUpdated
+      );
     };
   }, []);
 
@@ -61,4 +87,8 @@ export function useUserPreferences(): UserPreferences {
     dateFormat,
     isLoading,
   };
+}
+
+export function notifyUserPreferencesUpdated() {
+  window.dispatchEvent(new Event(USER_PREFERENCES_UPDATED_EVENT));
 }

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
@@ -125,7 +124,6 @@ function Time24Field({
   disabled?: boolean;
 }) {
   const { t } = useLanguage();
-  const clock = useAppClock();
   const hour = getHour(value);
   const minute = getMinute(value);
 
@@ -206,6 +204,8 @@ export default function CalendarNewPage() {
   const [searchParams] = useSearchParams();
   const requestTracker = useRef(createRequestTracker());
   const { t } = useLanguage();
+  const clock = useAppClock();
+  
 
   const presetDate = searchParams.get("date") || clock.todayKey;
 
@@ -365,7 +365,7 @@ export default function CalendarNewPage() {
   useEffect(() => {
     if (!startDate) return;
 
-    setEndDate((prevEndDate) => {
+    setEndDate((prevEndDate: string) => {
       if (!prevEndDate || prevEndDate < startDate) {
         return startDate;
       }
@@ -686,7 +686,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                     const nextStartDate = e.target.value;
                     setStartDate(nextStartDate);
 
-                    setEndDate((prevEndDate) => {
+                    setEndDate((prevEndDate: string) => {
                       if (!prevEndDate || prevEndDate < nextStartDate) {
                         return nextStartDate;
                       }

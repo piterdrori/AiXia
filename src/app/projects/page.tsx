@@ -639,3 +639,7 @@ export default function ProjectsPage() {
     </Card>
   )}
 </PageLoader>
+            )}
+    </div>
+  );
+}

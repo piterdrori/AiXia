@@ -34,8 +34,8 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
+import { canPerform, type Role } from "@/lib/permissions";
 
-type Role = "admin" | "manager" | "employee" | "guest";
 
 type MemberType =
   | "client"
@@ -356,7 +356,9 @@ export default function EmployeesPage() {
   const [invitationActionId, setInvitationActionId] = useState<string | null>(null);
   const [showInviteHistory, setShowInviteHistory] = useState(false);
   const [directMessageLoadingUserId, setDirectMessageLoadingUserId] = useState<string | null>(null);
-  const canManageUsers = currentUserRole === "admin";
+  const canManageUsers = currentUserRole
+  ? canPerform(currentUserRole, "manageUsers")
+  : false;
   
 const handleSendInvite = async () => {
   if (isSendingInvite) return;
@@ -572,10 +574,9 @@ const availableMemberTypeOptions = useMemo(() => {
         const currentRole = (me as CurrentUserRoleRow).role;
         setCurrentUserRole(currentRole);
 
-        if (currentRole === "admin") {
-          
-          await supabase.rpc("expire_old_member_invitations");
-        }
+        if (canPerform(currentRole, "manageUsers")) {
+  await supabase.rpc("expire_old_member_invitations");
+}
 
         const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
@@ -591,27 +592,27 @@ const availableMemberTypeOptions = useMemo(() => {
           return;
         }
 
-        if (currentRole === "admin") {
-          const { data: invitationsData, error: invitationsError } = await supabase
-            .from("member_invitations")
-            .select("*")
-            .order("created_at", { ascending: false });
+        if (canPerform(currentRole, "manageUsers")) {
+  const { data: invitationsData, error: invitationsError } = await supabase
+    .from("member_invitations")
+    .select("*")
+    .order("created_at", { ascending: false });
 
-          if (!requestTracker.current.isLatest(requestId)) return;
+  if (!requestTracker.current.isLatest(requestId)) return;
 
-          if (invitationsError) {
-            setProfiles((profilesData as ProfileRow[]) || []);
-            setInvitations([]);
-            setError(invitationsError.message || t("employees.errors.loadInvitationsFailed"));
-            return;
-          }
+  if (invitationsError) {
+    setProfiles((profilesData as ProfileRow[]) || []);
+    setInvitations([]);
+    setError(invitationsError.message || t("employees.errors.loadInvitationsFailed"));
+    return;
+  }
 
-          setProfiles((profilesData as ProfileRow[]) || []);
-          setInvitations((invitationsData as InvitationRow[]) || []);
-        } else {
-          setProfiles((profilesData as ProfileRow[]) || []);
-          setInvitations([]);
-        }
+  setProfiles((profilesData as ProfileRow[]) || []);
+  setInvitations((invitationsData as InvitationRow[]) || []);
+} else {
+  setProfiles((profilesData as ProfileRow[]) || []);
+  setInvitations([]);
+}
         
             } catch (err) {
         if (!requestTracker.current.isLatest(requestId)) return;

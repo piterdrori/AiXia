@@ -11,6 +11,7 @@ import { createRequestTracker } from "@/lib/safeAsync";
 import { uploadProfilePhoto } from "@/lib/profilePhotoUpload";
 
 import { useLanguage } from "@/lib/i18n";
+import { useAppClock } from "@/lib/clock/provider";
 import type { Language } from "@/lib/translations";
 
 import { Button } from "@/components/ui/button";
@@ -227,6 +228,7 @@ export default function SettingsPage() {
   const profilePhotoInputRef = useRef<HTMLInputElement | null>(null);
 
   const { t, setLanguage: applyLanguage } = useLanguage();
+  const clock = useAppClock();
 
   const [activeTab, setActiveTab] = useState("profile");
   const [saved, setSaved] = useState(false);
@@ -407,7 +409,7 @@ export default function SettingsPage() {
         .from("profiles")
         .update({
           ...payload,
-          updated_at: new Date().toISOString(),
+          updated_at: clock.nowIso,
         })
         .eq("user_id", userId);
 

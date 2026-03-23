@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
-
+import { useAppClock } from "@/lib/clock/provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +63,7 @@ export default function CalendarDayPage() {
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
   const { t, language } = useLanguage();
+  const clock = useAppClock();
 
   const [events, setEvents] = useState<CalendarEventRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
@@ -70,7 +71,10 @@ export default function CalendarDayPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError] = useState("");
 
-  const selectedDate = useMemo(() => parseYYYYMMDD(date), [date]);
+  const selectedDate = useMemo(() => {
+  const parsed = parseYYYYMMDD(date);
+  return parsed ? clock.shiftDate(parsed) : null;
+}, [date, clock]);
   const dateStr = date || "";
 
   const loadDay = async (mode: "initial" | "refresh" = "initial") => {
@@ -224,7 +228,7 @@ export default function CalendarDayPage() {
       month: "long",
       day: "numeric",
     }
-  ).format(selectedDate);
+  ).format(clock.shiftDate(selectedDate));
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">

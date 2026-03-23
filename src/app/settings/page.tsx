@@ -13,6 +13,7 @@ import { uploadProfilePhoto } from "@/lib/profilePhotoUpload";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
 import type { Language } from "@/lib/translations";
+import { notifyUserPreferencesUpdated } from "@/lib/useUserPreferences";
 import { formatDateTimeInTimezone } from "@/lib/datetime";
 
 import { Button } from "@/components/ui/button";
@@ -449,16 +450,18 @@ export default function SettingsPage() {
   };
 
   const handleSaveAccount = async () => {
-    await updateProfile("account", {
-      language,
-      timezone,
-      date_format: dateFormat,
-    });
+  await updateProfile("account", {
+    language,
+    timezone,
+    date_format: dateFormat,
+  });
 
-    if (language === "en" || language === "zh" || language === "ru") {
-      applyLanguage(language as Language);
-    }
-  };
+  if (language === "en" || language === "zh" || language === "ru") {
+    applyLanguage(language as Language);
+  }
+
+  notifyUserPreferencesUpdated();
+};
 
   const handleSaveNotifications = async () => {
     await updateProfile("notifications", {

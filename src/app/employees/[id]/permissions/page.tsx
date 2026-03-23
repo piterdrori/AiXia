@@ -26,7 +26,7 @@ type ProfileRow = {
   role: Role;
   status: Status;
   requested_role: Role | null;
-  permissions?: Record<string, boolean> | null;
+  permissions?: Partial<Record<Permission, boolean>> | null;
   created_at: string;
   updated_at: string;
 };
@@ -91,7 +91,7 @@ export default function EmployeePermissionsPage() {
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
 
-  const [permissions, setPermissions] = useState<Record<string, boolean>>({});
+  const [permissions, setPermissions] = useState<Partial<Record<Permission, boolean>>>({});
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [isBootstrapping, setIsBootstrapping] = useState(true);
@@ -167,7 +167,9 @@ export default function EmployeePermissionsPage() {
 
         const typedUser = targetUser as ProfileRow;
         setUser(typedUser);
-        setPermissions((typedUser.permissions || {}) as Record<string, boolean>);
+        setPermissions(
+  (typedUser.permissions || {}) as Partial<Record<Permission, boolean>>
+);
       } catch (err) {
         if (!requestTracker.current.isLatest(requestId)) return;
         console.error("Permissions page load error:", err);
@@ -189,7 +191,7 @@ export default function EmployeePermissionsPage() {
     void loadData("initial");
   }, [loadData]);
 
-  const handleToggle = (permission: string) => {
+  const handleToggle = (permission: Permission) => {
     setPermissions((prev) => ({
       ...prev,
       [permission]: !prev[permission],
@@ -293,3 +295,178 @@ export default function EmployeePermissionsPage() {
     );
   });
 }, [t, user]);
+
+    if (!user && !isBootstrapping) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <Card className="bg-red-900/10 border-red-800/30">
+          <CardContent className="p-6 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
+            <div className="text-red-300">
+              {saveError || t("employeePermissions.errors.loadPage")}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (
+    (!currentUserRole || !canPerform(currentUserRole, "manageUsers")) &&
+    !isBootstrapping
+  ) {
+    return null;
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate(`/employees/${id}`)}
+          className="text-slate-400 hover:text-white"
+          disabled={isSaving}
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold text-white">
+            {t("employeePermissions.header.title")}
+          </h1>
+          <p className="text-slate-400">
+            {t("employeePermissions.header.subtitle", undefined, {
+              name:
+                user?.full_name ||
+                t("employeePermissions.empty.unnamedUser"),
+            })}
+          </p>
+        </div>
+
+        <Button
+          variant="outline"
+          className="border-slate-700 text-slate-300 hover:bg-slate-800"
+          onClick={() => void loadData("refresh")}
+          disabled={isRefreshing || isSaving}
+        >
+          {isRefreshing
+            ? t("employeePermissions.actions.refreshing")
+            : t("employeePermissions.actions.refresh")}
+        </Button>
+      </div>
+
+      {saved && (
+        <Alert className="bg-green-900/20 border-green-800 text-green-400">
+          <AlertDescription>
+            {t("employeePermissions.success.saved")}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {saveError && user && (
+        <Alert className="bg-red-900/20 border-red-800 text-red-400">
+          <AlertDescription>{saveError}</AlertDescription>
+        </Alert>
+      )}
+
+      <Card className="bg-slate-900/50 border-slate-800">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <Shield className="w-5 h-5 text-indigo-400" />
+            <CardTitle className="text-white">
+              {t("employeePermissions.sections.permissionOverrides")}
+            </CardTitle>
+          </div>
+          <p className="text-slate-400 text-sm">
+            {t(
+              "employeePermissions.sections.permissionOverridesDescription"
+            )}
+          </p>
+        </CardHeader>
+
+        <CardContent className="space-y-6">
+          {(Object.entries(permissionLabels) as Array<
+  [Permission, { label: string; description: string }]
+>).map(([key, { label, description }]) => (
+              <div
+                key={key}
+                className="flex items-start justify-between gap-4"
+              >
+                <div className="flex-1">
+                  <Label
+                    htmlFor={key}
+                    className="text-white font-medium cursor-pointer"
+                  >
+                    {label}
+                  </Label>
+                  <p className="text-slate-500 text-sm">
+                    {description}
+                  </p>
+                </div>
+
+                <Switch
+                  id={key}
+                  checked={permissions[key] || false}
+                  onCheckedChange={() => handleToggle(key)}
+                  disabled={isSaving}
+                />
+              </div>
+            )
+          )}
+
+          <Separator className="bg-slate-800" />
+
+          <div className="flex items-center justify-between pt-4">
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/employees/${id}`)}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              disabled={isSaving}
+            >
+              {t("employeePermissions.actions.cancel")}
+            </Button>
+
+            <Button
+              onClick={() => void handleSave()}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              disabled={isSaving}
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {isSaving
+                ? t("employeePermissions.actions.saving")
+                : t("employeePermissions.actions.savePermissions")}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-slate-900/50 border-slate-800">
+        <CardHeader>
+          <CardTitle className="text-white text-lg">
+            {t(
+              "employeePermissions.sections.currentRolePermissions"
+            )}
+          </CardTitle>
+        </CardHeader>
+
+        <CardContent>
+          <p className="text-slate-400 mb-4">
+            {t(
+              "employeePermissions.sections.currentRoleDescription.before"
+            )}
+            <Badge className="mx-1">
+              {user?.role.toUpperCase()}
+            </Badge>
+            {t(
+              "employeePermissions.sections.currentRoleDescription.after"
+            )}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {roleBadges}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

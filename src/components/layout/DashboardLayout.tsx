@@ -702,17 +702,7 @@ export default function DashboardLayout({
   </div>
 
 </div>
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            {t("common.systemTime", "System Time")}
-          </p>
-          <p className="mt-1 text-sm font-medium text-foreground">
-            {format(clock.now, "PPP")}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {format(clock.now, "p")}
-          </p>
-        </div>
-
+        
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted">

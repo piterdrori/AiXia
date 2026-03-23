@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-
+import { registerSchema } from "@/lib/validation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -130,46 +130,19 @@ export default function RegisterPage() {
     setError("");
     setSuccessMessage("");
 
-    if (!trimmedFullName) {
-      setError("Full name is required.");
-      return;
-    }
+    const validation = registerSchema.safeParse({
+  fullName: trimmedFullName,
+  email: normalizedEmail,
+  password,
+  confirmPassword,
+  memberType,
+});
 
-    if (!normalizedEmail) {
-      setError("Email is required.");
-      return;
-    }
-
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailPattern.test(normalizedEmail)) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-
-    if (!memberType) {
-      setError("Member Type is required.");
-      return;
-    }
-
-    if (!password) {
-      setError("Password is required.");
-      return;
-    }
-
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
-    }
-
-    if (!confirmPassword) {
-      setError("Please confirm your password.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
+if (!validation.success) {
+  const firstIssue = validation.error.issues[0];
+  setError(firstIssue?.message || "Please check your form and try again.");
+  return;
+}
 
     setIsLoading(true);
 

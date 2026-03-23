@@ -172,7 +172,6 @@ export function canViewTask(
   task: TaskRow,
   userId: string | null,
   role: Role,
-  projectMembers: ProjectMemberRow[],
   taskMembers: TaskMemberRow[],
   visibleProjectIds: Set<string>
 ): boolean {

@@ -5,7 +5,7 @@ import { logActivity } from "@/lib/activity";
 import { createNotification } from "@/lib/notifications";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
-
+import { taskSchema } from "@/lib/validation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -290,24 +290,37 @@ export default function TaskNewPage() {
     setError("");
 
     if (!currentUserId) {
-      setError(t("taskNew.errors.userSessionNotFound"));
-      return;
-    }
+  setError(t("taskNew.errors.userSessionNotFound"));
+  return;
+}
 
-    if (!title.trim()) {
-      setError(t("taskNew.errors.taskTitleRequired"));
-      return;
-    }
+const validation = taskSchema.safeParse({
+  title: title.trim(),
+  projectId,
+  dueDate: dueDate || undefined,
+});
 
-    if (!projectId) {
-      setError(t("taskNew.errors.projectRequired"));
-      return;
-    }
+if (!validation.success) {
+  const firstIssue = validation.error.issues[0];
 
-    if (dueDate && Number.isNaN(new Date(dueDate).getTime())) {
-      setError(t("taskNew.errors.invalidDueDate"));
-      return;
-    }
+  if (firstIssue?.path[0] === "title") {
+    setError(t("taskNew.errors.taskTitleRequired"));
+    return;
+  }
+
+  if (firstIssue?.path[0] === "projectId") {
+    setError(t("taskNew.errors.projectRequired"));
+    return;
+  }
+
+  if (firstIssue?.path[0] === "dueDate") {
+    setError(t("taskNew.errors.invalidDueDate"));
+    return;
+  }
+
+  setError(t("taskNew.errors.createTaskUnexpected"));
+  return;
+}
 
     const requestId = pageRequestTracker.current.next();
     setIsSaving(true);

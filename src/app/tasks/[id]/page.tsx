@@ -45,6 +45,8 @@ import {
   Clock3,
   Save,
   X,
+  UserPlus,
+  UserMinus,
 } from "lucide-react";
 
 type Role = "admin" | "manager" | "employee" | "guest";
@@ -141,6 +143,10 @@ export default function TaskDetailPage() {
   const [commentActionLoading, setCommentActionLoading] = useState<string | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [showManageMembers, setShowManageMembers] = useState(false);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
+  const [memberSaving, setMemberSaving] = useState(false);
+  const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null);
 
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
@@ -300,6 +306,7 @@ export default function TaskDetailPage() {
   }, [task, currentUserId, currentUserRole]);
 
   const canDeleteTask = canEditTask;
+  const canManageMembers = canEditTask;
 
   const canUpdateStatus = useMemo(() => {
     if (!task || !currentUserId) return false;
@@ -375,6 +382,18 @@ export default function TaskDetailPage() {
       .toUpperCase();
   };
 
+    const employeeProfiles = useMemo(() => {
+    return profiles.filter(
+      (profile) => profile.role === "employee" && profile.status === "active"
+    );
+  }, [profiles]);
+
+  const availableEmployees = useMemo(() => {
+    const existingMemberIds = new Set(taskMembers.map((member) => member.user_id));
+
+    return employeeProfiles.filter((profile) => !existingMemberIds.has(profile.user_id));
+  }, [employeeProfiles, taskMembers]);
+  
   const mentionCandidates = useMemo(() => {
     const candidateIds = Array.from(
       new Set([
@@ -511,7 +530,80 @@ export default function TaskDetailPage() {
     }
   };
 
-  const handleDelete = async () => {
+    const handleAddMember = async () => {
+    if (!task || !selectedEmployeeId || !canManageMembers) return;
+
+    const requestId = requestTracker.current.next();
+    setMemberSaving(true);
+    setError("");
+
+    try {
+      const { data, error: insertError } = await supabase
+        .from("task_members")
+        .insert({
+          task_id: task.id,
+          user_id: selectedEmployeeId,
+          role: "assignee",
+        })
+        .select("id, task_id, user_id, role, created_at")
+        .single();
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (insertError) {
+        setError(insertError.message || "Failed to add member.");
+        setMemberSaving(false);
+        return;
+      }
+
+      setTaskMembers((prev) => [...prev, data as TaskMemberRow]);
+      setSelectedEmployeeId("");
+    } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Add task member error:", err);
+      setError("Failed to add member.");
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      setMemberSaving(false);
+    }
+  };
+
+  const handleRemoveMember = async (member: TaskMemberRow) => {
+    if (!task || !canManageMembers) return;
+
+    const confirmed = window.confirm("Remove this member from the task?");
+    if (!confirmed) return;
+
+    const requestId = requestTracker.current.next();
+    setMemberActionLoading(member.id);
+    setError("");
+
+    try {
+      const { error: deleteError } = await supabase
+        .from("task_members")
+        .delete()
+        .eq("id", member.id);
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (deleteError) {
+        setError(deleteError.message || "Failed to remove member.");
+        setMemberActionLoading(null);
+        return;
+      }
+
+      setTaskMembers((prev) => prev.filter((item) => item.id !== member.id));
+    } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Remove task member error:", err);
+      setError("Failed to remove member.");
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      setMemberActionLoading(null);
+    }
+  };  
+  
+const handleDelete = async () => {
     if (!task || !canDeleteTask) return;
 
     const confirmed = window.confirm(t("taskDetail.confirmations.deleteTask"));
@@ -1363,19 +1455,96 @@ setTranslatedComments((prev) => ({
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-900/50 border-slate-800">
+                    <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
-              <CardTitle className="text-white">{t("taskDetail.members.title")}</CardTitle>
+              <div className="flex items-center justify-between gap-4">
+                <CardTitle className="text-white">{t("taskDetail.members.title")}</CardTitle>
+
+                {canManageMembers && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                    onClick={() => setShowManageMembers((prev) => !prev)}
+                  >
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    {showManageMembers ? "Close" : "Add / Remove"}
+                  </Button>
+                )}
+              </div>
             </CardHeader>
 
-            <CardContent className="space-y-3">
+                        <CardContent className="space-y-3">
+              {canManageMembers && showManageMembers && (
+                <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-3 space-y-3">
+                  <div className="space-y-2">
+                    <div className="text-sm text-slate-300 font-medium">Add employee</div>
+
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={selectedEmployeeId}
+                        onValueChange={setSelectedEmployeeId}
+                        disabled={memberSaving}
+                      >
+                        <SelectTrigger className="flex-1 bg-slate-900 border-slate-700 text-white">
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableEmployees.length === 0 ? (
+                            <SelectItem value="__no_employees__" disabled>
+                              No available employees
+                            </SelectItem>
+                          ) : (
+                            availableEmployees.map((profile) => (
+                              <SelectItem key={profile.user_id} value={profile.user_id}>
+                                {profile.full_name || t("taskDetail.fallbacks.unknown")}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+
+                      <Button
+                        type="button"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                        onClick={() => void handleAddMember()}
+                        disabled={memberSaving || !selectedEmployeeId}
+                      >
+                        <UserPlus className="w-4 h-4 mr-2" />
+                        {memberSaving ? "Adding..." : "Add"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {taskMembers.length === 0 ? (
                 <p className="text-slate-500">{t("taskDetail.members.empty")}</p>
               ) : (
                 taskMembers.map((member) => (
-                  <div key={member.id} className="flex items-center justify-between">
-                    <span className="text-white">{getProfileName(member.user_id)}</span>
-                    <Badge className="bg-slate-800 text-slate-300">{member.role}</Badge>
+                  <div key={member.id} className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="text-white">{getProfileName(member.user_id)}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-slate-800 text-slate-300">{member.role}</Badge>
+
+                      {canManageMembers && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="border-red-800 text-red-400 hover:bg-red-900/20"
+                          onClick={() => void handleRemoveMember(member)}
+                          disabled={memberActionLoading === member.id}
+                        >
+                          <UserMinus className="w-3 h-3 mr-1" />
+                          Remove
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))
               )}

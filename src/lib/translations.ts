@@ -1382,7 +1382,7 @@ chat: {
     taskChat: "Task Chat",
     groupChat: "Group Chat",
   },
-    time: {
+      time: {
     yesterday: "Yesterday",
   },
 },
@@ -1414,9 +1414,8 @@ timezone: {
   detectedTimezone: "Detected",
   timezoneDescription:
     "Choose how dates and times are shown for your account",
-   },
-},
-    
+  preview: "Preview",
+},  
   },
 
   zh: {
@@ -2775,7 +2774,7 @@ chat: {
     taskChat: "任务聊天",
     groupChat: "群组聊天",
   },
-    time: {
+     time: {
     yesterday: "昨天",
   },
 },
@@ -2806,9 +2805,8 @@ timezone: {
   useMyCurrentTimezone: "使用我当前的时区",
   detectedTimezone: "检测到",
   timezoneDescription: "选择此账户显示日期和时间的方式",
-   },
+  preview: "预览",
 },
-    
   },
 
   ru: {
@@ -4187,7 +4185,7 @@ inbox: {
     taskChat: "Чат задачи",
     groupChat: "Групповой чат",
   },
-    time: {
+      time: {
     yesterday: "Вчера",
   },
 },
@@ -4219,7 +4217,7 @@ timezone: {
   detectedTimezone: "Определено",
   timezoneDescription:
     "Выберите, как для вашей учетной записи будут отображаться дата и время",
-     },
+  preview: "Предпросмотр",
 },
     
   },

@@ -2,6 +2,7 @@ import type { User, UserRole, PermissionOverrides } from '@/types';
 import { db } from '@/server/database';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import { getClockNowIso, getClockNowMs } from '@/lib/clock';
 
 // JWT-like token generation (simple implementation)
 export function generateToken(): string {
@@ -19,7 +20,7 @@ export function verifyPassword(password: string, hashed: string): boolean {
 // Session management
 export function createSession(userId: string): string {
   const token = generateToken();
-  const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+  const expiresAt = getClockNowMs() + 7 * 24 * 60 * 60 * 1000; // 7 days
   db.createSession({ userId, token, expiresAt });
   return token;
 }
@@ -147,7 +148,7 @@ export function registerUser(
     return { success: false, error: 'Admin already exists' };
   }
 
-  const now = new Date().toISOString();
+  const now = getClockNowIso();
   const user: User = {
     id: uuidv4(),
     email,

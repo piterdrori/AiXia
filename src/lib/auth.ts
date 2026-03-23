@@ -189,7 +189,7 @@ export function loginUser(
   }
 
   // Update last login
-  db.updateUser(user.id, { lastLoginAt: new Date().toISOString() });
+  db.updateUser(user.id, { lastLoginAt: getClockNowIso() });
 
   const token = createSession(user.id);
   return { success: true, user, token };

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
+import { useAsyncState } from "@/lib/useAsyncState";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { PageError } from "@/components/ui/PageError";
+import { PageLoader } from "@/components/ui/PageLoader";
 import {
   Select,
   SelectContent,
@@ -71,23 +74,28 @@ export default function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [sortBy, setSortBy] = useState<string>("newest");
 
-  const [isBootstrapping, setIsBootstrapping] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
-  const [loadError, setLoadError] = useState("");
+  const {
+  isBootstrapping,
+  isRefreshing,
+  error,
+  startInitial,
+  startRefresh,
+  setFailure,
+  finish,
+} = useAsyncState();
 
   const loadProjects = async (mode: "initial" | "refresh" = "initial") => {
     const requestId = requestTracker.current.next();
 
     if (mode === "initial") {
-      setIsBootstrapping(true);
-    } else {
-      setIsRefreshing(true);
-    }
-
-    setLoadError("");
+  startInitial();
+} else {
+  startRefresh();
+}
 
     try {
       const {
@@ -115,7 +123,7 @@ export default function ProjectsPage() {
         console.error("Load current profile error:", profileError);
         setCurrentUserRole(null);
         setProjects([]);
-        setLoadError(profileError.message || t("projects.failedToLoadProfile", "Failed to load profile."));
+        setFailure(profileError.message || t("projects.failedToLoadProfile", "Failed to load profile."));
         return;
       }
 
@@ -136,7 +144,7 @@ export default function ProjectsPage() {
         if (projectsError) {
           console.error("Load projects error:", projectsError);
           setProjects([]);
-          setLoadError(projectsError.message || t("projects.failedToLoadProjects", "Failed to load projects."));
+          setFailure(projectsError.message || t("projects.failedToLoadProjects", "Failed to load projects."));
         } else {
           setProjects((projectsData || []) as ProjectRow[]);
         }
@@ -163,7 +171,7 @@ export default function ProjectsPage() {
       if (membersError) {
         console.error("Load project members error:", membersError);
         setProjects([]);
-        setLoadError(
+        setFailure(
           membersError.message ||
             t("projects.failedToLoadProjectMemberships", "Failed to load project memberships.")
         );
@@ -173,7 +181,7 @@ export default function ProjectsPage() {
       if (createdError) {
         console.error("Load created projects error:", createdError);
         setProjects([]);
-        setLoadError(
+        setFailure(
           createdError.message ||
             t("projects.failedToLoadCreatedProjects", "Failed to load created projects.")
         );
@@ -199,7 +207,7 @@ export default function ProjectsPage() {
         if (assignedProjectsError) {
           console.error("Load assigned projects error:", assignedProjectsError);
           setProjects([]);
-          setLoadError(
+          setFailure(
             assignedProjectsError.message ||
               t("projects.failedToLoadAssignedProjects", "Failed to load assigned projects.")
           );
@@ -220,11 +228,10 @@ export default function ProjectsPage() {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Projects page load error:", error);
       setProjects([]);
-      setLoadError(t("projects.failedToLoadProjects", "Failed to load projects."));
+      setFailure(t("projects.failedToLoadProjects", "Failed to load projects."));
     } finally {
       if (!requestTracker.current.isLatest(requestId)) return;
-      setIsBootstrapping(false);
-      setIsRefreshing(false);
+      finish();
     }
   };
 
@@ -415,246 +422,220 @@ export default function ProjectsPage() {
         </ToggleGroup>
       </div>
 
-      {loadError && (
-        <Card className="bg-red-950/20 border-red-900/40">
-          <CardContent className="p-4 text-sm text-red-300">{loadError}</CardContent>
-        </Card>
-      )}
+      <PageError message={error} />
 
-      {isBootstrapping ? (
-        viewMode === "grid" ? (
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <Card key={index} className="bg-slate-900/50 border-slate-800">
-                <CardContent className="p-4">
-                  <div className="animate-pulse space-y-4">
-                    <div className="flex items-start justify-between">
-                      <div className="w-10 h-10 rounded-lg bg-slate-800" />
-                      <div className="w-8 h-8 rounded bg-slate-800" />
-                    </div>
-                    <div className="h-5 w-2/3 rounded bg-slate-800" />
-                    <div className="h-4 w-full rounded bg-slate-800" />
-                    <div className="h-4 w-3/4 rounded bg-slate-800" />
-                    <div className="h-6 w-24 rounded bg-slate-800" />
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <div className="h-4 w-16 rounded bg-slate-800" />
-                        <div className="h-4 w-10 rounded bg-slate-800" />
-                      </div>
-                      <div className="h-2 w-full rounded bg-slate-800" />
-                    </div>
-                    <div className="h-4 w-20 rounded bg-slate-800" />
+     <PageLoader
+  loading={isBootstrapping}
+  fallback={
+    viewMode === "grid" ? (
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <Card key={index} className="bg-slate-900/50 border-slate-800">
+            <CardContent className="p-4">
+              <div className="animate-pulse space-y-4">
+                <div className="flex items-start justify-between">
+                  <div className="w-10 h-10 rounded-lg bg-slate-800" />
+                  <div className="w-8 h-8 rounded bg-slate-800" />
+                </div>
+                <div className="h-5 w-2/3 rounded bg-slate-800" />
+                <div className="h-4 w-full rounded bg-slate-800" />
+                <div className="h-4 w-3/4 rounded bg-slate-800" />
+                <div className="h-6 w-24 rounded bg-slate-800" />
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <div className="h-4 w-16 rounded bg-slate-800" />
+                    <div className="h-4 w-10 rounded bg-slate-800" />
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <Card className="bg-slate-900/50 border-slate-800">
-            <CardContent className="p-0">
-              <div className="divide-y divide-slate-800">
-                {Array.from({ length: 6 }).map((_, index) => (
-                  <div key={index} className="p-4">
-                    <div className="animate-pulse flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-slate-800" />
-                      <div className="flex-1 space-y-2">
-                        <div className="h-4 w-48 rounded bg-slate-800" />
-                        <div className="h-4 w-72 rounded bg-slate-800" />
-                      </div>
-                      <div className="hidden sm:block h-6 w-20 rounded bg-slate-800" />
-                      <div className="hidden sm:block h-2 w-32 rounded bg-slate-800" />
-                      <div className="hidden sm:block h-4 w-16 rounded bg-slate-800" />
-                      <div className="h-8 w-8 rounded bg-slate-800" />
-                    </div>
-                  </div>
-                ))}
+                  <div className="h-2 w-full rounded bg-slate-800" />
+                </div>
+                <div className="h-4 w-20 rounded bg-slate-800" />
               </div>
             </CardContent>
           </Card>
-        )
-      ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
-          {filteredProjects.map((project) => (
-            <Card
-              key={project.id}
-              className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/40 transition-all duration-300 cursor-pointer group hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(99,102,241,0.18)]"
-              onClick={() => navigate(`/projects/${project.id}`)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110">
-                    <FolderKanban className="w-4 h-4 text-indigo-400" />
+        ))}
+      </div>
+    ) : (
+      <Card className="bg-slate-900/50 border-slate-800">
+        <CardContent className="p-0">
+          <div className="divide-y divide-slate-800">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="p-4">
+                <div className="animate-pulse flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-slate-800" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-48 rounded bg-slate-800" />
+                    <div className="h-4 w-72 rounded bg-slate-800" />
                   </div>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="w-4 h-4 text-slate-400" />
-                      </Button>
-                    </DropdownMenuTrigger>
-
-                    <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800">
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/projects/${project.id}/edit`);
-                        }}
-                      >
-                        <Edit className="w-4 h-4 mr-2" />
-                        {t("projects.edit", "Edit")}
-                      </DropdownMenuItem>
-
-                      {canDeleteProject(project) && (
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void handleDelete(project.id);
-                          }}
-                          className="text-red-400"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          {t("projects.delete", "Delete")}
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <div className="hidden sm:block h-6 w-20 rounded bg-slate-800" />
+                  <div className="hidden sm:block h-2 w-32 rounded bg-slate-800" />
+                  <div className="hidden sm:block h-4 w-16 rounded bg-slate-800" />
+                  <div className="h-8 w-8 rounded bg-slate-800" />
                 </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+>
+  {viewMode === "grid" ? (
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
+      {filteredProjects.map((project) => (
+        <Card
+          key={project.id}
+          className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/40 transition-all duration-300 cursor-pointer group hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(99,102,241,0.18)]"
+          onClick={() => navigate(`/projects/${project.id}`)}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between mb-3">
+              <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110">
+                <FolderKanban className="w-4 h-4 text-indigo-400" />
+              </div>
 
-                <h3 className="text-base font-semibold text-white mb-1 truncate group-hover:text-indigo-400 transition-colors">
-                  {project.name}
-                </h3>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <MoreVertical className="w-4 h-4 text-slate-400" />
+                  </Button>
+                </DropdownMenuTrigger>
 
-                <p className="text-slate-400 text-xs mb-3 line-clamp-2 min-h-[2.5rem]">
-                  {project.description || t("projects.noDescription", "No description")}
-                </p>
+                <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800">
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/projects/${project.id}/edit`);
+                    }}
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    {t("projects.edit", "Edit")}
+                  </DropdownMenuItem>
 
-                <div className="flex items-center gap-2 mb-3">
-                  <Badge className={getStatusColor(project.status)}>
-                    {getStatusLabel(project.status)}
-                  </Badge>
-                </div>
+                  {canDeleteProject(project) && (
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleDelete(project.id);
+                      }}
+                      className="text-red-400"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      {t("projects.delete", "Delete")}
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500">{t("projects.progress", "Progress")}</span>
-                    <span className="text-white">{project.progress || 0}%</span>
-                  </div>
-                  <Progress value={project.progress || 0} className="h-1.5 bg-slate-800" />
-                </div>
+            <h3 className="text-base font-semibold text-white mb-1 truncate group-hover:text-indigo-400 transition-colors">
+              {project.name}
+            </h3>
 
-                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-800">
-                  <div className="flex items-center gap-4 text-sm text-slate-500">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {project.end_date
-                        ? format(clock.shiftDate(project.end_date), "MMM d")
-                        : t("projects.noDate", "No date")}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-0">
-            <div className="divide-y divide-slate-800">
-              {filteredProjects.map((project) => (
-                <div
-                  key={project.id}
-                  onClick={() => navigate(`/projects/${project.id}`)}
-                  className="flex items-center gap-4 p-4 hover:bg-slate-800/50 cursor-pointer transition-colors"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
-                    <FolderKanban className="w-5 h-5 text-indigo-400" />
-                  </div>
+            <p className="text-slate-400 text-xs mb-3 line-clamp-2 min-h-[2.5rem]">
+              {project.description || t("projects.noDescription", "No description")}
+            </p>
 
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-white font-medium truncate">{project.name}</h4>
-                    <p className="text-slate-500 text-sm truncate">
-                      {project.description || t("projects.noDescription", "No description")}
-                    </p>
-                  </div>
+            <div className="flex items-center gap-2 mb-3">
+              <Badge className={getStatusColor(project.status)}>
+                {getStatusLabel(project.status)}
+              </Badge>
+            </div>
 
-                  <div className="hidden sm:flex items-center gap-4">
-                    <Badge className={getStatusColor(project.status)}>
-                      {getStatusLabel(project.status)}
-                    </Badge>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500">{t("projects.progress", "Progress")}</span>
+                <span className="text-white">{project.progress || 0}%</span>
+              </div>
+              <Progress value={project.progress || 0} className="h-1.5 bg-slate-800" />
+            </div>
 
-                    <div className="w-32">
-                      <Progress value={project.progress || 0} className="h-2 bg-slate-800" />
-                    </div>
-
-                    <span className="text-sm text-slate-500">
-                      {project.end_date
-                        ? format(clock.shiftDate(project.end_date), "MMM d")
-                        : t("projects.noDate", "No date")}
-                    </span>
-                  </div>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="w-4 h-4 text-slate-400" />
-                      </Button>
-                    </DropdownMenuTrigger>
-
-                    <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800">
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/projects/${project.id}/edit`);
-                        }}
-                      >
-                        <Edit className="w-4 h-4 mr-2" />
-                        {t("projects.edit", "Edit")}
-                      </DropdownMenuItem>
-
-                      {canDeleteProject(project) && (
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void handleDelete(project.id);
-                          }}
-                          className="text-red-400"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          {t("projects.delete", "Delete")}
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              ))}
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-800">
+              <div className="flex items-center gap-4 text-sm text-slate-500">
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5" />
+                  {project.end_date
+                    ? format(clock.shiftDate(project.end_date), "MMM d")
+                    : t("projects.noDate", "No date")}
+                </span>
+              </div>
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {!isBootstrapping && filteredProjects.length === 0 && (
-        <div className="text-center py-12">
-          <FolderKanban className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-white mb-2">
-            {t("projects.noProjectsFound", "No projects found")}
-          </h3>
-          <p className="text-slate-500 mb-4">
-            {searchQuery || statusFilter !== "ALL"
-              ? t("projects.tryAdjustingYourFilters", "Try adjusting your filters")
-              : t("projects.createYourFirstProject", "Create your first project to get started")}
-          </p>
-
-          {!searchQuery && statusFilter === "ALL" && canCreateProjects && (
-            <Button
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              onClick={() => navigate("/projects/new")}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              {t("projects.createProject", "Create Project")}
-            </Button>
-          )}
-        </div>
-      )}
+      ))}
     </div>
-  );
-}
+  ) : (
+    <Card className="bg-slate-900/50 border-slate-800">
+      <CardContent className="p-0">
+        <div className="divide-y divide-slate-800">
+          {filteredProjects.map((project) => (
+            <div
+              key={project.id}
+              onClick={() => navigate(`/projects/${project.id}`)}
+              className="flex items-center gap-4 p-4 hover:bg-slate-800/50 cursor-pointer transition-colors"
+            >
+              <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
+                <FolderKanban className="w-5 h-5 text-indigo-400" />
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <h4 className="text-white font-medium truncate">{project.name}</h4>
+                <p className="text-slate-500 text-sm truncate">
+                  {project.description || t("projects.noDescription", "No description")}
+                </p>
+              </div>
+
+              <div className="hidden sm:flex items-center gap-4">
+                <Badge className={getStatusColor(project.status)}>
+                  {getStatusLabel(project.status)}
+                </Badge>
+
+                <div className="w-32">
+                  <Progress value={project.progress || 0} className="h-2 bg-slate-800" />
+                </div>
+
+                <span className="text-sm text-slate-500">
+                  {project.end_date
+                    ? format(clock.shiftDate(project.end_date), "MMM d")
+                    : t("projects.noDate", "No date")}
+                </span>
+              </div>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <MoreVertical className="w-4 h-4 text-slate-400" />
+                  </Button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800">
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/projects/${project.id}/edit`);
+                    }}
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    {t("projects.edit", "Edit")}
+                  </DropdownMenuItem>
+
+                  {canDeleteProject(project) && (
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleDelete(project.id);
+                      }}
+                      className="text-red-400"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      {t("projects.delete", "Delete")}
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )}
+</PageLoader>

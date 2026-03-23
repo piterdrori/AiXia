@@ -5,7 +5,7 @@ import { logActivity } from "@/lib/activity";
 import { createNotification } from "@/lib/notifications";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
-
+import { projectSchema } from "@/lib/validation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,20 +104,35 @@ export default function ProjectNewPage() {
     e.preventDefault();
     setError("");
 
-    if (!name.trim()) {
-      setError(t("projects.projectNameRequired", "Project name is required"));
-      return;
-    }
+    const validation = projectSchema.safeParse({
+  name: name.trim(),
+  startDate: startDate || undefined,
+  endDate: endDate || undefined,
+});
 
-    if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
-      setError(
-        t(
-          "projects.endDateCannotBeEarlierThanStartDate",
-          "End date cannot be earlier than start date"
-        )
-      );
-      return;
-    }
+if (!validation.success) {
+  const firstIssue = validation.error.issues[0];
+
+  if (firstIssue?.path[0] === "name") {
+    setError(
+      t("projects.projectNameRequired", "Project name is required")
+    );
+    return;
+  }
+
+  if (firstIssue?.path[0] === "endDate") {
+    setError(
+      t(
+        "projects.endDateCannotBeEarlierThanStartDate",
+        "End date cannot be earlier than start date"
+      )
+    );
+    return;
+  }
+
+  setError(t("projects.failedToCreateProject", "Failed to create project"));
+  return;
+}
 
     const requestId = requestTracker.current.next();
     setIsLoading(true);

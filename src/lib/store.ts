@@ -27,6 +27,7 @@ import {
   logout,
 } from "@/lib/auth";
 import { v4 as uuidv4 } from "uuid";
+import { getClockNowIso } from "@/lib/clock";
 
 interface AppState {
   // Auth
@@ -291,7 +292,7 @@ export const useStore = create<AppState & AppActions>()(
     // Projects
     // --------------------------
     createProject: (data) => {
-      const now = new Date().toISOString();
+      const now = getClockNowIso();
       const currentUser = get().currentUser;
       if (!currentUser) throw new Error("Not authenticated");
 
@@ -361,7 +362,7 @@ export const useStore = create<AppState & AppActions>()(
     // Tasks
     // --------------------------
     createTask: (data) => {
-      const now = new Date().toISOString();
+      const now = getClockNowIso();
       const currentUser = get().currentUser;
       if (!currentUser) throw new Error("Not authenticated");
 
@@ -481,7 +482,7 @@ export const useStore = create<AppState & AppActions>()(
     // Comments
     // --------------------------
     createComment: (taskId, content) => {
-      const now = new Date().toISOString();
+      const now = getClockNowIso();
       const currentUser = get().currentUser;
       if (!currentUser) throw new Error("Not authenticated");
 
@@ -556,7 +557,7 @@ export const useStore = create<AppState & AppActions>()(
     // Calendar
     // --------------------------
     createCalendarEvent: (data) => {
-      const now = new Date().toISOString();
+      const now = getClockNowIso();
       const currentUser = get().currentUser;
       if (!currentUser) throw new Error("Not authenticated");
 
@@ -598,7 +599,7 @@ export const useStore = create<AppState & AppActions>()(
     // Chat
     // --------------------------
     createConversation: (participants, type, name) => {
-      const now = new Date().toISOString();
+      const now = getClockNowIso();
       const conversation: Conversation = {
         id: uuidv4(),
         type,
@@ -612,7 +613,7 @@ export const useStore = create<AppState & AppActions>()(
     },
 
     sendMessage: (conversationId, content) => {
-      const now = new Date().toISOString();
+      const now = getClockNowIso();
       const currentUser = get().currentUser;
       if (!currentUser) throw new Error("Not authenticated");
 

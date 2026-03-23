@@ -394,6 +394,34 @@ function ProtectedRoute({
   return <>{children}</>;
 }
 
+function PublicRoute({ children }: { children: ReactNode }) {
+  const { isBootstrapping, accessState } = useAuthAccess();
+  const location = useLocation();
+
+  if (isBootstrapping) {
+    return <FullScreenLoader />;
+  }
+
+  const allowAuthenticatedPublicPaths = [
+    "/reset-password",
+    "/forgot-password",
+  ];
+
+  const isAllowedAuthenticatedPublicPath = allowAuthenticatedPublicPaths.includes(
+    location.pathname
+  );
+
+  if (accessState === "ready" && !isAllowedAuthenticatedPublicPath) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  if (accessState === "needs_profile" && !isAllowedAuthenticatedPublicPath) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 function AppRoutes() {
   return (
     <Routes>

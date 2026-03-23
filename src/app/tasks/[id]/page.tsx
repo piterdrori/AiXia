@@ -382,17 +382,19 @@ export default function TaskDetailPage() {
       .toUpperCase();
   };
 
-    const employeeProfiles = useMemo(() => {
-    return profiles.filter(
-      (profile) => profile.role === "employee" && profile.status === "active"
-    );
-  }, [profiles]);
+    const assignableProfiles = useMemo(() => {
+  return profiles.filter(
+    (profile) =>
+      (profile.role === "employee" || profile.role === "manager") &&
+      profile.status === "active"
+  );
+}, [profiles]);
 
-  const availableEmployees = useMemo(() => {
-    const existingMemberIds = new Set(taskMembers.map((member) => member.user_id));
+const availableEmployees = useMemo(() => {
+  const existingMemberIds = new Set(taskMembers.map((member) => member.user_id));
 
-    return employeeProfiles.filter((profile) => !existingMemberIds.has(profile.user_id));
-  }, [employeeProfiles, taskMembers]);
+  return assignableProfiles.filter((profile) => !existingMemberIds.has(profile.user_id));
+}, [assignableProfiles, taskMembers]);
   
   const mentionCandidates = useMemo(() => {
     const candidateIds = Array.from(
@@ -551,7 +553,7 @@ export default function TaskDetailPage() {
       if (!requestTracker.current.isLatest(requestId)) return;
 
       if (insertError) {
-        setError(insertError.message || "Failed to add member.");
+        setError(insertError.message || t("taskDetail.members.errors.addFailed"));
         setMemberSaving(false);
         return;
       }
@@ -561,7 +563,7 @@ export default function TaskDetailPage() {
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Add task member error:", err);
-      setError("Failed to add member.");
+      setError(t("taskDetail.members.errors.addFailed"));
     } finally {
       if (!requestTracker.current.isLatest(requestId)) return;
       setMemberSaving(false);
@@ -571,7 +573,9 @@ export default function TaskDetailPage() {
   const handleRemoveMember = async (member: TaskMemberRow) => {
     if (!task || !canManageMembers) return;
 
-    const confirmed = window.confirm("Remove this member from the task?");
+    const confirmed = window.confirm(
+  t("taskDetail.members.confirmations.removeMember")
+);
     if (!confirmed) return;
 
     const requestId = requestTracker.current.next();
@@ -587,7 +591,7 @@ export default function TaskDetailPage() {
       if (!requestTracker.current.isLatest(requestId)) return;
 
       if (deleteError) {
-        setError(deleteError.message || "Failed to remove member.");
+        setError(deleteError.message || t("taskDetail.members.errors.removeFailed"));
         setMemberActionLoading(null);
         return;
       }
@@ -596,7 +600,7 @@ export default function TaskDetailPage() {
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Remove task member error:", err);
-      setError("Failed to remove member.");
+      setError(t("taskDetail.members.errors.removeFailed"));
     } finally {
       if (!requestTracker.current.isLatest(requestId)) return;
       setMemberActionLoading(null);
@@ -1469,7 +1473,9 @@ setTranslatedComments((prev) => ({
                     onClick={() => setShowManageMembers((prev) => !prev)}
                   >
                     <UserPlus className="w-4 h-4 mr-2" />
-                    {showManageMembers ? "Close" : "Add / Remove"}
+                    {showManageMembers
+  ? t("taskDetail.members.actions.close")
+  : t("taskDetail.members.actions.addRemove")}
                   </Button>
                 )}
               </div>
@@ -1479,7 +1485,9 @@ setTranslatedComments((prev) => ({
               {canManageMembers && showManageMembers && (
                 <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-3 space-y-3">
                   <div className="space-y-2">
-                    <div className="text-sm text-slate-300 font-medium">Add employee</div>
+                    <div className="text-sm text-slate-300 font-medium">
+  {t("taskDetail.members.actions.addMember")}
+</div>
 
                     <div className="flex items-center gap-2">
                       <Select
@@ -1488,13 +1496,13 @@ setTranslatedComments((prev) => ({
                         disabled={memberSaving}
                       >
                         <SelectTrigger className="flex-1 bg-slate-900 border-slate-700 text-white">
-                          <SelectValue placeholder="Select employee" />
+                          <SelectValue placeholder={t("taskDetail.members.actions.selectMember")} />
                         </SelectTrigger>
                         <SelectContent>
                           {availableEmployees.length === 0 ? (
                             <SelectItem value="__no_employees__" disabled>
-                              No available employees
-                            </SelectItem>
+  {t("taskDetail.members.actions.noAvailableMembers")}
+</SelectItem>
                           ) : (
                             availableEmployees.map((profile) => (
                               <SelectItem key={profile.user_id} value={profile.user_id}>
@@ -1512,7 +1520,9 @@ setTranslatedComments((prev) => ({
                         disabled={memberSaving || !selectedEmployeeId}
                       >
                         <UserPlus className="w-4 h-4 mr-2" />
-                        {memberSaving ? "Adding..." : "Add"}
+                        {memberSaving
+  ? t("taskDetail.members.actions.adding")
+  : t("taskDetail.members.actions.add")}
                       </Button>
                     </div>
                   </div>
@@ -1541,7 +1551,7 @@ setTranslatedComments((prev) => ({
                           disabled={memberActionLoading === member.id}
                         >
                           <UserMinus className="w-3 h-3 mr-1" />
-                          Remove
+                          {t("taskDetail.members.actions.remove")}
                         </Button>
                       )}
                     </div>

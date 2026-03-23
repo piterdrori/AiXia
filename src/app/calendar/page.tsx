@@ -115,8 +115,8 @@ export default function CalendarPage() {
 
     setLoadError("");
 
-    const monthStart = format(startOfMonth(cursor), "yyyy-MM-dd");
-    const monthEnd = format(endOfMonth(cursor), "yyyy-MM-dd");
+    const monthStart = format(clock.shiftDate(startOfMonth(cursor)), "yyyy-MM-dd");
+const monthEnd = format(clock.shiftDate(endOfMonth(cursor)), "yyyy-MM-dd");
 
     try {
       const {

@@ -15,6 +15,33 @@ export type Permission =
 
 type PermissionMap = Record<Permission, boolean>;
 
+export type ProjectRow = {
+  id: string;
+  created_by: string | null;
+};
+
+export type TaskRow = {
+  id: string;
+  created_by: string | null;
+  assignee_id?: string | null;
+  project_id?: string | null;
+};
+
+export type ProjectMemberRow = {
+  project_id: string;
+  user_id: string;
+};
+
+export type TaskMemberRow = {
+  task_id: string;
+  user_id: string;
+};
+
+export type CalendarEventRow = {
+  project_id: string | null;
+  created_by: string | null;
+};
+
 const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
   admin: {
     createProjects: true,
@@ -78,13 +105,8 @@ export function getEffectivePermissions(
   overrides?: Partial<PermissionMap> | null
 ): PermissionMap {
   const base = ROLE_PERMISSIONS[role];
-
   if (!overrides) return base;
-
-  return {
-    ...base,
-    ...overrides,
-  };
+  return { ...base, ...overrides };
 }
 
 export function canPerform(
@@ -97,15 +119,152 @@ export function canPerform(
 }
 
 export function canAccessRoute(role: Role, route: string): boolean {
-  // simple route rules (can expand later)
-
-  if (route.startsWith("/employees")) {
-    return role === "admin";
-  }
-
-  if (route.startsWith("/settings")) {
-    return role !== "guest";
-  }
-
+  if (route.startsWith("/employees")) return role === "admin";
+  if (route.startsWith("/settings")) return role !== "guest";
   return true;
+}
+
+/* =========================================================
+   PROJECT PERMISSIONS
+========================================================= */
+
+export function canViewProject(
+  project: ProjectRow,
+  userId: string | null,
+  role: Role,
+  projectMembers: ProjectMemberRow[]
+): boolean {
+  if (!userId) return false;
+  if (role === "admin") return true;
+
+  const isCreator = project.created_by === userId;
+
+  const isMember = projectMembers.some(
+    (m) => m.project_id === project.id && m.user_id === userId
+  );
+
+  return isCreator || isMember;
+}
+
+export function canEditProject(
+  project: ProjectRow,
+  userId: string | null,
+  role: Role
+): boolean {
+  if (!userId) return false;
+  return role === "admin" || project.created_by === userId;
+}
+
+export function canDeleteProject(
+  project: ProjectRow,
+  userId: string | null,
+  role: Role
+): boolean {
+  if (!userId) return false;
+  return role === "admin" || project.created_by === userId;
+}
+
+/* =========================================================
+   TASK PERMISSIONS
+========================================================= */
+
+export function canViewTask(
+  task: TaskRow,
+  userId: string | null,
+  role: Role,
+  projectMembers: ProjectMemberRow[],
+  taskMembers: TaskMemberRow[],
+  visibleProjectIds: Set<string>
+): boolean {
+  if (!userId) return false;
+  if (role === "admin") return true;
+
+  const isCreator = task.created_by === userId;
+  const isAssignee = task.assignee_id === userId;
+
+  const isTaskMember = taskMembers.some(
+    (m) => m.task_id === task.id && m.user_id === userId
+  );
+
+  const isProjectVisible =
+    !!task.project_id && visibleProjectIds.has(task.project_id);
+
+  return isCreator || isAssignee || isTaskMember || isProjectVisible;
+}
+
+export function canEditTaskEntity(
+  task: TaskRow,
+  userId: string | null,
+  role: Role
+): boolean {
+  if (!userId) return false;
+  return role === "admin" || task.created_by === userId;
+}
+
+export function canDeleteTaskEntity(
+  task: TaskRow,
+  userId: string | null,
+  role: Role
+): boolean {
+  if (!userId) return false;
+  return role === "admin" || task.created_by === userId;
+}
+
+export function canMoveTask(
+  task: TaskRow,
+  userId: string | null,
+  role: Role,
+  taskMembers: TaskMemberRow[]
+): boolean {
+  if (!userId) return false;
+
+  const isCreator = task.created_by === userId;
+  const isAssignee = task.assignee_id === userId;
+
+  const isTaskMember = taskMembers.some(
+    (m) => m.task_id === task.id && m.user_id === userId
+  );
+
+  return role === "admin" || isCreator || isAssignee || isTaskMember;
+}
+
+export function canCreateTask(role: Role): boolean {
+  return canPerform(role, "createTasks");
+}
+
+/* =========================================================
+   CALENDAR PERMISSIONS
+========================================================= */
+
+export function getVisibleProjectIds(
+  userId: string,
+  role: Role,
+  projects: ProjectRow[],
+  projectMembers: ProjectMemberRow[]
+): Set<string> {
+  if (role === "admin") {
+    return new Set(projects.map((p) => p.id));
+  }
+
+  return new Set([
+    ...projects.filter((p) => p.created_by === userId).map((p) => p.id),
+    ...projectMembers
+      .filter((m) => m.user_id === userId)
+      .map((m) => m.project_id),
+  ]);
+}
+
+export function canViewCalendarEvent(
+  event: CalendarEventRow,
+  userId: string,
+  role: Role,
+  visibleProjectIds: Set<string>
+): boolean {
+  if (role === "admin") return true;
+
+  if (!event.project_id) {
+    return event.created_by === userId;
+  }
+
+  return visibleProjectIds.has(event.project_id);
 }

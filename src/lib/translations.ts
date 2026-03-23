@@ -1415,6 +1415,7 @@ timezone: {
   timezoneDescription:
     "Choose how dates and times are shown for your account",
   preview: "Preview",
+  chinaTimeLabel: "China",
 },  
   },
 
@@ -2806,6 +2807,7 @@ timezone: {
   detectedTimezone: "检测到",
   timezoneDescription: "选择此账户显示日期和时间的方式",
   preview: "预览",
+  chinaTimeLabel: "中国时间",
 },
   },
 
@@ -4218,6 +4220,7 @@ timezone: {
   timezoneDescription:
     "Выберите, как для вашей учетной записи будут отображаться дата и время",
   preview: "Предпросмотр",
+  chinaTimeLabel: "Китай",
 },
     
   },

@@ -1489,13 +1489,13 @@ setTranslatedComments((prev) => ({
   {t("taskDetail.members.actions.addMember")}
 </div>
 
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <div className="flex flex-col gap-2">
   <Select
     value={selectedEmployeeId}
     onValueChange={setSelectedEmployeeId}
     disabled={memberSaving}
   >
-    <SelectTrigger className="w-full sm:flex-1 bg-slate-900 border-slate-700 text-white">
+    <SelectTrigger className="w-full bg-slate-900 border-slate-700 text-white">
       <SelectValue placeholder={t("taskDetail.members.actions.selectMember")} />
     </SelectTrigger>
     <SelectContent>
@@ -1515,7 +1515,7 @@ setTranslatedComments((prev) => ({
 
   <Button
     type="button"
-    className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white"
+    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
     onClick={() => void handleAddMember()}
     disabled={memberSaving || !selectedEmployeeId}
   >

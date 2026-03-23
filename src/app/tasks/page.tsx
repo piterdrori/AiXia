@@ -130,7 +130,8 @@ export default function TasksPage() {
   const requestTracker = useRef(createRequestTracker());
   const { t } = useLanguage();
   const clock = useAppClock();
-   const getTaskDateStatus = (dueDate: string | null) => {
+
+  const getTaskDateStatus = (dueDate: string | null) => {
     if (!dueDate) return "none";
 
     const today = clock.todayKey;
@@ -334,22 +335,14 @@ export default function TasksPage() {
 
       return a.due_date.localeCompare(b.due_date);
     });
-  }, [tasks, searchQuery, statusFilter, priorityFilter, projectFilter, clock.todayKey]);
-  
-      const title = (task.title || "").toLowerCase();
-      const description = (task.description || "").toLowerCase();
-      const query = searchQuery.toLowerCase();
-
-      const matchesSearch = title.includes(query) || description.includes(query);
-      const matchesStatus =
-        statusFilter === "ALL" || (task.status || "").toUpperCase() === statusFilter;
-      const matchesPriority =
-        priorityFilter === "ALL" || (task.priority || "").toUpperCase() === priorityFilter;
-      const matchesProject = projectFilter === "ALL" || task.project_id === projectFilter;
-
-      return matchesSearch && matchesStatus && matchesPriority && matchesProject;
-    });
-  }, [tasks, searchQuery, statusFilter, priorityFilter, projectFilter]);
+  }, [
+    tasks,
+    searchQuery,
+    statusFilter,
+    priorityFilter,
+    projectFilter,
+    clock.todayKey,
+  ]);
 
   const getProjectName = (projectId: string | null) => {
     if (!projectId) return t("tasks.fallbacks.noProject");

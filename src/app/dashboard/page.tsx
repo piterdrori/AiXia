@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { registerRealtimeChannel, removeRealtimeChannel } from "@/lib/realtime";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
-
+import { useAppClock } from "@/lib/clock/provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -146,6 +146,7 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
   const { t } = useLanguage();
+  const clock = useAppClock();
 
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -408,9 +409,9 @@ export default function DashboardPage() {
   }, [activeProjectsForProgress]);
 
   const upcomingItems = useMemo<UpcomingItem[]>(() => {
-    const today = new Date();
-    const next30Days = addDays(today, 30);
-    const items: UpcomingItem[] = [];
+  const today = clock.now;
+  const next30Days = addDays(today, 30);
+  const items: UpcomingItem[] = [];
 
     for (const task of activeTasksForCompletion) {
       if (!task.due_date) continue;
@@ -457,7 +458,7 @@ export default function DashboardPage() {
     }
 
     return items
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())
       .slice(0, 12);
   }, [activeProjectsForProgress, activeTasksForCompletion, visibleEvents, t]);
 

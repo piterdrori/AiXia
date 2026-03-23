@@ -20,6 +20,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { LanguageProvider, useLanguage } from "@/lib/i18n";
 import type { Language } from "@/lib/translations";
 import { ClockProvider } from "@/lib/clock/provider";
+import { canAccessRoute, type Role } from "@/lib/permissions";
 import LandingPage from "@/app/page";
 import LoginPage from "@/app/login/page";
 import RegisterPage from "@/app/register/page";
@@ -281,11 +282,79 @@ function SessionTimeoutManager() {
   return null;
 }
 
-function ProtectedRoute({ children }: { children: ReactNode }) {
+function ProtectedRoute({
+  children,
+  allowedRoles,
+}: {
+  children: ReactNode;
+  allowedRoles?: Role[];
+}) {
   const location = useLocation();
   const { isBootstrapping, accessState } = useAuthAccess();
+  const [role, setRole] = useState<Role | null>(null);
+  const [isCheckingRole, setIsCheckingRole] = useState(false);
 
-  if (isBootstrapping) {
+  useEffect(() => {
+    let mounted = true;
+
+    const loadRole = async () => {
+      if (accessState !== "ready") {
+        if (mounted) {
+          setRole(null);
+          setIsCheckingRole(false);
+        }
+        return;
+      }
+
+      setIsCheckingRole(true);
+
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!mounted) return;
+
+        if (!session?.user) {
+          setRole(null);
+          setIsCheckingRole(false);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("user_id", session.user.id)
+          .single();
+
+        if (!mounted) return;
+
+        if (error || !data?.role) {
+          setRole(null);
+          setIsCheckingRole(false);
+          return;
+        }
+
+        setRole(data.role as Role);
+      } catch (error) {
+        console.error("ProtectedRoute role load error:", error);
+        if (!mounted) return;
+        setRole(null);
+      } finally {
+        if (mounted) {
+          setIsCheckingRole(false);
+        }
+      }
+    };
+
+    void loadRole();
+
+    return () => {
+      mounted = false;
+    };
+  }, [accessState]);
+
+  if (isBootstrapping || (accessState === "ready" && isCheckingRole)) {
     return <FullScreenLoader />;
   }
 
@@ -308,32 +377,18 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  return <>{children}</>;
-}
+  if (accessState === "ready") {
+    if (!role) {
+      return <Navigate to="/dashboard" replace />;
+    }
 
-function PublicRoute({ children }: { children: ReactNode }) {
-  const { isBootstrapping, accessState } = useAuthAccess();
-  const location = useLocation();
+    if (allowedRoles && !allowedRoles.includes(role)) {
+      return <Navigate to="/dashboard" replace />;
+    }
 
-  if (isBootstrapping) {
-    return <FullScreenLoader />;
-  }
-
-  const allowAuthenticatedPublicPaths = [
-    "/reset-password",
-    "/forgot-password",
-  ];
-
-  const isAllowedAuthenticatedPublicPath = allowAuthenticatedPublicPaths.includes(
-    location.pathname
-  );
-
-  if (accessState === "ready" && !isAllowedAuthenticatedPublicPath) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  if (accessState === "needs_profile" && !isAllowedAuthenticatedPublicPath) {
-    return <Navigate to="/onboarding" replace />;
+    if (!canAccessRoute(role, location.pathname)) {
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
   return <>{children}</>;
@@ -555,35 +610,35 @@ function AppRoutes() {
       />
 
       <Route
-        path="/employees"
-        element={
-          <ProtectedRoute>
-            <DashboardLayout>
-              <EmployeesPage />
-            </DashboardLayout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/employees/:id"
-        element={
-          <ProtectedRoute>
-            <DashboardLayout>
-              <EmployeeDetailPage />
-            </DashboardLayout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/employees/:id/permissions"
-        element={
-          <ProtectedRoute>
-            <DashboardLayout>
-              <EmployeePermissionsPage />
-            </DashboardLayout>
-          </ProtectedRoute>
-        }
-      />
+  path="/employees"
+  element={
+    <ProtectedRoute allowedRoles={["admin"]}>
+      <DashboardLayout>
+        <EmployeesPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+<Route
+  path="/employees/:id"
+  element={
+    <ProtectedRoute allowedRoles={["admin"]}>
+      <DashboardLayout>
+        <EmployeeDetailPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+<Route
+  path="/employees/:id/permissions"
+  element={
+    <ProtectedRoute allowedRoles={["admin"]}>
+      <DashboardLayout>
+        <EmployeePermissionsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
 
       <Route
         path="/settings"

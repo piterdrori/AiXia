@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/lib/i18n";
+import { useAppClock } from "@/lib/clock/provider";
 import { registerRealtimeChannel, removeRealtimeChannel } from "@/lib/realtime";
 import {
   markAllNotificationsRead,
@@ -156,6 +157,7 @@ export default function DashboardLayout({
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useLanguage();
+  const clock = useAppClock();
   const cached = readLayoutCache();
 
   const [isMobile, setIsMobile] = useState(false);
@@ -245,7 +247,7 @@ export default function DashboardLayout({
     const requestId = ++loadCalendarBadgeRequestIdRef.current;
 
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = clock.todayKey;
 
       const [
         { data: allProjects, error: projectsError },
@@ -654,7 +656,19 @@ export default function DashboardLayout({
         </TooltipProvider>
       </nav>
 
-      <div className="border-t border-border p-4">
+            <div className="border-t border-border p-4">
+        <div className="mb-3 rounded-lg border border-border bg-card/60 px-3 py-2">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {t("common.systemTime", "System Time")}
+          </p>
+          <p className="mt-1 text-sm font-medium text-foreground">
+            {format(clock.now, "PPP")}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {format(clock.now, "p")}
+          </p>
+        </div>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted">

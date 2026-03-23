@@ -397,38 +397,40 @@ export default function SettingsPage() {
   };
 
   const updateProfile = async (
-    section: Exclude<SaveSection, null>,
-    payload: Record<string, unknown>
-  ) => {
-    if (!userId) return;
+  section: Exclude<SaveSection, null>,
+  payload: Record<string, unknown>
+) => {
+  if (!userId) return false;
 
-    setSavingSection(section);
-    setSaveError("");
-    setSaved(false);
+  setSavingSection(section);
+  setSaveError("");
+  setSaved(false);
 
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          ...payload,
-          updated_at: clock.nowIso,
-        })
-        .eq("user_id", userId);
+  try {
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        ...payload,
+        updated_at: clock.nowIso,
+      })
+      .eq("user_id", userId);
 
-      if (error) {
-        console.error("Settings save error:", error);
-        setSaveError(error.message || "Failed to save settings.");
-        return;
-      }
-
-      showSaved();
-    } catch (error) {
+    if (error) {
       console.error("Settings save error:", error);
-      setSaveError("Failed to save settings.");
-    } finally {
-      setSavingSection(null);
+      setSaveError(error.message || "Failed to save settings.");
+      return false;
     }
-  };
+
+    showSaved();
+    return true;
+  } catch (error) {
+    console.error("Settings save error:", error);
+    setSaveError("Failed to save settings.");
+    return false;
+  } finally {
+    setSavingSection(null);
+  }
+};
 
   const handleSaveProfile = async () => {
     await updateProfile("profile", {
@@ -450,11 +452,13 @@ export default function SettingsPage() {
   };
 
 const handleSaveAccount = async () => {
-  await updateProfile("account", {
+  const didSave = await updateProfile("account", {
     language,
     timezone,
     date_format: dateFormat,
   });
+
+  if (!didSave) return;
 
   if (language === "en" || language === "zh" || language === "ru") {
     applyLanguage(language as Language);

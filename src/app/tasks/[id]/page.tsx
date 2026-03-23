@@ -339,6 +339,43 @@ export default function TaskDetailPage() {
     return 0;
   }, [task]);
 
+  const dueDateKey = useMemo(() => {
+  if (!task?.due_date) return null;
+  return format(clock.shiftDate(task.due_date), "yyyy-MM-dd");
+}, [task?.due_date, clock]);
+
+const dueDateDisplay = useMemo(() => {
+  if (!task?.due_date) return t("taskDetail.fallbacks.noDueDate");
+  return format(clock.shiftDate(task.due_date), "MMM d, yyyy");
+}, [task?.due_date, clock, t]);
+
+const isTaskDone = useMemo(() => {
+  return (task?.status || "").toUpperCase() === "DONE";
+}, [task?.status]);
+
+const isOverdue = useMemo(() => {
+  if (!dueDateKey || isTaskDone) return false;
+  return dueDateKey < clock.todayKey;
+}, [dueDateKey, isTaskDone, clock.todayKey]);
+
+const isDueToday = useMemo(() => {
+  if (!dueDateKey || isTaskDone) return false;
+  return dueDateKey === clock.todayKey;
+}, [dueDateKey, isTaskDone, clock.todayKey]);
+
+const dueDateBadgeClassName = useMemo(() => {
+  if (isOverdue) return "bg-red-500/20 text-red-400 border-red-500/30";
+  if (isDueToday) return "bg-amber-500/20 text-amber-400 border-amber-500/30";
+  return "bg-slate-500/20 text-slate-400 border-slate-500/30";
+}, [isOverdue, isDueToday]);
+
+const dueDateLabel = useMemo(() => {
+  if (!task?.due_date) return null;
+  if (isOverdue) return "Overdue";
+  if (isDueToday) return "Due today";
+  return null;
+}, [task?.due_date, isOverdue, isDueToday]);
+  
   const getProfileName = (userId: string | null) => {
     if (!userId) return t("taskDetail.fallbacks.unknown");
     return profiles.find((profile) => profile.user_id === userId)?.full_name || t("taskDetail.fallbacks.unknown");
@@ -1077,9 +1114,15 @@ setTranslatedComments((prev) => ({
 
             <CardContent className="space-y-5">
               <div className="flex flex-wrap gap-2">
-                <Badge className={getStatusColor(task.status)}>{task.status || "TODO"}</Badge>
-                <Badge className={getPriorityColor(task.priority)}>{task.priority || "LOW"}</Badge>
-              </div>
+  <Badge className={getStatusColor(task.status)}>{task.status || "TODO"}</Badge>
+  <Badge className={getPriorityColor(task.priority)}>{task.priority || "LOW"}</Badge>
+
+  {task.due_date && (
+    <Badge className={dueDateBadgeClassName}>
+      {dueDateLabel ? `${dueDateLabel} • ${dueDateDisplay}` : dueDateDisplay}
+    </Badge>
+  )}
+</div>
 
               <div>
                 <p className="text-slate-300 whitespace-pre-wrap">
@@ -1450,14 +1493,17 @@ setTranslatedComments((prev) => ({
                 value={task.status || "TODO"}
               />
               <InfoRow
-                icon={<Calendar className="w-4 h-4 text-green-400" />}
-                label={t("taskDetail.details.dueDate")}
-                value={
-                  task.due_date
-                    ? format(clock.shiftDate(task.due_date), "MMM d, yyyy")
-                    : t("taskDetail.fallbacks.noDueDate")
-                }
-              />
+  icon={<Calendar className="w-4 h-4 text-green-400" />}
+  label={t("taskDetail.details.dueDate")}
+  value={dueDateDisplay}
+  valueClassName={
+    isOverdue
+      ? "text-red-400"
+      : isDueToday
+        ? "text-amber-400"
+        : "text-white"
+  }
+/>
             </CardContent>
           </Card>
 
@@ -1572,17 +1618,19 @@ function InfoRow({
   icon,
   label,
   value,
+  valueClassName = "text-white",
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
+  valueClassName?: string;
 }) {
   return (
     <div className="flex items-center gap-3">
       <div>{icon}</div>
       <div>
         <p className="text-slate-500 text-xs">{label}</p>
-        <p className="text-white text-sm">{value}</p>
+        <p className={`${valueClassName} text-sm`}>{value}</p>
       </div>
     </div>
   );

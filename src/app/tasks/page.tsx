@@ -130,6 +130,15 @@ export default function TasksPage() {
   const requestTracker = useRef(createRequestTracker());
   const { t } = useLanguage();
   const clock = useAppClock();
+  const getTaskDateStatus = (dueDate: string | null) => {
+  if (!dueDate) return "none";
+
+  const today = clock.todayKey;
+
+  if (dueDate < today) return "overdue";
+  if (dueDate === today) return "today";
+  return "upcoming";
+};
 
   const initialProjectId = searchParams.get("projectId") || "ALL";
 
@@ -710,12 +719,25 @@ export default function TasksPage() {
                           <div className="flex items-center justify-between">
                             <MemberStack profiles={assigneeProfiles} />
 
-                            {task.due_date && (
-                              <span className="text-xs text-slate-500 flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                {format(clock.shiftDate(task.due_date), "MMM d")}
-                              </span>
-                            )}
+                            {task.due_date && (() => {
+  const status = getTaskDateStatus(task.due_date);
+
+  const color =
+    status === "overdue"
+      ? "text-red-400"
+      : status === "today"
+      ? "text-yellow-400"
+      : "text-slate-500";
+
+  return (
+    <span className={`text-xs flex items-center gap-1 ${color}`}>
+      <Calendar className="w-3 h-3" />
+      {format(clock.shiftDate(task.due_date), "MMM d")}
+      {status === "overdue" && " • Overdue"}
+      {status === "today" && " • Today"}
+    </span>
+  );
+})()}
                           </div>
                         </CardContent>
                       </Card>
@@ -773,11 +795,24 @@ export default function TasksPage() {
 
                       <MemberStack profiles={assigneeProfiles} size="medium" />
 
-                      {task.due_date && (
-                        <span className="text-sm text-slate-500">
-                          {format(clock.shiftDate(task.due_date), "MMM d")}
-                        </span>
-                      )}
+                      {task.due_date && (() => {
+  const status = getTaskDateStatus(task.due_date);
+
+  const color =
+    status === "overdue"
+      ? "text-red-400"
+      : status === "today"
+      ? "text-yellow-400"
+      : "text-slate-500";
+
+  return (
+    <span className={`text-sm ${color}`}>
+      {format(clock.shiftDate(task.due_date), "MMM d")}
+      {status === "overdue" && " • Overdue"}
+      {status === "today" && " • Today"}
+    </span>
+  );
+})()}
                     </div>
 
                     {(canEditTask(task) || canDeleteTask(task)) && (

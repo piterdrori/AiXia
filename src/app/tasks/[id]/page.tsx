@@ -14,6 +14,7 @@ import {
 } from "@/lib/file-upload";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
+import { useAppClock } from "@/lib/clock/provider";
 import { smartTranslate } from "@/lib/smartTranslate";
 
 import { Button } from "@/components/ui/button";
@@ -120,6 +121,7 @@ type FileUploadRow = {
 
 export default function TaskDetailPage() {
   const { t } = useLanguage();
+  const clock = useAppClock();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
@@ -464,7 +466,7 @@ const availableEmployees = useMemo(() => {
         .from("tasks")
         .update({
           status: newStatus,
-          updated_at: new Date().toISOString(),
+          updated_at: clock.nowIso,
         })
         .eq("id", task.id);
 
@@ -1160,7 +1162,7 @@ setTranslatedComments((prev) => ({
                           <p className="text-white text-sm truncate">{file.file_name}</p>
                           <p className="text-slate-500 text-xs">
                             {getProfileName(file.user_id)} •{" "}
-                            {format(new Date(file.created_at), "MMM d, yyyy h:mm a")}
+                            {format(clock.shiftDate(file.created_at), "MMM d, yyyy h:mm a")}
                           </p>
                         </div>
                       </div>
@@ -1315,7 +1317,7 @@ setTranslatedComments((prev) => ({
                               <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                                 <Clock3 className="h-3 w-3" />
                                 <span>
-                                  {format(new Date(comment.created_at), "MMM d, yyyy • h:mm a")}
+                                  {format(clock.shiftDate(comment.created_at), "MMM d, yyyy • h:mm a")}
                                 </span>
                               </div>
                             </div>
@@ -1452,7 +1454,7 @@ setTranslatedComments((prev) => ({
                 label={t("taskDetail.details.dueDate")}
                 value={
                   task.due_date
-                    ? format(new Date(task.due_date), "MMM d, yyyy")
+                    ? format(clock.shiftDate(task.due_date), "MMM d, yyyy")
                     : t("taskDetail.fallbacks.noDueDate")
                 }
               />

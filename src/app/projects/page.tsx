@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
-
+import { useAppClock } from "@/lib/clock/provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -64,6 +64,7 @@ export default function ProjectsPage() {
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
   const { t } = useLanguage();
+  const clock = useAppClock();
 
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
@@ -212,7 +213,7 @@ export default function ProjectsPage() {
 
       const uniqueProjects = Array.from(
         new Map(mergedProjects.map((project) => [project.id, project])).values()
-      ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      ).sort((a, b) => clock.shiftDate(b.created_at).getTime() - clock.shiftDate(a.created_at).getTime());
 
       setProjects(uniqueProjects);
     } catch (error) {
@@ -260,9 +261,9 @@ export default function ProjectsPage() {
       .sort((a, b) => {
         switch (sortBy) {
           case "newest":
-            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            return clock.shiftDate(b.created_at).getTime() - clock.shiftDate(a.created_at).getTime();
           case "oldest":
-            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+            return clock.shiftDate(a.created_at).getTime() - clock.shiftDate(b.created_at).getTime();
           case "name":
             return a.name.localeCompare(b.name);
           case "progress":
@@ -546,7 +547,7 @@ export default function ProjectsPage() {
                     <span className="flex items-center gap-1">
                       <Calendar className="w-3.5 h-3.5" />
                       {project.end_date
-                        ? format(new Date(project.end_date), "MMM d")
+                        ? format(clock.shiftDate(project.end_date), "MMM d")
                         : t("projects.noDate", "No date")}
                     </span>
                   </div>
@@ -587,7 +588,7 @@ export default function ProjectsPage() {
 
                     <span className="text-sm text-slate-500">
                       {project.end_date
-                        ? format(new Date(project.end_date), "MMM d")
+                        ? format(clock.shiftDate(project.end_date), "MMM d")
                         : t("projects.noDate", "No date")}
                     </span>
                   </div>

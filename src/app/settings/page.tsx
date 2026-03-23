@@ -983,27 +983,52 @@ export default function SettingsPage() {
                       </Select>
                     </div>
 
-                    <div className="space-y-2">
+                                        <div className="space-y-2">
                       <Label className="text-slate-300">
                         {t("settings.timezone", "Timezone")}
                       </Label>
+
+                      <p className="text-xs text-slate-500">
+                        {t(
+                          "timezone.timezoneDescription",
+                          "Choose how dates and times are shown for your account"
+                        )}
+                      </p>
+
                       <Select value={timezone} onValueChange={setTimezone}>
                         <SelectTrigger className="border-slate-800 bg-slate-950 text-white">
-                          <SelectValue />
+                          <SelectValue>
+                            {getTimezoneLabel(timezone)}
+                          </SelectValue>
                         </SelectTrigger>
-                        <SelectContent className="border-slate-800 bg-slate-950 text-white">
-                          <SelectItem value="UTC">UTC</SelectItem>
-                          <SelectItem value="Asia/Shanghai">
-                            Asia/Shanghai
-                          </SelectItem>
-                          <SelectItem value="Asia/Jerusalem">
-                            Asia/Jerusalem
-                          </SelectItem>
-                          <SelectItem value="America/New_York">
-                            America/New_York
-                          </SelectItem>
+
+                        <SelectContent className="border-slate-800 bg-slate-950 text-white max-h-80">
+                          {timezoneOptions.map((tz) => (
+                            <SelectItem key={tz} value={tz}>
+                              {getTimezoneLabel(tz)}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
+
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                          onClick={() => setTimezone(browserTimezone)}
+                        >
+                          {t(
+                            "timezone.useMyCurrentTimezone",
+                            "Use My Current Timezone"
+                          )}
+                        </Button>
+
+                        <span className="text-xs text-slate-500">
+                          {t("timezone.detectedTimezone", "Detected")}:{" "}
+                          {getTimezoneLabel(browserTimezone)}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="space-y-2">

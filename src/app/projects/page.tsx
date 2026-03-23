@@ -639,6 +639,30 @@ export default function ProjectsPage() {
     </Card>
   )}
 </PageLoader>
-    </div>
+      {filteredProjects.length === 0 && (
+  <div className="text-center py-12">
+    <FolderKanban className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+    <h3 className="text-lg font-medium text-white mb-2">
+      {t("projects.noProjectsFound", "No projects found")}
+    </h3>
+    <p className="text-slate-500 mb-4">
+      {searchQuery || statusFilter !== "ALL"
+        ? t("projects.tryAdjustingYourFilters", "Try adjusting your filters")
+        : t("projects.createYourFirstProject", "Create your first project to get started")}
+    </p>
+
+    {!searchQuery && statusFilter === "ALL" && canCreateProjects && (
+      <Button
+        className="bg-indigo-600 hover:bg-indigo-700 text-white"
+        onClick={() => navigate("/projects/new")}
+      >
+        <Plus className="w-4 h-4 mr-2" />
+        {t("projects.createProject", "Create Project")}
+      </Button>
+    )}
+  </div>
+)}
+      </div>
   );
 }
+    

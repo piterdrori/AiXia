@@ -8,6 +8,7 @@ import {
   extractMentionedUserIds,
 } from "@/lib/notifications";
 import { useLanguage } from "@/lib/i18n";
+import { useAppClock } from "@/lib/clock/provider";
 
 import { useChatBootstrap } from "./hooks/useChatBootstrap";
 import { useChatMessages } from "./hooks/useChatMessages";
@@ -35,8 +36,9 @@ import { Card } from "@/components/ui/card";
 
 export default function ChatPage() {
   const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
+   const { id } = useParams<{ id: string }>();
   const { t } = useLanguage();
+  const clock = useAppClock();
 
   const {
     currentUserId,
@@ -251,23 +253,23 @@ export default function ChatPage() {
     }
 
     if (existingDb) {
-      const optimisticMembers: ChatGroupMemberRow[] = [
+            const optimisticMembers: ChatGroupMemberRow[] = [
         {
           id: `local-${existingDb.id}-${currentUserId}`,
           group_id: existingDb.id,
           user_id: currentUserId,
           role: "member",
-          created_at: new Date().toISOString(),
+          created_at: clock.nowIso,
         },
         {
           id: `local-${existingDb.id}-${targetUserId}`,
           group_id: existingDb.id,
           user_id: targetUserId,
           role: "member",
-          created_at: new Date().toISOString(),
+          created_at: clock.nowIso,
         },
       ];
-
+      
       upsertGroupLocally(existingDb as ChatGroupRow, optimisticMembers);
       openConversation(existingDb.id);
       void reloadChatShell(existingDb.id);
@@ -292,20 +294,20 @@ export default function ChatPage() {
       return;
     }
 
-    const optimisticMembers: ChatGroupMemberRow[] = [
+           const optimisticMembers: ChatGroupMemberRow[] = [
       {
         id: `local-${newGroup.id}-${currentUserId}`,
         group_id: newGroup.id,
         user_id: currentUserId,
         role: "member",
-        created_at: new Date().toISOString(),
+        created_at: clock.nowIso,
       },
       {
         id: `local-${newGroup.id}-${targetUserId}`,
         group_id: newGroup.id,
         user_id: targetUserId,
         role: "member",
-        created_at: new Date().toISOString(),
+        created_at: clock.nowIso,
       },
     ];
 
@@ -361,20 +363,20 @@ export default function ChatPage() {
       return;
     }
 
-    const optimisticMembers: ChatGroupMemberRow[] = [
+              const optimisticMembers: ChatGroupMemberRow[] = [
       {
         id: `local-${newGroup.id}-${currentUserId}`,
         group_id: newGroup.id,
         user_id: currentUserId,
         role: "owner",
-        created_at: new Date().toISOString(),
+        created_at: clock.nowIso,
       },
       ...selectedGroupMembers.map((userId) => ({
         id: `local-${newGroup.id}-${userId}`,
         group_id: newGroup.id,
         user_id: userId,
-        role: "member",
-        created_at: new Date().toISOString(),
+        role: "member" as const,
+        created_at: clock.nowIso,
       })),
     ];
 
@@ -410,14 +412,14 @@ export default function ChatPage() {
     }
 
     const contentToSend = messageInput.trim();
-    const tempId = `temp-${Date.now()}`;
+    const tempId = `temp-${clock.nowMs}`;
 
-    const optimisticMessage: ChatMessageRow = {
+        const optimisticMessage: ChatMessageRow = {
       id: tempId,
       group_id: selectedConversationId,
       user_id: currentUserId,
       content: contentToSend,
-      created_at: new Date().toISOString(),
+      created_at: clock.nowIso,
     };
 
     appendMessageLocally(selectedConversationId, optimisticMessage);

@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
-
+import { useAppClock } from "@/lib/clock/provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -125,6 +125,7 @@ function Time24Field({
   disabled?: boolean;
 }) {
   const { t } = useLanguage();
+  const clock = useAppClock();
   const hour = getHour(value);
   const minute = getMinute(value);
 
@@ -206,7 +207,7 @@ export default function CalendarNewPage() {
   const requestTracker = useRef(createRequestTracker());
   const { t } = useLanguage();
 
-  const presetDate = searchParams.get("date") || format(new Date(), "yyyy-MM-dd");
+  const presetDate = searchParams.get("date") || clock.todayKey;
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 

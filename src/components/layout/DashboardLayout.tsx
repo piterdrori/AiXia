@@ -751,6 +751,7 @@ export default function DashboardLayout({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+    </div>
   );
 
   return (

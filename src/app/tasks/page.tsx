@@ -130,15 +130,15 @@ export default function TasksPage() {
   const requestTracker = useRef(createRequestTracker());
   const { t } = useLanguage();
   const clock = useAppClock();
-  const getTaskDateStatus = (dueDate: string | null) => {
-  if (!dueDate) return "none";
+   const getTaskDateStatus = (dueDate: string | null) => {
+    if (!dueDate) return "none";
 
-  const today = clock.todayKey;
+    const today = clock.todayKey;
 
-  if (dueDate < today) return "overdue";
-  if (dueDate === today) return "today";
-  return "upcoming";
-};
+    if (dueDate < today) return "overdue";
+    if (dueDate === today) return "today";
+    return "upcoming";
+  };
 
   const initialProjectId = searchParams.get("projectId") || "ALL";
 
@@ -302,41 +302,40 @@ export default function TasksPage() {
   }, []);
 
   const filteredTasks = useMemo(() => {
-  const result = tasks.filter((task) => {
-    const title = (task.title || "").toLowerCase();
-    const description = (task.description || "").toLowerCase();
-    const query = searchQuery.toLowerCase();
+    const result = tasks.filter((task) => {
+      const title = (task.title || "").toLowerCase();
+      const description = (task.description || "").toLowerCase();
+      const query = searchQuery.toLowerCase();
 
-    const matchesSearch = title.includes(query) || description.includes(query);
-    const matchesStatus =
-      statusFilter === "ALL" || (task.status || "").toUpperCase() === statusFilter;
-    const matchesPriority =
-      priorityFilter === "ALL" || (task.priority || "").toUpperCase() === priorityFilter;
-    const matchesProject = projectFilter === "ALL" || task.project_id === projectFilter;
+      const matchesSearch = title.includes(query) || description.includes(query);
+      const matchesStatus =
+        statusFilter === "ALL" || (task.status || "").toUpperCase() === statusFilter;
+      const matchesPriority =
+        priorityFilter === "ALL" || (task.priority || "").toUpperCase() === priorityFilter;
+      const matchesProject = projectFilter === "ALL" || task.project_id === projectFilter;
 
-    return matchesSearch && matchesStatus && matchesPriority && matchesProject;
-  });
+      return matchesSearch && matchesStatus && matchesPriority && matchesProject;
+    });
 
-  // 🔥 SORT BY CLOCK STATUS
-  return result.sort((a, b) => {
-    const getPriority = (task: TaskRow) => {
-      const status = getTaskDateStatus(task.due_date);
+    return result.sort((a, b) => {
+      const getDatePriority = (task: TaskRow) => {
+        const status = getTaskDateStatus(task.due_date);
+        if (status === "overdue") return 0;
+        if (status === "today") return 1;
+        return 2;
+      };
 
-      if (status === "overdue") return 0;
-      if (status === "today") return 1;
-      return 2;
-    };
+      const priorityDiff = getDatePriority(a) - getDatePriority(b);
+      if (priorityDiff !== 0) return priorityDiff;
 
-    const priorityDiff = getPriority(a) - getPriority(b);
-    if (priorityDiff !== 0) return priorityDiff;
+      if (!a.due_date && !b.due_date) return 0;
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
 
-    // fallback: earlier due date first
-    if (!a.due_date) return 1;
-    if (!b.due_date) return -1;
-
-    return a.due_date.localeCompare(b.due_date);
-  });
-}, [tasks, searchQuery, statusFilter, priorityFilter, projectFilter]);
+      return a.due_date.localeCompare(b.due_date);
+    });
+  }, [tasks, searchQuery, statusFilter, priorityFilter, projectFilter, clock.todayKey]);
+  
       const title = (task.title || "").toLowerCase();
       const description = (task.description || "").toLowerCase();
       const query = searchQuery.toLowerCase();

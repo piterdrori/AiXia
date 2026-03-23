@@ -529,6 +529,14 @@ export const translations = {
         delete: "Delete",
         save: "Save",
         cancel: "Cancel",
+        close: "Close",
+  addRemove: "Add / Remove",
+  addMember: "Add member",
+  selectMember: "Select employee or manager",
+  noAvailableMembers: "No available employees or managers",
+  adding: "Adding...",
+  add: "Add",
+  remove: "Remove"
       },
       overview: {
         title: "Overview",
@@ -585,6 +593,7 @@ export const translations = {
         deleteTask: "Are you sure you want to delete this task?",
         deleteComment: "Are you sure you want to delete this comment?",
         deleteFile: "Are you sure you want to delete this file?",
+        removeMember: "Remove this member from the task?",
       },
       errors: {
         loadTask: "Failed to load task.",
@@ -597,6 +606,8 @@ export const translations = {
         uploadFile: "Failed to upload file.",
         openFile: "Failed to open file.",
         deleteFile: "Failed to delete file.",
+        addFailed: "Failed to add member.",
+  removeFailed: "Failed to remove member.",
       },
       notifications: {
         taskStatusUpdatedTitle: "Task Status Updated",
@@ -610,24 +621,6 @@ export const translations = {
         fileUploadedMessage:
           'A new file "{{fileName}}" was uploaded to task "{{title}}"',
       },
-
-      actions: {
-  close: "Close",
-  addRemove: "Add / Remove",
-  addMember: "Add member",
-  selectMember: "Select employee or manager",
-  noAvailableMembers: "No available employees or managers",
-  adding: "Adding...",
-  add: "Add",
-  remove: "Remove",
-},
-errors: {
-  addFailed: "Failed to add member.",
-  removeFailed: "Failed to remove member.",
-},
-confirmations: {
-  removeMember: "Remove this member from the task?",
-},
     },
 
     calendar: {
@@ -1897,6 +1890,14 @@ chat: {
         delete: "删除",
         save: "保存",
         cancel: "取消",
+        close: "关闭",
+  addRemove: "添加 / 移除",
+  addMember: "添加成员",
+  selectMember: "选择员工或经理",
+  noAvailableMembers: "没有可用的员工或经理",
+  adding: "添加中...",
+  add: "添加",
+  remove: "移除",
       },
       overview: {
         title: "概览",
@@ -1951,6 +1952,7 @@ chat: {
         deleteTask: "您确定要删除此任务吗？",
         deleteComment: "您确定要删除此评论吗？",
         deleteFile: "您确定要删除此文件吗？",
+        removeMember: "要将此成员从任务中移除吗？",
       },
       errors: {
         loadTask: "加载任务失败。",
@@ -1963,6 +1965,8 @@ chat: {
         uploadFile: "上传文件失败。",
         openFile: "打开文件失败。",
         deleteFile: "删除文件失败。",
+          addFailed: "添加成员失败。",
+  removeFailed: "移除成员失败。",
       },
       notifications: {
         taskStatusUpdatedTitle: "任务状态已更新",
@@ -1976,24 +1980,6 @@ chat: {
         fileUploadedMessage:
           '新文件“{{fileName}}”已上传到任务“{{title}}”',
       },
-
-      actions: {
-  close: "关闭",
-  addRemove: "添加 / 移除",
-  addMember: "添加成员",
-  selectMember: "选择员工或经理",
-  noAvailableMembers: "没有可用的员工或经理",
-  adding: "添加中...",
-  add: "添加",
-  remove: "移除",
-},
-errors: {
-  addFailed: "添加成员失败。",
-  removeFailed: "移除成员失败。",
-},
-confirmations: {
-  removeMember: "要将此成员从任务中移除吗？",
-},
     },
 
     calendar: {
@@ -3274,6 +3260,14 @@ chat: {
         delete: "Удалить",
         save: "Сохранить",
         cancel: "Отмена",
+        close: "Закрыть",
+  addRemove: "Добавить / Удалить",
+  addMember: "Добавить участника",
+  selectMember: "Выберите сотрудника или менеджера",
+  noAvailableMembers: "Нет доступных сотрудников или менеджеров",
+  adding: "Добавление...",
+  add: "Добавить",
+  remove: "Удалить",
       },
       overview: {
         title: "Обзор",
@@ -3330,6 +3324,7 @@ chat: {
         deleteTask: "Вы уверены, что хотите удалить эту задачу?",
         deleteComment: "Вы уверены, что хотите удалить этот комментарий?",
         deleteFile: "Вы уверены, что хотите удалить этот файл?",
+        removeMember: "Удалить этого участника из задачи?",
       },
       errors: {
         loadTask: "Не удалось загрузить задачу.",
@@ -3342,6 +3337,8 @@ chat: {
         uploadFile: "Не удалось загрузить файл.",
         openFile: "Не удалось открыть файл.",
         deleteFile: "Не удалось удалить файл.",
+        addFailed: "Не удалось добавить участника.",
+  removeFailed: "Не удалось удалить участника.",
       },
       notifications: {
         taskStatusUpdatedTitle: "Статус задачи обновлён",
@@ -3355,24 +3352,6 @@ chat: {
         fileUploadedMessage:
           'Новый файл "{{fileName}}" был загружен в задачу "{{title}}"',
       },
-actions: {
-  close: "Закрыть",
-  addRemove: "Добавить / Удалить",
-  addMember: "Добавить участника",
-  selectMember: "Выберите сотрудника или менеджера",
-  noAvailableMembers: "Нет доступных сотрудников или менеджеров",
-  adding: "Добавление...",
-  add: "Добавить",
-  remove: "Удалить",
-},
-errors: {
-  addFailed: "Не удалось добавить участника.",
-  removeFailed: "Не удалось удалить участника.",
-},
-confirmations: {
-  removeMember: "Удалить этого участника из задачи?",
-},
-      
     },
 
     calendar: {

@@ -418,6 +418,7 @@ export const translations = {
         loadingProjectMembers: "Loading project members...",
         noAvailableMembers: "No available members found for this project.",
         unnamedUser: "Unnamed user",
+        projectRequirement: "To assign additional members to this task, add them to the project first (in the project page).",
       },
       actions: {
         cancel: "Cancel",
@@ -485,6 +486,7 @@ export const translations = {
         loadingProjectMembers: "Loading project members...",
         noneAvailable: "No available assignees for this project.",
         unnamedUser: "Unnamed user",
+        projectRequirement: "To assign additional members to this task, add them to the project first (in the project page).",
       },
       actions: {
         refresh: "Refresh",
@@ -1767,6 +1769,7 @@ chat: {
         loadingProjectMembers: "正在加载项目成员...",
         noAvailableMembers: "该项目没有可用成员。",
         unnamedUser: "未命名用户",
+        projectRequirement: "要为此任务分配更多成员，请先在项目页面中将他们添加到项目中。",
       },
       actions: {
         cancel: "取消",
@@ -1833,6 +1836,7 @@ chat: {
         loadingProjectMembers: "正在加载项目成员...",
         noneAvailable: "该项目没有可分配成员。",
         unnamedUser: "未命名用户",
+        projectRequirement: "要为此任务分配更多成员，请先在项目页面中将他们添加到项目中。",
       },
       actions: {
         refresh: "刷新",
@@ -3123,6 +3127,7 @@ chat: {
         loadingProjectMembers: "Загрузка участников проекта...",
         noAvailableMembers: "Для этого проекта нет доступных участников.",
         unnamedUser: "Пользователь без имени",
+        projectRequirement: "Чтобы назначить дополнительных участников на задачу, сначала добавьте их в проект (на странице проекта).",
       },
       actions: {
         cancel: "Отмена",
@@ -3190,6 +3195,7 @@ chat: {
         loadingProjectMembers: "Загрузка участников проекта...",
         noneAvailable: "Для этого проекта нет доступных исполнителей.",
         unnamedUser: "Пользователь без имени",
+        projectRequirement: "Чтобы назначить дополнительных участников на задачу, сначала добавьте их в проект (на странице проекта).",
       },
       actions: {
         refresh: "Обновить",

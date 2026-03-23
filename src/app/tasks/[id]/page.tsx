@@ -1489,42 +1489,42 @@ setTranslatedComments((prev) => ({
   {t("taskDetail.members.actions.addMember")}
 </div>
 
-                    <div className="flex items-center gap-2">
-                      <Select
-                        value={selectedEmployeeId}
-                        onValueChange={setSelectedEmployeeId}
-                        disabled={memberSaving}
-                      >
-                        <SelectTrigger className="flex-1 bg-slate-900 border-slate-700 text-white">
-                          <SelectValue placeholder={t("taskDetail.members.actions.selectMember")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableEmployees.length === 0 ? (
-                            <SelectItem value="__no_employees__" disabled>
-  {t("taskDetail.members.actions.noAvailableMembers")}
-</SelectItem>
-                          ) : (
-                            availableEmployees.map((profile) => (
-                              <SelectItem key={profile.user_id} value={profile.user_id}>
-                                {profile.full_name || t("taskDetail.fallbacks.unknown")}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+  <Select
+    value={selectedEmployeeId}
+    onValueChange={setSelectedEmployeeId}
+    disabled={memberSaving}
+  >
+    <SelectTrigger className="w-full sm:flex-1 bg-slate-900 border-slate-700 text-white">
+      <SelectValue placeholder={t("taskDetail.members.actions.selectMember")} />
+    </SelectTrigger>
+    <SelectContent>
+      {availableEmployees.length === 0 ? (
+        <SelectItem value="__no_employees__" disabled>
+          {t("taskDetail.members.actions.noAvailableMembers")}
+        </SelectItem>
+      ) : (
+        availableEmployees.map((profile) => (
+          <SelectItem key={profile.user_id} value={profile.user_id}>
+            {profile.full_name || t("taskDetail.fallbacks.unknown")}
+          </SelectItem>
+        ))
+      )}
+    </SelectContent>
+  </Select>
 
-                      <Button
-                        type="button"
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                        onClick={() => void handleAddMember()}
-                        disabled={memberSaving || !selectedEmployeeId}
-                      >
-                        <UserPlus className="w-4 h-4 mr-2" />
-                        {memberSaving
-  ? t("taskDetail.members.actions.adding")
-  : t("taskDetail.members.actions.add")}
-                      </Button>
-                    </div>
+  <Button
+    type="button"
+    className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white"
+    onClick={() => void handleAddMember()}
+    disabled={memberSaving || !selectedEmployeeId}
+  >
+    <UserPlus className="w-4 h-4 mr-2" />
+    {memberSaving
+      ? t("taskDetail.members.actions.adding")
+      : t("taskDetail.members.actions.add")}
+  </Button>
+</div>
                   </div>
                 </div>
               )}

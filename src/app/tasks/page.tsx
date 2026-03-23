@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
+import { useAsyncState } from "@/lib/useAsyncState";
 import { useLanguage } from "@/lib/i18n";
 import { useUserPreferences } from "@/lib/useUserPreferences";
 import { formatDateInTimezone } from "@/lib/datetime";
@@ -12,7 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { PageError } from "@/components/ui/PageError";
+import { PageLoader } from "@/components/ui/PageLoader";
 import {
   Select,
   SelectContent,
@@ -86,7 +88,8 @@ type ProfileRow = {
 };
 
 const CHINA_TIMEZONE = "Asia/Shanghai";
-  function MemberStack({
+
+function MemberStack({
   profiles,
   size = "small",
 }: {
@@ -117,7 +120,11 @@ const CHINA_TIMEZONE = "Asia/Shanghai";
 
       {profiles.length > 3 && (
         <div
-          className={`${size === "medium" ? "w-7 h-7 text-xs" : "w-6 h-6 text-[10px]"} rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-slate-400`}
+          className={`${
+            size === "medium"
+              ? "w-7 h-7 text-xs"
+              : "w-6 h-6 text-[10px]"
+          } rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-slate-400`}
         >
           +{profiles.length - 3}
         </div>
@@ -133,6 +140,17 @@ export default function TasksPage() {
   const { t, language } = useLanguage();
   const { timezone } = useUserPreferences();
   const clock = useAppClock();
+
+  const {
+    isBootstrapping,
+    isRefreshing,
+    error,
+    setError,
+    startInitial,
+    startRefresh,
+    setFailure,
+    finish,
+  } = useAsyncState();
 
   const getTaskDateStatus = (dueDate: string | null) => {
     if (!dueDate) return "none";
@@ -152,10 +170,7 @@ export default function TasksPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>("ALL");
   const [projectFilter, setProjectFilter] = useState<string>(initialProjectId);
 
-  const [isBootstrapping, setIsBootstrapping] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
-  const [error, setError] = useState("");
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
@@ -167,8 +182,16 @@ export default function TasksPage() {
 
   const columns: { id: TaskStatus; label: string; color: string }[] = [
     { id: "TODO", label: t("tasks.columns.todo"), color: "bg-slate-500" },
-    { id: "IN_PROGRESS", label: t("tasks.columns.inProgress"), color: "bg-blue-500" },
-    { id: "IN_REVIEW", label: t("tasks.columns.inReview"), color: "bg-purple-500" },
+    {
+      id: "IN_PROGRESS",
+      label: t("tasks.columns.inProgress"),
+      color: "bg-blue-500",
+    },
+    {
+      id: "IN_REVIEW",
+      label: t("tasks.columns.inReview"),
+      color: "bg-purple-500",
+    },
     { id: "DONE", label: t("tasks.columns.done"), color: "bg-green-500" },
   ];
 
@@ -176,12 +199,10 @@ export default function TasksPage() {
     const requestId = requestTracker.current.next();
 
     if (mode === "initial") {
-      setIsBootstrapping(true);
+      startInitial();
     } else {
-      setIsRefreshing(true);
+      startRefresh();
     }
-
-    setError("");
 
     try {
       const {
@@ -258,7 +279,9 @@ export default function TasksPage() {
               return isCreator || isAssignedProjectMember;
             });
 
-      const visibleProjectIds = new Set(visibleProjects.map((project) => project.id));
+      const visibleProjectIds = new Set(
+        visibleProjects.map((project) => project.id)
+      );
 
       const visibleTasks =
         role === "admin"
@@ -272,7 +295,12 @@ export default function TasksPage() {
               const isInsideVisibleProject =
                 !!task.project_id && visibleProjectIds.has(task.project_id);
 
-              return isTaskCreator || isMainAssignee || isTaskMember || isInsideVisibleProject;
+              return (
+                isTaskCreator ||
+                isMainAssignee ||
+                isTaskMember ||
+                isInsideVisibleProject
+              );
             });
 
       setTasks(visibleTasks);
@@ -289,15 +317,14 @@ export default function TasksPage() {
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Load tasks page error:", err);
-      setError(t("tasks.errors.loadTasks"));
+      setFailure(t("tasks.errors.loadTasks"));
       setTasks([]);
       setProjects([]);
       setProfiles([]);
       setTaskMembers([]);
     } finally {
       if (!requestTracker.current.isLatest(requestId)) return;
-      setIsBootstrapping(false);
-      setIsRefreshing(false);
+      finish();
     }
   };
 
@@ -313,12 +340,17 @@ export default function TasksPage() {
 
       const matchesSearch = title.includes(query) || description.includes(query);
       const matchesStatus =
-        statusFilter === "ALL" || (task.status || "").toUpperCase() === statusFilter;
+        statusFilter === "ALL" ||
+        (task.status || "").toUpperCase() === statusFilter;
       const matchesPriority =
-        priorityFilter === "ALL" || (task.priority || "").toUpperCase() === priorityFilter;
-      const matchesProject = projectFilter === "ALL" || task.project_id === projectFilter;
+        priorityFilter === "ALL" ||
+        (task.priority || "").toUpperCase() === priorityFilter;
+      const matchesProject =
+        projectFilter === "ALL" || task.project_id === projectFilter;
 
-      return matchesSearch && matchesStatus && matchesPriority && matchesProject;
+      return (
+        matchesSearch && matchesStatus && matchesPriority && matchesProject
+      );
     });
 
     return result.sort((a, b) => {
@@ -373,7 +405,9 @@ export default function TasksPage() {
       .filter((member) => member.task_id === taskId)
       .map((member) => member.user_id);
 
-    return profiles.filter((profile) => memberUserIds.includes(profile.user_id));
+    return profiles.filter((profile) =>
+      memberUserIds.includes(profile.user_id)
+    );
   };
 
   const canEditTask = (task: TaskRow) => {
@@ -462,7 +496,10 @@ export default function TasksPage() {
     setTasks((prev) => prev.filter((task) => task.id !== taskId));
     setTaskMembers((prev) => prev.filter((member) => member.task_id !== taskId));
 
-    const { error: deleteError } = await supabase.from("tasks").delete().eq("id", taskId);
+    const { error: deleteError } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("id", taskId);
 
     if (deleteError) {
       console.error("Delete task error:", deleteError);
@@ -475,7 +512,10 @@ export default function TasksPage() {
   const renderBoardSkeleton = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       {columns.map((column) => (
-        <div key={column.id} className="bg-slate-900/30 rounded-lg border border-slate-800">
+        <div
+          key={column.id}
+          className="bg-slate-900/30 rounded-lg border border-slate-800"
+        >
           <div className="p-3 border-b border-slate-800">
             <div className="flex items-center gap-2">
               <div className={`w-3 h-3 rounded-full ${column.color}`} />
@@ -545,7 +585,9 @@ export default function TasksPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">{t("tasks.header.title")}</h1>
+          <h1 className="text-2xl font-bold text-white">
+            {t("tasks.header.title")}
+          </h1>
           <p className="text-slate-400">{t("tasks.header.subtitle")}</p>
         </div>
 
@@ -556,7 +598,9 @@ export default function TasksPage() {
             onClick={() => void loadTasksPage("refresh")}
             disabled={isRefreshing}
           >
-            {isRefreshing ? t("tasks.actions.refreshing") : t("tasks.actions.refresh")}
+            {isRefreshing
+              ? t("tasks.actions.refreshing")
+              : t("tasks.actions.refresh")}
           </Button>
 
           {canCreateTasks && (
@@ -564,7 +608,9 @@ export default function TasksPage() {
               className="bg-indigo-600 hover:bg-indigo-700 text-white"
               onClick={() =>
                 navigate(
-                  `/tasks/new${projectFilter !== "ALL" ? `?projectId=${projectFilter}` : ""}`
+                  `/tasks/new${
+                    projectFilter !== "ALL" ? `?projectId=${projectFilter}` : ""
+                  }`
                 )
               }
             >
@@ -575,11 +621,7 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {error && (
-        <Alert className="bg-red-900/20 border-red-800 text-red-300">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+      <PageError message={error} />
 
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="relative flex-1">
@@ -600,8 +642,12 @@ export default function TasksPage() {
             <SelectContent className="bg-slate-900 border-slate-800">
               <SelectItem value="ALL">{t("tasks.filters.allStatus")}</SelectItem>
               <SelectItem value="TODO">{t("tasks.status.todo")}</SelectItem>
-              <SelectItem value="IN_PROGRESS">{t("tasks.status.inProgress")}</SelectItem>
-              <SelectItem value="IN_REVIEW">{t("tasks.status.inReview")}</SelectItem>
+              <SelectItem value="IN_PROGRESS">
+                {t("tasks.status.inProgress")}
+              </SelectItem>
+              <SelectItem value="IN_REVIEW">
+                {t("tasks.status.inReview")}
+              </SelectItem>
               <SelectItem value="DONE">{t("tasks.status.done")}</SelectItem>
             </SelectContent>
           </Select>
@@ -611,7 +657,9 @@ export default function TasksPage() {
               <SelectValue placeholder={t("tasks.filters.priority")} />
             </SelectTrigger>
             <SelectContent className="bg-slate-900 border-slate-800">
-              <SelectItem value="ALL">{t("tasks.filters.allPriorities")}</SelectItem>
+              <SelectItem value="ALL">
+                {t("tasks.filters.allPriorities")}
+              </SelectItem>
               <SelectItem value="URGENT">{t("tasks.priority.urgent")}</SelectItem>
               <SelectItem value="HIGH">{t("tasks.priority.high")}</SelectItem>
               <SelectItem value="MEDIUM">{t("tasks.priority.medium")}</SelectItem>
@@ -624,7 +672,9 @@ export default function TasksPage() {
               <SelectValue placeholder={t("tasks.filters.project")} />
             </SelectTrigger>
             <SelectContent className="bg-slate-900 border-slate-800">
-              <SelectItem value="ALL">{t("tasks.filters.allProjects")}</SelectItem>
+              <SelectItem value="ALL">
+                {t("tasks.filters.allProjects")}
+              </SelectItem>
               {projects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
                   {project.name}
@@ -636,279 +686,320 @@ export default function TasksPage() {
           <ToggleGroup
             type="single"
             value={viewMode}
-            onValueChange={(value) => value && setViewMode(value as "board" | "list")}
+            onValueChange={(value) =>
+              value && setViewMode(value as "board" | "list")
+            }
           >
-            <ToggleGroupItem value="board" className="data-[state=on]:bg-slate-800">
+            <ToggleGroupItem
+              value="board"
+              className="data-[state=on]:bg-slate-800"
+            >
               <Grid3X3 className="w-4 h-4" />
             </ToggleGroupItem>
-            <ToggleGroupItem value="list" className="data-[state=on]:bg-slate-800">
+            <ToggleGroupItem
+              value="list"
+              className="data-[state=on]:bg-slate-800"
+            >
               <List className="w-4 h-4" />
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
       </div>
 
-      {isBootstrapping ? (
-        viewMode === "board" ? renderBoardSkeleton() : renderListSkeleton()
-      ) : viewMode === "board" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {columns.map((column) => {
-            const columnTasks = filteredTasks.filter(
-              (task) => (task.status || "").toUpperCase() === column.id
-            );
+      <PageLoader
+        loading={isBootstrapping}
+        fallback={viewMode === "board" ? renderBoardSkeleton() : renderListSkeleton()}
+      >
+        {viewMode === "board" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {columns.map((column) => {
+              const columnTasks = filteredTasks.filter(
+                (task) => (task.status || "").toUpperCase() === column.id
+              );
 
-            return (
-              <div
-                key={column.id}
-                className="bg-slate-900/30 rounded-lg border border-slate-800"
-                onDragOver={handleDragOver}
-                onDrop={(e) => void handleDrop(e, column.id)}
-              >
-                <div className="p-3 border-b border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${column.color}`} />
-                    <h3 className="font-medium text-white">{column.label}</h3>
-                    <Badge className="bg-slate-800 text-slate-400">{columnTasks.length}</Badge>
-                  </div>
-                </div>
-
-                <div className="p-3 space-y-3 min-h-[220px]">
-                  {columnTasks.map((task) => {
-                    const assigneeProfiles = getTaskMemberProfiles(task.id);
-
-                    return (
-                      <Card
-                        key={task.id}
-                        draggable
-                        onDragStart={() => handleDragStart(task.id)}
-                        className="bg-slate-900 border-slate-800 hover:border-indigo-500/30 cursor-pointer transition-all group"
-                        onClick={() => navigate(`/tasks/${task.id}`)}
-                      >
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between mb-2">
-                            <Badge className={getPriorityColor(task.priority)}>
-                              {task.priority || t("tasks.priority.low")}
-                            </Badge>
-
-                            {(canEditTask(task) || canDeleteTask(task)) && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                                  >
-                                    <MoreVertical className="w-3 h-3 text-slate-400" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-
-                                <DropdownMenuContent
-                                  align="end"
-                                  className="bg-slate-900 border-slate-800"
-                                >
-                                  {canEditTask(task) && (
-                                    <DropdownMenuItem
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        navigate(`/tasks/${task.id}/edit`);
-                                      }}
-                                    >
-                                      <Edit className="w-4 h-4 mr-2" />
-                                      {t("tasks.actions.edit")}
-                                    </DropdownMenuItem>
-                                  )}
-
-                                  {canDeleteTask(task) && (
-                                    <DropdownMenuItem
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        void handleDelete(task.id);
-                                      }}
-                                      className="text-red-400"
-                                    >
-                                      <Trash2 className="w-4 h-4 mr-2" />
-                                      {t("tasks.actions.delete")}
-                                    </DropdownMenuItem>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
-                          </div>
-
-                          <h4 className="text-white font-medium mb-2">{task.title}</h4>
-
-                          <p className="text-slate-500 text-sm mb-3 line-clamp-2">
-                            {task.description || t("tasks.fallbacks.noDescription")}
-                          </p>
-
-                          <div className="text-xs text-slate-500 mb-3">
-                            {getProjectName(task.project_id)}
-                          </div>
-
-                          <div className="flex items-center justify-between">
-                            <MemberStack profiles={assigneeProfiles} />
-
-                            {task.due_date && (() => {
-  const status = getTaskDateStatus(task.due_date);
-
-  const color =
-    status === "overdue"
-      ? "text-red-400"
-      : status === "today"
-      ? "text-yellow-400"
-      : "text-slate-500";
-
-  return (
-    <div className={`text-sm ${color}`}>
-      <div>
-        {formatDateInTimezone(clock.shiftDate(task.due_date), language, timezone)}
-        {status === "overdue" && " • Overdue"}
-        {status === "today" && " • Today"}
-      </div>
-      <div className="text-[10px] text-slate-500">
-        {t("timezone.chinaTimeLabel", "China")}:{" "}
-        {formatDateInTimezone(clock.shiftDate(task.due_date), language, CHINA_TIMEZONE)}
-      </div>
-    </div>
-  );
-})()}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-0">
-            <div className="divide-y divide-slate-800">
-              {filteredTasks.map((task) => {
-                const assigneeProfiles = getTaskMemberProfiles(task.id);
-
-                return (
-                  <div
-                    key={task.id}
-                    onClick={() => navigate(`/tasks/${task.id}`)}
-                    className="flex items-center gap-4 p-4 hover:bg-slate-800/50 cursor-pointer transition-colors"
-                  >
-                    <CheckSquare
-                      className={`w-5 h-5 ${
-                        (task.status || "").toUpperCase() === "DONE"
-                          ? "text-green-400"
-                          : "text-slate-500"
-                      }`}
-                    />
-
-                    <div className="flex-1 min-w-0">
-                      <h4
-                        className={`font-medium truncate ${
-                          (task.status || "").toUpperCase() === "DONE"
-                            ? "text-slate-500 line-through"
-                            : "text-white"
-                        }`}
-                      >
-                        {task.title}
-                      </h4>
-                      <p className="text-slate-500 text-sm truncate">
-                        {task.description || t("tasks.fallbacks.noDescription")}
-                      </p>
-                    </div>
-
-                    <div className="hidden sm:flex items-center gap-4">
-                      <Badge className={getPriorityColor(task.priority)}>
-                        {task.priority || t("tasks.priority.low")}
+              return (
+                <div
+                  key={column.id}
+                  className="bg-slate-900/30 rounded-lg border border-slate-800"
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => void handleDrop(e, column.id)}
+                >
+                  <div className="p-3 border-b border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full ${column.color}`} />
+                      <h3 className="font-medium text-white">{column.label}</h3>
+                      <Badge className="bg-slate-800 text-slate-400">
+                        {columnTasks.length}
                       </Badge>
-
-                      <span className="text-sm text-slate-500">
-                        {getProjectName(task.project_id)}
-                      </span>
-
-                      <MemberStack profiles={assigneeProfiles} size="medium" />
-
-                     {task.due_date && (() => {
-  const status = getTaskDateStatus(task.due_date);
-
-  const color =
-    status === "overdue"
-      ? "text-red-400"
-      : status === "today"
-      ? "text-yellow-400"
-      : "text-slate-500";
-
-  return (
-    <div className={`text-xs ${color}`}>
-      <div className="flex items-center gap-1">
-        <Calendar className="w-3 h-3" />
-        <span>
-          {formatDateInTimezone(clock.shiftDate(task.due_date), language, timezone)}
-          {status === "overdue" && " • Overdue"}
-          {status === "today" && " • Today"}
-        </span>
-      </div>
-      <div className="pl-4 text-[10px] text-slate-500">
-        {t("timezone.chinaTimeLabel", "China")}:{" "}
-        {formatDateInTimezone(clock.shiftDate(task.due_date), language, CHINA_TIMEZONE)}
-      </div>
-    </div>
-  );
-})()}
                     </div>
-
-                    {(canEditTask(task) || canDeleteTask(task)) && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="w-4 h-4 text-slate-400" />
-                          </Button>
-                        </DropdownMenuTrigger>
-
-                        <DropdownMenuContent
-                          align="end"
-                          className="bg-slate-900 border-slate-800"
-                        >
-                          {canEditTask(task) && (
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/tasks/${task.id}/edit`);
-                              }}
-                            >
-                              <Edit className="w-4 h-4 mr-2" />
-                              {t("tasks.actions.edit")}
-                            </DropdownMenuItem>
-                          )}
-
-                          {canDeleteTask(task) && (
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void handleDelete(task.id);
-                              }}
-                              className="text-red-400"
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              {t("tasks.actions.delete")}
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
                   </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {!isBootstrapping && filteredTasks.length === 0 && (
+                  <div className="p-3 space-y-3 min-h-[220px]">
+                    {columnTasks.map((task) => {
+                      const assigneeProfiles = getTaskMemberProfiles(task.id);
+
+                      return (
+                        <Card
+                          key={task.id}
+                          draggable
+                          onDragStart={() => handleDragStart(task.id)}
+                          className="bg-slate-900 border-slate-800 hover:border-indigo-500/30 cursor-pointer transition-all group"
+                          onClick={() => navigate(`/tasks/${task.id}`)}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between mb-2">
+                              <Badge className={getPriorityColor(task.priority)}>
+                                {task.priority || t("tasks.priority.low")}
+                              </Badge>
+
+                              {(canEditTask(task) || canDeleteTask(task)) && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger
+                                    asChild
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                                    >
+                                      <MoreVertical className="w-3 h-3 text-slate-400" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+
+                                  <DropdownMenuContent
+                                    align="end"
+                                    className="bg-slate-900 border-slate-800"
+                                  >
+                                    {canEditTask(task) && (
+                                      <DropdownMenuItem
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          navigate(`/tasks/${task.id}/edit`);
+                                        }}
+                                      >
+                                        <Edit className="w-4 h-4 mr-2" />
+                                        {t("tasks.actions.edit")}
+                                      </DropdownMenuItem>
+                                    )}
+
+                                    {canDeleteTask(task) && (
+                                      <DropdownMenuItem
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          void handleDelete(task.id);
+                                        }}
+                                        className="text-red-400"
+                                      >
+                                        <Trash2 className="w-4 h-4 mr-2" />
+                                        {t("tasks.actions.delete")}
+                                      </DropdownMenuItem>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
+                            </div>
+
+                            <h4 className="text-white font-medium mb-2">
+                              {task.title}
+                            </h4>
+
+                            <p className="text-slate-500 text-sm mb-3 line-clamp-2">
+                              {task.description || t("tasks.fallbacks.noDescription")}
+                            </p>
+
+                            <div className="text-xs text-slate-500 mb-3">
+                              {getProjectName(task.project_id)}
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <MemberStack profiles={assigneeProfiles} />
+
+                              {task.due_date &&
+                                (() => {
+                                  const status = getTaskDateStatus(task.due_date);
+
+                                  const color =
+                                    status === "overdue"
+                                      ? "text-red-400"
+                                      : status === "today"
+                                        ? "text-yellow-400"
+                                        : "text-slate-500";
+
+                                  return (
+                                    <div className={`text-sm ${color}`}>
+                                      <div>
+                                        {formatDateInTimezone(
+                                          clock.shiftDate(task.due_date),
+                                          language,
+                                          timezone
+                                        )}
+                                        {status === "overdue" && " • Overdue"}
+                                        {status === "today" && " • Today"}
+                                      </div>
+                                      <div className="text-[10px] text-slate-500">
+                                        {t("timezone.chinaTimeLabel", "China")}:{" "}
+                                        {formatDateInTimezone(
+                                          clock.shiftDate(task.due_date),
+                                          language,
+                                          CHINA_TIMEZONE
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <Card className="bg-slate-900/50 border-slate-800">
+            <CardContent className="p-0">
+              <div className="divide-y divide-slate-800">
+                {filteredTasks.map((task) => {
+                  const assigneeProfiles = getTaskMemberProfiles(task.id);
+
+                  return (
+                    <div
+                      key={task.id}
+                      onClick={() => navigate(`/tasks/${task.id}`)}
+                      className="flex items-center gap-4 p-4 hover:bg-slate-800/50 cursor-pointer transition-colors"
+                    >
+                      <CheckSquare
+                        className={`w-5 h-5 ${
+                          (task.status || "").toUpperCase() === "DONE"
+                            ? "text-green-400"
+                            : "text-slate-500"
+                        }`}
+                      />
+
+                      <div className="flex-1 min-w-0">
+                        <h4
+                          className={`font-medium truncate ${
+                            (task.status || "").toUpperCase() === "DONE"
+                              ? "text-slate-500 line-through"
+                              : "text-white"
+                          }`}
+                        >
+                          {task.title}
+                        </h4>
+                        <p className="text-slate-500 text-sm truncate">
+                          {task.description || t("tasks.fallbacks.noDescription")}
+                        </p>
+                      </div>
+
+                      <div className="hidden sm:flex items-center gap-4">
+                        <Badge className={getPriorityColor(task.priority)}>
+                          {task.priority || t("tasks.priority.low")}
+                        </Badge>
+
+                        <span className="text-sm text-slate-500">
+                          {getProjectName(task.project_id)}
+                        </span>
+
+                        <MemberStack profiles={assigneeProfiles} size="medium" />
+
+                        {task.due_date &&
+                          (() => {
+                            const status = getTaskDateStatus(task.due_date);
+
+                            const color =
+                              status === "overdue"
+                                ? "text-red-400"
+                                : status === "today"
+                                  ? "text-yellow-400"
+                                  : "text-slate-500";
+
+                            return (
+                              <div className={`text-xs ${color}`}>
+                                <div className="flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  <span>
+                                    {formatDateInTimezone(
+                                      clock.shiftDate(task.due_date),
+                                      language,
+                                      timezone
+                                    )}
+                                    {status === "overdue" && " • Overdue"}
+                                    {status === "today" && " • Today"}
+                                  </span>
+                                </div>
+                                <div className="pl-4 text-[10px] text-slate-500">
+                                  {t("timezone.chinaTimeLabel", "China")}:{" "}
+                                  {formatDateInTimezone(
+                                    clock.shiftDate(task.due_date),
+                                    language,
+                                    CHINA_TIMEZONE
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                      </div>
+
+                      {(canEditTask(task) || canDeleteTask(task)) && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            asChild
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="w-4 h-4 text-slate-400" />
+                            </Button>
+                          </DropdownMenuTrigger>
+
+                          <DropdownMenuContent
+                            align="end"
+                            className="bg-slate-900 border-slate-800"
+                          >
+                            {canEditTask(task) && (
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/tasks/${task.id}/edit`);
+                                }}
+                              >
+                                <Edit className="w-4 h-4 mr-2" />
+                                {t("tasks.actions.edit")}
+                              </DropdownMenuItem>
+                            )}
+
+                            {canDeleteTask(task) && (
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleDelete(task.id);
+                                }}
+                                className="text-red-400"
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                {t("tasks.actions.delete")}
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </PageLoader>
+
+      {filteredTasks.length === 0 && (
         <div className="text-center py-12">
           <CheckSquare className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-white mb-2">{t("tasks.empty.title")}</h3>
+          <h3 className="text-lg font-medium text-white mb-2">
+            {t("tasks.empty.title")}
+          </h3>
           <p className="text-slate-500 mb-4">
             {searchQuery ||
             statusFilter !== "ALL" ||

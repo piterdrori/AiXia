@@ -100,6 +100,44 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
   },
 };
 
+/* =========================================================
+   ROUTE PERMISSIONS (CENTRALIZED)
+========================================================= */
+
+type RoutePermission = {
+  roles?: Role[];
+  permission?: Permission;
+};
+
+const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
+  "/dashboard": { roles: ["admin", "manager", "employee", "guest"] },
+
+  "/projects": { roles: ["admin", "manager", "employee", "guest"] },
+  "/projects/new": { permission: "createProjects" },
+  "/projects/:id": { roles: ["admin", "manager", "employee", "guest"] },
+  "/projects/:id/edit": { permission: "editAllProjects" },
+
+  "/tasks": { roles: ["admin", "manager", "employee", "guest"] },
+  "/tasks/new": { permission: "createTasks" },
+  "/tasks/:id": { roles: ["admin", "manager", "employee", "guest"] },
+  "/tasks/:id/edit": { permission: "editTasks" },
+
+  "/calendar": { roles: ["admin", "manager", "employee", "guest"] },
+  "/calendar/new": { permission: "createTasks" },
+  "/calendar/day/:date": { roles: ["admin", "manager", "employee", "guest"] },
+  "/calendar/:id/edit": { permission: "editTasks" },
+
+  "/chat": { permission: "accessChat" },
+  "/chat/:id": { permission: "accessChat" },
+  "/inbox": { permission: "accessChat" },
+
+  "/employees": { roles: ["admin"] },
+  "/employees/:id": { roles: ["admin"] },
+  "/employees/:id/permissions": { roles: ["admin"] },
+
+  "/settings": { permission: "changeSettings" },
+};
+
 export function getEffectivePermissions(
   role: Role,
   overrides?: Partial<PermissionMap> | null
@@ -118,9 +156,42 @@ export function canPerform(
   return !!perms[permission];
 }
 
-export function canAccessRoute(role: Role, route: string): boolean {
-  if (route.startsWith("/employees")) return role === "admin";
-  if (route.startsWith("/settings")) return role !== "guest";
+export function canAccessRoute(
+  role: Role,
+  route: string,
+  overrides?: Partial<PermissionMap> | null
+): boolean {
+  const sortedRoutes = Object.entries(ROUTE_PERMISSIONS).sort(
+    ([a], [b]) => b.length - a.length
+  );
+
+  const entry = sortedRoutes.find(([pattern]) => {
+    if (pattern.includes(":")) {
+      const patternParts = pattern.split("/");
+      const routeParts = route.split("/");
+
+      if (patternParts.length !== routeParts.length) return false;
+
+      return patternParts.every((part, index) => {
+        return part.startsWith(":") || part === routeParts[index];
+      });
+    }
+
+    return route === pattern;
+  });
+
+  if (!entry) return true;
+
+  const [, config] = entry;
+
+  if (config.roles) {
+    return config.roles.includes(role);
+  }
+
+  if (config.permission) {
+    return canPerform(role, config.permission, overrides);
+  }
+
   return true;
 }
 

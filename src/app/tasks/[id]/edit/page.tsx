@@ -618,7 +618,7 @@ const handleSubmit = async (e: React.FormEvent) => {
   <div className="space-y-1">
     <Label className="text-slate-300">{t("taskEdit.form.assignees")}</Label>
     <div className="text-xs text-slate-400">
-      To assign someone to this task, add them to the project first.
+      To assign additional members to this task, add them to the project first (in the project page).
     </div>
   </div>
 

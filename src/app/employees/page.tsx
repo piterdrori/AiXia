@@ -33,6 +33,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
+import { useAppClock } from "@/lib/clock/provider";
 
 type Role = "admin" | "manager" | "employee" | "guest";
 
@@ -328,6 +329,7 @@ function getFieldIcon(icon: EmployeeField["icon"]) {
 
 export default function EmployeesPage() {
   const { t } = useLanguage();
+  const clock = useAppClock();
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
 
@@ -641,7 +643,7 @@ const availableMemberTypeOptions = useMemo(() => {
     if (!target) return;
 
     const roleToApply = target.requested_role || "employee";
-    const updatedAt = new Date().toISOString();
+    const updatedAt = clock.nowIso;
 
     setActionLoadingUserId(userId);
     setError("");
@@ -685,7 +687,7 @@ const availableMemberTypeOptions = useMemo(() => {
   const rejectUser = async (userId: string) => {
     if (!canManageUsers) return;
 
-    const updatedAt = new Date().toISOString();
+    const updatedAt = clock.nowIso;
 
     setActionLoadingUserId(userId);
     setError("");
@@ -806,7 +808,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
         .from("member_invitations")
         .update({
           status: "cancelled",
-          cancelled_at: new Date().toISOString(),
+          cancelled_at: clock.nowIso,
         })
         .eq("id", invitationId)
         .eq("status", "pending");

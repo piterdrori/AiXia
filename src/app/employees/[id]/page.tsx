@@ -12,7 +12,7 @@ import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { uploadProfilePhoto } from "@/lib/profilePhotoUpload";
 import { useLanguage } from "@/lib/i18n";
-
+import { useAppClock } from "@/lib/clock/provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -207,6 +207,7 @@ function joinMultiValue(values: string[]) {
 
 export default function EmployeeDetailPage() {
   const { t } = useLanguage();
+  const clock = useAppClock();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
@@ -816,7 +817,7 @@ export default function EmployeeDetailPage() {
     setSaveError("");
     setSaved(false);
 
-    const nextUpdatedAt = new Date().toISOString();
+    const nextUpdatedAt = clock.nowIso;
 
     const payload: Record<string, unknown> = {
       full_name: fullName.trim() || null,
@@ -888,7 +889,7 @@ export default function EmployeeDetailPage() {
     setSaveError("");
 
     try {
-      const nextUpdatedAt = new Date().toISOString();
+      const nextUpdatedAt = clock.nowIso;
 
       const { error } = await supabase
         .from("profiles")

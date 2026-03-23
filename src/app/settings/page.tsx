@@ -13,6 +13,7 @@ import { uploadProfilePhoto } from "@/lib/profilePhotoUpload";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
 import type { Language } from "@/lib/translations";
+import { formatDateTimeInTimezone } from "@/lib/datetime";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -528,10 +529,25 @@ export default function SettingsPage() {
       .toUpperCase()
       .slice(0, 2) || "U";
 
-    const getTimezoneLabel = (timezoneValue: string) => {
+      const getTimezoneLabel = (timezoneValue: string) => {
     const key = TIMEZONE_LABEL_KEYS[timezoneValue];
-    return key ? t(key, getTimezoneFallbackLabel(timezoneValue)) : getTimezoneFallbackLabel(timezoneValue);
+    return key
+      ? t(key, getTimezoneFallbackLabel(timezoneValue))
+      : getTimezoneFallbackLabel(timezoneValue);
   };
+
+  const previewDateTime = formatDateTimeInTimezone(
+    clock.now,
+    language as Language,
+    timezone,
+    {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }
+  );
   const isSavingProfile = savingSection === "profile";
   const isSavingAccount = savingSection === "account";
   const isSavingNotifications = savingSection === "notifications";
@@ -1013,7 +1029,7 @@ export default function SettingsPage() {
                         </SelectContent>
                       </Select>
 
-                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                                            <div className="flex flex-wrap items-center gap-2 pt-1">
                         <Button
                           type="button"
                           variant="outline"
@@ -1030,6 +1046,15 @@ export default function SettingsPage() {
                           {t("timezone.detectedTimezone", "Detected")}:{" "}
                           {getTimezoneLabel(browserTimezone)}
                         </span>
+                      </div>
+
+                      <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+                        <p className="text-xs uppercase tracking-wide text-slate-500">
+                          {t("timezone.preview", "Preview")}
+                        </p>
+                        <p className="mt-1 text-sm text-white">
+                          {previewDateTime}
+                        </p>
                       </div>
                     </div>
 

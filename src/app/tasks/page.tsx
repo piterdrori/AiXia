@@ -92,7 +92,6 @@ function MemberStack({
   size?: "small" | "medium";
 }) {
   const { t } = useLanguage();
-  const clock = useAppClock();
 
   const avatarClass =
     size === "medium"
@@ -130,6 +129,7 @@ export default function TasksPage() {
   const [searchParams] = useSearchParams();
   const requestTracker = useRef(createRequestTracker());
   const { t } = useLanguage();
+  const clock = useAppClock();
 
   const initialProjectId = searchParams.get("projectId") || "ALL";
 

@@ -14,6 +14,7 @@ import {
 } from "@/lib/file-upload";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
+import { useAppClock } from "@/lib/clock/provider";
 import { smartTranslate } from "@/lib/smartTranslate";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -188,6 +189,7 @@ export default function ProjectDetailPage() {
   const requestTracker = useRef(createRequestTracker());
   const projectFileInputRef = useRef<HTMLInputElement | null>(null);
   const { t } = useLanguage();
+  const clock = useAppClock();
 
   const [activeTab, setActiveTab] = useState("overview");
   const [isLoading, setIsLoading] = useState(true);
@@ -1176,7 +1178,7 @@ setTranslatedComments((prev) => ({
                   <span className="text-slate-400">{t("projects.startDate", "Start Date")}</span>
                   <span className="text-white">
                     {project.start_date
-                      ? format(new Date(project.start_date), "MMM d, yyyy")
+                      ? format(clock.shiftDate(project.start_date), "MMM d, yyyy")
                       : t("projects.notSet", "Not set")}
                   </span>
                 </div>
@@ -1185,7 +1187,7 @@ setTranslatedComments((prev) => ({
                   <span className="text-slate-400">{t("projects.endDate", "End Date")}</span>
                   <span className="text-white">
                     {project.end_date
-                      ? format(new Date(project.end_date), "MMM d, yyyy")
+                      ? format(clock.shiftDate(project.end_date), "MMM d, yyyy")
                       : t("projects.notSet", "Not set")}
                   </span>
                 </div>
@@ -1193,7 +1195,7 @@ setTranslatedComments((prev) => ({
                 <div className="flex justify-between">
                   <span className="text-slate-400">{t("projects.created", "Created")}</span>
                   <span className="text-white">
-                    {format(new Date(project.created_at), "MMM d, yyyy")}
+                    {format(clock.shiftDate(project.created_at), "MMM d, yyyy")}
                   </span>
                 </div>
 
@@ -1314,7 +1316,7 @@ setTranslatedComments((prev) => ({
                         {task.due_date && (
                           <span className="text-sm text-slate-500 flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
-                            {format(new Date(task.due_date), "MMM d")}
+                            {format(clock.shiftDate(task.due_date), "MMM d")}
                           </span>
                         )}
                       </div>
@@ -1526,7 +1528,7 @@ setTranslatedComments((prev) => ({
                             <p className="text-white text-sm truncate">{file.file_name}</p>
                             <p className="text-slate-500 text-xs">
                               {uploader?.full_name || t("projects.unknownUser", "Unknown user")} •{" "}
-                              {format(new Date(file.created_at), "MMM d, yyyy h:mm a")}
+                              {format(clock.shiftDate(file.created_at), "MMM d, yyyy h:mm a")}
                             </p>
                           </div>
                         </div>
@@ -1704,7 +1706,7 @@ setTranslatedComments((prev) => ({
                               <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                                 <Clock3 className="h-3 w-3" />
                                 <span>
-                                  {format(new Date(comment.created_at), "MMM d, yyyy • h:mm a")}
+                                  {format(clock.shiftDate(comment.created_at), "MMM d, yyyy • h:mm a")}
                                 </span>
                               </div>
                             </div>
@@ -1851,7 +1853,7 @@ setTranslatedComments((prev) => ({
                         </div>
 
                         <div className="text-xs text-slate-500 whitespace-nowrap">
-                          {format(new Date(log.created_at), "MMM d, h:mm a")}
+                          {format(clock.shiftDate(log.created_at), "MMM d, h:mm a")}
                         </div>
                       </div>
                     );

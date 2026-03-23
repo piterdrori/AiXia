@@ -156,6 +156,72 @@ function normalizeOptional(value: string) {
   return trimmed ? trimmed : null;
 }
 
+function getBrowserTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
+const COMMON_TIMEZONES = [
+  "UTC",
+  "Asia/Shanghai",
+  "Asia/Hong_Kong",
+  "Asia/Singapore",
+  "Asia/Tokyo",
+  "Asia/Seoul",
+  "Asia/Bangkok",
+  "Asia/Dubai",
+  "Asia/Jerusalem",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Europe/Madrid",
+  "Europe/Moscow",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Toronto",
+  "America/Sao_Paulo",
+  "Australia/Sydney",
+  "Pacific/Auckland",
+] as const;
+
+const TIMEZONE_LABEL_KEYS: Record<string, string> = {
+  UTC: "timezone.utc",
+
+  "Asia/Shanghai": "timezone.china",
+  "Asia/Hong_Kong": "timezone.hongKong",
+  "Asia/Singapore": "timezone.singapore",
+  "Asia/Tokyo": "timezone.japan",
+  "Asia/Seoul": "timezone.korea",
+  "Asia/Bangkok": "timezone.thailand",
+  "Asia/Dubai": "timezone.uae",
+  "Asia/Jerusalem": "timezone.israel",
+
+  "Europe/London": "timezone.uk",
+  "Europe/Paris": "timezone.france",
+  "Europe/Berlin": "timezone.germany",
+  "Europe/Madrid": "timezone.spain",
+  "Europe/Moscow": "timezone.russia",
+
+  "America/New_York": "timezone.usaEastern",
+  "America/Chicago": "timezone.usaCentral",
+  "America/Denver": "timezone.usaMountain",
+  "America/Los_Angeles": "timezone.usaPacific",
+  "America/Toronto": "timezone.canada",
+  "America/Sao_Paulo": "timezone.brazil",
+
+  "Australia/Sydney": "timezone.australia",
+  "Pacific/Auckland": "timezone.newZealand",
+};
+
+function getTimezoneFallbackLabel(timezone: string) {
+  return timezone.replace(/_/g, " ");
+}
+
 export default function SettingsPage() {
   const requestTracker = useRef(createRequestTracker());
   const profilePhotoInputRef = useRef<HTMLInputElement | null>(null);
@@ -211,10 +277,16 @@ export default function SettingsPage() {
     return role;
   }, [requestedRole, role]);
 
-  const availableMemberTypes = useMemo(() => {
+    const availableMemberTypes = useMemo(() => {
     if (effectiveRoleForMemberType === "admin") return [];
     return MEMBER_TYPE_OPTIONS[effectiveRoleForMemberType];
   }, [effectiveRoleForMemberType]);
+
+  const browserTimezone = useMemo(() => getBrowserTimezone(), []);
+
+  const timezoneOptions = useMemo(() => {
+    return Array.from(new Set([browserTimezone, ...COMMON_TIMEZONES])).sort();
+  }, [browserTimezone]);
 
   const fillFromProfile = useCallback((profile: ProfileRow) => {
     setRole(profile.role);
@@ -454,6 +526,10 @@ export default function SettingsPage() {
       .toUpperCase()
       .slice(0, 2) || "U";
 
+    const getTimezoneLabel = (timezoneValue: string) => {
+    const key = TIMEZONE_LABEL_KEYS[timezoneValue];
+    return key ? t(key, getTimezoneFallbackLabel(timezoneValue)) : getTimezoneFallbackLabel(timezoneValue);
+  };
   const isSavingProfile = savingSection === "profile";
   const isSavingAccount = savingSection === "account";
   const isSavingNotifications = savingSection === "notifications";

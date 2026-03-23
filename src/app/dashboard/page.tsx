@@ -4,6 +4,7 @@ import { addDays, format, isBefore, parseISO } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { registerRealtimeChannel, removeRealtimeChannel } from "@/lib/realtime";
 import { createRequestTracker } from "@/lib/safeAsync";
+import { useAsyncState } from "@/lib/useAsyncState";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { PageError } from "@/components/ui/PageError";
+import { PageLoader } from "@/components/ui/PageLoader";
 import {
   FolderKanban,
   CheckSquare,
@@ -148,9 +151,15 @@ export default function DashboardPage() {
   const { t } = useLanguage();
   const clock = useAppClock();
 
-  const [isBootstrapping, setIsBootstrapping] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [loadError, setLoadError] = useState("");
+  const {
+  isBootstrapping,
+  isRefreshing,
+  error,
+  startInitial,
+  startRefresh,
+  setFailure,
+  finish,
+} = useAsyncState();
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserName, setCurrentUserName] = useState("");
@@ -167,12 +176,10 @@ export default function DashboardPage() {
     const requestId = requestTracker.current.next();
 
     if (mode === "initial") {
-      setIsBootstrapping(true);
-    } else {
-      setIsRefreshing(true);
-    }
-
-    setLoadError("");
+  startInitial();
+} else {
+  startRefresh();
+}
 
     try {
       const {
@@ -266,21 +273,20 @@ export default function DashboardPage() {
         eventsError ||
         logsError
       ) {
-        setLoadError(
-          t(
-            "dashboard.someDataCouldNotBeLoaded",
-            "Some dashboard data could not be loaded."
-          )
-        );
+        setFailure(
+  t(
+    "dashboard.someDataCouldNotBeLoaded",
+    "Some dashboard data could not be loaded."
+  )
+);
       }
     } catch (error) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Dashboard load error:", error);
-      setLoadError(t("dashboard.failedToLoad", "Failed to load dashboard."));
+      setFailure(t("dashboard.failedToLoad", "Failed to load dashboard."));
     } finally {
       if (!requestTracker.current.isLatest(requestId)) return;
-      setIsBootstrapping(false);
-      setIsRefreshing(false);
+      finish();
     }
   };
 
@@ -533,85 +539,84 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {loadError && (
-        <Card className="bg-red-950/20 border-red-900/40">
-          <CardContent className="p-4 text-sm text-red-300">{loadError}</CardContent>
-        </Card>
-      )}
+      <PageError message={error} />
 
       <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4 shrink-0">
-        {isBootstrapping ? (
-          <>
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-          </>
-        ) : (
-          <>
-            <Card className="bg-slate-900/50 border-slate-800">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/15 flex items-center justify-center shrink-0">
-                  <FolderKanban className="w-5 h-5 text-indigo-400" />
-                </div>
-                <div>
-                  <div className="text-xl font-bold text-white">
-                    {activeProjectsForProgress.length}
-                  </div>
-                  <div className="text-sm text-slate-400">
-                    {t("dashboard.activeProjects", "Active Projects")}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+  <PageLoader
+    loading={isBootstrapping}
+    fallback={
+      <>
+        <StatCardSkeleton />
+        <StatCardSkeleton />
+        <StatCardSkeleton />
+        <StatCardSkeleton />
+      </>
+    }
+  >
+    <>
+      <Card className="bg-slate-900/50 border-slate-800">
+        <CardContent className="p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-500/15 flex items-center justify-center shrink-0">
+            <FolderKanban className="w-5 h-5 text-indigo-400" />
+          </div>
+          <div>
+            <div className="text-xl font-bold text-white">
+              {activeProjectsForProgress.length}
+            </div>
+            <div className="text-sm text-slate-400">
+              {t("dashboard.activeProjects", "Active Projects")}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-            <Card className="bg-slate-900/50 border-slate-800">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
-                  <CheckSquare className="w-5 h-5 text-emerald-400" />
-                </div>
-                <div>
-                  <div className="text-xl font-bold text-white">
-                    {activeTasksForCompletion.length}
-                  </div>
-                  <div className="text-sm text-slate-400">
-                    {t("dashboard.activeTasks", "Active Tasks")}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+      <Card className="bg-slate-900/50 border-slate-800">
+        <CardContent className="p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
+            <CheckSquare className="w-5 h-5 text-emerald-400" />
+          </div>
+          <div>
+            <div className="text-xl font-bold text-white">
+              {activeTasksForCompletion.length}
+            </div>
+            <div className="text-sm text-slate-400">
+              {t("dashboard.activeTasks", "Active Tasks")}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-            <Card className="bg-slate-900/50 border-slate-800">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
-                  <Users className="w-5 h-5 text-amber-400" />
-                </div>
-                <div>
-                  <div className="text-xl font-bold text-white">{profiles.length}</div>
-                  <div className="text-sm text-slate-400">
-                    {t("dashboard.activeMembers", "Active Members")}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+      <Card className="bg-slate-900/50 border-slate-800">
+        <CardContent className="p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+            <Users className="w-5 h-5 text-amber-400" />
+          </div>
+          <div>
+            <div className="text-xl font-bold text-white">{profiles.length}</div>
+            <div className="text-sm text-slate-400">
+              {t("dashboard.activeMembers", "Active Members")}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-            <Card className="bg-slate-900/50 border-slate-800">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-500/15 flex items-center justify-center shrink-0">
-                  <TrendingUp className="w-5 h-5 text-blue-400" />
-                </div>
-                <div className="w-full">
-                  <div className="text-xl font-bold text-white">{averageProgress}%</div>
-                  <div className="text-sm text-slate-400 mb-2">
-                    {t("dashboard.averageProjectProgress", "Average Project Progress")}
-                  </div>
-                  <Progress value={averageProgress} />
-                </div>
-              </CardContent>
-            </Card>
-          </>
-        )}
-      </div>
+      <Card className="bg-slate-900/50 border-slate-800">
+        <CardContent className="p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-500/15 flex items-center justify-center shrink-0">
+            <TrendingUp className="w-5 h-5 text-blue-400" />
+          </div>
+          <div className="w-full">
+            <div className="text-xl font-bold text-white">{averageProgress}%</div>
+            <div className="text-sm text-slate-400 mb-2">
+              {t("dashboard.averageProjectProgress", "Average Project Progress")}
+            </div>
+            <Progress value={averageProgress} />
+          </div>
+        </CardContent>
+      </Card>
+    </>
+  </PageLoader>
+</div>
 
       <div className="grid xl:grid-cols-2 gap-5 min-h-[1100px]">
         <div className="grid gap-5 content-start" style={{ gridTemplateRows: "520px 520px" }}>

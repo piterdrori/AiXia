@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
-import { useAsyncState } from "@/lib/useAsyncState";
 import { useLanguage } from "@/lib/i18n";
 import { canPerform, canDeleteProject as canDeleteProjectPermission } from "@/lib/permissions";
+
+import { useRequest } from "@/lib/useRequest";
+
 import { useAppClock } from "@/lib/clock/provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,35 +81,21 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
-  const {
-  isBootstrapping,
-  isRefreshing,
-  error,
-  startInitial,
-  startRefresh,
-  setFailure,
-  finish,
-} = useAsyncState();
+  const projectsRequest = useRequest<ProjectRow[]>();
+const loadProjects = async () => {
+  const requestId = requestTracker.current.next();
 
-  const loadProjects = async (mode: "initial" | "refresh" = "initial") => {
-    const requestId = requestTracker.current.next();
-
-    if (mode === "initial") {
-  startInitial();
-} else {
-  startRefresh();
-}
-
-    try {
+  try {
+    const result = await projectsRequest.run(async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!requestTracker.current.isLatest(requestId)) return;
+      if (!requestTracker.current.isLatest(requestId)) return [];
 
       if (!user) {
         navigate("/login");
-        return;
+        return [];
       }
 
       setCurrentUserId(user.id);
@@ -118,14 +106,13 @@ export default function ProjectsPage() {
         .eq("user_id", user.id)
         .single();
 
-      if (!requestTracker.current.isLatest(requestId)) return;
+      if (!requestTracker.current.isLatest(requestId)) return [];
 
       if (profileError) {
-        console.error("Load current profile error:", profileError);
-        setCurrentUserRole(null);
-        setProjects([]);
-        setFailure(profileError.message || t("projects.failedToLoadProfile", "Failed to load profile."));
-        return;
+        throw new Error(
+          profileError.message ||
+            t("projects.failedToLoadProfile", "Failed to load profile.")
+        );
       }
 
       const currentProfile = (profileData as ProfileRow | null) || null;
@@ -140,105 +127,119 @@ export default function ProjectsPage() {
           )
           .order("created_at", { ascending: false });
 
-        if (!requestTracker.current.isLatest(requestId)) return;
+        if (!requestTracker.current.isLatest(requestId)) return [];
 
         if (projectsError) {
-          console.error("Load projects error:", projectsError);
-          setProjects([]);
-          setFailure(projectsError.message || t("projects.failedToLoadProjects", "Failed to load projects."));
-        } else {
-          setProjects((projectsData || []) as ProjectRow[]);
+          throw new Error(
+            projectsError.message ||
+              t("projects.failedToLoadProjects", "Failed to load projects.")
+          );
         }
 
-        return;
+        return (projectsData || []) as ProjectRow[];
       }
 
-      const [{ data: memberRows, error: membersError }, { data: createdProjects, error: createdError }] =
-        await Promise.all([
-          supabase
-            .from("project_members")
-            .select("project_id, user_id")
-            .eq("user_id", user.id),
-          supabase
-            .from("projects")
-            .select(
-              "id, name, description, status, progress, created_by, start_date, end_date, created_at"
-            )
-            .eq("created_by", user.id),
-        ]);
+      const [
+        { data: memberRows, error: membersError },
+        { data: createdProjects, error: createdError },
+      ] = await Promise.all([
+        supabase
+          .from("project_members")
+          .select("project_id, user_id")
+          .eq("user_id", user.id),
+        supabase
+          .from("projects")
+          .select(
+            "id, name, description, status, progress, created_by, start_date, end_date, created_at"
+          )
+          .eq("created_by", user.id),
+      ]);
 
-      if (!requestTracker.current.isLatest(requestId)) return;
+      if (!requestTracker.current.isLatest(requestId)) return [];
 
       if (membersError) {
-        console.error("Load project members error:", membersError);
-        setProjects([]);
-        setFailure(
+        throw new Error(
           membersError.message ||
-            t("projects.failedToLoadProjectMemberships", "Failed to load project memberships.")
+            t(
+              "projects.failedToLoadProjectMemberships",
+              "Failed to load project memberships."
+            )
         );
-        return;
       }
 
       if (createdError) {
-        console.error("Load created projects error:", createdError);
-        setProjects([]);
-        setFailure(
+        throw new Error(
           createdError.message ||
-            t("projects.failedToLoadCreatedProjects", "Failed to load created projects.")
+            t(
+              "projects.failedToLoadCreatedProjects",
+              "Failed to load created projects."
+            )
         );
-        return;
       }
 
       const visibleProjectIds = Array.from(
-        new Set(((memberRows as ProjectMemberRow[] | null) || []).map((row) => row.project_id))
+        new Set(
+          ((memberRows as ProjectMemberRow[] | null) || []).map(
+            (row) => row.project_id
+          )
+        )
       );
 
       let assignedProjects: ProjectRow[] = [];
 
       if (visibleProjectIds.length > 0) {
-        const { data: assignedProjectsData, error: assignedProjectsError } = await supabase
-          .from("projects")
-          .select(
-            "id, name, description, status, progress, created_by, start_date, end_date, created_at"
-          )
-          .in("id", visibleProjectIds);
+        const { data: assignedProjectsData, error: assignedProjectsError } =
+          await supabase
+            .from("projects")
+            .select(
+              "id, name, description, status, progress, created_by, start_date, end_date, created_at"
+            )
+            .in("id", visibleProjectIds);
 
-        if (!requestTracker.current.isLatest(requestId)) return;
+        if (!requestTracker.current.isLatest(requestId)) return [];
 
         if (assignedProjectsError) {
-          console.error("Load assigned projects error:", assignedProjectsError);
-          setProjects([]);
-          setFailure(
+          throw new Error(
             assignedProjectsError.message ||
-              t("projects.failedToLoadAssignedProjects", "Failed to load assigned projects.")
+              t(
+                "projects.failedToLoadAssignedProjects",
+                "Failed to load assigned projects."
+              )
           );
-          return;
         }
 
         assignedProjects = (assignedProjectsData || []) as ProjectRow[];
       }
 
-      const mergedProjects = [...((createdProjects || []) as ProjectRow[]), ...assignedProjects];
+      const mergedProjects = [
+        ...((createdProjects || []) as ProjectRow[]),
+        ...assignedProjects,
+      ];
 
       const uniqueProjects = Array.from(
         new Map(mergedProjects.map((project) => [project.id, project])).values()
-      ).sort((a, b) => clock.shiftDate(b.created_at).getTime() - clock.shiftDate(a.created_at).getTime());
+      ).sort(
+        (a, b) =>
+          clock.shiftDate(b.created_at).getTime() -
+          clock.shiftDate(a.created_at).getTime()
+      );
 
-      setProjects(uniqueProjects);
-    } catch (error) {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      console.error("Projects page load error:", error);
-      setProjects([]);
-      setFailure(t("projects.failedToLoadProjects", "Failed to load projects."));
-    } finally {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      finish();
+      return uniqueProjects;
+    });
+
+    if (requestTracker.current.isLatest(requestId)) {
+      setProjects(result || []);
     }
-  };
+  } catch (error) {
+    if (!requestTracker.current.isLatest(requestId)) return;
+    console.error("Projects page load error:", error);
+    setProjects([]);
+  }
+};
 
   useEffect(() => {
-    void loadProjects("initial");
-  }, []);
+  void loadProjects();
+}, []);
 
   const canCreateProjects = currentUserRole
   ? canPerform(currentUserRole, "createProjects")
@@ -348,16 +349,16 @@ const canDeleteProject = (project: ProjectRow) => {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            onClick={() => void loadProjects("refresh")}
-            disabled={isRefreshing}
-          >
-            {isRefreshing
-              ? t("projects.refreshing", "Refreshing...")
-              : t("projects.refresh", "Refresh")}
-          </Button>
+         <Button
+  variant="outline"
+  className="border-slate-700 text-slate-300 hover:bg-slate-800"
+  onClick={() => void loadProjects()}
+  disabled={projectsRequest.status === "loading"}
+>
+  {projectsRequest.status === "loading"
+    ? t("projects.refreshing", "Refreshing...")
+    : t("projects.refresh", "Refresh")}
+</Button>
 
           {canCreateProjects && (
             <Button
@@ -424,10 +425,10 @@ const canDeleteProject = (project: ProjectRow) => {
         </ToggleGroup>
       </div>
 
-      <PageError message={error} />
+      <PageError message={projectsRequest.error} />
 
      <PageLoader
-  loading={isBootstrapping}
+  loading={projectsRequest.status === "loading"}
   fallback={
     viewMode === "grid" ? (
       <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">

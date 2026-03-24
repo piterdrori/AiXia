@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/lib/i18n";
+import { supabase } from "@/lib/supabase";
 import { smartTranslate } from "@/lib/smartTranslate";
 
 export default function MessageList({
@@ -225,14 +226,29 @@ setTranslatedMessages((prev) => ({
                          ) : (
   <div className="space-y-1">
     <p className="whitespace-pre-wrap break-words">
-      {translatedMessages[message.id]?.text || message.content}
-    </p>
+  {translatedMessages[message.id]?.text || message.content}
+</p>
 
-    {translatedMessages[message.id]?.source && (
-      <p className="text-[10px] opacity-70">
-        Source: {translatedMessages[message.id].source}
-      </p>
-    )}
+{/* Attachments */}
+{message.attachments && message.attachments.length > 0 && (
+  <div className="mt-2 space-y-2">
+    {message.attachments.map((file) => {
+  const publicUrl = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/chat-files/${file.file_path}`;
+    .replace("https://", "")
+    .replace(".supabase.co", "")}.supabase.co/storage/v1/object/public/chat-files/${file.file_path}`;
+
+      return (
+        <a
+          key={file.id}
+          href={publicUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block text-xs bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-md"
+        >
+          📎 {file.file_name}
+        </a>
+      );
+    })}
   </div>
 )}
                     </div>

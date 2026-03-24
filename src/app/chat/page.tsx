@@ -93,6 +93,7 @@ export default function ChatPage() {
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const [groupActionLoading, setGroupActionLoading] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -234,6 +235,18 @@ export default function ChatPage() {
     setMentionQuery("");
     setShowMentionDropdown(false);
   };
+
+  const handleUploadFile = async (_file: File) => {
+  setIsUploadingFile(true);
+  setError("");
+
+  try {
+    // temporary placeholder so the component compiles
+    setError(t("chat.errors.uploadNotReady", "File upload is not ready yet."));
+  } finally {
+    setIsUploadingFile(false);
+  }
+};
 
   const toggleGroupMember = (userId: string) => {
     setSelectedGroupMembers((prev) =>
@@ -821,14 +834,16 @@ export default function ChatPage() {
             </div>
 
             <MessageComposer
-              messageInput={messageInput}
-              isSending={isSending}
-              showMentionDropdown={showMentionDropdown}
-              filteredMentionCandidates={filteredMentionCandidates}
-              onChange={handleMessageInputChange}
-              onSend={() => void handleSendMessage()}
-              onInsertMention={insertMention}
-            />
+  messageInput={messageInput}
+  isSending={isSending}
+  isUploadingFile={isUploadingFile}
+  showMentionDropdown={showMentionDropdown}
+  filteredMentionCandidates={filteredMentionCandidates}
+  onChange={handleMessageInputChange}
+  onSend={() => void handleSendMessage()}
+  onInsertMention={insertMention}
+  onUploadFile={(file) => void handleUploadFile(file)}
+/>
           </Card>
         ) : (
           <Card className="flex-1 bg-slate-900/50 border-slate-800 flex items-center justify-center min-h-0">

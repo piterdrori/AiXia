@@ -55,7 +55,24 @@ export function useChatMessages(selectedConversationId: string | null) {
     try {
       const { data, error } = await supabase
         .from("chat_messages")
-        .select("id, group_id, user_id, content, created_at")
+        .select(`
+  id,
+  group_id,
+  user_id,
+  content,
+  created_at,
+  attachments:chat_attachments(
+    id,
+    message_id,
+    group_id,
+    uploaded_by,
+    file_name,
+    file_path,
+    mime_type,
+    file_size,
+    created_at
+  )
+`)
         .eq("group_id", groupId)
         .order("created_at", { ascending: false })
         .limit(PAGE_SIZE);
@@ -178,7 +195,24 @@ export function useChatMessages(selectedConversationId: string | null) {
     try {
       const { data, error } = await supabase
         .from("chat_messages")
-        .select("id, group_id, user_id, content, created_at")
+       .select(`
+  id,
+  group_id,
+  user_id,
+  content,
+  created_at,
+  attachments:chat_attachments(
+    id,
+    message_id,
+    group_id,
+    uploaded_by,
+    file_name,
+    file_path,
+    mime_type,
+    file_size,
+    created_at
+  )
+`)
         .eq("group_id", selectedConversationId)
         .lt("created_at", oldestMessage.created_at)
         .order("created_at", { ascending: false })

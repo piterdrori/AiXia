@@ -3,6 +3,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
+
+import { getVisibleProjectIds } from "@/lib/permissions";
+
 import { useAppClock } from "@/lib/clock/provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -303,21 +306,12 @@ export default function CalendarNewPage() {
         setError(projectsError.message || t("calendarNew.errors.failedToLoadProjects"));
         setProjects([]);
       } else {
-        const visibleProjectIds =
-          me.role === "admin"
-            ? new Set(projectList.map((project) => project.id))
-            : new Set(
-                projectList
-                  .filter(
-                    (project) =>
-                      project.created_by === user.id ||
-                      memberList.some(
-                        (member) =>
-                          member.project_id === project.id && member.user_id === user.id
-                      )
-                  )
-                  .map((project) => project.id)
-              );
+        const visibleProjectIds = getVisibleProjectIds(
+  user.id,
+  me.role,
+  projectList,
+  memberList
+);
 
         const visibleProjects = projectList.filter((project) =>
           visibleProjectIds.has(project.id)

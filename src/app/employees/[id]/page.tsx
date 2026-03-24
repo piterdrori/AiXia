@@ -1010,20 +1010,6 @@ disabled={
             </Button>
           )}
 
-          {(canManage || isOwnProfile) && !isEditing && (
-            <Button
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              onClick={() => {
-                setIsEditing(true);
-                setActiveEditor(null);
-              }}
-              disabled={isUploadingPhoto || isDeactivating || isDeleting}
-            >
-              <Edit className="w-4 h-4 mr-2" />
-              {t("employeeDetail.actions.editMode")}
-            </Button>
-          )}
-
           {canManage && (
             <Button
               variant="outline"
@@ -1588,9 +1574,33 @@ disabled={
                   </section>
 
                   <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-white">{t("employeeDetail.sections.coreAccountDetails")}</h3>
-                    </div>
+  <div className="flex items-center justify-between gap-3">
+    <h3 className="text-lg font-semibold text-white">
+      {t("employeeDetail.sections.coreAccountDetails")}
+    </h3>
+
+    {(canManage || isOwnProfile) && (
+      <Button
+        className="bg-indigo-600 hover:bg-indigo-700 text-white"
+        onClick={() => {
+          if (isEditing) {
+            setIsEditing(false);
+            setActiveEditor(null);
+            if (user) fillForm(user);
+          } else {
+            setIsEditing(true);
+            setActiveEditor(null);
+          }
+        }}
+        disabled={isSaving || isUploadingPhoto || isDeactivating || isDeleting}
+      >
+        <Edit className="w-4 h-4 mr-2" />
+        {isEditing
+          ? t("employeeDetail.actions.cancel")
+          : t("employeeDetail.actions.editMode")}
+      </Button>
+    )}
+  </div>
 
                     <div className="grid md:grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -1690,32 +1700,32 @@ disabled={
                   </section>
                 </div>
 
-                {(canManage || isOwnProfile) && isEditing && (
-                  <div className="sticky bottom-4 flex items-center justify-end gap-2 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 backdrop-blur">
-                    <Button
-                      variant="outline"
-                      className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                      onClick={() => {
-                        setIsEditing(false);
-                        setActiveEditor(null);
-                        if (user) fillForm(user);
-                      }}
-                      disabled={isSaving || isUploadingPhoto}
-                    >
-                      <X className="w-4 h-4 mr-2" />
-                      {t("employeeDetail.actions.cancel")}
-                    </Button>
+                {(canManage || isOwnProfile) && isEditing && activeEditor === null && (
+  <div className="sticky bottom-4 flex items-center justify-end gap-2 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 backdrop-blur">
+    <Button
+      variant="outline"
+      className="border-slate-700 text-slate-300 hover:bg-slate-800"
+      onClick={() => {
+        setIsEditing(false);
+        setActiveEditor(null);
+        if (user) fillForm(user);
+      }}
+      disabled={isSaving || isUploadingPhoto}
+    >
+      <X className="w-4 h-4 mr-2" />
+      {t("employeeDetail.actions.cancel")}
+    </Button>
 
-                    <Button
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                      onClick={() => void handleSave()}
-                      disabled={isSaving || isUploadingPhoto}
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      {isSaving ? t("employeeDetail.actions.saving") : t("employeeDetail.actions.saveChanges")}
-                    </Button>
-                  </div>
-                )}
+    <Button
+      className="bg-indigo-600 hover:bg-indigo-700 text-white"
+      onClick={() => void handleSave()}
+      disabled={isSaving || isUploadingPhoto}
+    >
+      <Save className="w-4 h-4 mr-2" />
+      {isSaving ? t("employeeDetail.actions.saving") : t("employeeDetail.actions.saveChanges")}
+    </Button>
+  </div>
+)}
               </>
             )}
           </CardContent>

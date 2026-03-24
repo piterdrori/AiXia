@@ -425,7 +425,7 @@ const canDeleteProject = (project: ProjectRow) => {
         </ToggleGroup>
       </div>
 
-      <PageError message={projectsRequest.error} />
+      <PageError message={projectsRequest.error || ""} />
 
      <PageLoader
   loading={projectsRequest.status === "loading"}

@@ -12,6 +12,13 @@ import {
   getSignedFileUrl,
   deleteUploadedFile,
 } from "@/lib/file-upload";
+
+import {
+  canViewProject,
+  canEditProject,
+  canDeleteProject,
+} from "@/lib/permissions";
+
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
@@ -338,14 +345,17 @@ export default function ProjectDetailPage() {
       const loadedFiles = (filesData || []) as FileUploadRow[];
       const loadedComments = (commentsData || []) as ProjectCommentRow[];
 
-      const isAdmin = role === "admin";
-      const isCreator = loadedProject.created_by === user.id;
-      const isAssignedMember = loadedMembers.some((member) => member.user_id === user.id);
-
-      if (!isAdmin && !isCreator && !isAssignedMember) {
-        navigate("/projects");
-        return;
-      }
+      if (
+  !canViewProject(
+    loadedProject,
+    user.id,
+    role,
+    loadedMembers
+  )
+) {
+  navigate("/projects");
+  return;
+}
 
       setProject(loadedProject);
       setProjectMembers(loadedMembers);
@@ -376,14 +386,24 @@ export default function ProjectDetailPage() {
   }, [id, navigate]);
 
   const canEdit = useMemo(() => {
-    if (!project || !currentUserId || !currentUserRole) return false;
-    return currentUserRole === "admin" || project.created_by === currentUserId;
-  }, [project, currentUserId, currentUserRole]);
+  if (!project || !currentUserId || !currentUserRole) return false;
+
+  return canEditProject(
+    project,
+    currentUserId,
+    currentUserRole
+  );
+}, [project, currentUserId, currentUserRole]);
 
   const canDelete = useMemo(() => {
-    if (!project || !currentUserId || !currentUserRole) return false;
-    return currentUserRole === "admin" || project.created_by === currentUserId;
-  }, [project, currentUserId, currentUserRole]);
+  if (!project || !currentUserId || !currentUserRole) return false;
+
+  return canDeleteProject(
+    project,
+    currentUserId,
+    currentUserRole
+  );
+}, [project, currentUserId, currentUserRole]);
 
   const canDeleteThisProjectFile = (file: FileUploadRow) => {
     if (!currentUserId) return false;

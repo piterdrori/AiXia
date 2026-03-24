@@ -60,9 +60,25 @@ export default function ChatSidebar({
   const groupConversations = filteredConversations.filter((group) => group.type === "GROUP");
 
   const canDeleteChat = (group: ChatGroupRow) => {
-    if (!currentUserId) return false;
-    return currentUserRole === "admin" || group.created_by === currentUserId;
-  };
+  if (!currentUserId) return false;
+
+  // admin → always allowed
+  if (currentUserRole === "admin") {
+    return true;
+  }
+
+  // direct chat → any member can delete
+  if (group.type === "DIRECT") {
+    return groupMembers.some(
+      (member) =>
+        member.group_id === group.id &&
+        member.user_id === currentUserId
+    );
+  }
+
+  // group chat → only creator
+  return group.created_by === currentUserId;
+};
 
   const renderConversationButton = (
     group: ChatGroupRow,

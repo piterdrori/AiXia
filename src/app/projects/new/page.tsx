@@ -6,6 +6,7 @@ import { createNotification } from "@/lib/notifications";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
 import { projectSchema } from "@/lib/validation";
+import { canPerform } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +48,7 @@ export default function ProjectNewPage() {
   const [endDate, setEndDate] = useState("");
 
   const [teamMembers, setTeamMembers] = useState<ProfileRow[]>([]);
+  const [currentUserRole, setCurrentUserRole] = useState<ProfileRow["role"] | null>(null);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
 
   const [error, setError] = useState("");
@@ -59,6 +61,33 @@ export default function ProjectNewPage() {
     const loadMembers = async () => {
       const requestId = requestTracker.current.next();
       setIsMembersLoading(true);
+
+      const {
+  data: { user },
+} = await supabase.auth.getUser();
+
+if (!user) {
+  navigate("/login");
+  return;
+}
+
+const { data: myProfile } = await supabase
+  .from("profiles")
+  .select("role")
+  .eq("user_id", user.id)
+  .single();
+
+if (!myProfile) {
+  navigate("/projects");
+  return;
+}
+
+setCurrentUserRole(myProfile.role);
+
+if (!canPerform(myProfile.role, "createProjects")) {
+  navigate("/projects");
+  return;
+}
 
       try {
         const { data, error: membersError } = await supabase
@@ -150,6 +179,18 @@ if (!validation.success) {
         setIsLoading(false);
         return;
       }
+
+      const { data: myProfile } = await supabase
+  .from("profiles")
+  .select("role")
+  .eq("user_id", user.id)
+  .single();
+
+if (!myProfile || !canPerform(myProfile.role, "createProjects")) {
+  setError(t("projects.notAuthorized", "Not authorized"));
+  setIsLoading(false);
+  return;
+}
 
       const { data: projectData, error: insertError } = await supabase
         .from("projects")
@@ -429,7 +470,7 @@ if (!validation.success) {
               <Button
                 type="submit"
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                disabled={isLoading}
+                disabled={isLoading || !currentUserRole || !canPerform(currentUserRole, "createProjects")}
               >
                 {isLoading ? (
                   <>

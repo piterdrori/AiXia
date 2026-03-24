@@ -359,26 +359,56 @@ export default function ChatPage() {
     }
 
     if (existingDb) {
-          const optimisticMembers: ChatGroupMemberRow[] = [
-  {
-    id: `local-${existingDb.id}-${currentUserId}`,
-    group_id: existingDb.id,
-    user_id: currentUserId,
-    role: "member",
-    invited_by: currentUserId,
-    created_at: clock.nowIso,
-  },
-  {
-    id: `local-${existingDb.id}-${targetUserId}`,
-    group_id: existingDb.id,
-    user_id: targetUserId,
-    role: "member",
-    invited_by: currentUserId,
-    created_at: clock.nowIso,
-  },
-];
-      
+      const optimisticMembers: ChatGroupMemberRow[] = [
+        {
+          id: `local-${existingDb.id}-${currentUserId}`,
+          group_id: existingDb.id,
+          user_id: currentUserId,
+          role: "member",
+          invited_by: currentUserId,
+          created_at: clock.nowIso,
+        },
+        {
+          id: `local-${existingDb.id}-${targetUserId}`,
+          group_id: existingDb.id,
+          user_id: targetUserId,
+          role: "member",
+          invited_by: currentUserId,
+          created_at: clock.nowIso,
+        },
+      ];
+
       upsertGroupLocally(existingDb as ChatGroupRow, optimisticMembers);
+
+      const { error: ensureMembersError } = await supabase
+        .from("chat_group_members")
+        .upsert(
+          [
+            {
+              group_id: existingDb.id,
+              user_id: currentUserId,
+              role: "member",
+              invited_by: currentUserId,
+            },
+            {
+              group_id: existingDb.id,
+              user_id: targetUserId,
+              role: "member",
+              invited_by: currentUserId,
+            },
+          ],
+          {
+            onConflict: "group_id,user_id",
+          }
+        );
+
+      if (ensureMembersError) {
+        setError(
+          ensureMembersError.message || t("chat.errors.addDirectChatMembers")
+        );
+        return;
+      }
+
       openConversation(existingDb.id);
       await reloadChatShell(existingDb.id);
       return;
@@ -424,22 +454,27 @@ export default function ChatPage() {
     upsertGroupLocally(newGroup as ChatGroupRow, optimisticMembers);
     openConversation(newGroup.id);
 
-        const { error: memberInsertError } = await supabase
+            const { error: memberInsertError } = await supabase
       .from("chat_group_members")
-      .insert([
+      .upsert(
+        [
+          {
+            group_id: newGroup.id,
+            user_id: currentUserId,
+            role: "member",
+            invited_by: currentUserId,
+          },
+          {
+            group_id: newGroup.id,
+            user_id: targetUserId,
+            role: "member",
+            invited_by: currentUserId,
+          },
+        ],
         {
-          group_id: newGroup.id,
-          user_id: currentUserId,
-          role: "member",
-          invited_by: currentUserId,
-        },
-        {
-          group_id: newGroup.id,
-          user_id: targetUserId,
-          role: "member",
-          invited_by: currentUserId,
-        },
-      ]);
+          onConflict: "group_id,user_id",
+        }
+      );
 
     if (memberInsertError) {
       setError(memberInsertError.message || t("chat.errors.addDirectChatMembers"));
@@ -512,22 +547,27 @@ export default function ChatPage() {
     setIsCreateGroupOpen(false);
     setIsCreatingGroup(false);
 
-        const { error: membersError } = await supabase
+           const { error: membersError } = await supabase
       .from("chat_group_members")
-      .insert([
+      .upsert(
+        [
+          {
+            group_id: newGroup.id,
+            user_id: currentUserId,
+            role: "owner",
+            invited_by: currentUserId,
+          },
+          ...selectedGroupMembers.map((userId) => ({
+            group_id: newGroup.id,
+            user_id: userId,
+            role: "member",
+            invited_by: currentUserId,
+          })),
+        ],
         {
-          group_id: newGroup.id,
-          user_id: currentUserId,
-          role: "owner",
-          invited_by: currentUserId,
-        },
-        ...selectedGroupMembers.map((userId) => ({
-          group_id: newGroup.id,
-          user_id: userId,
-          role: "member",
-          invited_by: currentUserId,
-        })),
-      ]);
+          onConflict: "group_id,user_id",
+        }
+      );
 
     if (membersError) {
       setError(membersError.message || t("chat.errors.addGroupMembers"));
@@ -940,22 +980,39 @@ export default function ChatPage() {
       </div>
 
       <CreateGroupDialog
-        open={isCreateGroupOpen}
-        currentUserId={currentUserId}
-        groupName={groupName}
-        selectedGroupMembers={selectedGroupMembers}
-        profiles={profiles}
-        isCreatingGroup={isCreatingGroup}
-        onOpenChange={setIsCreateGroupOpen}
-        onGroupNameChange={setGroupName}
-        onToggleMember={toggleGroupMember}
-        onCreate={() => void handleCreateGroup()}
-        onCancel={() => {
-          setIsCreateGroupOpen(false);
-          setGroupName("");
-          setSelectedGroupMembers([]);
-        }}
-      />
+  open={isCreateGroupOpen}
+  currentUserId={currentUserId}
+  groupName={groupName}
+  selectedGroupMembers={selectedGroupMembers}
+  profiles={profiles}
+  isCreatingGroup={isCreatingGroup}
+  error={isCreateGroupOpen ? error : ""}
+  onOpenChange={(open) => {
+    setIsCreateGroupOpen(open);
+    if (open) {
+      setError("");
+    }
+  }}
+  onGroupNameChange={(value) => {
+    setGroupName(value);
+    if (error) {
+      setError("");
+    }
+  }}
+  onToggleMember={(userId) => {
+    toggleGroupMember(userId);
+    if (error) {
+      setError("");
+    }
+  }}
+  onCreate={() => void handleCreateGroup()}
+  onCancel={() => {
+    setIsCreateGroupOpen(false);
+    setGroupName("");
+    setSelectedGroupMembers([]);
+    setError("");
+  }}
+/>
     </>
   );
 }

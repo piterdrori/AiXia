@@ -15,6 +15,9 @@ import {
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
+
+import { getVisibleProjectIds } from "@/lib/permissions";
+
 import { useAppClock } from "@/lib/clock/provider";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -147,48 +150,21 @@ const monthEnd = format(clock.shiftDate(endOfMonth(cursor)), "yyyy-MM-dd");
       }
 
       const currentProfile = profileData as ProfileRow;
-      const isAdmin = currentProfile.role === "admin";
+      const { data: allProjects } = await supabase
+  .from("projects")
+  .select("id, created_by");
 
-      let visibleProjectIds = new Set<string>();
+const { data: memberRows } = await supabase
+  .from("project_members")
+  .select("project_id, user_id")
+  .eq("user_id", user.id);
 
-      if (isAdmin) {
-        const { data: allProjects, error: projectsError } = await supabase
-          .from("projects")
-          .select("id, created_by");
-
-        if (!requestTracker.current.isLatest(requestId)) return;
-
-        if (projectsError) {
-          console.error("Load projects error:", projectsError);
-          setEvents([]);
-          setTasks([]);
-          setLoadError(t("calendar.errors.failedToLoadCalendar"));
-          return;
-        }
-
-        visibleProjectIds = new Set(((allProjects || []) as ProjectRow[]).map((p) => p.id));
-      } else {
-        const [{ data: createdProjects, error: createdError }, { data: memberRows, error: membersError }] =
-          await Promise.all([
-            supabase.from("projects").select("id, created_by").eq("created_by", user.id),
-            supabase.from("project_members").select("project_id, user_id").eq("user_id", user.id),
-          ]);
-
-        if (!requestTracker.current.isLatest(requestId)) return;
-
-        if (createdError || membersError) {
-          console.error("Load visible projects error:", createdError || membersError);
-          setEvents([]);
-          setTasks([]);
-          setLoadError(t("calendar.errors.failedToLoadCalendar"));
-          return;
-        }
-
-        visibleProjectIds = new Set([
-          ...((createdProjects || []) as ProjectRow[]).map((p) => p.id),
-          ...((memberRows || []) as ProjectMemberRow[]).map((m) => m.project_id),
-        ]);
-      }
+const visibleProjectIds = getVisibleProjectIds(
+  user.id,
+  currentProfile.role,
+  (allProjects || []) as ProjectRow[],
+  (memberRows || []) as ProjectMemberRow[]
+);
 
       const [{ data: eventsData, error: eventsError }, { data: tasksData, error: tasksError }] =
         await Promise.all([
@@ -217,13 +193,13 @@ const monthEnd = format(clock.shiftDate(endOfMonth(cursor)), "yyyy-MM-dd");
       }
 
       const safeEvents = ((eventsData || []) as CalendarEventAccessRow[]).filter((event) => {
-        if (isAdmin) return true;
+        if (currentProfile.role === "admin") return true;
         if (!event.project_id) return event.created_by === user.id;
         return visibleProjectIds.has(event.project_id);
       });
 
       const safeTasks = ((tasksData || []) as TaskRow[]).filter((task) => {
-        if (isAdmin) return true;
+        if (currentProfile.role === "admin") return true;
         if (!task.project_id) return false;
         return visibleProjectIds.has(task.project_id);
       });

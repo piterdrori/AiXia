@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
+import { getVisibleProjectIds } from "@/lib/permissions";
 import { useUserPreferences } from "@/lib/useUserPreferences";
 import { formatDateTimeInTimezone, formatTimeInTimezone } from "@/lib/datetime";
 import { useAppClock } from "@/lib/clock/provider";
@@ -133,15 +134,12 @@ export default function CalendarDayPage() {
       const projectList = (allProjects || []) as ProjectRow[];
       const membershipList = (memberRows || []) as ProjectMemberRow[];
 
-      const visibleProjectIds =
-        profile.role === "admin"
-          ? new Set(projectList.map((project) => project.id))
-          : new Set([
-              ...projectList
-                .filter((project) => project.created_by === user.id)
-                .map((project) => project.id),
-              ...membershipList.map((member) => member.project_id),
-            ]);
+      const visibleProjectIds = getVisibleProjectIds(
+  user.id,
+  profile.role,
+  projectList,
+  membershipList
+);
 
       const [{ data: eventsData, error: eventsError }, { data: tasksData, error: tasksError }] =
         await Promise.all([

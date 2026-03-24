@@ -130,12 +130,13 @@ export default function InboxPage() {
       const requestId = options?.requestId ?? requestTracker.current.next();
       const shouldSetLoading = options?.setLoading ?? false;
 
-      if (shouldSetLoading) {
-                inboxRequestRef.current.setState((prev) => ({
+            if (shouldSetLoading) {
+        inboxRequestRef.current.setState((prev) => ({
           ...prev,
           status: "loading",
           error: null,
         }));
+      }
 
       try {
         const { data, error: notificationsError } = await supabase
@@ -192,7 +193,7 @@ export default function InboxPage() {
         setNotifications([]);
       }
     },
-        [t]
+    [t]
   );
 
   useEffect(() => {

@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/lib/i18n";
-import { supabase } from "@/lib/supabase";
+
 import { smartTranslate } from "@/lib/smartTranslate";
 
 export default function MessageList({

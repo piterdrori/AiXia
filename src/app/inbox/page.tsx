@@ -112,7 +112,12 @@ export default function InboxPage() {
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [filter, setFilter] = useState<"ALL" | "UNREAD" | NotificationType>("ALL");
 
-  const inboxRequest = useRequest<boolean>();
+    const inboxRequest = useRequest<boolean>();
+  const inboxRequestRef = useRef(inboxRequest);
+
+  useEffect(() => {
+    inboxRequestRef.current = inboxRequest;
+  }, [inboxRequest]);
 
   const fetchNotifications = useCallback(
     async (
@@ -126,12 +131,11 @@ export default function InboxPage() {
       const shouldSetLoading = options?.setLoading ?? false;
 
       if (shouldSetLoading) {
-        inboxRequest.setState((prev) => ({
+                inboxRequestRef.current.setState((prev) => ({
           ...prev,
           status: "loading",
           error: null,
         }));
-      }
 
       try {
         const { data, error: notificationsError } = await supabase
@@ -146,7 +150,7 @@ export default function InboxPage() {
 
         if (notificationsError) {
           console.error("Load inbox notifications error:", notificationsError);
-          inboxRequest.setState((prev) => ({
+                    inboxRequestRef.current.setState((prev) => ({
             ...prev,
             status: "error",
             error:
@@ -171,7 +175,7 @@ export default function InboxPage() {
         setNotifications(safeNotifications);
 
         if (shouldSetLoading) {
-          inboxRequest.setState((prev) => ({
+          inboxRequestRef.current.setState((prev) => ({
             ...prev,
             status: "success",
             error: null,
@@ -180,7 +184,7 @@ export default function InboxPage() {
       } catch (err) {
         if (!requestTracker.current.isLatest(requestId)) return;
         console.error("Fetch notifications error:", err);
-        inboxRequest.setState((prev) => ({
+        inboxRequestRef.current.setState((prev) => ({
           ...prev,
           status: "error",
           error: t("inbox.errors.loadNotifications"),
@@ -188,7 +192,7 @@ export default function InboxPage() {
         setNotifications([]);
       }
     },
-    [t, inboxRequest]
+        [t]
   );
 
   useEffect(() => {
@@ -197,7 +201,7 @@ export default function InboxPage() {
     const init = async () => {
       const requestId = requestTracker.current.next();
 
-      inboxRequest.setState((prev) => ({
+      inboxRequestRef.current.setState((prev) => ({
         ...prev,
         status: "loading",
         error: null,
@@ -225,7 +229,7 @@ export default function InboxPage() {
 
         if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
-        inboxRequest.setState((prev) => ({
+       inboxRequestRef.current.setState((prev) => ({
           ...prev,
           status: "success",
           error: null,
@@ -233,7 +237,7 @@ export default function InboxPage() {
       } catch (err) {
         if (!mounted || !requestTracker.current.isLatest(requestId)) return;
         console.error("Inbox init error:", err);
-        inboxRequest.setState((prev) => ({
+        inboxRequestRef.current.setState((prev) => ({
           ...prev,
           status: "error",
           error: t("inbox.errors.loadInbox"),
@@ -246,7 +250,7 @@ export default function InboxPage() {
     return () => {
       mounted = false;
     };
-  }, [fetchNotifications, navigate, t, inboxRequest]);
+  }, [fetchNotifications, navigate, t]);
 
   useEffect(() => {
     if (!currentUserId) return;

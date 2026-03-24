@@ -4,8 +4,8 @@ import {
   startLoading,
   setSuccess,
   setError,
-  RequestState,
 } from "./requestState";
+import type { RequestState } from "./requestState";
 
 export function useRequest<T = any>() {
   const [state, setState] = useState<RequestState<T>>(createInitialState());

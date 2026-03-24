@@ -354,13 +354,36 @@ const handleSubmit = async (e: React.FormEvent) => {
 
   try {
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  data: { user },
+} = await supabase.auth.getUser();
 
-    if (!task) return;
+if (!user) {
+  navigate("/login");
+  return;
+}
+
+const currentUserId = user.id;
+
+const { data: myProfile } = await supabase
+  .from("profiles")
+  .select("role")
+  .eq("user_id", user.id)
+  .single();
+
+const { data: existingTask } = await supabase
+  .from("tasks")
+  .select("id, created_by")
+  .eq("id", id)
+  .single();
+
+if (!existingTask || !myProfile) {
+  setError(t("taskEdit.errors.loadTask"));
+  setIsSaving(false);
+  return;
+}
 
 const canEdit = canEditTaskEntity(
-  task,
+  existingTask,
   currentUserId,
   myProfile.role as Role
 );

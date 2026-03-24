@@ -339,6 +339,12 @@ export default function EmployeesPage() {
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 
   const employeesRequest = useRequest<boolean>();
+const employeesRequestRef = useRef(employeesRequest);
+
+useEffect(() => {
+  employeesRequestRef.current = employeesRequest;
+}, [employeesRequest]);
+  
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   
   const [actionLoadingUserId, setActionLoadingUserId] = useState<string | null>(null);
@@ -538,7 +544,7 @@ const loadProfiles = useCallback(async () => {
   const requestId = requestTracker.current.next();
 
   try {
-    await employeesRequest.run(async () => {
+    await employeesRequestRef.current.run(async () => {
       const {
         data: { user },
         error: authError,
@@ -613,7 +619,7 @@ const loadProfiles = useCallback(async () => {
     setProfiles([]);
     setInvitations([]);
   }
-}, [navigate, employeesRequest]);
+}, [navigate]);
 
   useEffect(() => {
   void loadProfiles();
@@ -626,7 +632,7 @@ const loadProfiles = useCallback(async () => {
     if (!target) return;
 
     const roleToApply = target.requested_role || "employee";
-    const updatedAt = clock.nowIso();
+    const updatedAt = clock.nowIso;
 
     setActionLoadingUserId(userId);
     setError("");
@@ -670,7 +676,7 @@ const loadProfiles = useCallback(async () => {
   const rejectUser = async (userId: string) => {
     if (!canManageUsers) return;
 
-    const updatedAt = clock.nowIso();
+    const updatedAt = clock.nowIso;
 
     setActionLoadingUserId(userId);
     setError("");

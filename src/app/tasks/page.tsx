@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
-import { useAsyncState } from "@/lib/useAsyncState";
+import { useRequest } from "@/lib/useRequest";
 import { useLanguage } from "@/lib/i18n";
 import { useUserPreferences } from "@/lib/useUserPreferences";
 import { formatDateInTimezone } from "@/lib/datetime";
@@ -149,16 +149,9 @@ export default function TasksPage() {
   const { timezone } = useUserPreferences();
   const clock = useAppClock();
 
-  const {
-    isBootstrapping,
-    isRefreshing,
-    error,
-    setError,
-    startInitial,
-    startRefresh,
-    setFailure,
-    finish,
-  } = useAsyncState();
+  const tasksPageRequest = useRequest<boolean>();
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   const getTaskDateStatus = (dueDate: string | null) => {
     if (!dueDate) return "none";
@@ -203,127 +196,117 @@ export default function TasksPage() {
     { id: "DONE", label: t("tasks.columns.done"), color: "bg-green-500" },
   ];
 
-  const loadTasksPage = async (mode: "initial" | "refresh" = "initial") => {
+  const loadTasksPage = async () => {
     const requestId = requestTracker.current.next();
-
-    if (mode === "initial") {
-      startInitial();
-    } else {
-      startRefresh();
-    }
+    setActionError("");
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      await tasksPageRequest.run(async () => {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (!requestTracker.current.isLatest(requestId)) return;
+        if (!requestTracker.current.isLatest(requestId)) return true;
 
-      if (!user) {
-        navigate("/login");
-        return;
-      }
+        if (!user) {
+          navigate("/login");
+          return true;
+        }
 
-      setCurrentUserId(user.id);
+        setCurrentUserId(user.id);
 
-      const [
-        { data: myProfile, error: myProfileError },
-        { data: allTasks, error: tasksError },
-        { data: allProjects, error: projectsError },
-        { data: allProfiles, error: profilesError },
-        { data: allProjectMembers, error: projectMembersError },
-        { data: allTaskMembers, error: taskMembersError },
-      ] = await Promise.all([
-        supabase.from("profiles").select("role").eq("user_id", user.id).single(),
-        supabase.from("tasks").select("*").order("created_at", { ascending: false }),
-        supabase
-          .from("projects")
-          .select("id, name, created_by")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("profiles")
-          .select("user_id, full_name, role, status")
-          .eq("status", "active")
-          .order("full_name", { ascending: true }),
-        supabase
-          .from("project_members")
-          .select("id, project_id, user_id, role, created_at"),
-        supabase
-          .from("task_members")
-          .select("id, task_id, user_id, role, created_at"),
-      ]);
+        const [
+          { data: myProfile, error: myProfileError },
+          { data: allTasks, error: tasksError },
+          { data: allProjects, error: projectsError },
+          { data: allProfiles, error: profilesError },
+          { data: allProjectMembers, error: projectMembersError },
+          { data: allTaskMembers, error: taskMembersError },
+        ] = await Promise.all([
+          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
+          supabase.from("tasks").select("*").order("created_at", { ascending: false }),
+          supabase
+            .from("projects")
+            .select("id, name, created_by")
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("profiles")
+            .select("user_id, full_name, role, status")
+            .eq("status", "active")
+            .order("full_name", { ascending: true }),
+          supabase
+            .from("project_members")
+            .select("id, project_id, user_id, role, created_at"),
+          supabase
+            .from("task_members")
+            .select("id, task_id, user_id, role, created_at"),
+        ]);
 
-      if (!requestTracker.current.isLatest(requestId)) return;
+        if (!requestTracker.current.isLatest(requestId)) return true;
 
-      if (myProfileError || !myProfile) {
-        navigate("/login");
-        return;
-      }
+        if (myProfileError || !myProfile) {
+          navigate("/login");
+          return true;
+        }
 
-      const role = myProfile.role as Role;
-      setCurrentUserRole(role);
+        const role = myProfile.role as Role;
+        setCurrentUserRole(role);
 
-      if (tasksError) throw tasksError;
-      if (projectsError) throw projectsError;
-      if (profilesError) throw profilesError;
-      if (projectMembersError) throw projectMembersError;
-      if (taskMembersError) throw taskMembersError;
+        if (tasksError) throw tasksError;
+        if (projectsError) throw projectsError;
+        if (profilesError) throw profilesError;
+        if (projectMembersError) throw projectMembersError;
+        if (taskMembersError) throw taskMembersError;
 
-      const tasksData = (allTasks || []) as TaskRow[];
-      const projectsData = (allProjects || []) as ProjectRow[];
-      const profilesData = (allProfiles || []) as ProfileRow[];
-      const projectMembersData = (allProjectMembers || []) as ProjectMemberRow[];
-      const taskMembersData = (allTaskMembers || []) as TaskMemberRow[];
+        const tasksData = (allTasks || []) as TaskRow[];
+        const projectsData = (allProjects || []) as ProjectRow[];
+        const profilesData = (allProfiles || []) as ProfileRow[];
+        const projectMembersData = (allProjectMembers || []) as ProjectMemberRow[];
+        const taskMembersData = (allTaskMembers || []) as TaskMemberRow[];
 
-      const visibleProjectIds = getVisibleProjectIds(
-        user.id,
-        role,
-        projectsData,
-        projectMembersData
-      );
-
-      const visibleProjects =
-        role === "admin"
-          ? projectsData
-          : projectsData.filter((project) => visibleProjectIds.has(project.id));
-
-      const visibleTasks = tasksData.filter((task) =>
-        canViewTask(
-          task,
+        const visibleProjectIds = getVisibleProjectIds(
           user.id,
           role,
-          taskMembersData,
-          visibleProjectIds
-        )
-      );
+          projectsData,
+          projectMembersData
+        );
 
-      setTasks(visibleTasks);
-      setProjects(visibleProjects);
-      setProfiles(profilesData);
-      setTaskMembers(taskMembersData);
+        const visibleProjects =
+          role === "admin"
+            ? projectsData
+            : projectsData.filter((project) => visibleProjectIds.has(project.id));
 
-      if (
-        initialProjectId !== "ALL" &&
-        !visibleProjects.some((project) => project.id === initialProjectId)
-      ) {
-        setProjectFilter("ALL");
-      }
+        const visibleTasks = tasksData.filter((task) =>
+          canViewTask(task, user.id, role, taskMembersData, visibleProjectIds)
+        );
+
+        setTasks(visibleTasks);
+        setProjects(visibleProjects);
+        setProfiles(profilesData);
+        setTaskMembers(taskMembersData);
+        setHasLoadedOnce(true);
+
+        if (
+          initialProjectId !== "ALL" &&
+          !visibleProjects.some((project) => project.id === initialProjectId)
+        ) {
+          setProjectFilter("ALL");
+        }
+
+        return true;
+      });
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Load tasks page error:", err);
-      setFailure(t("tasks.errors.loadTasks"));
       setTasks([]);
       setProjects([]);
       setProfiles([]);
       setTaskMembers([]);
-    } finally {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      finish();
     }
   };
 
-  useEffect(() => {
-    void loadTasksPage("initial");
+    useEffect(() => {
+    void loadTasksPage();
   }, []);
 
   const filteredTasks = useMemo(() => {
@@ -451,7 +434,7 @@ export default function TasksPage() {
       return;
     }
 
-    setError("");
+    setActionError("");
 
     const previousTasks = tasks;
     setTasks((prev) =>
@@ -471,7 +454,7 @@ export default function TasksPage() {
     if (updateError) {
       console.error("Move task error:", updateError);
       setTasks(previousTasks);
-      setError(updateError.message || t("tasks.errors.updateTaskStatus"));
+      setActionError(updateError.message || t("tasks.errors.updateTaskStatus"));
     }
 
     setDraggedTask(null);
@@ -481,7 +464,7 @@ export default function TasksPage() {
     const confirmed = window.confirm(t("tasks.confirmations.deleteTask"));
     if (!confirmed) return;
 
-    setError("");
+    setActionError("");
 
     const previousTasks = tasks;
     const previousMembers = taskMembers;
@@ -498,7 +481,7 @@ export default function TasksPage() {
       console.error("Delete task error:", deleteError);
       setTasks(previousTasks);
       setTaskMembers(previousMembers);
-      setError(deleteError.message || t("tasks.errors.deleteTask"));
+      setActionError(deleteError.message || t("tasks.errors.deleteTask"));
     }
   };
 
@@ -585,13 +568,13 @@ export default function TasksPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
+                    <Button
             variant="outline"
             className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            onClick={() => void loadTasksPage("refresh")}
-            disabled={isRefreshing}
+            onClick={() => void loadTasksPage()}
+            disabled={tasksPageRequest.status === "loading"}
           >
-            {isRefreshing
+            {tasksPageRequest.status === "loading"
               ? t("tasks.actions.refreshing")
               : t("tasks.actions.refresh")}
           </Button>
@@ -614,7 +597,7 @@ export default function TasksPage() {
         </div>
       </div>
 
-      <PageError message={error} />
+      <PageError message={actionError || tasksPageRequest.error || ""} />
 
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="relative flex-1">
@@ -700,7 +683,7 @@ export default function TasksPage() {
       </div>
 
       <PageLoader
-        loading={isBootstrapping}
+         loading={tasksPageRequest.status === "loading" && !hasLoadedOnce}
         fallback={viewMode === "board" ? renderBoardSkeleton() : renderListSkeleton()}
       >
         {viewMode === "board" ? (

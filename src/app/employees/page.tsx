@@ -613,7 +613,7 @@ const loadProfiles = useCallback(async () => {
     setProfiles([]);
     setInvitations([]);
   }
-}, [navigate, t, employeesRequest]);
+}, [navigate, employeesRequest]);
 
   useEffect(() => {
   void loadProfiles();
@@ -626,7 +626,7 @@ const loadProfiles = useCallback(async () => {
     if (!target) return;
 
     const roleToApply = target.requested_role || "employee";
-    const updatedAt = clock.nowIso;
+    const updatedAt = clock.nowIso();
 
     setActionLoadingUserId(userId);
     setError("");
@@ -670,7 +670,7 @@ const loadProfiles = useCallback(async () => {
   const rejectUser = async (userId: string) => {
     if (!canManageUsers) return;
 
-    const updatedAt = clock.nowIso;
+    const updatedAt = clock.nowIso();
 
     setActionLoadingUserId(userId);
     setError("");
@@ -791,7 +791,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
         .from("member_invitations")
         .update({
           status: "cancelled",
-          cancelled_at: clock.nowIso,
+          cancelled_at: clock.nowIso(),
         })
         .eq("id", invitationId)
         .eq("status", "pending");

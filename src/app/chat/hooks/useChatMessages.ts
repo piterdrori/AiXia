@@ -22,7 +22,8 @@ export function useChatMessages(selectedConversationId: string | null) {
   const [hasMoreMessages, setHasMoreMessages] = useState<HasMoreByGroup>({});
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
-
+  const loadingGroupRef = useRef<string | null>(null);
+  
   useEffect(() => {
     selectedConversationIdRef.current = selectedConversationId;
   }, [selectedConversationId]);
@@ -50,67 +51,73 @@ export function useChatMessages(selectedConversationId: string | null) {
   }, []);
 
   const loadMessagesForGroup = useCallback(async (groupId: string) => {
-    setIsLoadingMessages(true);
+  if (!groupId) return;
+  if (loadingGroupRef.current === groupId) return;
 
-    try {
-      const { data, error } = await supabase
-        .from("chat_messages")
-        .select(`
+  loadingGroupRef.current = groupId;
+  setIsLoadingMessages(true);
+
+  try {
+    const { data, error } = await supabase
+      .from("chat_messages")
+      .select(`
+id,
+group_id,
+user_id,
+content,
+created_at,
+attachments:chat_attachments(
   id,
+  message_id,
   group_id,
-  user_id,
-  content,
-  created_at,
-  attachments:chat_attachments(
-    id,
-    message_id,
-    group_id,
-    uploaded_by,
-    file_name,
-    file_path,
-    mime_type,
-    file_size,
-    created_at
-  )
+  uploaded_by,
+  file_name,
+  file_path,
+  mime_type,
+  file_size,
+  created_at
+)
 `)
-        .eq("group_id", groupId)
-        .order("created_at", { ascending: false })
-        .limit(PAGE_SIZE);
+      .eq("group_id", groupId)
+      .order("created_at", { ascending: false })
+      .limit(PAGE_SIZE);
 
-      if (error) {
-        throw new Error(error.message || "Failed to load messages.");
-      }
-
-      const newestMessages = sortMessagesAscending((data || []) as ChatMessageRow[]);
-
-      setMessages((prev) => ({
-        ...prev,
-        [groupId]: newestMessages,
-      }));
-
-      setHasMoreMessages((prev) => ({
-        ...prev,
-        [groupId]: (data || []).length === PAGE_SIZE,
-      }));
-
-      shouldScrollToBottomRef.current = true;
-
-      requestAnimationFrame(() => {
-        scrollToBottom("auto");
-      });
-    } finally {
-      setIsLoadingMessages(false);
+    if (error) {
+      throw new Error(error.message || "Failed to load messages.");
     }
-  }, [scrollToBottom]);
 
-  useEffect(() => {
-    if (!selectedConversationId) return;
+    const newestMessages = sortMessagesAscending((data || []) as ChatMessageRow[]);
 
-    const existing = messages[selectedConversationId] || [];
-    if (existing.length > 0) return;
+    setMessages((prev) => ({
+      ...prev,
+      [groupId]: dedupeMessages(newestMessages),
+    }));
 
-    void loadMessagesForGroup(selectedConversationId);
-  }, [selectedConversationId, messages, loadMessagesForGroup]);
+    setHasMoreMessages((prev) => ({
+      ...prev,
+      [groupId]: (data || []).length === PAGE_SIZE,
+    }));
+
+    shouldScrollToBottomRef.current = true;
+
+    requestAnimationFrame(() => {
+      scrollToBottom("auto");
+    });
+  } catch (err) {
+    console.error("Load messages error:", err);
+  } finally {
+    if (loadingGroupRef.current === groupId) {
+      loadingGroupRef.current = null;
+    }
+    setIsLoadingMessages(false);
+  }
+}, [scrollToBottom]);
+
+useEffect(() => {
+  if (!selectedConversationId) return;
+
+  void loadMessagesForGroup(selectedConversationId);
+}, [selectedConversationId, loadMessagesForGroup]);
 
   const appendMessageLocally = useCallback((groupId: string, message: ChatMessageRow) => {
     setMessages((prev) => {
@@ -271,26 +278,35 @@ export function useChatMessages(selectedConversationId: string | null) {
             filter: `group_id=eq.${selectedConversationId}`,
           },
           (payload) => {
-            if (payload.eventType === "INSERT" && payload.new) {
-              const shouldStayAtBottom = isViewportNearBottom();
-              replaceTempMessageWithRealOne(selectedConversationId, payload.new as ChatMessageRow);
+  if (payload.eventType === "INSERT" && payload.new) {
+    const shouldStayAtBottom = isViewportNearBottom();
 
-              if (shouldStayAtBottom) {
-                shouldScrollToBottomRef.current = true;
-              }
-            }
+    replaceTempMessageWithRealOne(
+      selectedConversationId,
+      payload.new as ChatMessageRow
+    );
 
-            if (payload.eventType === "UPDATE" && payload.new) {
-              updateMessageLocally(selectedConversationId, payload.new as ChatMessageRow);
-            }
+    if (shouldStayAtBottom) {
+      shouldScrollToBottomRef.current = true;
+    }
+    return;
+  }
 
-            if (payload.eventType === "DELETE" && payload.old) {
-              deleteMessageLocally(
-                selectedConversationId,
-                (payload.old as ChatMessageRow).id
-              );
-            }
-          }
+  if (payload.eventType === "UPDATE" && payload.new) {
+    updateMessageLocally(
+      selectedConversationId,
+      payload.new as ChatMessageRow
+    );
+    return;
+  }
+
+  if (payload.eventType === "DELETE" && payload.old) {
+    deleteMessageLocally(
+      selectedConversationId,
+      (payload.old as ChatMessageRow).id
+    );
+  }
+}
         )
         .subscribe()
     );
@@ -312,18 +328,20 @@ export function useChatMessages(selectedConversationId: string | null) {
   }, [messages, selectedConversationId]);
 
   useEffect(() => {
-    if (suppressNextAutoScrollRef.current) {
-      suppressNextAutoScrollRef.current = false;
-      return;
-    }
+  if (suppressNextAutoScrollRef.current) {
+    suppressNextAutoScrollRef.current = false;
+    return;
+  }
 
-    if (!shouldScrollToBottomRef.current) return;
-    shouldScrollToBottomRef.current = false;
+  if (!shouldScrollToBottomRef.current) return;
+  if (isLoadingOlder) return;
 
-    requestAnimationFrame(() => {
-      scrollToBottom("smooth");
-    });
-  }, [selectedMessages.length, scrollToBottom]);
+  shouldScrollToBottomRef.current = false;
+
+  requestAnimationFrame(() => {
+    scrollToBottom("smooth");
+  });
+}, [isLoadingOlder, selectedMessages.length, scrollToBottom]);
 
   return {
     messages,

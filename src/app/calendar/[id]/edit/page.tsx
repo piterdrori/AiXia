@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
-
+import { canEditTaskEntity } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -203,10 +203,27 @@ export default function CalendarEditPage() {
 
       const event = eventData as CalendarEventRow;
 
-      if (event.created_by !== user.id) {
-        navigate("/calendar");
-        return;
-      }
+ const { data: myProfile } = await supabase
+  .from("profiles")
+  .select("role")
+  .eq("user_id", user.id)
+  .single();
+
+if (!myProfile) {
+  navigate("/calendar");
+  return;
+}
+
+const canEdit = canEditTaskEntity(
+  { id: event.id, created_by: event.created_by },
+  user.id,
+  myProfile.role
+);
+
+if (!canEdit) {
+  navigate("/calendar");
+  return;
+}
 
       setTitle(event.title || "");
       setDescription(event.description || "");
@@ -342,6 +359,34 @@ export default function CalendarEditPage() {
       return;
     }
 
+    const { data: existingEvent } = await supabase
+  .from("calendar_events")
+  .select("id, created_by")
+  .eq("id", id)
+  .single();
+
+if (!existingEvent) {
+  setError(t("calendarEdit.errors.loadEvent"));
+  return;
+}
+
+const { data: myProfile } = await supabase
+  .from("profiles")
+  .select("role")
+  .eq("user_id", currentUserId)
+  .single();
+
+const canEdit = canEditTaskEntity(
+  existingEvent,
+  currentUserId,
+  myProfile?.role as any
+);
+
+if (!canEdit) {
+  setError(t("calendarEdit.errors.noPermission"));
+  return;
+}
+
     const computedEndDate = allDay
       ? endDate || startDate
       : needsSingleTimeOnly
@@ -425,6 +470,28 @@ export default function CalendarEditPage() {
 
   const handleDelete = async () => {
     if (!id || !currentUserId) return;
+
+    const { data: existingEvent } = await supabase
+  .from("calendar_events")
+  .select("id, created_by")
+  .eq("id", id)
+  .single();
+
+if (!existingEvent) return;
+
+const { data: myProfile } = await supabase
+  .from("profiles")
+  .select("role")
+  .eq("user_id", currentUserId)
+  .single();
+
+const canDelete = canEditTaskEntity(
+  existingEvent,
+  currentUserId,
+  myProfile?.role as any
+);
+
+if (!canDelete) return;
 
     const confirmed = window.confirm(t("calendarEdit.confirmations.deleteEvent"));
     if (!confirmed) return;

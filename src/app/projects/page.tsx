@@ -241,7 +241,7 @@ export default function ProjectsPage() {
   }, []);
 
   const canCreateProjects = currentUserRole
-  ? canPerform(currentUserRole, "project:create")
+  ? canPerform(currentUserRole, "createProjects")
   : false;
 
 const canDeleteProject = (project: ProjectRow) => {

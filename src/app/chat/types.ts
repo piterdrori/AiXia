@@ -30,15 +30,29 @@ export type ChatGroupMemberRow = {
   created_at: string;
 };
 
+export type ChatAttachmentRow = {
+  id: string;
+  message_id: string | null;
+  group_id: string;
+  uploaded_by: string;
+  file_name: string;
+  file_path: string;
+  mime_type: string | null;
+  file_size: number | null;
+  created_at: string;
+};
+
 export type ChatMessageRow = {
   id: string;
   group_id: string;
   user_id: string;
   content: string;
   created_at: string;
+  attachments?: ChatAttachmentRow[];
 };
 
 export type MessagesByGroup = Record<string, ChatMessageRow[]>;
+export type AttachmentsByMessage = Record<string, ChatAttachmentRow[]>;
 export type HasMoreByGroup = Record<string, boolean>;
 
 export type ChatBootstrapResult = {

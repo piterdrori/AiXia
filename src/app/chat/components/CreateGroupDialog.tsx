@@ -12,6 +12,7 @@ type Props = {
   selectedGroupMembers: string[];
   profiles: ProfileRow[];
   isCreatingGroup: boolean;
+  error?: string;
   onOpenChange: (open: boolean) => void;
   onGroupNameChange: (value: string) => void;
   onToggleMember: (userId: string) => void;
@@ -26,6 +27,7 @@ export default function CreateGroupDialog({
   selectedGroupMembers,
   profiles,
   isCreatingGroup,
+  error,
   onOpenChange,
   onGroupNameChange,
   onToggleMember,
@@ -81,6 +83,12 @@ export default function CreateGroupDialog({
                 ))}
             </div>
           </div>
+
+           {error ? (
+            <div className="rounded-md border border-red-800 bg-red-900/20 px-3 py-2 text-sm text-red-300">
+              {error}
+            </div>
+          ) : null}
 
           <div className="flex justify-end gap-2 pt-2">
             <Button

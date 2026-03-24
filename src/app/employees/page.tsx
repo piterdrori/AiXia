@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
+import { useRequest } from "@/lib/useRequest";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -336,8 +337,10 @@ export default function EmployeesPage() {
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
-  const [isBootstrapping, setIsBootstrapping] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const employeesRequest = useRequest<boolean>();
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  
   const [actionLoadingUserId, setActionLoadingUserId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -424,7 +427,7 @@ const handleSendInvite = async () => {
     setInviteMemberType("");
     setInviteDialogOpen(false);
 
-    void loadProfiles("refresh");
+    void loadProfiles();
   } catch (err) {
     console.error("Invite member error:", err);
     setInviteError(
@@ -531,111 +534,90 @@ const availableMemberTypeOptions = useMemo(() => {
     [t]
   );
 
-  const loadProfiles = useCallback(
-    async (mode: "initial" | "refresh" = "initial") => {
-      const requestId = requestTracker.current.next();
+const loadProfiles = useCallback(async () => {
+  const requestId = requestTracker.current.next();
 
-      if (mode === "initial") {
-        setIsBootstrapping(true);
-      } else {
-        setIsRefreshing(true);
+  try {
+    await employeesRequest.run(async () => {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (!requestTracker.current.isLatest(requestId)) return true;
+
+      if (authError || !user) {
+        navigate("/login");
+        return true;
       }
 
-      setError("");
+      setCurrentUserId(user.id);
 
-      try {
-        const {
-          data: { user },
-          error: authError,
-        } = await supabase.auth.getUser();
+      const { data: me, error: meError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("user_id", user.id)
+        .single();
 
-        if (!requestTracker.current.isLatest(requestId)) return;
+      if (!requestTracker.current.isLatest(requestId)) return true;
 
-       if (authError || !user) {
-          navigate("/login");
-          return;
-        }
+      if (meError || !me) {
+        navigate("/login");
+        return true;
+      }
 
-        setCurrentUserId(user.id);
+      const currentRole = (me as CurrentUserRoleRow).role;
+      setCurrentUserRole(currentRole);
 
-        const { data: me, error: meError } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("user_id", user.id)
-          .single();
+      if (canPerform(currentRole, "manageUsers")) {
+        await supabase.rpc("expire_old_member_invitations");
+      }
 
-        if (!requestTracker.current.isLatest(requestId)) return;
+      const { data: profilesData, error: profilesError } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-        if (meError || !me) {
-          navigate("/login");
-          return;
-        }
+      if (!requestTracker.current.isLatest(requestId)) return true;
 
-        const currentRole = (me as CurrentUserRoleRow).role;
-        setCurrentUserRole(currentRole);
+      if (profilesError) {
+        throw profilesError;
+      }
 
-        if (canPerform(currentRole, "manageUsers")) {
-  await supabase.rpc("expire_old_member_invitations");
-}
+      let invitationsData: InvitationRow[] = [];
 
-        const { data: profilesData, error: profilesError } = await supabase
-          .from("profiles")
+      if (canPerform(currentRole, "manageUsers")) {
+        const { data, error } = await supabase
+          .from("member_invitations")
           .select("*")
           .order("created_at", { ascending: false });
 
-        if (!requestTracker.current.isLatest(requestId)) return;
+        if (!requestTracker.current.isLatest(requestId)) return true;
 
-        if (profilesError) {
-          setProfiles([]);
-          setInvitations([]);
-          setError(profilesError.message || t("employees.errors.loadEmployeesFailed"));
-          return;
+        if (error) {
+          throw error;
         }
 
-        if (canPerform(currentRole, "manageUsers")) {
-  const { data: invitationsData, error: invitationsError } = await supabase
-    .from("member_invitations")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (!requestTracker.current.isLatest(requestId)) return;
-
-  if (invitationsError) {
-    setProfiles((profilesData as ProfileRow[]) || []);
-    setInvitations([]);
-    setError(invitationsError.message || t("employees.errors.loadInvitationsFailed"));
-    return;
-  }
-
-  setProfiles((profilesData as ProfileRow[]) || []);
-  setInvitations((invitationsData as InvitationRow[]) || []);
-} else {
-  setProfiles((profilesData as ProfileRow[]) || []);
-  setInvitations([]);
-}
-        
-            } catch (err) {
-        if (!requestTracker.current.isLatest(requestId)) return;
-        console.error("Employees page load error:", err);
-        setProfiles([]);
-        setInvitations([]);
-        setError(t("employees.errors.loadEmployeesFailed"));
-      } finally {
-        if (!requestTracker.current.isLatest(requestId)) return;
-
-        if (mode === "initial") {
-          setIsBootstrapping(false);
-        } else {
-          setIsRefreshing(false);
-        }
+        invitationsData = (data || []) as InvitationRow[];
       }
-    },
-    [navigate, t]
-  );
+
+      setProfiles((profilesData || []) as ProfileRow[]);
+      setInvitations(invitationsData);
+      setHasLoadedOnce(true);
+
+      return true;
+    });
+  } catch (err) {
+    if (!requestTracker.current.isLatest(requestId)) return;
+    console.error("Employees page load error:", err);
+    setProfiles([]);
+    setInvitations([]);
+  }
+}, [navigate, t, employeesRequest]);
 
   useEffect(() => {
-    void loadProfiles("initial");
-  }, [loadProfiles]);
+  void loadProfiles();
+}, [loadProfiles]);
 
   const approveUser = async (userId: string) => {
     if (!canManageUsers) return;
@@ -780,7 +762,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
       setInviteSuccess("");
     }, 3000);
 
-    void loadProfiles("refresh");
+    void loadProfiles();
   } catch (err) {
     console.error("Resend invite error:", err);
     setInviteSuccess("");
@@ -819,7 +801,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
       }
 
       setInviteSuccess(t("employees.success.invitationCancelled"));
-      void loadProfiles("refresh");
+      void loadProfiles();
     } catch (err) {
       console.error("Cancel invite error:", err);
       setInviteError(
@@ -1110,10 +1092,12 @@ const handleResendInvite = async (invitation: InvitationRow) => {
           <Button
             variant="outline"
             className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            onClick={() => void loadProfiles("refresh")}
-            disabled={isRefreshing}
+            onClick={() => void loadProfiles()}
+disabled={employeesRequest.status === "loading"}
           >
-            {isRefreshing ? t("employees.actions.refreshing") : t("employees.actions.refresh")}
+            {employeesRequest.status === "loading"
+  ? t("employees.actions.refreshing")
+  : t("employees.actions.refresh")}
           </Button>
 
           {canManageUsers && (
@@ -1418,7 +1402,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
         </div>
       </div>
 
-      {isBootstrapping ? (
+      {employeesRequest.status === "loading" && !hasLoadedOnce ? (
         <div className="grid xl:grid-cols-2 gap-4">
           {Array.from({ length: 6 }).map((_, index) => (
             <Card key={index} className="bg-slate-900/50 border-slate-800">

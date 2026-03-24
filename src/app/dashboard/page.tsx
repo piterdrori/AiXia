@@ -4,7 +4,7 @@ import { addDays, format, isBefore, parseISO } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { registerRealtimeChannel, removeRealtimeChannel } from "@/lib/realtime";
 import { createRequestTracker } from "@/lib/safeAsync";
-import { useAsyncState } from "@/lib/useAsyncState";
+import { useRequest } from "@/lib/useRequest";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
 import { Button } from "@/components/ui/button";
@@ -151,15 +151,8 @@ export default function DashboardPage() {
   const { t } = useLanguage();
   const clock = useAppClock();
 
-  const {
-  isBootstrapping,
-  isRefreshing,
-  error,
-  startInitial,
-  startRefresh,
-  setFailure,
-  finish,
-} = useAsyncState();
+  const dashboardRequest = useRequest<boolean>();
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false); 
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserName, setCurrentUserName] = useState("");
@@ -172,126 +165,121 @@ export default function DashboardPage() {
   const [calendarEvents, setCalendarEvents] = useState<CalendarEventRow[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLogRow[]>([]);
 
-  const loadDashboard = async (mode: "initial" | "refresh" = "initial") => {
+  const loadDashboard = async () => {
     const requestId = requestTracker.current.next();
 
-    if (mode === "initial") {
-  startInitial();
-} else {
-  startRefresh();
-}
-
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      await dashboardRequest.run(async () => {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (!requestTracker.current.isLatest(requestId)) return;
+        if (!requestTracker.current.isLatest(requestId)) return true;
 
-      if (!user) {
-        navigate("/login");
-        return;
-      }
+        if (!user) {
+          navigate("/login");
+          return true;
+        }
 
-      const [
-        { data: myProfile, error: myProfileError },
-        { data: projectsData, error: projectsError },
-        { data: projectMembersData, error: projectMembersError },
-        { data: tasksData, error: tasksError },
-        { data: profilesData, error: profilesError },
-        { data: eventsData, error: eventsError },
-        { data: logsData, error: logsError },
-      ] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("full_name, role")
-          .eq("user_id", user.id)
-          .single(),
-        supabase
-          .from("projects")
-          .select(
-            "id, name, description, status, progress, created_by, end_date, created_at"
-          )
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("project_members")
-          .select("id, project_id, user_id, role, created_at"),
-        supabase
-          .from("tasks")
-          .select(
-            "id, title, status, priority, due_date, assignee_id, project_id, created_by, created_at"
-          )
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("profiles")
-          .select("user_id, full_name, role, status, created_at")
-          .eq("status", "active"),
-        supabase
-          .from("calendar_events")
-          .select("id, title, event_type, start_date, project_id, task_id, created_by")
-          .order("start_date", { ascending: true }),
-        supabase
-          .from("activity_logs")
-          .select(
-            "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
-          )
-          .order("created_at", { ascending: false })
-          .limit(50),
-      ]);
+        const [
+          { data: myProfile, error: myProfileError },
+          { data: projectsData, error: projectsError },
+          { data: projectMembersData, error: projectMembersError },
+          { data: tasksData, error: tasksError },
+          { data: profilesData, error: profilesError },
+          { data: eventsData, error: eventsError },
+          { data: logsData, error: logsError },
+        ] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("full_name, role")
+            .eq("user_id", user.id)
+            .single(),
+          supabase
+            .from("projects")
+            .select(
+              "id, name, description, status, progress, created_by, end_date, created_at"
+            )
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("project_members")
+            .select("id, project_id, user_id, role, created_at"),
+          supabase
+            .from("tasks")
+            .select(
+              "id, title, status, priority, due_date, assignee_id, project_id, created_by, created_at"
+            )
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("profiles")
+            .select("user_id, full_name, role, status, created_at")
+            .eq("status", "active"),
+          supabase
+            .from("calendar_events")
+            .select("id, title, event_type, start_date, project_id, task_id, created_by")
+            .order("start_date", { ascending: true }),
+          supabase
+            .from("activity_logs")
+            .select(
+              "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
+            )
+            .order("created_at", { ascending: false })
+            .limit(50),
+        ]);
 
-      if (!requestTracker.current.isLatest(requestId)) return;
+        if (!requestTracker.current.isLatest(requestId)) return true;
 
-      if (myProfileError || !myProfile) {
-        navigate("/login");
-        return;
-      }
+        if (myProfileError || !myProfile) {
+          navigate("/login");
+          return true;
+        }
 
-      if (projectsError) console.error("Dashboard projects load error:", projectsError);
-      if (projectMembersError) {
-        console.error("Dashboard project members load error:", projectMembersError);
-      }
-      if (tasksError) console.error("Dashboard tasks load error:", tasksError);
-      if (profilesError) console.error("Dashboard profiles load error:", profilesError);
-      if (eventsError) console.error("Dashboard events load error:", eventsError);
-      if (logsError) console.error("Dashboard activity load error:", logsError);
+        if (projectsError) console.error("Dashboard projects load error:", projectsError);
+        if (projectMembersError) {
+          console.error("Dashboard project members load error:", projectMembersError);
+        }
+        if (tasksError) console.error("Dashboard tasks load error:", tasksError);
+        if (profilesError) console.error("Dashboard profiles load error:", profilesError);
+        if (eventsError) console.error("Dashboard events load error:", eventsError);
+        if (logsError) console.error("Dashboard activity load error:", logsError);
 
-      setCurrentUserId(user.id);
-      setCurrentUserName(myProfile.full_name || t("common.user", "User"));
-      setCurrentUserRole((myProfile.role as Role) || null);
-      setProjects((projectsData || []) as ProjectRow[]);
-      setProjectMembers((projectMembersData || []) as ProjectMemberRow[]);
-      setTasks((tasksData || []) as TaskRow[]);
-      setProfiles((profilesData || []) as ProfileRow[]);
-      setCalendarEvents((eventsData || []) as CalendarEventRow[]);
-      setActivityLogs((logsData || []) as ActivityLogRow[]);
+        setCurrentUserId(user.id);
+        setCurrentUserName(myProfile.full_name || t("common.user", "User"));
+        setCurrentUserRole((myProfile.role as Role) || null);
+        setProjects((projectsData || []) as ProjectRow[]);
+        setProjectMembers((projectMembersData || []) as ProjectMemberRow[]);
+        setTasks((tasksData || []) as TaskRow[]);
+        setProfiles((profilesData || []) as ProfileRow[]);
+        setCalendarEvents((eventsData || []) as CalendarEventRow[]);
+        setActivityLogs((logsData || []) as ActivityLogRow[]);
+        setHasLoadedOnce(true);
 
-      if (
-        projectsError ||
-        projectMembersError ||
-        tasksError ||
-        profilesError ||
-        eventsError ||
-        logsError
-      ) {
-        setFailure(
-  t(
-    "dashboard.someDataCouldNotBeLoaded",
-    "Some dashboard data could not be loaded."
-  )
-);
-      }
+        if (
+          projectsError ||
+          projectMembersError ||
+          tasksError ||
+          profilesError ||
+          eventsError ||
+          logsError
+        ) {
+          throw new Error(
+            t(
+              "dashboard.someDataCouldNotBeLoaded",
+              "Some dashboard data could not be loaded."
+            )
+          );
+        }
+
+        return true;
+      });
     } catch (error) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Dashboard load error:", error);
-      setFailure(t("dashboard.failedToLoad", "Failed to load dashboard."));
-    } finally {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      finish();
     }
   };
 
-  useEffect(() => {
-    void loadDashboard("initial");
+    useEffect(() => {
+    void loadDashboard();
   }, []);
 
   useEffect(() => {
@@ -494,7 +482,7 @@ export default function DashboardPage() {
       <div className="flex flex-wrap items-start justify-between gap-4 shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-white">
-            {isBootstrapping
+                        {dashboardRequest.status === "loading" && !hasLoadedOnce
               ? t("dashboard.welcome", "Welcome,")
               : t("dashboard.welcomeUser", "Welcome, {{name}}", {
                   name: currentUserName || t("common.user", "User"),
@@ -526,24 +514,24 @@ export default function DashboardPage() {
             {t("dashboard.newEvent", "New Event")}
           </Button>
 
-          <Button
+                    <Button
             variant="outline"
             className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            onClick={() => void loadDashboard("refresh")}
-            disabled={isRefreshing}
+            onClick={() => void loadDashboard()}
+            disabled={dashboardRequest.status === "loading"}
           >
-            {isRefreshing
+            {dashboardRequest.status === "loading"
               ? t("dashboard.refreshing", "Refreshing...")
               : t("dashboard.refresh", "Refresh")}
           </Button>
         </div>
       </div>
 
-      <PageError message={error} />
+      <PageError message={dashboardRequest.error || ""} />
 
       <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4 shrink-0">
   <PageLoader
-    loading={isBootstrapping}
+    loading={dashboardRequest.status === "loading" && !hasLoadedOnce}
     fallback={
       <>
         <StatCardSkeleton />
@@ -620,7 +608,7 @@ export default function DashboardPage() {
 
       <div className="grid xl:grid-cols-2 gap-5 min-h-[1100px]">
         <div className="grid gap-5 content-start" style={{ gridTemplateRows: "520px 520px" }}>
-          {isBootstrapping ? (
+                    {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
             <>
               <PanelSkeleton
                 title={t("dashboard.upcomingDeadlines", "Upcoming Deadlines")}
@@ -737,7 +725,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid gap-5 content-start" style={{ gridTemplateRows: "520px 520px" }}>
-          {isBootstrapping ? (
+                    {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
             <>
               <PanelSkeleton
                 title={t("dashboard.activityFeed", "Activity Feed")}

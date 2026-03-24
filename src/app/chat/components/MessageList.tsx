@@ -255,9 +255,7 @@ setTranslatedMessages((prev) => ({
                             </p>
                           )}
                         </div>
-                      )}
-
-                    {!isEditing && !isSelectionMode && (
+                      {!isEditing && !isSelectionMode && (
                       <div className={`mt-1 flex gap-2 ${isOwn ? "justify-end" : "justify-start"}`}>
                         <button
                           className="text-xs text-indigo-400 hover:text-indigo-300"

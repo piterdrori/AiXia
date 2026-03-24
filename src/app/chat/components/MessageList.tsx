@@ -223,35 +223,41 @@ setTranslatedMessages((prev) => ({
                             </Button>
                           </div>
                         </div>
-                         ) : (
-  <div className="space-y-1">
-    <p className="whitespace-pre-wrap break-words">
-  {translatedMessages[message.id]?.text || message.content}
-</p>
+                                               ) : (
+                        <div className="space-y-1">
+                          <p className="whitespace-pre-wrap break-words">
+                            {translatedMessages[message.id]?.text || message.content}
+                          </p>
 
-{/* Attachments */}
-{message.attachments && message.attachments.length > 0 && (
-  <div className="mt-2 space-y-2">
-    {message.attachments.map((file) => {
-  const publicUrl = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/chat-files/${file.file_path}`;
+                          {message.attachments && message.attachments.length > 0 && (
+                            <div className="mt-2 space-y-2">
+                              {message.attachments.map((file) => {
+                                const publicUrl = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/chat-files/${file.file_path}`;
 
-      return (
-        <a
-          key={file.id}
-          href={publicUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block text-xs bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-md"
-        >
-          📎 {file.file_name}
-        </a>
-      );
-    })}
-  </div>
-)}
-                    </div>
+                                return (
+                                  <a
+                                    key={file.id}
+                                    href={publicUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block text-xs bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-md"
+                                  >
+                                    📎 {file.file_name}
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          )}
 
-                                        {!isEditing && !isSelectionMode && (
+                          {translatedMessages[message.id]?.source && (
+                            <p className="text-[10px] opacity-70">
+                              Source: {translatedMessages[message.id].source}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                    {!isEditing && !isSelectionMode && (
                       <div className={`mt-1 flex gap-2 ${isOwn ? "justify-end" : "justify-start"}`}>
                         <button
                           className="text-xs text-indigo-400 hover:text-indigo-300"

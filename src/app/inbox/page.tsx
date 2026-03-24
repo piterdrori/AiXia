@@ -6,6 +6,7 @@ import {
   markNotificationRead,
 } from "@/lib/notifications";
 import { createRequestTracker } from "@/lib/safeAsync";
+import { useRequest } from "@/lib/useRequest";
 import {
   registerRealtimeChannel,
   removeRealtimeChannel,
@@ -85,102 +86,125 @@ export default function InboxPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [filter, setFilter] = useState<"ALL" | "UNREAD" | NotificationType>("ALL");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
 
-  const fetchNotifications = useCallback(
-    async (
-      userId: string,
-      options?: {
-        requestId?: number;
-        setLoading?: boolean;
+  const inboxRequest = useRequest<boolean>();
+
+const fetchNotifications = useCallback(
+  async (
+    userId: string,
+    options?: {
+      requestId?: number;
+      setLoading?: boolean;
+    }
+  ) => {
+    const requestId = options?.requestId ?? requestTracker.current.next();
+    const shouldSetLoading = options?.setLoading ?? false;
+
+    if (shouldSetLoading) {
+      inboxRequest.setState((prev) => ({
+        ...prev,
+        status: "loading",
+        error: null,
+      }));
+    }
+
+    try {
+      const { data, error: notificationsError } = await supabase
+        .from("notifications")
+        .select(
+          "id, user_id, actor_user_id, type, title, message, link, is_read, entity_type, entity_id, created_at"
+        )
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (notificationsError) {
+        console.error("Load inbox notifications error:", notificationsError);
+        inboxRequest.setState((prev) => ({
+          ...prev,
+          status: "error",
+          error:
+            notificationsError.message ||
+            t("inbox.errors.loadNotifications"),
+        }));
+        setNotifications([]);
+        return;
       }
-    ) => {
-      const requestId = options?.requestId ?? requestTracker.current.next();
-      const shouldSetLoading = options?.setLoading ?? false;
+
+      setNotifications((data || []) as NotificationRow[]);
 
       if (shouldSetLoading) {
-        setIsLoading(true);
+        inboxRequest.setState((prev) => ({
+          ...prev,
+          status: "success",
+        }));
+      }
+    } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Fetch notifications error:", err);
+      inboxRequest.setState((prev) => ({
+        ...prev,
+        status: "error",
+        error: t("inbox.errors.loadNotifications"),
+      }));
+      setNotifications([]);
+    }
+  },
+  [t, inboxRequest]
+);
+
+useEffect(() => {
+  let mounted = true;
+
+  const init = async () => {
+    const requestId = requestTracker.current.next();
+
+    inboxRequest.setState((prev) => ({
+      ...prev,
+      status: "loading",
+      error: null,
+    }));
+
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+
+      if (authError || !user) {
+        navigate("/login");
+        return;
       }
 
-      setError("");
+      setCurrentUserId(user.id);
+      await fetchNotifications(user.id, { requestId, setLoading: false });
 
-      try {
-        const { data, error: notificationsError } = await supabase
-          .from("notifications")
-          .select(
-            "id, user_id, actor_user_id, type, title, message, link, is_read, entity_type, entity_id, created_at"
-          )
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false });
+      if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
-        if (!requestTracker.current.isLatest(requestId)) return;
+      inboxRequest.setState((prev) => ({
+        ...prev,
+        status: "success",
+      }));
+    } catch (err) {
+      if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+      console.error("Inbox init error:", err);
+      inboxRequest.setState((prev) => ({
+        ...prev,
+        status: "error",
+        error: t("inbox.errors.loadInbox"),
+      }));
+    }
+  };
 
-        if (notificationsError) {
-          console.error("Load inbox notifications error:", notificationsError);
-          setError(
-            notificationsError.message ||
-              t("inbox.errors.loadNotifications")
-          );
-          setNotifications([]);
-          return;
-        }
+  void init();
 
-        setNotifications((data || []) as NotificationRow[]);
-      } catch (err) {
-        if (!requestTracker.current.isLatest(requestId)) return;
-        console.error("Fetch notifications error:", err);
-        setError(t("inbox.errors.loadNotifications"));
-        setNotifications([]);
-      } finally {
-        if (!requestTracker.current.isLatest(requestId)) return;
-        if (shouldSetLoading) {
-          setIsLoading(false);
-        }
-      }
-    },
-    [t]
-  );
-
-  useEffect(() => {
-    let mounted = true;
-
-    const init = async () => {
-      const requestId = requestTracker.current.next();
-      setIsLoading(true);
-      setError("");
-
-      try {
-        const {
-          data: { user },
-          error: authError,
-        } = await supabase.auth.getUser();
-
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-
-        if (authError || !user) {
-          navigate("/login");
-          return;
-        }
-
-        setCurrentUserId(user.id);
-        await fetchNotifications(user.id, { requestId, setLoading: false });
-      } catch (err) {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        console.error("Inbox init error:", err);
-        setError(t("inbox.errors.loadInbox"));
-      } finally {
-        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-        setIsLoading(false);
-      }
-    };
-
-    void init();
-
-    return () => {
-      mounted = false;
-    };
-  }, [fetchNotifications, navigate, t]);
+  return () => {
+    mounted = false;
+  };
+}, [fetchNotifications, navigate, t]);
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -357,7 +381,7 @@ export default function InboxPage() {
         <CardContent className="p-0">
           <ScrollArea className="h-[calc(100vh-300px)]">
             <div className="divide-y divide-slate-800">
-              {isLoading ? (
+              {inboxRequest.status === "loading" ? (
                 <div className="text-center py-12">
                   <Bell className="w-12 h-12 text-slate-600 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-white mb-2">
@@ -367,13 +391,13 @@ export default function InboxPage() {
                     {t("inbox.states.loading.description")}
                   </p>
                 </div>
-              ) : error ? (
+              ) : inboxRequest.status === "error" ? (
                 <div className="text-center py-12">
                   <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-white mb-2">
                     {t("inbox.states.error.title")}
                   </h3>
-                  <p className="text-slate-500">{error}</p>
+                  <p className="text-slate-500">{inboxRequest.error}</p>
                 </div>
               ) : filteredNotifications.length === 0 ? (
                 <div className="text-center py-12">

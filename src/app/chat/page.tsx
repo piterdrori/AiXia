@@ -163,12 +163,31 @@ export default function ChatPage() {
     });
   }, [mentionCandidates, mentionQuery, showMentionDropdown]);
 
-  const canManageMessage = useCallback(
+    const canManageMessage = useCallback(
     (message: ChatMessageRow) => {
       if (!currentUserId) return false;
       return currentUserRole === "admin" || message.user_id === currentUserId;
     },
     [currentUserId, currentUserRole]
+  );
+
+  const canDeleteChat = useCallback(
+    (group: ChatGroupRow) => {
+      if (!currentUserId) return false;
+
+      if (currentUserRole === "admin") {
+        return true;
+      }
+
+      if (group.type === "DIRECT") {
+        return getMembers(group.id).some(
+          (member) => member.user_id === currentUserId
+        );
+      }
+
+      return group.created_by === currentUserId;
+    },
+    [currentUserId, currentUserRole, getMembers]
   );
 
   const selectableMessages = useMemo(() => {
@@ -253,22 +272,24 @@ export default function ChatPage() {
     }
 
     if (existingDb) {
-            const optimisticMembers: ChatGroupMemberRow[] = [
-        {
-          id: `local-${existingDb.id}-${currentUserId}`,
-          group_id: existingDb.id,
-          user_id: currentUserId,
-          role: "member",
-          created_at: clock.nowIso,
-        },
-        {
-          id: `local-${existingDb.id}-${targetUserId}`,
-          group_id: existingDb.id,
-          user_id: targetUserId,
-          role: "member",
-          created_at: clock.nowIso,
-        },
-      ];
+          const optimisticMembers: ChatGroupMemberRow[] = [
+  {
+    id: `local-${existingDb.id}-${currentUserId}`,
+    group_id: existingDb.id,
+    user_id: currentUserId,
+    role: "member",
+    invited_by: currentUserId,
+    created_at: clock.nowIso,
+  },
+  {
+    id: `local-${existingDb.id}-${targetUserId}`,
+    group_id: existingDb.id,
+    user_id: targetUserId,
+    role: "member",
+    invited_by: currentUserId,
+    created_at: clock.nowIso,
+  },
+];
       
       upsertGroupLocally(existingDb as ChatGroupRow, optimisticMembers);
       openConversation(existingDb.id);
@@ -295,30 +316,42 @@ export default function ChatPage() {
     }
 
            const optimisticMembers: ChatGroupMemberRow[] = [
-      {
-        id: `local-${newGroup.id}-${currentUserId}`,
-        group_id: newGroup.id,
-        user_id: currentUserId,
-        role: "member",
-        created_at: clock.nowIso,
-      },
-      {
-        id: `local-${newGroup.id}-${targetUserId}`,
-        group_id: newGroup.id,
-        user_id: targetUserId,
-        role: "member",
-        created_at: clock.nowIso,
-      },
-    ];
+  {
+    id: `local-${newGroup.id}-${currentUserId}`,
+    group_id: newGroup.id,
+    user_id: currentUserId,
+    role: "member",
+    invited_by: currentUserId,
+    created_at: clock.nowIso,
+  },
+  {
+    id: `local-${newGroup.id}-${targetUserId}`,
+    group_id: newGroup.id,
+    user_id: targetUserId,
+    role: "member",
+    invited_by: currentUserId,
+    created_at: clock.nowIso,
+  },
+];
 
     upsertGroupLocally(newGroup as ChatGroupRow, optimisticMembers);
     openConversation(newGroup.id);
 
-    const { error: memberInsertError } = await supabase
+        const { error: memberInsertError } = await supabase
       .from("chat_group_members")
       .insert([
-        { group_id: newGroup.id, user_id: currentUserId, role: "member" },
-        { group_id: newGroup.id, user_id: targetUserId, role: "member" },
+        {
+          group_id: newGroup.id,
+          user_id: currentUserId,
+          role: "member",
+          invited_by: currentUserId,
+        },
+        {
+          group_id: newGroup.id,
+          user_id: targetUserId,
+          role: "member",
+          invited_by: currentUserId,
+        },
       ]);
 
     if (memberInsertError) {
@@ -363,22 +396,24 @@ export default function ChatPage() {
       return;
     }
 
-              const optimisticMembers: ChatGroupMemberRow[] = [
-      {
-        id: `local-${newGroup.id}-${currentUserId}`,
-        group_id: newGroup.id,
-        user_id: currentUserId,
-        role: "owner",
-        created_at: clock.nowIso,
-      },
-      ...selectedGroupMembers.map((userId) => ({
-        id: `local-${newGroup.id}-${userId}`,
-        group_id: newGroup.id,
-        user_id: userId,
-        role: "member" as const,
-        created_at: clock.nowIso,
-      })),
-    ];
+             const optimisticMembers: ChatGroupMemberRow[] = [
+  {
+    id: `local-${newGroup.id}-${currentUserId}`,
+    group_id: newGroup.id,
+    user_id: currentUserId,
+    role: "owner",
+    invited_by: currentUserId,
+    created_at: clock.nowIso,
+  },
+  ...selectedGroupMembers.map((userId) => ({
+    id: `local-${newGroup.id}-${userId}`,
+    group_id: newGroup.id,
+    user_id: userId,
+    role: "member" as const,
+    invited_by: currentUserId,
+    created_at: clock.nowIso,
+  })),
+];
 
     upsertGroupLocally(newGroup as ChatGroupRow, optimisticMembers);
     openConversation(newGroup.id);
@@ -388,14 +423,20 @@ export default function ChatPage() {
     setIsCreateGroupOpen(false);
     setIsCreatingGroup(false);
 
-    const { error: membersError } = await supabase
+        const { error: membersError } = await supabase
       .from("chat_group_members")
       .insert([
-        { group_id: newGroup.id, user_id: currentUserId, role: "owner" },
+        {
+          group_id: newGroup.id,
+          user_id: currentUserId,
+          role: "owner",
+          invited_by: currentUserId,
+        },
         ...selectedGroupMembers.map((userId) => ({
           group_id: newGroup.id,
           user_id: userId,
           role: "member",
+          invited_by: currentUserId,
         })),
       ]);
 
@@ -624,7 +665,12 @@ export default function ChatPage() {
     setBulkDeleteLoading(false);
   };
 
-  const handleDeleteChat = async (group: ChatGroupRow) => {
+    const handleDeleteChat = async (group: ChatGroupRow) => {
+    if (!canDeleteChat(group)) {
+      setError(t("chat.errors.notAuthorized", "Not authorized"));
+      return;
+    }
+
     const confirmed = window.confirm(t("chat.confirms.deleteChat"));
     if (!confirmed) return;
 

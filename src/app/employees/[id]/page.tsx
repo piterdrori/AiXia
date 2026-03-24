@@ -221,7 +221,12 @@ export default function EmployeeDetailPage() {
   const [user, setUser] = useState<ProfileRow | null>(null);
 
   const employeeRequest = useRequest<boolean>();
+  const employeeRequestRef = useRef(employeeRequest);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+
+useEffect(() => {
+  employeeRequestRef.current = employeeRequest;
+}, [employeeRequest]);
   
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -341,7 +346,7 @@ const loadUser = useCallback(async () => {
   const requestId = requestTracker.current.next();
 
   try {
-    await employeeRequest.run(async () => {
+        await employeeRequestRef.current.run(async () => {
       const {
         data: { user: authUser },
         error: authError,
@@ -387,7 +392,7 @@ const loadUser = useCallback(async () => {
     console.error("Employee detail load error:", err);
     setSaveError(t("employeeDetail.errors.loadFailed"));
   }
-}, [fillForm, id, navigate, t, employeeRequest]);
+}, [fillForm, id, navigate, t]);
 
   useEffect(() => {
   void loadUser();

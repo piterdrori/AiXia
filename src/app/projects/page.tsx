@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useAsyncState } from "@/lib/useAsyncState";
 import { useLanguage } from "@/lib/i18n";
+import { canPerform, canDeleteProject as canDeleteProjectPermission } from "@/lib/permissions";
 import { useAppClock } from "@/lib/clock/provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -239,18 +240,19 @@ export default function ProjectsPage() {
     void loadProjects("initial");
   }, []);
 
-  const canCreateProjects =
-    currentUserRole === "admin" ||
-    currentUserRole === "manager" ||
-    currentUserRole === "guest";
+  const canCreateProjects = currentUserRole
+  ? canPerform(currentUserRole, "project:create")
+  : false;
 
-  const canDeleteProject = (project: ProjectRow) => {
-    if (currentUserRole === "admin") return true;
-    if (currentUserRole === "manager" && currentUserId && project.created_by === currentUserId) {
-      return true;
-    }
-    return false;
-  };
+const canDeleteProject = (project: ProjectRow) => {
+  if (!currentUserId || !currentUserRole) return false;
+
+  return canDeleteProjectPermission(
+    project,
+    currentUserId,
+    currentUserRole
+  );
+};
 
   const filteredProjects = useMemo(() => {
     return [...projects]

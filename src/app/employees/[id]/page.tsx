@@ -10,6 +10,9 @@ import {
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
+
+import { useRequest } from "@/lib/useRequest";
+
 import { uploadProfilePhoto } from "@/lib/profilePhotoUpload";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
@@ -217,8 +220,9 @@ export default function EmployeeDetailPage() {
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
   const [user, setUser] = useState<ProfileRow | null>(null);
 
-  const [isBootstrapping, setIsBootstrapping] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const employeeRequest = useRequest<boolean>();
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isDeactivating, setIsDeactivating] = useState(false);
@@ -328,82 +332,66 @@ export default function EmployeeDetailPage() {
     setProfileCompleted(Boolean(profile.profile_completed));
   }, []);
 
-  const loadUser = useCallback(
-    async (mode: "initial" | "refresh" = "initial") => {
-      if (!id) {
+const loadUser = useCallback(async () => {
+  if (!id) {
+    navigate("/employees");
+    return;
+  }
+
+  const requestId = requestTracker.current.next();
+
+  try {
+    await employeeRequest.run(async () => {
+      const {
+        data: { user: authUser },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (!requestTracker.current.isLatest(requestId)) return true;
+
+      if (authError || !authUser) {
+        navigate("/login");
+        return true;
+      }
+
+      setCurrentUserId(authUser.id);
+
+      const [
+        { data: me, error: meError },
+        { data: profileData, error: profileError },
+      ] = await Promise.all([
+        supabase.from("profiles").select("role").eq("user_id", authUser.id).single(),
+        supabase.from("profiles").select("*").eq("user_id", id).maybeSingle(),
+      ]);
+
+      if (!requestTracker.current.isLatest(requestId)) return true;
+
+      if (meError || !me) {
         navigate("/employees");
-        return;
+        return true;
       }
 
-      const requestId = requestTracker.current.next();
+      setCurrentUserRole((me as CurrentUserRoleRow).role);
 
-      if (mode === "initial") {
-        setIsBootstrapping(true);
-      } else {
-        setIsRefreshing(true);
+      if (profileError || !profileData) {
+        throw new Error(t("employeeDetail.errors.userNotFound"));
       }
 
-      setSaveError("");
+      fillForm(profileData as ProfileRow);
+      setHasLoadedOnce(true);
 
-      try {
-        const {
-          data: { user: authUser },
-          error: authError,
-        } = await supabase.auth.getUser();
-
-        if (!requestTracker.current.isLatest(requestId)) return;
-
-        if (authError || !authUser) {
-          navigate("/login");
-          return;
-        }
-
-        setCurrentUserId(authUser.id);
-
-        const [
-          { data: me, error: meError },
-          { data: profileData, error: profileError },
-        ] = await Promise.all([
-          supabase.from("profiles").select("role").eq("user_id", authUser.id).single(),
-          supabase.from("profiles").select("*").eq("user_id", id).maybeSingle(),
-        ]);
-
-        if (!requestTracker.current.isLatest(requestId)) return;
-
-        if (meError || !me) {
-          navigate("/employees");
-          return;
-        }
-
-        setCurrentUserRole((me as CurrentUserRoleRow).role);
-
-        if (profileError || !profileData) {
-          setSaveError(t("employeeDetail.errors.userNotFound"));
-          setUser(null);
-          return;
-        }
-
-        fillForm(profileData as ProfileRow);
-      } catch (err) {
-        if (!requestTracker.current.isLatest(requestId)) return;
-        console.error("Employee detail load error:", err);
-        setSaveError(t("employeeDetail.errors.loadFailed"));
-      } finally {
-        if (!requestTracker.current.isLatest(requestId)) return;
-
-        if (mode === "initial") {
-          setIsBootstrapping(false);
-        } else {
-          setIsRefreshing(false);
-        }
-      }
-    },
-    [fillForm, id, navigate, t]
-  );
+      return true;
+    });
+  } catch (err) {
+    if (!requestTracker.current.isLatest(requestId)) return;
+    console.error("Employee detail load error:", err);
+    setSaveError(t("employeeDetail.errors.loadFailed"));
+  }
+}, [fillForm, id, navigate, t, employeeRequest]);
 
   useEffect(() => {
-    void loadUser("initial");
-  }, [loadUser]);
+  void loadUser();
+}, [loadUser]);
 
   const showSaved = () => {
     setSaved(true);
@@ -954,7 +942,7 @@ export default function EmployeeDetailPage() {
     }
   };
 
-  if (!user && !isBootstrapping) {
+  if (!user && employeeRequest.status !== "loading") {
     return (
       <div className="max-w-4xl mx-auto space-y-6">
         <Card className="bg-red-900/10 border-red-800/30">
@@ -991,16 +979,18 @@ export default function EmployeeDetailPage() {
           <Button
             variant="outline"
             className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            onClick={() => void loadUser("refresh")}
-            disabled={
-              isRefreshing ||
+            onClick={() => void loadUser()}
+disabled={
+  employeeRequest.status === "loading" ||
               isSaving ||
               isUploadingPhoto ||
               isDeactivating ||
               isDeleting
             }
           >
-            {isRefreshing ? t("employeeDetail.actions.refreshing") : t("employeeDetail.actions.refresh")}
+            {employeeRequest.status === "loading"
+  ? t("employeeDetail.actions.refreshing")
+  : t("employeeDetail.actions.refresh")}
           </Button>
 
           {canManage && (
@@ -1069,7 +1059,7 @@ export default function EmployeeDetailPage() {
       <div className="grid xl:grid-cols-[320px,1fr] gap-6">
         <Card className="bg-slate-900/50 border-slate-800 overflow-hidden">
           <CardContent className="p-6">
-            {isBootstrapping && !user ? (
+            {employeeRequest.status === "loading" && !hasLoadedOnce ? (
               <div className="animate-pulse space-y-4">
                 <div className="w-24 h-24 rounded-full bg-slate-800 mx-auto" />
                 <div className="h-6 bg-slate-800 rounded w-40 mx-auto" />
@@ -1280,7 +1270,7 @@ export default function EmployeeDetailPage() {
           </CardHeader>
 
           <CardContent className="p-6 space-y-6">
-            {isBootstrapping && !user ? (
+            {employeeRequest.status === "loading" && !hasLoadedOnce ? (
               <div className="space-y-6 animate-pulse">
                 <div className="grid md:grid-cols-2 gap-4">
                   {Array.from({ length: 8 }).map((_, index) => (

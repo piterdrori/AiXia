@@ -14,6 +14,14 @@ import {
 } from "@/lib/file-upload";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
+
+import {
+  canViewTask,
+  canEditTaskEntity,
+  canDeleteTaskEntity,
+  canMoveTask,
+} from "@/lib/permissions";
+
 import { useAppClock } from "@/lib/clock/provider";
 import { smartTranslate } from "@/lib/smartTranslate";
 
@@ -268,19 +276,22 @@ export default function TaskDetailPage() {
       const loadedTaskMembers = (taskMembersData || []) as TaskMemberRow[];
       const loadedProjectMembers = (projectMembersData || []) as ProjectMemberRow[];
 
-      const isAdmin = role === "admin";
-      const isTaskCreator = loadedTask.created_by === user.id;
-      const isProjectCreator = (projectData as ProjectRow | null)?.created_by === user.id;
-      const isTaskAssigned = loadedTaskMembers.some((member) => member.user_id === user.id);
-      const isProjectAssigned = loadedProjectMembers.some((member) => member.user_id === user.id);
+      const visibleProjectIds = new Set(
+  loadedProjectMembers.map((m) => m.project_id)
+);
 
-      const canSee =
-        isAdmin || isTaskCreator || isProjectCreator || isTaskAssigned || isProjectAssigned;
-
-      if (!canSee) {
-        navigate("/tasks");
-        return;
-      }
+if (
+  !canViewTask(
+    loadedTask,
+    user.id,
+    role,
+    loadedTaskMembers,
+    visibleProjectIds
+  )
+) {
+  navigate("/tasks");
+  return;
+}
 
       setTask(loadedTask);
       setProject((projectData || null) as ProjectRow | null);
@@ -303,18 +314,45 @@ export default function TaskDetailPage() {
     void loadTaskPage("initial");
   }, [id]);
   const canEditTask = useMemo(() => {
-    if (!task || !currentUserId) return false;
-    return currentUserRole === "admin" || task.created_by === currentUserId;
-  }, [task, currentUserId, currentUserRole]);
+  if (!task || !currentUserId || !currentUserRole) return false;
 
-  const canDeleteTask = canEditTask;
-  const canManageMembers = canEditTask;
+  return canEditTaskEntity(
+    task,
+    currentUserId,
+    currentUserRole
+  );
+}, [task, currentUserId, currentUserRole]);
+
+  const canDeleteTask = useMemo(() => {
+  if (!task || !currentUserId || !currentUserRole) return false;
+
+  return canDeleteTaskEntity(
+    task,
+    currentUserId,
+    currentUserRole
+  );
+}, [task, currentUserId, currentUserRole]);
+  
+  const canManageMembers = useMemo(() => {
+  if (!task || !currentUserId || !currentUserRole) return false;
+
+  return canEditTaskEntity(
+    task,
+    currentUserId,
+    currentUserRole
+  );
+}, [task, currentUserId, currentUserRole]);
 
   const canUpdateStatus = useMemo(() => {
-    if (!task || !currentUserId) return false;
-    const isAssigned = taskMembers.some((member) => member.user_id === currentUserId);
-    return currentUserRole === "admin" || task.created_by === currentUserId || isAssigned;
-  }, [task, currentUserId, currentUserRole, taskMembers]);
+  if (!task || !currentUserId || !currentUserRole) return false;
+
+  return canMoveTask(
+    task,
+    currentUserId,
+    currentUserRole,
+    taskMembers
+  );
+}, [task, currentUserId, currentUserRole, taskMembers]);
 
   const canDeleteThisFile = (file: FileUploadRow) => {
     if (!currentUserId) return false;

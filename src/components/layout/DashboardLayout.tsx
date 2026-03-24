@@ -1,18 +1,49 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ElementType,
+  type ReactNode,
+} from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { format } from "date-fns";
+import {
+  Bell,
+  Calendar,
+  CheckSquare,
+  ChevronLeft,
+  ChevronRight,
+  FolderKanban,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  MessageSquare,
+  Search,
+  Settings,
+  Users,
+  X,
+} from "lucide-react";
+
 import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/lib/i18n";
 import { useUserPreferences } from "@/lib/useUserPreferences";
 import { formatDateTimeInTimezone } from "@/lib/datetime";
 import { useAppClock } from "@/lib/clock/provider";
-import { registerRealtimeChannel, removeRealtimeChannel } from "@/lib/realtime";
 import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/lib/notifications";
+import {
+  registerRealtimeChannel,
+  removeRealtimeChannel,
+} from "@/lib/realtime";
+
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,28 +58,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Input } from "@/components/ui/input";
-import {
-  LayoutDashboard,
-  FolderKanban,
-  CheckSquare,
-  Calendar,
-  MessageSquare,
-  Bell,
-  Users,
-  Settings,
-  Menu,
-  X,
-  Search,
-  LogOut,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
-import { format } from "date-fns";
 
 interface NavItem {
   label: string;
-  icon: React.ElementType;
+  icon: ElementType;
   href: string;
   badge?: number;
 }
@@ -117,8 +130,9 @@ function readLayoutCache(): CachedLayoutState | null {
     const parsed = JSON.parse(raw) as CachedLayoutState;
     if (!parsed?.cachedAt) return null;
 
-    const isExpired = Date.now() - parsed.cachedAt > CACHE_TTL_MS;
-    if (isExpired) return null;
+    if (Date.now() - parsed.cachedAt > CACHE_TTL_MS) {
+      return null;
+    }
 
     return parsed;
   } catch {
@@ -136,7 +150,6 @@ function writeLayoutCache(
       notifications,
       cachedAt: Date.now(),
     };
-
     sessionStorage.setItem(LAYOUT_CACHE_KEY, JSON.stringify(payload));
   } catch {
     // ignore cache errors
@@ -151,30 +164,23 @@ function clearLayoutCache() {
   }
 }
 
+function isValidDate(value: string) {
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime());
+}
+
 export default function DashboardLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
-  
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useLanguage();
   const { language, timezone } = useUserPreferences();
   const clock = useAppClock();
-  const localTime = formatDateTimeInTimezone(
-  clock.now,
-  language,
-  timezone,
-  {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }
-);
-  const cached = readLayoutCache();
+
+  const initialCacheRef = useRef<CachedLayoutState | null>(readLayoutCache());
 
   const [isMobile, setIsMobile] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -182,12 +188,14 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(
-    cached?.userProfile || null
+    initialCacheRef.current?.userProfile || null
   );
-  const [isLoadingUser, setIsLoadingUser] = useState(!cached?.userProfile);
+  const [isLoadingUser, setIsLoadingUser] = useState(
+    !initialCacheRef.current?.userProfile
+  );
 
   const [notifications, setNotifications] = useState<NotificationRow[]>(
-    cached?.notifications || []
+    initialCacheRef.current?.notifications || []
   );
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
@@ -195,22 +203,36 @@ export default function DashboardLayout({
   const [calendarTodayCount, setCalendarTodayCount] = useState(0);
   const [chatUnreadCount] = useState(0);
 
-  const unreadCount = notifications.filter(
-    (notification) => !notification.is_read
-  ).length;
-
+  const userProfileRef = useRef<UserProfile | null>(
+    initialCacheRef.current?.userProfile || null
+  );
+  const mountedRef = useRef(true);
   const loadUserRequestIdRef = useRef(0);
   const loadNotificationsRequestIdRef = useRef(0);
   const loadCalendarBadgeRequestIdRef = useRef(0);
 
   useEffect(() => {
+    userProfileRef.current = userProfile;
+  }, [userProfile]);
+
+  const localTime = useMemo(() => {
+    return formatDateTimeInTimezone(clock.now, language, timezone, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  }, [clock.now, language, timezone]);
+
+  const unreadCount = useMemo(() => {
+    return notifications.filter((notification) => !notification.is_read).length;
+  }, [notifications]);
+
+  useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 1024;
       setIsMobile(mobile);
-
-      if (mobile) {
-        setSidebarOpen(true);
-      }
 
       if (window.innerWidth >= 1024) {
         setMobileMenuOpen(false);
@@ -220,157 +242,185 @@ export default function DashboardLayout({
     checkMobile();
     window.addEventListener("resize", checkMobile);
 
-    return () => window.removeEventListener("resize", checkMobile);
+    return () => {
+      window.removeEventListener("resize", checkMobile);
+    };
   }, []);
 
-  const loadNotifications = async (
-    userId: string,
-    profileForCache?: UserProfile | null
-  ) => {
-    const requestId = ++loadNotificationsRequestIdRef.current;
-    setIsLoadingNotifications(true);
+  const loadNotifications = useCallback(
+    async (userId: string, profileForCache?: UserProfile | null) => {
+      const requestId = ++loadNotificationsRequestIdRef.current;
+      setIsLoadingNotifications(true);
 
-    try {
-      const { data, error } = await supabase
-        .from("notifications")
-        .select(
-          "id, user_id, actor_user_id, type, title, message, link, is_read, entity_type, entity_id, created_at"
-        )
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(20);
+      try {
+        const { data, error } = await supabase
+          .from("notifications")
+          .select(
+            "id, user_id, actor_user_id, type, title, message, link, is_read, entity_type, entity_id, created_at"
+          )
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(20);
 
-      if (requestId !== loadNotificationsRequestIdRef.current) return;
+        if (!mountedRef.current) return;
+        if (requestId !== loadNotificationsRequestIdRef.current) return;
 
-      if (error) {
-        console.error("Failed to load notifications:", error);
-        return;
-      }
+        if (error) {
+          console.error("Failed to load notifications:", error);
+          return;
+        }
 
-      const nextNotifications = (data || []) as NotificationRow[];
-      setNotifications(nextNotifications);
-      writeLayoutCache(profileForCache ?? userProfile, nextNotifications);
-    } catch (error) {
-      if (requestId !== loadNotificationsRequestIdRef.current) return;
-      console.error("Load notifications error:", error);
-    } finally {
-      if (requestId !== loadNotificationsRequestIdRef.current) return;
-      setIsLoadingNotifications(false);
-    }
-  };
-
-  const loadCalendarBadge = async (userId: string, role?: string | null) => {
-    const requestId = ++loadCalendarBadgeRequestIdRef.current;
-
-    try {
-      const today = clock.todayKey;
-
-      const [
-        { data: allProjects, error: projectsError },
-        { data: allProjectMembers, error: membersError },
-        { data: allTasks, error: tasksError },
-        { data: allEvents, error: eventsError },
-      ] = await Promise.all([
-        supabase.from("projects").select("id, created_by"),
-        supabase.from("project_members").select("project_id, user_id"),
-        supabase
-          .from("tasks")
-          .select("id, due_date, created_by, project_id, assignee_id")
-          .eq("due_date", today),
-        supabase
-          .from("calendar_events")
-          .select("id, start_date, created_by, project_id")
-          .eq("start_date", today),
-      ]);
-
-      if (requestId !== loadCalendarBadgeRequestIdRef.current) return;
-
-      if (projectsError || membersError || tasksError || eventsError) {
-        console.error(
-          "Calendar badge load error:",
-          projectsError || membersError || tasksError || eventsError
+        const nextNotifications = ((data || []) as NotificationRow[]).filter(
+          (item) =>
+            !!item &&
+            typeof item.id === "string" &&
+            typeof item.user_id === "string" &&
+            typeof item.title === "string" &&
+            typeof item.created_at === "string" &&
+            typeof item.is_read === "boolean"
         );
-        return;
+
+        setNotifications(nextNotifications);
+        writeLayoutCache(
+          profileForCache ?? userProfileRef.current,
+          nextNotifications
+        );
+      } catch (error) {
+        if (!mountedRef.current) return;
+        if (requestId !== loadNotificationsRequestIdRef.current) return;
+        console.error("Load notifications error:", error);
+      } finally {
+        if (!mountedRef.current) return;
+        if (requestId !== loadNotificationsRequestIdRef.current) return;
+        setIsLoadingNotifications(false);
       }
+    },
+    []
+  );
 
-      const projects = (allProjects || []) as ProjectRow[];
-      const projectMembers = (allProjectMembers || []) as ProjectMemberRow[];
-      const todayTasks = (allTasks || []) as TaskRow[];
-      const todayEvents = (allEvents || []) as CalendarEventRow[];
+  const loadCalendarBadge = useCallback(
+    async (userId: string, role?: string | null) => {
+      const requestId = ++loadCalendarBadgeRequestIdRef.current;
 
-      const visibleProjectIds =
-        role === "admin"
-          ? new Set(projects.map((project) => project.id))
-          : new Set(
-              projects
-                .filter(
-                  (project) =>
-                    project.created_by === userId ||
-                    projectMembers.some(
-                      (member) =>
-                        member.project_id === project.id &&
-                        member.user_id === userId
-                    )
-                )
-                .map((project) => project.id)
-            );
+      try {
+        const today = clock.todayKey;
 
-      const visibleTasks =
-        role === "admin"
-          ? todayTasks
-          : todayTasks.filter((task) => {
-              const isCreator = task.created_by === userId;
-              const isAssignee = task.assignee_id === userId;
-              const isInsideVisibleProject =
-                !!task.project_id && visibleProjectIds.has(task.project_id);
+        const [
+          { data: allProjects, error: projectsError },
+          { data: allProjectMembers, error: membersError },
+          { data: allTasks, error: tasksError },
+          { data: allEvents, error: eventsError },
+        ] = await Promise.all([
+          supabase.from("projects").select("id, created_by"),
+          supabase.from("project_members").select("project_id, user_id"),
+          supabase
+            .from("tasks")
+            .select("id, due_date, created_by, project_id, assignee_id")
+            .eq("due_date", today),
+          supabase
+            .from("calendar_events")
+            .select("id, start_date, created_by, project_id")
+            .eq("start_date", today),
+        ]);
 
-              return isCreator || isAssignee || isInsideVisibleProject;
-            });
+        if (!mountedRef.current) return;
+        if (requestId !== loadCalendarBadgeRequestIdRef.current) return;
 
-      const visibleEvents =
-        role === "admin"
-          ? todayEvents
-          : todayEvents.filter((event) => {
-              const isCreator = event.created_by === userId;
-              const isInsideVisibleProject =
-                !!event.project_id && visibleProjectIds.has(event.project_id);
+        if (projectsError || membersError || tasksError || eventsError) {
+          console.error(
+            "Calendar badge load error:",
+            projectsError || membersError || tasksError || eventsError
+          );
+          return;
+        }
 
-              return isCreator || isInsideVisibleProject;
-            });
+        const projects = (allProjects || []) as ProjectRow[];
+        const projectMembers = (allProjectMembers || []) as ProjectMemberRow[];
+        const todayTasks = (allTasks || []) as TaskRow[];
+        const todayEvents = (allEvents || []) as CalendarEventRow[];
 
-      setCalendarTodayCount(visibleTasks.length + visibleEvents.length);
-    } catch (error) {
-      if (requestId !== loadCalendarBadgeRequestIdRef.current) return;
-      console.error("Load calendar badge error:", error);
-    }
-  };
+        const visibleProjectIds =
+          role === "admin"
+            ? new Set(projects.map((project) => project.id))
+            : new Set(
+                projects
+                  .filter(
+                    (project) =>
+                      project.created_by === userId ||
+                      projectMembers.some(
+                        (member) =>
+                          member.project_id === project.id &&
+                          member.user_id === userId
+                      )
+                  )
+                  .map((project) => project.id)
+              );
 
-  const loadUser = async () => {
+        const visibleTasks =
+          role === "admin"
+            ? todayTasks
+            : todayTasks.filter((task) => {
+                const isCreator = task.created_by === userId;
+                const isAssignee = task.assignee_id === userId;
+                const isInsideVisibleProject =
+                  !!task.project_id && visibleProjectIds.has(task.project_id);
+
+                return isCreator || isAssignee || isInsideVisibleProject;
+              });
+
+        const visibleEvents =
+          role === "admin"
+            ? todayEvents
+            : todayEvents.filter((event) => {
+                const isCreator = event.created_by === userId;
+                const isInsideVisibleProject =
+                  !!event.project_id && visibleProjectIds.has(event.project_id);
+
+                return isCreator || isInsideVisibleProject;
+              });
+
+        setCalendarTodayCount(visibleTasks.length + visibleEvents.length);
+      } catch (error) {
+        if (!mountedRef.current) return;
+        if (requestId !== loadCalendarBadgeRequestIdRef.current) return;
+        console.error("Load calendar badge error:", error);
+      }
+    },
+    [clock.todayKey]
+  );
+
+  const clearUserState = useCallback(() => {
+    setUserProfile(null);
+    setNotifications([]);
+    setCalendarTodayCount(0);
+    clearLayoutCache();
+  }, []);
+
+  const loadUser = useCallback(async () => {
     const requestId = ++loadUserRequestIdRef.current;
     setIsLoadingUser(true);
 
     try {
       const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
+      if (!mountedRef.current) return;
       if (requestId !== loadUserRequestIdRef.current) return;
 
-      if (sessionError || !session?.user) {
-        setUserProfile(null);
-        setNotifications([]);
-        setCalendarTodayCount(0);
-        clearLayoutCache();
+      if (userError || !user) {
+        clearUserState();
         return;
       }
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("full_name, role, avatar_url")
-        .eq("user_id", session.user.id)
-        .single();
+        .eq("user_id", user.id)
+        .maybeSingle();
 
+      if (!mountedRef.current) return;
       if (requestId !== loadUserRequestIdRef.current) return;
 
       if (profileError) {
@@ -378,66 +428,73 @@ export default function DashboardLayout({
       }
 
       const loadedUser: UserProfile = {
-        userId: session.user.id,
-        email: session.user.email || "",
+        userId: user.id,
+        email: user.email || "",
         fullName: profile?.full_name || "User",
         role: profile?.role || null,
         avatarUrl: profile?.avatar_url || null,
       };
 
+      userProfileRef.current = loadedUser;
       setUserProfile(loadedUser);
       writeLayoutCache(loadedUser, notifications);
 
       await Promise.all([
-        loadNotifications(session.user.id, loadedUser),
-        loadCalendarBadge(session.user.id, loadedUser.role || null),
+        loadNotifications(loadedUser.userId, loadedUser),
+        loadCalendarBadge(loadedUser.userId, loadedUser.role || null),
       ]);
     } catch (error) {
+      if (!mountedRef.current) return;
       if (requestId !== loadUserRequestIdRef.current) return;
       console.error("DashboardLayout user load error:", error);
     } finally {
+      if (!mountedRef.current) return;
       if (requestId !== loadUserRequestIdRef.current) return;
       setIsLoadingUser(false);
     }
-  };
+  }, [clearUserState, loadCalendarBadge, loadNotifications, notifications]);
 
   useEffect(() => {
-    let mounted = true;
+    mountedRef.current = true;
 
-    if (!cached?.userProfile) {
-      void loadUser();
-    } else {
+    if (initialCacheRef.current?.userProfile) {
       setIsLoadingUser(false);
-      void loadNotifications(cached.userProfile.userId, cached.userProfile);
-      void loadCalendarBadge(
-        cached.userProfile.userId,
-        cached.userProfile.role || null
+      void loadNotifications(
+        initialCacheRef.current.userProfile.userId,
+        initialCacheRef.current.userProfile
       );
+      void loadCalendarBadge(
+        initialCacheRef.current.userProfile.userId,
+        initialCacheRef.current.userProfile.role || null
+      );
+    } else {
+      void loadUser();
     }
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mountedRef.current) return;
+
       window.setTimeout(() => {
-        if (!mounted) return;
+        if (!mountedRef.current) return;
 
         if (!session?.user) {
-          setUserProfile(null);
-          setNotifications([]);
-          setCalendarTodayCount(0);
-          clearLayoutCache();
+          clearUserState();
           return;
         }
 
-        void loadUser();
+        if (userProfileRef.current?.userId !== session.user.id) {
+          void loadUser();
+        }
       }, 0);
     });
 
     return () => {
-      mounted = false;
+      mountedRef.current = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [clearUserState, loadCalendarBadge, loadNotifications, loadUser]);
 
   useEffect(() => {
     if (!userProfile?.userId) return;
@@ -470,14 +527,15 @@ export default function DashboardLayout({
                 );
               } else if (payload.eventType === "DELETE") {
                 const deletedId = (payload.old as { id?: string } | null)?.id;
-                next = prev.filter((notification) => notification.id !== deletedId);
+                next = prev.filter(
+                  (notification) => notification.id !== deletedId
+                );
               }
 
               writeLayoutCache(userProfile, next);
               return next;
             });
 
-            void loadNotifications(userProfile.userId, userProfile);
             void loadCalendarBadge(userProfile.userId, userProfile.role || null);
           }
         )
@@ -487,13 +545,12 @@ export default function DashboardLayout({
     return () => {
       void removeRealtimeChannel(channelKey);
     };
-  }, [userProfile?.userId, userProfile?.role]);
+  }, [loadCalendarBadge, userProfile]);
 
   useEffect(() => {
-    if (notificationsOpen && userProfile?.userId) {
-      void loadNotifications(userProfile.userId, userProfile);
-    }
-  }, [notificationsOpen, userProfile?.userId]);
+    if (!notificationsOpen || !userProfile?.userId) return;
+    void loadNotifications(userProfile.userId, userProfile);
+  }, [notificationsOpen, userProfile, loadNotifications]);
 
   const navItems: NavItem[] = useMemo(
     () => [
@@ -572,7 +629,7 @@ export default function DashboardLayout({
         );
 
         setNotifications(nextNotifications);
-        writeLayoutCache(userProfile, nextNotifications);
+        writeLayoutCache(userProfileRef.current, nextNotifications);
       }
 
       setNotificationsOpen(false);
@@ -599,14 +656,14 @@ export default function DashboardLayout({
       }));
 
       setNotifications(nextNotifications);
-      writeLayoutCache(userProfile, nextNotifications);
+      writeLayoutCache(userProfileRef.current, nextNotifications);
     } catch (error) {
       console.error("Mark all read error:", error);
     }
   };
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       <div className="relative flex items-center justify-center border-b border-border px-4 py-5">
         <img
           src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
@@ -621,7 +678,7 @@ export default function DashboardLayout({
             onClick={() => setMobileMenuOpen(false)}
             className="absolute right-3 top-3"
           >
-            <X className="w-5 h-5 text-muted-foreground" />
+            <X className="h-5 w-5 text-muted-foreground" />
           </Button>
         )}
       </div>
@@ -672,40 +729,34 @@ export default function DashboardLayout({
         </TooltipProvider>
       </nav>
 
-            <div className="border-t border-border p-4">
+      <div className="border-t border-border p-4">
         <div className="flex flex-col gap-3">
+          <div className="rounded-lg border border-border bg-card/60 px-3 py-2">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              {t("clock.systemTime", "System Time")}
+            </p>
+            <p className="mt-1 text-sm font-medium text-foreground">
+              {format(clock.now, "PPP")}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {format(clock.now, "p")}
+            </p>
+          </div>
 
-  {/* SYSTEM TIME */}
-  <div className="rounded-lg border border-border bg-card/60 px-3 py-2">
-    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-      {t("clock.systemTime", "System Time")}
-    </p>
-    <p className="mt-1 text-sm font-medium text-foreground">
-      {format(clock.now, "PPP")}
-    </p>
-    <p className="text-xs text-muted-foreground">
-      {format(clock.now, "p")}
-    </p>
-  </div>
+          <div className="rounded-lg border border-border bg-card/60 px-3 py-2">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              {t("clock.localTime", "My Local Time")}
+            </p>
+            <p className="mt-1 text-sm font-medium text-foreground">
+              {localTime}
+            </p>
+            <p className="text-xs text-muted-foreground">{timezone}</p>
+          </div>
+        </div>
 
-  {/* LOCAL TIME */}
-  <div className="rounded-lg border border-border bg-card/60 px-3 py-2">
-    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-      {t("clock.localTime", "My Local Time")}
-    </p>
-    <p className="mt-1 text-sm font-medium text-foreground">
-      {localTime}
-    </p>
-    <p className="text-xs text-muted-foreground">
-      {timezone}
-    </p>
-  </div>
-
-</div>
-        
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted">
+            <button className="mt-4 flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted">
               <Avatar className="h-8 w-8">
                 <AvatarImage src={userProfile?.avatarUrl || undefined} />
                 <AvatarFallback className="bg-primary text-sm text-primary-foreground">
@@ -930,7 +981,7 @@ export default function DashboardLayout({
                 >
                   <div className="flex items-center justify-between px-4 py-3">
                     <DropdownMenuLabel className="p-0 text-foreground">
-                      Notifications
+                      {t("dashboard.notifications.title", "Notifications")}
                     </DropdownMenuLabel>
 
                     {unreadCount > 0 && (
@@ -938,7 +989,10 @@ export default function DashboardLayout({
                         onClick={handleMarkAllRead}
                         className="text-xs text-primary hover:opacity-80"
                       >
-                        Mark all as read
+                        {t(
+                          "dashboard.notifications.markAllRead",
+                          "Mark all as read"
+                        )}
                       </button>
                     )}
                   </div>
@@ -948,11 +1002,17 @@ export default function DashboardLayout({
                   <div className="max-h-96 overflow-y-auto">
                     {isLoadingNotifications ? (
                       <div className="px-4 py-6 text-sm text-muted-foreground">
-                        Loading notifications...
+                        {t(
+                          "dashboard.notifications.loading",
+                          "Loading notifications..."
+                        )}
                       </div>
                     ) : notifications.length === 0 ? (
                       <div className="px-4 py-6 text-sm text-muted-foreground">
-                        No notifications yet.
+                        {t(
+                          "dashboard.notifications.empty",
+                          "No notifications yet."
+                        )}
                       </div>
                     ) : (
                       notifications.map((notification) => (
@@ -986,7 +1046,12 @@ export default function DashboardLayout({
                           </div>
 
                           <p className="text-[11px] text-muted-foreground">
-                            {format(new Date(notification.created_at), "MMM d, h:mm a")}
+                            {isValidDate(notification.created_at)
+                              ? format(
+                                  new Date(notification.created_at),
+                                  "MMM d, h:mm a"
+                                )
+                              : "—"}
                           </p>
                         </DropdownMenuItem>
                       ))
@@ -1002,7 +1067,7 @@ export default function DashboardLayout({
                     }}
                     className="justify-center text-foreground focus:bg-muted"
                   >
-                    Open Inbox
+                    {t("dashboard.notifications.openInbox", "Open Inbox")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

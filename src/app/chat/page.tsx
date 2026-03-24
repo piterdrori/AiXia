@@ -96,12 +96,13 @@ export default function ChatPage() {
   const [isUploadingFile, setIsUploadingFile] = useState(false);
 
   useEffect(() => {
-    if (!id) return;
-    if (!groups.some((group) => group.id === id)) return;
-    if (selectedConversationId === id) return;
+  if (!id) return;
 
+  // always sync URL immediately (do NOT wait for groups)
+  if (selectedConversationId !== id) {
     setSelectedConversationId(id);
-  }, [groups, id, selectedConversationId, setSelectedConversationId]);
+  }
+}, [id, selectedConversationId, setSelectedConversationId]);
 
   useEffect(() => {
     setIsSelectionMode(false);
@@ -340,9 +341,10 @@ export default function ChatPage() {
     );
 
     if (existingLocal) {
-      openConversation(existingLocal.id);
-      return;
-    }
+  openConversation(existingLocal.id);
+  await reloadChatShell(existingLocal.id);
+  return;
+}
 
     const { data: existingDb, error: existingError } = await supabase
       .from("chat_groups")
@@ -378,7 +380,7 @@ export default function ChatPage() {
       
       upsertGroupLocally(existingDb as ChatGroupRow, optimisticMembers);
       openConversation(existingDb.id);
-      void reloadChatShell(existingDb.id);
+      await reloadChatShell(existingDb.id);
       return;
     }
 
@@ -443,21 +445,23 @@ export default function ChatPage() {
       setError(memberInsertError.message || t("chat.errors.addDirectChatMembers"));
     }
 
-    void reloadChatShell(newGroup.id);
+    await reloadChatShell(newGroup.id);
   };
 
   const handleCreateGroup = async () => {
     if (!currentUserId) return;
 
     if (!groupName.trim()) {
-      setError(t("chat.errors.groupNameRequired"));
-      return;
-    }
+  setError(t("chat.errors.groupNameRequired"));
+  setIsCreateGroupOpen(true); // keep dialog open so user sees issue
+  return;
+}
 
     if (selectedGroupMembers.length === 0) {
-      setError(t("chat.errors.selectAtLeastOneMember"));
-      return;
-    }
+  setError(t("chat.errors.selectAtLeastOneMember"));
+  setIsCreateGroupOpen(true);
+  return;
+}
 
     setIsCreatingGroup(true);
     setError("");
@@ -529,7 +533,7 @@ export default function ChatPage() {
       setError(membersError.message || t("chat.errors.addGroupMembers"));
     }
 
-    void reloadChatShell(newGroup.id);
+    await reloadChatShell(newGroup.id);
   };
 
   const handleSendMessage = async () => {

@@ -234,8 +234,6 @@ setTranslatedMessages((prev) => ({
   <div className="mt-2 space-y-2">
     {message.attachments.map((file) => {
   const publicUrl = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/chat-files/${file.file_path}`;
-    .replace("https://", "")
-    .replace(".supabase.co", "")}.supabase.co/storage/v1/object/public/chat-files/${file.file_path}`;
 
       return (
         <a

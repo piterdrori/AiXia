@@ -1,27 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import type { ElementType } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/lib/supabase";
-import {
-  markAllNotificationsRead,
-  markNotificationRead,
-} from "@/lib/notifications";
-import { createRequestTracker } from "@/lib/safeAsync";
-import { useRequest } from "@/lib/useRequest";
-import {
-  registerRealtimeChannel,
-  removeRealtimeChannel,
-} from "@/lib/realtime";
-
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { format } from "date-fns";
 import {
   Bell,
   Check,
@@ -35,8 +15,30 @@ import {
   FolderKanban,
   FileText,
 } from "lucide-react";
-import { format } from "date-fns";
+
+import { supabase } from "@/lib/supabase";
+import {
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "@/lib/notifications";
+import { createRequestTracker } from "@/lib/safeAsync";
+import { useRequest } from "@/lib/useRequest";
+import {
+  registerRealtimeChannel,
+  removeRealtimeChannel,
+} from "@/lib/realtime";
 import { useLanguage } from "@/lib/i18n";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type NotificationType =
   | "MESSAGE"
@@ -60,7 +62,7 @@ type NotificationRow = {
   created_at: string;
 };
 
-const notificationIcons: Record<NotificationType, React.ElementType> = {
+const notificationIcons: Record<NotificationType, ElementType> = {
   MESSAGE: MessageSquare,
   TASK_ASSIGNED: CheckSquare,
   TASK_UPDATED: Info,
@@ -78,6 +80,29 @@ const notificationColors: Record<NotificationType, string> = {
   PROJECT_UPDATE: "bg-slate-500/20 text-slate-300",
 };
 
+function isValidNotificationType(value: string): value is NotificationType {
+  return (
+    value === "MESSAGE" ||
+    value === "TASK_ASSIGNED" ||
+    value === "TASK_UPDATED" ||
+    value === "COMMENT" ||
+    value === "FILE_UPLOAD" ||
+    value === "PROJECT_UPDATE"
+  );
+}
+
+function formatNotificationDate(value: string) {
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "—";
+    }
+    return format(date, "MMM d, HH:mm");
+  } catch {
+    return "—";
+  }
+}
+
 export default function InboxPage() {
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
@@ -89,122 +114,139 @@ export default function InboxPage() {
 
   const inboxRequest = useRequest<boolean>();
 
-const fetchNotifications = useCallback(
-  async (
-    userId: string,
-    options?: {
-      requestId?: number;
-      setLoading?: boolean;
-    }
-  ) => {
-    const requestId = options?.requestId ?? requestTracker.current.next();
-    const shouldSetLoading = options?.setLoading ?? false;
+  const fetchNotifications = useCallback(
+    async (
+      userId: string,
+      options?: {
+        requestId?: number;
+        setLoading?: boolean;
+      }
+    ) => {
+      const requestId = options?.requestId ?? requestTracker.current.next();
+      const shouldSetLoading = options?.setLoading ?? false;
 
-    if (shouldSetLoading) {
+      if (shouldSetLoading) {
+        inboxRequest.setState((prev) => ({
+          ...prev,
+          status: "loading",
+          error: null,
+        }));
+      }
+
+      try {
+        const { data, error: notificationsError } = await supabase
+          .from("notifications")
+          .select(
+            "id, user_id, actor_user_id, type, title, message, link, is_read, entity_type, entity_id, created_at"
+          )
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false });
+
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        if (notificationsError) {
+          console.error("Load inbox notifications error:", notificationsError);
+          inboxRequest.setState((prev) => ({
+            ...prev,
+            status: "error",
+            error:
+              notificationsError.message || t("inbox.errors.loadNotifications"),
+          }));
+          setNotifications([]);
+          return;
+        }
+
+        const safeNotifications = ((data || []) as NotificationRow[]).filter(
+          (item) =>
+            !!item &&
+            typeof item.id === "string" &&
+            typeof item.user_id === "string" &&
+            typeof item.title === "string" &&
+            typeof item.created_at === "string" &&
+            typeof item.is_read === "boolean" &&
+            typeof item.type === "string" &&
+            isValidNotificationType(item.type)
+        );
+
+        setNotifications(safeNotifications);
+
+        if (shouldSetLoading) {
+          inboxRequest.setState((prev) => ({
+            ...prev,
+            status: "success",
+            error: null,
+          }));
+        }
+      } catch (err) {
+        if (!requestTracker.current.isLatest(requestId)) return;
+        console.error("Fetch notifications error:", err);
+        inboxRequest.setState((prev) => ({
+          ...prev,
+          status: "error",
+          error: t("inbox.errors.loadNotifications"),
+        }));
+        setNotifications([]);
+      }
+    },
+    [t, inboxRequest]
+  );
+
+  useEffect(() => {
+    let mounted = true;
+
+    const init = async () => {
+      const requestId = requestTracker.current.next();
+
       inboxRequest.setState((prev) => ({
         ...prev,
         status: "loading",
         error: null,
       }));
-    }
 
-    try {
-      const { data, error: notificationsError } = await supabase
-        .from("notifications")
-        .select(
-          "id, user_id, actor_user_id, type, title, message, link, is_read, entity_type, entity_id, created_at"
-        )
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false });
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
 
-      if (!requestTracker.current.isLatest(requestId)) return;
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
-      if (notificationsError) {
-        console.error("Load inbox notifications error:", notificationsError);
-        inboxRequest.setState((prev) => ({
-          ...prev,
-          status: "error",
-          error:
-            notificationsError.message ||
-            t("inbox.errors.loadNotifications"),
-        }));
-        setNotifications([]);
-        return;
-      }
+        if (authError || !user) {
+          navigate("/login");
+          return;
+        }
 
-      setNotifications((data || []) as NotificationRow[]);
+        setCurrentUserId(user.id);
 
-      if (shouldSetLoading) {
+        await fetchNotifications(user.id, {
+          requestId,
+          setLoading: false,
+        });
+
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+
         inboxRequest.setState((prev) => ({
           ...prev,
           status: "success",
+          error: null,
+        }));
+      } catch (err) {
+        if (!mounted || !requestTracker.current.isLatest(requestId)) return;
+        console.error("Inbox init error:", err);
+        inboxRequest.setState((prev) => ({
+          ...prev,
+          status: "error",
+          error: t("inbox.errors.loadInbox"),
         }));
       }
-    } catch (err) {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      console.error("Fetch notifications error:", err);
-      inboxRequest.setState((prev) => ({
-        ...prev,
-        status: "error",
-        error: t("inbox.errors.loadNotifications"),
-      }));
-      setNotifications([]);
-    }
-  },
-  [t, inboxRequest]
-);
+    };
 
-useEffect(() => {
-  let mounted = true;
+    void init();
 
-  const init = async () => {
-    const requestId = requestTracker.current.next();
-
-    inboxRequest.setState((prev) => ({
-      ...prev,
-      status: "loading",
-      error: null,
-    }));
-
-    try {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-
-      if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-
-      if (authError || !user) {
-        navigate("/login");
-        return;
-      }
-
-      setCurrentUserId(user.id);
-      await fetchNotifications(user.id, { requestId, setLoading: false });
-
-      if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-
-      inboxRequest.setState((prev) => ({
-        ...prev,
-        status: "success",
-      }));
-    } catch (err) {
-      if (!mounted || !requestTracker.current.isLatest(requestId)) return;
-      console.error("Inbox init error:", err);
-      inboxRequest.setState((prev) => ({
-        ...prev,
-        status: "error",
-        error: t("inbox.errors.loadInbox"),
-      }));
-    }
-  };
-
-  void init();
-
-  return () => {
-    mounted = false;
-  };
-}, [fetchNotifications, navigate, t]);
+    return () => {
+      mounted = false;
+    };
+  }, [fetchNotifications, navigate, t, inboxRequest]);
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -243,7 +285,9 @@ useEffect(() => {
     });
   }, [notifications, filter]);
 
-  const unreadCount = notifications.filter((notification) => !notification.is_read).length;
+  const unreadCount = useMemo(() => {
+    return notifications.filter((notification) => !notification.is_read).length;
+  }, [notifications]);
 
   const handleNotificationClick = async (notification: NotificationRow) => {
     try {
@@ -308,7 +352,9 @@ useEffect(() => {
         return;
       }
 
-      setNotifications((prev) => prev.filter((item) => item.id !== notificationId));
+      setNotifications((prev) =>
+        prev.filter((item) => item.id !== notificationId)
+      );
     } catch (err) {
       console.error("Delete notification error:", err);
     }
@@ -316,7 +362,7 @@ useEffect(() => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">
             {t("inbox.header.title")}
@@ -335,7 +381,7 @@ useEffect(() => {
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
               onClick={() => void handleMarkAllRead()}
             >
-              <CheckCheck className="w-4 h-4 mr-2" />
+              <CheckCheck className="mr-2 h-4 w-4" />
               {t("inbox.buttons.markAllRead")}
             </Button>
           )}
@@ -349,12 +395,12 @@ useEffect(() => {
             setFilter(value as "ALL" | "UNREAD" | NotificationType)
           }
         >
-          <SelectTrigger className="w-48 bg-slate-900 border-slate-800 text-white">
-            <Filter className="w-4 h-4 mr-2" />
+          <SelectTrigger className="w-48 border-slate-800 bg-slate-900 text-white">
+            <Filter className="mr-2 h-4 w-4" />
             <SelectValue placeholder={t("inbox.filters.placeholder")} />
           </SelectTrigger>
 
-          <SelectContent className="bg-slate-900 border-slate-800">
+          <SelectContent className="border-slate-800 bg-slate-900">
             <SelectItem value="ALL">{t("inbox.filters.all")}</SelectItem>
             <SelectItem value="UNREAD">{t("inbox.filters.unread")}</SelectItem>
             <SelectItem value="MESSAGE">{t("inbox.filters.messages")}</SelectItem>
@@ -364,9 +410,7 @@ useEffect(() => {
             <SelectItem value="TASK_UPDATED">
               {t("inbox.filters.taskUpdated")}
             </SelectItem>
-            <SelectItem value="COMMENT">
-              {t("inbox.filters.comments")}
-            </SelectItem>
+            <SelectItem value="COMMENT">{t("inbox.filters.comments")}</SelectItem>
             <SelectItem value="FILE_UPLOAD">
               {t("inbox.filters.fileUploads")}
             </SelectItem>
@@ -377,14 +421,14 @@ useEffect(() => {
         </Select>
       </div>
 
-      <Card className="bg-slate-900/50 border-slate-800">
+      <Card className="border-slate-800 bg-slate-900/50">
         <CardContent className="p-0">
           <ScrollArea className="h-[calc(100vh-300px)]">
             <div className="divide-y divide-slate-800">
               {inboxRequest.status === "loading" ? (
-                <div className="text-center py-12">
-                  <Bell className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-white mb-2">
+                <div className="py-12 text-center">
+                  <Bell className="mx-auto mb-4 h-12 w-12 text-slate-600" />
+                  <h3 className="mb-2 text-lg font-medium text-white">
                     {t("inbox.states.loading.title")}
                   </h3>
                   <p className="text-slate-500">
@@ -392,17 +436,17 @@ useEffect(() => {
                   </p>
                 </div>
               ) : inboxRequest.status === "error" ? (
-                <div className="text-center py-12">
-                  <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-white mb-2">
+                <div className="py-12 text-center">
+                  <AlertCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
+                  <h3 className="mb-2 text-lg font-medium text-white">
                     {t("inbox.states.error.title")}
                   </h3>
                   <p className="text-slate-500">{inboxRequest.error}</p>
                 </div>
               ) : filteredNotifications.length === 0 ? (
-                <div className="text-center py-12">
-                  <Bell className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-white mb-2">
+                <div className="py-12 text-center">
+                  <Bell className="mx-auto mb-4 h-12 w-12 text-slate-600" />
+                  <h3 className="mb-2 text-lg font-medium text-white">
                     {t("inbox.states.empty.title")}
                   </h3>
                   <p className="text-slate-500">
@@ -421,47 +465,49 @@ useEffect(() => {
                   return (
                     <div
                       key={notification.id}
-                      className={`flex items-start gap-4 p-4 hover:bg-slate-800/50 transition-colors cursor-pointer ${
+                      className={`flex cursor-pointer items-start gap-4 p-4 transition-colors hover:bg-slate-800/50 ${
                         !notification.is_read ? "bg-indigo-900/5" : ""
                       }`}
                       onClick={() => void handleNotificationClick(notification)}
                     >
                       <div
-                        className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${colorClass}`}
+                        className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg ${colorClass}`}
                       >
-                        <Icon className="w-5 h-5" />
+                        <Icon className="h-5 w-5" />
                       </div>
 
-                      <div className="flex-1 min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
-                          <div>
+                          <div className="min-w-0 flex-1">
                             <h4
                               className={`font-medium ${
-                                !notification.is_read ? "text-white" : "text-slate-300"
+                                !notification.is_read
+                                  ? "text-white"
+                                  : "text-slate-300"
                               }`}
                             >
                               {notification.title}
                             </h4>
 
                             {notification.message && (
-                              <p className="text-slate-400 text-sm mt-1">
+                              <p className="mt-1 text-sm text-slate-400">
                                 {notification.message}
                               </p>
                             )}
                           </div>
 
-                          <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="flex flex-shrink-0 items-center gap-2">
                             {!notification.is_read && (
-                              <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                              <div className="h-2 w-2 rounded-full bg-indigo-500" />
                             )}
-                            <span className="text-slate-500 text-xs">
-                              {format(new Date(notification.created_at), "MMM d, HH:mm")}
+                            <span className="text-xs text-slate-500">
+                              {formatNotificationDate(notification.created_at)}
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1 flex-shrink-0">
+                      <div className="flex flex-shrink-0 items-center gap-1">
                         {!notification.is_read && (
                           <Button
                             variant="ghost"
@@ -472,7 +518,7 @@ useEffect(() => {
                               void handleMarkOneRead(notification.id);
                             }}
                           >
-                            <Check className="w-4 h-4" />
+                            <Check className="h-4 w-4" />
                           </Button>
                         )}
 
@@ -485,7 +531,7 @@ useEffect(() => {
                             void handleDeleteNotification(notification.id);
                           }}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>

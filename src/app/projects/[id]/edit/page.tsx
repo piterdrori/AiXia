@@ -5,6 +5,7 @@ import { logActivity } from "@/lib/activity";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { createNotification } from "@/lib/notifications";
 import { useLanguage } from "@/lib/i18n";
+import { canEditProject } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -211,12 +212,16 @@ export default function ProjectEditPage() {
       }
 
       const project = projectData as ProjectRow;
-      const canEdit = currentUserRole === "admin" || project.created_by === user.id;
+      const canEdit = canEditProject(
+  project,
+  user.id,
+  currentUserRole
+);
 
-      if (!canEdit) {
-        navigate("/projects");
-        return;
-      }
+if (!canEdit) {
+  navigate("/projects");
+  return;
+}
 
       const loadedMembers = (membersData || []) as ProjectMemberRow[];
       const loadedProfiles = (profilesData || []) as ProfileRow[];
@@ -301,18 +306,22 @@ export default function ProjectEditPage() {
         .eq("id", id)
         .single();
 
-      const canEdit = me?.role === "admin" || existingProject?.created_by === user.id;
+      const canEdit = canEditProject(
+  existingProject,
+  user.id,
+  me?.role as Role
+);
 
-      if (!canEdit) {
-        setError(
-          t(
-            "projects.noPermissionToEditProject",
-            "You do not have permission to edit this project."
-          )
-        );
-        setIsSaving(false);
-        return;
-      }
+if (!canEdit) {
+  setError(
+    t(
+      "projects.noPermissionToEditProject",
+      "You do not have permission to edit this project."
+    )
+  );
+  setIsSaving(false);
+  return;
+}
 
       await supabase
         .from("projects")

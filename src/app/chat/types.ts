@@ -26,6 +26,7 @@ export type ChatGroupMemberRow = {
   group_id: string;
   user_id: string;
   role: string;
+  invited_by: string | null;
   created_at: string;
 };
 

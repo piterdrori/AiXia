@@ -301,12 +301,23 @@ if (!canEdit) {
         .single();
 
       const { data: existingProject } = await supabase
-        .from("projects")
-        .select("id, created_by")
-        .eq("id", id)
-        .single();
+  .from("projects")
+  .select("id, created_by")
+  .eq("id", id)
+  .single();
 
-      const canEdit = canEditProject(
+if (!existingProject) {
+  setError(
+    t(
+      "projects.failedToLoadProject",
+      "Failed to load project."
+    )
+  );
+  setIsSaving(false);
+  return;
+}
+
+const canEdit = canEditProject(
   existingProject,
   user.id,
   me?.role as Role

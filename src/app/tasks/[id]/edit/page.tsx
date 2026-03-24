@@ -4,6 +4,9 @@ import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { createNotification } from "@/lib/notifications";
 import { useLanguage } from "@/lib/i18n";
+
+import { canEditTaskEntity } from "@/lib/permissions";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -156,12 +159,16 @@ export default function TaskEditPage() {
       }
 
       const task = taskData as TaskRow;
-      const canEdit = role === "admin" || task.created_by === user.id;
+      const canEdit = canEditTaskEntity(
+  task,
+  user.id,
+  role
+);
 
-      if (!canEdit) {
-        navigate(`/tasks/${id}`);
-        return;
-      }
+if (!canEdit) {
+  navigate(`/tasks/${id}`);
+  return;
+}
 
       const [
         { data: allProjects, error: projectsError },
@@ -350,7 +357,19 @@ const handleSubmit = async (e: React.FormEvent) => {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const currentUserId = user?.id || null;
+    if (!task) return;
+
+const canEdit = canEditTaskEntity(
+  task,
+  currentUserId,
+  myProfile.role as Role
+);
+
+if (!canEdit) {
+  setError(t("taskEdit.errors.noPermission"));
+  setIsSaving(false);
+  return;
+}
 
     const { error: updateError } = await supabase
       .from("tasks")

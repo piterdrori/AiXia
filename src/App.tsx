@@ -284,10 +284,8 @@ function SessionTimeoutManager() {
 
 function ProtectedRoute({
   children,
-  allowedRoles,
 }: {
   children: ReactNode;
-  allowedRoles?: Role[];
 }) {
   const location = useLocation();
   const { isBootstrapping, accessState } = useAuthAccess();
@@ -379,10 +377,6 @@ function ProtectedRoute({
 
   if (accessState === "ready") {
     if (!role) {
-      return <Navigate to="/dashboard" replace />;
-    }
-
-    if (allowedRoles && !allowedRoles.includes(role)) {
       return <Navigate to="/dashboard" replace />;
     }
 
@@ -640,7 +634,7 @@ function AppRoutes() {
       <Route
   path="/employees"
   element={
-    <ProtectedRoute allowedRoles={["admin"]}>
+    <ProtectedRoute>
       <DashboardLayout>
         <EmployeesPage />
       </DashboardLayout>
@@ -650,7 +644,7 @@ function AppRoutes() {
 <Route
   path="/employees/:id"
   element={
-    <ProtectedRoute allowedRoles={["admin"]}>
+    <ProtectedRoute>
       <DashboardLayout>
         <EmployeeDetailPage />
       </DashboardLayout>
@@ -660,7 +654,7 @@ function AppRoutes() {
 <Route
   path="/employees/:id/permissions"
   element={
-    <ProtectedRoute allowedRoles={["admin"]}>
+    <ProtectedRoute>
       <DashboardLayout>
         <EmployeePermissionsPage />
       </DashboardLayout>

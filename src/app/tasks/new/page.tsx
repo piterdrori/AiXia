@@ -6,6 +6,7 @@ import { createNotification } from "@/lib/notifications";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
 import { taskSchema } from "@/lib/validation";
+import { canPerform } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,7 +71,7 @@ export default function TaskNewPage() {
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [, setCurrentUserRole] = useState<Role | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isMembersLoading, setIsMembersLoading] = useState(false);
@@ -129,6 +130,11 @@ export default function TaskNewPage() {
 
         const role = myProfile.role as Role;
         setCurrentUserRole(role);
+
+        if (!canPerform(role, "createTasks")) {
+  navigate("/tasks");
+  return;
+}
 
         if (projectsError) {
           setProjects([]);
@@ -289,6 +295,11 @@ export default function TaskNewPage() {
     e.preventDefault();
     setError("");
 
+   if (!currentUserRole || !canPerform(currentUserRole, "createTasks")) {
+  setError(t("taskNew.errors.notAuthorized", "Not authorized"));
+  return;
+}
+    
     if (!currentUserId) {
   setError(t("taskNew.errors.userSessionNotFound"));
   return;
@@ -635,10 +646,15 @@ if (!validation.success) {
               </Button>
 
               <Button
-                type="submit"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                disabled={isBootstrapping || isSaving}
-              >
+  type="submit"
+  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+  disabled={
+    isBootstrapping ||
+    isSaving ||
+    !currentUserRole ||
+    !canPerform(currentUserRole, "createTasks")
+  }
+>
                 {isSaving ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />

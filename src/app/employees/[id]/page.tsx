@@ -1575,132 +1575,151 @@ disabled={
 
                   <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
   <div className="flex items-center justify-between gap-3">
-    <h3 className="text-lg font-semibold text-white">
+    <h3 className="text-lg font-semibold text-white leading-none">
       {t("employeeDetail.sections.coreAccountDetails")}
     </h3>
 
     {(canManage || isOwnProfile) && (
-      <Button
-        className="bg-indigo-600 hover:bg-indigo-700 text-white"
-        onClick={() => {
-          if (isEditing) {
-            setIsEditing(false);
-            setActiveEditor(null);
-            if (user) fillForm(user);
-          } else {
-            setIsEditing(true);
-            setActiveEditor(null);
-          }
-        }}
-        disabled={isSaving || isUploadingPhoto || isDeactivating || isDeleting}
-      >
-        <Edit className="w-4 h-4 mr-2" />
-        {isEditing
-          ? t("employeeDetail.actions.cancel")
-          : t("employeeDetail.actions.editMode")}
-      </Button>
-    )}
+  <Button
+    size="sm"
+    className="bg-indigo-600 hover:bg-indigo-700 text-white h-8 px-3"
+    onClick={() => {
+      if (isEditing && activeEditor === null) {
+        setIsEditing(false);
+        setActiveEditor(null);
+        if (user) fillForm(user);
+      } else {
+        setIsEditing(true);
+        setActiveEditor(null);
+      }
+    }}
+    disabled={isSaving || isUploadingPhoto || isDeactivating || isDeleting}
+  >
+    <Edit className="w-4 h-4 mr-2" />
+    {isEditing && activeEditor === null
+      ? t("employeeDetail.actions.cancel")
+      : t("employeeDetail.actions.editMode")}
+  </Button>
+)}
   </div>
 
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-slate-300">{t("employeeDetail.fields.fullName")}</Label>
-                        <Input
-                          value={fullName}
-                          onChange={(e) => setFullName(e.target.value)}
-                          disabled={!isEditing}
-                          className="bg-slate-950 border-slate-800 text-white"
-                        />
-                      </div>
-                    </div>
+  <div className="space-y-6">
+    <div className="space-y-3">
+      <div className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+        {t("employeeDetail.sections.editableInfo")}
+      </div>
 
-                    {canManage && (
-                      <div className="grid md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-slate-300">{t("employeeDetail.fields.role")}</Label>
-                          <Select
-                            value={role}
-                            onValueChange={(value) => {
-                              const nextRole = value as Role;
-                              setRole(nextRole);
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="md:col-span-2 space-y-2">
+          <Label className="text-slate-300">{t("employeeDetail.fields.fullName")}</Label>
+          <Input
+  value={fullName}
+  onChange={(e) => setFullName(e.target.value)}
+  disabled={!(isEditing && activeEditor === null)}
+  className="bg-slate-950 border-slate-800 text-white"
+/>
+        </div>
+      </div>
+    </div>
 
-                              if (nextRole === "admin") {
-                                setMemberType("");
-                                return;
-                              }
+    {canManage && (
+      <div className="space-y-3">
+        <div className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+          {t("employeeDetail.sections.adminControlled")}
+        </div>
 
-                              const allowedValues = MEMBER_TYPE_OPTIONS[nextRole].map(
-                                (option) => option.value
-                              );
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className={!canManage ? "opacity-60 pointer-events-none" : "opacity-80"}>
+            <div className="space-y-2">
+              <Label className="text-slate-300">{t("employeeDetail.fields.role")}</Label>
+              <Select
+                value={role}
+                onValueChange={(value) => {
+                  const nextRole = value as Role;
+                  setRole(nextRole);
 
-                              if (memberType && !allowedValues.includes(memberType)) {
-                                setMemberType("");
-                              }
-                            }}
-                            disabled={!isEditing}
-                          >
-                            <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                              <SelectItem value="admin">{t("employeeDetail.roles.admin")}</SelectItem>
-                              <SelectItem value="manager">{t("employeeDetail.roles.manager")}</SelectItem>
-                              <SelectItem value="employee">{t("employeeDetail.roles.employee")}</SelectItem>
-                              <SelectItem value="guest">{t("employeeDetail.roles.guest")}</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+                  if (nextRole === "admin") {
+                    setMemberType("");
+                    return;
+                  }
 
-                        <div className="space-y-2">
-                          <Label className="text-slate-300">{t("employeeDetail.fields.status")}</Label>
-                          <Select
-                            value={status}
-                            onValueChange={(value) => setStatus(value as Status)}
-                            disabled={!isEditing}
-                          >
-                            <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                              <SelectItem value="active">{t("employeeDetail.status.activeLabel")}</SelectItem>
-                              <SelectItem value="pending_verification">
-                                {t("employeeDetail.status.pendingVerificationLabel")}
-                              </SelectItem>
-                              <SelectItem value="pending_profile">
-                                {t("employeeDetail.status.pendingProfileLabel")}
-                              </SelectItem>
-                              <SelectItem value="pending_approval">
-                                {t("employeeDetail.status.pendingApprovalLabel")}
-                              </SelectItem>
-                              <SelectItem value="rejected">{t("employeeDetail.status.rejectedLabel")}</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+                  const allowedValues = MEMBER_TYPE_OPTIONS[nextRole].map(
+                    (option) => option.value
+                  );
 
-                        <div className="space-y-2">
-                          <Label className="text-slate-300">{t("employeeDetail.fields.profileCompletion")}</Label>
-                          <Select
-                            value={profileCompleted ? "yes" : "no"}
-                            onValueChange={(value) =>
-                              setProfileCompleted(value === "yes")
-                            }
-                            disabled={!isEditing}
-                          >
-                            <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                              <SelectItem value="yes">{t("employeeDetail.profile.completed")}</SelectItem>
-                              <SelectItem value="no">{t("employeeDetail.profile.incomplete")}</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    )}
-                  </section>
+                  if (memberType && !allowedValues.includes(memberType)) {
+                    setMemberType("");
+                  }
+                }}
+                disabled={!isEditing || !canManage}
+              >
+                <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                  <SelectItem value="admin">{t("employeeDetail.roles.admin")}</SelectItem>
+                  <SelectItem value="manager">{t("employeeDetail.roles.manager")}</SelectItem>
+                  <SelectItem value="employee">{t("employeeDetail.roles.employee")}</SelectItem>
+                  <SelectItem value="guest">{t("employeeDetail.roles.guest")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className={!canManage ? "opacity-60 pointer-events-none" : "opacity-80"}>
+            <div className="space-y-2">
+              <Label className="text-slate-300">{t("employeeDetail.fields.status")}</Label>
+              <Select
+                value={status}
+                onValueChange={(value) => setStatus(value as Status)}
+                disabled={!isEditing || !canManage}
+              >
+                <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                  <SelectItem value="active">{t("employeeDetail.status.activeLabel")}</SelectItem>
+                  <SelectItem value="pending_verification">
+                    {t("employeeDetail.status.pendingVerificationLabel")}
+                  </SelectItem>
+                  <SelectItem value="pending_profile">
+                    {t("employeeDetail.status.pendingProfileLabel")}
+                  </SelectItem>
+                  <SelectItem value="pending_approval">
+                    {t("employeeDetail.status.pendingApprovalLabel")}
+                  </SelectItem>
+                  <SelectItem value="rejected">{t("employeeDetail.status.rejectedLabel")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className={!canManage ? "opacity-60 pointer-events-none" : "opacity-80"}>
+            <div className="space-y-2">
+              <Label className="text-slate-300">{t("employeeDetail.fields.profileCompletion")}</Label>
+              <Select
+                value={profileCompleted ? "yes" : "no"}
+                onValueChange={(value) => setProfileCompleted(value === "yes")}
+                disabled={!isEditing || !canManage}
+              >
+                <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                  <SelectItem value="yes">{t("employeeDetail.profile.completed")}</SelectItem>
+                  <SelectItem value="no">{t("employeeDetail.profile.incomplete")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+</section>
                 </div>
 
-                {(canManage || isOwnProfile) && isEditing && activeEditor === null && (
+               {(canManage || isOwnProfile) && isEditing && activeEditor === null && (
   <div className="sticky bottom-4 flex items-center justify-end gap-2 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 backdrop-blur">
     <Button
       variant="outline"

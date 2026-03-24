@@ -98,10 +98,24 @@ setTranslatedMessages((prev) => ({
               variant="outline"
               className="border-slate-700 text-slate-200 hover:bg-slate-800"
               onClick={() => {
-                if (allSelected) {
-                  allSelectableIds.forEach(() => {});
-                }
-              }}
+  if (allSelected) {
+    // clear all
+    allSelectableIds.forEach((id) => {
+      if (selectedMessageIds.includes(id)) {
+        const msg = messages.find((m) => m.id === id);
+        if (msg) onToggleSelection(msg);
+      }
+    });
+  } else {
+    // select all
+    allSelectableIds.forEach((id) => {
+      if (!selectedMessageIds.includes(id)) {
+        const msg = messages.find((m) => m.id === id);
+        if (msg) onToggleSelection(msg);
+      }
+    });
+  }
+}}
             >
               {allSelected ? (
                 <>
@@ -174,7 +188,7 @@ setTranslatedMessages((prev) => ({
                     <div className="w-8 flex-shrink-0" />
                   )}
 
-                  <div className={`max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
+                  <div className={`flex flex-col max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
                     {showAvatar && (
                       <p className="text-xs text-slate-500 mb-1">
                         {user?.full_name || t("chat.common.unknown")} • {formatMessageTime(message.created_at, t)}

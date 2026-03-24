@@ -437,7 +437,7 @@ export default function DashboardLayout({
 
       userProfileRef.current = loadedUser;
       setUserProfile(loadedUser);
-      writeLayoutCache(loadedUser, notifications);
+            writeLayoutCache(loadedUser, userProfileRef.current?.userId === loadedUser.userId ? notifications : []);
 
       await Promise.all([
         loadNotifications(loadedUser.userId, loadedUser),
@@ -452,7 +452,7 @@ export default function DashboardLayout({
       if (requestId !== loadUserRequestIdRef.current) return;
       setIsLoadingUser(false);
     }
-  }, [clearUserState, loadCalendarBadge, loadNotifications, notifications]);
+    }, [clearUserState, loadCalendarBadge, loadNotifications]);
 
   useEffect(() => {
     mountedRef.current = true;

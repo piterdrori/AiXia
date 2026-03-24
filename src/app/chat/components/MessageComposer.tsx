@@ -1,4 +1,4 @@
-import { Send } from "lucide-react";
+import { Send, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/lib/i18n";
@@ -12,6 +12,8 @@ type Props = {
   onChange: (value: string) => void;
   onSend: () => void;
   onInsertMention: (fullName: string) => void;
+  onUploadFile: (file: File) => void;
+  isUploadingFile: boolean;
 };
 
 export default function MessageComposer({
@@ -22,6 +24,8 @@ export default function MessageComposer({
   onChange,
   onSend,
   onInsertMention,
+  onUploadFile,
+  isUploadingFile,
 }: Props) {
   const { t } = useLanguage();
 
@@ -29,28 +33,46 @@ export default function MessageComposer({
     <div className="p-4 border-t border-slate-800 shrink-0">
       <div className="space-y-2">
         <div className="flex gap-2 items-end">
-          <Textarea
-            placeholder={t("chat.composer.placeholder")}
-            value={messageInput}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                onSend();
-              }
-            }}
-            rows={2}
-            className="min-h-[44px] max-h-40 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 resize-none"
-          />
+  {/* Upload button */}
+  <label className="cursor-pointer">
+    <input
+      type="file"
+      className="hidden"
+      onChange={(e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          onUploadFile(file);
+          e.target.value = "";
+        }
+      }}
+    />
+    <div className="h-11 w-11 flex items-center justify-center rounded-md bg-slate-800 hover:bg-slate-700">
+      <Paperclip className="w-4 h-4 text-white" />
+    </div>
+  </label>
 
-          <Button
-            onClick={onSend}
-            disabled={isSending || !messageInput.trim()}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white h-11"
-          >
-            <Send className="w-4 h-4" />
-          </Button>
-        </div>
+  <Textarea
+    placeholder={t("chat.composer.placeholder")}
+    value={messageInput}
+    onChange={(e) => onChange(e.target.value)}
+    onKeyDown={(e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        onSend();
+      }
+    }}
+    rows={2}
+    className="min-h-[44px] max-h-40 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 resize-none"
+  />
+
+  <Button
+    onClick={onSend}
+    disabled={isSending || isUploadingFile || !messageInput.trim()}
+    className="bg-indigo-600 hover:bg-indigo-700 text-white h-11"
+  >
+    <Send className="w-4 h-4" />
+  </Button>
+</div>
 
         {showMentionDropdown && (
           <div className="rounded-lg border border-slate-800 bg-slate-900 shadow-lg overflow-hidden">

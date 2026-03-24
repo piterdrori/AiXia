@@ -236,17 +236,89 @@ export default function ChatPage() {
     setShowMentionDropdown(false);
   };
 
-  const handleUploadFile = async (_file: File) => {
-  setIsUploadingFile(true);
-  setError("");
+  const handleUploadFile = async (file: File) => {
+    if (!selectedConversationId || !currentUserId) return;
 
-  try {
-    // temporary placeholder so the component compiles
-    setError(t("chat.errors.uploadNotReady", "File upload is not ready yet."));
-  } finally {
-    setIsUploadingFile(false);
-  }
-};
+    setIsUploadingFile(true);
+    setError("");
+
+    try {
+      const fileExt = file.name.split(".").pop();
+      const safeExt = fileExt ? `.${fileExt}` : "";
+      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}${safeExt}`;
+      const filePath = `${selectedConversationId}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("chat-files")
+        .upload(filePath, file);
+
+      if (uploadError) {
+        throw new Error(uploadError.message);
+      }
+
+      const { data: message, error: messageError } = await supabase
+        .from("chat_messages")
+        .insert({
+          group_id: selectedConversationId,
+          user_id: currentUserId,
+          content: "",
+        })
+        .select("id")
+        .single();
+
+      if (messageError || !message) {
+        throw new Error(messageError?.message || "Failed to create message");
+      }
+
+      const { error: attachmentError } = await supabase
+        .from("chat_attachments")
+        .insert({
+          message_id: message.id,
+          group_id: selectedConversationId,
+          uploaded_by: currentUserId,
+          file_name: file.name,
+          file_path: filePath,
+          mime_type: file.type || null,
+          file_size: file.size,
+        });
+
+      if (attachmentError) {
+        throw new Error(attachmentError.message);
+      }
+
+      appendMessageLocally(selectedConversationId, {
+        id: message.id,
+        group_id: selectedConversationId,
+        user_id: currentUserId,
+        content: "",
+        created_at: clock.nowIso,
+        attachments: [
+          {
+            id: `local-${message.id}`,
+            message_id: message.id,
+            group_id: selectedConversationId,
+            uploaded_by: currentUserId,
+            file_name: file.name,
+            file_path: filePath,
+            mime_type: file.type || null,
+            file_size: file.size,
+            created_at: clock.nowIso,
+          },
+        ],
+      });
+
+      moveGroupToTop(selectedConversationId);
+
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      });
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || t("chat.errors.uploadFailed", "Upload failed"));
+    } finally {
+      setIsUploadingFile(false);
+    }
+  };
 
   const toggleGroupMember = (userId: string) => {
     setSelectedGroupMembers((prev) =>

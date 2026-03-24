@@ -797,7 +797,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
         .from("member_invitations")
         .update({
           status: "cancelled",
-          cancelled_at: clock.nowIso(),
+          cancelled_at: clock.nowIso,
         })
         .eq("id", invitationId)
         .eq("status", "pending");

@@ -20,7 +20,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { LanguageProvider, useLanguage } from "@/lib/i18n";
 import type { Language } from "@/lib/translations";
 import { ClockProvider } from "@/lib/clock/provider";
-import { canAccessRoute, type Role } from "@/lib/permissions";
+import { canAccessRoute, type Permission, type Role } from "@/lib/permissions";
 import LandingPage from "@/app/page";
 import LoginPage from "@/app/login/page";
 import RegisterPage from "@/app/register/page";
@@ -290,15 +290,17 @@ function ProtectedRoute({
   const location = useLocation();
   const { isBootstrapping, accessState } = useAuthAccess();
   const [role, setRole] = useState<Role | null>(null);
-  const [isCheckingRole, setIsCheckingRole] = useState(false);
+const [permissions, setPermissions] = useState<Partial<Record<Permission, boolean>>>({});
+const [isCheckingRole, setIsCheckingRole] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
     const loadRole = async () => {
-      if (accessState !== "ready") {
+            if (accessState !== "ready") {
         if (mounted) {
           setRole(null);
+          setPermissions({});
           setIsCheckingRole(false);
         }
         return;
@@ -313,31 +315,35 @@ function ProtectedRoute({
 
         if (!mounted) return;
 
-        if (!session?.user) {
+                if (!session?.user) {
           setRole(null);
+          setPermissions({});
           setIsCheckingRole(false);
           return;
         }
 
         const { data, error } = await supabase
           .from("profiles")
-          .select("role")
+          .select("role, permissions")
           .eq("user_id", session.user.id)
           .single();
 
         if (!mounted) return;
 
         if (error || !data?.role) {
-          setRole(null);
-          setIsCheckingRole(false);
-          return;
-        }
+  setRole(null);
+  setPermissions({});
+  setIsCheckingRole(false);
+  return;
+}
 
-        setRole(data.role as Role);
-      } catch (error) {
+setRole(data.role as Role);
+setPermissions(data.permissions || {});
+            } catch (error) {
         console.error("ProtectedRoute role load error:", error);
         if (!mounted) return;
         setRole(null);
+        setPermissions({});
       } finally {
         if (mounted) {
           setIsCheckingRole(false);
@@ -347,8 +353,48 @@ function ProtectedRoute({
 
     void loadRole();
 
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    const setupProfileSubscription = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!mounted || !user?.id) return;
+
+      channel = supabase
+        .channel(`profile-permissions-listener-${user.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "profiles",
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const newProfile = payload.new as {
+  role: Role;
+  permissions?: Partial<Record<Permission, boolean>> | null;
+};
+
+            if (!mounted) return;
+
+            setRole(newProfile.role as Role);
+            setPermissions(newProfile.permissions || {});
+          }
+        )
+        .subscribe();
+    };
+
+    void setupProfileSubscription();
+    
     return () => {
       mounted = false;
+
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [accessState]);
 
@@ -380,9 +426,9 @@ function ProtectedRoute({
       return <Navigate to="/dashboard" replace />;
     }
 
-    if (!canAccessRoute(role, location.pathname)) {
-      return <Navigate to="/dashboard" replace />;
-    }
+    if (!canAccessRoute(role, location.pathname, permissions)) {
+  return <Navigate to="/dashboard" replace />;
+}
   }
 
   return <>{children}</>;

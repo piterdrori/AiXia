@@ -340,6 +340,7 @@ export default function EmployeesPage() {
 const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 const [adminContactName, setAdminContactName] = useState("System Admin");
+  const [showAccessDenied, setShowAccessDenied] = useState(false);
 
   const employeesRequest = useRequest<boolean>();
 const employeesRequestRef = useRef(employeesRequest);
@@ -1462,9 +1463,9 @@ disabled={employeesRequest.status === "loading"}
     currentUserRole === "admin" || canManageUsers;
 
   if (!canOpenEmployeeDetail) {
-    toast.error("Access denied", {
-  description: `You do not have permission to open this employee profile. Please contact "${adminContactName}" (administrator) if you need access.`,
-});
+  setShowAccessDenied(true);
+  return;
+}
     return;
   }
 
@@ -1689,7 +1690,35 @@ disabled={employeesRequest.status === "loading"}
             </div>
           </div>
         </DialogContent>
-      </Dialog>
+            </Dialog>
+
+      {showAccessDenied && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <h2 className="text-lg font-semibold text-white mb-2">
+              Access Denied
+            </h2>
+
+            <p className="text-sm text-slate-300 mb-4">
+              You do not have permission to open this employee profile.
+            </p>
+
+            <p className="text-sm text-slate-400 mb-6">
+              Please contact <span className="text-white font-medium">"{adminContactName}"</span> (administrator) if you need access.
+            </p>
+
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowAccessDenied(false)}
+                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
     );
 }

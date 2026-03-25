@@ -59,9 +59,17 @@ const permissionLabels: Record<
     label: "Edit Tasks",
     description: "Can edit tasks",
   },
-  deleteTasks: {
+    deleteTasks: {
     label: "Delete Tasks",
     description: "Can delete tasks",
+  },
+  viewEmployeeDirectory: {
+    label: "View Employee Directory",
+    description: "Can open the employees directory page",
+  },
+  viewEmployeeDetail: {
+    label: "View Employee Detail",
+    description: "Can open employee profile detail pages",
   },
   manageUsers: {
     label: "Manage Users",

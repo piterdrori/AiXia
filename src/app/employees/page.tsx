@@ -37,7 +37,13 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
-import { canPerform, type Role } from "@/lib/permissions";
+import {
+  canPerform,
+  getVisibleProjectIds,
+  type ProjectMemberRow,
+  type ProjectRow,
+  type Role,
+} from "@/lib/permissions";
 
 
 type MemberType =
@@ -119,6 +125,10 @@ type ProfileRow = {
 type CurrentUserRoleRow = {
   role: Role;
 };
+
+type ProjectVisibilityRow = ProjectRow;
+
+type ProjectMemberVisibilityRow = ProjectMemberRow;
 
 type TabValue = "all" | "pending" | "active" | "rejected";
 type RoleFilterValue = "all" | Role;
@@ -336,11 +346,13 @@ export default function EmployeesPage() {
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
 
-  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+const [profiles, setProfiles] = useState<ProfileRow[]>([]);
 const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 const [adminContactName, setAdminContactName] = useState("System Admin");
-  const [showAccessDenied, setShowAccessDenied] = useState(false);
+const [showAccessDenied, setShowAccessDenied] = useState(false);
+const [projects, setProjects] = useState<ProjectVisibilityRow[]>([]);
+const [projectMembers, setProjectMembers] = useState<ProjectMemberVisibilityRow[]>([]);
 
   const employeesRequest = useRequest<boolean>();
 const employeesRequestRef = useRef(employeesRequest);
@@ -596,7 +608,7 @@ const loadProfiles = useCallback(async () => {
         throw profilesError;
       }
 
-      let invitationsData: InvitationRow[] = [];
+            let invitationsData: InvitationRow[] = [];
 
       if (canPerform(currentRole, "manageUsers")) {
         const { data, error } = await supabase
@@ -613,17 +625,39 @@ const loadProfiles = useCallback(async () => {
         invitationsData = (data || []) as InvitationRow[];
       }
 
+      const { data: projectsData, error: projectsError } = await supabase
+        .from("projects")
+        .select("id, created_by");
+
+      if (!requestTracker.current.isLatest(requestId)) return true;
+
+      if (projectsError) {
+        throw projectsError;
+      }
+
+      const { data: projectMembersData, error: projectMembersError } = await supabase
+        .from("project_members")
+        .select("project_id, user_id");
+
+      if (!requestTracker.current.isLatest(requestId)) return true;
+
+      if (projectMembersError) {
+        throw projectMembersError;
+      }
+
       const nextProfiles = (profilesData || []) as ProfileRow[];
 
-setProfiles(nextProfiles);
+      setProfiles(nextProfiles);
+      setProjects((projectsData || []) as ProjectVisibilityRow[]);
+      setProjectMembers((projectMembersData || []) as ProjectMemberVisibilityRow[]);
 
-const primaryAdmin = nextProfiles.find(
-  (profile) => profile.role === "admin" && profile.full_name?.trim()
-);
+      const primaryAdmin = nextProfiles.find(
+        (profile) => profile.role === "admin" && profile.full_name?.trim()
+      );
 
-setAdminContactName(primaryAdmin?.full_name?.trim() || "System Admin");
-setInvitations(invitationsData);
-setHasLoadedOnce(true);
+      setAdminContactName(primaryAdmin?.full_name?.trim() || "System Admin");
+      setInvitations(invitationsData);
+      setHasLoadedOnce(true);
 
       return true;
     });
@@ -970,10 +1004,49 @@ const handleResendInvite = async (invitation: InvitationRow) => {
         profile.status !== "pending_profile"
     );
 
+    const currentProfile = currentUserId
+      ? baseUsers.find((profile) => profile.user_id === currentUserId) || null
+      : null;
+
+    const currentCompanies = new Set(
+      splitMultiValue(currentProfile?.company).map((value) => value.toLowerCase())
+    );
+
+    const visibleProjectIds =
+      currentUserId && currentUserRole
+        ? getVisibleProjectIds(currentUserId, currentUserRole, projects, projectMembers)
+        : new Set<string>();
+
+    const visibleMemberUserIds = new Set(
+      projectMembers
+        .filter((member) => visibleProjectIds.has(member.project_id))
+        .map((member) => member.user_id)
+    );
+
+    const scopedUsers =
+      currentUserRole === "admin"
+        ? baseUsers
+        : baseUsers.filter((profile) => {
+            if (!currentUserId) return false;
+            if (profile.user_id === currentUserId) return true;
+
+            const profileCompanies = splitMultiValue(profile.company).map((value) =>
+              value.toLowerCase()
+            );
+
+            const sharesCompany =
+              currentCompanies.size > 0 &&
+              profileCompanies.some((company) => currentCompanies.has(company));
+
+            const sharesProject = visibleMemberUserIds.has(profile.user_id);
+
+            return sharesCompany || sharesProject;
+          });
+
     const normalizedQuery = normalizeSearch(searchQuery);
 
     const searchedUsers = normalizedQuery
-      ? baseUsers.filter((profile) => {
+      ? scopedUsers.filter((profile) => {
           const searchableText = [
             profile.full_name,
             profile.email,
@@ -1000,7 +1073,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
 
           return searchableText.includes(normalizedQuery);
         })
-      : baseUsers;
+      : scopedUsers;
 
     const roleFilteredUsers =
       roleFilter === "all"
@@ -1035,6 +1108,10 @@ const handleResendInvite = async (invitation: InvitationRow) => {
     return statusFilteredUsers;
   }, [
     profiles,
+    currentUserId,
+    currentUserRole,
+    projects,
+    projectMembers,
     searchQuery,
     activeTab,
     roleFilter,
@@ -1087,8 +1164,12 @@ const handleResendInvite = async (invitation: InvitationRow) => {
     }
   };
 
-    const canOpenEmployeeDetail = (role: Role | null, canManage: boolean) => {
-    return role === "admin" || canManage;
+      const canOpenEmployeeDetail = (
+    role: Role | null,
+    canManage: boolean
+  ) => {
+    if (!role) return false;
+    return canManage || canPerform(role, "viewEmployeeDetail");
   };
 
     const getInitials = (fullName: string | null) => {

@@ -42,9 +42,11 @@ import { useAppClock } from "@/lib/clock/provider";
 import {
   canPerform,
   getVisibleProjectIds,
+  getEffectivePermissions,
   type ProjectMemberRow,
   type ProjectRow,
   type Role,
+  type Permission,
 } from "@/lib/permissions";
 
 
@@ -352,6 +354,9 @@ export default function EmployeesPage() {
 const [profiles, setProfiles] = useState<ProfileRow[]>([]);
 const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+  const [currentUserPermissions, setCurrentUserPermissions] = useState<
+  Partial<Record<Permission, boolean>>
+>({});
 const [adminContactName, setAdminContactName] = useState("System Admin");
 const [showAccessDenied, setShowAccessDenied] = useState(false);
 const [hasRequestedAccess, setHasRequestedAccess] = useState(false);
@@ -388,10 +393,17 @@ useEffect(() => {
   const [invitationActionId, setInvitationActionId] = useState<string | null>(null);
   const [showInviteHistory, setShowInviteHistory] = useState(false);
   const [directMessageLoadingUserId, setDirectMessageLoadingUserId] = useState<string | null>(null);
-  const canManageUsers = currentUserRole
-  ? canPerform(currentUserRole, "manageUsers")
-  : false;
-  const isRoleResolved = currentUserRole !== null;
+  const effectivePermissions = useMemo(() => {
+  if (!currentUserRole) return {} as Record<Permission, boolean>;
+
+  return getEffectivePermissions(
+    currentUserRole,
+    currentUserPermissions || null
+  );
+}, [currentUserRole, currentUserPermissions]);
+
+const canManageUsers = !!effectivePermissions.manageUsers;
+const isRoleResolved = currentUserRole !== null;
   
 const handleSendInvite = async () => {
   if (isSendingInvite) return;
@@ -585,20 +597,22 @@ const loadProfiles = useCallback(async () => {
 
       const { data: me, error: meError } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, permissions")
         .eq("user_id", user.id)
         .single();
 
       if (!requestTracker.current.isLatest(requestId)) return true;
 
-      if (meError || !me) {
+ if (meError || !me) {
   console.error("Failed to load user role", meError);
   setCurrentUserRole("employee");
+  setCurrentUserPermissions({});
   return true;
 }
 
-      const currentRole = (me as CurrentUserRoleRow).role;
-      setCurrentUserRole(currentRole);
+      const currentRole = (me as any).role;
+setCurrentUserRole(currentRole);
+setCurrentUserPermissions((me as any).permissions || {});
 
       if (canPerform(currentRole, "manageUsers")) {
         await supabase.rpc("expire_old_member_invitations");
@@ -685,8 +699,52 @@ const loadProfiles = useCallback(async () => {
   }
 }, [navigate]);
 
-  useEffect(() => {
+ useEffect(() => {
   void loadProfiles();
+
+  let channel: ReturnType<typeof supabase.channel> | null = null;
+  let mounted = true;
+
+  const setupProfileSubscription = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!mounted || !user?.id) return;
+
+    channel = supabase
+      .channel(`employees-page-profile-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "profiles",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const nextProfile = payload.new as {
+            role: Role;
+            permissions?: Partial<Record<Permission, boolean>> | null;
+          };
+
+          if (!mounted) return;
+
+          setCurrentUserRole(nextProfile.role);
+          setCurrentUserPermissions(nextProfile.permissions || {});
+        }
+      )
+      .subscribe();
+  };
+
+  void setupProfileSubscription();
+
+  return () => {
+    mounted = false;
+    if (channel) {
+      supabase.removeChannel(channel);
+    }
+  };
 }, [loadProfiles]);
 
   const approveUser = async (userId: string) => {
@@ -1231,13 +1289,13 @@ const handleResendInvite = async (invitation: InvitationRow) => {
     }
   };
 
-      const canOpenEmployeeDetail = (
-    role: Role | null,
-    canManage: boolean
-  ) => {
-    if (!role) return false;
-    return canManage || canPerform(role, "viewEmployeeDetail");
-  };
+  const canOpenEmployeeDetail = (_targetUserId: string) => {
+  if (!currentUserRole) return false;
+
+  if (canManageUsers) return true;
+
+  return !!effectivePermissions.viewEmployeeDetail;
+};
 
     const getInitials = (fullName: string | null) => {
     if (!fullName) return "U";
@@ -1609,13 +1667,13 @@ disabled={employeesRequest.status === "loading"}
           {visibleUsers.map((user) => (
             <Card
   key={user.user_id}
-  className={`bg-slate-900/50 border-slate-800 transition-all cursor-pointer ${
-    canOpenEmployeeDetail(currentUserRole, canManageUsers)
-      ? "hover:border-indigo-500/30"
-      : "hover:border-slate-700"
-  }`}
+ className={`bg-slate-900/50 border-slate-800 transition-all cursor-pointer ${
+  canOpenEmployeeDetail(user.user_id)
+    ? "hover:border-indigo-500/30"
+    : "hover:border-slate-700"
+}`}
                             onClick={() => {
-  const allowed = canOpenEmployeeDetail(currentUserRole, canManageUsers);
+  const allowed = canOpenEmployeeDetail(user.user_id);
 
     if (!allowed) {
     setRequestAccessTargetUserId(user.user_id);
@@ -1659,7 +1717,7 @@ disabled={employeesRequest.status === "loading"}
     {getStatusLabel(user.status)}
   </Badge>
 
-  {!canOpenEmployeeDetail(currentUserRole, canManageUsers) && (
+  {!canOpenEmployeeDetail(user.user_id) && (
     <Badge className="bg-slate-800 text-slate-200 border-slate-700 flex items-center gap-1">
       <Lock className="w-3 h-3" />
       Restricted

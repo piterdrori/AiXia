@@ -3,14 +3,14 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
-import { canPerform, getEffectivePermissions, type Permission, type Role } from "@/lib/permissions";
+import { getEffectivePermissions, type Permission, type Role } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Shield, Save, AlertCircle } from "lucide-react";
+import { ArrowLeft, Shield, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type Status =
@@ -115,11 +115,11 @@ export default function EmployeePermissionsPage() {
   const requestTracker = useRef(createRequestTracker());
 
   const [permissions, setPermissions] = useState<Partial<Record<Permission, boolean>>>({});
-  const [saved, setSaved] = useState(false);
+  
   const [saveError, setSaveError] = useState("");
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+ 
 const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 const [user, setUser] = useState<ProfileRow | null>(null);
 const [accessRequests, setAccessRequests] = useState<AccessRequestRow[]>([]);
@@ -174,7 +174,9 @@ const [requestActionId, setRequestActionId] = useState<string | null>(null);
         const myRole = (me as CurrentUserRoleRow).role;
         setCurrentUserRole(myRole);
 
-        if (!canPerform(myRole, "manageUsers")) {
+        const effective = getEffectivePermissions(myRole, null);
+
+if (!effective.manageUsers) {
   navigate("/employees");
   return;
 }
@@ -258,7 +260,7 @@ if (requesterIds.length > 0) {
     void loadData("initial");
   }, [loadData]);
 
-  const handleToggle = (permission: Permission) => {
+const handleToggle = async (permission: Permission) => {
   if (!user) return;
 
   const currentEffectivePermissions = getEffectivePermissions(
@@ -268,22 +270,44 @@ if (requesterIds.length > 0) {
 
   const nextValue = !currentEffectivePermissions[permission];
 
-  setPermissions((prev) => ({
-    ...prev,
+  const nextPermissions = {
+    ...(permissions || {}),
     [permission]: nextValue,
-  }));
+  };
 
-  setSaved(false);
+  setPermissions(nextPermissions);
   setSaveError("");
+
+  try {
+    const updatedAt = new Date().toISOString();
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        permissions: nextPermissions,
+        updated_at: updatedAt,
+      })
+      .eq("user_id", user.user_id);
+
+    if (error) {
+      throw error;
+    }
+  } catch (err) {
+    console.error("Permission toggle error:", err);
+    setSaveError(
+      err instanceof Error ? err.message : "Failed to update permission"
+    );
+  }
 };
 
   const handleReviewAccessRequest = async (
     request: AccessRequestRow,
     nextStatus: "approved" | "rejected"
   ) => {
-    if (!id || !currentUserRole || !canPerform(currentUserRole, "manageUsers")) {
-      return;
-    }
+    if (!id || !currentUserRole) return;
+
+const effective = getEffectivePermissions(currentUserRole, null);
+if (!effective.manageUsers) return;
 
     setRequestActionId(request.id);
     setSaveError("");
@@ -345,49 +369,6 @@ if (requesterIds.length > 0) {
   };
   
 
-  const handleSave = async () => {
-    if (!id || !currentUserRole || !canPerform(currentUserRole, "manageUsers")) return;
-
-    setIsSaving(true);
-    setSaved(false);
-    setSaveError("");
-
-    try {
-      const nextUpdatedAt = new Date().toISOString();
-
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          permissions,
-          updated_at: nextUpdatedAt,
-        })
-        .eq("user_id", id);
-
-      if (error) {
-        setSaveError(error.message || t("employeePermissions.errors.saveFailed"));
-        return;
-      }
-
-      setUser((prev) =>
-        prev
-          ? {
-              ...prev,
-              permissions,
-              updated_at: nextUpdatedAt,
-            }
-          : prev
-      );
-
-      setSaved(true);
-      window.setTimeout(() => setSaved(false), 3000);
-    } catch (err) {
-      console.error("Permissions save error:", err);
-      setSaveError(t("employeePermissions.errors.unexpectedSaveError"));
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
 const effectivePermissionEntries = useMemo(() => {
   if (!user) return [];
 
@@ -419,12 +400,15 @@ const effectivePermissionEntries = useMemo(() => {
     );
   }
 
-  if (
-    (!currentUserRole || !canPerform(currentUserRole, "manageUsers")) &&
-    !isBootstrapping
-  ) {
-    return null;
-  }
+if (!currentUserRole && !isBootstrapping) return null;
+
+const effective = currentUserRole
+  ? getEffectivePermissions(currentUserRole, null)
+  : null;
+
+if (!effective?.manageUsers && !isBootstrapping) {
+  return null;
+}
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -434,7 +418,7 @@ const effectivePermissionEntries = useMemo(() => {
           size="icon"
           onClick={() => navigate(`/employees/${id}`)}
           className="text-slate-400 hover:text-white"
-          disabled={isSaving}
+          disabled={false}
         >
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -456,21 +440,13 @@ const effectivePermissionEntries = useMemo(() => {
           variant="outline"
           className="border-slate-700 text-slate-300 hover:bg-slate-800"
           onClick={() => void loadData("refresh")}
-          disabled={isRefreshing || isSaving}
+          disabled={isRefreshing}
         >
           {isRefreshing
             ? t("employeePermissions.actions.refreshing")
             : t("employeePermissions.actions.refresh")}
         </Button>
       </div>
-
-      {saved && (
-        <Alert className="bg-green-900/20 border-green-800 text-green-400">
-          <AlertDescription>
-            {t("employeePermissions.success.saved")}
-          </AlertDescription>
-        </Alert>
-      )}
 
       {saveError && user && (
         <Alert className="bg-red-900/20 border-red-800 text-red-400">
@@ -520,7 +496,7 @@ const effectivePermissionEntries = useMemo(() => {
         id={permission}
         checked={enabled}
         onCheckedChange={() => handleToggle(permission)}
-        disabled={isSaving}
+        disabled={false}
       />
     </div>
   )
@@ -533,21 +509,11 @@ const effectivePermissionEntries = useMemo(() => {
               variant="outline"
               onClick={() => navigate(`/employees/${id}`)}
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
-              disabled={isSaving}
+              disabled={false}
             >
               {t("employeePermissions.actions.cancel")}
             </Button>
 
-            <Button
-              onClick={() => void handleSave()}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              disabled={isSaving}
-            >
-              <Save className="w-4 h-4 mr-2" />
-              {isSaving
-                ? t("employeePermissions.actions.saving")
-                : t("employeePermissions.actions.savePermissions")}
-            </Button>
           </div>
         </CardContent>
       </Card>

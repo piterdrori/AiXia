@@ -7,7 +7,11 @@ export type Permission =
   | "createTasks"
   | "editTasks"
   | "deleteTasks"
+
+  | "viewEmployeeDirectory"
+  | "viewEmployeeDetail"
   | "manageUsers"
+
   | "viewReports"
   | "accessChat"
   | "changeSettings"
@@ -44,60 +48,76 @@ export type CalendarEventRow = {
 
 const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
   admin: {
-    createProjects: true,
-    editAllProjects: true,
-    deleteProjects: true,
-    createTasks: true,
-    editTasks: true,
-    deleteTasks: true,
-    manageUsers: true,
-    viewReports: true,
-    accessChat: true,
-    changeSettings: true,
-    visibility: true,
-  },
+  createProjects: true,
+  editAllProjects: true,
+  deleteProjects: true,
+  createTasks: true,
+  editTasks: true,
+  deleteTasks: true,
 
-  manager: {
-    createProjects: true,
-    editAllProjects: true,
-    deleteProjects: false,
-    createTasks: true,
-    editTasks: true,
-    deleteTasks: false,
-    manageUsers: false,
-    viewReports: true,
-    accessChat: true,
-    changeSettings: true,
-    visibility: true,
-  },
+  viewEmployeeDirectory: true,
+  viewEmployeeDetail: true,
+  manageUsers: true,
+
+  viewReports: true,
+  accessChat: true,
+  changeSettings: true,
+  visibility: true,
+},
+
+ manager: {
+  createProjects: true,
+  editAllProjects: true,
+  deleteProjects: false,
+  createTasks: true,
+  editTasks: true,
+  deleteTasks: false,
+
+  viewEmployeeDirectory: true,
+  viewEmployeeDetail: true,
+  manageUsers: false,
+
+  viewReports: true,
+  accessChat: true,
+  changeSettings: true,
+  visibility: true,
+},
 
   employee: {
-    createProjects: false,
-    editAllProjects: false,
-    deleteProjects: false,
-    createTasks: true,
-    editTasks: true,
-    deleteTasks: false,
-    manageUsers: false,
-    viewReports: false,
-    accessChat: true,
-    changeSettings: true,
-    visibility: false,
-  },
+  createProjects: false,
+  editAllProjects: false,
+  deleteProjects: false,
+  createTasks: true,
+  editTasks: true,
+  deleteTasks: false,
 
-  guest: {
-    createProjects: false,
-    editAllProjects: false,
-    deleteProjects: false,
-    createTasks: true,
-    editTasks: false,
-    deleteTasks: false,
-    manageUsers: false,
-    viewReports: false,
-    accessChat: true,
-    changeSettings: false,
-    visibility: false,
-  },
+  viewEmployeeDirectory: true,
+  viewEmployeeDetail: false,
+  manageUsers: false,
+
+  viewReports: false,
+  accessChat: true,
+  changeSettings: true,
+  visibility: false,
+},
+
+ guest: {
+  createProjects: false,
+  editAllProjects: false,
+  deleteProjects: false,
+  createTasks: true,
+  editTasks: false,
+  deleteTasks: false,
+
+  viewEmployeeDirectory: true,
+  viewEmployeeDetail: false,
+  manageUsers: false,
+
+  viewReports: false,
+  accessChat: true,
+  changeSettings: false,
+  visibility: false,
+},
 };
 
 /* =========================================================
@@ -131,9 +151,9 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/chat/:id": { permission: "accessChat" },
   "/inbox": { permission: "accessChat" },
 
- "/employees": { roles: ["admin", "manager", "employee", "guest"] },
+"/employees": { permission: "viewEmployeeDirectory" },
 
-"/employees/:id": { permission: "manageUsers" },
+"/employees/:id": { permission: "viewEmployeeDetail" },
 
 "/employees/:id/permissions": { permission: "manageUsers" },
 

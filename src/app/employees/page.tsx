@@ -10,7 +10,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "sonner";
 
 import {
   Select,
@@ -1458,19 +1457,18 @@ disabled={employeesRequest.status === "loading"}
             <Card
               key={user.user_id}
               className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/30 transition-all cursor-pointer"
-             onClick={() => {
-  const canOpenEmployeeDetail =
-    currentUserRole === "admin" || canManageUsers;
+                            onClick={() => {
+                const canOpenEmployeeDetail =
+                  currentUserRole === "admin" || canManageUsers;
 
-  if (!canOpenEmployeeDetail) {
-  setShowAccessDenied(true);
-  return;
-}
-    return;
-  }
+                if (!canOpenEmployeeDetail) {
+                  setShowAccessDenied(true);
+                  return;
+                }
 
-  navigate(`/employees/${user.user_id}`);
-}}
+                navigate(`/employees/${user.user_id}`);
+              }}
+             
             >
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">

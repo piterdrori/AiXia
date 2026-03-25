@@ -33,6 +33,7 @@ import {
   Building2,
   Briefcase,
   MessageSquare,
+  Lock,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
@@ -1086,6 +1087,10 @@ const handleResendInvite = async (invitation: InvitationRow) => {
     }
   };
 
+    const canOpenEmployeeDetail = (role: Role | null, canManage: boolean) => {
+    return role === "admin" || canManage;
+  };
+
     const getInitials = (fullName: string | null) => {
     if (!fullName) return "U";
 
@@ -1455,8 +1460,12 @@ disabled={employeesRequest.status === "loading"}
         <div className="grid xl:grid-cols-2 gap-4">
           {visibleUsers.map((user) => (
             <Card
-              key={user.user_id}
-              className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/30 transition-all cursor-pointer"
+  key={user.user_id}
+  className={`bg-slate-900/50 border-slate-800 transition-all cursor-pointer ${
+    canOpenEmployeeDetail(currentUserRole, canManageUsers)
+      ? "hover:border-indigo-500/30"
+      : "hover:border-slate-700"
+  }`}
                             onClick={() => {
                 const canOpenEmployeeDetail =
                   currentUserRole === "admin" || canManageUsers;
@@ -1493,18 +1502,26 @@ disabled={employeesRequest.status === "loading"}
                         </div>
 
                         <div className="mt-2 flex items-center gap-2 flex-wrap">
-                          <Badge className={getRoleColor(user.role)}>
-                            {user.role.toUpperCase()}
-                          </Badge>
-                          <Badge className={getStatusColor(user.status)}>
-                            {getStatusLabel(user.status)}
-                          </Badge>
-                          {!user.profile_completed && user.status === "active" && (
-                            <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-                              {t("employees.badges.profileIncomplete")}
-                            </Badge>
-                          )}
-                        </div>
+  <Badge className={getRoleColor(user.role)}>
+    {user.role.toUpperCase()}
+  </Badge>
+  <Badge className={getStatusColor(user.status)}>
+    {getStatusLabel(user.status)}
+  </Badge>
+
+  {!canOpenEmployeeDetail(currentUserRole, canManageUsers) && (
+    <Badge className="bg-slate-800 text-slate-200 border-slate-700 flex items-center gap-1">
+      <Lock className="w-3 h-3" />
+      Restricted
+    </Badge>
+  )}
+
+  {!user.profile_completed && user.status === "active" && (
+    <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+      {t("employees.badges.profileIncomplete")}
+    </Badge>
+  )}
+</div>
                       </div>
 
                       <Button

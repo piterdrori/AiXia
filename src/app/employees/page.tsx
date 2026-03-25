@@ -335,8 +335,9 @@ export default function EmployeesPage() {
   const requestTracker = useRef(createRequestTracker());
 
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+const [adminContactName, setAdminContactName] = useState("System Admin");
 
   const employeesRequest = useRequest<boolean>();
 const employeesRequestRef = useRef(employeesRequest);
@@ -609,9 +610,17 @@ const loadProfiles = useCallback(async () => {
         invitationsData = (data || []) as InvitationRow[];
       }
 
-      setProfiles((profilesData || []) as ProfileRow[]);
-      setInvitations(invitationsData);
-      setHasLoadedOnce(true);
+      const nextProfiles = (profilesData || []) as ProfileRow[];
+
+setProfiles(nextProfiles);
+
+const primaryAdmin = nextProfiles.find(
+  (profile) => profile.role === "admin" && profile.full_name?.trim()
+);
+
+setAdminContactName(primaryAdmin?.full_name?.trim() || "System Admin");
+setInvitations(invitationsData);
+setHasLoadedOnce(true);
 
       return true;
     });
@@ -1446,13 +1455,13 @@ disabled={employeesRequest.status === "loading"}
             <Card
               key={user.user_id}
               className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/30 transition-all cursor-pointer"
-              onClick={() => {
+             onClick={() => {
   const canOpenEmployeeDetail =
     currentUserRole === "admin" || canManageUsers;
 
   if (!canOpenEmployeeDetail) {
     window.alert(
-      'You do not have permission to open this employee profile. Please contact "System Admin name" (administrator) if you need access.'
+      `You do not have permission to open this employee profile. Please contact "${adminContactName}" (administrator) if you need access.`
     );
     return;
   }

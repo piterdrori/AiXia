@@ -356,6 +356,8 @@ const [adminContactName, setAdminContactName] = useState("System Admin");
 const [showAccessDenied, setShowAccessDenied] = useState(false);
 const [hasRequestedAccess, setHasRequestedAccess] = useState(false);
 const [requestAccessTargetUserId, setRequestAccessTargetUserId] = useState<string | null>(null);
+const [isSubmittingAccessRequest, setIsSubmittingAccessRequest] = useState(false);
+const [accessRequestError, setAccessRequestError] = useState("");
 const [projects, setProjects] = useState<ProjectVisibilityRow[]>([]);
 const [projectMembers, setProjectMembers] = useState<ProjectMemberVisibilityRow[]>([]);
 
@@ -880,6 +882,57 @@ const handleResendInvite = async (invitation: InvitationRow) => {
     }
   };
 
+  const handleRequestAccess = async () => {
+    if (!currentUserId) {
+      setAccessRequestError("You must be logged in to request access.");
+      return;
+    }
+
+    if (!requestAccessTargetUserId) {
+      setAccessRequestError("No employee profile was selected.");
+      return;
+    }
+
+    if (currentUserId === requestAccessTargetUserId) {
+      setAccessRequestError("You cannot request access to your own profile.");
+      return;
+    }
+
+    setIsSubmittingAccessRequest(true);
+    setAccessRequestError("");
+
+    try {
+      const { error } = await supabase.from("employee_access_requests").insert({
+        requester_user_id: currentUserId,
+        target_user_id: requestAccessTargetUserId,
+        status: "pending",
+      });
+
+      if (error) {
+        if (error.code === "23505") {
+          setAccessRequestError(
+            'A pending access request for this employee already exists.'
+          );
+          return;
+        }
+
+        throw error;
+      }
+
+      setHasRequestedAccess(true);
+    } catch (err) {
+      console.error("Request access error:", err);
+      setAccessRequestError(
+        err instanceof Error
+          ? err.message
+          : "Failed to submit access request."
+      );
+    } finally {
+      setIsSubmittingAccessRequest(false);
+    }
+  };
+
+  
   const handleStartDirectMessage = async (targetUserId: string) => {
     if (!currentUserId) {
       setError(t("employees.errors.loginRequiredForChat"));
@@ -1564,9 +1617,10 @@ disabled={employeesRequest.status === "loading"}
                             onClick={() => {
   const allowed = canOpenEmployeeDetail(currentUserRole, canManageUsers);
 
-  if (!allowed) {
+    if (!allowed) {
     setRequestAccessTargetUserId(user.user_id);
     setHasRequestedAccess(false);
+    setAccessRequestError("");
     setShowAccessDenied(true);
     return;
   }
@@ -1851,10 +1905,18 @@ disabled={employeesRequest.status === "loading"}
               </p>
             </div>
           </>
-        ) : (
+                ) : (
           <div className="rounded-2xl border border-emerald-800/40 bg-emerald-950/20 p-4">
             <p className="text-sm leading-6 text-emerald-300">
-              The request has been marked for follow-up. In Phase 5 we will connect this button to the real database workflow and administrator notification flow.
+              Your access request has been submitted successfully and is now waiting for administrator review.
+            </p>
+          </div>
+        )}
+
+        {!!accessRequestError && (
+          <div className="rounded-2xl border border-red-800/40 bg-red-950/20 p-4">
+            <p className="text-sm leading-6 text-red-300">
+              {accessRequestError}
             </p>
           </div>
         )}
@@ -1864,24 +1926,25 @@ disabled={employeesRequest.status === "loading"}
         <Button
           variant="outline"
           className="border-slate-700 text-slate-300 hover:bg-slate-800"
-          onClick={() => {
+                    onClick={() => {
             setShowAccessDenied(false);
             setHasRequestedAccess(false);
             setRequestAccessTargetUserId(null);
+            setAccessRequestError("");
+            setIsSubmittingAccessRequest(false);
           }}
         >
           {hasRequestedAccess ? "Close" : "Cancel"}
         </Button>
 
-        {!hasRequestedAccess && (
+                {!hasRequestedAccess && (
           <Button
             className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => {
-              setHasRequestedAccess(true);
-            }}
+            onClick={() => void handleRequestAccess()}
+            disabled={isSubmittingAccessRequest}
           >
             <Send className="w-4 h-4 mr-2" />
-            Request Access
+            {isSubmittingAccessRequest ? "Submitting..." : "Request Access"}
           </Button>
         )}
       </div>

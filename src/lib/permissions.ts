@@ -164,9 +164,17 @@ export function getEffectivePermissions(
   role: Role,
   overrides?: Partial<PermissionMap> | null
 ): PermissionMap {
-  const base = ROLE_PERMISSIONS[role];
-  if (!overrides) return base;
-  return { ...base, ...overrides };
+  const effective: PermissionMap = {
+    ...ROLE_PERMISSIONS[role],
+    ...(overrides ?? {}),
+  };
+
+  if (effective.manageUsers) {
+    effective.viewEmployeeDirectory = true;
+    effective.viewEmployeeDetail = true;
+  }
+
+  return effective;
 }
 
 export function canPerform(

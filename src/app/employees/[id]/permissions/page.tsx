@@ -373,25 +373,21 @@ if (requesterIds.length > 0) {
     }
   };
 
-const roleBadges = useMemo(() => {
-  if (!user) return null;
+const effectivePermissionEntries = useMemo(() => {
+  if (!user) return [];
 
   const effectivePermissions = getEffectivePermissions(
     user.role,
-    user.permissions || null
+    permissions || null
   );
 
-  return (Object.keys(permissionLabels) as Permission[])
-    .filter((perm) => effectivePermissions[perm])
-    .map((permission) => (
-      <Badge
-        key={permission}
-        className="bg-blue-500/20 text-blue-400"
-      >
-        {permissionLabels[permission].label}
-      </Badge>
-    ));
-}, [user]);
+  return (Object.keys(permissionLabels) as Permission[]).map((permission) => ({
+    permission,
+    label: permissionLabels[permission].label,
+    enabled: !!effectivePermissions[permission],
+    overridden: permissions[permission] !== undefined,
+  }));
+}, [user, permissions]);
 
     if (!user && !isBootstrapping) {
     return (
@@ -538,7 +534,7 @@ const roleBadges = useMemo(() => {
         </CardContent>
       </Card>
 
-      <Card className="bg-slate-900/50 border-slate-800">
+            <Card className="bg-slate-900/50 border-slate-800">
         <CardHeader>
           <CardTitle className="text-white text-lg">
             {t(
@@ -547,8 +543,8 @@ const roleBadges = useMemo(() => {
           </CardTitle>
         </CardHeader>
 
-        <CardContent>
-          <p className="text-slate-400 mb-4">
+        <CardContent className="space-y-4">
+          <p className="text-slate-400">
             {t(
               "employeePermissions.sections.currentRoleDescription.before"
             )}
@@ -559,8 +555,36 @@ const roleBadges = useMemo(() => {
               "employeePermissions.sections.currentRoleDescription.after"
             )}
           </p>
-          <div className="flex flex-wrap gap-2">
-            {roleBadges}
+
+          <div className="grid gap-3">
+            {effectivePermissionEntries.map(
+              ({ permission, label, enabled, overridden }) => (
+                <div
+                  key={permission}
+                  className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-white">
+                      {label}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {enabled ? "Enabled" : "Disabled"}
+                      {overridden ? " • Override applied" : " • Role default"}
+                    </p>
+                  </div>
+
+                  <Badge
+                    className={
+                      enabled
+                        ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
+                        : "bg-slate-700/40 text-slate-400 border-slate-700"
+                    }
+                  >
+                    {enabled ? "ON" : "OFF"}
+                  </Badge>
+                </div>
+              )
+            )}
           </div>
         </CardContent>
       </Card>

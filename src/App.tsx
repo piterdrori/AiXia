@@ -20,7 +20,12 @@ import { Toaster } from "@/components/ui/sonner";
 import { LanguageProvider, useLanguage } from "@/lib/i18n";
 import type { Language } from "@/lib/translations";
 import { ClockProvider } from "@/lib/clock/provider";
-import { canAccessRoute, type Permission, type Role } from "@/lib/permissions";
+import {
+  canAccessRoute,
+  getEffectivePermissions,
+  type Permission,
+  type Role,
+} from "@/lib/permissions";
 import LandingPage from "@/app/page";
 import LoginPage from "@/app/login/page";
 import RegisterPage from "@/app/register/page";
@@ -426,7 +431,9 @@ setPermissions(data.permissions || {});
       return <Navigate to="/dashboard" replace />;
     }
 
-    if (!canAccessRoute(role, location.pathname, permissions)) {
+    const effectivePermissions = getEffectivePermissions(role, permissions);
+
+if (!canAccessRoute(role, location.pathname, effectivePermissions)) {
   return <Navigate to="/dashboard" replace />;
 }
   }

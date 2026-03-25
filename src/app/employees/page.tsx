@@ -368,6 +368,7 @@ useEffect(() => {
   const canManageUsers = currentUserRole
   ? canPerform(currentUserRole, "manageUsers")
   : false;
+  const isRoleResolved = currentUserRole !== null;
   
 const handleSendInvite = async () => {
   if (isSendingInvite) return;
@@ -568,9 +569,10 @@ const loadProfiles = useCallback(async () => {
       if (!requestTracker.current.isLatest(requestId)) return true;
 
       if (meError || !me) {
-        navigate("/login");
-        return true;
-      }
+  console.error("Failed to load user role", meError);
+  setCurrentUserRole("employee");
+  return true;
+}
 
       const currentRole = (me as CurrentUserRoleRow).role;
       setCurrentUserRole(currentRole);
@@ -1073,7 +1075,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
     }
   };
 
-  const getInitials = (fullName: string | null) => {
+    const getInitials = (fullName: string | null) => {
     if (!fullName) return "U";
 
     return fullName
@@ -1083,6 +1085,10 @@ const handleResendInvite = async (invitation: InvitationRow) => {
       .toUpperCase()
       .slice(0, 2);
   };
+
+  if (!isRoleResolved) {
+    return null;
+  }
   
   return (
     <div className="space-y-6">

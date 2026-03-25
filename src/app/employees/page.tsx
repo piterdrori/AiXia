@@ -34,6 +34,8 @@ import {
   Briefcase,
   MessageSquare,
   Lock,
+  Send,
+  CheckCircle2,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
@@ -352,6 +354,8 @@ const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 const [adminContactName, setAdminContactName] = useState("System Admin");
 const [showAccessDenied, setShowAccessDenied] = useState(false);
+const [hasRequestedAccess, setHasRequestedAccess] = useState(false);
+const [requestAccessTargetUserId, setRequestAccessTargetUserId] = useState<string | null>(null);
 const [projects, setProjects] = useState<ProjectVisibilityRow[]>([]);
 const [projectMembers, setProjectMembers] = useState<ProjectMemberVisibilityRow[]>([]);
 
@@ -1558,16 +1562,17 @@ disabled={employeesRequest.status === "loading"}
       : "hover:border-slate-700"
   }`}
                             onClick={() => {
-                const canOpenEmployeeDetail =
-                  currentUserRole === "admin" || canManageUsers;
+  const allowed = canOpenEmployeeDetail(currentUserRole, canManageUsers);
 
-                if (!canOpenEmployeeDetail) {
-                  setShowAccessDenied(true);
-                  return;
-                }
+  if (!allowed) {
+    setRequestAccessTargetUserId(user.user_id);
+    setHasRequestedAccess(false);
+    setShowAccessDenied(true);
+    return;
+  }
 
-                navigate(`/employees/${user.user_id}`);
-              }}
+  navigate(`/employees/${user.user_id}`);
+}}
              
             >
               <CardContent className="p-4">
@@ -1799,31 +1804,90 @@ disabled={employeesRequest.status === "loading"}
             </Dialog>
 
       {showAccessDenied && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-xl">
-            <h2 className="text-lg font-semibold text-white mb-2">
-              Access Denied
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+    <div className="w-full max-w-lg rounded-3xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden">
+      <div className="border-b border-slate-800 px-6 py-5">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/15 border border-amber-500/20 shrink-0">
+            {hasRequestedAccess ? (
+              <CheckCircle2 className="h-6 w-6 text-emerald-400" />
+            ) : (
+              <Lock className="h-6 w-6 text-amber-400" />
+            )}
+          </div>
+
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold text-white">
+              {hasRequestedAccess ? "Access Request Sent" : "Access Denied"}
             </h2>
-
-            <p className="text-sm text-slate-300 mb-4">
-              You do not have permission to open this employee profile.
+            <p className="mt-1 text-sm text-slate-400">
+              {hasRequestedAccess
+                ? `Your access request has been prepared for "${adminContactName}" (administrator).`
+                : "You do not currently have permission to open this employee profile."}
             </p>
-
-            <p className="text-sm text-slate-400 mb-6">
-              Please contact <span className="text-white font-medium">"{adminContactName}"</span> (administrator) if you need access.
-            </p>
-
-            <div className="flex justify-end">
-              <button
-                onClick={() => setShowAccessDenied(false)}
-                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm"
-              >
-                OK
-              </button>
-            </div>
           </div>
         </div>
-      )}
+      </div>
+
+      <div className="px-6 py-5 space-y-4">
+        {!hasRequestedAccess ? (
+          <>
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+              <p className="text-sm leading-6 text-slate-300">
+                Please contact{" "}
+                <span className="font-medium text-white">
+                  "{adminContactName}"
+                </span>{" "}
+                (administrator) if you need access to employee detail pages.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+              <p className="text-xs uppercase tracking-[0.14em] text-slate-500 mb-2">
+                Requested profile
+              </p>
+              <p className="text-sm text-slate-300 break-all">
+                {requestAccessTargetUserId || "Unknown employee"}
+              </p>
+            </div>
+          </>
+        ) : (
+          <div className="rounded-2xl border border-emerald-800/40 bg-emerald-950/20 p-4">
+            <p className="text-sm leading-6 text-emerald-300">
+              The request has been marked for follow-up. In Phase 5 we will connect this button to the real database workflow and administrator notification flow.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 border-t border-slate-800 px-6 py-4 bg-slate-950/40">
+        <Button
+          variant="outline"
+          className="border-slate-700 text-slate-300 hover:bg-slate-800"
+          onClick={() => {
+            setShowAccessDenied(false);
+            setHasRequestedAccess(false);
+            setRequestAccessTargetUserId(null);
+          }}
+        >
+          {hasRequestedAccess ? "Close" : "Cancel"}
+        </Button>
+
+        {!hasRequestedAccess && (
+          <Button
+            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            onClick={() => {
+              setHasRequestedAccess(true);
+            }}
+          >
+            <Send className="w-4 h-4 mr-2" />
+            Request Access
+          </Button>
+        )}
+      </div>
+    </div>
+  </div>
+)}
 
     </div>
     );

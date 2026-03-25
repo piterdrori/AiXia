@@ -41,10 +41,7 @@ import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
 import {
   canPerform,
-  getVisibleProjectIds,
   getEffectivePermissions,
-  type ProjectMemberRow,
-  type ProjectRow,
   type Role,
   type Permission,
 } from "@/lib/permissions";
@@ -126,10 +123,6 @@ type ProfileRow = {
   updated_at: string;
 };
 
-
-type ProjectVisibilityRow = ProjectRow;
-
-type ProjectMemberVisibilityRow = ProjectMemberRow;
 
 type TabValue = "all" | "pending" | "active" | "rejected";
 type RoleFilterValue = "all" | Role;
@@ -360,8 +353,6 @@ const [hasRequestedAccess, setHasRequestedAccess] = useState(false);
 const [requestAccessTargetUserId, setRequestAccessTargetUserId] = useState<string | null>(null);
 const [isSubmittingAccessRequest, setIsSubmittingAccessRequest] = useState(false);
 const [accessRequestError, setAccessRequestError] = useState("");
-const [projects, setProjects] = useState<ProjectVisibilityRow[]>([]);
-const [projectMembers, setProjectMembers] = useState<ProjectMemberVisibilityRow[]>([]);
 
   const employeesRequest = useRequest<boolean>();
 const employeesRequestRef = useRef(employeesRequest);
@@ -644,39 +635,9 @@ setCurrentUserPermissions((me as any).permissions || {});
         invitationsData = (data || []) as InvitationRow[];
       }
 
-            let projectsData: ProjectVisibilityRow[] = [];
-      let projectMembersData: ProjectMemberVisibilityRow[] = [];
-
-      if (currentRole !== "admin") {
-        const { data: fetchedProjectsData, error: projectsError } = await supabase
-          .from("projects")
-          .select("id, created_by");
-
-        if (!requestTracker.current.isLatest(requestId)) return true;
-
-        if (projectsError) {
-          throw projectsError;
-        }
-
-        const { data: fetchedProjectMembersData, error: projectMembersError } = await supabase
-          .from("project_members")
-          .select("project_id, user_id");
-
-        if (!requestTracker.current.isLatest(requestId)) return true;
-
-        if (projectMembersError) {
-          throw projectMembersError;
-        }
-
-        projectsData = (fetchedProjectsData || []) as ProjectVisibilityRow[];
-        projectMembersData = (fetchedProjectMembersData || []) as ProjectMemberVisibilityRow[];
-      }
-
       const nextProfiles = (profilesData || []) as ProfileRow[];
 
-      setProfiles(nextProfiles);
-      setProjects(projectsData);
-      setProjectMembers(projectMembersData);
+            setProfiles(nextProfiles);
 
       const primaryAdmin = nextProfiles.find(
         (profile) => profile.role === "admin" && profile.full_name?.trim()
@@ -1126,49 +1087,10 @@ const handleResendInvite = async (invitation: InvitationRow) => {
         profile.status !== "pending_profile"
     );
 
-    const currentProfile = currentUserId
-      ? baseUsers.find((profile) => profile.user_id === currentUserId) || null
-      : null;
-
-    const currentCompanies = new Set(
-      splitMultiValue(currentProfile?.company).map((value) => value.toLowerCase())
-    );
-
-    const visibleProjectIds =
-      currentUserId && currentUserRole
-        ? getVisibleProjectIds(currentUserId, currentUserRole, projects, projectMembers)
-        : new Set<string>();
-
-    const visibleMemberUserIds = new Set(
-      projectMembers
-        .filter((member) => visibleProjectIds.has(member.project_id))
-        .map((member) => member.user_id)
-    );
-
-    const scopedUsers =
-      currentUserRole === "admin"
-        ? baseUsers
-        : baseUsers.filter((profile) => {
-            if (!currentUserId) return false;
-            if (profile.user_id === currentUserId) return true;
-
-            const profileCompanies = splitMultiValue(profile.company).map((value) =>
-              value.toLowerCase()
-            );
-
-            const sharesCompany =
-              currentCompanies.size > 0 &&
-              profileCompanies.some((company) => currentCompanies.has(company));
-
-            const sharesProject = visibleMemberUserIds.has(profile.user_id);
-
-            return sharesCompany || sharesProject;
-          });
-
     const normalizedQuery = normalizeSearch(searchQuery);
 
     const searchedUsers = normalizedQuery
-      ? scopedUsers.filter((profile) => {
+      ? baseUsers.filter((profile) => {
           const searchableText = [
             profile.full_name,
             profile.email,
@@ -1195,7 +1117,7 @@ const handleResendInvite = async (invitation: InvitationRow) => {
 
           return searchableText.includes(normalizedQuery);
         })
-      : scopedUsers;
+      : baseUsers;
 
     const roleFilteredUsers =
       roleFilter === "all"
@@ -1230,10 +1152,6 @@ const handleResendInvite = async (invitation: InvitationRow) => {
     return statusFilteredUsers;
   }, [
     profiles,
-    currentUserId,
-    currentUserRole,
-    projects,
-    projectMembers,
     searchQuery,
     activeTab,
     roleFilter,

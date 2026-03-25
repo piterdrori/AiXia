@@ -602,9 +602,14 @@ const loadProfiles = useCallback(async () => {
 setCurrentUserRole(currentRole);
 setCurrentUserPermissions((me as any).permissions || {});
 
-      if (canPerform(currentRole, "manageUsers")) {
-        await supabase.rpc("expire_old_member_invitations");
-      }
+     const effective = getEffectivePermissions(
+  currentRole,
+  (me as any).permissions || null
+);
+
+if (effective.manageUsers) {
+  await supabase.rpc("expire_old_member_invitations");
+}
 
             const { data: profilesData, error: profilesError } = await supabase
         .from("profiles")
@@ -620,7 +625,7 @@ setCurrentUserPermissions((me as any).permissions || {});
 
             let invitationsData: InvitationRow[] = [];
 
-      if (canPerform(currentRole, "manageUsers")) {
+      if (effective.manageUsers) {
         const { data, error } = await supabase
           .from("member_invitations")
           .select("*")

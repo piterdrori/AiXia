@@ -224,13 +224,18 @@ if (requesterIds.length > 0) {
 
   if (!requestTracker.current.isLatest(requestId)) return;
 
-  const map: Record<string, ProfileRow> = {};
+  const map: Record<string, { user_id: string; full_name: string | null }> = {};
 
-  (requesterData || []).forEach((p: any) => {
-    map[p.user_id] = p;
+  (requesterData || []).forEach((p) => {
+    map[p.user_id] = {
+      user_id: p.user_id,
+      full_name: p.full_name,
+    };
   });
 
   setRequesterProfiles(map);
+} else {
+  setRequesterProfiles({});
 }
       } catch (err) {
         if (!requestTracker.current.isLatest(requestId)) return;
@@ -254,13 +259,23 @@ if (requesterIds.length > 0) {
   }, [loadData]);
 
   const handleToggle = (permission: Permission) => {
-    setPermissions((prev) => ({
-      ...prev,
-      [permission]: !prev[permission],
-    }));
-    setSaved(false);
-    setSaveError("");
-  };
+  if (!user) return;
+
+  const currentEffectivePermissions = getEffectivePermissions(
+    user.role,
+    permissions || null
+  );
+
+  const nextValue = !currentEffectivePermissions[permission];
+
+  setPermissions((prev) => ({
+    ...prev,
+    [permission]: nextValue,
+  }));
+
+  setSaved(false);
+  setSaveError("");
+};
 
   const handleReviewAccessRequest = async (
     request: AccessRequestRow,
@@ -479,34 +494,37 @@ const effectivePermissionEntries = useMemo(() => {
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {(Object.entries(permissionLabels) as Array<
-  [Permission, { label: string; description: string }]
->).map(([key, { label, description }]) => (
-              <div
-                key={key}
-                className="flex items-start justify-between gap-4"
-              >
-                <div className="flex-1">
-                  <Label
-                    htmlFor={key}
-                    className="text-white font-medium cursor-pointer"
-                  >
-                    {label}
-                  </Label>
-                  <p className="text-slate-500 text-sm">
-                    {description}
-                  </p>
-                </div>
+          {effectivePermissionEntries.map(
+  ({ permission, label, enabled, overridden }) => (
+    <div
+      key={permission}
+      className="flex items-start justify-between gap-4"
+    >
+      <div className="flex-1">
+        <Label
+          htmlFor={permission}
+          className="text-white font-medium cursor-pointer"
+        >
+          {label}
+        </Label>
+        <p className="text-slate-500 text-sm">
+          {permissionLabels[permission].description}
+        </p>
+        <p className="text-xs text-slate-500 mt-1">
+          {enabled ? "Enabled" : "Disabled"}
+          {overridden ? " • Override applied" : " • Role default"}
+        </p>
+      </div>
 
-                <Switch
-                  id={key}
-                  checked={permissions[key] || false}
-                  onCheckedChange={() => handleToggle(key)}
-                  disabled={isSaving}
-                />
-              </div>
-            )
-          )}
+      <Switch
+        id={permission}
+        checked={enabled}
+        onCheckedChange={() => handleToggle(permission)}
+        disabled={isSaving}
+      />
+    </div>
+  )
+)}
 
           <Separator className="bg-slate-800" />
 

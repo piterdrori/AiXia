@@ -126,9 +126,6 @@ type ProfileRow = {
   updated_at: string;
 };
 
-type CurrentUserRoleRow = {
-  role: Role;
-};
 
 type ProjectVisibilityRow = ProjectRow;
 

@@ -1446,7 +1446,19 @@ disabled={employeesRequest.status === "loading"}
             <Card
               key={user.user_id}
               className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/30 transition-all cursor-pointer"
-              onClick={() => navigate(`/employees/${user.user_id}`)}
+              onClick={() => {
+  const canOpenEmployeeDetail =
+    currentUserRole === "admin" || canManageUsers;
+
+  if (!canOpenEmployeeDetail) {
+    window.alert(
+      'You do not have permission to open this employee profile. Please contact "System Admin name" (administrator) if you need access.'
+    );
+    return;
+  }
+
+  navigate(`/employees/${user.user_id}`);
+}}
             >
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">

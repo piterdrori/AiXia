@@ -10,6 +10,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
+
 import {
   Select,
   SelectContent,
@@ -1460,9 +1462,9 @@ disabled={employeesRequest.status === "loading"}
     currentUserRole === "admin" || canManageUsers;
 
   if (!canOpenEmployeeDetail) {
-    window.alert(
-      `You do not have permission to open this employee profile. Please contact "${adminContactName}" (administrator) if you need access.`
-    );
+    toast.error("Access denied", {
+  description: `You do not have permission to open this employee profile. Please contact "${adminContactName}" (administrator) if you need access.`,
+});
     return;
   }
 

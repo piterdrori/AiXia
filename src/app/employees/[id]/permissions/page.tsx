@@ -107,6 +107,7 @@ export default function EmployeePermissionsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
   const [user, setUser] = useState<ProfileRow | null>(null);
+  const [accessRequests, setAccessRequests] = useState<any[]>([]);
 
   const loadData = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
@@ -173,11 +174,22 @@ export default function EmployeePermissionsPage() {
           return;
         }
 
-        const typedUser = targetUser as ProfileRow;
-        setUser(typedUser);
-        setPermissions(
+       const typedUser = targetUser as ProfileRow;
+setUser(typedUser);
+setPermissions(
   (typedUser.permissions || {}) as Partial<Record<Permission, boolean>>
 );
+
+// 🔥 NEW — load access requests for this employee
+const { data: requestsData } = await supabase
+  .from("employee_access_requests")
+  .select("*")
+  .eq("target_user_id", id)
+  .order("requested_at", { ascending: false });
+
+if (!requestTracker.current.isLatest(requestId)) return;
+
+setAccessRequests(requestsData || []);
       } catch (err) {
         if (!requestTracker.current.isLatest(requestId)) return;
         console.error("Permissions page load error:", err);
@@ -251,10 +263,25 @@ export default function EmployeePermissionsPage() {
     }
   };
 
-  const roleBadges = useMemo(() => {
+const roleBadges = useMemo(() => {
   if (!user) return null;
 
-  const effectivePermissions = getEffectivePermissions(user.role, user.permissions || null);
+  const effectivePermissions = getEffectivePermissions(
+    user.role,
+    user.permissions || null
+  );
+
+  return (Object.keys(permissionLabels) as Permission[])
+    .filter((perm) => effectivePermissions[perm])
+    .map((permission) => (
+      <Badge
+        key={permission}
+        className="bg-blue-500/20 text-blue-400"
+      >
+        {permissionLabels[permission].label}
+      </Badge>
+    ));
+}, [user]);
   const enabledPermissions = Object.entries(effectivePermissions).filter(
     ([, isEnabled]) => isEnabled
   ) as Array<[Permission, boolean]>;
@@ -473,6 +500,52 @@ export default function EmployeePermissionsPage() {
           <div className="flex flex-wrap gap-2">
             {roleBadges}
           </div>
+        </CardContent>
+      </Card>
+            <Card className="bg-slate-900/50 border-slate-800">
+        <CardHeader>
+          <CardTitle className="text-white text-lg">
+            Access Requests
+          </CardTitle>
+          <p className="text-slate-400 text-sm">
+            Users requesting access to this employee profile
+          </p>
+        </CardHeader>
+
+        <CardContent className="space-y-3">
+          {accessRequests.length === 0 ? (
+            <p className="text-slate-500 text-sm">
+              No access requests
+            </p>
+          ) : (
+            accessRequests.map((req) => (
+              <div
+                key={req.id}
+                className="flex items-center justify-between border border-slate-800 rounded-lg p-3"
+              >
+                <div>
+                  <p className="text-sm text-white">
+                    {req.requester_user_id}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {new Date(req.requested_at).toLocaleString()}
+                  </p>
+                </div>
+
+                <Badge
+                  className={
+                    req.status === "pending"
+                      ? "bg-amber-500/20 text-amber-400"
+                      : req.status === "approved"
+                      ? "bg-green-500/20 text-green-400"
+                      : "bg-red-500/20 text-red-400"
+                  }
+                >
+                  {req.status}
+                </Badge>
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
     </div>

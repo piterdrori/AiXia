@@ -131,9 +131,11 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/chat/:id": { permission: "accessChat" },
   "/inbox": { permission: "accessChat" },
 
-  "/employees": { roles: ["admin"] },
-  "/employees/:id": { roles: ["admin"] },
-  "/employees/:id/permissions": { roles: ["admin"] },
+ "/employees": { roles: ["admin", "manager", "employee", "guest"] },
+
+"/employees/:id": { permission: "manageUsers" },
+
+"/employees/:id/permissions": { permission: "manageUsers" },
 
   "/settings": { permission: "changeSettings" },
 };

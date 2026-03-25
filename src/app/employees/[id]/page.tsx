@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useMemo,
   type ChangeEvent,
   type Dispatch,
   type SetStateAction,
@@ -10,7 +11,6 @@ import {
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
-
 import { useRequest } from "@/lib/useRequest";
 
 import { uploadProfilePhoto } from "@/lib/profilePhotoUpload";
@@ -48,6 +48,11 @@ import {
   Mail,
   Image as ImageIcon,
 } from "lucide-react";
+
+import {
+  getEffectivePermissions,
+  type Permission,
+} from "@/lib/permissions";
 
 type Role = "admin" | "manager" | "employee" | "guest";
 
@@ -154,10 +159,6 @@ type ProfileRow = {
   updated_at: string;
 };
 
-type CurrentUserRoleRow = {
-  role: Role;
-};
-
 function WhatsAppIcon({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <svg
@@ -218,6 +219,9 @@ export default function EmployeeDetailPage() {
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+  const [currentUserPermissions, setCurrentUserPermissions] = useState<
+  Partial<Record<Permission, boolean>>
+>({});
   const [user, setUser] = useState<ProfileRow | null>(null);
 
   const employeeRequest = useRequest<boolean>();
@@ -257,9 +261,20 @@ useEffect(() => {
   const [status, setStatus] = useState<Status>("active");
   const [profileCompleted, setProfileCompleted] = useState(false);
 
-  const canManage = currentUserRole === "admin";
   const isOwnProfile = currentUserId === id;
-  const canEditProfileFields = canManage || isOwnProfile;
+
+const effectivePermissions = useMemo(() => {
+  if (!currentUserRole) return {} as Record<Permission, boolean>;
+
+  return getEffectivePermissions(
+    currentUserRole,
+    currentUserPermissions || null
+  );
+}, [currentUserRole, currentUserPermissions]);
+
+const canManage = !!effectivePermissions.manageUsers;
+
+const canEditProfileFields = canManage || isOwnProfile;
 
   const getTranslatedMemberTypeLabel = useCallback(
     (value: string | null | undefined) => {
@@ -365,7 +380,7 @@ const loadUser = useCallback(async () => {
         { data: me, error: meError },
         { data: profileData, error: profileError },
       ] = await Promise.all([
-        supabase.from("profiles").select("role").eq("user_id", authUser.id).single(),
+        supabase.from("profiles").select("role, permissions").eq("user_id", authUser.id).single(),
         supabase.from("profiles").select("*").eq("user_id", id).maybeSingle(),
       ]);
 
@@ -376,7 +391,20 @@ const loadUser = useCallback(async () => {
         return true;
       }
 
-      setCurrentUserRole((me as CurrentUserRoleRow).role);
+    const roleValue = (me as any).role as Role;
+const permissionValue = ((me as any).permissions || {}) as Partial<
+  Record<Permission, boolean>
+>;
+
+setCurrentUserRole(roleValue);
+setCurrentUserPermissions(permissionValue);
+
+const effective = getEffectivePermissions(roleValue, permissionValue);
+
+if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== id) {
+  navigate("/employees");
+  return true;
+}
 
       if (profileError || !profileData) {
         throw new Error(t("employeeDetail.errors.userNotFound"));

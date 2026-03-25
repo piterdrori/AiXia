@@ -281,55 +281,7 @@ const roleBadges = useMemo(() => {
         {permissionLabels[permission].label}
       </Badge>
     ));
-}, [user]);
-  const enabledPermissions = Object.entries(effectivePermissions).filter(
-    ([, isEnabled]) => isEnabled
-  ) as Array<[Permission, boolean]>;
-
-  if (enabledPermissions.length === 0) {
-    return (
-      <Badge className="bg-slate-500/20 text-slate-400">
-        {t("employeePermissions.roleBadges.noPermissions", "No default permissions")}
-      </Badge>
-    );
-  }
-
-  return enabledPermissions.map(([permission]) => {
-    const label =
-      permission === "createProjects"
-        ? t("employeePermissions.permissions.createProjects.label")
-        : permission === "editAllProjects"
-          ? t("employeePermissions.permissions.editAllProjects.label")
-          : permission === "deleteProjects"
-            ? t("employeePermissions.permissions.deleteProjects.label")
-            : permission === "createTasks"
-              ? t("employeePermissions.permissions.createTasks.label")
-              : permission === "editTasks"
-                ? t("employeePermissions.permissions.editTasks.label")
-                : permission === "deleteTasks"
-                  ? t("employeePermissions.permissions.deleteTasks.label")
-                  : permission === "manageUsers"
-                    ? t("employeePermissions.permissions.manageUsers.label")
-                    : permission === "viewReports"
-                      ? t("employeePermissions.permissions.viewReports.label")
-                      : permission === "accessChat"
-                        ? t("employeePermissions.permissions.accessChat.label")
-                        : permission === "changeSettings"
-                          ? t("employeePermissions.permissions.changeSettings.label")
-                          : permission === "visibility"
-                            ? t("employeePermissions.permissions.visibility.label")
-                            : permission;
-
-    return (
-      <Badge
-        key={permission}
-        className="bg-blue-500/20 text-blue-400"
-      >
-        {label}
-      </Badge>
-    );
-  });
-}, [t, user]);
+}, [user, permissionLabels]);
 
     if (!user && !isBootstrapping) {
     return (

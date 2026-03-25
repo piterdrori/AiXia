@@ -401,6 +401,9 @@ setCurrentUserPermissions(permissionValue);
 
 const effective = getEffectivePermissions(roleValue, permissionValue);
 
+setCurrentUserRole(roleValue);
+setCurrentUserPermissions(permissionValue);
+
 if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== id) {
   navigate("/employees");
   return true;

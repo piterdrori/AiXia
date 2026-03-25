@@ -40,7 +40,6 @@ import {
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
 import {
-  canPerform,
   getEffectivePermissions,
   type Role,
   type Permission,

@@ -35,6 +35,21 @@ type CurrentUserRoleRow = {
   role: Role;
 };
 
+type AccessRequestStatus = "pending" | "approved" | "rejected" | "cancelled";
+
+type AccessRequestRow = {
+  id: string;
+  requester_user_id: string;
+  target_user_id: string;
+  status: AccessRequestStatus;
+  requested_at: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 const permissionLabels: Record<
   Permission,
   { label: string; description: string }
@@ -105,9 +120,13 @@ export default function EmployeePermissionsPage() {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
-  const [user, setUser] = useState<ProfileRow | null>(null);
-  const [accessRequests, setAccessRequests] = useState<any[]>([]);
+const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+const [user, setUser] = useState<ProfileRow | null>(null);
+const [accessRequests, setAccessRequests] = useState<AccessRequestRow[]>([]);
+const [requesterProfiles, setRequesterProfiles] = useState<
+  Record<string, { user_id: string; full_name: string | null }>
+>({});
+const [requestActionId, setRequestActionId] = useState<string | null>(null);
 
   const loadData = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
@@ -189,7 +208,30 @@ const { data: requestsData } = await supabase
 
 if (!requestTracker.current.isLatest(requestId)) return;
 
-setAccessRequests(requestsData || []);
+const requests = (requestsData || []) as AccessRequestRow[];
+setAccessRequests(requests);
+
+// 🔥 Load requester profiles (names)
+const requesterIds = Array.from(
+  new Set(requests.map((r) => r.requester_user_id))
+);
+
+if (requesterIds.length > 0) {
+  const { data: requesterData } = await supabase
+    .from("profiles")
+    .select("user_id, full_name")
+    .in("user_id", requesterIds);
+
+  if (!requestTracker.current.isLatest(requestId)) return;
+
+  const map: Record<string, ProfileRow> = {};
+
+  (requesterData || []).forEach((p: any) => {
+    map[p.user_id] = p;
+  });
+
+  setRequesterProfiles(map);
+}
       } catch (err) {
         if (!requestTracker.current.isLatest(requestId)) return;
         console.error("Permissions page load error:", err);
@@ -219,6 +261,74 @@ setAccessRequests(requestsData || []);
     setSaved(false);
     setSaveError("");
   };
+
+  const handleReviewAccessRequest = async (
+    request: AccessRequestRow,
+    nextStatus: "approved" | "rejected"
+  ) => {
+    if (!id || !currentUserRole || !canPerform(currentUserRole, "manageUsers")) {
+      return;
+    }
+
+    setRequestActionId(request.id);
+    setSaveError("");
+
+    try {
+      const reviewedAt = new Date().toISOString();
+
+      const { error: requestUpdateError } = await supabase
+        .from("employee_access_requests")
+        .update({
+          status: nextStatus,
+          reviewed_at: reviewedAt,
+        })
+        .eq("id", request.id);
+
+      if (requestUpdateError) {
+        throw requestUpdateError;
+      }
+
+      if (nextStatus === "approved") {
+        const nextPermissions: Partial<Record<Permission, boolean>> = {
+          ...(user?.permissions || {}),
+          viewEmployeeDetail: true,
+        };
+
+        const { error: profileUpdateError } = await supabase
+          .from("profiles")
+          .update({
+            permissions: nextPermissions,
+            updated_at: reviewedAt,
+          })
+          .eq("user_id", request.requester_user_id);
+
+        if (profileUpdateError) {
+          throw profileUpdateError;
+        }
+      }
+
+      setAccessRequests((prev) =>
+        prev.map((item) =>
+          item.id === request.id
+            ? {
+                ...item,
+                status: nextStatus,
+                reviewed_at: reviewedAt,
+              }
+            : item
+        )
+      );
+
+    } catch (err) {
+      console.error("Review access request error:", err);
+      setSaveError(
+        err instanceof Error ? err.message : "Failed to review access request."
+      );
+    } finally {
+      setRequestActionId(null);
+    }
+  };
+  
 
   const handleSave = async () => {
     if (!id || !currentUserRole || !canPerform(currentUserRole, "manageUsers")) return;
@@ -281,7 +391,7 @@ const roleBadges = useMemo(() => {
         {permissionLabels[permission].label}
       </Badge>
     ));
-}, [user, permissionLabels]);
+}, [user]);
 
     if (!user && !isBootstrapping) {
     return (
@@ -464,7 +574,7 @@ const roleBadges = useMemo(() => {
           </p>
         </CardHeader>
 
-        <CardContent className="space-y-3">
+                <CardContent className="space-y-3">
           {accessRequests.length === 0 ? (
             <p className="text-slate-500 text-sm">
               No access requests
@@ -473,28 +583,61 @@ const roleBadges = useMemo(() => {
             accessRequests.map((req) => (
               <div
                 key={req.id}
-                className="flex items-center justify-between border border-slate-800 rounded-lg p-3"
+                className="flex items-center justify-between gap-4 border border-slate-800 rounded-lg p-3"
               >
-                <div>
-                  <p className="text-sm text-white">
-                    {req.requester_user_id}
-                  </p>
+                <div className="min-w-0">
+                  <p className="text-sm text-white break-all">
+  {requesterProfiles[req.requester_user_id]?.full_name ||
+    req.requester_user_id}
+</p>
                   <p className="text-xs text-slate-400">
-                    {new Date(req.requested_at).toLocaleString()}
+                    Requested: {new Date(req.requested_at).toLocaleString()}
                   </p>
+                  {req.reviewed_at && (
+                    <p className="text-xs text-slate-500">
+                      Reviewed: {new Date(req.reviewed_at).toLocaleString()}
+                    </p>
+                  )}
                 </div>
 
-                <Badge
-                  className={
-                    req.status === "pending"
-                      ? "bg-amber-500/20 text-amber-400"
-                      : req.status === "approved"
-                      ? "bg-green-500/20 text-green-400"
-                      : "bg-red-500/20 text-red-400"
-                  }
-                >
-                  {req.status}
-                </Badge>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge
+                    className={
+                      req.status === "pending"
+                        ? "bg-amber-500/20 text-amber-400"
+                        : req.status === "approved"
+                        ? "bg-green-500/20 text-green-400"
+                        : req.status === "rejected"
+                        ? "bg-red-500/20 text-red-400"
+                        : "bg-slate-500/20 text-slate-400"
+                    }
+                  >
+                    {req.status}
+                  </Badge>
+
+                  {req.status === "pending" && (
+                    <>
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => void handleReviewAccessRequest(req, "approved")}
+                        disabled={requestActionId === req.id}
+                      >
+                        Approve
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-red-800 text-red-400 hover:bg-red-900/20"
+                        onClick={() => void handleReviewAccessRequest(req, "rejected")}
+                        disabled={requestActionId === req.id}
+                      >
+                        Reject
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             ))
           )}

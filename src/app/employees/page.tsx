@@ -133,6 +133,7 @@ type ProjectMemberVisibilityRow = ProjectMemberRow;
 type TabValue = "all" | "pending" | "active" | "rejected";
 type RoleFilterValue = "all" | Role;
 type MemberTypeFilterValue = "all" | MemberType;
+const EMPLOYEES_PAGE_SIZE = 50;
 
 const MEMBER_TYPE_OPTIONS: Record<
   Exclude<Role, "admin">,
@@ -597,10 +598,11 @@ const loadProfiles = useCallback(async () => {
         await supabase.rpc("expire_old_member_invitations");
       }
 
-      const { data: profilesData, error: profilesError } = await supabase
+            const { data: profilesData, error: profilesError } = await supabase
         .from("profiles")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(EMPLOYEES_PAGE_SIZE);
 
       if (!requestTracker.current.isLatest(requestId)) return true;
 
@@ -625,31 +627,39 @@ const loadProfiles = useCallback(async () => {
         invitationsData = (data || []) as InvitationRow[];
       }
 
-      const { data: projectsData, error: projectsError } = await supabase
-        .from("projects")
-        .select("id, created_by");
+            let projectsData: ProjectVisibilityRow[] = [];
+      let projectMembersData: ProjectMemberVisibilityRow[] = [];
 
-      if (!requestTracker.current.isLatest(requestId)) return true;
+      if (currentRole !== "admin") {
+        const { data: fetchedProjectsData, error: projectsError } = await supabase
+          .from("projects")
+          .select("id, created_by");
 
-      if (projectsError) {
-        throw projectsError;
-      }
+        if (!requestTracker.current.isLatest(requestId)) return true;
 
-      const { data: projectMembersData, error: projectMembersError } = await supabase
-        .from("project_members")
-        .select("project_id, user_id");
+        if (projectsError) {
+          throw projectsError;
+        }
 
-      if (!requestTracker.current.isLatest(requestId)) return true;
+        const { data: fetchedProjectMembersData, error: projectMembersError } = await supabase
+          .from("project_members")
+          .select("project_id, user_id");
 
-      if (projectMembersError) {
-        throw projectMembersError;
+        if (!requestTracker.current.isLatest(requestId)) return true;
+
+        if (projectMembersError) {
+          throw projectMembersError;
+        }
+
+        projectsData = (fetchedProjectsData || []) as ProjectVisibilityRow[];
+        projectMembersData = (fetchedProjectMembersData || []) as ProjectMemberVisibilityRow[];
       }
 
       const nextProfiles = (profilesData || []) as ProfileRow[];
 
       setProfiles(nextProfiles);
-      setProjects((projectsData || []) as ProjectVisibilityRow[]);
-      setProjectMembers((projectMembersData || []) as ProjectMemberVisibilityRow[]);
+      setProjects(projectsData);
+      setProjectMembers(projectMembersData);
 
       const primaryAdmin = nextProfiles.find(
         (profile) => profile.role === "admin" && profile.full_name?.trim()

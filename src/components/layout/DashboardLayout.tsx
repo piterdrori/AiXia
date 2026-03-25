@@ -59,6 +59,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+import {
+  getEffectivePermissions,
+  type Permission,
+  type Role,
+} from "@/lib/permissions";
+
 interface NavItem {
   label: string;
   icon: ElementType;
@@ -70,8 +76,9 @@ type UserProfile = {
   userId: string;
   email: string;
   fullName: string;
-  role?: string | null;
+  role?: Role | null;
   avatarUrl?: string | null;
+  permissions?: Partial<Record<Permission, boolean>> | null;
 };
 
 type NotificationRow = {
@@ -416,7 +423,7 @@ export default function DashboardLayout({
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("full_name, role, avatar_url")
+        .select("full_name, role, avatar_url, permissions")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -428,12 +435,13 @@ export default function DashboardLayout({
       }
 
       const loadedUser: UserProfile = {
-        userId: user.id,
-        email: user.email || "",
-        fullName: profile?.full_name || "User",
-        role: profile?.role || null,
-        avatarUrl: profile?.avatar_url || null,
-      };
+  userId: user.id,
+  email: user.email || "",
+  fullName: profile?.full_name || "User",
+  role: profile?.role || null,
+  avatarUrl: profile?.avatar_url || null,
+  permissions: (profile as any)?.permissions || null,
+};
 
       userProfileRef.current = loadedUser;
       setUserProfile(loadedUser);
@@ -547,12 +555,63 @@ export default function DashboardLayout({
     };
   }, [loadCalendarBadge, userProfile]);
 
-  useEffect(() => {
-    if (!notificationsOpen || !userProfile?.userId) return;
-    void loadNotifications(userProfile.userId, userProfile);
-  }, [notificationsOpen, userProfile, loadNotifications]);
+ useEffect(() => {
+  if (!notificationsOpen || !userProfile?.userId) return;
+  void loadNotifications(userProfile.userId, userProfile);
+}, [notificationsOpen, userProfile, loadNotifications]);
 
-  const navItems: NavItem[] = useMemo(
+  useEffect(() => {
+  if (!userProfile?.userId) return;
+
+  const channelKey = `profile-permissions:${userProfile.userId}`;
+
+  registerRealtimeChannel(
+    channelKey,
+    supabase
+      .channel(channelKey)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "profiles",
+          filter: `user_id=eq.${userProfile.userId}`,
+        },
+        (payload) => {
+          const updated = payload.new as {
+            role?: Role | null;
+            permissions?: Partial<Record<Permission, boolean>> | null;
+          };
+
+          setUserProfile((prev) => {
+            if (!prev) return prev;
+
+            return {
+              ...prev,
+              role: updated.role ?? prev.role ?? null,
+              permissions: updated.permissions || null,
+            };
+          });
+        }
+      )
+      .subscribe()
+  );
+
+  return () => {
+    void removeRealtimeChannel(channelKey);
+  };
+}, [userProfile?.userId]);
+
+const effectivePermissions = useMemo(() => {
+  if (!userProfile?.role) return null;
+
+  return getEffectivePermissions(
+    userProfile.role,
+    userProfile.permissions || null
+  );
+}, [userProfile]);
+
+const navItems: NavItem[] = useMemo(
     () => [
       {
         label: t("common.dashboard", "Dashboard"),
@@ -587,18 +646,22 @@ export default function DashboardLayout({
         href: "/inbox",
         badge: unreadCount || undefined,
       },
+      ...(effectivePermissions?.viewEmployeeDirectory
+  ? [
       {
         label: t("common.employees", "Employees"),
         icon: Users,
         href: "/employees",
       },
+    ]
+  : []),
       {
         label: t("common.settings", "Settings"),
         icon: Settings,
         href: "/settings",
       },
     ],
-    [calendarTodayCount, chatUnreadCount, unreadCount, t]
+    [calendarTodayCount, chatUnreadCount, unreadCount, effectivePermissions, t]
   );
 
   const handleLogout = async () => {

@@ -33,8 +33,6 @@ import MessageList from "./components/MessageList";
 import MessageComposer from "./components/MessageComposer";
 import CreateGroupDialog from "./components/CreateGroupDialog";
 
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export default function ChatPage() {

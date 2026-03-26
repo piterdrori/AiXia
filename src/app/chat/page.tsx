@@ -200,7 +200,26 @@ export default function ChatPage() {
         return;
       }
 
-      await supabase.from("chat_group_members").insert([
+            const memberRows = [
+        {
+          id: `${newGroup.id}-${currentUserId}`,
+          group_id: newGroup.id,
+          user_id: currentUserId,
+          role: "member",
+          invited_by: currentUserId,
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: `${newGroup.id}-${targetUserId}`,
+          group_id: newGroup.id,
+          user_id: targetUserId,
+          role: "member",
+          invited_by: currentUserId,
+          created_at: new Date().toISOString(),
+        },
+      ];
+
+      const { error: memberError } = await supabase.from("chat_group_members").insert([
         {
           group_id: newGroup.id,
           user_id: currentUserId,
@@ -215,6 +234,12 @@ export default function ChatPage() {
         },
       ]);
 
+      if (memberError) {
+        setError("Failed to create conversation");
+        return;
+      }
+
+      upsertGroupLocally(newGroup as ChatGroupRow, memberRows as ChatGroupMemberRow[]);
       openConversation(newGroup.id);
     },
     [currentUserId, groups, openConversation, setError]

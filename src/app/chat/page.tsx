@@ -93,6 +93,7 @@ export default function ChatPage() {
   const [groupActionLoading, setGroupActionLoading] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(false);
   const lastMessageMapRef = useRef<Record<string, string>>({});
 
   const playNotificationSound = () => {
@@ -749,15 +750,19 @@ useEffect(() => {
        {selectedConversation ? (
           <Card className="flex-1 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden min-h-0">
             <ChatHeader
-              title={conversationTitle}
-              participantCount={getMembers(selectedConversation.id).length}
-              initials={conversationInitials}
-              isSelectionMode={isSelectionMode}
-              onToggleSelectionMode={() => {
-                setIsSelectionMode((prev) => !prev);
-                setSelectedMessageIds([]);
-              }}
-            />
+  title={conversationTitle}
+  participantCount={getMembers(selectedConversation.id).length}
+  initials={conversationInitials}
+  isSelectionMode={isSelectionMode}
+  isDetailsPanelOpen={isDetailsPanelOpen}
+  onToggleDetailsPanel={() =>
+    setIsDetailsPanelOpen((prev) => !prev)
+  }
+  onToggleSelectionMode={() => {
+    setIsSelectionMode((prev) => !prev);
+    setSelectedMessageIds([]);
+  }}
+/>
 
             {(isSelectionMode || selectedMessageIds.length > 0) && (
               <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-800 bg-slate-950/60 shrink-0">

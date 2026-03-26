@@ -1,5 +1,6 @@
-import { Plus, Search, Trash2, MoreHorizontal } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+// ChatSidebar.tsx
+import { Plus, Search, Trash2 } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,7 +18,6 @@ type Props = {
   profiles: ProfileRow[];
   searchQuery: string;
   selectedConversationId: string | null;
-  groupActionLoading: string | null;
   unreadCounts: UnreadCounts;
   onSearchChange: (value: string) => void;
   onOpenCreateGroup: () => void;
@@ -33,7 +33,6 @@ export default function ChatSidebar({
   profiles,
   searchQuery,
   selectedConversationId,
-  groupActionLoading,
   unreadCounts,
   onSearchChange,
   onOpenCreateGroup,
@@ -45,7 +44,6 @@ export default function ChatSidebar({
   const filteredGroups = useMemo(() => {
     let result = groups;
     
-    // Apply search filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(g => 
@@ -53,7 +51,6 @@ export default function ChatSidebar({
       );
     }
     
-    // Apply type filter
     if (filter === "direct") {
       result = result.filter(g => g.type === "DIRECT");
     } else if (filter === "group") {
@@ -75,7 +72,6 @@ export default function ChatSidebar({
   return (
     <Card className="w-80 bg-slate-900 border-slate-800 flex flex-col h-full overflow-hidden min-h-0 rounded-none border-y-0 border-l-0">
       <CardContent className="p-0 flex flex-col h-full min-h-0">
-        {/* Header */}
         <div className="p-4 border-b border-slate-800">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-white">Messages</h2>
@@ -94,7 +90,6 @@ export default function ChatSidebar({
             />
           </div>
           
-          {/* Filter tabs */}
           <div className="flex gap-1 mt-3">
             {(["all", "direct", "group"] as const).map((f) => (
               <button
@@ -110,7 +105,6 @@ export default function ChatSidebar({
           </div>
         </div>
 
-        {/* Conversations list */}
         <ScrollArea className="flex-1 min-h-0">
           <div className="divide-y divide-slate-800/50">
             {filteredGroups.map((group) => {

@@ -162,6 +162,8 @@ setTranslatedMessages((prev) => ({
               const isEditing = editingMessageId === message.id;
               const canSelect = canManageMessage(message);
               const isSelected = selectedMessageIds.includes(message.id);
+      const isAttachmentOnlyMessage =
+  Boolean(message.attachments?.length) && !message.content?.trim();
 
               return (
                 <div
@@ -274,39 +276,83 @@ setTranslatedMessages((prev) => ({
                     </div>
 
                     {!isEditing && !isSelectionMode && (
-                      <div className={`mt-1 flex gap-2 ${isOwn ? "justify-end" : "justify-start"}`}>
-                        <button
-                          className="text-xs text-indigo-400 hover:text-indigo-300"
-                          onClick={() => void handleTranslateMessage(message)}
-                          disabled={translatingMessageId === message.id}
-                        >
-                          {translatingMessageId === message.id
-                            ? "Translating..."
-                            : translatedMessages[message.id]
-                            ? "Original"
-                            : "Translate"}
-                        </button>
+  <div className={`mt-1 flex gap-2 ${isOwn ? "justify-end" : "justify-start"}`}>
 
-                        {canManageMessage(message) && (
-                          <>
-                            <button
-                              className="text-xs text-slate-400 hover:text-white"
-                              onClick={() => onStartEdit(message)}
-                              disabled={messageActionLoading === message.id}
-                            >
-                              {t("chat.messageList.edit")}
-                            </button>
-                            <button
-                              className="text-xs text-red-400 hover:text-red-300"
-                              onClick={() => onDeleteMessage(message)}
-                              disabled={messageActionLoading === message.id}
-                            >
-                              {t("chat.messageList.delete")}
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
+    {/* ATTACHMENT MODE */}
+    {isAttachmentOnlyMessage ? (
+      <>
+        {message.attachments?.map((file) => {
+          const publicUrl = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/chat-files/${file.file_path}`;
+
+          return (
+            <div key={file.id} className="flex gap-2">
+              <a
+                href={publicUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-indigo-400 hover:text-indigo-300"
+              >
+                Open
+              </a>
+
+              <a
+                href={publicUrl}
+                download={file.file_name}
+                className="text-xs text-green-400 hover:text-green-300"
+              >
+                Download
+              </a>
+
+              {canManageMessage(message) && (
+                <button
+                  className="text-xs text-red-400 hover:text-red-300"
+                  onClick={() => onDeleteMessage(message)}
+                  disabled={messageActionLoading === message.id}
+                >
+                  {t("chat.messageList.delete")}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </>
+    ) : (
+      /* NORMAL MESSAGE MODE */
+      <>
+        <button
+          className="text-xs text-indigo-400 hover:text-indigo-300"
+          onClick={() => void handleTranslateMessage(message)}
+          disabled={translatingMessageId === message.id}
+        >
+          {translatingMessageId === message.id
+            ? "Translating..."
+            : translatedMessages[message.id]
+            ? "Original"
+            : "Translate"}
+        </button>
+
+        {canManageMessage(message) && (
+          <>
+            <button
+              className="text-xs text-slate-400 hover:text-white"
+              onClick={() => onStartEdit(message)}
+              disabled={messageActionLoading === message.id}
+            >
+              {t("chat.messageList.edit")}
+            </button>
+            <button
+              className="text-xs text-red-400 hover:text-red-300"
+              onClick={() => onDeleteMessage(message)}
+              disabled={messageActionLoading === message.id}
+            >
+              {t("chat.messageList.delete")}
+            </button>
+          </>
+        )}
+      </>
+    )}
+  </div>
+)}
                   </div>
                 </div>
               );

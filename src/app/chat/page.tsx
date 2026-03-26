@@ -626,8 +626,8 @@ export default function ChatPage() {
   };
 
   return (
-        <div className="h-[calc(100dvh-64px)] box-border bg-slate-950 p-4 overflow-hidden">
-  <div className="h-full max-w-[1460px] mx-auto grid grid-cols-[320px_minmax(0,1fr)_280px] rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden min-h-0">
+        <div className="h-full min-h-0 box-border bg-slate-950 p-4 overflow-hidden">
+  <div className="h-full min-h-0 max-w-[1460px] mx-auto grid grid-cols-[320px_minmax(0,1fr)_280px] rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden">
       <div className="h-full min-h-0 overflow-hidden">
   <ChatSidebar
     currentUserId={currentUserId}

@@ -86,7 +86,6 @@ export default function ChatPage() {
     removeGroupLocally,
     markConversationAsRead,
     incrementUnread,
-    startDirectMessage,
   } = useChatBootstrap(id || null);
 
   const getConvoName = useCallback(
@@ -146,6 +145,127 @@ export default function ChatPage() {
   const selectedGroup = useMemo(
     () => groups.find((g) => g.id === selectedConversationId) || null,
     [groups, selectedConversationId]
+  );
+
+    const buildDirectKey = useCallback((a: string, b: string) => {
+    return [a, b].sort().join("__");
+  }, []);
+
+  const handleStartDirectMessage = useCallback(
+    async (targetUserId: string, _targetName?: string) => {
+      if (!currentUserId || targetUserId === currentUserId) return;
+
+      setError("");
+
+      const directKey = buildDirectKey(currentUserId, targetUserId);
+
+      const existingLocal = groups.find(
+        (group) => group.type === "DIRECT" && group.direct_key === directKey
+      );
+
+      if (existingLocal) {
+        openConversation(existingLocal.id);
+        return;
+      }
+
+      const { data: existingDb, error: existingError } = await supabase
+        .from("chat_groups")
+        .select(
+          "id, name, type, project_id, task_id, created_by, created_at, direct_key"
+        )
+        .eq("type", "DIRECT")
+        .eq("direct_key", directKey)
+        .maybeSingle();
+
+      if (existingError) {
+        setError(existingError.message || "Failed to create conversation");
+        return;
+      }
+
+      if (existingDb) {
+        openConversation(existingDb.id);
+        return;
+      }
+
+      const { data: newGroup, error: createError } = await supabase
+        .from("chat_groups")
+        .insert({
+          name: null,
+          type: "DIRECT",
+          project_id: null,
+          task_id: null,
+          created_by: currentUserId,
+          direct_key: directKey,
+        })
+        .select(
+          "id, name, type, project_id, task_id, created_by, created_at, direct_key"
+        )
+        .single();
+
+      if (createError || !newGroup) {
+        setError(createError?.message || "Failed to create conversation");
+        return;
+      }
+
+      const optimisticMembers: ChatGroupMemberRow[] = [
+        {
+          id: `local-${newGroup.id}-${currentUserId}`,
+          group_id: newGroup.id,
+          user_id: currentUserId,
+          role: "member",
+          invited_by: currentUserId,
+          created_at: clock.nowIso,
+        },
+        {
+          id: `local-${newGroup.id}-${targetUserId}`,
+          group_id: newGroup.id,
+          user_id: targetUserId,
+          role: "member",
+          invited_by: currentUserId,
+          created_at: clock.nowIso,
+        },
+      ];
+
+      upsertGroupLocally(newGroup as ChatGroupRow, optimisticMembers);
+
+      const { error: memberInsertError } = await supabase
+        .from("chat_group_members")
+        .upsert(
+          [
+            {
+              group_id: newGroup.id,
+              user_id: currentUserId,
+              role: "member",
+              invited_by: currentUserId,
+            },
+            {
+              group_id: newGroup.id,
+              user_id: targetUserId,
+              role: "member",
+              invited_by: currentUserId,
+            },
+          ],
+          {
+            onConflict: "group_id,user_id",
+          }
+        );
+
+      if (memberInsertError) {
+        setError(memberInsertError.message || "Failed to create conversation");
+        return;
+      }
+
+      openConversation(newGroup.id);
+    },
+    [
+      buildDirectKey,
+      clock.nowIso,
+      currentUserId,
+      groups,
+      openConversation,
+      setError,
+      upsertGroupLocally,
+    ]
   );
 
   const mentionCandidates = useMemo(() => {
@@ -511,7 +631,8 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-64px)] flex bg-slate-950">
+        <div className="h-[calc(100vh-64px)] bg-slate-950 px-4 py-4 overflow-hidden">
+      <div className="h-full max-w-[1460px] mx-auto grid grid-cols-[320px_minmax(0,1fr)_280px] rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden">
       <ChatSidebar
         currentUserId={currentUserId}
         currentUserRole={currentUserRole}
@@ -527,7 +648,7 @@ export default function ChatPage() {
         onDeleteChat={handleDeleteChat}
       />
 
-      <div className="flex-1 flex flex-col min-w-0 bg-slate-950">
+            <div className="min-w-0 flex flex-col bg-slate-950 h-full">
         {selectedGroup ? (
           <>
             <ChatHeader
@@ -570,11 +691,13 @@ export default function ChatPage() {
               </div>
             )}
 
-            {error && (
-              <div className="mx-6 mt-4 p-3 bg-red-900/20 border border-red-800 text-red-400 rounded text-sm">
-                {error}
-              </div>
-            )}
+                        <div className="mx-6 mt-4 min-h-[56px]">
+              {error ? (
+                <div className="h-[56px] px-3 flex items-center bg-red-900/20 border border-red-800 text-red-400 rounded text-sm">
+                  {error}
+                </div>
+              ) : null}
+            </div>
 
             <MessageList
               currentUserId={currentUserId}
@@ -675,22 +798,25 @@ export default function ChatPage() {
         )}
       </div>
 
-      <TeamMembersSidebar
+            <TeamMembersSidebar
         profiles={profiles}
         currentUserId={currentUserId}
         onlineStatus={onlineStatus}
-        onStartDM={startDirectMessage}
+        onStartDM={(userId, name) => {
+          void handleStartDirectMessage(userId, name);
+        }}
       />
 
-      <CreateGroupDialog
-        open={isCreateGroupOpen}
-        currentUserId={currentUserId}
-        profiles={profiles}
-        isCreating={isCreatingGroup}
-        error={error}
-        onOpenChange={setIsCreateGroupOpen}
-        onCreate={handleCreateGroup}
-      />
+              <CreateGroupDialog
+          open={isCreateGroupOpen}
+          currentUserId={currentUserId}
+          profiles={profiles}
+          isCreating={isCreatingGroup}
+          error={error}
+          onOpenChange={setIsCreateGroupOpen}
+          onCreate={handleCreateGroup}
+        />
+      </div>
     </div>
   );
 }

@@ -118,6 +118,7 @@ type ProfileRow = {
   role: Role;
   status: Status;
   profile_completed?: boolean | null;
+  permissions?: Partial<Record<Permission, boolean>> | null;
   created_at: string;
   updated_at: string;
 };
@@ -377,6 +378,7 @@ useEffect(() => {
   const [inviteSuccess, setInviteSuccess] = useState("");
   const [isSendingInvite, setIsSendingInvite] = useState(false);
   const [invitations, setInvitations] = useState<InvitationRow[]>([]);
+  const [accessRequests, setAccessRequests] = useState<any[]>([]);
   const [invitationActionId, setInvitationActionId] = useState<string | null>(null);
   const [showInviteHistory, setShowInviteHistory] = useState(false);
   const [directMessageLoadingUserId, setDirectMessageLoadingUserId] = useState<string | null>(null);
@@ -623,6 +625,31 @@ if (effective.manageUsers) {
       }
 
             let invitationsData: InvitationRow[] = [];
+      let accessRequestsData: any[] = [];
+
+if (effective.manageUsers) {
+  const { data, error } = await supabase
+  .from("employee_access_requests")
+  .select(`
+    id,
+    status,
+    created_at,
+    requester_user_id,
+    target_user_id,
+    requester:profiles!employee_access_requests_requester_user_id_fkey(full_name, email),
+    target:profiles!employee_access_requests_target_user_id_fkey(full_name, email)
+  `)
+  .eq("status", "pending")
+  .order("created_at", { ascending: false });
+
+  if (!requestTracker.current.isLatest(requestId)) return true;
+
+  if (error) {
+    throw error;
+  }
+
+  accessRequestsData = data || [];
+}
 
       if (effective.manageUsers) {
         const { data, error } = await supabase
@@ -649,16 +676,18 @@ if (effective.manageUsers) {
 
       setAdminContactName(primaryAdmin?.full_name?.trim() || "System Admin");
       setInvitations(invitationsData);
+      setAccessRequests(accessRequestsData);
       setHasLoadedOnce(true);
 
       return true;
     });
   } catch (err) {
-    if (!requestTracker.current.isLatest(requestId)) return;
-    console.error("Employees page load error:", err);
-    setProfiles([]);
-    setInvitations([]);
-  }
+  if (!requestTracker.current.isLatest(requestId)) return;
+  console.error("Employees page load error:", err);
+  setProfiles([]);
+  setInvitations([]);
+  setAccessRequests([]);
+}
 }, [navigate]);
 
  useEffect(() => {
@@ -1355,6 +1384,102 @@ disabled={employeesRequest.status === "loading"}
       )}
 
 {canManageUsers && (
+  <Card className="bg-slate-900/50 border-slate-800">
+    <CardContent className="p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-medium text-white">
+          Access Requests
+        </h3>
+        <Badge className="bg-slate-800 text-slate-200 border-slate-700">
+          {accessRequests.length}
+        </Badge>
+      </div>
+
+      {accessRequests.length > 0 ? (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          {accessRequests.map((req) => (
+            <div
+              key={req.id}
+              className="rounded-lg border border-slate-800 bg-slate-950/60 p-3"
+            >
+              <div className="space-y-2">
+                <div className="text-sm text-white font-medium">
+                  {req.requester?.full_name || "Unknown"} →{" "}
+                  {req.target?.full_name || "Unknown"}
+                </div>
+
+                <div className="text-xs text-slate-400">
+                  {new Date(req.created_at).toLocaleString()}
+                </div>
+
+                <div className="flex gap-2 pt-2">
+  <Button
+    size="sm"
+    className="bg-green-600 hover:bg-green-700 text-white"
+    onClick={async () => {
+      const { data: requesterProfile, error: requesterProfileError } = await supabase
+        .from("profiles")
+        .select("permissions")
+        .eq("user_id", req.requester_user_id)
+        .single();
+
+      if (requesterProfileError) {
+        throw requesterProfileError;
+      }
+
+      const nextPermissions: Partial<Record<Permission, boolean>> = {
+        ...(((requesterProfile as { permissions?: Partial<Record<Permission, boolean>> | null })?.permissions) || {}),
+        viewEmployeeDetail: true,
+      };
+
+      await supabase
+        .from("employee_access_requests")
+        .update({ status: "approved" })
+        .eq("id", req.id);
+
+      await supabase
+        .from("profiles")
+        .update({
+          permissions: nextPermissions,
+        })
+        .eq("user_id", req.requester_user_id);
+
+      void loadProfiles();
+    }}
+  >
+    Approve
+  </Button>
+
+  <Button
+    size="sm"
+    variant="outline"
+    className="border-red-800 text-red-400"
+    onClick={async () => {
+      await supabase
+        .from("employee_access_requests")
+        .update({ status: "rejected" })
+        .eq("id", req.id);
+
+      void loadProfiles();
+    }}
+  >
+    Reject
+  </Button>
+</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-sm text-slate-500">
+          No access requests
+        </div>
+      )}
+    </CardContent>
+  </Card>
+)}
+      
+      {canManageUsers && (
   <Card className="bg-slate-900/50 border-slate-800">
     <CardContent className="p-4 space-y-4">
       <div className="flex items-center justify-between gap-4">

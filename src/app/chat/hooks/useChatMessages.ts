@@ -1,400 +1,228 @@
 // useChatMessages.ts
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import {
-  registerRealtimeChannel,
-  removeRealtimeChannel,
-} from "@/lib/realtime";
-import { dedupeMessages, NEAR_BOTTOM_PX, PAGE_SIZE, sortMessagesAscending } from "../utils";
-import type {
-  ChatMessageRow,
-  HasMoreByGroup,
-  MessagesByGroup,
-} from "../types";
+import { dedupeMessages, PAGE_SIZE, sortMessagesAscending, playNotificationSound, showBrowserNotification } from "../utils";
+import type { ChatMessageRow, HasMoreByGroup, MessagesByGroup } from "../types";
 
 export function useChatMessages(
   selectedConversationId: string | null,
   currentUserId: string | null,
   incrementUnread: (groupId: string, messageId: string) => void,
-  moveGroupToTop: (groupId: string) => void,
-  playSound: () => void,
-  showNotification: (title: string, body: string) => void,
+  moveGroupToTop: (groupId: string, lastMessage?: string) => void,
   getConversationName: (groupId: string) => string
 ) {
-  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const selectedConversationIdRef = useRef<string | null>(selectedConversationId);
-  const suppressNextAutoScrollRef = useRef(false);
-  const shouldScrollToBottomRef = useRef(false);
-  const processedMessageIds = useRef<Set<string>>(new Set());
-
-  const [messages, setMessages] = useState<MessagesByGroup>({});
-  const [hasMoreMessages, setHasMoreMessages] = useState<HasMoreByGroup>({});
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
-  const loadingGroupRef = useRef<string | null>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const selectedIdRef = useRef(selectedConversationId);
+  const processedIds = useRef<Set<string>>(new Set());
   
-  // New: Track highlighted message IDs for visual feedback
-  const [highlightedMessageIds, setHighlightedMessageIds] = useState<string[]>([]);
+  const [messages, setMessages] = useState<MessagesByGroup>({});
+  const [hasMore, setHasMore] = useState<HasMoreByGroup>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [highlightedIds, setHighlightedIds] = useState<string[]>([]);
 
   useEffect(() => {
-    selectedConversationIdRef.current = selectedConversationId;
+    selectedIdRef.current = selectedConversationId;
   }, [selectedConversationId]);
 
-  const getScrollViewport = useCallback(() => {
+  const getViewport = useCallback(() => {
     if (!scrollAreaRef.current) return null;
-    return scrollAreaRef.current.querySelector(
-      "[data-radix-scroll-area-viewport]"
-    ) as HTMLDivElement | null;
+    return scrollAreaRef.current.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null;
   }, []);
 
-  const isViewportNearBottom = useCallback(() => {
-    const viewport = getScrollViewport();
+  const isNearBottom = useCallback(() => {
+    const viewport = getViewport();
     if (!viewport) return true;
-    const distanceFromBottom =
-      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-    return distanceFromBottom <= NEAR_BOTTOM_PX;
-  }, [getScrollViewport]);
+    return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 120;
+  }, [getViewport]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
   }, []);
 
-  const loadMessagesForGroup = useCallback(async (groupId: string) => {
+  const loadMessages = useCallback(async (groupId: string) => {
     if (!groupId) return;
-    if (loadingGroupRef.current === groupId) return;
-
-    loadingGroupRef.current = groupId;
-    setIsLoadingMessages(true);
-    processedMessageIds.current.clear();
+    setIsLoading(true);
+    processedIds.current.clear();
 
     try {
       const { data, error } = await supabase
         .from("chat_messages")
-        .select(`
-          id,
-          group_id,
-          user_id,
-          content,
-          created_at,
-          attachments:chat_attachments(
-            id,
-            message_id,
-            group_id,
-            uploaded_by,
-            file_name,
-            file_path,
-            mime_type,
-            file_size,
-            created_at
-          )
-        `)
+        .select(`*, attachments:chat_attachments(*)`)
         .eq("group_id", groupId)
         .order("created_at", { ascending: false })
         .limit(PAGE_SIZE);
 
-      if (error) {
-        throw new Error(error.message || "Failed to load messages.");
-      }
+      if (error) throw error;
 
-      const newestMessages = sortMessagesAscending((data || []) as ChatMessageRow[]);
+      const msgs = sortMessagesAscending((data || []) as ChatMessageRow[]);
+      msgs.forEach(m => processedIds.current.add(m.id));
       
-      // Track processed IDs
-      newestMessages.forEach(m => processedMessageIds.current.add(m.id));
-
-      setMessages((prev) => ({
-        ...prev,
-        [groupId]: dedupeMessages(newestMessages),
-      }));
-
-      setHasMoreMessages((prev) => ({
-        ...prev,
-        [groupId]: (data || []).length === PAGE_SIZE,
-      }));
-
-      shouldScrollToBottomRef.current = true;
-      requestAnimationFrame(() => {
-        scrollToBottom("auto");
-      });
+      setMessages(prev => ({ ...prev, [groupId]: dedupeMessages(msgs) }));
+      setHasMore(prev => ({ ...prev, [groupId]: (data || []).length === PAGE_SIZE }));
+      
+      setTimeout(() => scrollToBottom("auto"), 0);
     } catch (err) {
       console.error("Load messages error:", err);
     } finally {
-      if (loadingGroupRef.current === groupId) {
-        loadingGroupRef.current = null;
-      }
-      setIsLoadingMessages(false);
+      setIsLoading(false);
     }
   }, [scrollToBottom]);
 
   useEffect(() => {
-    if (!selectedConversationId) return;
-    void loadMessagesForGroup(selectedConversationId);
-  }, [selectedConversationId, loadMessagesForGroup]);
+    if (selectedConversationId) {
+      loadMessages(selectedConversationId);
+    }
+  }, [selectedConversationId, loadMessages]);
 
-  const appendMessageLocally = useCallback((groupId: string, message: ChatMessageRow) => {
-    setMessages((prev) => {
+  const appendMessage = useCallback((groupId: string, message: ChatMessageRow) => {
+    setMessages(prev => {
       const current = prev[groupId] || [];
-      if (current.some((item) => item.id === message.id)) return prev;
-      return {
-        ...prev,
-        [groupId]: dedupeMessages([...current, message]),
-      };
+      if (current.some(m => m.id === message.id)) return prev;
+      return { ...prev, [groupId]: dedupeMessages([...current, message]) };
     });
   }, []);
 
-  const updateMessageLocally = useCallback((groupId: string, message: ChatMessageRow) => {
-    setMessages((prev) => ({
+  const updateMessage = useCallback((groupId: string, message: ChatMessageRow) => {
+    setMessages(prev => ({
       ...prev,
-      [groupId]: (prev[groupId] || []).map((item) =>
-        item.id === message.id ? message : item
-      ),
+      [groupId]: (prev[groupId] || []).map(m => m.id === message.id ? message : m),
     }));
   }, []);
 
-  const deleteMessageLocally = useCallback((groupId: string, messageId: string) => {
-    setMessages((prev) => ({
+  const deleteMessage = useCallback((groupId: string, messageId: string) => {
+    setMessages(prev => ({
       ...prev,
-      [groupId]: (prev[groupId] || []).filter((item) => item.id !== messageId),
+      [groupId]: (prev[groupId] || []).filter(m => m.id !== messageId),
     }));
   }, []);
 
-  const replaceTempMessageWithRealOne = useCallback(
-    (groupId: string, realMessage: ChatMessageRow) => {
-      setMessages((prev) => {
-        const existing = prev[groupId] || [];
-        const tempIndex = existing.findIndex((message) => {
-          if (!message.id.startsWith("temp-")) return false;
-          if (message.user_id !== realMessage.user_id) return false;
-          if (message.group_id !== realMessage.group_id) return false;
-          if (message.content !== realMessage.content) return false;
-          const timeDiff = Math.abs(
-            new Date(message.created_at).getTime() -
-              new Date(realMessage.created_at).getTime()
-          );
-          return timeDiff < 30000;
-        });
+  const replaceTempMessage = useCallback((groupId: string, realMessage: ChatMessageRow) => {
+    setMessages(prev => {
+      const existing = prev[groupId] || [];
+      const tempIdx = existing.findIndex(m => 
+        m.id.startsWith("temp-") && 
+        m.user_id === realMessage.user_id &&
+        m.content === realMessage.content
+      );
+      
+      if (tempIdx === -1) {
+        return { ...prev, [groupId]: dedupeMessages([...existing, realMessage]) };
+      }
+      
+      const next = [...existing];
+      next[tempIdx] = realMessage;
+      return { ...prev, [groupId]: dedupeMessages(next) };
+    });
+  }, []);
 
-        if (tempIndex === -1) {
-          return {
-            ...prev,
-            [groupId]: dedupeMessages([...existing, realMessage]),
-          };
-        }
-
-        const next = [...existing];
-        next[tempIndex] = realMessage;
-        return {
-          ...prev,
-          [groupId]: dedupeMessages(next),
-        };
-      });
-    },
-    []
-  );
-
-  const handleLoadOlderMessages = useCallback(async () => {
+  const loadOlder = useCallback(async () => {
     if (!selectedConversationId) return;
-    const currentMessages = messages[selectedConversationId] || [];
-    if (currentMessages.length === 0) return;
-
-    const oldestMessage = currentMessages[0];
-    const viewport = getScrollViewport();
-    const previousScrollHeight = viewport?.scrollHeight || 0;
-    const previousScrollTop = viewport?.scrollTop || 0;
-
+    const current = messages[selectedConversationId] || [];
+    if (current.length === 0) return;
+    
+    const oldest = current[0];
+    const viewport = getViewport();
+    const prevHeight = viewport?.scrollHeight || 0;
+    const prevScroll = viewport?.scrollTop || 0;
+    
     setIsLoadingOlder(true);
-
+    
     try {
       const { data, error } = await supabase
         .from("chat_messages")
-        .select(`
-          id,
-          group_id,
-          user_id,
-          content,
-          created_at,
-          attachments:chat_attachments(
-            id,
-            message_id,
-            group_id,
-            uploaded_by,
-            file_name,
-            file_path,
-            mime_type,
-            file_size,
-            created_at
-          )
-        `)
+        .select(`*, attachments:chat_attachments(*)`)
         .eq("group_id", selectedConversationId)
-        .lt("created_at", oldestMessage.created_at)
+        .lt("created_at", oldest.created_at)
         .order("created_at", { ascending: false })
         .limit(PAGE_SIZE);
-
-      if (error) {
-        throw new Error(error.message || "Failed to load older messages.");
-      }
-
-      const olderBatch = sortMessagesAscending((data || []) as ChatMessageRow[]);
-      suppressNextAutoScrollRef.current = true;
-
-      setMessages((prev) => ({
+        
+      if (error) throw error;
+      
+      const older = sortMessagesAscending((data || []) as ChatMessageRow[]);
+      setMessages(prev => ({
         ...prev,
-        [selectedConversationId]: dedupeMessages([
-          ...olderBatch,
-          ...(prev[selectedConversationId] || []),
-        ]),
+        [selectedConversationId]: dedupeMessages([...older, ...(prev[selectedConversationId] || [])]),
       }));
-
-      setHasMoreMessages((prev) => ({
-        ...prev,
-        [selectedConversationId]: (data || []).length === PAGE_SIZE,
-      }));
-
-      requestAnimationFrame(() => {
-        const nextViewport = getScrollViewport();
-        if (!nextViewport) return;
-        const newScrollHeight = nextViewport.scrollHeight;
-        const heightDiff = newScrollHeight - previousScrollHeight;
-        nextViewport.scrollTop = previousScrollTop + heightDiff;
-      });
+      setHasMore(prev => ({ ...prev, [selectedConversationId]: (data || []).length === PAGE_SIZE }));
+      
+      setTimeout(() => {
+        const newViewport = getViewport();
+        if (newViewport) {
+          newViewport.scrollTop = prevScroll + (newViewport.scrollHeight - prevHeight);
+        }
+      }, 0);
     } catch (err) {
-      console.error("Load older messages error:", err);
+      console.error("Load older error:", err);
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [getScrollViewport, messages, selectedConversationId]);
+  }, [selectedConversationId, messages, getViewport]);
 
-  // Real-time subscription with enhanced notification logic
+  // Realtime subscription
   useEffect(() => {
-    const channelKey = "chat:global";
-
-    registerRealtimeChannel(
-      channelKey,
-      supabase
-        .channel(channelKey)
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "chat_messages",
-          },
-          (payload) => {
-            if (payload.eventType === "INSERT" && payload.new) {
-              const message = payload.new as ChatMessageRow;
-              const groupId = message.group_id;
-              if (!groupId) return;
-
-              // Skip if already processed (deduplication)
-              if (processedMessageIds.current.has(message.id)) return;
-              processedMessageIds.current.add(message.id);
-
-              const isCurrentConversation = selectedConversationIdRef.current === groupId;
-              const isOwnMessage = message.user_id === currentUserId;
-
-              if (isCurrentConversation) {
-                const shouldStayAtBottom = isViewportNearBottom();
-                replaceTempMessageWithRealOne(groupId, message);
-                
-                if (shouldStayAtBottom) {
-                  shouldScrollToBottomRef.current = true;
-                }
-
-                // Highlight incoming messages from others
-                if (!isOwnMessage) {
-                  setHighlightedMessageIds(prev => [...prev, message.id]);
-                  setTimeout(() => {
-                    setHighlightedMessageIds(prev => prev.filter(id => id !== message.id));
-                  }, 3000);
-                }
-              } else {
-                appendMessageLocally(groupId, message);
-                
-                // Move to top and increment unread for messages from others
-                if (!isOwnMessage) {
-                  moveGroupToTop(groupId);
-                  incrementUnread(groupId, message.id);
-                  
-                  // Trigger notifications
-                  playSound();
-                  const convoName = getConversationName(groupId);
-                  showNotification(
-                    convoName || "New message",
-                    message.content?.substring(0, 60) || "New message"
-                  );
-                }
-              }
-              return;
+    const channel = supabase
+      .channel("chat-messages")
+      .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages" }, (payload) => {
+        if (payload.eventType === "INSERT" && payload.new) {
+          const msg = payload.new as ChatMessageRow;
+          const isCurrent = selectedIdRef.current === msg.group_id;
+          const isOwn = msg.user_id === currentUserId;
+          
+          if (processedIds.current.has(msg.id)) return;
+          processedIds.current.add(msg.id);
+          
+          if (isCurrent) {
+            replaceTempMessage(msg.group_id, msg);
+            if (!isOwn) {
+              setHighlightedIds(prev => [...prev, msg.id]);
+              setTimeout(() => setHighlightedIds(prev => prev.filter(id => id !== msg.id)), 3000);
+              if (isNearBottom()) scrollToBottom();
             }
-
-            if (payload.eventType === "UPDATE" && payload.new) {
-              const message = payload.new as ChatMessageRow;
-              const groupId = message.group_id;
-              if (!groupId) return;
-              updateMessageLocally(groupId, message);
-              return;
-            }
-
-            if (payload.eventType === "DELETE" && payload.old) {
-              const oldMessage = payload.old as ChatMessageRow;
-              if (!oldMessage.group_id || !oldMessage.id) return;
-              deleteMessageLocally(oldMessage.group_id, oldMessage.id);
+          } else {
+            appendMessage(msg.group_id, msg);
+            if (!isOwn) {
+              incrementUnread(msg.group_id, msg.id);
+              moveGroupToTop(msg.group_id, msg.content);
+              playNotificationSound();
+              showBrowserNotification(getConversationName(msg.group_id), msg.content);
             }
           }
-        )
-        .subscribe()
-    );
-
+        } else if (payload.eventType === "UPDATE" && payload.new) {
+          const msg = payload.new as ChatMessageRow;
+          updateMessage(msg.group_id, msg);
+        } else if (payload.eventType === "DELETE" && payload.old) {
+          const old = payload.old as ChatMessageRow;
+          deleteMessage(old.group_id, old.id);
+        }
+      })
+      .subscribe();
+      
     return () => {
-      void removeRealtimeChannel(channelKey);
+      channel.unsubscribe();
     };
-  }, [
-    appendMessageLocally,
-    deleteMessageLocally,
-    isViewportNearBottom,
-    replaceTempMessageWithRealOne,
-    updateMessageLocally,
-    incrementUnread,
-    moveGroupToTop,
-    playSound,
-    showNotification,
-    getConversationName,
-    currentUserId,
-  ]);
+  }, [currentUserId, incrementUnread, moveGroupToTop, getConversationName, appendMessage, updateMessage, deleteMessage, replaceTempMessage, isNearBottom, scrollToBottom]);
 
   const selectedMessages = useMemo(() => {
     if (!selectedConversationId) return [];
     return messages[selectedConversationId] || [];
   }, [messages, selectedConversationId]);
 
-  useEffect(() => {
-    if (suppressNextAutoScrollRef.current) {
-      suppressNextAutoScrollRef.current = false;
-      return;
-    }
-    if (!shouldScrollToBottomRef.current) return;
-    if (isLoadingOlder) return;
-
-    shouldScrollToBottomRef.current = false;
-    requestAnimationFrame(() => {
-      scrollToBottom("smooth");
-    });
-  }, [isLoadingOlder, selectedMessages.length, scrollToBottom]);
-
   return {
     messages,
-    hasMoreMessages,
-    isLoadingMessages,
+    hasMoreMessages: hasMore,
+    isLoadingMessages: isLoading,
     isLoadingOlder,
     selectedMessages,
-    highlightedMessageIds,
+    highlightedMessageIds: highlightedIds,
     scrollAreaRef,
     messagesEndRef,
-    loadMessagesForGroup,
-    handleLoadOlderMessages,
-    appendMessageLocally,
-    updateMessageLocally,
-    deleteMessageLocally,
-    replaceTempMessageWithRealOne,
+    loadMessagesForGroup: loadMessages,
+    handleLoadOlderMessages: loadOlder,
+    appendMessageLocally: appendMessage,
+    updateMessageLocally: updateMessage,
+    deleteMessageLocally: deleteMessage,
+    replaceTempMessageWithRealOne: replaceTempMessage,
   };
 }

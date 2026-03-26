@@ -13,13 +13,11 @@ import { useAppClock } from "@/lib/clock/provider";
 import { useChatBootstrap } from "./hooks/useChatBootstrap";
 import { useChatMessages } from "./hooks/useChatMessages";
 import type {
-  ChatGroupMemberRow,
   ChatGroupRow,
   ChatMessageRow,
   ProfileRow,
 } from "./types";
 import {
-  buildDirectKey,
   getConversationInitials,
   getConversationName,
   getMembersForGroup,
@@ -384,160 +382,6 @@ useEffect(() => {
     );
   };
 
-  const startDirectMessage = async (targetUserId: string) => {
-    if (!currentUserId) return;
-
-    setError("");
-
-    const directKey = buildDirectKey(currentUserId, targetUserId);
-
-    const existingLocal = groups.find(
-      (group) => group.type === "DIRECT" && group.direct_key === directKey
-    );
-
-    if (existingLocal) {
-  openConversation(existingLocal.id);
-  await reloadChatShell(existingLocal.id);
-  return;
-}
-
-    const { data: existingDb, error: existingError } = await supabase
-      .from("chat_groups")
-      .select("id, name, type, project_id, task_id, created_by, created_at, direct_key")
-      .eq("type", "DIRECT")
-      .eq("direct_key", directKey)
-      .maybeSingle();
-
-    if (existingError) {
-      setError(existingError.message || t("chat.errors.checkDirectChat"));
-      return;
-    }
-
-    if (existingDb) {
-      const optimisticMembers: ChatGroupMemberRow[] = [
-        {
-          id: `local-${existingDb.id}-${currentUserId}`,
-          group_id: existingDb.id,
-          user_id: currentUserId,
-          role: "member",
-          invited_by: currentUserId,
-          created_at: clock.nowIso,
-        },
-        {
-          id: `local-${existingDb.id}-${targetUserId}`,
-          group_id: existingDb.id,
-          user_id: targetUserId,
-          role: "member",
-          invited_by: currentUserId,
-          created_at: clock.nowIso,
-        },
-      ];
-
-      upsertGroupLocally(existingDb as ChatGroupRow, optimisticMembers);
-
-      const { error: ensureMembersError } = await supabase
-        .from("chat_group_members")
-        .upsert(
-          [
-            {
-              group_id: existingDb.id,
-              user_id: currentUserId,
-              role: "member",
-              invited_by: currentUserId,
-            },
-            {
-              group_id: existingDb.id,
-              user_id: targetUserId,
-              role: "member",
-              invited_by: currentUserId,
-            },
-          ],
-          {
-            onConflict: "group_id,user_id",
-          }
-        );
-
-      if (ensureMembersError) {
-        setError(
-          ensureMembersError.message || t("chat.errors.addDirectChatMembers")
-        );
-        return;
-      }
-
-      openConversation(existingDb.id);
-      await reloadChatShell(existingDb.id);
-      return;
-    }
-
-    const { data: newGroup, error: groupError } = await supabase
-      .from("chat_groups")
-      .insert({
-        name: null,
-        type: "DIRECT",
-        project_id: null,
-        task_id: null,
-        created_by: currentUserId,
-        direct_key: directKey,
-      })
-      .select("id, name, type, project_id, task_id, created_by, created_at, direct_key")
-      .single();
-
-    if (groupError || !newGroup) {
-      setError(groupError?.message || t("chat.errors.createDirectChat"));
-      return;
-    }
-
-           const optimisticMembers: ChatGroupMemberRow[] = [
-  {
-    id: `local-${newGroup.id}-${currentUserId}`,
-    group_id: newGroup.id,
-    user_id: currentUserId,
-    role: "member",
-    invited_by: currentUserId,
-    created_at: clock.nowIso,
-  },
-  {
-    id: `local-${newGroup.id}-${targetUserId}`,
-    group_id: newGroup.id,
-    user_id: targetUserId,
-    role: "member",
-    invited_by: currentUserId,
-    created_at: clock.nowIso,
-  },
-];
-
-    upsertGroupLocally(newGroup as ChatGroupRow, optimisticMembers);
-    openConversation(newGroup.id);
-
-            const { error: memberInsertError } = await supabase
-      .from("chat_group_members")
-      .upsert(
-        [
-          {
-            group_id: newGroup.id,
-            user_id: currentUserId,
-            role: "member",
-            invited_by: currentUserId,
-          },
-          {
-            group_id: newGroup.id,
-            user_id: targetUserId,
-            role: "member",
-            invited_by: currentUserId,
-          },
-        ],
-        {
-          onConflict: "group_id,user_id",
-        }
-      );
-
-    if (memberInsertError) {
-      setError(memberInsertError.message || t("chat.errors.addDirectChatMembers"));
-    }
-
-    await reloadChatShell(newGroup.id);
-  };
-
   const handleCreateGroup = async () => {
     if (!currentUserId) return;
 
@@ -898,7 +742,6 @@ useEffect(() => {
           onSearchChange={setSearchQuery}
           onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
           onOpenConversation={openConversation}
-          onStartDirectMessage={(userId) => void startDirectMessage(userId)}
           onDeleteChat={(group) => void handleDeleteChat(group)}
         />
 

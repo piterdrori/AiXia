@@ -108,7 +108,7 @@ export default function TeamMembersSidebar({
           </div>
         </div>
 
-        <ScrollArea className="flex-1 min-h-0">
+        <ScrollArea className="flex-1 min-h-0 h-full">
           <div className="p-2 space-y-1">
             {filteredProfiles.map((profile) => {
               const isOnline = onlineStatus[profile.user_id] === "online" || isUserOnline(profile.last_seen);

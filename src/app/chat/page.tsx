@@ -14,6 +14,7 @@ import { useChatBootstrap } from "./hooks/useChatBootstrap";
 import { useChatMessages } from "./hooks/useChatMessages";
 import type {
   ChatGroupRow,
+  ChatGroupMemberRow,
   ChatMessageRow,
   ProfileRow,
 } from "./types";

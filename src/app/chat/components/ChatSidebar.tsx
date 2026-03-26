@@ -25,7 +25,6 @@ type Props = {
   onSearchChange: (value: string) => void;
   onOpenCreateGroup: () => void;
   onOpenConversation: (groupId: string) => void;
-  onStartDirectMessage: (userId: string) => void;
   onDeleteChat: (group: ChatGroupRow) => void;
 };
 
@@ -41,7 +40,6 @@ export default function ChatSidebar({
   onSearchChange,
   onOpenCreateGroup,
   onOpenConversation,
-  onStartDirectMessage,
   onDeleteChat,
 }: Props) {
   const { t } = useLanguage();

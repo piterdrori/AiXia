@@ -8,6 +8,9 @@ import { useChatBootstrap } from "./hooks/useChatBootstrap";
 import { useChatMessages } from "./hooks/useChatMessages";
 import type { ChatGroupRow, ChatMessageRow } from "./types";
 
+// page.tsx - Line 10, add back the imports
+import { getConversationName, getMembersForGroup } from "./utils";
+
 import ChatSidebar from "./components/ChatSidebar";
 import TeamMembersSidebar from "./components/TeamMembersSidebar";
 import ChatHeader from "./components/ChatHeader";
@@ -79,11 +82,30 @@ export default function ChatPage() {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [isSending, setIsSending] = useState(false);
+  // page.tsx - Line 83-84, add back setIsUploadingFile
+const [isUploadingFile, setIsUploadingFile] = useState(false);
 
 
   const selectedGroup = useMemo(() => 
     groups.find(g => g.id === selectedConversationId) || null,
   [groups, selectedConversationId]);
+
+  // Line 90-92 - Add types
+const mentionCandidates = useMemo(() => {
+  if (!selectedConversationId) return [];
+  return getMembersForGroup(groupMembers, selectedConversationId)
+    .map((m: ChatGroupMemberRow) => profiles.find((p: ProfileRow) => p.user_id === m.user_id))
+    .filter((p: ProfileRow | undefined): p is ProfileRow => !!p && p.user_id !== currentUserId);
+}, [selectedConversationId, groupMembers, profiles, currentUserId]);
+
+  // Line 98 - Add type
+const filteredMentionCandidates = useMemo(() => {
+  if (!showMentionDropdown) return [];
+  const q = mentionQuery.toLowerCase();
+  return mentionCandidates.filter((p: ProfileRow) => 
+    (p.full_name || "").toLowerCase().includes(q)
+  );
+}, [mentionCandidates, mentionQuery, showMentionDropdown]);
 
   const mentionCandidates = useMemo(() => {
     if (!selectedConversationId) return [];

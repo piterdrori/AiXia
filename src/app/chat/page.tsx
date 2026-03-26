@@ -626,7 +626,7 @@ export default function ChatPage() {
   };
 
    return (
-    <div className="h-[calc(100dvh-73px-2rem)] min-h-0 bg-slate-950 overflow-hidden">
+    <div className="h-[calc(100dvh-73px-2rem)] min-h-0 bg-slate-500 overflow-hidden">
       <div className="h-full min-h-0 max-w-[1460px] mx-auto overflow-hidden rounded-2xl border border-slate-800 bg-slate-950">
         <div className="grid h-full min-h-0 grid-cols-[320px_minmax(0,1fr)_280px] overflow-hidden items-stretch">
           <div className="h-full min-h-0 overflow-hidden border-r border-slate-800">

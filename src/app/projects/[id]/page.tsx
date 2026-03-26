@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
@@ -22,6 +22,7 @@ import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
 import { smartTranslate } from "@/lib/smartTranslate";
+import { openFile, downloadFile } from "@/lib/file-actions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -195,74 +196,6 @@ export default function ProjectDetailPage() {
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
   const projectFileInputRef = useRef<HTMLInputElement | null>(null);
-
-const fileUrlCacheRef = useRef<Record<string, string>>({});
-const [fileActionLoading, setFileActionLoading] = useState<string | null>(null);
-
-const getFileSignedUrl = useCallback(async (filePath: string, cacheKey: string) => {
-  const cached = fileUrlCacheRef.current[cacheKey];
-  if (cached) return cached;
-
-  const { data, error } = await supabase.storage
-    .from("project-files")
-    .createSignedUrl(filePath, 60);
-
-  if (error || !data?.signedUrl) {
-    throw new Error(error?.message || "Failed to create signed URL");
-  }
-
-  fileUrlCacheRef.current = {
-    ...fileUrlCacheRef.current,
-    [cacheKey]: data.signedUrl,
-  };
-
-  return data.signedUrl;
-}, []);
-
-const handleOpenFile = useCallback(async (file: FileUploadRow) => {
-  const key = file.id;
-
-  try {
-    setFileActionLoading(key);
-    const url = await getFileSignedUrl(file.file_path, key);
-    window.open(url, "_blank", "noopener,noreferrer");
-  } catch (err) {
-    console.error("Open file error:", err);
-    setError("Failed to open file.");
-  } finally {
-    setFileActionLoading(null);
-  }
-}, [getFileSignedUrl]);
-
-const handleDownloadFile = useCallback(async (file: FileUploadRow) => {
-  const key = file.id;
-
-  try {
-    setFileActionLoading(key);
-
-    const { data, error } = await supabase.storage
-      .from("project-files")
-      .createSignedUrl(file.file_path, 60, {
-        download: file.file_name,
-      });
-
-    if (error || !data?.signedUrl) {
-      throw new Error(error?.message || "Failed to create download URL");
-    }
-
-    const link = document.createElement("a");
-    link.href = data.signedUrl;
-    link.download = file.file_name;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  } catch (err) {
-    console.error("Download file error:", err);
-    setError("Failed to download file.");
-  } finally {
-    setFileActionLoading(null);
-  }
-}, []);
   
   const { t } = useLanguage();
   const clock = useAppClock();
@@ -273,7 +206,8 @@ const handleDownloadFile = useCallback(async (file: FileUploadRow) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [error, setError] = useState("");
+const [fileActionLoading, setFileActionLoading] = useState<string | null>(null);
+const [error, setError] = useState("");
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
@@ -1613,41 +1547,62 @@ setTranslatedComments((prev) => ({
                         </div>
 
                        <div className="flex items-center gap-2">
-  <Button
-    type="button"
-    variant="outline"
-    className="border-slate-700 text-slate-300 hover:bg-slate-800"
-    onClick={() => void handleOpenFile(file)}
-    disabled={fileActionLoading === file.id}
-  >
-    <ExternalLink className="w-4 h-4 mr-2" />
-    {t("projects.open", "Open")}
-  </Button>
+ <Button
+  type="button"
+  variant="outline"
+  className="border-slate-700 text-slate-300 hover:bg-slate-800"
+  onClick={async () => {
+    try {
+      setFileActionLoading(file.id);
+      await openFile("project-files", file.file_path, file.id);
+    } catch (err) {
+      console.error("Open file error:", err);
+      setError(t("projects.failedToOpenFile", "Failed to open file."));
+    } finally {
+      setFileActionLoading(null);
+    }
+  }}
+  disabled={fileActionLoading === file.id}
+>
+  <ExternalLink className="w-4 h-4 mr-2" />
+  {t("projects.open", "Open")}
+</Button>
 
   <Button
-    type="button"
-    variant="outline"
-    className="border-slate-700 text-green-400 hover:bg-slate-800"
-    onClick={() => void handleDownloadFile(file)}
-    disabled={fileActionLoading === file.id}
-  >
-    <Download className="w-4 h-4 mr-2" />
-    Download
-  </Button>
+  type="button"
+  variant="outline"
+  className="border-slate-700 text-green-400 hover:bg-slate-800"
+  onClick={async () => {
+    try {
+      setFileActionLoading(file.id);
+      await downloadFile("project-files", file.file_path, file.file_name);
+    } catch (err) {
+      console.error("Download file error:", err);
+      setError(t("projects.failedToDownloadFile", "Failed to download file."));
+    } finally {
+      setFileActionLoading(null);
+    }
+  }}
+  disabled={fileActionLoading === file.id}
+>
+  <Download className="w-4 h-4 mr-2" />
+  Download
+</Button>
 
   {canDeleteThisProjectFile(file) && (
-    <Button
-      type="button"
-      variant="outline"
-      className="border-red-800 text-red-400 hover:bg-red-900/20"
-      onClick={() =>
-        void handleDeleteFile(file.id, file.file_path, file.file_name)
-      }
-    >
-      <Trash2 className="w-4 h-4 mr-2" />
-      {t("projects.delete", "Delete")}
-    </Button>
-  )}
+  <Button
+    type="button"
+    variant="outline"
+    className="border-red-800 text-red-400 hover:bg-red-900/20"
+    onClick={() =>
+      void handleDeleteFile(file.id, file.file_path, file.file_name)
+    }
+    disabled={fileActionLoading === file.id}
+  >
+    <Trash2 className="w-4 h-4 mr-2" />
+    {t("projects.delete", "Delete")}
+  </Button>
+)}
 </div>
                       </div>
                     );

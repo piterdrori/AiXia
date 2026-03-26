@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Check, Square, Trash2 } from "lucide-react";
 
@@ -94,7 +94,7 @@ export default function ChatPage() {
   const [groupActionLoading, setGroupActionLoading] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
-  const [lastMessageMap, setLastMessageMap] = useState<Record<string, string>>({});
+  const lastMessageMapRef = useRef<Record<string, string>>({});
 
   const playNotificationSound = () => {
   try {
@@ -126,45 +126,37 @@ const showBrowserNotification = (title: string, body: string) => {
 useEffect(() => {
   if (!groups || groups.length === 0) return;
 
-  setLastMessageMap((prev) => {
-    let hasChanges = false;
-    const next = { ...prev };
+  const map = lastMessageMapRef.current;
 
-    for (const group of groups) {
-      const groupMessages = messages[group.id];
-      if (!groupMessages || groupMessages.length === 0) continue;
+  for (const group of groups) {
+    const groupMessages = messages[group.id];
+    if (!groupMessages || groupMessages.length === 0) continue;
 
-      const lastMsg = groupMessages[groupMessages.length - 1];
-      if (!lastMsg) continue;
+    const lastMsg = groupMessages[groupMessages.length - 1];
+    if (!lastMsg) continue;
 
-      const prevId = prev[group.id];
+    const prevId = map[group.id];
 
-      if (prevId && prevId !== lastMsg.id && lastMsg.user_id !== currentUserId) {
-        const groupTitle = getConversationName(
-          group,
-          currentUserId,
-          profiles,
-          groupMembers
-        );
+    if (prevId && prevId !== lastMsg.id && lastMsg.user_id !== currentUserId) {
+      const groupTitle = getConversationName(
+        group,
+        currentUserId,
+        profiles,
+        groupMembers
+      );
 
-        playNotificationSound();
+      playNotificationSound();
 
-        showBrowserNotification(
-          groupTitle || "New message",
-          lastMsg.content || "New message"
-        );
+      showBrowserNotification(
+        groupTitle || "New message",
+        lastMsg.content || "New message"
+      );
 
-        moveGroupToTop(group.id);
-      }
-
-      if (next[group.id] !== lastMsg.id) {
-        next[group.id] = lastMsg.id;
-        hasChanges = true;
-      }
+      moveGroupToTop(group.id);
     }
 
-    return hasChanges ? next : prev;
-  });
+    map[group.id] = lastMsg.id;
+  }
 }, [messages, groups, currentUserId, profiles, groupMembers, moveGroupToTop]);
 
   useEffect(() => {

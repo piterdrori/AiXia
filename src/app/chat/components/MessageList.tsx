@@ -1,5 +1,13 @@
-import { useState } from "react";
-import { Check, MessageSquare, Save, Square, X } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
+import {
+  Check,
+  Download,
+  ExternalLink,
+  MessageSquare,
+  Save,
+  Square,
+  X,
+} from "lucide-react";
 import { formatMessageTime, getProfileByUserId, getUserInitials } from "../utils";
 import type { ChatMessageRow, MessageListProps } from "../types";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -8,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/lib/i18n";
+import { supabase } from "@/lib/supabase";
 
 import { smartTranslate } from "@/lib/smartTranslate";
 
@@ -39,6 +48,84 @@ export default function MessageList({
   Record<string, { text: string; source: string }>
 >({});
   const [translatingMessageId, setTranslatingMessageId] = useState<string | null>(null);
+
+ 
+  const attachmentUrlCacheRef = useRef<Record<string, string>>({});
+const [attachmentActionLoading, setAttachmentActionLoading] = useState<string | null>(
+  null
+);
+
+const getAttachmentSignedUrl = useCallback(
+  async (filePath: string, cacheKey: string) => {
+    const cachedUrl = attachmentUrlCacheRef.current[cacheKey];
+
+    if (cachedUrl) {
+      return cachedUrl;
+    }
+
+    const { data, error } = await supabase.storage
+      .from("chat-files")
+      .createSignedUrl(filePath, 60);
+
+    if (error || !data?.signedUrl) {
+      throw new Error(error?.message || "Failed to create signed URL");
+    }
+
+    attachmentUrlCacheRef.current = {
+      ...attachmentUrlCacheRef.current,
+      [cacheKey]: data.signedUrl,
+    };
+
+    return data.signedUrl;
+  },
+  []
+);
+
+const handleOpenAttachment = useCallback(
+  async (cacheKey: string, filePath: string) => {
+    try {
+      setAttachmentActionLoading(cacheKey);
+      const signedUrl = await getAttachmentSignedUrl(filePath, cacheKey);
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error("Open attachment error:", error);
+    } finally {
+      setAttachmentActionLoading(null);
+    }
+  },
+  [getAttachmentSignedUrl]
+);
+
+const handleDownloadAttachment = useCallback(
+  async (cacheKey: string, filePath: string, fileName: string) => {
+    try {
+      setAttachmentActionLoading(cacheKey);
+
+      const { data, error } = await supabase.storage
+        .from("chat-files")
+        .createSignedUrl(filePath, 60, {
+          download: fileName,
+        });
+
+      if (error || !data?.signedUrl) {
+        throw new Error(error?.message || "Failed to create download URL");
+      }
+
+      const link = document.createElement("a");
+      link.href = data.signedUrl;
+      link.download = fileName;
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error("Download attachment error:", error);
+    } finally {
+      setAttachmentActionLoading(null);
+    }
+  },
+  []
+);
 
   const handleTranslateMessage = async (message: ChatMessageRow) => {
     if (translatedMessages[message.id]) {
@@ -162,6 +249,7 @@ setTranslatedMessages((prev) => ({
               const isEditing = editingMessageId === message.id;
               const canSelect = canManageMessage(message);
               const isSelected = selectedMessageIds.includes(message.id);
+      
       const isAttachmentOnlyMessage =
   Boolean(message.attachments?.length) && !message.content?.trim();
 
@@ -241,29 +329,24 @@ setTranslatedMessages((prev) => ({
                         </div>
                                                ) : (
                         <div className="space-y-1">
-                          <p className="whitespace-pre-wrap break-words">
-                            {translatedMessages[message.id]?.text || message.content}
-                          </p>
+                          {message.content?.trim() ? (
+  <p className="whitespace-pre-wrap break-words">
+    {translatedMessages[message.id]?.text || message.content}
+  </p>
+) : null}
 
                           {message.attachments && message.attachments.length > 0 && (
-                            <div className="mt-2 space-y-2">
-                              {message.attachments.map((file) => {
-                                const publicUrl = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/chat-files/${file.file_path}`;
-
-                                return (
-                                  <a
-                                    key={file.id}
-                                    href={publicUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="block text-xs bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-md"
-                                  >
-                                    📎 {file.file_name}
-                                  </a>
-                                );
-                              })}
-                            </div>
-                          )}
+  <div className="mt-2 space-y-2">
+    {message.attachments.map((file) => (
+      <div
+        key={file.id}
+        className="block text-xs bg-slate-700 px-3 py-2 rounded-md"
+      >
+        📎 {file.file_name}
+      </div>
+    ))}
+  </div>
+)}
 
                           {translatedMessages[message.id]?.source && (
                             <p className="text-[10px] opacity-70">
@@ -275,36 +358,46 @@ setTranslatedMessages((prev) => ({
 
                     </div>
 
-                    {!isEditing && !isSelectionMode && (
-  <div className={`mt-1 flex gap-2 ${isOwn ? "justify-end" : "justify-start"}`}>
-
-    {/* ATTACHMENT MODE */}
+                   {!isEditing && !isSelectionMode && (
+  <div className={`mt-1 flex flex-wrap gap-2 ${isOwn ? "justify-end" : "justify-start"}`}>
     {isAttachmentOnlyMessage ? (
       <>
         {message.attachments?.map((file) => {
-          const publicUrl = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/chat-files/${file.file_path}`;
+          const attachmentKey = `${message.id}:${file.id}`;
 
           return (
-            <div key={file.id} className="flex gap-2">
-              <a
-                href={publicUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-indigo-400 hover:text-indigo-300"
+            <div key={file.id} className="flex items-center gap-2">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
+                onClick={() =>
+                  void handleOpenAttachment(attachmentKey, file.file_path)
+                }
+                disabled={attachmentActionLoading === attachmentKey}
               >
+                <ExternalLink className="w-3 h-3" />
                 Open
-              </a>
+              </button>
 
-              <a
-                href={publicUrl}
-                download={file.file_name}
-                className="text-xs text-green-400 hover:text-green-300"
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-xs text-green-400 hover:text-green-300 disabled:opacity-50"
+                onClick={() =>
+                  void handleDownloadAttachment(
+                    attachmentKey,
+                    file.file_path,
+                    file.file_name
+                  )
+                }
+                disabled={attachmentActionLoading === attachmentKey}
               >
+                <Download className="w-3 h-3" />
                 Download
-              </a>
+              </button>
 
               {canManageMessage(message) && (
                 <button
+                  type="button"
                   className="text-xs text-red-400 hover:text-red-300"
                   onClick={() => onDeleteMessage(message)}
                   disabled={messageActionLoading === message.id}
@@ -317,10 +410,10 @@ setTranslatedMessages((prev) => ({
         })}
       </>
     ) : (
-      /* NORMAL MESSAGE MODE */
       <>
         <button
-          className="text-xs text-indigo-400 hover:text-indigo-300"
+          type="button"
+          className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
           onClick={() => void handleTranslateMessage(message)}
           disabled={translatingMessageId === message.id}
         >
@@ -334,6 +427,7 @@ setTranslatedMessages((prev) => ({
         {canManageMessage(message) && (
           <>
             <button
+              type="button"
               className="text-xs text-slate-400 hover:text-white"
               onClick={() => onStartEdit(message)}
               disabled={messageActionLoading === message.id}
@@ -341,6 +435,7 @@ setTranslatedMessages((prev) => ({
               {t("chat.messageList.edit")}
             </button>
             <button
+              type="button"
               className="text-xs text-red-400 hover:text-red-300"
               onClick={() => onDeleteMessage(message)}
               disabled={messageActionLoading === message.id}
@@ -353,6 +448,7 @@ setTranslatedMessages((prev) => ({
     )}
   </div>
 )}
+      
                   </div>
                 </div>
               );

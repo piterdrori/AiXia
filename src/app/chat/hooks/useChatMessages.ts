@@ -261,7 +261,7 @@ useEffect(() => {
   }, [getScrollViewport, messages, selectedConversationId]);
 
  useEffect(() => {
-  const channelKey = `chat:global`;
+  const channelKey = "chat:global";
 
   registerRealtimeChannel(
     channelKey,
@@ -275,15 +275,15 @@ useEffect(() => {
           table: "chat_messages",
         },
         (payload) => {
-          const message = payload.new as ChatMessageRow;
-          if (!message?.group_id) return;
+          if (payload.eventType === "INSERT" && payload.new) {
+            const message = payload.new as ChatMessageRow;
+            const groupId = message.group_id;
+            if (!groupId) return;
 
-          const groupId = message.group_id;
+            const isCurrentConversation =
+              selectedConversationIdRef.current === groupId;
 
-          if (payload.eventType === "INSERT") {
-            const isCurrent = selectedConversationIdRef.current === groupId;
-
-            if (isCurrent) {
+            if (isCurrentConversation) {
               const shouldStayAtBottom = isViewportNearBottom();
 
               replaceTempMessageWithRealOne(groupId, message);
@@ -292,23 +292,26 @@ useEffect(() => {
                 shouldScrollToBottomRef.current = true;
               }
             } else {
-              // important: still store message for sidebar + notifications
               appendMessageLocally(groupId, message);
             }
 
             return;
           }
 
-          if (payload.eventType === "UPDATE") {
+          if (payload.eventType === "UPDATE" && payload.new) {
+            const message = payload.new as ChatMessageRow;
+            const groupId = message.group_id;
+            if (!groupId) return;
+
             updateMessageLocally(groupId, message);
             return;
           }
 
           if (payload.eventType === "DELETE" && payload.old) {
-            deleteMessageLocally(
-              payload.old.group_id,
-              payload.old.id
-            );
+            const oldMessage = payload.old as ChatMessageRow;
+            if (!oldMessage.group_id || !oldMessage.id) return;
+
+            deleteMessageLocally(oldMessage.group_id, oldMessage.id);
           }
         }
       )

@@ -73,7 +73,7 @@ export default function TeamMembersSidebar({
   };
 
   return (
-    <Card className="w-72 bg-slate-900 border-slate-800 flex flex-col h-full overflow-hidden min-h-0 rounded-none border-y-0 border-r-0">
+    <Card className="w-full min-w-0 bg-slate-900 border-slate-800 flex flex-col h-full overflow-hidden min-h-0 rounded-none border-y-0 border-r-0">
       <CardContent className="p-0 flex flex-col h-full min-h-0">
         <div className="p-4 border-b border-slate-800">
           <div className="flex items-center justify-between mb-3">

@@ -1,6 +1,6 @@
 // MessageList.tsx
 import { useState } from "react";
-import { Download, ExternalLink, MessageSquare, MoreHorizontal, Sparkles, Trash2, Edit2, Check, X } from "lucide-react";
+import { Download, ExternalLink, MessageSquare, Sparkles, Trash2, Edit2, Check, X } from "lucide-react";
 import { formatMessageTime, getProfileByUserId, getUserInitials } from "../utils";
 import type { ChatMessageRow, MessageListProps } from "../types";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -19,7 +19,6 @@ export default function MessageList({
   selectedMessageIds,
   editingMessageId,
   editingMessageText,
-  messageActionLoading,
   hasMore,
   isLoadingOlder,
   scrollAreaRef,
@@ -35,7 +34,6 @@ export default function MessageList({
 }: MessageListProps) {
   const [translatedMessages, setTranslatedMessages] = useState<Record<string, { text: string; source: string }>>({});
   const [translatingId, setTranslatingId] = useState<string | null>(null);
-  const [attachmentLoading, setAttachmentLoading] = useState<string | null>(null);
 
   const canManage = (msg: ChatMessageRow) => {
     if (!currentUserId) return false;
@@ -48,7 +46,6 @@ export default function MessageList({
       return;
     }
     setTranslatingId(msg.id);
-    // Simulated translation - replace with actual API
     setTimeout(() => {
       setTranslatedMessages(prev => ({ ...prev, [msg.id]: { text: `[Translated] ${msg.content}`, source: "Auto" } }));
       setTranslatingId(null);

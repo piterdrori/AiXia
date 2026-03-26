@@ -1,5 +1,5 @@
 // page.tsx
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Check, Square, Trash2, Bell } from "lucide-react";
 
@@ -35,7 +35,6 @@ import CreateGroupDialog from "./components/CreateGroupDialog";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export default function ChatPage() {

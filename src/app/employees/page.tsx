@@ -738,6 +738,29 @@ if (effective.manageUsers) {
   };
 }, [loadProfiles]);
 
+  useEffect(() => {
+  if (!canManageUsers) return;
+
+  const channel = supabase
+    .channel("employees-page-access-requests")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "employee_access_requests",
+      },
+      () => {
+        void loadProfiles();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [canManageUsers, loadProfiles]);
+
   const approveUser = async (userId: string) => {
     if (!canManageUsers) return;
 

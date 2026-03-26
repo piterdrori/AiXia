@@ -1,9 +1,9 @@
+// utils.ts
 import { format, isToday, isYesterday } from "date-fns";
 import type {
   ChatGroupMemberRow,
   ChatGroupRow,
   ChatMessageRow,
-  ConversationBuckets,
   ProfileRow,
 } from "./types";
 
@@ -24,7 +24,6 @@ export function sortMessagesAscending(items: ChatMessageRow[]) {
   return [...items].sort((a, b) => {
     const timeDiff =
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-
     if (timeDiff !== 0) return timeDiff;
     return a.id.localeCompare(b.id);
   });
@@ -32,17 +31,14 @@ export function sortMessagesAscending(items: ChatMessageRow[]) {
 
 export function dedupeMessages(items: ChatMessageRow[]) {
   const map = new Map<string, ChatMessageRow>();
-
   for (const item of items) {
     map.set(item.id, item);
   }
-
   return sortMessagesAscending(Array.from(map.values()));
 }
 
 export function formatMessageTime(value: string, t?: TranslateFn) {
   const date = new Date(value);
-
   if (isToday(date)) return format(date, "HH:mm");
   if (isYesterday(date))
     return `${t ? t("chat.time.yesterday") : "Yesterday"} ${format(date, "HH:mm")}`;
@@ -94,7 +90,6 @@ export function getConversationInitials(
   t?: TranslateFn
 ) {
   const name = getConversationName(group, currentUserId, profiles, groupMembers, t);
-
   return name
     .split(" ")
     .map((part) => part[0])
@@ -112,26 +107,57 @@ export function getUserInitials(fullName: string | null | undefined) {
     .slice(0, 2);
 }
 
-export function bucketConversations(
-  groups: ChatGroupRow[],
-  searchQuery: string,
-  currentUserId: string | null,
-  profiles: ProfileRow[],
-  groupMembers: ChatGroupMemberRow[],
-  t?: TranslateFn
-): ConversationBuckets {
-  const q = searchQuery.trim().toLowerCase();
+// Sound notification helper
+let audioContext: AudioContext | null = null;
+export function playNotificationSound() {
+  try {
+    // Try modern AudioContext for better performance
+    if (typeof window !== "undefined") {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      
+      // Simple beep using oscillator as fallback if file fails
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800;
+      oscillator.type = "sine";
+      
+      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.5);
+    }
+    
+    // Also try file-based sound
+    const audio = new Audio("/sounds/notification.mp3");
+    audio.volume = 0.4;
+    audio.play().catch(() => {
+      // Ignore autoplay errors
+    });
+  } catch {
+    // Silent fail
+  }
+}
 
-  const filtered = groups.filter((group) =>
-    getConversationName(group, currentUserId, profiles, groupMembers, t)
-      .toLowerCase()
-      .includes(q)
-  );
-
-  return {
-    direct: filtered.filter((group) => group.type === "DIRECT"),
-    project: filtered.filter((group) => group.type === "PROJECT"),
-    task: filtered.filter((group) => group.type === "TASK"),
-    group: filtered.filter((group) => group.type === "GROUP"),
-  };
+// Browser notification helper
+export function showBrowserNotification(title: string, body: string, icon?: string) {
+  if (!("Notification" in window)) return;
+  
+  if (Notification.permission === "granted") {
+    new Notification(title, { 
+      body,
+      icon: icon || "/favicon.ico",
+      badge: icon || "/favicon.ico",
+      tag: "chat-message",
+      requireInteraction: false
+    });
+  } else if (Notification.permission !== "denied") {
+    Notification.requestPermission();
+  }
 }

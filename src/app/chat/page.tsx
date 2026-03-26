@@ -7,7 +7,6 @@ import { useAppClock } from "@/lib/clock/provider";
 import { useChatBootstrap } from "./hooks/useChatBootstrap";
 import { useChatMessages } from "./hooks/useChatMessages";
 import type { ChatGroupRow, ChatMessageRow } from "./types";
-import { getConversationName, getMembersForGroup, extractMentionedUserIds } from "./utils";
 
 import ChatSidebar from "./components/ChatSidebar";
 import TeamMembersSidebar from "./components/TeamMembersSidebar";
@@ -80,7 +79,7 @@ export default function ChatPage() {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [isSending, setIsSending] = useState(false);
-  const [isUploadingFile, setIsUploadingFile] = useState(false);
+
 
   const selectedGroup = useMemo(() => 
     groups.find(g => g.id === selectedConversationId) || null,

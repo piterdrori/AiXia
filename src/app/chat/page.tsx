@@ -762,7 +762,7 @@ export default function ChatPage() {
                   setTranslatedMessages((prev) => {
                     if (!prev[msg.id]) return prev;
 
-                    const next = { ...prev };
+                                       const next = { ...prev };
                     delete next[msg.id];
                     return next;
                   });
@@ -799,27 +799,27 @@ export default function ChatPage() {
         )}
       </div>
 
-         <div className="h-full min-h-0 overflow-hidden">
-  <TeamMembersSidebar
-    profiles={profiles}
-    currentUserId={currentUserId}
-    onlineStatus={onlineStatus}
-    onStartDM={(userId: string) => {
-      void handleStartDirectMessage(userId);
-    }}
-  />
-</div>
-
-              <CreateGroupDialog
-          open={isCreateGroupOpen}
-          currentUserId={currentUserId}
+      <div className="h-full min-h-0 overflow-hidden">
+        <TeamMembersSidebar
           profiles={profiles}
-          isCreating={isCreatingGroup}
-          error={error}
-          onOpenChange={setIsCreateGroupOpen}
-          onCreate={handleCreateGroup}
+          currentUserId={currentUserId}
+          onlineStatus={onlineStatus}
+          onStartDM={(userId: string) => {
+            void handleStartDirectMessage(userId);
+          }}
         />
       </div>
     </div>
-  );
+
+    <CreateGroupDialog
+      open={isCreateGroupOpen}
+      currentUserId={currentUserId}
+      profiles={profiles}
+      isCreating={isCreatingGroup}
+      error={error}
+      onOpenChange={setIsCreateGroupOpen}
+      onCreate={handleCreateGroup}
+    />
+  </div>
+);
 }

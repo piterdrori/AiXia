@@ -1,5 +1,5 @@
 // ChatHeader.tsx
-import { CheckSquare, PanelRight, Users, X, Bell } from "lucide-react";
+import { CheckSquare, PanelRight, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useLanguage } from "@/lib/i18n";
@@ -10,7 +10,7 @@ type Props = {
   initials: string;
   isSelectionMode: boolean;
   isDetailsPanelOpen: boolean;
-  unreadCount?: number; // New
+  unreadCount?: number;
   onToggleSelectionMode: () => void;
   onToggleDetailsPanel: () => void;
 };

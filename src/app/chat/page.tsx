@@ -565,7 +565,7 @@ export default function ChatPage() {
 
   return (
         <div className="h-[calc(100vh-64px)] bg-slate-950 px-4 py-4 overflow-hidden">
-      <div className="h-full max-w-[1460px] mx-auto grid grid-cols-[320px_minmax(0,1fr)_280px] rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden">
+  <div className="h-full max-w-[1460px] mx-auto grid grid-cols-[320px_minmax(0,1fr)_280px] rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden min-h-0">
       <ChatSidebar
         currentUserId={currentUserId}
         currentUserRole={currentUserRole}
@@ -581,7 +581,7 @@ export default function ChatPage() {
         onDeleteChat={handleDeleteChat}
       />
 
-            <div className="min-w-0 flex flex-col bg-slate-950 h-full">
+            <div className="min-w-0 flex flex-col bg-slate-950 h-full min-h-0 overflow-hidden">
         {selectedGroup ? (
           <>
             <ChatHeader
@@ -632,92 +632,96 @@ export default function ChatPage() {
               ) : null}
             </div>
 
-            <MessageList
-              currentUserId={currentUserId}
-              currentUserRole={currentUserRole}
-              messages={renderMessages}
-              profiles={profiles}
-              isSelectionMode={isSelectionMode}
-              selectedMessageIds={selectedMessageIds}
-              editingMessageId={editingMessageId}
-              editingMessageText={editingMessageText}
-              messageActionLoading={null}
-              hasMore={hasMoreMessages[selectedConversationId || ""] || false}
-              isLoadingOlder={isLoadingOlder}
-              scrollAreaRef={scrollAreaRef}
-              messagesEndRef={messagesEndRef}
-              highlightedMessageIds={highlightedMessageIds}
-              onLoadOlder={handleLoadOlderMessages}
-              onToggleSelection={(msg) => {
-                setSelectedMessageIds((prev) =>
-                  prev.includes(msg.id)
-                    ? prev.filter((existingId) => existingId !== msg.id)
-                    : [...prev, msg.id]
-                );
-              }}
-              onStartEdit={(msg) => {
-                setEditingMessageId(msg.id);
-                setEditingMessageText(msg.content);
-              }}
-              onEditTextChange={setEditingMessageText}
-              onSaveEdit={async (msg) => {
-                if (!editingMessageText.trim()) return;
+                        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              <MessageList
+                currentUserId={currentUserId}
+                currentUserRole={currentUserRole}
+                messages={renderMessages}
+                profiles={profiles}
+                isSelectionMode={isSelectionMode}
+                selectedMessageIds={selectedMessageIds}
+                editingMessageId={editingMessageId}
+                editingMessageText={editingMessageText}
+                messageActionLoading={null}
+                hasMore={hasMoreMessages[selectedConversationId || ""] || false}
+                isLoadingOlder={isLoadingOlder}
+                scrollAreaRef={scrollAreaRef}
+                messagesEndRef={messagesEndRef}
+                highlightedMessageIds={highlightedMessageIds}
+                onLoadOlder={handleLoadOlderMessages}
+                onToggleSelection={(msg) => {
+                  setSelectedMessageIds((prev) =>
+                    prev.includes(msg.id)
+                      ? prev.filter((existingId) => existingId !== msg.id)
+                      : [...prev, msg.id]
+                  );
+                }}
+                onStartEdit={(msg) => {
+                  setEditingMessageId(msg.id);
+                  setEditingMessageText(msg.content);
+                }}
+                onEditTextChange={setEditingMessageText}
+                onSaveEdit={async (msg) => {
+                  if (!editingMessageText.trim()) return;
 
-                await supabase
-                  .from("chat_messages")
-                  .update({ content: editingMessageText })
-                  .eq("id", msg.id);
+                  await supabase
+                    .from("chat_messages")
+                    .update({ content: editingMessageText })
+                    .eq("id", msg.id);
 
-                updateMessageLocally(msg.group_id, {
-                  ...msg,
-                  content: editingMessageText,
-                });
+                  updateMessageLocally(msg.group_id, {
+                    ...msg,
+                    content: editingMessageText,
+                  });
 
-                setTranslatedMessages((prev) => {
-                  if (!prev[msg.id]) return prev;
+                  setTranslatedMessages((prev) => {
+                    if (!prev[msg.id]) return prev;
 
-                  const next = { ...prev };
-                  delete next[msg.id];
-                  return next;
-                });
+                    const next = { ...prev };
+                    delete next[msg.id];
+                    return next;
+                  });
 
-                setEditingMessageId(null);
-                setEditingMessageText("");
-              }}
-              onCancelEdit={() => {
-                setEditingMessageId(null);
-                setEditingMessageText("");
-              }}
-              onDeleteMessage={async (msg) => {
-                if (!confirm("Delete this message?")) return;
+                  setEditingMessageId(null);
+                  setEditingMessageText("");
+                }}
+                onCancelEdit={() => {
+                  setEditingMessageId(null);
+                  setEditingMessageText("");
+                }}
+                onDeleteMessage={async (msg) => {
+                  if (!confirm("Delete this message?")) return;
 
-                await supabase.from("chat_messages").delete().eq("id", msg.id);
-                deleteMessageLocally(msg.group_id, msg.id);
+                  await supabase.from("chat_messages").delete().eq("id", msg.id);
+                  deleteMessageLocally(msg.group_id, msg.id);
 
-                setTranslatedMessages((prev) => {
-                  if (!prev[msg.id]) return prev;
+                  setTranslatedMessages((prev) => {
+                    if (!prev[msg.id]) return prev;
 
-                  const next = { ...prev };
-                  delete next[msg.id];
-                  return next;
-                });
-              }}
-            />
+                    const next = { ...prev };
+                    delete next[msg.id];
+                    return next;
+                  });
+                }}
+              />
 
-            <MessageComposer
-              messageInput={messageInput}
-              isSending={isSending}
-              showMentionDropdown={showMentionDropdown}
-              filteredMentionCandidates={filteredMentionCandidates}
-              onChange={handleMessageChange}
-              onSend={handleSendMessage}
-              onInsertMention={insertMention}
-              onUploadFile={() => {}}
-              isUploadingFile={false}
-            />
+              <div className="shrink-0">
+                <MessageComposer
+                  messageInput={messageInput}
+                  isSending={isSending}
+                  showMentionDropdown={showMentionDropdown}
+                  filteredMentionCandidates={filteredMentionCandidates}
+                  onChange={handleMessageChange}
+                  onSend={handleSendMessage}
+                  onInsertMention={insertMention}
+                  onUploadFile={() => {}}
+                  isUploadingFile={false}
+                />
+              </div>
+            </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-500">
+          <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-slate-500 overflow-hidden">
             <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center mb-4">
               <span className="text-4xl">💬</span>
             </div>
@@ -731,14 +735,16 @@ export default function ChatPage() {
         )}
       </div>
 
-              <TeamMembersSidebar
-        profiles={profiles}
-        currentUserId={currentUserId}
-        onlineStatus={onlineStatus}
-        onStartDM={(userId: string) => {
-          void handleStartDirectMessage(userId);
-        }}
-      />
+         <div className="h-full min-h-0 overflow-hidden">
+  <TeamMembersSidebar
+    profiles={profiles}
+    currentUserId={currentUserId}
+    onlineStatus={onlineStatus}
+    onStartDM={(userId: string) => {
+      void handleStartDirectMessage(userId);
+    }}
+  />
+</div>
 
               <CreateGroupDialog
           open={isCreateGroupOpen}

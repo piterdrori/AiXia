@@ -82,6 +82,7 @@ export default function ChatPage() {
     setError,
     setSelectedConversationId,
     moveGroupToTop,
+    upsertGroupLocally,
     removeGroupLocally,
     markConversationAsRead,
     incrementUnread,
@@ -363,7 +364,7 @@ export default function ChatPage() {
             appendMessageLocally(group.id, incoming);
             markConversationAsRead(group.id);
           } else {
-                       incrementUnread(group.id, 1);
+                       incrementUnread(group.id, incoming.content);
           }
 
           notifyIncomingMessage(incoming);

@@ -1,4 +1,5 @@
-import { Search, Circle, MoreHorizontal, MessageCircle } from "lucide-react";
+// TeamMembersSidebar.tsx
+import { Search, MessageCircle } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,7 +33,10 @@ export default function TeamMembersSidebar({
   const [sortBy, setSortBy] = useState<"name" | "role" | "status">("status");
 
   const filteredProfiles = useMemo(() => {
-    let result = profiles.filter(p => p.user_id !== currentUserId && p.status === "active");
+    let result = profiles.filter(p => 
+      p.user_id !== currentUserId && 
+      p.status === "active"
+    );
     
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -42,7 +46,6 @@ export default function TeamMembersSidebar({
       );
     }
     
-    // Sort: Online first, then by selected criteria
     result.sort((a, b) => {
       const aOnline = onlineStatus[a.user_id] === "online" || isUserOnline(a.last_seen);
       const bOnline = onlineStatus[b.user_id] === "online" || isUserOnline(b.last_seen);
@@ -72,7 +75,6 @@ export default function TeamMembersSidebar({
   return (
     <Card className="w-72 bg-slate-900 border-slate-800 flex flex-col h-full overflow-hidden min-h-0 rounded-none border-y-0 border-r-0">
       <CardContent className="p-0 flex flex-col h-full min-h-0">
-        {/* Header */}
         <div className="p-4 border-b border-slate-800">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-white">Team</h2>
@@ -91,7 +93,6 @@ export default function TeamMembersSidebar({
             />
           </div>
           
-          {/* Sort options */}
           <div className="flex gap-1">
             {(["status", "name", "role"] as const).map((s) => (
               <button
@@ -107,7 +108,6 @@ export default function TeamMembersSidebar({
           </div>
         </div>
 
-        {/* Members list */}
         <ScrollArea className="flex-1 min-h-0">
           <div className="p-2 space-y-1">
             {filteredProfiles.map((profile) => {

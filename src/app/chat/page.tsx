@@ -625,201 +625,205 @@ export default function ChatPage() {
     setIsSelectionMode(false);
   };
 
-  return (
-        <div className="h-full min-h-0 box-border bg-slate-950 p-4 overflow-hidden">
-  <div className="h-full min-h-0 max-w-[1460px] mx-auto grid grid-cols-[320px_minmax(0,1fr)_280px] rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden">
-      <div className="h-full min-h-0 overflow-hidden">
-  <ChatSidebar
-    currentUserId={currentUserId}
-    currentUserRole={currentUserRole}
-    groups={groups}
-    groupMembers={groupMembers}
-    profiles={profiles}
-    searchQuery={searchQuery}
-    selectedConversationId={selectedConversationId}
-    unreadCounts={unreadCounts}
-    onSearchChange={setSearchQuery}
-    onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
-    onOpenConversation={openConversation}
-    onDeleteChat={handleDeleteChat}
-  />
-</div>
-
-            <div className="min-w-0 flex flex-col bg-slate-950 h-full min-h-0 overflow-hidden">
-        {selectedGroup ? (
-          <>
-            <ChatHeader
-              group={selectedGroup}
+   return (
+    <div className="h-full min-h-0 bg-slate-950 p-4 overflow-hidden">
+      <div className="h-full min-h-0 max-w-[1460px] mx-auto overflow-hidden rounded-2xl border border-slate-800 bg-slate-950">
+        <div className="grid h-full min-h-0 grid-cols-[320px_minmax(0,1fr)_280px] overflow-hidden">
+          <div className="h-full min-h-0 overflow-hidden border-r border-slate-800">
+            <ChatSidebar
               currentUserId={currentUserId}
-              profiles={profiles}
+              currentUserRole={currentUserRole}
+              groups={groups}
               groupMembers={groupMembers}
-              isSelectionMode={isSelectionMode}
-              onToggleSelectionMode={() => {
-                setIsSelectionMode(!isSelectionMode);
-                setSelectedMessageIds([]);
+              profiles={profiles}
+              searchQuery={searchQuery}
+              selectedConversationId={selectedConversationId}
+              unreadCounts={unreadCounts}
+              onSearchChange={setSearchQuery}
+              onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
+              onOpenConversation={openConversation}
+              onDeleteChat={handleDeleteChat}
+            />
+          </div>
+
+          <div className="min-w-0 h-full min-h-0 overflow-hidden bg-slate-950">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden">
+              {selectedGroup ? (
+                <>
+                  <ChatHeader
+                    group={selectedGroup}
+                    currentUserId={currentUserId}
+                    profiles={profiles}
+                    groupMembers={groupMembers}
+                    isSelectionMode={isSelectionMode}
+                    onToggleSelectionMode={() => {
+                      setIsSelectionMode(!isSelectionMode);
+                      setSelectedMessageIds([]);
+                    }}
+                  />
+
+                  {isSelectionMode && selectedMessageIds.length > 0 && (
+                    <div className="shrink-0 flex items-center justify-between px-6 py-2 bg-indigo-600/10 border-b border-indigo-600/20">
+                      <span className="text-sm text-indigo-300">
+                        {selectedMessageIds.length} selected
+                      </span>
+
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setSelectedMessageIds([])}
+                          className="text-indigo-300 hover:text-white hover:bg-indigo-600/20"
+                        >
+                          Clear
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={handleBulkDelete}
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mx-6 mt-2 shrink-0 min-h-[56px]">
+                    {error ? (
+                      <div className="h-[56px] px-3 flex items-center bg-red-900/20 border border-red-800 text-red-400 rounded text-sm">
+                        {error}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="flex-1 min-h-0 overflow-hidden">
+                    <MessageList
+                      currentUserId={currentUserId}
+                      currentUserRole={currentUserRole}
+                      messages={renderMessages}
+                      profiles={profiles}
+                      isSelectionMode={isSelectionMode}
+                      selectedMessageIds={selectedMessageIds}
+                      editingMessageId={editingMessageId}
+                      editingMessageText={editingMessageText}
+                      messageActionLoading={null}
+                      hasMore={hasMoreMessages[selectedConversationId || ""] || false}
+                      isLoadingOlder={isLoadingOlder}
+                      scrollAreaRef={scrollAreaRef}
+                      messagesEndRef={messagesEndRef}
+                      highlightedMessageIds={highlightedMessageIds}
+                      onLoadOlder={handleLoadOlderMessages}
+                      onToggleSelection={(msg) => {
+                        setSelectedMessageIds((prev) =>
+                          prev.includes(msg.id)
+                            ? prev.filter((existingId) => existingId !== msg.id)
+                            : [...prev, msg.id]
+                        );
+                      }}
+                      onStartEdit={(msg) => {
+                        setEditingMessageId(msg.id);
+                        setEditingMessageText(msg.content);
+                      }}
+                      onEditTextChange={setEditingMessageText}
+                      onSaveEdit={async (msg) => {
+                        if (!editingMessageText.trim()) return;
+
+                        await supabase
+                          .from("chat_messages")
+                          .update({ content: editingMessageText })
+                          .eq("id", msg.id);
+
+                        updateMessageLocally(msg.group_id, {
+                          ...msg,
+                          content: editingMessageText,
+                        });
+
+                        setTranslatedMessages((prev) => {
+                          if (!prev[msg.id]) return prev;
+
+                          const next = { ...prev };
+                          delete next[msg.id];
+                          return next;
+                        });
+
+                        setEditingMessageId(null);
+                        setEditingMessageText("");
+                      }}
+                      onCancelEdit={() => {
+                        setEditingMessageId(null);
+                        setEditingMessageText("");
+                      }}
+                      onDeleteMessage={async (msg) => {
+                        if (!confirm("Delete this message?")) return;
+
+                        await supabase.from("chat_messages").delete().eq("id", msg.id);
+                        deleteMessageLocally(msg.group_id, msg.id);
+
+                        setTranslatedMessages((prev) => {
+                          if (!prev[msg.id]) return prev;
+
+                          const next = { ...prev };
+                          delete next[msg.id];
+                          return next;
+                        });
+                      }}
+                    />
+                  </div>
+
+                  <div className="shrink-0 border-t border-slate-800">
+                    <MessageComposer
+                      messageInput={messageInput}
+                      isSending={isSending}
+                      showMentionDropdown={showMentionDropdown}
+                      filteredMentionCandidates={filteredMentionCandidates}
+                      onChange={handleMessageChange}
+                      onSend={handleSendMessage}
+                      onInsertMention={insertMention}
+                      onUploadFile={() => {}}
+                      isUploadingFile={false}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-slate-500 overflow-hidden">
+                  <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center mb-4">
+                    <span className="text-4xl">💬</span>
+                  </div>
+
+                  <h3 className="text-lg font-medium text-slate-300 mb-1">
+                    Select a conversation
+                  </h3>
+
+                  <p>Choose a chat from the sidebar to start messaging</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="h-full min-h-0 overflow-hidden border-l border-slate-800">
+            <TeamMembersSidebar
+              profiles={profiles}
+              currentUserId={currentUserId}
+              onlineStatus={onlineStatus}
+              onStartDM={(userId: string) => {
+                void handleStartDirectMessage(userId);
               }}
             />
-
-            {isSelectionMode && selectedMessageIds.length > 0 && (
-              <div className="flex items-center justify-between px-6 py-2 bg-indigo-600/10 border-b border-indigo-600/20">
-                <span className="text-sm text-indigo-300">
-                  {selectedMessageIds.length} selected
-                </span>
-
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setSelectedMessageIds([])}
-                    className="text-indigo-300 hover:text-white hover:bg-indigo-600/20"
-                  >
-                    Clear
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={handleBulkDelete}
-                  >
-                    <Trash2 className="w-4 h-4 mr-1" />
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            )}
-
-                        <div className="mx-6 mt-2 shrink-0 min-h-[56px]">
-              {error ? (
-                <div className="h-[56px] px-3 flex items-center bg-red-900/20 border border-red-800 text-red-400 rounded text-sm">
-                  {error}
-                </div>
-              ) : null}
-            </div>
-
-                        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-              <MessageList
-                currentUserId={currentUserId}
-                currentUserRole={currentUserRole}
-                messages={renderMessages}
-                profiles={profiles}
-                isSelectionMode={isSelectionMode}
-                selectedMessageIds={selectedMessageIds}
-                editingMessageId={editingMessageId}
-                editingMessageText={editingMessageText}
-                messageActionLoading={null}
-                hasMore={hasMoreMessages[selectedConversationId || ""] || false}
-                isLoadingOlder={isLoadingOlder}
-                scrollAreaRef={scrollAreaRef}
-                messagesEndRef={messagesEndRef}
-                highlightedMessageIds={highlightedMessageIds}
-                onLoadOlder={handleLoadOlderMessages}
-                onToggleSelection={(msg) => {
-                  setSelectedMessageIds((prev) =>
-                    prev.includes(msg.id)
-                      ? prev.filter((existingId) => existingId !== msg.id)
-                      : [...prev, msg.id]
-                  );
-                }}
-                onStartEdit={(msg) => {
-                  setEditingMessageId(msg.id);
-                  setEditingMessageText(msg.content);
-                }}
-                onEditTextChange={setEditingMessageText}
-                onSaveEdit={async (msg) => {
-                  if (!editingMessageText.trim()) return;
-
-                  await supabase
-                    .from("chat_messages")
-                    .update({ content: editingMessageText })
-                    .eq("id", msg.id);
-
-                  updateMessageLocally(msg.group_id, {
-                    ...msg,
-                    content: editingMessageText,
-                  });
-
-                  setTranslatedMessages((prev) => {
-                    if (!prev[msg.id]) return prev;
-
-                    const next = { ...prev };
-                    delete next[msg.id];
-                    return next;
-                  });
-
-                  setEditingMessageId(null);
-                  setEditingMessageText("");
-                }}
-                onCancelEdit={() => {
-                  setEditingMessageId(null);
-                  setEditingMessageText("");
-                }}
-                onDeleteMessage={async (msg) => {
-                  if (!confirm("Delete this message?")) return;
-
-                  await supabase.from("chat_messages").delete().eq("id", msg.id);
-                  deleteMessageLocally(msg.group_id, msg.id);
-
-                  setTranslatedMessages((prev) => {
-                    if (!prev[msg.id]) return prev;
-
-                                       const next = { ...prev };
-                    delete next[msg.id];
-                    return next;
-                  });
-                }}
-              />
-
-              <div className="shrink-0 border-t border-slate-800">
-                <MessageComposer
-                  messageInput={messageInput}
-                  isSending={isSending}
-                  showMentionDropdown={showMentionDropdown}
-                  filteredMentionCandidates={filteredMentionCandidates}
-                  onChange={handleMessageChange}
-                  onSend={handleSendMessage}
-                  onInsertMention={insertMention}
-                  onUploadFile={() => {}}
-                  isUploadingFile={false}
-                />
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-slate-500 overflow-hidden">
-            <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center mb-4">
-              <span className="text-4xl">💬</span>
-            </div>
-
-            <h3 className="text-lg font-medium text-slate-300 mb-1">
-              Select a conversation
-            </h3>
-
-            <p>Choose a chat from the sidebar to start messaging</p>
           </div>
-        )}
+        </div>
       </div>
 
-      <div className="h-full min-h-0 overflow-hidden">
-        <TeamMembersSidebar
-          profiles={profiles}
-          currentUserId={currentUserId}
-          onlineStatus={onlineStatus}
-          onStartDM={(userId: string) => {
-            void handleStartDirectMessage(userId);
-          }}
-        />
-      </div>
+      <CreateGroupDialog
+        open={isCreateGroupOpen}
+        currentUserId={currentUserId}
+        profiles={profiles}
+        isCreating={isCreatingGroup}
+        error={error}
+        onOpenChange={setIsCreateGroupOpen}
+        onCreate={handleCreateGroup}
+      />
     </div>
-
-    <CreateGroupDialog
-      open={isCreateGroupOpen}
-      currentUserId={currentUserId}
-      profiles={profiles}
-      isCreating={isCreatingGroup}
-      error={error}
-      onOpenChange={setIsCreateGroupOpen}
-      onCreate={handleCreateGroup}
-    />
-  </div>
-);
+  );
 }

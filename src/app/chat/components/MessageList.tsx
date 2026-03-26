@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+// MessageList.tsx
+import { useState } from "react";
 import {
   Check,
   Download,
@@ -7,6 +8,7 @@ import {
   Save,
   Square,
   X,
+  Sparkles,
 } from "lucide-react";
 import { formatMessageTime, getProfileByUserId, getUserInitials } from "../utils";
 import type { ChatMessageRow, MessageListProps } from "../types";
@@ -18,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/lib/i18n";
 import { openFile, downloadFile } from "@/lib/file-actions";
 import { smartTranslate } from "@/lib/smartTranslate";
+import { cn } from "@/lib/utils";
 
 export default function MessageList({
   currentUserId,
@@ -33,6 +36,7 @@ export default function MessageList({
   isLoadingOlder,
   scrollAreaRef,
   messagesEndRef,
+  highlightedMessageIds, // New
   onLoadOlder,
   onToggleSelection,
   onStartEdit,
@@ -49,17 +53,6 @@ export default function MessageList({
   const [translatingMessageId, setTranslatingMessageId] = useState<string | null>(null);
   const [attachmentActionLoading, setAttachmentActionLoading] = useState<string | null>(null);
 
-  const sortedMessages = useMemo(() => {
-    return [...messages].sort((a, b) => {
-      const aTime = new Date(a.created_at).getTime();
-      const bTime = new Date(b.created_at).getTime();
-
-      if (aTime !== bTime) return aTime - bTime;
-
-      return a.id.localeCompare(b.id);
-    });
-  }, [messages]);
-
   const handleTranslateMessage = async (message: ChatMessageRow) => {
     if (translatedMessages[message.id]) {
       setTranslatedMessages((prev) => {
@@ -72,12 +65,10 @@ export default function MessageList({
 
     try {
       setTranslatingMessageId(message.id);
-
       const result = await smartTranslate({
         messageId: message.id,
         text: message.content,
       });
-
       setTranslatedMessages((prev) => ({
         ...prev,
         [message.id]: {
@@ -97,7 +88,7 @@ export default function MessageList({
     return currentUserRole === "admin" || message.user_id === currentUserId;
   };
 
-  const selectableMessages = sortedMessages.filter((message) => canManageMessage(message));
+  const selectableMessages = messages.filter((message) => canManageMessage(message));
   const allSelectableIds = selectableMessages.map((message) => message.id);
   const allSelected =
     allSelectableIds.length > 0 &&
@@ -122,14 +113,14 @@ export default function MessageList({
                 if (allSelected) {
                   allSelectableIds.forEach((id) => {
                     if (selectedMessageIds.includes(id)) {
-                      const msg = sortedMessages.find((m) => m.id === id);
+                      const msg = messages.find((m) => m.id === id);
                       if (msg) onToggleSelection(msg);
                     }
                   });
                 } else {
                   allSelectableIds.forEach((id) => {
                     if (!selectedMessageIds.includes(id)) {
-                      const msg = sortedMessages.find((m) => m.id === id);
+                      const msg = messages.find((m) => m.id === id);
                       if (msg) onToggleSelection(msg);
                     }
                   });
@@ -174,22 +165,24 @@ export default function MessageList({
           </div>
 
           <div className="space-y-4 pt-2">
-            {sortedMessages.map((message, index) => {
+            {messages.map((message, index) => {
               const isOwn = message.user_id === currentUserId;
               const user = getProfileByUserId(profiles, message.user_id);
-              const previousMessage = sortedMessages[index - 1];
-              const showAvatar =
-                index === 0 || previousMessage?.user_id !== message.user_id;
+              const showAvatar = index === 0 || messages[index - 1].user_id !== message.user_id;
               const isEditing = editingMessageId === message.id;
               const canSelect = canManageMessage(message);
               const isSelected = selectedMessageIds.includes(message.id);
-              const isAttachmentOnlyMessage =
-                Boolean(message.attachments?.length) && !message.content?.trim();
+              const isAttachmentOnlyMessage = Boolean(message.attachments?.length) && !message.content?.trim();
+              const isHighlighted = highlightedMessageIds.includes(message.id);
 
               return (
                 <div
                   key={message.id}
-                  className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}
+                  className={cn(
+                    "flex gap-3 transition-all duration-500",
+                    isOwn ? "flex-row-reverse" : "",
+                    isHighlighted ? "animate-pulse bg-indigo-500/10 rounded-lg p-2 -m-2" : ""
+                  )}
                 >
                   {isSelectionMode && (
                     <div className={`pt-2 ${canSelect ? "" : "opacity-40"}`}>
@@ -211,21 +204,18 @@ export default function MessageList({
                     <div className="w-8 flex-shrink-0" />
                   )}
 
-                  <div
-                    className={`flex flex-col max-w-[70%] ${
-                      isOwn ? "items-end" : "items-start"
-                    }`}
-                  >
+                  <div className={`flex flex-col max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
                     {showAvatar && (
                       <p className="text-xs text-slate-500 mb-1">
-                        {user?.full_name || t("chat.common.unknown")} •{" "}
-                        {formatMessageTime(message.created_at, t)}
+                        {user?.full_name || t("chat.common.unknown")} • {formatMessageTime(message.created_at, t)}
                       </p>
                     )}
 
                     <div
-                      className={`px-4 py-2 rounded-2xl border ${
-                        isSelected ? "border-indigo-400" : "border-transparent"
+                      className={`px-4 py-2 rounded-2xl border transition-all ${
+                        isSelected ? "border-indigo-400 ring-1 ring-indigo-400" : "border-transparent"
+                      } ${
+                        isHighlighted ? "ring-2 ring-yellow-400/50 shadow-lg shadow-yellow-400/20" : ""
                       } ${
                         isOwn
                           ? "bg-indigo-600 text-white rounded-br-none"
@@ -278,16 +268,17 @@ export default function MessageList({
                               {message.attachments.map((file) => (
                                 <div
                                   key={file.id}
-                                  className="block text-xs bg-slate-700 px-3 py-2 rounded-md"
+                                  className="flex items-center gap-2 text-xs bg-slate-700/50 px-3 py-2 rounded-md"
                                 >
-                                  📎 {file.file_name}
+                                  <span className="text-lg">📎</span>
+                                  <span className="truncate flex-1">{file.file_name}</span>
                                 </div>
                               ))}
                             </div>
                           )}
 
                           {translatedMessages[message.id]?.source && (
-                            <p className="text-[10px] opacity-70">
+                            <p className="text-[10px] opacity-70 mt-1">
                               Source: {translatedMessages[message.id].source}
                             </p>
                           )}
@@ -296,16 +287,11 @@ export default function MessageList({
                     </div>
 
                     {!isEditing && !isSelectionMode && (
-                      <div
-                        className={`mt-1 flex flex-wrap gap-2 ${
-                          isOwn ? "justify-end" : "justify-start"
-                        }`}
-                      >
+                      <div className={`mt-1 flex flex-wrap gap-2 ${isOwn ? "justify-end" : "justify-start"}`}>
                         {isAttachmentOnlyMessage ? (
                           <>
                             {message.attachments?.map((file) => {
                               const attachmentKey = `${message.id}:${file.id}`;
-
                               return (
                                 <div key={file.id} className="flex items-center gap-2">
                                   <button
@@ -364,10 +350,11 @@ export default function MessageList({
                           <>
                             <button
                               type="button"
-                              className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
+                              className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50 flex items-center gap-1"
                               onClick={() => void handleTranslateMessage(message)}
                               disabled={translatingMessageId === message.id}
                             >
+                              <Sparkles className="w-3 h-3" />
                               {translatingMessageId === message.id
                                 ? "Translating..."
                                 : translatedMessages[message.id]
@@ -404,9 +391,9 @@ export default function MessageList({
               );
             })}
 
-            {sortedMessages.length === 0 && (
+            {messages.length === 0 && (
               <div className="text-center py-12">
-                <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4 animate-pulse">
                   <MessageSquare className="w-8 h-8 text-slate-500" />
                 </div>
                 <p className="text-slate-500">{t("chat.messageList.noMessagesYet")}</p>

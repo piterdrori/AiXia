@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+// useChatBootstrap.ts
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import type { ChatGroupMemberRow, ChatGroupRow, ProfileRow, Role, UnreadCounts, OnlineStatus } from "../types";
@@ -21,7 +22,6 @@ export function useChatBootstrap(preferredId: string | null) {
   const lastReadRef = useRef<Record<string, string>>({});
   const lastMessageIdsRef = useRef<Record<string, string>>({});
 
-  // Load last read from localStorage
   useEffect(() => {
     const saved = localStorage.getItem("chat_last_read");
     if (saved) {
@@ -100,10 +100,6 @@ export function useChatBootstrap(preferredId: string | null) {
     setUnreadCounts(prev => ({ ...prev, [groupId]: (prev[groupId] || 0) + 1 }));
   }, [selectedConversationId, markConversationAsRead]);
 
-  const updateOnlineStatus = useCallback((userId: string, status: string) => {
-    setOnlineStatus(prev => ({ ...prev, [userId]: status as any }));
-  }, []);
-
   const loadChatShell = useCallback(async (nextPreferredId?: string | null) => {
     setError("");
     try {
@@ -115,7 +111,6 @@ export function useChatBootstrap(preferredId: string | null) {
 
       setCurrentUserId(user.id);
 
-      // Load profile and all profiles in parallel
       const [{ data: myProfile }, { data: allProfiles }] = await Promise.all([
         supabase.from("profiles").select("role").eq("user_id", user.id).single(),
         supabase.from("profiles").select("*").eq("status", "active").order("full_name", { ascending: true }),
@@ -125,7 +120,6 @@ export function useChatBootstrap(preferredId: string | null) {
       setCurrentUserRole(role);
       setProfiles((allProfiles || []) as ProfileRow[]);
 
-      // Load groups based on role
       let loadedGroups: ChatGroupRow[] = [];
       
       if (role === "admin") {
@@ -156,11 +150,9 @@ export function useChatBootstrap(preferredId: string | null) {
         );
       }
 
-      // Remove duplicates
       const uniqueGroups = Array.from(new Map(loadedGroups.map(g => [g.id, g])).values());
       setGroups(uniqueGroups);
 
-      // Load members for all groups
       if (uniqueGroups.length > 0) {
         const { data: membersData } = await supabase
           .from("chat_group_members")
@@ -169,7 +161,6 @@ export function useChatBootstrap(preferredId: string | null) {
         setGroupMembers((membersData || []) as ChatGroupMemberRow[]);
       }
 
-      // Set selected conversation
       const requestedId = nextPreferredId || preferredId;
       if (requestedId && uniqueGroups.some(g => g.id === requestedId)) {
         setSelectedConversationId(requestedId);
@@ -188,14 +179,12 @@ export function useChatBootstrap(preferredId: string | null) {
     }
   }, [navigate, preferredId, selectedConversationId, markConversationAsRead]);
 
-  // Create or get direct message conversation
   const startDirectMessage = useCallback(async (targetUserId: string) => {
     if (!currentUserId || targetUserId === currentUserId) return;
     
     const directKey = buildDirectKey(currentUserId, targetUserId);
-    
-    // Check if DM already exists
     const existing = groups.find(g => g.type === "DIRECT" && g.direct_key === directKey);
+    
     if (existing) {
       setSelectedConversationId(existing.id);
       navigate(`/chat/${existing.id}`);
@@ -203,15 +192,9 @@ export function useChatBootstrap(preferredId: string | null) {
       return;
     }
     
-    // Create new DM
     const { data: newGroup, error: createError } = await supabase
       .from("chat_groups")
-      .insert({
-        type: "DIRECT",
-        direct_key: directKey,
-        created_by: currentUserId,
-        name: null,
-      })
+      .insert({ type: "DIRECT", direct_key: directKey, created_by: currentUserId, name: null })
       .select()
       .single();
       
@@ -220,7 +203,6 @@ export function useChatBootstrap(preferredId: string | null) {
       return;
     }
     
-    // Add members
     const { error: memberError } = await supabase
       .from("chat_group_members")
       .insert([
@@ -245,7 +227,7 @@ export function useChatBootstrap(preferredId: string | null) {
 
   useEffect(() => {
     loadChatShell(preferredId || null);
-  }, []); // Initial load only
+  }, []);
 
   useEffect(() => {
     if (preferredId && groups.some(g => g.id === preferredId)) {
@@ -254,7 +236,6 @@ export function useChatBootstrap(preferredId: string | null) {
     }
   }, [preferredId, groups, markConversationAsRead]);
 
-  // Subscribe to presence/online status
   useEffect(() => {
     if (!currentUserId) return;
     
@@ -302,6 +283,5 @@ export function useChatBootstrap(preferredId: string | null) {
     markConversationAsRead,
     incrementUnread,
     startDirectMessage,
-    loadChatShell,
   };
 }

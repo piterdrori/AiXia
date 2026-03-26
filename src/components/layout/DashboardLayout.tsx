@@ -979,10 +979,10 @@ const navItems: NavItem[] = useMemo(
       )}
 
       <main
-        className={`flex-1 transition-all duration-300 ${
-          !isMobile && sidebarOpen ? "ml-64" : !isMobile ? "ml-16" : ""
-        }`}
-      >
+  className={`flex flex-col h-screen overflow-hidden transition-all duration-300 ${
+    !isMobile && sidebarOpen ? "ml-64" : !isMobile ? "ml-16" : ""
+  }`}
+>
         <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
           <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-4">
@@ -1137,8 +1137,9 @@ const navItems: NavItem[] = useMemo(
             </div>
           </div>
         </header>
-
-        <div className="p-4 lg:p-6">{children}</div>
+        <div className="flex-1 min-h-0 overflow-hidden p-4 lg:p-6">
+  {children}
+</div>
       </main>
     </div>
   );

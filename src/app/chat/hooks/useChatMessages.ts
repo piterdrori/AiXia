@@ -1,4 +1,3 @@
-// useChatMessages.ts
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { dedupeMessages, PAGE_SIZE, sortMessagesAscending, playNotificationSound, showBrowserNotification } from "../utils";

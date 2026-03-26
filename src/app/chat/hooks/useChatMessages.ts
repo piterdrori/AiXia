@@ -119,10 +119,17 @@ attachments:chat_attachments(
 
     const newestMessages = sortMessagesAscending((data || []) as ChatMessageRow[]);
 
-    setMessages((prev) => ({
-      ...prev,
-      [groupId]: dedupeMessages(newestMessages),
-    }));
+    setMessages((prev) => {
+  const existing = prev[groupId] || [];
+
+  return {
+    ...prev,
+    [groupId]: dedupeMessages([
+      ...newestMessages,
+      ...existing.filter((message) => message.id.startsWith("temp-")),
+    ]),
+  };
+});
 
     setHasMoreMessages((prev) => ({
       ...prev,
@@ -163,14 +170,19 @@ useEffect(() => {
     });
   }, []);
 
-  const updateMessageLocally = useCallback((groupId: string, message: ChatMessageRow) => {
-    setMessages((prev) => ({
+const updateMessageLocally = useCallback((groupId: string, message: ChatMessageRow) => {
+  setMessages((prev) => {
+    const current = prev[groupId] || [];
+    const exists = current.some((item) => item.id === message.id);
+
+    return {
       ...prev,
-      [groupId]: (prev[groupId] || []).map((item) =>
-        item.id === message.id ? message : item
-      ),
-    }));
-  }, []);
+      [groupId]: exists
+        ? current.map((item) => (item.id === message.id ? message : item))
+        : dedupeMessages([...current, message]),
+    };
+  });
+}, []);
 
   const deleteMessageLocally = useCallback((groupId: string, messageId: string) => {
     setMessages((prev) => ({

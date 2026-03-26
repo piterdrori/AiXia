@@ -3,12 +3,15 @@ import type React from "react";
 
 export type Role = "admin" | "manager" | "employee" | "guest";
 export type ChatGroupType = "DIRECT" | "GROUP" | "PROJECT" | "TASK";
+export type UserStatus = "online" | "offline" | "away" | "busy";
 
 export type ProfileRow = {
   user_id: string;
   full_name: string | null;
   role: Role;
   status: "active" | "pending" | "inactive" | "denied";
+  last_seen?: string | null;
+  avatar_url?: string | null;
 };
 
 export type ChatGroupRow = {
@@ -19,8 +22,10 @@ export type ChatGroupRow = {
   task_id: string | null;
   created_by: string | null;
   created_at: string;
+  updated_at: string;
   direct_key?: string | null;
-  updated_at?: string; // For tracking latest activity
+  last_message?: string | null;
+  last_message_at?: string | null;
 };
 
 export type ChatGroupMemberRow = {
@@ -56,6 +61,7 @@ export type ChatMessageRow = {
 export type MessagesByGroup = Record<string, ChatMessageRow[]>;
 export type HasMoreByGroup = Record<string, boolean>;
 export type UnreadCounts = Record<string, number>;
+export type OnlineStatus = Record<string, UserStatus>;
 
 export type MessageListProps = {
   currentUserId: string | null;
@@ -71,7 +77,7 @@ export type MessageListProps = {
   isLoadingOlder: boolean;
   scrollAreaRef: React.RefObject<HTMLDivElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
-  highlightedMessageIds: string[]; // New: for incoming message animation
+  highlightedMessageIds: string[];
   onLoadOlder: () => void;
   onToggleSelection: (message: ChatMessageRow) => void;
   onStartEdit: (message: ChatMessageRow) => void;

@@ -70,7 +70,7 @@ export default function ChatSidebar({
   };
 
   return (
-    <Card className="w-80 bg-slate-900 border-slate-800 flex flex-col h-full overflow-hidden min-h-0 rounded-none border-y-0 border-l-0">
+    <Card className="w-full min-w-0 bg-slate-900 border-slate-800 flex flex-col h-full overflow-hidden min-h-0 rounded-none border-y-0 border-l-0">
       <CardContent className="p-0 flex flex-col h-full min-h-0">
         <div className="p-4 border-b border-slate-800">
           <div className="flex items-center justify-between mb-4">
@@ -105,7 +105,7 @@ export default function ChatSidebar({
           </div>
         </div>
 
-        <ScrollArea className="flex-1 min-h-0">
+        <ScrollArea className="flex-1 min-h-0 h-full">
           <div className="divide-y divide-slate-800/50">
             {filteredGroups.map((group) => {
               const unread = unreadCounts[group.id] || 0;

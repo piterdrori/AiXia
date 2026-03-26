@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+// useChatBootstrap.ts
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/lib/i18n";
@@ -7,35 +8,29 @@ import type {
   ChatGroupRow,
   ProfileRow,
   Role,
+  UnreadCounts,
 } from "../types";
 
 function dedupeGroups(items: ChatGroupRow[]) {
   const map = new Map<string, ChatGroupRow>();
-
   for (const group of items) {
     const key =
       group.type === "DIRECT" && group.direct_key
         ? `DIRECT:${group.direct_key}`
         : `GROUP:${group.id}`;
-
     const existing = map.get(key);
-
     if (!existing) {
       map.set(key, group);
       continue;
     }
-
     const existingTime = new Date(existing.created_at).getTime();
     const nextTime = new Date(group.created_at).getTime();
-
     if (nextTime > existingTime) {
       map.set(key, group);
     }
   }
-
   return Array.from(map.values()).sort(
-    (a, b) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 }
 
@@ -45,37 +40,58 @@ export function useChatBootstrap(preferredId: string | null) {
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
-
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [groups, setGroups] = useState<ChatGroupRow[]>([]);
   const [groupMembers, setGroupMembers] = useState<ChatGroupMemberRow[]>([]);
-
-  const [selectedConversationId, setSelectedConversationId] = useState<
-    string | null
-  >(preferredId || null);
-
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(preferredId || null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [error, setError] = useState("");
+  
+  // New: Unread message tracking
+  const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({});
+  const [lastReadTimestamps, setLastReadTimestamps] = useState<Record<string, string>>({});
+  const lastMessageIdsRef = useRef<Record<string, string>>({});
+
+  // Load last read timestamps from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("chat_last_read");
+    if (saved) {
+      try {
+        setLastReadTimestamps(JSON.parse(saved));
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }, []);
+
+  // Persist last read timestamps
+  const saveLastRead = useCallback((groupId: string, timestamp: string) => {
+    setLastReadTimestamps(prev => {
+      const next = { ...prev, [groupId]: timestamp };
+      localStorage.setItem("chat_last_read", JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   const getMembersForGroup = useCallback(
-    (groupId: string) =>
-      groupMembers.filter((member) => member.group_id === groupId),
+    (groupId: string) => groupMembers.filter((member) => member.group_id === groupId),
     [groupMembers]
   );
 
   const getProfileByUserId = useCallback(
-    (userId: string) =>
-      profiles.find((profile) => profile.user_id === userId) || null,
+    (userId: string) => profiles.find((profile) => profile.user_id === userId) || null,
     [profiles]
   );
 
+  // Enhanced: Move group to top with activity timestamp update
   const moveGroupToTop = useCallback((groupId: string) => {
     setGroups((prev) => {
       const index = prev.findIndex((group) => group.id === groupId);
       if (index <= 0) return prev;
-
       const next = [...prev];
       const [group] = next.splice(index, 1);
+      // Update timestamp to now for sorting
+      group.updated_at = new Date().toISOString();
       next.unshift(group);
       return next;
     });
@@ -85,17 +101,15 @@ export function useChatBootstrap(preferredId: string | null) {
     (group: ChatGroupRow, members: ChatGroupMemberRow[] = []) => {
       setGroups((prev) => {
         const withoutSameId = prev.filter((item) => item.id !== group.id);
-        return dedupeGroups([group, ...withoutSameId]);
+        return dedupeGroups([{...group, updated_at: new Date().toISOString()}, ...withoutSameId]);
       });
 
       if (members.length > 0) {
         setGroupMembers((prev) => {
           const byId = new Map(prev.map((item) => [item.id, item]));
-
           for (const member of members) {
             byId.set(member.id, member);
           }
-
           return Array.from(byId.values());
         });
       }
@@ -105,16 +119,43 @@ export function useChatBootstrap(preferredId: string | null) {
 
   const removeGroupLocally = useCallback((groupId: string) => {
     setGroups((prev) => prev.filter((group) => group.id !== groupId));
-    setGroupMembers((prev) =>
-      prev.filter((member) => member.group_id !== groupId)
-    );
+    setGroupMembers((prev) => prev.filter((member) => member.group_id !== groupId));
     setSelectedConversationId((prev) => (prev === groupId ? null : prev));
+    // Clear unread for deleted group
+    setUnreadCounts(prev => {
+      const next = { ...prev };
+      delete next[groupId];
+      return next;
+    });
   }, []);
+
+  // New: Mark conversation as read
+  const markConversationAsRead = useCallback((groupId: string) => {
+    setUnreadCounts(prev => ({ ...prev, [groupId]: 0 }));
+    saveLastRead(groupId, new Date().toISOString());
+  }, [saveLastRead]);
+
+  // New: Increment unread count for conversation
+  const incrementUnread = useCallback((groupId: string, messageId: string) => {
+    // Don't increment if it's the currently selected conversation
+    if (selectedConversationId === groupId) {
+      markConversationAsRead(groupId);
+      return;
+    }
+    
+    // Don't increment if we've already seen this message
+    if (lastMessageIdsRef.current[groupId] === messageId) return;
+    lastMessageIdsRef.current[groupId] = messageId;
+
+    setUnreadCounts(prev => ({
+      ...prev,
+      [groupId]: (prev[groupId] || 0) + 1
+    }));
+  }, [selectedConversationId, markConversationAsRead]);
 
   const loadChatShell = useCallback(
     async (nextPreferredId?: string | null) => {
       setError("");
-
       try {
         const {
           data: { user },
@@ -141,11 +182,7 @@ export function useChatBootstrap(preferredId: string | null) {
         ]);
 
         if (profileError || allProfilesError) {
-          setError(
-            profileError?.message ||
-              allProfilesError?.message ||
-              t("chat.errors.loadChatUsers")
-          );
+          setError(profileError?.message || allProfilesError?.message || t("chat.errors.loadChatUsers"));
           return;
         }
 
@@ -158,10 +195,8 @@ export function useChatBootstrap(preferredId: string | null) {
         if (role === "admin") {
           const { data: groupsData, error: groupsError } = await supabase
             .from("chat_groups")
-            .select(
-              "id, name, type, project_id, task_id, created_by, created_at, direct_key"
-            )
-            .order("created_at", { ascending: false });
+            .select("id, name, type, project_id, task_id, created_by, created_at, direct_key, updated_at")
+            .order("updated_at", { ascending: false });
 
           if (groupsError) {
             setError(groupsError.message || t("chat.errors.loadChatGroups"));
@@ -174,25 +209,16 @@ export function useChatBootstrap(preferredId: string | null) {
             { data: myMemberships, error: membershipsError },
             { data: createdGroups, error: createdGroupsError },
           ] = await Promise.all([
-            supabase
-              .from("chat_group_members")
-              .select("group_id")
-              .eq("user_id", user.id),
+            supabase.from("chat_group_members").select("group_id").eq("user_id", user.id),
             supabase
               .from("chat_groups")
-              .select(
-                "id, name, type, project_id, task_id, created_by, created_at, direct_key"
-              )
+              .select("id, name, type, project_id, task_id, created_by, created_at, direct_key, updated_at")
               .eq("created_by", user.id)
-              .order("created_at", { ascending: false }),
+              .order("updated_at", { ascending: false }),
           ]);
 
           if (membershipsError || createdGroupsError) {
-            setError(
-              membershipsError?.message ||
-                createdGroupsError?.message ||
-                t("chat.errors.loadChatGroups")
-            );
+            setError(membershipsError?.message || createdGroupsError?.message || t("chat.errors.loadChatGroups"));
             return;
           }
 
@@ -201,21 +227,17 @@ export function useChatBootstrap(preferredId: string | null) {
           );
 
           let memberGroups: ChatGroupRow[] = [];
-
           if (membershipGroupIds.length > 0) {
             const { data: groupsData, error: groupsError } = await supabase
               .from("chat_groups")
-              .select(
-                "id, name, type, project_id, task_id, created_by, created_at, direct_key"
-              )
+              .select("id, name, type, project_id, task_id, created_by, created_at, direct_key, updated_at")
               .in("id", membershipGroupIds)
-              .order("created_at", { ascending: false });
+              .order("updated_at", { ascending: false });
 
             if (groupsError) {
               setError(groupsError.message || t("chat.errors.loadChatGroups"));
               return;
             }
-
             memberGroups = (groupsData || []) as ChatGroupRow[];
           }
 
@@ -226,7 +248,6 @@ export function useChatBootstrap(preferredId: string | null) {
         }
 
         const groupIds = loadedGroups.map((group) => group.id);
-
         let members: ChatGroupMemberRow[] = [];
 
         if (groupIds.length > 0) {
@@ -239,7 +260,6 @@ export function useChatBootstrap(preferredId: string | null) {
             setError(membersError.message || t("chat.errors.loadGroupMembers"));
             return;
           }
-
           members = (membersData || []) as ChatGroupMemberRow[];
         }
 
@@ -250,6 +270,7 @@ export function useChatBootstrap(preferredId: string | null) {
 
         if (requestedId && loadedGroups.some((group) => group.id === requestedId)) {
           setSelectedConversationId(requestedId);
+          markConversationAsRead(requestedId);
           return;
         }
 
@@ -257,13 +278,10 @@ export function useChatBootstrap(preferredId: string | null) {
           if (prev && loadedGroups.some((group) => group.id === prev)) {
             return prev;
           }
-
           const firstGroupId = loadedGroups[0]?.id || null;
-
           if (firstGroupId && requestedId !== firstGroupId) {
             navigate(`/chat/${firstGroupId}`, { replace: true });
           }
-
           return firstGroupId;
         });
       } catch (err) {
@@ -273,7 +291,7 @@ export function useChatBootstrap(preferredId: string | null) {
         setIsBootstrapping(false);
       }
     },
-    [navigate, preferredId, t]
+    [navigate, preferredId, t, markConversationAsRead]
   );
 
   const reloadChatShell = useCallback(
@@ -286,16 +304,19 @@ export function useChatBootstrap(preferredId: string | null) {
   useEffect(() => {
     setIsBootstrapping(true);
     void loadChatShell(preferredId || null);
-    // initial bootstrap only
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // Initial bootstrap only
 
   useEffect(() => {
     if (!preferredId) return;
     if (!groups.some((group) => group.id === preferredId)) return;
-
     setSelectedConversationId((prev) => (prev === preferredId ? prev : preferredId));
-  }, [groups, preferredId]);
+    markConversationAsRead(preferredId);
+  }, [groups, preferredId, markConversationAsRead]);
+
+  useEffect(() => {
+    if (!selectedConversationId) return;
+    markConversationAsRead(selectedConversationId);
+  }, [selectedConversationId, markConversationAsRead]);
 
   useEffect(() => {
     const {
@@ -308,9 +329,9 @@ export function useChatBootstrap(preferredId: string | null) {
         setGroups([]);
         setGroupMembers([]);
         setSelectedConversationId(null);
+        setUnreadCounts({});
         return;
       }
-
       void loadChatShell();
     });
 
@@ -329,6 +350,8 @@ export function useChatBootstrap(preferredId: string | null) {
       selectedConversationId,
       isBootstrapping,
       error,
+      unreadCounts,
+      lastReadTimestamps,
     }),
     [
       currentUserId,
@@ -339,6 +362,8 @@ export function useChatBootstrap(preferredId: string | null) {
       selectedConversationId,
       isBootstrapping,
       error,
+      unreadCounts,
+      lastReadTimestamps,
     ]
   );
 
@@ -353,5 +378,7 @@ export function useChatBootstrap(preferredId: string | null) {
     removeGroupLocally,
     loadChatShell,
     reloadChatShell,
+    markConversationAsRead,
+    incrementUnread,
   };
 }

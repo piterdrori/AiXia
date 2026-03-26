@@ -330,112 +330,73 @@ if (!effective?.manageUsers && !isBootstrapping) {
       )}
 
       <Card className="bg-slate-900/50 border-slate-800">
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <Shield className="w-5 h-5 text-indigo-400" />
-            <CardTitle className="text-white">
-              {t("employeePermissions.sections.permissionOverrides")}
-            </CardTitle>
-          </div>
-          <p className="text-slate-400 text-sm">
-            {t(
-              "employeePermissions.sections.permissionOverridesDescription"
-            )}
+  <CardHeader className="pb-4">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <Shield className="w-5 h-5 text-indigo-400" />
+        <div>
+          <CardTitle className="text-white">
+            {t("employeePermissions.sections.permissionOverrides")}
+          </CardTitle>
+          <p className="text-slate-400 text-sm mt-1">
+            {t("employeePermissions.sections.permissionOverridesDescription")}
           </p>
-        </CardHeader>
-
-        <CardContent className="space-y-6">
-          {effectivePermissionEntries.map(
-  ({ permission, label, enabled, overridden }) => (
-    <div
-      key={permission}
-      className="flex items-start justify-between gap-4"
-    >
-      <div className="flex-1">
-        <Label
-          htmlFor={permission}
-          className="text-white font-medium cursor-pointer"
-        >
-          {label}
-        </Label>
-        <p className="text-slate-500 text-sm">
-          {permissionLabels[permission].description}
-        </p>
-        <p className="text-xs text-slate-500 mt-1">
-          {enabled ? "Enabled" : "Disabled"}
-          {overridden ? " • Override applied" : " • Role default"}
-        </p>
+        </div>
       </div>
 
-      <Switch
-        id={permission}
-        checked={enabled}
-        onCheckedChange={() => handleToggle(permission)}
-      />
-    </div>
-  )
-)}
-
-          <Separator className="bg-slate-800" />
-
-          <div className="flex items-center justify-between pt-4">
-            <Button
-              variant="outline"
-              onClick={() => navigate(`/employees/${id}`)}
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            >
-              {t("employeePermissions.actions.cancel")}
-            </Button>
-
-          </div>
-        </CardContent>
-      </Card>
-
-           <Card className="bg-slate-900/50 border-slate-800">
-  <CardHeader className="pb-4">
-    <CardTitle className="text-white text-lg">
-      {t("employeePermissions.sections.currentRolePermissions")}
-    </CardTitle>
-  </CardHeader>
-
-  <CardContent className="space-y-4">
-    <div className="flex flex-wrap items-center gap-2 text-sm text-slate-400">
-      <span>{t("employeePermissions.sections.currentRoleDescription.before")}</span>
       <Badge className="h-6 px-2 text-xs">
         {user?.role.toUpperCase()}
       </Badge>
-      <span>{t("employeePermissions.sections.currentRoleDescription.after")}</span>
     </div>
+  </CardHeader>
 
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+  <CardContent className="space-y-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {effectivePermissionEntries.map(
         ({ permission, label, enabled, overridden }) => (
           <div
             key={permission}
-            className="rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2"
+            className="rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-3"
           >
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-medium text-white truncate">
-                {label}
-              </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <Label
+                  htmlFor={permission}
+                  className="text-white font-medium cursor-pointer block truncate"
+                >
+                  {label}
+                </Label>
+                <p className="mt-1 text-xs text-slate-500 line-clamp-2">
+                  {permissionLabels[permission].description}
+                </p>
+                <p className="mt-2 text-[11px] text-slate-500">
+                  {overridden ? "Override applied" : "Role default"}
+                </p>
+              </div>
 
-              <Badge
-                className={
-                  enabled
-                    ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
-                    : "bg-slate-700/40 text-slate-400 border-slate-700"
-                }
-              >
-                {enabled ? "ON" : "OFF"}
-              </Badge>
+              <div className="shrink-0 pt-0.5">
+                <Switch
+                  id={permission}
+                  checked={enabled}
+                  onCheckedChange={() => handleToggle(permission)}
+                />
+              </div>
             </div>
-
-            <p className="mt-1 text-[11px] text-slate-500">
-              {overridden ? "Override applied" : "Role default"}
-            </p>
           </div>
         )
       )}
+    </div>
+
+    <Separator className="bg-slate-800" />
+
+    <div className="flex justify-start pt-2">
+      <Button
+        variant="outline"
+        onClick={() => navigate(`/employees/${id}`)}
+        className="border-slate-700 text-slate-300 hover:bg-slate-800"
+      >
+        {t("employeePermissions.actions.cancel")}
+      </Button>
     </div>
   </CardContent>
 </Card>

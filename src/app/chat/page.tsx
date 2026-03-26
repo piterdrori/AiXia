@@ -1,4 +1,3 @@
-// page.tsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Trash2 } from "lucide-react";
@@ -6,9 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useAppClock } from "@/lib/clock/provider";
 import { useChatBootstrap } from "./hooks/useChatBootstrap";
 import { useChatMessages } from "./hooks/useChatMessages";
-import type { ChatGroupRow, ChatMessageRow } from "./types";
-
-// page.tsx - Line 10, add back the imports
+import type { ChatGroupRow, ChatMessageRow, ChatGroupMemberRow, ProfileRow } from "./types";
 import { getConversationName, getMembersForGroup } from "./utils";
 
 import ChatSidebar from "./components/ChatSidebar";
@@ -82,42 +79,23 @@ export default function ChatPage() {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [isSending, setIsSending] = useState(false);
-  // page.tsx - Line 83-84, add back setIsUploadingFile
-const [isUploadingFile, setIsUploadingFile] = useState(false);
-
 
   const selectedGroup = useMemo(() => 
     groups.find(g => g.id === selectedConversationId) || null,
   [groups, selectedConversationId]);
 
-  // Line 90-92 - Add types
-const mentionCandidates = useMemo(() => {
-  if (!selectedConversationId) return [];
-  return getMembersForGroup(groupMembers, selectedConversationId)
-    .map((m: ChatGroupMemberRow) => profiles.find((p: ProfileRow) => p.user_id === m.user_id))
-    .filter((p: ProfileRow | undefined): p is ProfileRow => !!p && p.user_id !== currentUserId);
-}, [selectedConversationId, groupMembers, profiles, currentUserId]);
-
-  // Line 98 - Add type
-const filteredMentionCandidates = useMemo(() => {
-  if (!showMentionDropdown) return [];
-  const q = mentionQuery.toLowerCase();
-  return mentionCandidates.filter((p: ProfileRow) => 
-    (p.full_name || "").toLowerCase().includes(q)
-  );
-}, [mentionCandidates, mentionQuery, showMentionDropdown]);
-
+  // Mention candidates for @mentions
   const mentionCandidates = useMemo(() => {
-    if (!selectedConversationId) return [];
+    if (!selectedConversationId) return [] as ProfileRow[];
     return getMembersForGroup(groupMembers, selectedConversationId)
-      .map(m => profiles.find(p => p.user_id === m.user_id))
-      .filter((p): p is NonNullable<typeof p> => !!p && p.user_id !== currentUserId);
+      .map((m: ChatGroupMemberRow) => profiles.find((p: ProfileRow) => p.user_id === m.user_id))
+      .filter((p): p is ProfileRow => !!p && p.user_id !== currentUserId);
   }, [selectedConversationId, groupMembers, profiles, currentUserId]);
 
   const filteredMentionCandidates = useMemo(() => {
-    if (!showMentionDropdown) return [];
+    if (!showMentionDropdown) return [] as ProfileRow[];
     const q = mentionQuery.toLowerCase();
-    return mentionCandidates.filter(p => 
+    return mentionCandidates.filter((p: ProfileRow) => 
       (p.full_name || "").toLowerCase().includes(q)
     );
   }, [mentionCandidates, mentionQuery, showMentionDropdown]);
@@ -264,7 +242,7 @@ const filteredMentionCandidates = useMemo(() => {
     }
     
     selectedMessageIds.forEach(id => 
-      deleteMessageLocally(selectedConversationId, id)
+      deleteMessageLocally(selectedConversationId!, id)
     );
     setSelectedMessageIds([]);
     setIsSelectionMode(false);
@@ -388,7 +366,7 @@ const filteredMentionCandidates = useMemo(() => {
               onSend={handleSendMessage}
               onInsertMention={insertMention}
               onUploadFile={() => {}}
-              isUploadingFile={isUploadingFile}
+              isUploadingFile={false}
             />
           </>
         ) : (

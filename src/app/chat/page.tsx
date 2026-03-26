@@ -166,15 +166,13 @@ export default function ChatPage() {
     ]
   );
 
-    const handleStartDirectMessage = useCallback(
+      const handleStartDirectMessage = useCallback(
     async (targetUserId: string) => {
       if (!currentUserId || targetUserId === currentUserId) return;
 
       setError("");
 
-      const directKey = [currentUserId, targetUserId]
-        .sort()
-        .join("__");
+      const directKey = [currentUserId, targetUserId].sort().join("__");
 
       const existing = groups.find(
         (g) => g.type === "DIRECT" && g.direct_key === directKey
@@ -185,7 +183,43 @@ export default function ChatPage() {
         return;
       }
 
-      const { data: newGroup, error } = await supabase
+      const { data: existingDb, error: existingDbError } = await supabase
+        .from("chat_groups")
+        .select("*")
+        .eq("type", "DIRECT")
+        .eq("direct_key", directKey)
+        .maybeSingle();
+
+      if (existingDbError) {
+        setError("Failed to create conversation");
+        return;
+      }
+
+            if (existingDb) {
+        upsertGroupLocally(existingDb as ChatGroupRow, [
+          {
+            id: `${existingDb.id}-${currentUserId}`,
+            group_id: existingDb.id,
+            user_id: currentUserId,
+            role: "member",
+            invited_by: currentUserId,
+            created_at: new Date().toISOString(),
+          },
+          {
+            id: `${existingDb.id}-${targetUserId}`,
+            group_id: existingDb.id,
+            user_id: targetUserId,
+            role: "member",
+            invited_by: currentUserId,
+            created_at: new Date().toISOString(),
+          },
+        ] as ChatGroupMemberRow[]);
+
+        openConversation(existingDb.id);
+        return;
+      }
+
+      const { data: newGroup, error: groupError } = await supabase
         .from("chat_groups")
         .insert({
           type: "DIRECT",
@@ -195,12 +229,36 @@ export default function ChatPage() {
         .select()
         .single();
 
-      if (error || !newGroup) {
+      if (groupError || !newGroup) {
         setError("Failed to create conversation");
         return;
       }
 
-            const memberRows = [
+      const memberRows = [
+        {
+          group_id: newGroup.id,
+          user_id: currentUserId,
+          role: "member",
+          invited_by: currentUserId,
+        },
+        {
+          group_id: newGroup.id,
+          user_id: targetUserId,
+          role: "member",
+          invited_by: currentUserId,
+        },
+      ];
+
+      const { error: memberError } = await supabase
+        .from("chat_group_members")
+        .insert(memberRows);
+
+      if (memberError) {
+        setError("Failed to create conversation");
+        return;
+      }
+
+      upsertGroupLocally(newGroup as ChatGroupRow, [
         {
           id: `${newGroup.id}-${currentUserId}`,
           group_id: newGroup.id,
@@ -217,32 +275,11 @@ export default function ChatPage() {
           invited_by: currentUserId,
           created_at: new Date().toISOString(),
         },
-      ];
+      ] as ChatGroupMemberRow[]);
 
-      const { error: memberError } = await supabase.from("chat_group_members").insert([
-        {
-          group_id: newGroup.id,
-          user_id: currentUserId,
-          role: "member",
-          invited_by: currentUserId,
-        },
-        {
-          group_id: newGroup.id,
-          user_id: targetUserId,
-          role: "member",
-          invited_by: currentUserId,
-        },
-      ]);
-
-      if (memberError) {
-        setError("Failed to create conversation");
-        return;
-      }
-
-      upsertGroupLocally(newGroup as ChatGroupRow, memberRows as ChatGroupMemberRow[]);
       openConversation(newGroup.id);
     },
-    [currentUserId, groups, openConversation, setError]
+    [currentUserId, groups, openConversation, setError, upsertGroupLocally]
   );
 
   const mentionCandidates = useMemo(() => {
@@ -589,7 +626,7 @@ export default function ChatPage() {
   };
 
   return (
-        <div className="h-[calc(100vh-64px)] box-border bg-slate-950 px-4 py-4 overflow-hidden">
+        <div className="h-[calc(100dvh-64px)] bg-slate-950 p-4 overflow-hidden">
   <div className="h-full max-w-[1460px] mx-auto grid grid-cols-[320px_minmax(0,1fr)_280px] rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden min-h-0">
       <div className="h-full min-h-0 overflow-hidden">
   <ChatSidebar

@@ -1,3 +1,4 @@
+// types.ts
 import type React from "react";
 
 export type Role = "admin" | "manager" | "employee" | "guest";
@@ -19,6 +20,7 @@ export type ChatGroupRow = {
   created_by: string | null;
   created_at: string;
   direct_key?: string | null;
+  updated_at?: string; // For tracking latest activity
 };
 
 export type ChatGroupMemberRow = {
@@ -52,23 +54,8 @@ export type ChatMessageRow = {
 };
 
 export type MessagesByGroup = Record<string, ChatMessageRow[]>;
-export type AttachmentsByMessage = Record<string, ChatAttachmentRow[]>;
 export type HasMoreByGroup = Record<string, boolean>;
-
-export type ChatBootstrapResult = {
-  currentUserId: string | null;
-  currentUserRole: Role | null;
-  profiles: ProfileRow[];
-  groups: ChatGroupRow[];
-  groupMembers: ChatGroupMemberRow[];
-};
-
-export type ConversationBuckets = {
-  direct: ChatGroupRow[];
-  project: ChatGroupRow[];
-  task: ChatGroupRow[];
-  group: ChatGroupRow[];
-};
+export type UnreadCounts = Record<string, number>;
 
 export type MessageListProps = {
   currentUserId: string | null;
@@ -84,6 +71,7 @@ export type MessageListProps = {
   isLoadingOlder: boolean;
   scrollAreaRef: React.RefObject<HTMLDivElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  highlightedMessageIds: string[]; // New: for incoming message animation
   onLoadOlder: () => void;
   onToggleSelection: (message: ChatMessageRow) => void;
   onStartEdit: (message: ChatMessageRow) => void;

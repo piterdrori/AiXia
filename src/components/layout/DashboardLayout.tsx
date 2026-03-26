@@ -979,7 +979,7 @@ const navItems: NavItem[] = useMemo(
       )}
 
       <main
-  className={`flex flex-col h-screen overflow-hidden transition-all duration-300 ${
+  className={`flex min-h-screen flex-1 flex-col transition-all duration-300 ${
     !isMobile && sidebarOpen ? "ml-64" : !isMobile ? "ml-16" : ""
   }`}
 >
@@ -1137,9 +1137,7 @@ const navItems: NavItem[] = useMemo(
             </div>
           </div>
         </header>
-        <div className="flex-1 min-h-0 overflow-hidden p-4 lg:p-6">
-  {children}
-</div>
+        <div className="flex-1 p-4 lg:p-6">{children}</div>
       </main>
     </div>
   );

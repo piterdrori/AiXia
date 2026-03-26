@@ -566,20 +566,22 @@ export default function ChatPage() {
   return (
         <div className="h-[calc(100vh-64px)] bg-slate-950 px-4 py-4 overflow-hidden">
   <div className="h-full max-w-[1460px] mx-auto grid grid-cols-[320px_minmax(0,1fr)_280px] rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden min-h-0">
-      <ChatSidebar
-        currentUserId={currentUserId}
-        currentUserRole={currentUserRole}
-        groups={groups}
-        groupMembers={groupMembers}
-        profiles={profiles}
-        searchQuery={searchQuery}
-        selectedConversationId={selectedConversationId}
-        unreadCounts={unreadCounts}
-        onSearchChange={setSearchQuery}
-        onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
-        onOpenConversation={openConversation}
-        onDeleteChat={handleDeleteChat}
-      />
+      <div className="h-full min-h-0 overflow-hidden">
+  <ChatSidebar
+    currentUserId={currentUserId}
+    currentUserRole={currentUserRole}
+    groups={groups}
+    groupMembers={groupMembers}
+    profiles={profiles}
+    searchQuery={searchQuery}
+    selectedConversationId={selectedConversationId}
+    unreadCounts={unreadCounts}
+    onSearchChange={setSearchQuery}
+    onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
+    onOpenConversation={openConversation}
+    onDeleteChat={handleDeleteChat}
+  />
+</div>
 
             <div className="min-w-0 flex flex-col bg-slate-950 h-full min-h-0 overflow-hidden">
         {selectedGroup ? (
@@ -624,7 +626,7 @@ export default function ChatPage() {
               </div>
             )}
 
-                        <div className="mx-6 mt-4 min-h-[56px]">
+                        <div className="mx-6 mt-2 shrink-0 min-h-[56px]">
               {error ? (
                 <div className="h-[56px] px-3 flex items-center bg-red-900/20 border border-red-800 text-red-400 rounded text-sm">
                   {error}
@@ -705,7 +707,7 @@ export default function ChatPage() {
                 }}
               />
 
-              <div className="shrink-0">
+              <div className="shrink-0 border-t border-slate-800">
                 <MessageComposer
                   messageInput={messageInput}
                   isSending={isSending}

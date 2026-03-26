@@ -11,7 +11,6 @@ import {
   getConversationInitials,
   getConversationName,
   getMembersForGroup,
-  getUserInitials,
 } from "../utils";
 
 type Props = {
@@ -199,36 +198,6 @@ export default function ChatSidebar({
                 {groupConversations.map((group) => renderConversationButton(group, "group"))}
               </>
             )}
-
-            <Separator className="my-3 bg-slate-800" />
-            <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">
-              {t("chat.sidebar.teamMembers")}
-            </h3>
-
-            {profiles
-              .filter((user) => user.user_id !== currentUserId && user.status === "active")
-              .map((user) => (
-                <button
-                  key={user.user_id}
-                  onClick={() => onStartDirectMessage(user.user_id)}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-slate-800/50 transition-all"
-                >
-                  <Avatar className="w-10 h-10 shrink-0">
-                    <AvatarFallback className="bg-indigo-600 text-white">
-                      {getUserInitials(user.full_name)}
-                    </AvatarFallback>
-                  </Avatar>
-
-                  <div className="flex-1 text-left min-w-0">
-                    <p className="text-white font-medium text-sm truncate">
-                      {user.full_name || t("chat.common.unknown")}
-                    </p>
-                    <p className="text-slate-500 text-xs">{user.role}</p>
-                  </div>
-
-                  <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-                </button>
-              ))}
           </div>
         </ScrollArea>
       </CardContent>

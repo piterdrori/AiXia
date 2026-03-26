@@ -1,6 +1,7 @@
+// page.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Check, Square, Trash2 } from "lucide-react";
+import { Check, Square, Trash2, Bell } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
 import {
@@ -22,6 +23,8 @@ import {
   getConversationInitials,
   getConversationName,
   getMembersForGroup,
+  playNotificationSound,
+  showBrowserNotification,
 } from "./utils";
 
 import ChatSidebar from "./components/ChatSidebar";
@@ -32,10 +35,12 @@ import CreateGroupDialog from "./components/CreateGroupDialog";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export default function ChatPage() {
   const navigate = useNavigate();
-   const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>();
   const { t } = useLanguage();
   const clock = useAppClock();
 
@@ -48,13 +53,23 @@ export default function ChatPage() {
     selectedConversationId,
     isBootstrapping,
     error,
+    unreadCounts,
     setError,
     setSelectedConversationId,
     moveGroupToTop,
     upsertGroupLocally,
     removeGroupLocally,
     reloadChatShell,
+    markConversationAsRead,
+    incrementUnread,
   } = useChatBootstrap(id || null);
+
+  // Pass notification helpers to useChatMessages
+  const getConversationNameById = useCallback((groupId: string) => {
+    const group = groups.find(g => g.id === groupId);
+    if (!group) return "Chat";
+    return getConversationName(group, currentUserId, profiles, groupMembers);
+  }, [groups, currentUserId, profiles, groupMembers]);
 
   const {
     messages,
@@ -62,6 +77,7 @@ export default function ChatPage() {
     isLoadingMessages,
     isLoadingOlder,
     selectedMessages,
+    highlightedMessageIds,
     scrollAreaRef,
     messagesEndRef,
     loadMessagesForGroup,
@@ -70,7 +86,15 @@ export default function ChatPage() {
     updateMessageLocally,
     deleteMessageLocally,
     replaceTempMessageWithRealOne,
-  } = useChatMessages(selectedConversationId);
+  } = useChatMessages(
+    selectedConversationId,
+    currentUserId,
+    incrementUnread,
+    moveGroupToTop,
+    playNotificationSound,
+    showBrowserNotification,
+    getConversationNameById
+  );
 
   const [searchQuery, setSearchQuery] = useState("");
   const [messageInput, setMessageInput] = useState("");
@@ -94,71 +118,8 @@ export default function ChatPage() {
   const [isSending, setIsSending] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(false);
-  const lastMessageMapRef = useRef<Record<string, string>>({});
 
-  const playNotificationSound = () => {
-  try {
-    const audio = new Audio("/sounds/notification.mp3");
-    audio.volume = 0.6;
-    void audio.play();
-  } catch {}
-};
-
-const showBrowserNotification = (title: string, body: string) => {
-  if (!("Notification" in window)) return;
-
-  if (Notification.permission === "granted") {
-    new Notification(title, { body });
-  } else if (Notification.permission !== "denied") {
-    Notification.requestPermission();
-  }
-};
-
-  useEffect(() => {
-  if (!id) return;
-
-  // always sync URL immediately (do NOT wait for groups)
-  if (selectedConversationId !== id) {
-    setSelectedConversationId(id);
-  }
-}, [id, selectedConversationId, setSelectedConversationId]);
-
-useEffect(() => {
-  if (!groups || groups.length === 0) return;
-
-  const map = lastMessageMapRef.current;
-
-  for (const group of groups) {
-    const groupMessages = messages[group.id];
-    if (!groupMessages || groupMessages.length === 0) continue;
-
-    const lastMsg = groupMessages[groupMessages.length - 1];
-    if (!lastMsg) continue;
-
-    const prevId = map[group.id];
-
-    if (prevId && prevId !== lastMsg.id && lastMsg.user_id !== currentUserId) {
-      const groupTitle = getConversationName(
-        group,
-        currentUserId,
-        profiles,
-        groupMembers
-      );
-
-      playNotificationSound();
-
-      showBrowserNotification(
-        groupTitle || "New message",
-        lastMsg.content || "New message"
-      );
-
-      moveGroupToTop(group.id);
-    }
-
-    map[group.id] = lastMsg.id;
-  }
-}, [messages, groups, currentUserId, profiles, groupMembers, moveGroupToTop]);
-
+  // Clean up editing/selection state when switching conversations
   useEffect(() => {
     setIsSelectionMode(false);
     setSelectedMessageIds([]);
@@ -178,31 +139,19 @@ useEffect(() => {
 
   const conversationTitle = useMemo(() => {
     if (!selectedConversation) return "";
-    return getConversationName(
-      selectedConversation,
-      currentUserId,
-      profiles,
-      groupMembers
-    );
+    return getConversationName(selectedConversation, currentUserId, profiles, groupMembers);
   }, [currentUserId, groupMembers, profiles, selectedConversation]);
 
   const conversationInitials = useMemo(() => {
     if (!selectedConversation) return "";
-    return getConversationInitials(
-      selectedConversation,
-      currentUserId,
-      profiles,
-      groupMembers
-    );
+    return getConversationInitials(selectedConversation, currentUserId, profiles, groupMembers);
   }, [currentUserId, groupMembers, profiles, selectedConversation]);
 
   const mentionCandidates = useMemo(() => {
     if (!selectedConversationId) return [];
-
     const candidateIds = Array.from(
       new Set(getMembers(selectedConversationId).map((member) => member.user_id))
     );
-
     return candidateIds
       .map((userId) => profiles.find((profile) => profile.user_id === userId))
       .filter((profile): profile is ProfileRow => Boolean(profile))
@@ -211,16 +160,14 @@ useEffect(() => {
 
   const filteredMentionCandidates = useMemo(() => {
     if (!showMentionDropdown) return [];
-
     const q = mentionQuery.trim().toLowerCase();
-
     return mentionCandidates.filter((profile) => {
       const name = (profile.full_name || "").toLowerCase();
       return !q || name.includes(q);
     });
   }, [mentionCandidates, mentionQuery, showMentionDropdown]);
 
-    const canManageMessage = useCallback(
+  const canManageMessage = useCallback(
     (message: ChatMessageRow) => {
       if (!currentUserId) return false;
       return currentUserRole === "admin" || message.user_id === currentUserId;
@@ -231,17 +178,10 @@ useEffect(() => {
   const canDeleteChat = useCallback(
     (group: ChatGroupRow) => {
       if (!currentUserId) return false;
-
-      if (currentUserRole === "admin") {
-        return true;
-      }
-
+      if (currentUserRole === "admin") return true;
       if (group.type === "DIRECT") {
-        return getMembers(group.id).some(
-          (member) => member.user_id === currentUserId
-        );
+        return getMembers(group.id).some((member) => member.user_id === currentUserId);
       }
-
       return group.created_by === currentUserId;
     },
     [currentUserId, currentUserRole, getMembers]
@@ -260,25 +200,23 @@ useEffect(() => {
     (groupId: string) => {
       setSelectedConversationId(groupId);
       navigate(`/chat/${groupId}`);
-
+      markConversationAsRead(groupId); // Mark as read immediately when opening
+      
       if (!messages[groupId]) {
         void loadMessagesForGroup(groupId);
       }
     },
-    [loadMessagesForGroup, messages, navigate, setSelectedConversationId]
+    [loadMessagesForGroup, messages, navigate, setSelectedConversationId, markConversationAsRead]
   );
 
   const handleMessageInputChange = (value: string) => {
     setMessageInput(value);
-
     const match = value.match(/@([a-zA-Z0-9_]*)$/);
-
     if (match) {
       setMentionQuery(match[1] || "");
       setShowMentionDropdown(true);
       return;
     }
-
     setMentionQuery("");
     setShowMentionDropdown(false);
   };
@@ -286,7 +224,6 @@ useEffect(() => {
   const insertMention = (fullName: string) => {
     const safeName = fullName.trim();
     if (!safeName) return;
-
     setMessageInput((prev) => prev.replace(/@([a-zA-Z0-9_]*)$/, `@${safeName} `));
     setMentionQuery("");
     setShowMentionDropdown(false);
@@ -308,9 +245,7 @@ useEffect(() => {
         .from("chat-files")
         .upload(filePath, file);
 
-      if (uploadError) {
-        throw new Error(uploadError.message);
-      }
+      if (uploadError) throw new Error(uploadError.message);
 
       const { data: message, error: messageError } = await supabase
         .from("chat_messages")
@@ -322,9 +257,7 @@ useEffect(() => {
         .select("id")
         .single();
 
-      if (messageError || !message) {
-        throw new Error(messageError?.message || "Failed to create message");
-      }
+      if (messageError || !message) throw new Error(messageError?.message || "Failed to create message");
 
       const { error: attachmentError } = await supabase
         .from("chat_attachments")
@@ -338,9 +271,7 @@ useEffect(() => {
           file_size: file.size,
         });
 
-      if (attachmentError) {
-        throw new Error(attachmentError.message);
-      }
+      if (attachmentError) throw new Error(attachmentError.message);
 
       appendMessageLocally(selectedConversationId, {
         id: message.id,
@@ -364,7 +295,6 @@ useEffect(() => {
       });
 
       moveGroupToTop(selectedConversationId);
-
       requestAnimationFrame(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       });
@@ -378,9 +308,7 @@ useEffect(() => {
 
   const toggleGroupMember = (userId: string) => {
     setSelectedGroupMembers((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     );
   };
 
@@ -388,16 +316,16 @@ useEffect(() => {
     if (!currentUserId) return;
 
     if (!groupName.trim()) {
-  setError(t("chat.errors.groupNameRequired"));
-  setIsCreateGroupOpen(true); // keep dialog open so user sees issue
-  return;
-}
+      setError(t("chat.errors.groupNameRequired"));
+      setIsCreateGroupOpen(true);
+      return;
+    }
 
     if (selectedGroupMembers.length === 0) {
-  setError(t("chat.errors.selectAtLeastOneMember"));
-  setIsCreateGroupOpen(true);
-  return;
-}
+      setError(t("chat.errors.selectAtLeastOneMember"));
+      setIsCreateGroupOpen(true);
+      return;
+    }
 
     setIsCreatingGroup(true);
     setError("");
@@ -421,24 +349,24 @@ useEffect(() => {
       return;
     }
 
-             const optimisticMembers: ChatGroupMemberRow[] = [
-  {
-    id: `local-${newGroup.id}-${currentUserId}`,
-    group_id: newGroup.id,
-    user_id: currentUserId,
-    role: "owner",
-    invited_by: currentUserId,
-    created_at: clock.nowIso,
-  },
-  ...selectedGroupMembers.map((userId) => ({
-    id: `local-${newGroup.id}-${userId}`,
-    group_id: newGroup.id,
-    user_id: userId,
-    role: "member" as const,
-    invited_by: currentUserId,
-    created_at: clock.nowIso,
-  })),
-];
+    const optimisticMembers: ChatGroupMemberRow[] = [
+      {
+        id: `local-${newGroup.id}-${currentUserId}`,
+        group_id: newGroup.id,
+        user_id: currentUserId,
+        role: "owner",
+        invited_by: currentUserId,
+        created_at: clock.nowIso,
+      },
+      ...selectedGroupMembers.map((userId) => ({
+        id: `local-${newGroup.id}-${userId}`,
+        group_id: newGroup.id,
+        user_id: userId,
+        role: "member" as const,
+        invited_by: currentUserId,
+        created_at: clock.nowIso,
+      })),
+    ];
 
     upsertGroupLocally(newGroup as ChatGroupRow, optimisticMembers);
     openConversation(newGroup.id);
@@ -448,7 +376,7 @@ useEffect(() => {
     setIsCreateGroupOpen(false);
     setIsCreatingGroup(false);
 
-           const { error: membersError } = await supabase
+    const { error: membersError } = await supabase
       .from("chat_group_members")
       .upsert(
         [
@@ -465,9 +393,7 @@ useEffect(() => {
             invited_by: currentUserId,
           })),
         ],
-        {
-          onConflict: "group_id,user_id",
-        }
+        { onConflict: "group_id,user_id" }
       );
 
     if (membersError) {
@@ -485,7 +411,7 @@ useEffect(() => {
     const contentToSend = messageInput.trim();
     const tempId = `temp-${clock.nowMs}`;
 
-        const optimisticMessage: ChatMessageRow = {
+    const optimisticMessage: ChatMessageRow = {
       id: tempId,
       group_id: selectedConversationId,
       user_id: currentUserId,
@@ -526,6 +452,7 @@ useEffect(() => {
 
     replaceTempMessageWithRealOne(selectedConversationId, insertedMessage as ChatMessageRow);
 
+    // Create notifications
     const mentionedUserIds = extractMentionedUserIds(
       contentToSend,
       mentionCandidates.map((profile) => ({
@@ -535,40 +462,41 @@ useEffect(() => {
     ).filter((userId) => userId !== currentUserId);
 
     const mentionedSet = new Set(mentionedUserIds);
-
     const recipientMembers = getMembers(selectedConversationId).filter(
       (member) => member.user_id !== currentUserId && !mentionedSet.has(member.user_id)
     );
 
-    for (const member of recipientMembers) {
-      await createNotification({
-        userId: member.user_id,
-        actorUserId: currentUserId,
-        type: "MESSAGE",
-        title: t("chat.notifications.newMessageTitle", undefined, {
-          conversationTitle,
-        }),
-        message: contentToSend,
-        link: `/chat/${selectedConversationId}`,
-        entityType: "chat_message",
-        entityId: insertedMessage.id,
-      });
-    }
-
-    for (const userId of mentionedUserIds) {
-      await createNotification({
-        userId,
-        actorUserId: currentUserId,
-        type: "MENTION",
-        title: t("chat.notifications.mentionedTitle"),
-        message: t("chat.notifications.mentionedMessage", undefined, {
-          conversationTitle,
-        }),
-        link: `/chat/${selectedConversationId}`,
-        entityType: "chat_message",
-        entityId: insertedMessage.id,
-      });
-    }
+    // Send notifications in background
+    Promise.all([
+      ...recipientMembers.map((member) =>
+        createNotification({
+          userId: member.user_id,
+          actorUserId: currentUserId,
+          type: "MESSAGE",
+          title: t("chat.notifications.newMessageTitle", undefined, {
+            conversationTitle,
+          }),
+          message: contentToSend,
+          link: `/chat/${selectedConversationId}`,
+          entityType: "chat_message",
+          entityId: insertedMessage.id,
+        })
+      ),
+      ...mentionedUserIds.map((userId) =>
+        createNotification({
+          userId,
+          actorUserId: currentUserId,
+          type: "MENTION",
+          title: t("chat.notifications.mentionedTitle"),
+          message: t("chat.notifications.mentionedMessage", undefined, {
+            conversationTitle,
+          }),
+          link: `/chat/${selectedConversationId}`,
+          entityType: "chat_message",
+          entityId: insertedMessage.id,
+        })
+      ),
+    ]).catch(console.error);
 
     setIsSending(false);
   };
@@ -694,8 +622,7 @@ useEffect(() => {
     setIsSelectionMode(false);
     setBulkDeleteLoading(false);
   };
-  
-  
+
   const handleDeleteChat = async (group: ChatGroupRow) => {
     if (!canDeleteChat(group)) {
       setError(t("chat.errors.notAuthorized", "Not authorized"));
@@ -741,191 +668,194 @@ useEffect(() => {
           searchQuery={searchQuery}
           selectedConversationId={selectedConversationId}
           groupActionLoading={groupActionLoading}
+          unreadCounts={unreadCounts}
           onSearchChange={setSearchQuery}
           onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
           onOpenConversation={openConversation}
           onDeleteChat={(group) => void handleDeleteChat(group)}
         />
 
-      {selectedConversation ? (
-  <div className="flex flex-1 gap-4 min-h-0">
-    <Card className="flex-1 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden min-h-0">
-            <ChatHeader
-  title={conversationTitle}
-  participantCount={getMembers(selectedConversation.id).length}
-  initials={conversationInitials}
-  isSelectionMode={isSelectionMode}
-  isDetailsPanelOpen={isDetailsPanelOpen}
-  onToggleDetailsPanel={() =>
-    setIsDetailsPanelOpen((prev) => !prev)
-  }
-  onToggleSelectionMode={() => {
-    setIsSelectionMode((prev) => !prev);
-    setSelectedMessageIds([]);
-  }}
-/>
+        {selectedConversation ? (
+          <div className="flex flex-1 gap-4 min-h-0">
+            <Card className="flex-1 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden min-h-0">
+              <ChatHeader
+                title={conversationTitle}
+                participantCount={getMembers(selectedConversation.id).length}
+                initials={conversationInitials}
+                isSelectionMode={isSelectionMode}
+                isDetailsPanelOpen={isDetailsPanelOpen}
+                unreadCount={unreadCounts[selectedConversation.id] || 0}
+                onToggleDetailsPanel={() => setIsDetailsPanelOpen((prev) => !prev)}
+                onToggleSelectionMode={() => {
+                  setIsSelectionMode((prev) => !prev);
+                  setSelectedMessageIds([]);
+                }}
+              />
 
-            {(isSelectionMode || selectedMessageIds.length > 0) && (
-              <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-800 bg-slate-950/60 shrink-0">
-                <div className="text-sm text-slate-300">
-                  {t("chat.selection.selectedCount", undefined, {
-                    total: selectedMessageIds.length,
-                  })}
+              {(isSelectionMode || selectedMessageIds.length > 0) && (
+                <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-800 bg-slate-950/60 shrink-0">
+                  <div className="text-sm text-slate-300">
+                    {t("chat.selection.selectedCount", undefined, {
+                      total: selectedMessageIds.length,
+                    })}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-slate-700 text-slate-200 hover:bg-slate-800"
+                      onClick={() => setSelectedMessageIds(allSelected ? [] : allSelectableIds)}
+                    >
+                      {allSelected ? (
+                        <>
+                          <Square className="w-4 h-4 mr-2" />
+                          {t("chat.selection.clearAll")}
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4 mr-2" />
+                          {t("chat.selection.selectAll")}
+                        </>
+                      )}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                      disabled={bulkDeleteLoading || selectedMessageIds.length === 0}
+                      onClick={() => void handleBulkDeleteMessages()}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      {bulkDeleteLoading
+                        ? t("chat.selection.deleting")
+                        : t("chat.selection.deleteSelected")}
+                    </Button>
+                  </div>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-slate-700 text-slate-200 hover:bg-slate-800"
-                    onClick={() =>
-                      setSelectedMessageIds(allSelected ? [] : allSelectableIds)
-                    }
-                  >
-                    {allSelected ? (
-                      <>
-                        <Square className="w-4 h-4 mr-2" />
-                        {t("chat.selection.clearAll")}
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-4 h-4 mr-2" />
-                        {t("chat.selection.selectAll")}
-                      </>
-                    )}
-                  </Button>
-
-                  <Button
-                    type="button"
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                    disabled={bulkDeleteLoading || selectedMessageIds.length === 0}
-                    onClick={() => void handleBulkDeleteMessages()}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    {bulkDeleteLoading
-                      ? t("chat.selection.deleting")
-                      : t("chat.selection.deleteSelected")}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {error && (
-              <div className="mx-4 mt-4 rounded-md border border-red-800 bg-red-900/20 px-3 py-2 text-sm text-red-300">
-                {error}
-              </div>
-            )}
-
-            <MessageList
-              currentUserId={currentUserId}
-              currentUserRole={currentUserRole}
-              messages={selectedMessages}
-              profiles={profiles}
-              isSelectionMode={isSelectionMode}
-              selectedMessageIds={selectedMessageIds}
-              editingMessageId={editingMessageId}
-              editingMessageText={editingMessageText}
-              messageActionLoading={messageActionLoading}
-              hasMore={Boolean(
-                selectedConversationId && hasMoreMessages[selectedConversationId]
               )}
-              isLoadingOlder={isLoadingOlder}
-              scrollAreaRef={scrollAreaRef}
-              messagesEndRef={messagesEndRef}
-              onLoadOlder={() => void handleLoadOlderMessages()}
-              onToggleSelection={(message) =>
-                setSelectedMessageIds((prev) =>
-                  prev.includes(message.id)
-                    ? prev.filter((id) => id !== message.id)
-                    : [...prev, message.id]
-                )
-              }
-              onStartEdit={startEditingMessage}
-              onEditTextChange={setEditingMessageText}
-              onSaveEdit={(message) => void handleSaveEditedMessage(message)}
-              onCancelEdit={cancelEditingMessage}
-              onDeleteMessage={(message) => void handleDeleteMessage(message)}
-            />
 
-            <div className="px-4 py-2 text-xs text-slate-500">
-              {isLoadingMessages && !messages[selectedConversation.id]
-                ? t("chat.status.openingConversation")
-                : t("chat.status.loadedMessages", undefined, {
-                    total: selectedMessages.length,
-                  })}
-            </div>
+              {error && (
+                <div className="mx-4 mt-4 rounded-md border border-red-800 bg-red-900/20 px-3 py-2 text-sm text-red-300">
+                  {error}
+                </div>
+              )}
 
-            <MessageComposer
-  messageInput={messageInput}
-  isSending={isSending}
-  isUploadingFile={isUploadingFile}
-  showMentionDropdown={showMentionDropdown}
-  filteredMentionCandidates={filteredMentionCandidates}
-  onChange={handleMessageInputChange}
-  onSend={() => void handleSendMessage()}
-  onInsertMention={insertMention}
-  onUploadFile={(file) => void handleUploadFile(file)}
-/>
+              <MessageList
+                currentUserId={currentUserId}
+                currentUserRole={currentUserRole}
+                messages={selectedMessages}
+                profiles={profiles}
+                isSelectionMode={isSelectionMode}
+                selectedMessageIds={selectedMessageIds}
+                editingMessageId={editingMessageId}
+                editingMessageText={editingMessageText}
+                messageActionLoading={messageActionLoading}
+                hasMore={Boolean(selectedConversationId && hasMoreMessages[selectedConversationId])}
+                isLoadingOlder={isLoadingOlder}
+                scrollAreaRef={scrollAreaRef}
+                messagesEndRef={messagesEndRef}
+                highlightedMessageIds={highlightedMessageIds}
+                onLoadOlder={() => void handleLoadOlderMessages()}
+                onToggleSelection={(message) =>
+                  setSelectedMessageIds((prev) =>
+                    prev.includes(message.id)
+                      ? prev.filter((id) => id !== message.id)
+                      : [...prev, message.id]
+                  )
+                }
+                onStartEdit={startEditingMessage}
+                onEditTextChange={setEditingMessageText}
+                onSaveEdit={(message) => void handleSaveEditedMessage(message)}
+                onCancelEdit={cancelEditingMessage}
+                onDeleteMessage={(message) => void handleDeleteMessage(message)}
+              />
+
+              <div className="px-4 py-2 text-xs text-slate-500 border-t border-slate-800/50 bg-slate-900/30">
+                {isLoadingMessages && !messages[selectedConversation.id]
+                  ? t("chat.status.openingConversation")
+                  : t("chat.status.loadedMessages", undefined, {
+                      total: selectedMessages.length,
+                    })}
+              </div>
+
+              <MessageComposer
+                messageInput={messageInput}
+                isSending={isSending}
+                isUploadingFile={isUploadingFile}
+                showMentionDropdown={showMentionDropdown}
+                filteredMentionCandidates={filteredMentionCandidates}
+                onChange={handleMessageInputChange}
+                onSend={() => void handleSendMessage()}
+                onInsertMention={insertMention}
+                onUploadFile={(file) => void handleUploadFile(file)}
+              />
             </Card>
 
-    {isDetailsPanelOpen && (
-      <Card className="w-80 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden min-h-0 shrink-0">
-        <div className="p-4 border-b border-slate-800 shrink-0">
-          <h3 className="text-white font-medium">
-            {t("chat.header.details", "Details")}
-          </h3>
-        </div>
+            {isDetailsPanelOpen && (
+              <Card className="w-80 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden min-h-0 shrink-0">
+                <div className="p-4 border-b border-slate-800 shrink-0">
+                  <h3 className="text-white font-medium flex items-center gap-2">
+                    <Bell className="w-4 h-4" />
+                    {t("chat.header.details", "Details")}
+                  </h3>
+                </div>
 
-        <div className="p-4 space-y-3 overflow-y-auto min-h-0">
-  {getMembers(selectedConversation.id).length === 0 ? (
-    <div className="text-sm text-slate-500 text-center py-6">
-      {t("chat.common.noMembers", "No members")}
-    </div>
-  ) : (
-    getMembers(selectedConversation.id).map((member) => {
-      const profile = profiles.find((p) => p.user_id === member.user_id);
+                <div className="p-4 space-y-3 overflow-y-auto min-h-0">
+                  <div className="text-xs text-slate-500 uppercase font-medium mb-2">
+                    {t("chat.details.participants", "Participants")}
+                  </div>
+                  {getMembers(selectedConversation.id).length === 0 ? (
+                    <div className="text-sm text-slate-500 text-center py-6">
+                      {t("chat.common.noMembers", "No members")}
+                    </div>
+                  ) : (
+                    getMembers(selectedConversation.id).map((member) => {
+                      const profile = profiles.find((p) => p.user_id === member.user_id);
+                      return (
+                        <div
+                          key={member.user_id}
+                          className="flex items-center gap-3 rounded-lg bg-slate-800/50 p-3"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-medium shrink-0">
+                            {(profile?.full_name || t("chat.common.unknown")).charAt(0).toUpperCase()}
+                          </div>
 
-      return (
-        <div
-          key={member.user_id}
-          className="flex items-center gap-3 rounded-lg bg-slate-800/50 p-3"
-        >
-          <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-medium shrink-0">
-            {(profile?.full_name || t("chat.common.unknown")).charAt(0).toUpperCase()}
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium text-white truncate">
+                              {profile?.full_name || t("chat.common.unknown")}
+                            </div>
+                            <div className="text-xs text-slate-500 truncate capitalize">
+                              {profile?.role || ""}
+                              {member.role === "owner" && (
+                                <span className="text-indigo-400 ml-1">(Owner)</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </Card>
+            )}
           </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-white truncate">
-              {profile?.full_name || t("chat.common.unknown")}
+        ) : (
+          <Card className="flex-1 bg-slate-900/50 border-slate-800 flex items-center justify-center min-h-0">
+            <div className="text-center">
+              <div className="text-white text-lg font-medium mb-2">
+                {isBootstrapping
+                  ? t("chat.empty.loadingTitle")
+                  : t("chat.empty.selectTitle")}
+              </div>
+              <p className="text-slate-500">
+                {isBootstrapping
+                  ? t("chat.empty.loadingDescription")
+                  : t("chat.empty.selectDescription")}
+              </p>
             </div>
-            <div className="text-xs text-slate-500 truncate">
-              {profile?.role || ""}
-            </div>
-          </div>
-        </div>
-      );
-    })
-  )}
-</div>
-      </Card>
-    )}
-  </div>
-) : (
-  <Card className="flex-1 bg-slate-900/50 border-slate-800 flex items-center justify-center min-h-0">
-    <div className="text-center">
-      <div className="text-white text-lg font-medium mb-2">
-        {isBootstrapping
-          ? t("chat.empty.loadingTitle")
-          : t("chat.empty.selectTitle")}
-      </div>
-      <p className="text-slate-500">
-        {isBootstrapping
-          ? t("chat.empty.loadingDescription")
-          : t("chat.empty.selectDescription")}
-      </p>
-    </div>
-  </Card>
-)}
+          </Card>
+        )}
       </div>
 
       <CreateGroupDialog
@@ -938,21 +868,15 @@ useEffect(() => {
         error={isCreateGroupOpen ? error : ""}
         onOpenChange={(open) => {
           setIsCreateGroupOpen(open);
-          if (open) {
-            setError("");
-          }
+          if (open) setError("");
         }}
         onGroupNameChange={(value) => {
           setGroupName(value);
-          if (error) {
-            setError("");
-          }
+          if (error) setError("");
         }}
         onToggleMember={(userId) => {
           toggleGroupMember(userId);
-          if (error) {
-            setError("");
-          }
+          if (error) setError("");
         }}
         onCreate={() => void handleCreateGroup()}
         onCancel={() => {

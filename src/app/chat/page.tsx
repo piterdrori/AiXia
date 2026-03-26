@@ -33,7 +33,9 @@ import MessageList from "./components/MessageList";
 import MessageComposer from "./components/MessageComposer";
 import CreateGroupDialog from "./components/CreateGroupDialog";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+
 
 export default function ChatPage() {
   const navigate = useNavigate();

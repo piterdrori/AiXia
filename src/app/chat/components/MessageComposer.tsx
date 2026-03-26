@@ -3,7 +3,7 @@ import { Send, Paperclip, Smile } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { ProfileRow } from "../types";
-import { useState, useRef } from "react";
+import { useRef } from "react";
 
 type Props = {
   messageInput: string;

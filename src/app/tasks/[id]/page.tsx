@@ -1225,80 +1225,80 @@ setTranslatedComments((prev) => ({
                 <div className="space-y-3">
                   {files.map((file) => (
                     <div
-                      key={file.id}
-                      className="flex items-center justify-between gap-4 rounded-lg border border-slate-800 bg-slate-950/50 p-3"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <FileText className="w-5 h-5 text-indigo-400" />
-
-                        <div className="min-w-0">
-                          <p className="text-white text-sm truncate">{file.file_name}</p>
-                          <p className="text-slate-500 text-xs">
-                            {getProfileName(file.user_id)} •{" "}
-                            {format(clock.shiftDate(file.created_at), "MMM d, yyyy h:mm a")}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-  <Button
-  type="button"
-  variant="outline"
-  className="border-slate-700 text-slate-300 hover:bg-slate-800"
-  onClick={async () => {
-    try {
-      setFileActionLoading(file.id);
-      await openFile("project-files", file.file_path, file.id);
-    } catch (err) {
-      console.error("Open file error:", err);
-      setError("Failed to open file.");
-    } finally {
-      setFileActionLoading(null);
-    }
-  }}
-  disabled={fileActionLoading === file.id}
+  key={file.id}
+  className="flex items-center gap-4 rounded-lg border border-slate-800 bg-slate-950/50 p-3"
 >
-  <ExternalLink className="w-4 h-4 mr-2" />
-  {t("taskDetail.files.open")}
-</Button>
+  <div className="flex min-w-0 flex-1 items-center gap-3">
+    <FileText className="h-5 w-5 shrink-0 text-indigo-400" />
 
-  <Button
-  type="button"
-  variant="outline"
-  className="border-slate-700 text-green-400 hover:bg-slate-800"
-  onClick={async () => {
-    try {
-      setFileActionLoading(file.id);
-      await downloadFile("project-files", file.file_path, file.file_name);
-    } catch (err) {
-      console.error("Download file error:", err);
-      setError("Failed to download file.");
-    } finally {
-      setFileActionLoading(null);
-    }
-  }}
-  disabled={fileActionLoading === file.id}
->
-  <Download className="w-4 h-4 mr-2" />
-  Download
-</Button>
+    <div className="min-w-0">
+      <p className="truncate text-sm text-white">{file.file_name}</p>
+      <p className="text-xs text-slate-500">
+        {getProfileName(file.user_id)} •{" "}
+        {format(clock.shiftDate(file.created_at), "MMM d, yyyy h:mm a")}
+      </p>
+    </div>
+  </div>
 
-  {canDeleteThisFile(file) && (
-  <Button
-    type="button"
-    variant="outline"
-    className="border-red-800 text-red-400 hover:bg-red-900/20"
-    onClick={() =>
-      void handleDeleteFile(file.id, file.file_path, file.file_name)
-    }
-    disabled={fileActionLoading === file.id}
-  >
-    <Trash2 className="w-4 h-4 mr-2" />
-    {t("taskDetail.actions.delete")}
-  </Button>
-)}
+  <div className="ml-auto flex shrink-0 items-center gap-2">
+    <Button
+      type="button"
+      variant="outline"
+      className="border-slate-700 text-slate-300 hover:bg-slate-800"
+      onClick={async () => {
+        try {
+          setFileActionLoading(file.id);
+          await openFile("project-files", file.file_path, file.id);
+        } catch (err) {
+          console.error("Open file error:", err);
+          setError("Failed to open file.");
+        } finally {
+          setFileActionLoading(null);
+        }
+      }}
+      disabled={fileActionLoading === file.id}
+    >
+      <ExternalLink className="mr-2 h-4 w-4" />
+      {t("taskDetail.files.open")}
+    </Button>
+
+    <Button
+      type="button"
+      variant="outline"
+      className="border-slate-700 text-green-400 hover:bg-slate-800"
+      onClick={async () => {
+        try {
+          setFileActionLoading(file.id);
+          await downloadFile("project-files", file.file_path, file.file_name);
+        } catch (err) {
+          console.error("Download file error:", err);
+          setError("Failed to download file.");
+        } finally {
+          setFileActionLoading(null);
+        }
+      }}
+      disabled={fileActionLoading === file.id}
+    >
+      <Download className="mr-2 h-4 w-4" />
+      Download
+    </Button>
+
+    {canDeleteThisFile(file) && (
+      <Button
+        type="button"
+        variant="outline"
+        className="border-red-800 text-red-400 hover:bg-red-900/20"
+        onClick={() =>
+          void handleDeleteFile(file.id, file.file_path, file.file_name)
+        }
+        disabled={fileActionLoading === file.id}
+      >
+        <Trash2 className="mr-2 h-4 w-4" />
+        {t("taskDetail.actions.delete")}
+      </Button>
+    )}
+  </div>
 </div>
-                    </div>
                   ))}
                 </div>
               )}

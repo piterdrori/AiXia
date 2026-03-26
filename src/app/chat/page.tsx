@@ -1,6 +1,7 @@
+// page.tsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Trash2, Check, Square } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAppClock } from "@/lib/clock/provider";
 import { useChatBootstrap } from "./hooks/useChatBootstrap";
@@ -28,7 +29,6 @@ export default function ChatPage() {
     groups,
     groupMembers,
     selectedConversationId,
-    isBootstrapping,
     error,
     unreadCounts,
     onlineStatus,
@@ -40,7 +40,6 @@ export default function ChatPage() {
     markConversationAsRead,
     incrementUnread,
     startDirectMessage,
-    loadChatShell,
   } = useChatBootstrap(id || null);
 
   const getConvoName = useCallback((groupId: string) => {
@@ -51,7 +50,6 @@ export default function ChatPage() {
   const {
     messages,
     hasMoreMessages,
-    isLoadingMessages,
     isLoadingOlder,
     selectedMessages,
     highlightedMessageIds,
@@ -71,7 +69,6 @@ export default function ChatPage() {
     getConvoName
   );
 
-  // UI State
   const [searchQuery, setSearchQuery] = useState("");
   const [messageInput, setMessageInput] = useState("");
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
@@ -80,7 +77,6 @@ export default function ChatPage() {
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingMessageText, setEditingMessageText] = useState("");
-  const [messageActionLoading, setMessageActionLoading] = useState<string | null>(null);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [isSending, setIsSending] = useState(false);
@@ -105,7 +101,6 @@ export default function ChatPage() {
     );
   }, [mentionCandidates, mentionQuery, showMentionDropdown]);
 
-  // Cleanup on conversation change
   useEffect(() => {
     setIsSelectionMode(false);
     setSelectedMessageIds([]);
@@ -160,11 +155,7 @@ export default function ChatPage() {
     try {
       const { data, error } = await supabase
         .from("chat_messages")
-        .insert({
-          group_id: selectedConversationId,
-          user_id: currentUserId,
-          content,
-        })
+        .insert({ group_id: selectedConversationId, user_id: currentUserId, content })
         .select()
         .single();
 
@@ -172,7 +163,6 @@ export default function ChatPage() {
       
       replaceTempMessageWithRealOne(selectedConversationId, data);
       
-      // Update group last_message
       await supabase.from("chat_groups").update({ 
         last_message: content,
         last_message_at: clock.nowIso 
@@ -208,7 +198,7 @@ export default function ChatPage() {
       const { error: memberError } = await supabase.from("chat_group_members").insert(members);
       if (memberError) throw memberError;
       
-      upsertGroupLocally(group, members.map((m, i) => ({
+      upsertGroupLocally(group, members.map(m => ({
         id: `${group.id}-${m.user_id}`,
         group_id: m.group_id,
         user_id: m.user_id,
@@ -238,9 +228,6 @@ export default function ChatPage() {
     removeGroupLocally(group.id);
   };
 
-  const canManageMessage = (msg: ChatMessageRow) => 
-    currentUserRole === "admin" || msg.user_id === currentUserId;
-
   const handleBulkDelete = async () => {
     if (!selectedConversationId || selectedMessageIds.length === 0) return;
     if (!confirm(`Delete ${selectedMessageIds.length} messages?`)) return;
@@ -264,7 +251,6 @@ export default function ChatPage() {
 
   return (
     <div className="h-[calc(100vh-64px)] flex bg-slate-950">
-      {/* Left Sidebar - Conversations */}
       <ChatSidebar
         currentUserId={currentUserId}
         currentUserRole={currentUserRole}
@@ -273,7 +259,6 @@ export default function ChatPage() {
         profiles={profiles}
         searchQuery={searchQuery}
         selectedConversationId={selectedConversationId}
-        groupActionLoading={null}
         unreadCounts={unreadCounts}
         onSearchChange={setSearchQuery}
         onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
@@ -281,7 +266,6 @@ export default function ChatPage() {
         onDeleteChat={handleDeleteChat}
       />
 
-      {/* Middle - Chat Area */}
       <div className="flex-1 flex flex-col min-w-0 bg-slate-950">
         {selectedGroup ? (
           <>
@@ -338,8 +322,8 @@ export default function ChatPage() {
               selectedMessageIds={selectedMessageIds}
               editingMessageId={editingMessageId}
               editingMessageText={editingMessageText}
-              messageActionLoading={messageActionLoading}
-              hasMore={hasMoreMessages[selectedConversationId] || false}
+              messageActionLoading={null}
+              hasMore={hasMoreMessages[selectedConversationId || ""] || false}
               isLoadingOlder={isLoadingOlder}
               scrollAreaRef={scrollAreaRef}
               messagesEndRef={messagesEndRef}
@@ -359,11 +343,9 @@ export default function ChatPage() {
               onEditTextChange={setEditingMessageText}
               onSaveEdit={async (msg) => {
                 if (!editingMessageText.trim()) return;
-                setMessageActionLoading(msg.id);
                 await supabase.from("chat_messages").update({ content: editingMessageText }).eq("id", msg.id);
                 updateMessageLocally(msg.group_id, { ...msg, content: editingMessageText });
                 setEditingMessageId(null);
-                setMessageActionLoading(null);
               }}
               onCancelEdit={() => {
                 setEditingMessageId(null);
@@ -371,10 +353,8 @@ export default function ChatPage() {
               }}
               onDeleteMessage={async (msg) => {
                 if (!confirm("Delete this message?")) return;
-                setMessageActionLoading(msg.id);
                 await supabase.from("chat_messages").delete().eq("id", msg.id);
                 deleteMessageLocally(msg.group_id, msg.id);
-                setMessageActionLoading(null);
               }}
             />
 
@@ -386,9 +366,7 @@ export default function ChatPage() {
               onChange={handleMessageChange}
               onSend={handleSendMessage}
               onInsertMention={insertMention}
-              onUploadFile={async (file) => {
-                // Handle file upload
-              }}
+              onUploadFile={() => {}}
               isUploadingFile={isUploadingFile}
             />
           </>
@@ -403,7 +381,6 @@ export default function ChatPage() {
         )}
       </div>
 
-      {/* Right Sidebar - Team Members */}
       <TeamMembersSidebar
         profiles={profiles}
         currentUserId={currentUserId}

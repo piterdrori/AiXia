@@ -50,6 +50,37 @@ export function useChatMessages(selectedConversationId: string | null) {
     messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
   }, []);
 
+  const fetchMessageById = useCallback(async (messageId: string) => {
+  const { data, error } = await supabase
+    .from("chat_messages")
+    .select(`
+      id,
+      group_id,
+      user_id,
+      content,
+      created_at,
+      attachments:chat_attachments(
+        id,
+        message_id,
+        group_id,
+        uploaded_by,
+        file_name,
+        file_path,
+        mime_type,
+        file_size,
+        created_at
+      )
+    `)
+    .eq("id", messageId)
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data as ChatMessageRow;
+}, []);
+
   const loadMessagesForGroup = useCallback(async (groupId: string) => {
   if (!groupId) return;
   if (loadingGroupRef.current === groupId) return;
@@ -260,7 +291,7 @@ useEffect(() => {
     }
   }, [getScrollViewport, messages, selectedConversationId]);
 
- useEffect(() => {
+useEffect(() => {
   const channelKey = "chat:global";
 
   registerRealtimeChannel(
@@ -274,36 +305,42 @@ useEffect(() => {
           schema: "public",
           table: "chat_messages",
         },
-        (payload) => {
+        async (payload) => {
           if (payload.eventType === "INSERT" && payload.new) {
-            const message = payload.new as ChatMessageRow;
-            const groupId = message.group_id;
-            if (!groupId) return;
+            const incoming = payload.new as ChatMessageRow;
+            if (!incoming.id || !incoming.group_id) return;
 
+            const fullMessage =
+              (await fetchMessageById(incoming.id)) || incoming;
+
+            const groupId = fullMessage.group_id;
             const isCurrentConversation =
               selectedConversationIdRef.current === groupId;
 
             if (isCurrentConversation) {
               const shouldStayAtBottom = isViewportNearBottom();
 
-              replaceTempMessageWithRealOne(groupId, message);
+              replaceTempMessageWithRealOne(groupId, fullMessage);
+              appendMessageLocally(groupId, fullMessage);
 
               if (shouldStayAtBottom) {
                 shouldScrollToBottomRef.current = true;
               }
             } else {
-              appendMessageLocally(groupId, message);
+              appendMessageLocally(groupId, fullMessage);
             }
 
             return;
           }
 
           if (payload.eventType === "UPDATE" && payload.new) {
-            const message = payload.new as ChatMessageRow;
-            const groupId = message.group_id;
-            if (!groupId) return;
+            const incoming = payload.new as ChatMessageRow;
+            if (!incoming.id || !incoming.group_id) return;
 
-            updateMessageLocally(groupId, message);
+            const fullMessage =
+              (await fetchMessageById(incoming.id)) || incoming;
+
+            updateMessageLocally(fullMessage.group_id, fullMessage);
             return;
           }
 
@@ -315,7 +352,11 @@ useEffect(() => {
           }
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED" && selectedConversationIdRef.current) {
+          void loadMessagesForGroup(selectedConversationIdRef.current);
+        }
+      })
   );
 
   return () => {
@@ -324,7 +365,9 @@ useEffect(() => {
 }, [
   appendMessageLocally,
   deleteMessageLocally,
+  fetchMessageById,
   isViewportNearBottom,
+  loadMessagesForGroup,
   replaceTempMessageWithRealOne,
   updateMessageLocally,
 ]);

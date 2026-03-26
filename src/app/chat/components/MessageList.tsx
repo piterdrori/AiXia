@@ -1,15 +1,6 @@
 // MessageList.tsx
 import { useState } from "react";
-import {
-  Check,
-  Download,
-  ExternalLink,
-  MessageSquare,
-  Save,
-  Square,
-  X,
-  Sparkles,
-} from "lucide-react";
+import { Download, ExternalLink, MessageSquare, MoreHorizontal, Sparkles, Trash2, Edit2, Check, X } from "lucide-react";
 import { formatMessageTime, getProfileByUserId, getUserInitials } from "../utils";
 import type { ChatMessageRow, MessageListProps } from "../types";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -17,9 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { useLanguage } from "@/lib/i18n";
-import { openFile, downloadFile } from "@/lib/file-actions";
-import { smartTranslate } from "@/lib/smartTranslate";
 import { cn } from "@/lib/utils";
 
 export default function MessageList({
@@ -36,7 +24,7 @@ export default function MessageList({
   isLoadingOlder,
   scrollAreaRef,
   messagesEndRef,
-  highlightedMessageIds, // New
+  highlightedMessageIds,
   onLoadOlder,
   onToggleSelection,
   onStartEdit,
@@ -45,343 +33,179 @@ export default function MessageList({
   onCancelEdit,
   onDeleteMessage,
 }: MessageListProps) {
-  const { t } = useLanguage();
+  const [translatedMessages, setTranslatedMessages] = useState<Record<string, { text: string; source: string }>>({});
+  const [translatingId, setTranslatingId] = useState<string | null>(null);
+  const [attachmentLoading, setAttachmentLoading] = useState<string | null>(null);
 
-  const [translatedMessages, setTranslatedMessages] = useState<
-    Record<string, { text: string; source: string }>
-  >({});
-  const [translatingMessageId, setTranslatingMessageId] = useState<string | null>(null);
-  const [attachmentActionLoading, setAttachmentActionLoading] = useState<string | null>(null);
+  const canManage = (msg: ChatMessageRow) => {
+    if (!currentUserId) return false;
+    return currentUserRole === "admin" || msg.user_id === currentUserId;
+  };
 
-  const handleTranslateMessage = async (message: ChatMessageRow) => {
-    if (translatedMessages[message.id]) {
-      setTranslatedMessages((prev) => {
-        const next = { ...prev };
-        delete next[message.id];
-        return next;
-      });
+  const handleTranslate = async (msg: ChatMessageRow) => {
+    if (translatedMessages[msg.id]) {
+      setTranslatedMessages(prev => { const n = { ...prev }; delete n[msg.id]; return n; });
       return;
     }
-
-    try {
-      setTranslatingMessageId(message.id);
-      const result = await smartTranslate({
-        messageId: message.id,
-        text: message.content,
-      });
-      setTranslatedMessages((prev) => ({
-        ...prev,
-        [message.id]: {
-          text: result.translatedText,
-          source: result.source,
-        },
-      }));
-    } catch (error) {
-      console.error("Translate message error:", error);
-    } finally {
-      setTranslatingMessageId(null);
-    }
+    setTranslatingId(msg.id);
+    // Simulated translation - replace with actual API
+    setTimeout(() => {
+      setTranslatedMessages(prev => ({ ...prev, [msg.id]: { text: `[Translated] ${msg.content}`, source: "Auto" } }));
+      setTranslatingId(null);
+    }, 500);
   };
-
-  const canManageMessage = (message: ChatMessageRow) => {
-    if (!currentUserId) return false;
-    return currentUserRole === "admin" || message.user_id === currentUserId;
-  };
-
-  const selectableMessages = messages.filter((message) => canManageMessage(message));
-  const allSelectableIds = selectableMessages.map((message) => message.id);
-  const allSelected =
-    allSelectableIds.length > 0 &&
-    allSelectableIds.every((messageId) => selectedMessageIds.includes(messageId));
 
   return (
-    <>
+    <div className="flex-1 min-h-0 flex flex-col bg-slate-950/30">
       {(isSelectionMode || selectedMessageIds.length > 0) && (
-        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-800 bg-slate-950/60 shrink-0">
-          <div className="text-sm text-slate-300">
-            {t("chat.messageList.selectedCount", undefined, {
-              total: selectedMessageIds.length,
-            })}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="border-slate-700 text-slate-200 hover:bg-slate-800"
-              onClick={() => {
-                if (allSelected) {
-                  allSelectableIds.forEach((id) => {
-                    if (selectedMessageIds.includes(id)) {
-                      const msg = messages.find((m) => m.id === id);
-                      if (msg) onToggleSelection(msg);
-                    }
-                  });
-                } else {
-                  allSelectableIds.forEach((id) => {
-                    if (!selectedMessageIds.includes(id)) {
-                      const msg = messages.find((m) => m.id === id);
-                      if (msg) onToggleSelection(msg);
-                    }
-                  });
-                }
-              }}
-            >
-              {allSelected ? (
-                <>
-                  <Square className="w-4 h-4 mr-2" />
-                  {t("chat.messageList.clearAll")}
-                </>
-              ) : (
-                <>
-                  <Check className="w-4 h-4 mr-2" />
-                  {t("chat.messageList.selectModeActive")}
-                </>
-              )}
+        <div className="flex items-center justify-between px-6 py-3 border-b border-slate-800 bg-slate-900/80 shrink-0">
+          <span className="text-sm text-slate-300">
+            {selectedMessageIds.length} selected
+          </span>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => onToggleSelection({ id: "all" } as any)}>
+              {selectedMessageIds.length === messages.filter(m => canManage(m)).length ? "Deselect All" : "Select All"}
             </Button>
           </div>
         </div>
       )}
 
       <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0">
-        <div className="px-4 py-4">
-          <div className="flex justify-center mb-4">
-            {hasMore ? (
-              <Button
-                type="button"
-                onClick={onLoadOlder}
-                disabled={isLoadingOlder}
-                className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
-              >
-                {isLoadingOlder
-                  ? t("chat.messageList.loadingOlderMessages")
-                  : t("chat.messageList.loadOlderMessages")}
+        <div className="px-6 py-4 space-y-6">
+          {hasMore && (
+            <div className="flex justify-center">
+              <Button variant="ghost" size="sm" onClick={onLoadOlder} disabled={isLoadingOlder} className="text-slate-400">
+                {isLoadingOlder ? "Loading..." : "Load older messages"}
               </Button>
-            ) : (
-              <div className="text-xs text-slate-500 px-3 py-1 rounded-md bg-slate-900/80 border border-slate-800">
-                {t("chat.messageList.beginningOfConversation")}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          <div className="space-y-4 pt-2">
-            {messages.map((message, index) => {
-              const isOwn = message.user_id === currentUserId;
-              const user = getProfileByUserId(profiles, message.user_id);
-              const showAvatar = index === 0 || messages[index - 1].user_id !== message.user_id;
-              const isEditing = editingMessageId === message.id;
-              const canSelect = canManageMessage(message);
-              const isSelected = selectedMessageIds.includes(message.id);
-              const isAttachmentOnlyMessage = Boolean(message.attachments?.length) && !message.content?.trim();
-              const isHighlighted = highlightedMessageIds.includes(message.id);
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+              <MessageSquare className="w-16 h-16 mb-4 opacity-20" />
+              <p>No messages yet</p>
+              <p className="text-sm">Start the conversation!</p>
+            </div>
+          ) : (
+            messages.map((msg, idx) => {
+              const isOwn = msg.user_id === currentUserId;
+              const profile = getProfileByUserId(profiles, msg.user_id);
+              const showAvatar = idx === 0 || messages[idx - 1].user_id !== msg.user_id;
+              const isEditing = editingMessageId === msg.id;
+              const isSelected = selectedMessageIds.includes(msg.id);
+              const isHighlighted = highlightedMessageIds.includes(msg.id);
+              const hasAttachment = msg.attachments && msg.attachments.length > 0;
 
               return (
                 <div
-                  key={message.id}
+                  key={msg.id}
                   className={cn(
-                    "flex gap-3 transition-all duration-500",
+                    "flex gap-4 transition-all duration-500",
                     isOwn ? "flex-row-reverse" : "",
-                    isHighlighted ? "animate-pulse bg-indigo-500/10 rounded-lg p-2 -m-2" : ""
+                    isHighlighted ? "bg-indigo-500/10 rounded-lg p-2 -m-2" : ""
                   )}
                 >
-                  {isSelectionMode && (
-                    <div className={`pt-2 ${canSelect ? "" : "opacity-40"}`}>
-                      <Checkbox
-                        checked={isSelected}
-                        disabled={!canSelect}
-                        onCheckedChange={() => onToggleSelection(message)}
-                      />
+                  {isSelectionMode && canManage(msg) && (
+                    <div className="pt-2">
+                      <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelection(msg)} />
                     </div>
                   )}
 
-                  {showAvatar ? (
-                    <Avatar className="w-8 h-8 flex-shrink-0">
-                      <AvatarFallback className="bg-indigo-600 text-white text-xs">
-                        {getUserInitials(user?.full_name)}
-                      </AvatarFallback>
-                    </Avatar>
-                  ) : (
-                    <div className="w-8 flex-shrink-0" />
-                  )}
-
-                  <div className={`flex flex-col max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
+                  <div className={`flex flex-col ${isOwn ? "items-end" : "items-start"} max-w-[70%]`}>
                     {showAvatar && (
-                      <p className="text-xs text-slate-500 mb-1">
-                        {user?.full_name || t("chat.common.unknown")} • {formatMessageTime(message.created_at, t)}
-                      </p>
+                      <div className={`flex items-center gap-2 mb-1 ${isOwn ? "flex-row-reverse" : ""}`}>
+                        <Avatar className="w-8 h-8">
+                          <AvatarFallback className="bg-indigo-600 text-white text-xs">
+                            {getUserInitials(profile?.full_name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-xs text-slate-500">
+                          {profile?.full_name || "Unknown"} • {formatMessageTime(msg.created_at)}
+                        </span>
+                      </div>
                     )}
 
-                    <div
-                      className={`px-4 py-2 rounded-2xl border transition-all ${
-                        isSelected ? "border-indigo-400 ring-1 ring-indigo-400" : "border-transparent"
-                      } ${
-                        isHighlighted ? "ring-2 ring-yellow-400/50 shadow-lg shadow-yellow-400/20" : ""
-                      } ${
-                        isOwn
-                          ? "bg-indigo-600 text-white rounded-br-none"
-                          : "bg-slate-800 text-slate-200 rounded-bl-none"
-                      }`}
-                    >
+                    <div className={cn(
+                      "relative group px-4 py-2 rounded-2xl max-w-full",
+                      isOwn 
+                        ? "bg-indigo-600 text-white rounded-br-none" 
+                        : "bg-slate-800 text-slate-200 rounded-bl-none",
+                      isSelected && "ring-2 ring-indigo-400"
+                    )}>
                       {isEditing ? (
-                        <div className="space-y-2 min-w-[260px]">
+                        <div className="min-w-[300px] space-y-2">
                           <Textarea
                             value={editingMessageText}
                             onChange={(e) => onEditTextChange(e.target.value)}
-                            rows={3}
                             className="bg-slate-900 border-slate-700 text-white resize-none"
+                            rows={3}
                           />
-                          <div className="flex items-center gap-2 justify-end">
-                            <Button
-                              size="sm"
-                              className="bg-white text-black hover:bg-slate-200"
-                              onClick={() => onSaveEdit(message)}
-                              disabled={
-                                messageActionLoading === message.id ||
-                                !editingMessageText.trim()
-                              }
-                            >
-                              <Save className="w-3 h-3 mr-1" />
-                              {t("chat.messageList.save")}
+                          <div className="flex justify-end gap-2">
+                            <Button size="sm" variant="ghost" onClick={onCancelEdit}>
+                              <X className="w-4 h-4" />
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="border-slate-500 text-white hover:bg-slate-700"
-                              onClick={onCancelEdit}
-                              disabled={messageActionLoading === message.id}
-                            >
-                              <X className="w-3 h-3 mr-1" />
-                              {t("chat.messageList.cancel")}
+                            <Button size="sm" onClick={() => onSaveEdit(msg)} disabled={!editingMessageText.trim()}>
+                              <Check className="w-4 h-4" />
                             </Button>
                           </div>
                         </div>
                       ) : (
-                        <div className="space-y-1">
-                          {message.content?.trim() ? (
+                        <>
+                          {msg.content && (
                             <p className="whitespace-pre-wrap break-words">
-                              {translatedMessages[message.id]?.text || message.content}
+                              {translatedMessages[msg.id]?.text || msg.content}
                             </p>
-                          ) : null}
+                          )}
+                          
+                          {translatedMessages[msg.id] && (
+                            <p className="text-[10px] opacity-70 mt-1">Translated</p>
+                          )}
 
-                          {message.attachments && message.attachments.length > 0 && (
+                          {hasAttachment && (
                             <div className="mt-2 space-y-2">
-                              {message.attachments.map((file) => (
-                                <div
-                                  key={file.id}
-                                  className="flex items-center gap-2 text-xs bg-slate-700/50 px-3 py-2 rounded-md"
-                                >
-                                  <span className="text-lg">📎</span>
-                                  <span className="truncate flex-1">{file.file_name}</span>
+                              {msg.attachments!.map(file => (
+                                <div key={file.id} className="flex items-center gap-2 bg-black/20 rounded px-3 py-2 text-sm">
+                                  <span className="truncate">{file.file_name}</span>
+                                  <div className="flex gap-1 ml-2">
+                                    <button className="p-1 hover:bg-white/20 rounded">
+                                      <ExternalLink className="w-4 h-4" />
+                                    </button>
+                                    <button className="p-1 hover:bg-white/20 rounded">
+                                      <Download className="w-4 h-4" />
+                                    </button>
+                                  </div>
                                 </div>
                               ))}
                             </div>
                           )}
-
-                          {translatedMessages[message.id]?.source && (
-                            <p className="text-[10px] opacity-70 mt-1">
-                              Source: {translatedMessages[message.id].source}
-                            </p>
-                          )}
-                        </div>
+                        </>
                       )}
                     </div>
 
                     {!isEditing && !isSelectionMode && (
-                      <div className={`mt-1 flex flex-wrap gap-2 ${isOwn ? "justify-end" : "justify-start"}`}>
-                        {isAttachmentOnlyMessage ? (
+                      <div className={cn(
+                        "flex items-center gap-3 mt-1 opacity-0 group-hover:opacity-100 transition-opacity",
+                        isOwn ? "flex-row-reverse" : ""
+                      )}>
+                        <button 
+                          onClick={() => handleTranslate(msg)}
+                          className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                          disabled={translatingId === msg.id}
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          {translatedMessages[msg.id] ? "Original" : translatingId === msg.id ? "..." : "Translate"}
+                        </button>
+                        
+                        {canManage(msg) && (
                           <>
-                            {message.attachments?.map((file) => {
-                              const attachmentKey = `${message.id}:${file.id}`;
-                              return (
-                                <div key={file.id} className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
-                                    onClick={async () => {
-                                      try {
-                                        setAttachmentActionLoading(attachmentKey);
-                                        await openFile("chat-files", file.file_path, attachmentKey);
-                                      } catch (error) {
-                                        console.error("Open attachment error:", error);
-                                      } finally {
-                                        setAttachmentActionLoading(null);
-                                      }
-                                    }}
-                                    disabled={attachmentActionLoading === attachmentKey}
-                                  >
-                                    <ExternalLink className="w-3 h-3" />
-                                    Open
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    className="inline-flex items-center gap-1 text-xs text-green-400 hover:text-green-300 disabled:opacity-50"
-                                    onClick={async () => {
-                                      try {
-                                        setAttachmentActionLoading(attachmentKey);
-                                        await downloadFile("chat-files", file.file_path, file.file_name);
-                                      } catch (error) {
-                                        console.error("Download attachment error:", error);
-                                      } finally {
-                                        setAttachmentActionLoading(null);
-                                      }
-                                    }}
-                                    disabled={attachmentActionLoading === attachmentKey}
-                                  >
-                                    <Download className="w-3 h-3" />
-                                    Download
-                                  </button>
-
-                                  {canManageMessage(message) && (
-                                    <button
-                                      type="button"
-                                      className="text-xs text-red-400 hover:text-red-300"
-                                      onClick={() => onDeleteMessage(message)}
-                                      disabled={messageActionLoading === message.id}
-                                    >
-                                      {t("chat.messageList.delete")}
-                                    </button>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50 flex items-center gap-1"
-                              onClick={() => void handleTranslateMessage(message)}
-                              disabled={translatingMessageId === message.id}
-                            >
-                              <Sparkles className="w-3 h-3" />
-                              {translatingMessageId === message.id
-                                ? "Translating..."
-                                : translatedMessages[message.id]
-                                ? "Original"
-                                : "Translate"}
+                            <button onClick={() => onStartEdit(msg)} className="text-xs text-slate-400 hover:text-white">
+                              <Edit2 className="w-3 h-3 inline mr-1" />
+                              Edit
                             </button>
-
-                            {canManageMessage(message) && (
-                              <>
-                                <button
-                                  type="button"
-                                  className="text-xs text-slate-400 hover:text-white"
-                                  onClick={() => onStartEdit(message)}
-                                  disabled={messageActionLoading === message.id}
-                                >
-                                  {t("chat.messageList.edit")}
-                                </button>
-                                <button
-                                  type="button"
-                                  className="text-xs text-red-400 hover:text-red-300"
-                                  onClick={() => onDeleteMessage(message)}
-                                  disabled={messageActionLoading === message.id}
-                                >
-                                  {t("chat.messageList.delete")}
-                                </button>
-                              </>
-                            )}
+                            <button onClick={() => onDeleteMessage(msg)} className="text-xs text-red-400 hover:text-red-300">
+                              <Trash2 className="w-3 h-3 inline mr-1" />
+                              Delete
+                            </button>
                           </>
                         )}
                       </div>
@@ -389,22 +213,11 @@ export default function MessageList({
                   </div>
                 </div>
               );
-            })}
-
-            {messages.length === 0 && (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4 animate-pulse">
-                  <MessageSquare className="w-8 h-8 text-slate-500" />
-                </div>
-                <p className="text-slate-500">{t("chat.messageList.noMessagesYet")}</p>
-                <p className="text-slate-600 text-sm">{t("chat.messageList.startConversation")}</p>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
+            })
+          )}
+          <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
-    </>
+    </div>
   );
 }

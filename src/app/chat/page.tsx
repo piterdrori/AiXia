@@ -94,6 +94,25 @@ export default function ChatPage() {
   const [groupActionLoading, setGroupActionLoading] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [lastMessageMap, setLastMessageMap] = useState<Record<string, string>>({});
+
+  const playNotificationSound = () => {
+  try {
+    const audio = new Audio("/sounds/notification.mp3");
+    audio.volume = 0.6;
+    void audio.play();
+  } catch {}
+};
+
+const showBrowserNotification = (title: string, body: string) => {
+  if (!("Notification" in window)) return;
+
+  if (Notification.permission === "granted") {
+    new Notification(title, { body });
+  } else if (Notification.permission !== "denied") {
+    Notification.requestPermission();
+  }
+};
 
   useEffect(() => {
   if (!id) return;
@@ -103,6 +122,50 @@ export default function ChatPage() {
     setSelectedConversationId(id);
   }
 }, [id, selectedConversationId, setSelectedConversationId]);
+
+useEffect(() => {
+  if (!groups || groups.length === 0) return;
+
+  setLastMessageMap((prev) => {
+    let hasChanges = false;
+    const next = { ...prev };
+
+    for (const group of groups) {
+      const groupMessages = messages[group.id];
+      if (!groupMessages || groupMessages.length === 0) continue;
+
+      const lastMsg = groupMessages[groupMessages.length - 1];
+      if (!lastMsg) continue;
+
+      const prevId = prev[group.id];
+
+      if (prevId && prevId !== lastMsg.id && lastMsg.user_id !== currentUserId) {
+        const groupTitle = getConversationName(
+          group,
+          currentUserId,
+          profiles,
+          groupMembers
+        );
+
+        playNotificationSound();
+
+        showBrowserNotification(
+          groupTitle || "New message",
+          lastMsg.content || "New message"
+        );
+
+        moveGroupToTop(group.id);
+      }
+
+      if (next[group.id] !== lastMsg.id) {
+        next[group.id] = lastMsg.id;
+        hasChanges = true;
+      }
+    }
+
+    return hasChanges ? next : prev;
+  });
+}, [messages, groups, currentUserId, profiles, groupMembers, moveGroupToTop]);
 
   useEffect(() => {
     setIsSelectionMode(false);
@@ -793,8 +856,9 @@ export default function ChatPage() {
     setIsSelectionMode(false);
     setBulkDeleteLoading(false);
   };
-
-    const handleDeleteChat = async (group: ChatGroupRow) => {
+  
+  
+  const handleDeleteChat = async (group: ChatGroupRow) => {
     if (!canDeleteChat(group)) {
       setError(t("chat.errors.notAuthorized", "Not authorized"));
       return;

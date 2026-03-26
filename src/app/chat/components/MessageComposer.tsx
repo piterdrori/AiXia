@@ -1,10 +1,9 @@
 // MessageComposer.tsx
-import { Send, Paperclip } from "lucide-react";
+import { Send, Paperclip, Smile } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useLanguage } from "@/lib/i18n";
 import type { ProfileRow } from "../types";
-import { useRef } from "react";
+import { useState, useRef } from "react";
 
 type Props = {
   messageInput: string;
@@ -29,38 +28,61 @@ export default function MessageComposer({
   onUploadFile,
   isUploadingFile,
 }: Props) {
-  const { t } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="p-4 border-t border-slate-800 shrink-0 bg-slate-900/30">
-      <div className="space-y-2">
-        <div className="flex gap-2 items-end">
-          <label className="cursor-pointer shrink-0">
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  onUploadFile(file);
-                  e.target.value = "";
-                }
-              }}
-              disabled={isUploadingFile}
-            />
-            <div className={`h-11 w-11 flex items-center justify-center rounded-md transition-colors ${
-              isUploadingFile 
-                ? "bg-slate-700 cursor-not-allowed" 
-                : "bg-slate-800 hover:bg-slate-700"
-            }`}>
-              <Paperclip className={`w-4 h-4 ${isUploadingFile ? "text-slate-500 animate-pulse" : "text-white"}`} />
-            </div>
-          </label>
+    <div className="px-6 py-4 border-t border-slate-800 bg-slate-900 shrink-0">
+      <div className="relative">
+        {showMentionDropdown && (
+          <div className="absolute bottom-full left-0 mb-2 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden z-50">
+            {filteredMentionCandidates.length === 0 ? (
+              <div className="px-4 py-2 text-sm text-slate-500">No matches found</div>
+            ) : (
+              filteredMentionCandidates.map(p => (
+                <button
+                  key={p.user_id}
+                  onClick={() => onInsertMention(p.full_name || "")}
+                  className="w-full px-4 py-2 text-left hover:bg-slate-700 flex items-center gap-2"
+                >
+                  <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-xs text-white">
+                    {p.full_name?.[0]?.toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="text-sm text-white">{p.full_name}</div>
+                    <div className="text-xs text-slate-500 capitalize">{p.role}</div>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+        
+        <div className="flex items-end gap-2 bg-slate-800/50 rounded-2xl p-2 border border-slate-700 focus-within:border-indigo-500/50 transition-colors">
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                onUploadFile(file);
+                e.target.value = "";
+              }
+            }}
+          />
+          
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="text-slate-400 hover:text-white shrink-0"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploadingFile}
+          >
+            <Paperclip className={`w-5 h-5 ${isUploadingFile ? "animate-pulse" : ""}`} />
+          </Button>
 
           <Textarea
-            placeholder={t("chat.composer.placeholder")}
             value={messageInput}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={(e) => {
@@ -69,50 +91,31 @@ export default function MessageComposer({
                 onSend();
               }
             }}
-            rows={2}
-            disabled={isSending || isUploadingFile}
-            className="min-h-[44px] max-h-40 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 resize-none disabled:opacity-50"
+            placeholder="Type a message..."
+            className="min-h-[44px] max-h-32 bg-transparent border-0 text-white placeholder:text-slate-500 resize-none focus-visible:ring-0"
+            rows={1}
           />
 
           <Button
+            variant="ghost"
+            size="icon"
+            className="text-slate-400 hover:text-yellow-400 shrink-0"
+          >
+            <Smile className="w-5 h-5" />
+          </Button>
+
+          <Button
             onClick={onSend}
-            disabled={isSending || isUploadingFile || !messageInput.trim()}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white h-11 shrink-0 disabled:opacity-50"
+            disabled={isSending || !messageInput.trim()}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0 rounded-xl"
+            size="icon"
           >
             <Send className={`w-4 h-4 ${isSending ? "animate-pulse" : ""}`} />
           </Button>
         </div>
-
-        {showMentionDropdown && (
-          <div className="rounded-lg border border-slate-800 bg-slate-900 shadow-lg overflow-hidden max-h-48 overflow-y-auto">
-            {filteredMentionCandidates.length === 0 ? (
-              <div className="px-3 py-2 text-sm text-slate-500">
-                {t("chat.composer.noMatchingParticipants")}
-              </div>
-            ) : (
-              filteredMentionCandidates.map((profile) => (
-                <button
-                  key={profile.user_id}
-                  type="button"
-                  onClick={() => onInsertMention(profile.full_name || "")}
-                  className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-800 transition-colors"
-                >
-                  <div>
-                    <div className="text-sm font-medium text-white">
-                      {profile.full_name || t("chat.common.unknown")}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {profile.role.toUpperCase()}
-                    </div>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        )}
         
         {isUploadingFile && (
-          <div className="text-xs text-indigo-400 animate-pulse">
+          <div className="absolute -top-8 left-0 text-xs text-indigo-400 animate-pulse">
             Uploading file...
           </div>
         )}

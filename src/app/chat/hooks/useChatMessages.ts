@@ -260,67 +260,71 @@ useEffect(() => {
     }
   }, [getScrollViewport, messages, selectedConversationId]);
 
-  useEffect(() => {
-    if (!selectedConversationId) return;
+ useEffect(() => {
+  const channelKey = `chat:global`;
 
-    const channelKey = `chat:${selectedConversationId}`;
+  registerRealtimeChannel(
+    channelKey,
+    supabase
+      .channel(channelKey)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "chat_messages",
+        },
+        (payload) => {
+          const message = payload.new as ChatMessageRow;
+          if (!message?.group_id) return;
 
-    registerRealtimeChannel(
-      channelKey,
-      supabase
-        .channel(channelKey)
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "chat_messages",
-            filter: `group_id=eq.${selectedConversationId}`,
-          },
-          (payload) => {
-  if (payload.eventType === "INSERT" && payload.new) {
-    const shouldStayAtBottom = isViewportNearBottom();
+          const groupId = message.group_id;
 
-    replaceTempMessageWithRealOne(
-      selectedConversationId,
-      payload.new as ChatMessageRow
-    );
+          if (payload.eventType === "INSERT") {
+            const isCurrent = selectedConversationIdRef.current === groupId;
 
-    if (shouldStayAtBottom) {
-      shouldScrollToBottomRef.current = true;
-    }
-    return;
-  }
+            if (isCurrent) {
+              const shouldStayAtBottom = isViewportNearBottom();
 
-  if (payload.eventType === "UPDATE" && payload.new) {
-    updateMessageLocally(
-      selectedConversationId,
-      payload.new as ChatMessageRow
-    );
-    return;
-  }
+              replaceTempMessageWithRealOne(groupId, message);
 
-  if (payload.eventType === "DELETE" && payload.old) {
-    deleteMessageLocally(
-      selectedConversationId,
-      (payload.old as ChatMessageRow).id
-    );
-  }
-}
-        )
-        .subscribe()
-    );
+              if (shouldStayAtBottom) {
+                shouldScrollToBottomRef.current = true;
+              }
+            } else {
+              // important: still store message for sidebar + notifications
+              appendMessageLocally(groupId, message);
+            }
 
-    return () => {
-      void removeRealtimeChannel(channelKey);
-    };
-  }, [
-    deleteMessageLocally,
-    isViewportNearBottom,
-    replaceTempMessageWithRealOne,
-    selectedConversationId,
-    updateMessageLocally,
-  ]);
+            return;
+          }
+
+          if (payload.eventType === "UPDATE") {
+            updateMessageLocally(groupId, message);
+            return;
+          }
+
+          if (payload.eventType === "DELETE" && payload.old) {
+            deleteMessageLocally(
+              payload.old.group_id,
+              payload.old.id
+            );
+          }
+        }
+      )
+      .subscribe()
+  );
+
+  return () => {
+    void removeRealtimeChannel(channelKey);
+  };
+}, [
+  appendMessageLocally,
+  deleteMessageLocally,
+  isViewportNearBottom,
+  replaceTempMessageWithRealOne,
+  updateMessageLocally,
+]);
 
   const selectedMessages = useMemo(() => {
     if (!selectedConversationId) return [];

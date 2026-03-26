@@ -35,21 +35,6 @@ type CurrentUserRoleRow = {
   role: Role;
 };
 
-type AccessRequestStatus = "pending" | "approved" | "rejected" | "cancelled";
-
-type AccessRequestRow = {
-  id: string;
-  requester_user_id: string;
-  target_user_id: string;
-  status: AccessRequestStatus;
-  requested_at: string;
-  reviewed_at: string | null;
-  reviewed_by: string | null;
-  note: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
 const permissionLabels: Record<
   Permission,
   { label: string; description: string }
@@ -122,11 +107,7 @@ export default function EmployeePermissionsPage() {
  
 const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 const [user, setUser] = useState<ProfileRow | null>(null);
-const [accessRequests, setAccessRequests] = useState<AccessRequestRow[]>([]);
-const [requesterProfiles, setRequesterProfiles] = useState<
-  Record<string, { user_id: string; full_name: string | null }>
->({});
-const [requestActionId, setRequestActionId] = useState<string | null>(null);
+
 
   const loadData = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
@@ -201,44 +182,7 @@ setPermissions(
   (typedUser.permissions || {}) as Partial<Record<Permission, boolean>>
 );
 
-// 🔥 NEW — load access requests for this employee
-const { data: requestsData } = await supabase
-  .from("employee_access_requests")
-  .select("*")
-  .eq("target_user_id", id)
-  .order("requested_at", { ascending: false });
 
-if (!requestTracker.current.isLatest(requestId)) return;
-
-const requests = (requestsData || []) as AccessRequestRow[];
-setAccessRequests(requests);
-
-// 🔥 Load requester profiles (names)
-const requesterIds = Array.from(
-  new Set(requests.map((r) => r.requester_user_id))
-);
-
-if (requesterIds.length > 0) {
-  const { data: requesterData } = await supabase
-    .from("profiles")
-    .select("user_id, full_name")
-    .in("user_id", requesterIds);
-
-  if (!requestTracker.current.isLatest(requestId)) return;
-
-  const map: Record<string, { user_id: string; full_name: string | null }> = {};
-
-  (requesterData || []).forEach((p) => {
-    map[p.user_id] = {
-      user_id: p.user_id,
-      full_name: p.full_name,
-    };
-  });
-
-  setRequesterProfiles(map);
-} else {
-  setRequesterProfiles({});
-}
       } catch (err) {
         if (!requestTracker.current.isLatest(requestId)) return;
         console.error("Permissions page load error:", err);
@@ -300,74 +244,6 @@ const handleToggle = async (permission: Permission) => {
   }
 };
 
-  const handleReviewAccessRequest = async (
-    request: AccessRequestRow,
-    nextStatus: "approved" | "rejected"
-  ) => {
-    if (!id || !currentUserRole) return;
-
-const effective = getEffectivePermissions(currentUserRole, null);
-if (!effective.manageUsers) return;
-
-    setRequestActionId(request.id);
-    setSaveError("");
-
-    try {
-      const reviewedAt = new Date().toISOString();
-
-      const { error: requestUpdateError } = await supabase
-        .from("employee_access_requests")
-        .update({
-          status: nextStatus,
-          reviewed_at: reviewedAt,
-        })
-        .eq("id", request.id);
-
-      if (requestUpdateError) {
-        throw requestUpdateError;
-      }
-
-      if (nextStatus === "approved") {
-        const nextPermissions: Partial<Record<Permission, boolean>> = {
-          ...(user?.permissions || {}),
-          viewEmployeeDetail: true,
-        };
-
-        const { error: profileUpdateError } = await supabase
-          .from("profiles")
-          .update({
-            permissions: nextPermissions,
-            updated_at: reviewedAt,
-          })
-          .eq("user_id", request.requester_user_id);
-
-        if (profileUpdateError) {
-          throw profileUpdateError;
-        }
-      }
-
-      setAccessRequests((prev) =>
-        prev.map((item) =>
-          item.id === request.id
-            ? {
-                ...item,
-                status: nextStatus,
-                reviewed_at: reviewedAt,
-              }
-            : item
-        )
-      );
-
-    } catch (err) {
-      console.error("Review access request error:", err);
-      setSaveError(
-        err instanceof Error ? err.message : "Failed to review access request."
-      );
-    } finally {
-      setRequestActionId(null);
-    }
-  };
-  
 
 const effectivePermissionEntries = useMemo(() => {
   if (!user) return [];
@@ -418,7 +294,6 @@ if (!effective?.manageUsers && !isBootstrapping) {
           size="icon"
           onClick={() => navigate(`/employees/${id}`)}
           className="text-slate-400 hover:text-white"
-          disabled={false}
         >
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -496,7 +371,6 @@ if (!effective?.manageUsers && !isBootstrapping) {
         id={permission}
         checked={enabled}
         onCheckedChange={() => handleToggle(permission)}
-        disabled={false}
       />
     </div>
   )
@@ -509,7 +383,6 @@ if (!effective?.manageUsers && !isBootstrapping) {
               variant="outline"
               onClick={() => navigate(`/employees/${id}`)}
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
-              disabled={false}
             >
               {t("employeePermissions.actions.cancel")}
             </Button>
@@ -518,139 +391,54 @@ if (!effective?.manageUsers && !isBootstrapping) {
         </CardContent>
       </Card>
 
-            <Card className="bg-slate-900/50 border-slate-800">
-        <CardHeader>
-          <CardTitle className="text-white text-lg">
-            {t(
-              "employeePermissions.sections.currentRolePermissions"
-            )}
-          </CardTitle>
-        </CardHeader>
+           <Card className="bg-slate-900/50 border-slate-800">
+  <CardHeader className="pb-4">
+    <CardTitle className="text-white text-lg">
+      {t("employeePermissions.sections.currentRolePermissions")}
+    </CardTitle>
+  </CardHeader>
 
-        <CardContent className="space-y-4">
-          <p className="text-slate-400">
-            {t(
-              "employeePermissions.sections.currentRoleDescription.before"
-            )}
-            <Badge className="mx-1">
-              {user?.role.toUpperCase()}
-            </Badge>
-            {t(
-              "employeePermissions.sections.currentRoleDescription.after"
-            )}
-          </p>
+  <CardContent className="space-y-4">
+    <div className="flex flex-wrap items-center gap-2 text-sm text-slate-400">
+      <span>{t("employeePermissions.sections.currentRoleDescription.before")}</span>
+      <Badge className="h-6 px-2 text-xs">
+        {user?.role.toUpperCase()}
+      </Badge>
+      <span>{t("employeePermissions.sections.currentRoleDescription.after")}</span>
+    </div>
 
-          <div className="grid gap-3">
-            {effectivePermissionEntries.map(
-              ({ permission, label, enabled, overridden }) => (
-                <div
-                  key={permission}
-                  className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-white">
-                      {label}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {enabled ? "Enabled" : "Disabled"}
-                      {overridden ? " • Override applied" : " • Role default"}
-                    </p>
-                  </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {effectivePermissionEntries.map(
+        ({ permission, label, enabled, overridden }) => (
+          <div
+            key={permission}
+            className="rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-white truncate">
+                {label}
+              </p>
 
-                  <Badge
-                    className={
-                      enabled
-                        ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
-                        : "bg-slate-700/40 text-slate-400 border-slate-700"
-                    }
-                  >
-                    {enabled ? "ON" : "OFF"}
-                  </Badge>
-                </div>
-              )
-            )}
-          </div>
-        </CardContent>
-      </Card>
-            <Card className="bg-slate-900/50 border-slate-800">
-        <CardHeader>
-          <CardTitle className="text-white text-lg">
-            Access Requests
-          </CardTitle>
-          <p className="text-slate-400 text-sm">
-            Users requesting access to this employee profile
-          </p>
-        </CardHeader>
-
-                <CardContent className="space-y-3">
-          {accessRequests.length === 0 ? (
-            <p className="text-slate-500 text-sm">
-              No access requests
-            </p>
-          ) : (
-            accessRequests.map((req) => (
-              <div
-                key={req.id}
-                className="flex items-center justify-between gap-4 border border-slate-800 rounded-lg p-3"
+              <Badge
+                className={
+                  enabled
+                    ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
+                    : "bg-slate-700/40 text-slate-400 border-slate-700"
+                }
               >
-                <div className="min-w-0">
-                  <p className="text-sm text-white break-all">
-  {requesterProfiles[req.requester_user_id]?.full_name ||
-    req.requester_user_id}
-</p>
-                  <p className="text-xs text-slate-400">
-                    Requested: {new Date(req.requested_at).toLocaleString()}
-                  </p>
-                  {req.reviewed_at && (
-                    <p className="text-xs text-slate-500">
-                      Reviewed: {new Date(req.reviewed_at).toLocaleString()}
-                    </p>
-                  )}
-                </div>
+                {enabled ? "ON" : "OFF"}
+              </Badge>
+            </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <Badge
-                    className={
-                      req.status === "pending"
-                        ? "bg-amber-500/20 text-amber-400"
-                        : req.status === "approved"
-                        ? "bg-green-500/20 text-green-400"
-                        : req.status === "rejected"
-                        ? "bg-red-500/20 text-red-400"
-                        : "bg-slate-500/20 text-slate-400"
-                    }
-                  >
-                    {req.status}
-                  </Badge>
-
-                  {req.status === "pending" && (
-                    <>
-                      <Button
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                        onClick={() => void handleReviewAccessRequest(req, "approved")}
-                        disabled={requestActionId === req.id}
-                      >
-                        Approve
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-red-800 text-red-400 hover:bg-red-900/20"
-                        onClick={() => void handleReviewAccessRequest(req, "rejected")}
-                        disabled={requestActionId === req.id}
-                      >
-                        Reject
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
+            <p className="mt-1 text-[11px] text-slate-500">
+              {overridden ? "Override applied" : "Role default"}
+            </p>
+          </div>
+        )
+      )}
+    </div>
+  </CardContent>
+</Card>
     </div>
   );
 }

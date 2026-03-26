@@ -1,4 +1,5 @@
-import { Users, PanelRight, CheckSquare, X, Phone, Video } from "lucide-react";
+// ChatHeader.tsx
+import { Users, CheckSquare, X, Phone, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import type { ChatGroupRow, ChatGroupMemberRow, ProfileRow } from "../types";

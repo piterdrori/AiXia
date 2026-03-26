@@ -82,7 +82,6 @@ export default function ChatPage() {
     setError,
     setSelectedConversationId,
     moveGroupToTop,
-    upsertGroupLocally,
     removeGroupLocally,
     markConversationAsRead,
     incrementUnread,
@@ -147,125 +146,77 @@ export default function ChatPage() {
     [groups, selectedConversationId]
   );
 
-    const buildDirectKey = useCallback((a: string, b: string) => {
-    return [a, b].sort().join("__");
-  }, []);
+  const openConversation = useCallback(
+    (groupId: string) => {
+      setSelectedConversationId(groupId);
+      navigate(`/chat/${groupId}`);
+      markConversationAsRead(groupId);
 
-  const handleStartDirectMessage = useCallback(
-    async (targetUserId: string, _targetName?: string) => {
+      if (!messages[groupId]) {
+        loadMessagesForGroup(groupId);
+      }
+    },
+    [
+      navigate,
+      markConversationAsRead,
+      messages,
+      loadMessagesForGroup,
+      setSelectedConversationId,
+    ]
+  );
+
+    const handleStartDirectMessage = useCallback(
+    async (targetUserId: string) => {
       if (!currentUserId || targetUserId === currentUserId) return;
 
       setError("");
 
-      const directKey = buildDirectKey(currentUserId, targetUserId);
+      const directKey = [currentUserId, targetUserId]
+        .sort()
+        .join("__");
 
-      const existingLocal = groups.find(
-        (group) => group.type === "DIRECT" && group.direct_key === directKey
+      const existing = groups.find(
+        (g) => g.type === "DIRECT" && g.direct_key === directKey
       );
 
-      if (existingLocal) {
-        openConversation(existingLocal.id);
+      if (existing) {
+        openConversation(existing.id);
         return;
       }
 
-      const { data: existingDb, error: existingError } = await supabase
-        .from("chat_groups")
-        .select(
-          "id, name, type, project_id, task_id, created_by, created_at, direct_key"
-        )
-        .eq("type", "DIRECT")
-        .eq("direct_key", directKey)
-        .maybeSingle();
-
-      if (existingError) {
-        setError(existingError.message || "Failed to create conversation");
-        return;
-      }
-
-      if (existingDb) {
-        openConversation(existingDb.id);
-        return;
-      }
-
-      const { data: newGroup, error: createError } = await supabase
+      const { data: newGroup, error } = await supabase
         .from("chat_groups")
         .insert({
-          name: null,
           type: "DIRECT",
-          project_id: null,
-          task_id: null,
           created_by: currentUserId,
           direct_key: directKey,
         })
-        .select(
-          "id, name, type, project_id, task_id, created_by, created_at, direct_key"
-        )
+        .select()
         .single();
 
-      if (createError || !newGroup) {
-        setError(createError?.message || "Failed to create conversation");
+      if (error || !newGroup) {
+        setError("Failed to create conversation");
         return;
       }
 
-      const optimisticMembers: ChatGroupMemberRow[] = [
+      await supabase.from("chat_group_members").insert([
         {
-          id: `local-${newGroup.id}-${currentUserId}`,
           group_id: newGroup.id,
           user_id: currentUserId,
           role: "member",
           invited_by: currentUserId,
-          created_at: clock.nowIso,
         },
         {
-          id: `local-${newGroup.id}-${targetUserId}`,
           group_id: newGroup.id,
           user_id: targetUserId,
           role: "member",
           invited_by: currentUserId,
-          created_at: clock.nowIso,
         },
-      ];
-
-      upsertGroupLocally(newGroup as ChatGroupRow, optimisticMembers);
-
-      const { error: memberInsertError } = await supabase
-        .from("chat_group_members")
-        .upsert(
-          [
-            {
-              group_id: newGroup.id,
-              user_id: currentUserId,
-              role: "member",
-              invited_by: currentUserId,
-            },
-            {
-              group_id: newGroup.id,
-              user_id: targetUserId,
-              role: "member",
-              invited_by: currentUserId,
-            },
-          ],
-          {
-            onConflict: "group_id,user_id",
-          }
-        );
-
-      if (memberInsertError) {
-        setError(memberInsertError.message || "Failed to create conversation");
-        return;
-      }
+      ]);
 
       openConversation(newGroup.id);
     },
-    [
-      buildDirectKey,
-      clock.nowIso,
-      currentUserId,
-      groups,
-      openConversation,
-      setError,
-      upsertGroupLocally,
-    ]
+    [currentUserId, groups, openConversation, setError]
   );
 
   const mentionCandidates = useMemo(() => {
@@ -412,7 +363,7 @@ export default function ChatPage() {
             appendMessageLocally(group.id, incoming);
             markConversationAsRead(group.id);
           } else {
-            incrementUnread(group.id);
+                       incrementUnread(group.id, 1);
           }
 
           notifyIncomingMessage(incoming);
@@ -436,25 +387,6 @@ export default function ChatPage() {
     notifyIncomingMessage,
     translateMessage,
   ]);
-
-  const openConversation = useCallback(
-    (groupId: string) => {
-      setSelectedConversationId(groupId);
-      navigate(`/chat/${groupId}`);
-      markConversationAsRead(groupId);
-
-      if (!messages[groupId]) {
-        loadMessagesForGroup(groupId);
-      }
-    },
-    [
-      navigate,
-      markConversationAsRead,
-      messages,
-      loadMessagesForGroup,
-      setSelectedConversationId,
-    ]
-  );
 
   const handleMessageChange = (value: string) => {
     setMessageInput(value);
@@ -798,12 +730,12 @@ export default function ChatPage() {
         )}
       </div>
 
-            <TeamMembersSidebar
+              <TeamMembersSidebar
         profiles={profiles}
         currentUserId={currentUserId}
         onlineStatus={onlineStatus}
-        onStartDM={(userId, name) => {
-          void handleStartDirectMessage(userId, name);
+        onStartDM={(userId: string) => {
+          void handleStartDirectMessage(userId);
         }}
       />
 

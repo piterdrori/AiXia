@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
@@ -23,6 +23,7 @@ import {
 
 import { useAppClock } from "@/lib/clock/provider";
 import { smartTranslate } from "@/lib/smartTranslate";
+import { openFile, downloadFile } from "@/lib/file-actions";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -135,66 +136,6 @@ export default function TaskDetailPage() {
   const requestTracker = useRef(createRequestTracker());
   const taskFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const fileUrlCacheRef = useRef<Record<string, string>>({});
-const [fileActionLoading, setFileActionLoading] = useState<string | null>(null);
-
-const getFileSignedUrl = useCallback(async (filePath: string, key: string) => {
-  const cached = fileUrlCacheRef.current[key];
-  if (cached) return cached;
-
-  const { data, error } = await supabase.storage
-    .from("project-files")
-    .createSignedUrl(filePath, 60);
-
-  if (error || !data?.signedUrl) {
-    throw new Error(error?.message || "Failed to create signed URL");
-  }
-
-  fileUrlCacheRef.current[key] = data.signedUrl;
-  return data.signedUrl;
-}, []);
-
-const handleOpenFile = useCallback(async (file: FileUploadRow) => {
-  try {
-    setFileActionLoading(file.id);
-    const url = await getFileSignedUrl(file.file_path, file.id);
-    window.open(url, "_blank", "noopener,noreferrer");
-  } catch (err) {
-    console.error("Open file error:", err);
-    setError("Failed to open file.");
-  } finally {
-    setFileActionLoading(null);
-  }
-}, [getFileSignedUrl]);
-
-const handleDownloadFile = useCallback(async (file: FileUploadRow) => {
-  try {
-    setFileActionLoading(file.id);
-
-    const { data, error } = await supabase.storage
-      .from("project-files")
-      .createSignedUrl(file.file_path, 60, {
-        download: file.file_name,
-      });
-
-    if (error || !data?.signedUrl) {
-      throw new Error(error?.message || "Failed to download file");
-    }
-
-    const link = document.createElement("a");
-    link.href = data.signedUrl;
-    link.download = file.file_name;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  } catch (err) {
-    console.error("Download file error:", err);
-    setError("Failed to download file.");
-  } finally {
-    setFileActionLoading(null);
-  }
-}, []);
-
   const [task, setTask] = useState<TaskRow | null>(null);
   const [project, setProject] = useState<ProjectRow | null>(null);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
@@ -213,6 +154,7 @@ const handleDownloadFile = useCallback(async (file: FileUploadRow) => {
   const [commentActionLoading, setCommentActionLoading] = useState<string | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+const [fileActionLoading, setFileActionLoading] = useState<string | null>(null);
   const [showManageMembers, setShowManageMembers] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
   const [memberSaving, setMemberSaving] = useState(false);
@@ -1300,40 +1242,61 @@ setTranslatedComments((prev) => ({
 
                       <div className="flex items-center gap-2">
   <Button
-    type="button"
-    variant="outline"
-    className="border-slate-700 text-slate-300 hover:bg-slate-800"
-    onClick={() => void handleOpenFile(file)}
-    disabled={fileActionLoading === file.id}
-  >
-    <ExternalLink className="w-4 h-4 mr-2" />
-    {t("taskDetail.files.open")}
-  </Button>
+  type="button"
+  variant="outline"
+  className="border-slate-700 text-slate-300 hover:bg-slate-800"
+  onClick={async () => {
+    try {
+      setFileActionLoading(file.id);
+      await openFile("project-files", file.file_path, file.id);
+    } catch (err) {
+      console.error("Open file error:", err);
+      setError("Failed to open file.");
+    } finally {
+      setFileActionLoading(null);
+    }
+  }}
+  disabled={fileActionLoading === file.id}
+>
+  <ExternalLink className="w-4 h-4 mr-2" />
+  {t("taskDetail.files.open")}
+</Button>
 
+  <Button
+  type="button"
+  variant="outline"
+  className="border-slate-700 text-green-400 hover:bg-slate-800"
+  onClick={async () => {
+    try {
+      setFileActionLoading(file.id);
+      await downloadFile("project-files", file.file_path, file.file_name);
+    } catch (err) {
+      console.error("Download file error:", err);
+      setError("Failed to download file.");
+    } finally {
+      setFileActionLoading(null);
+    }
+  }}
+  disabled={fileActionLoading === file.id}
+>
+  <Download className="w-4 h-4 mr-2" />
+  Download
+</Button>
+
+  {canDeleteThisFile(file) && (
   <Button
     type="button"
     variant="outline"
-    className="border-slate-700 text-green-400 hover:bg-slate-800"
-    onClick={() => void handleDownloadFile(file)}
+    className="border-red-800 text-red-400 hover:bg-red-900/20"
+    onClick={() =>
+      void handleDeleteFile(file.id, file.file_path, file.file_name)
+    }
     disabled={fileActionLoading === file.id}
   >
-    <Download className="w-4 h-4 mr-2" />
-    Download
+    <Trash2 className="w-4 h-4 mr-2" />
+    {t("taskDetail.actions.delete")}
   </Button>
-
-  {canDeleteThisFile(file) && (
-    <Button
-      type="button"
-      variant="outline"
-      className="border-red-800 text-red-400 hover:bg-red-900/20"
-      onClick={() =>
-        void handleDeleteFile(file.id, file.file_path, file.file_name)
-      }
-    >
-      <Trash2 className="w-4 h-4 mr-2" />
-      {t("taskDetail.actions.delete")}
-    </Button>
-  )}
+)}
 </div>
                     </div>
                   ))}

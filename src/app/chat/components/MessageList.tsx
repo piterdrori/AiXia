@@ -67,7 +67,7 @@ export default function MessageList({
         </div>
       )}
 
-      <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0">
+      <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0 h-full">
         <div className="px-6 py-4 space-y-6">
           {hasMore && (
             <div className="flex justify-center">

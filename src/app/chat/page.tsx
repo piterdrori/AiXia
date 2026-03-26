@@ -747,8 +747,9 @@ useEffect(() => {
           onDeleteChat={(group) => void handleDeleteChat(group)}
         />
 
-       {selectedConversation ? (
-          <Card className="flex-1 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden min-h-0">
+      {selectedConversation ? (
+  <div className="flex flex-1 gap-4 min-h-0">
+    <Card className="flex-1 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden min-h-0">
             <ChatHeader
   title={conversationTitle}
   participantCount={getMembers(selectedConversation.id).length}
@@ -865,59 +866,102 @@ useEffect(() => {
   onInsertMention={insertMention}
   onUploadFile={(file) => void handleUploadFile(file)}
 />
-          </Card>
-        ) : (
-          <Card className="flex-1 bg-slate-900/50 border-slate-800 flex items-center justify-center min-h-0">
-            <div className="text-center">
-              <div className="text-white text-lg font-medium mb-2">
-                {isBootstrapping
-                  ? t("chat.empty.loadingTitle")
-                  : t("chat.empty.selectTitle")}
-              </div>
-              <p className="text-slate-500">
-                {isBootstrapping
-                  ? t("chat.empty.loadingDescription")
-                  : t("chat.empty.selectDescription")}
-              </p>
+            </Card>
+
+    {isDetailsPanelOpen && (
+      <Card className="w-80 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden min-h-0 shrink-0">
+        <div className="p-4 border-b border-slate-800 shrink-0">
+          <h3 className="text-white font-medium">
+            {t("chat.header.details", "Details")}
+          </h3>
+        </div>
+
+        <div className="p-4 space-y-3 overflow-y-auto min-h-0">
+  {getMembers(selectedConversation.id).length === 0 ? (
+    <div className="text-sm text-slate-500 text-center py-6">
+      {t("chat.common.noMembers", "No members")}
+    </div>
+  ) : (
+    getMembers(selectedConversation.id).map((member) => {
+      const profile = profiles.find((p) => p.user_id === member.user_id);
+
+      return (
+        <div
+          key={member.user_id}
+          className="flex items-center gap-3 rounded-lg bg-slate-800/50 p-3"
+        >
+          <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-medium shrink-0">
+            {(profile?.full_name || t("chat.common.unknown")).charAt(0).toUpperCase()}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium text-white truncate">
+              {profile?.full_name || t("chat.common.unknown")}
             </div>
-          </Card>
-        )}
+            <div className="text-xs text-slate-500 truncate">
+              {profile?.role || ""}
+            </div>
+          </div>
+        </div>
+      );
+    })
+  )}
+</div>
+      </Card>
+    )}
+  </div>
+) : (
+  <Card className="flex-1 bg-slate-900/50 border-slate-800 flex items-center justify-center min-h-0">
+    <div className="text-center">
+      <div className="text-white text-lg font-medium mb-2">
+        {isBootstrapping
+          ? t("chat.empty.loadingTitle")
+          : t("chat.empty.selectTitle")}
+      </div>
+      <p className="text-slate-500">
+        {isBootstrapping
+          ? t("chat.empty.loadingDescription")
+          : t("chat.empty.selectDescription")}
+      </p>
+    </div>
+  </Card>
+)}
       </div>
 
       <CreateGroupDialog
-  open={isCreateGroupOpen}
-  currentUserId={currentUserId}
-  groupName={groupName}
-  selectedGroupMembers={selectedGroupMembers}
-  profiles={profiles}
-  isCreatingGroup={isCreatingGroup}
-  error={isCreateGroupOpen ? error : ""}
-  onOpenChange={(open) => {
-    setIsCreateGroupOpen(open);
-    if (open) {
-      setError("");
-    }
-  }}
-  onGroupNameChange={(value) => {
-    setGroupName(value);
-    if (error) {
-      setError("");
-    }
-  }}
-  onToggleMember={(userId) => {
-    toggleGroupMember(userId);
-    if (error) {
-      setError("");
-    }
-  }}
-  onCreate={() => void handleCreateGroup()}
-  onCancel={() => {
-    setIsCreateGroupOpen(false);
-    setGroupName("");
-    setSelectedGroupMembers([]);
-    setError("");
-  }}
-/>
+        open={isCreateGroupOpen}
+        currentUserId={currentUserId}
+        groupName={groupName}
+        selectedGroupMembers={selectedGroupMembers}
+        profiles={profiles}
+        isCreatingGroup={isCreatingGroup}
+        error={isCreateGroupOpen ? error : ""}
+        onOpenChange={(open) => {
+          setIsCreateGroupOpen(open);
+          if (open) {
+            setError("");
+          }
+        }}
+        onGroupNameChange={(value) => {
+          setGroupName(value);
+          if (error) {
+            setError("");
+          }
+        }}
+        onToggleMember={(userId) => {
+          toggleGroupMember(userId);
+          if (error) {
+            setError("");
+          }
+        }}
+        onCreate={() => void handleCreateGroup()}
+        onCancel={() => {
+          setIsCreateGroupOpen(false);
+          setGroupName("");
+          setSelectedGroupMembers([]);
+          setError("");
+        }}
+      />
     </>
   );
 }

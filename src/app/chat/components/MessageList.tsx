@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useState } from "react";
 import {
   Check,
   Download,
@@ -16,7 +16,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/lib/i18n";
-import { supabase } from "@/lib/supabase";
+import { openFile, downloadFile } from "@/lib/file-actions";
+
 
 import { smartTranslate } from "@/lib/smartTranslate";
 
@@ -49,82 +50,8 @@ export default function MessageList({
 >({});
   const [translatingMessageId, setTranslatingMessageId] = useState<string | null>(null);
 
- 
-  const attachmentUrlCacheRef = useRef<Record<string, string>>({});
 const [attachmentActionLoading, setAttachmentActionLoading] = useState<string | null>(
   null
-);
-
-const getAttachmentSignedUrl = useCallback(
-  async (filePath: string, cacheKey: string) => {
-    const cachedUrl = attachmentUrlCacheRef.current[cacheKey];
-
-    if (cachedUrl) {
-      return cachedUrl;
-    }
-
-    const { data, error } = await supabase.storage
-      .from("chat-files")
-      .createSignedUrl(filePath, 60);
-
-    if (error || !data?.signedUrl) {
-      throw new Error(error?.message || "Failed to create signed URL");
-    }
-
-    attachmentUrlCacheRef.current = {
-      ...attachmentUrlCacheRef.current,
-      [cacheKey]: data.signedUrl,
-    };
-
-    return data.signedUrl;
-  },
-  []
-);
-
-const handleOpenAttachment = useCallback(
-  async (cacheKey: string, filePath: string) => {
-    try {
-      setAttachmentActionLoading(cacheKey);
-      const signedUrl = await getAttachmentSignedUrl(filePath, cacheKey);
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      console.error("Open attachment error:", error);
-    } finally {
-      setAttachmentActionLoading(null);
-    }
-  },
-  [getAttachmentSignedUrl]
-);
-
-const handleDownloadAttachment = useCallback(
-  async (cacheKey: string, filePath: string, fileName: string) => {
-    try {
-      setAttachmentActionLoading(cacheKey);
-
-      const { data, error } = await supabase.storage
-        .from("chat-files")
-        .createSignedUrl(filePath, 60, {
-          download: fileName,
-        });
-
-      if (error || !data?.signedUrl) {
-        throw new Error(error?.message || "Failed to create download URL");
-      }
-
-      const link = document.createElement("a");
-      link.href = data.signedUrl;
-      link.download = fileName;
-      link.rel = "noopener noreferrer";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (error) {
-      console.error("Download attachment error:", error);
-    } finally {
-      setAttachmentActionLoading(null);
-    }
-  },
-  []
 );
 
   const handleTranslateMessage = async (message: ChatMessageRow) => {
@@ -368,32 +295,42 @@ setTranslatedMessages((prev) => ({
           return (
             <div key={file.id} className="flex items-center gap-2">
               <button
-                type="button"
-                className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
-                onClick={() =>
-                  void handleOpenAttachment(attachmentKey, file.file_path)
-                }
-                disabled={attachmentActionLoading === attachmentKey}
-              >
-                <ExternalLink className="w-3 h-3" />
-                Open
-              </button>
+  type="button"
+  className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
+  onClick={async () => {
+    try {
+      setAttachmentActionLoading(attachmentKey);
+      await openFile("chat-files", file.file_path, attachmentKey);
+    } catch (error) {
+      console.error("Open attachment error:", error);
+    } finally {
+      setAttachmentActionLoading(null);
+    }
+  }}
+  disabled={attachmentActionLoading === attachmentKey}
+>
+  <ExternalLink className="w-3 h-3" />
+  Open
+</button>
 
               <button
-                type="button"
-                className="inline-flex items-center gap-1 text-xs text-green-400 hover:text-green-300 disabled:opacity-50"
-                onClick={() =>
-                  void handleDownloadAttachment(
-                    attachmentKey,
-                    file.file_path,
-                    file.file_name
-                  )
-                }
-                disabled={attachmentActionLoading === attachmentKey}
-              >
-                <Download className="w-3 h-3" />
-                Download
-              </button>
+  type="button"
+  className="inline-flex items-center gap-1 text-xs text-green-400 hover:text-green-300 disabled:opacity-50"
+  onClick={async () => {
+    try {
+      setAttachmentActionLoading(attachmentKey);
+      await downloadFile("chat-files", file.file_path, file.file_name);
+    } catch (error) {
+      console.error("Download attachment error:", error);
+    } finally {
+      setAttachmentActionLoading(null);
+    }
+  }}
+  disabled={attachmentActionLoading === attachmentKey}
+>
+  <Download className="w-3 h-3" />
+  Download
+</button>
 
               {canManageMessage(message) && (
                 <button

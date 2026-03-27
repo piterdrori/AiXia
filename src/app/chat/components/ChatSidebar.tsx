@@ -199,15 +199,6 @@ export default function ChatSidebar({
                 {groupConversations.map((group) => renderConversationButton(group, "group"))}
               </>
             )}
-
-            <Separator className="my-3 bg-slate-800" />
-            <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">
-              {t("chat.sidebar.teamMembers")}
-            </h3>
-
-            {profiles
-              .filter((user) => user.user_id !== currentUserId && user.status === "active")
-              .map((user) => (
                 <button
                   key={user.user_id}
                   onClick={() => onStartDirectMessage(user.user_id)}

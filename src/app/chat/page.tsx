@@ -497,28 +497,35 @@ useEffect(() => {
         throw new Error(attachmentError.message);
       }
 
-      appendMessageLocally(selectedConversationId, {
-        id: message.id,
-        group_id: selectedConversationId,
-        user_id: currentUserId,
-        content: "",
-        created_at: clock.nowIso,
-        attachments: [
-          {
-            id: `local-${message.id}`,
-            message_id: message.id,
-            group_id: selectedConversationId,
-            uploaded_by: currentUserId,
-            file_name: file.name,
-            file_path: filePath,
-            mime_type: file.type || null,
-            file_size: file.size,
-            created_at: clock.nowIso,
-          },
-        ],
-      });
+      const optimisticAttachmentMessage: ChatMessageRow = {
+  id: message.id,
+  group_id: selectedConversationId,
+  user_id: currentUserId,
+  content: "",
+  created_at: clock.nowIso,
+  attachments: [
+    {
+      id: `local-${message.id}`,
+      message_id: message.id,
+      group_id: selectedConversationId,
+      uploaded_by: currentUserId,
+      file_name: file.name,
+      file_path: filePath,
+      mime_type: file.type || null,
+      file_size: file.size,
+      created_at: clock.nowIso,
+    },
+  ],
+};
 
-      moveGroupToTop(selectedConversationId);
+appendMessageLocally(selectedConversationId, optimisticAttachmentMessage);
+
+setLatestMessageByGroup((prev) => ({
+  ...prev,
+  [selectedConversationId]: optimisticAttachmentMessage,
+}));
+
+moveGroupToTop(selectedConversationId);
 
       requestAnimationFrame(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

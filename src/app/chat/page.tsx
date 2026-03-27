@@ -96,6 +96,8 @@ export default function ChatPage() {
   const [isSending, setIsSending] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
 
+  const [messageSearchQuery, setMessageSearchQuery] = useState("");
+
   useEffect(() => {
   if (!id) return;
 
@@ -111,6 +113,10 @@ export default function ChatPage() {
     setEditingMessageId(null);
     setEditingMessageText("");
   }, [selectedConversationId]);
+
+  useEffect(() => {
+  setMessageSearchQuery("");
+}, [selectedConversationId]);
 
   const selectedConversation = useMemo(() => {
     if (!selectedConversationId) return null;
@@ -849,15 +855,17 @@ export default function ChatPage() {
         {selectedConversation ? (
           <Card className="flex-1 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden min-h-0">
             <ChatHeader
-              title={conversationTitle}
-              participantCount={getMembers(selectedConversation.id).length}
-              initials={conversationInitials}
-              isSelectionMode={isSelectionMode}
-              onToggleSelectionMode={() => {
-                setIsSelectionMode((prev) => !prev);
-                setSelectedMessageIds([]);
-              }}
-            />
+  title={conversationTitle}
+  participantCount={getMembers(selectedConversation.id).length}
+  initials={conversationInitials}
+  isSelectionMode={isSelectionMode}
+  onToggleSelectionMode={() => {
+    setIsSelectionMode((prev) => !prev);
+    setSelectedMessageIds([]);
+  }}
+  messageSearchQuery={messageSearchQuery}
+  onMessageSearchChange={setMessageSearchQuery}
+/>
             
             {(isSelectionMode || selectedMessageIds.length > 0) && (
               <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-800 bg-slate-950/60 shrink-0">
@@ -911,35 +919,36 @@ export default function ChatPage() {
             )}
 
             <MessageList
-              currentUserId={currentUserId}
-              currentUserRole={currentUserRole}
-              messages={selectedMessages}
-              profiles={profiles}
-              isSelectionMode={isSelectionMode}
-              selectedMessageIds={selectedMessageIds}
-              editingMessageId={editingMessageId}
-              editingMessageText={editingMessageText}
-              messageActionLoading={messageActionLoading}
-              hasMore={Boolean(
-                selectedConversationId && hasMoreMessages[selectedConversationId]
-              )}
-              isLoadingOlder={isLoadingOlder}
-              scrollAreaRef={scrollAreaRef}
-              messagesEndRef={messagesEndRef}
-              onLoadOlder={() => void handleLoadOlderMessages()}
-              onToggleSelection={(message) =>
-                setSelectedMessageIds((prev) =>
-                  prev.includes(message.id)
-                    ? prev.filter((id) => id !== message.id)
-                    : [...prev, message.id]
-                )
-              }
-              onStartEdit={startEditingMessage}
-              onEditTextChange={setEditingMessageText}
-              onSaveEdit={(message) => void handleSaveEditedMessage(message)}
-              onCancelEdit={cancelEditingMessage}
-              onDeleteMessage={(message) => void handleDeleteMessage(message)}
-            />
+  currentUserId={currentUserId}
+  currentUserRole={currentUserRole}
+  messages={selectedMessages}
+  profiles={profiles}
+  isSelectionMode={isSelectionMode}
+  selectedMessageIds={selectedMessageIds}
+  editingMessageId={editingMessageId}
+  editingMessageText={editingMessageText}
+  messageActionLoading={messageActionLoading}
+  hasMore={Boolean(
+    selectedConversationId && hasMoreMessages[selectedConversationId]
+  )}
+  isLoadingOlder={isLoadingOlder}
+  messageSearchQuery={messageSearchQuery}
+  scrollAreaRef={scrollAreaRef}
+  messagesEndRef={messagesEndRef}
+  onLoadOlder={() => void handleLoadOlderMessages()}
+  onToggleSelection={(message) =>
+    setSelectedMessageIds((prev) =>
+      prev.includes(message.id)
+        ? prev.filter((id) => id !== message.id)
+        : [...prev, message.id]
+    )
+  }
+  onStartEdit={startEditingMessage}
+  onEditTextChange={setEditingMessageText}
+  onSaveEdit={(message) => void handleSaveEditedMessage(message)}
+  onCancelEdit={cancelEditingMessage}
+  onDeleteMessage={(message) => void handleDeleteMessage(message)}
+/>
 
             <div className="px-4 py-2 text-xs text-slate-500">
               {isLoadingMessages && !messages[selectedConversation.id]

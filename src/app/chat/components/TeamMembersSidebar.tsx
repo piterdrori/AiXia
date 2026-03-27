@@ -10,6 +10,7 @@ import type { ProfileRow } from "../types";
 type Props = {
   profiles: ProfileRow[];
   currentUserId: string | null;
+  onlineUsers: Record<string, boolean>;
   onStartDM: (userId: string) => void;
 };
 
@@ -34,6 +35,7 @@ function getRoleWeight(role: string) {
 export default function TeamMembersSidebar({
   profiles,
   currentUserId,
+  onlineUsers,
   onStartDM,
 }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -148,11 +150,19 @@ export default function TeamMembersSidebar({
                 onClick={() => onStartDM(profile.user_id)}
                 className="w-full group flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/60 transition text-left"
               >
-                <Avatar className="w-10 h-10 shrink-0">
-                  <AvatarFallback className="bg-indigo-600 text-white text-sm">
-                    {getInitials(profile.full_name)}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative">
+  <Avatar className="w-10 h-10 shrink-0">
+    <AvatarFallback className="bg-indigo-600 text-white text-sm">
+      {getInitials(profile.full_name)}
+    </AvatarFallback>
+  </Avatar>
+
+  <span
+    className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border border-slate-900 ${
+      onlineUsers[profile.user_id] ? "bg-green-500" : "bg-slate-500"
+    }`}
+  />
+</div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">

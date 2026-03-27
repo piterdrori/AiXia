@@ -35,6 +35,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import TeamMembersSidebar from "./components/TeamMembersSidebar";
 
+import GroupParticipantsPanel from "./components/GroupParticipantsPanel";
+
 export default function ChatPage() {
   const navigate = useNavigate();
    const { id } = useParams<{ id: string }>();
@@ -99,10 +101,13 @@ export default function ChatPage() {
   const [messageSearchQuery, setMessageSearchQuery] = useState("");
 
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
-const [latestMessageByGroup, setLatestMessageByGroup] = useState<
+  const [latestMessageByGroup, setLatestMessageByGroup] = useState<
   Record<string, ChatMessageRow | null>
 >({});
-const sidebarRealtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const sidebarRealtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  const [isParticipantsPanelOpen, setIsParticipantsPanelOpen] = useState(false);
+  const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
   if (!id) return;
@@ -122,6 +127,10 @@ const sidebarRealtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | n
 
   useEffect(() => {
   setMessageSearchQuery("");
+}, [selectedConversationId]);
+
+  useEffect(() => {
+  setIsParticipantsPanelOpen(false);
 }, [selectedConversationId]);
 
   const selectedConversation = useMemo(() => {
@@ -960,6 +969,82 @@ const sidebarRealtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | n
     setBulkDeleteLoading(false);
   };
 
+  const handleAddParticipant = async (userId: string) => {
+  if (!selectedConversation || !currentUserId) return;
+  if (selectedConversation.type !== "GROUP") return;
+
+  const isMember = getMembers(selectedConversation.id).some(
+    (member) => member.user_id === currentUserId
+  );
+
+  const canAdd =
+    currentUserRole === "admin" ||
+    selectedConversation.created_by === currentUserId ||
+    isMember;
+
+  if (!canAdd) {
+    setError("Not authorized to add participants.");
+    return;
+  }
+
+  setMemberActionLoading("add");
+  setError("");
+
+  const { error: insertError } = await supabase
+    .from("chat_group_members")
+    .insert({
+      group_id: selectedConversation.id,
+      user_id: userId,
+      role: "member",
+      invited_by: currentUserId,
+    });
+
+  if (insertError) {
+    setError(insertError.message || "Failed to add participant.");
+    setMemberActionLoading(null);
+    return;
+  }
+
+  setMemberActionLoading(null);
+  await reloadChatShell(selectedConversation.id);
+};
+
+const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
+  if (!selectedConversation || !currentUserId) return;
+  if (selectedConversation.type !== "GROUP") return;
+
+  const isAdmin = currentUserRole === "admin";
+  const isCreator = selectedConversation.created_by === currentUserId;
+  const canRemoveOwnInvite = member.invited_by === currentUserId;
+
+  if (member.user_id === selectedConversation.created_by) {
+    setError("Cannot remove the group creator.");
+    return;
+  }
+
+  if (!isAdmin && !isCreator && !canRemoveOwnInvite) {
+    setError("Not authorized to remove this participant.");
+    return;
+  }
+
+  setMemberActionLoading(member.id);
+  setError("");
+
+  const { error: deleteError } = await supabase
+    .from("chat_group_members")
+    .delete()
+    .eq("id", member.id);
+
+  if (deleteError) {
+    setError(deleteError.message || "Failed to remove participant.");
+    setMemberActionLoading(null);
+    return;
+  }
+
+  setMemberActionLoading(null);
+  await reloadChatShell(selectedConversation.id);
+};
+
     const handleDeleteChat = async (group: ChatGroupRow) => {
     if (!canDeleteChat(group)) {
       setError(t("chat.errors.notAuthorized", "Not authorized"));
@@ -1026,6 +1111,22 @@ const sidebarRealtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | n
   }}
   messageSearchQuery={messageSearchQuery}
   onMessageSearchChange={setMessageSearchQuery}
+  isParticipantsPanelOpen={isParticipantsPanelOpen}
+  onToggleParticipantsPanel={() =>
+    setIsParticipantsPanelOpen((prev) => !prev)
+  }
+/>
+
+            <GroupParticipantsPanel
+  open={isParticipantsPanelOpen}
+  group={selectedConversation}
+  currentUserId={currentUserId}
+  currentUserRole={currentUserRole}
+  profiles={profiles}
+  groupMembers={groupMembers}
+  onAddParticipant={(userId) => void handleAddParticipant(userId)}
+  onRemoveParticipant={(member) => void handleRemoveParticipant(member)}
+  memberActionLoading={memberActionLoading}
 />
             
             {(isSelectionMode || selectedMessageIds.length > 0) && (

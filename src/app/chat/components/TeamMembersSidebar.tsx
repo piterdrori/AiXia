@@ -57,6 +57,13 @@ export default function TeamMembersSidebar({
     });
 
     result.sort((a, b) => {
+      const aOnline = onlineUsers[a.user_id] ? 1 : 0;
+      const bOnline = onlineUsers[b.user_id] ? 1 : 0;
+
+      if (bOnline !== aOnline) {
+        return bOnline - aOnline;
+      }
+
       if (sortMode === "role") {
         const roleDiff = getRoleWeight(a.role) - getRoleWeight(b.role);
         if (roleDiff !== 0) return roleDiff;
@@ -71,7 +78,7 @@ export default function TeamMembersSidebar({
     });
 
     return result;
-  }, [profiles, currentUserId, searchQuery, sortMode]);
+  }, [profiles, currentUserId, searchQuery, sortMode, onlineUsers]);
 
   return (
     <Card className="w-80 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden min-h-0 shrink-0">
@@ -151,18 +158,18 @@ export default function TeamMembersSidebar({
                 className="w-full group flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/60 transition text-left"
               >
                 <div className="relative">
-  <Avatar className="w-10 h-10 shrink-0">
-    <AvatarFallback className="bg-indigo-600 text-white text-sm">
-      {getInitials(profile.full_name)}
-    </AvatarFallback>
-  </Avatar>
+                  <Avatar className="w-10 h-10 shrink-0">
+                    <AvatarFallback className="bg-indigo-600 text-white text-sm">
+                      {getInitials(profile.full_name)}
+                    </AvatarFallback>
+                  </Avatar>
 
-  <span
-    className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border border-slate-900 ${
-      onlineUsers[profile.user_id] ? "bg-green-500" : "bg-slate-500"
-    }`}
-  />
-</div>
+                  <span
+                    className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border border-slate-900 ${
+                      onlineUsers[profile.user_id] ? "bg-green-500" : "bg-slate-500"
+                    }`}
+                  />
+                </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
@@ -181,6 +188,8 @@ export default function TeamMembersSidebar({
                       <Users className="w-3 h-3" />
                     )}
                     <span>{profile.role}</span>
+                    <span>•</span>
+                    <span>{onlineUsers[profile.user_id] ? "online" : "offline"}</span>
                   </div>
                 </div>
               </button>

@@ -188,6 +188,15 @@ function publishOnlineUsers(onlineUsers: Record<string, boolean>) {
   );
 }
 
+useEffect(() => {
+  if (typeof window === "undefined") return;
+  if (!("Notification" in window)) return;
+
+  if (Notification.permission === "default") {
+    void Notification.requestPermission();
+  }
+}, []);
+
 function isValidDate(value: string) {
   const date = new Date(value);
   return !Number.isNaN(date.getTime());

@@ -227,8 +227,7 @@ export default function DashboardLayout({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
 
-  const [calendarTodayCount, setCalendarTodayCount] = useState(0);
-  const [chatUnreadCount] = useState(0);
+    const [calendarTodayCount, setCalendarTodayCount] = useState(0);
 
   const userProfileRef = useRef<UserProfile | null>(
     initialCacheRef.current?.userProfile || null
@@ -294,6 +293,21 @@ export default function DashboardLayout({
   const unreadCount = useMemo(() => {
     return notifications.filter((notification) => !notification.is_read).length;
   }, [notifications]);
+
+    const chatUnreadCount = useMemo(() => {
+    if (location.pathname.startsWith("/chat")) {
+      return 0;
+    }
+
+    return notifications.filter((notification) => {
+      if (notification.is_read) return false;
+
+      return (
+        notification.type === "MESSAGE" ||
+        notification.type === "MENTION"
+      );
+    }).length;
+  }, [location.pathname, notifications]);
 
   useEffect(() => {
     const checkMobile = () => {

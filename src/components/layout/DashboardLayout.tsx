@@ -126,6 +126,10 @@ type CachedLayoutState = {
   cachedAt: number;
 };
 
+type AppWindow = Window & {
+  __AIXIA_ONLINE_USERS__?: Record<string, boolean>;
+};
+
 const LAYOUT_CACHE_KEY = "taskflow.dashboardLayout.cache";
 const CACHE_TTL_MS = 60 * 1000;
 
@@ -169,6 +173,19 @@ function clearLayoutCache() {
   } catch {
     // ignore cache errors
   }
+}
+
+function publishOnlineUsers(onlineUsers: Record<string, boolean>) {
+  if (typeof window === "undefined") return;
+
+  const appWindow = window as AppWindow;
+  appWindow.__AIXIA_ONLINE_USERS__ = onlineUsers;
+
+  window.dispatchEvent(
+    new CustomEvent<Record<string, boolean>>("aixia-online-users-changed", {
+      detail: onlineUsers,
+    })
+  );
 }
 
 function isValidDate(value: string) {
@@ -503,6 +520,72 @@ export default function DashboardLayout({
       subscription.unsubscribe();
     };
   }, [clearUserState, loadCalendarBadge, loadNotifications, loadUser]);
+
+useEffect(() => {
+  if (!userProfile?.userId) {
+    publishOnlineUsers({});
+    return;
+  }
+
+  const presenceChannel = supabase.channel("global-online-users", {
+    config: {
+      presence: {
+        key: userProfile.userId,
+      },
+    },
+  });
+
+  const syncPresence = () => {
+    const state = presenceChannel.presenceState();
+    const onlineMap: Record<string, boolean> = {};
+
+    Object.keys(state).forEach((userId) => {
+      onlineMap[userId] = true;
+    });
+
+    publishOnlineUsers(onlineMap);
+  };
+
+  const refreshPresence = async () => {
+    try {
+      await presenceChannel.track({
+        user_id: userProfile.userId,
+        online_at: new Date().toISOString(),
+        pathname: window.location.pathname,
+      });
+    } catch (error) {
+      console.error("Presence refresh error:", error);
+    }
+  };
+
+  presenceChannel.on("presence", { event: "sync" }, syncPresence);
+
+  presenceChannel.subscribe(async (status) => {
+    if (status === "SUBSCRIBED") {
+      await refreshPresence();
+    }
+  });
+
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === "visible") {
+      void refreshPresence();
+    }
+  };
+
+  const handleFocus = () => {
+    void refreshPresence();
+  };
+
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  window.addEventListener("focus", handleFocus);
+
+  return () => {
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+    window.removeEventListener("focus", handleFocus);
+    publishOnlineUsers({});
+    presenceChannel.unsubscribe();
+  };
+}, [userProfile?.userId]);
 
   useEffect(() => {
     if (!userProfile?.userId) return;

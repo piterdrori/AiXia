@@ -39,6 +39,10 @@ import {
   registerRealtimeChannel,
   removeRealtimeChannel,
 } from "@/lib/realtime";
+import {
+  initNotificationSound,
+  playNotificationSound,
+} from "@/lib/sound";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -229,6 +233,9 @@ export default function DashboardLayout({
   const userProfileRef = useRef<UserProfile | null>(
     initialCacheRef.current?.userProfile || null
   );
+    const notificationsRef = useRef<NotificationRow[]>(
+    initialCacheRef.current?.notifications || []
+  );
   const mountedRef = useRef(true);
   const loadUserRequestIdRef = useRef(0);
   const loadNotificationsRequestIdRef = useRef(0);
@@ -238,6 +245,10 @@ export default function DashboardLayout({
     userProfileRef.current = userProfile;
   }, [userProfile]);
 
+    useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!("Notification" in window)) return;
@@ -246,6 +257,29 @@ export default function DashboardLayout({
       void Notification.requestPermission();
     }
   }, []);
+
+  useEffect(() => {
+    initNotificationSound();
+  }, []);
+
+  const showDesktopNotification = useCallback(
+    (title: string, body: string, link?: string | null) => {
+      if (typeof window === "undefined") return;
+      if (!("Notification" in window)) return;
+      if (Notification.permission !== "granted") return;
+
+      const notification = new Notification(title, { body });
+
+      notification.onclick = () => {
+        window.focus();
+
+        if (link) {
+          window.location.href = link;
+        }
+      };
+    },
+    []
+  );
 
   const localTime = useMemo(() => {
     return formatDateTimeInTimezone(clock.now, language, timezone, {
@@ -312,6 +346,7 @@ export default function DashboardLayout({
             typeof item.is_read === "boolean"
         );
 
+                notificationsRef.current = nextNotifications;
         setNotifications(nextNotifications);
         writeLayoutCache(
           profileForCache ?? userProfileRef.current,
@@ -422,10 +457,13 @@ export default function DashboardLayout({
   );
 
   const clearUserState = useCallback(() => {
+    userProfileRef.current = null;
+    notificationsRef.current = [];
     setUserProfile(null);
     setNotifications([]);
     setCalendarTodayCount(0);
     clearLayoutCache();
+    publishOnlineUsers({});
   }, []);
 
   const loadUser = useCallback(async () => {
@@ -459,18 +497,24 @@ export default function DashboardLayout({
         console.error("Failed to load profile:", profileError);
       }
 
+      const typedProfile = profile as {
+        full_name?: string | null;
+        role?: Role | null;
+        avatar_url?: string | null;
+        permissions?: Partial<Record<Permission, boolean>> | null;
+      } | null;
+
       const loadedUser: UserProfile = {
-  userId: user.id,
-  email: user.email || "",
-  fullName: profile?.full_name || "User",
-  role: profile?.role || null,
-  avatarUrl: profile?.avatar_url || null,
-  permissions: (profile as any)?.permissions || null,
-};
+        userId: user.id,
+        email: user.email || "",
+        fullName: typedProfile?.full_name || "User",
+        role: typedProfile?.role || null,
+        avatarUrl: typedProfile?.avatar_url || null,
+        permissions: typedProfile?.permissions || null,
+      };
 
       userProfileRef.current = loadedUser;
       setUserProfile(loadedUser);
-            writeLayoutCache(loadedUser, userProfileRef.current?.userId === loadedUser.userId ? notifications : []);
 
       await Promise.all([
         loadNotifications(loadedUser.userId, loadedUser),
@@ -529,71 +573,75 @@ export default function DashboardLayout({
     };
   }, [clearUserState, loadCalendarBadge, loadNotifications, loadUser]);
 
-useEffect(() => {
-  if (!userProfile?.userId) {
-    publishOnlineUsers({});
-    return;
-  }
+  useEffect(() => {
+    if (!userProfile?.userId) {
+      publishOnlineUsers({});
+      return;
+    }
 
-  const presenceChannel = supabase.channel("global-online-users", {
-    config: {
-      presence: {
-        key: userProfile.userId,
+    const channelKey = `presence:${userProfile.userId}`;
+    const presenceChannel = supabase.channel("global-online-users", {
+      config: {
+        presence: {
+          key: userProfile.userId,
+        },
       },
-    },
-  });
-
-  const syncPresence = () => {
-    const state = presenceChannel.presenceState();
-    const onlineMap: Record<string, boolean> = {};
-
-    Object.keys(state).forEach((userId) => {
-      onlineMap[userId] = true;
     });
 
-    publishOnlineUsers(onlineMap);
-  };
+    const syncPresence = () => {
+      const state = presenceChannel.presenceState();
+      const onlineMap: Record<string, boolean> = {};
 
-  const refreshPresence = async () => {
-    try {
-      await presenceChannel.track({
-        user_id: userProfile.userId,
-        online_at: new Date().toISOString(),
-        pathname: window.location.pathname,
+      Object.keys(state).forEach((userId) => {
+        onlineMap[userId] = true;
       });
-    } catch (error) {
-      console.error("Presence refresh error:", error);
-    }
-  };
 
-  presenceChannel.on("presence", { event: "sync" }, syncPresence);
+      publishOnlineUsers(onlineMap);
+    };
 
-  presenceChannel.subscribe(async (status) => {
-    if (status === "SUBSCRIBED") {
-      await refreshPresence();
-    }
-  });
+    const refreshPresence = async () => {
+      try {
+        await presenceChannel.track({
+          user_id: userProfile.userId,
+          online_at: new Date().toISOString(),
+          pathname: window.location.pathname,
+        });
+      } catch (error) {
+        console.error("Presence refresh error:", error);
+      }
+    };
 
-  const handleVisibilityChange = () => {
-    if (document.visibilityState === "visible") {
+    registerRealtimeChannel(
+      channelKey,
+      presenceChannel
+        .on("presence", { event: "sync" }, syncPresence)
+        .subscribe(async (status) => {
+          if (status === "SUBSCRIBED") {
+            await refreshPresence();
+          }
+        })
+    );
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshPresence();
+      }
+    };
+
+    const handleFocus = () => {
       void refreshPresence();
-    }
-  };
+    };
 
-  const handleFocus = () => {
-    void refreshPresence();
-  };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
 
-  document.addEventListener("visibilitychange", handleVisibilityChange);
-  window.addEventListener("focus", handleFocus);
-
-  return () => {
-    document.removeEventListener("visibilitychange", handleVisibilityChange);
-    window.removeEventListener("focus", handleFocus);
-    publishOnlineUsers({});
-    presenceChannel.unsubscribe();
-  };
-}, [userProfile?.userId]);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+      publishOnlineUsers({});
+      void removeRealtimeChannel(channelKey);
+    };
+  }, [userProfile?.userId]);
 
   useEffect(() => {
     if (!userProfile?.userId) return;
@@ -612,8 +660,25 @@ useEffect(() => {
             table: "notifications",
             filter: `user_id=eq.${userProfile.userId}`,
           },
-          (payload) => {
-            setNotifications((prev) => {
+                   (payload) => {
+            if (payload.eventType === "INSERT") {
+              const insertedNotification = payload.new as NotificationRow;
+              const isChatMessageNotification =
+                insertedNotification.type === "MESSAGE" ||
+                insertedNotification.type === "MENTION";
+              const isChatRoute = location.pathname.startsWith("/chat");
+
+              if (!(isChatRoute && isChatMessageNotification)) {
+                void playNotificationSound();
+                showDesktopNotification(
+                  insertedNotification.title || "New notification",
+                  insertedNotification.message || "You have a new update",
+                  insertedNotification.link
+                );
+              }
+            }
+
+                        setNotifications((prev) => {
               let next = prev;
 
               if (payload.eventType === "INSERT") {
@@ -631,7 +696,8 @@ useEffect(() => {
                 );
               }
 
-              writeLayoutCache(userProfile, next);
+              notificationsRef.current = next;
+              writeLayoutCache(userProfileRef.current, next);
               return next;
             });
 
@@ -644,7 +710,7 @@ useEffect(() => {
     return () => {
       void removeRealtimeChannel(channelKey);
     };
-  }, [loadCalendarBadge, userProfile]);
+   }, [loadCalendarBadge, location.pathname, showDesktopNotification, userProfile]);
 
  useEffect(() => {
   if (!notificationsOpen || !userProfile?.userId) return;
@@ -652,46 +718,56 @@ useEffect(() => {
 }, [notificationsOpen, userProfile, loadNotifications]);
 
   useEffect(() => {
-  if (!userProfile?.userId) return;
+    if (!userProfile?.userId) return;
 
-  const channelKey = `profile-permissions:${userProfile.userId}`;
+    const channelKey = `profile-permissions:${userProfile.userId}`;
 
-  registerRealtimeChannel(
-    channelKey,
-    supabase
-      .channel(channelKey)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "profiles",
-          filter: `user_id=eq.${userProfile.userId}`,
-        },
-        (payload) => {
-          const updated = payload.new as {
-            role?: Role | null;
-            permissions?: Partial<Record<Permission, boolean>> | null;
-          };
-
-          setUserProfile((prev) => {
-            if (!prev) return prev;
-
-            return {
-              ...prev,
-              role: updated.role ?? prev.role ?? null,
-              permissions: updated.permissions || null,
+    registerRealtimeChannel(
+      channelKey,
+      supabase
+        .channel(channelKey)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "profiles",
+            filter: `user_id=eq.${userProfile.userId}`,
+          },
+          (payload) => {
+            const updated = payload.new as {
+              role?: Role | null;
+              permissions?: Partial<Record<Permission, boolean>> | null;
             };
-          });
-        }
-      )
-      .subscribe()
-  );
 
-  return () => {
-    void removeRealtimeChannel(channelKey);
-  };
-}, [userProfile?.userId]);
+            setUserProfile((prev) => {
+              if (!prev) return prev;
+
+              const nextProfile: UserProfile = {
+                ...prev,
+                role: updated.role ?? prev.role ?? null,
+                permissions: updated.permissions || null,
+              };
+
+                            userProfileRef.current = nextProfile;
+              writeLayoutCache(nextProfile, notificationsRef.current);
+
+              void loadCalendarBadge(
+                nextProfile.userId,
+                nextProfile.role || null
+              );
+
+              return nextProfile;
+            });
+          }
+        )
+        .subscribe()
+    );
+
+    return () => {
+      void removeRealtimeChannel(channelKey);
+    };
+  }, [loadCalendarBadge, userProfile?.userId]);
 
 const effectivePermissions = useMemo(() => {
   if (!userProfile?.role) return null;
@@ -773,30 +849,31 @@ const navItems: NavItem[] = useMemo(
       .join("")
       .toUpperCase() || "U";
 
-  const handleNotificationClick = async (notification: NotificationRow) => {
-    try {
-      if (!notification.is_read) {
-        await markNotificationRead(notification.id);
+const handleNotificationClick = async (notification: NotificationRow) => {
+  try {
+    if (!notification.is_read) {
+      await markNotificationRead(notification.id);
 
-        const nextNotifications = notifications.map((item) =>
-          item.id === notification.id ? { ...item, is_read: true } : item
-        );
+      const nextNotifications = notifications.map((item) =>
+        item.id === notification.id ? { ...item, is_read: true } : item
+      );
 
-        setNotifications(nextNotifications);
-        writeLayoutCache(userProfileRef.current, nextNotifications);
-      }
-
-      setNotificationsOpen(false);
-
-      if (notification.link) {
-        navigate(notification.link);
-      } else {
-        navigate("/inbox");
-      }
-    } catch (error) {
-      console.error("Notification click error:", error);
+      notificationsRef.current = nextNotifications;
+      setNotifications(nextNotifications);
+      writeLayoutCache(userProfileRef.current, nextNotifications);
     }
-  };
+
+    setNotificationsOpen(false);
+
+    if (notification.link) {
+      navigate(notification.link);
+    } else {
+      navigate("/inbox");
+    }
+  } catch (error) {
+    console.error("Notification click error:", error);
+  }
+};
 
   const handleMarkAllRead = async () => {
     if (!userProfile?.userId) return;
@@ -809,6 +886,7 @@ const navItems: NavItem[] = useMemo(
         is_read: true,
       }));
 
+            notificationsRef.current = nextNotifications;
       setNotifications(nextNotifications);
       writeLayoutCache(userProfileRef.current, nextNotifications);
     } catch (error) {

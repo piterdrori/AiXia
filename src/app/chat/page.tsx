@@ -843,7 +843,6 @@ export default function ChatPage() {
           onSearchChange={setSearchQuery}
           onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
           onOpenConversation={openConversation}
-          onStartDirectMessage={(userId) => void startDirectMessage(userId)}
           onDeleteChat={(group) => void handleDeleteChat(group)}
         />
 

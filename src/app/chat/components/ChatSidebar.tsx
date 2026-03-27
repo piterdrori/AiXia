@@ -64,6 +64,19 @@ function getLatestPreview(
   return "";
 }
 
+function getConversationSortTime(
+  group: ChatGroupRow,
+  latestMessageByGroup: Record<string, ChatMessageRow | null>
+) {
+  const latestMessage = latestMessageByGroup[group.id];
+
+  if (latestMessage?.created_at) {
+    return new Date(latestMessage.created_at).getTime();
+  }
+
+  return new Date(group.created_at).getTime();
+}
+
 export default function ChatSidebar({
   currentUserId,
   currentUserRole,
@@ -98,13 +111,33 @@ export default function ChatSidebar({
     });
   }, [currentUserId, groupMembers, groups, latestMessageByGroup, profiles, q, t]);
 
-  const directConversations = filteredConversations.filter(
-    (group) => group.type === "DIRECT"
-  );
+  const sortedConversations = useMemo(() => {
+  return [...filteredConversations].sort((a, b) => {
+    const aUnread = (unreadCounts[a.id] || 0) > 0 ? 1 : 0;
+    const bUnread = (unreadCounts[b.id] || 0) > 0 ? 1 : 0;
 
-  const groupChats = filteredConversations.filter(
-    (group) => group.type !== "DIRECT"
-  );
+    if (bUnread !== aUnread) {
+      return bUnread - aUnread;
+    }
+
+    const bTime = getConversationSortTime(b, latestMessageByGroup);
+    const aTime = getConversationSortTime(a, latestMessageByGroup);
+
+    if (bTime !== aTime) {
+      return bTime - aTime;
+    }
+
+    return a.id.localeCompare(b.id);
+  });
+}, [filteredConversations, latestMessageByGroup, unreadCounts]);
+
+const directConversations = sortedConversations.filter(
+  (group) => group.type === "DIRECT"
+);
+
+const groupChats = sortedConversations.filter(
+  (group) => group.type !== "DIRECT"
+);
 
   useEffect(() => {
     if (!isDragging) return;

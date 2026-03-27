@@ -109,7 +109,12 @@ export default function ChatPage() {
   const [isParticipantsPanelOpen, setIsParticipantsPanelOpen] = useState(false);
   const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null);
 
-  const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>({});
+  const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>(() => {
+  if (typeof window === "undefined") return {};
+  return ((window as Window & {
+    __AIXIA_ONLINE_USERS__?: Record<string, boolean>;
+  }).__AIXIA_ONLINE_USERS__ || {});
+});
 
   useEffect(() => {
   if (!id) return;
@@ -202,41 +207,37 @@ export default function ChatPage() {
   void loadLatestMessages();
 }, [groups]);
 
-  useEffect(() => {
-  if (!currentUserId) return;
+ useEffect(() => {
+  if (typeof window === "undefined") return;
 
-  const channel = supabase.channel("online-users", {
-    config: {
-      presence: {
-        key: currentUserId,
-      },
-    },
-  });
+  const appWindow = window as Window & {
+    __AIXIA_ONLINE_USERS__?: Record<string, boolean>;
+  };
 
-  channel.on("presence", { event: "sync" }, () => {
-    const state = channel.presenceState();
-    const onlineMap: Record<string, boolean> = {};
+  const applyCurrent = () => {
+    setOnlineUsers({ ...(appWindow.__AIXIA_ONLINE_USERS__ || {}) });
+  };
 
-    Object.keys(state).forEach((userId) => {
-      onlineMap[userId] = true;
-    });
+  const handleOnlineUsersChanged = (
+    event: Event
+  ) => {
+    const customEvent = event as CustomEvent<Record<string, boolean>>;
+    setOnlineUsers({ ...(customEvent.detail || {}) });
+  };
 
-    setOnlineUsers(onlineMap);
-  });
-
-  channel.subscribe(async (status) => {
-    if (status === "SUBSCRIBED") {
-      await channel.track({
-        user_id: currentUserId,
-        online_at: new Date().toISOString(),
-      });
-    }
-  });
+  applyCurrent();
+  window.addEventListener(
+    "aixia-online-users-changed",
+    handleOnlineUsersChanged as EventListener
+  );
 
   return () => {
-    channel.unsubscribe();
+    window.removeEventListener(
+      "aixia-online-users-changed",
+      handleOnlineUsersChanged as EventListener
+    );
   };
-}, [currentUserId]);
+}, []);
 
 useEffect(() => {
   if (sidebarRealtimeChannelRef.current) {
@@ -1162,6 +1163,7 @@ const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
   currentUserRole={currentUserRole}
   profiles={profiles}
   groupMembers={groupMembers}
+  onlineUsers={onlineUsers}
   onAddParticipant={(userId) => void handleAddParticipant(userId)}
   onRemoveParticipant={(member) => void handleRemoveParticipant(member)}
   memberActionLoading={memberActionLoading}
@@ -1287,7 +1289,7 @@ const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
           </Card>
         )}
 
-   <TeamMembersSidebar
+ <TeamMembersSidebar
   profiles={profiles}
   currentUserId={currentUserId}
   onlineUsers={onlineUsers}

@@ -232,7 +232,7 @@ export function useChatBootstrap(preferredId: string | null) {
         if (groupIds.length > 0) {
           const { data: membersData, error: membersError } = await supabase
             .from("chat_group_members")
-            .select("id, group_id, user_id, role, created_at")
+            .select("id, group_id, user_id, role, invited_by, created_at")
             .in("group_id", groupIds);
 
           if (membersError) {

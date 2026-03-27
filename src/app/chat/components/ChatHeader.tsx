@@ -1,4 +1,4 @@
-import { CheckSquare, Search, X } from "lucide-react";
+import { CheckSquare, Search, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,8 @@ type Props = {
   onToggleSelectionMode: () => void;
   messageSearchQuery: string;
   onMessageSearchChange: (value: string) => void;
+  isParticipantsPanelOpen: boolean;
+  onToggleParticipantsPanel: () => void;
 };
 
 export default function ChatHeader({
@@ -22,6 +24,8 @@ export default function ChatHeader({
   onToggleSelectionMode,
   messageSearchQuery,
   onMessageSearchChange,
+  isParticipantsPanelOpen,
+  onToggleParticipantsPanel,
 }: Props) {
   const { t } = useLanguage();
 
@@ -46,6 +50,16 @@ export default function ChatHeader({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            className="border-slate-700 text-slate-200 hover:bg-slate-800"
+            onClick={onToggleParticipantsPanel}
+          >
+            <Users className="w-4 h-4 mr-2" />
+            {isParticipantsPanelOpen ? "Hide Participants" : "Participants"}
+          </Button>
+
           <Button
             type="button"
             variant="outline"

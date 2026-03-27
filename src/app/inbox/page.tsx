@@ -271,7 +271,28 @@ export default function InboxPage() {
             filter: `user_id=eq.${currentUserId}`,
           },
           () => {
-            void fetchNotifications(currentUserId, { setLoading: false });
+           .on(
+  "postgres_changes",
+  {
+    event: "*",
+    schema: "public",
+    table: "notifications",
+    filter: `user_id=eq.${currentUserId}`,
+  },
+  (payload) => {
+    void fetchNotifications(currentUserId, { setLoading: false });
+
+    if (payload.eventType === "INSERT") {
+      const row = payload.new as NotificationRow;
+
+      playNotificationSound();
+      showDesktopNotification(
+        row.title || "New notification",
+        row.message || "You have a new update"
+      );
+    }
+  }
+)
           }
         )
         .subscribe()
@@ -291,10 +312,28 @@ export default function InboxPage() {
   }, [notifications, filter]);
 
   const unreadCount = useMemo(() => {
-    return notifications.filter((notification) => !notification.is_read).length;
-  }, [notifications]);
+  return notifications.filter((notification) => !notification.is_read).length;
+}, [notifications]);
 
-  const handleNotificationClick = async (notification: NotificationRow) => {
+const playNotificationSound = () => {
+  try {
+    const audio = new Audio("/sounds/notification.mp3");
+    audio.preload = "auto";
+    void audio.play().catch(() => {});
+  } catch {
+    // ignore
+  }
+};
+
+const showDesktopNotification = (title: string, body: string) => {
+  if (typeof window === "undefined") return;
+  if (!("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+
+  new Notification(title, { body });
+};
+
+const handleNotificationClick = async (notification: NotificationRow) => {
     try {
       if (!notification.is_read) {
         await markNotificationRead(notification.id);

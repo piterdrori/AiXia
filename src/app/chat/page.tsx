@@ -338,10 +338,9 @@ useEffect(() => {
 
         moveGroupToTop(fullMessage.group_id);
 
-        if (fullMessage.user_id === currentUserId) {
+            if (fullMessage.user_id === currentUserId) {
           return;
         }
-
         if (fullMessage.group_id !== selectedConversationId) {
           setUnreadCounts((prev) => ({
             ...prev,

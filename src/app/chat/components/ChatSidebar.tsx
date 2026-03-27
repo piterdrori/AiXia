@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useLanguage } from "@/lib/i18n";
-import type { ChatGroupRow, ChatGroupMemberRow, ProfileRow } from "../types";
+import type { ChatGroupRow, ChatGroupMemberRow, ChatMessageRow, ProfileRow } from "../types";
 import {
   getConversationInitials,
   getConversationName,
@@ -22,6 +22,8 @@ type Props = {
   searchQuery: string;
   selectedConversationId: string | null;
   groupActionLoading: string | null;
+  unreadCounts: Record<string, number>;
+  latestMessageByGroup: Record<string, ChatMessageRow | null>;
   onSearchChange: (value: string) => void;
   onOpenCreateGroup: () => void;
   onOpenConversation: (groupId: string) => void;
@@ -30,6 +32,37 @@ type Props = {
 
 const MIN_SECTION_PERCENT = 20;
 const MAX_SECTION_PERCENT = 80;
+
+function getLatestPreview(
+  message: ChatMessageRow | null | undefined,
+  currentUserId: string | null
+) {
+  if (!message) return "";
+
+  const hasText = Boolean(message.content?.trim());
+  const hasAttachment = Boolean(message.attachments?.length);
+
+  if (hasText && hasAttachment) {
+    return message.user_id === currentUserId
+      ? `You: ${message.content}`
+      : message.content;
+  }
+
+  if (hasText) {
+    return message.user_id === currentUserId
+      ? `You: ${message.content}`
+      : message.content;
+  }
+
+  if (hasAttachment) {
+    const fileName = message.attachments?.[0]?.file_name || "Attachment";
+    return message.user_id === currentUserId
+      ? `You: 📎 ${fileName}`
+      : `📎 ${fileName}`;
+  }
+
+  return "";
+}
 
 export default function ChatSidebar({
   currentUserId,
@@ -40,6 +73,8 @@ export default function ChatSidebar({
   searchQuery,
   selectedConversationId,
   groupActionLoading,
+  unreadCounts,
+  latestMessageByGroup,
   onSearchChange,
   onOpenCreateGroup,
   onOpenConversation,
@@ -53,12 +88,15 @@ export default function ChatSidebar({
   const q = searchQuery.trim().toLowerCase();
 
   const filteredConversations = useMemo(() => {
-    return groups.filter((group) =>
-      getConversationName(group, currentUserId, profiles, groupMembers, t)
-        .toLowerCase()
-        .includes(q)
-    );
-  }, [currentUserId, groupMembers, groups, profiles, q, t]);
+    return groups.filter((group) => {
+      const name = getConversationName(group, currentUserId, profiles, groupMembers, t)
+        .toLowerCase();
+      const latestPreview = getLatestPreview(latestMessageByGroup[group.id], currentUserId)
+        .toLowerCase();
+
+      return name.includes(q) || latestPreview.includes(q);
+    });
+  }, [currentUserId, groupMembers, groups, latestMessageByGroup, profiles, q, t]);
 
   const directConversations = filteredConversations.filter(
     (group) => group.type === "DIRECT"
@@ -127,13 +165,19 @@ export default function ChatSidebar({
             ? "group"
             : null;
 
+    const unreadCount = unreadCounts[group.id] || 0;
+    const hasUnread = unreadCount > 0 && selectedConversationId !== group.id;
+    const preview = getLatestPreview(latestMessageByGroup[group.id], currentUserId);
+
     return (
       <div
         key={group.id}
         className={`w-full rounded-lg transition-all ${
           selectedConversationId === group.id
             ? "bg-indigo-600/20 border border-indigo-500/30"
-            : "hover:bg-slate-800/50"
+            : hasUnread
+              ? "bg-indigo-500/10 border border-indigo-500/20 shadow-[0_0_18px_rgba(99,102,241,0.18)]"
+              : "hover:bg-slate-800/50 border border-transparent"
         }`}
       >
         <div className="flex items-center gap-3 p-3">
@@ -169,17 +213,34 @@ export default function ChatSidebar({
             )}
 
             <div className="flex-1 min-w-0">
-              <p className="text-white font-medium text-sm truncate">
-                {getConversationName(
-                  group,
-                  currentUserId,
-                  profiles,
-                  groupMembers,
-                  t
-                )}
-              </p>
-              <p className="text-slate-500 text-xs">
-                {t("chat.sidebar.participantsCount", undefined, {
+              <div className="flex items-center justify-between gap-2">
+                <p
+                  className={`truncate text-sm ${
+                    hasUnread ? "text-white font-semibold" : "text-white font-medium"
+                  }`}
+                >
+                  {getConversationName(
+                    group,
+                    currentUserId,
+                    profiles,
+                    groupMembers,
+                    t
+                  )}
+                </p>
+
+                {hasUnread ? (
+                  <div className="min-w-5 h-5 px-1 rounded-full bg-indigo-500 text-white text-[10px] font-semibold flex items-center justify-center shrink-0">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </div>
+                ) : null}
+              </div>
+
+              <p
+                className={`truncate text-xs ${
+                  hasUnread ? "text-indigo-200" : "text-slate-500"
+                }`}
+              >
+                {preview || t("chat.sidebar.participantsCount", undefined, {
                   total: getMembersForGroup(groupMembers, group.id).length,
                 })}
               </p>

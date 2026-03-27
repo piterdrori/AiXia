@@ -28,6 +28,7 @@ import {
   removeRealtimeChannel,
 } from "@/lib/realtime";
 import { useLanguage } from "@/lib/i18n";
+import { initNotificationSound } from "@/lib/sound";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -253,23 +254,9 @@ export default function InboxPage() {
     };
   }, [fetchNotifications, navigate, t]);
 
-  const playNotificationSound = () => {
-    try {
-      const audio = new Audio("/sounds/notification.mp3");
-      audio.preload = "auto";
-      void audio.play().catch(() => {});
-    } catch {
-      // ignore
-    }
-  };
-
-  const showDesktopNotification = (title: string, body: string) => {
-    if (typeof window === "undefined") return;
-    if (!("Notification" in window)) return;
-    if (Notification.permission !== "granted") return;
-
-    new Notification(title, { body });
-  };
+    useEffect(() => {
+    initNotificationSound();
+  }, []);
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -288,18 +275,8 @@ export default function InboxPage() {
             table: "notifications",
             filter: `user_id=eq.${currentUserId}`,
           },
-          (payload) => {
+                    () => {
             void fetchNotifications(currentUserId, { setLoading: false });
-
-            if (payload.eventType === "INSERT") {
-              const row = payload.new as NotificationRow;
-
-              playNotificationSound();
-              showDesktopNotification(
-                row.title || "New notification",
-                row.message || "You have a new update"
-              );
-            }
           }
         )
         .subscribe()

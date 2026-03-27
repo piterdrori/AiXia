@@ -200,39 +200,43 @@ const groupChats = sortedConversations.filter(
 
     const unreadCount = unreadCounts[group.id] || 0;
     const hasUnread = unreadCount > 0 && selectedConversationId !== group.id;
-    const preview = getLatestPreview(latestMessageByGroup[group.id], currentUserId);
+    const preview = getLatestPreview(
+      latestMessageByGroup[group.id],
+      currentUserId
+    );
+    const canDelete = canDeleteChat(group);
 
     return (
       <div
         key={group.id}
         className={`w-full rounded-lg transition-all ${
           selectedConversationId === group.id
-            ? "bg-indigo-600/20 border border-indigo-500/30"
+            ? "border border-indigo-500/30 bg-indigo-600/20"
             : hasUnread
-              ? "bg-indigo-500/10 border border-indigo-500/20 shadow-[0_0_18px_rgba(99,102,241,0.18)]"
-              : "hover:bg-slate-800/50 border border-transparent"
+              ? "border border-indigo-500/20 bg-indigo-500/10 shadow-[0_0_18px_rgba(99,102,241,0.18)]"
+              : "border border-transparent hover:bg-slate-800/50"
         }`}
       >
         <div className="flex items-center gap-3 p-3">
           <button
             type="button"
             onClick={() => onOpenConversation(group.id)}
-            className="flex items-center gap-3 flex-1 text-left min-w-0"
+            className="flex min-w-0 flex-1 items-center gap-3 text-left"
           >
             {iconType ? (
-              <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10">
                 {iconType === "project" && (
-                  <FolderKanban className="w-5 h-5 text-indigo-400" />
+                  <FolderKanban className="h-5 w-5 text-indigo-400" />
                 )}
                 {iconType === "task" && (
-                  <CheckSquare className="w-5 h-5 text-indigo-400" />
+                  <CheckSquare className="h-5 w-5 text-indigo-400" />
                 )}
                 {iconType === "group" && (
-                  <Users className="w-5 h-5 text-indigo-400" />
+                  <Users className="h-5 w-5 text-indigo-400" />
                 )}
               </div>
             ) : (
-              <Avatar className="w-10 h-10 shrink-0">
+              <Avatar className="h-10 w-10 shrink-0">
                 <AvatarFallback className="bg-indigo-600 text-white">
                   {getConversationInitials(
                     group,
@@ -245,52 +249,55 @@ const groupChats = sortedConversations.filter(
               </Avatar>
             )}
 
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <p
-                  className={`truncate text-sm ${
-                    hasUnread ? "text-white font-semibold" : "text-white font-medium"
-                  }`}
-                >
-                  {getConversationName(
-                    group,
-                    currentUserId,
-                    profiles,
-                    groupMembers,
-                    t
-                  )}
-                </p>
-
-                {hasUnread ? (
-                  <div className="min-w-5 h-5 px-1 rounded-full bg-indigo-500 text-white text-[10px] font-semibold flex items-center justify-center shrink-0">
-                    {unreadCount > 99 ? "99+" : unreadCount}
-                  </div>
-                ) : null}
-              </div>
+            <div className="min-w-0 flex-1">
+              <p
+                className={`truncate text-sm ${
+                  hasUnread
+                    ? "font-semibold text-white"
+                    : "font-medium text-white"
+                }`}
+              >
+                {getConversationName(
+                  group,
+                  currentUserId,
+                  profiles,
+                  groupMembers,
+                  t
+                )}
+              </p>
 
               <p
                 className={`truncate text-xs ${
                   hasUnread ? "text-indigo-200" : "text-slate-500"
                 }`}
               >
-                {preview || t("chat.sidebar.participantsCount", undefined, {
-                  total: getMembersForGroup(groupMembers, group.id).length,
-                })}
+                {preview ||
+                  t("chat.sidebar.participantsCount", undefined, {
+                    total: getMembersForGroup(groupMembers, group.id).length,
+                  })}
               </p>
             </div>
           </button>
 
-          {canDeleteChat(group) && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-slate-400 hover:text-red-400 shrink-0"
-              onClick={() => onDeleteChat(group)}
-              disabled={groupActionLoading === group.id}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          )}
+          <div className="flex shrink-0 items-center gap-2 self-center">
+            {hasUnread ? (
+              <div className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-500 px-1.5 text-[10px] font-semibold text-white">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </div>
+            ) : null}
+
+            {canDelete ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="shrink-0 text-slate-400 hover:text-red-400"
+                onClick={() => onDeleteChat(group)}
+                disabled={groupActionLoading === group.id}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
     );

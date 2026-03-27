@@ -1,5 +1,6 @@
-import { Search, MessageCircle } from "lucide-react";
+import { ArrowDownAZ, ArrowUpAZ, MessageCircle, Search, Shield, UserCog, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,37 +13,120 @@ type Props = {
   onStartDM: (userId: string) => void;
 };
 
+type SortMode = "name-asc" | "name-desc" | "role";
+
+function getInitials(name: string | null | undefined) {
+  return (name || "U")
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+function getRoleWeight(role: string) {
+  if (role === "admin") return 0;
+  if (role === "manager") return 1;
+  if (role === "employee") return 2;
+  return 3;
+}
+
 export default function TeamMembersSidebar({
   profiles,
   currentUserId,
   onStartDM,
 }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortMode, setSortMode] = useState<SortMode>("name-asc");
 
   const filteredProfiles = useMemo(() => {
-    let result = profiles.filter(
-      (p) => p.user_id !== currentUserId && p.status === "active"
-    );
+    const q = searchQuery.trim().toLowerCase();
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (p) =>
-          (p.full_name || "").toLowerCase().includes(q) ||
-          p.role.toLowerCase().includes(q)
+    const result = profiles.filter((profile) => {
+      if (profile.user_id === currentUserId) return false;
+      if (profile.status !== "active") return false;
+
+      if (!q) return true;
+
+      return (
+        (profile.full_name || "").toLowerCase().includes(q) ||
+        profile.role.toLowerCase().includes(q)
       );
-    }
+    });
+
+    result.sort((a, b) => {
+      if (sortMode === "role") {
+        const roleDiff = getRoleWeight(a.role) - getRoleWeight(b.role);
+        if (roleDiff !== 0) return roleDiff;
+        return (a.full_name || "").localeCompare(b.full_name || "");
+      }
+
+      if (sortMode === "name-desc") {
+        return (b.full_name || "").localeCompare(a.full_name || "");
+      }
+
+      return (a.full_name || "").localeCompare(b.full_name || "");
+    });
 
     return result;
-  }, [profiles, currentUserId, searchQuery]);
+  }, [profiles, currentUserId, searchQuery, sortMode]);
 
   return (
     <Card className="w-80 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden min-h-0 shrink-0">
       <CardContent className="p-0 flex flex-col h-full min-h-0">
-        
-        {/* HEADER */}
-        <div className="p-4 border-b border-slate-800">
-          <h2 className="text-white font-medium mb-3">Team Members</h2>
+        <div className="p-4 border-b border-slate-800 shrink-0">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="min-w-0">
+              <h2 className="text-white font-medium">Team Members</h2>
+              <p className="text-xs text-slate-500 truncate">
+                {filteredProfiles.length} members
+              </p>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                type="button"
+                variant={sortMode === "name-asc" ? "default" : "outline"}
+                className={
+                  sortMode === "name-asc"
+                    ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                    : "border-slate-700 text-slate-300 hover:bg-slate-800"
+                }
+                size="sm"
+                onClick={() => setSortMode("name-asc")}
+              >
+                <ArrowDownAZ className="w-4 h-4" />
+              </Button>
+
+              <Button
+                type="button"
+                variant={sortMode === "name-desc" ? "default" : "outline"}
+                className={
+                  sortMode === "name-desc"
+                    ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                    : "border-slate-700 text-slate-300 hover:bg-slate-800"
+                }
+                size="sm"
+                onClick={() => setSortMode("name-desc")}
+              >
+                <ArrowUpAZ className="w-4 h-4" />
+              </Button>
+
+              <Button
+                type="button"
+                variant={sortMode === "role" ? "default" : "outline"}
+                className={
+                  sortMode === "role"
+                    ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                    : "border-slate-700 text-slate-300 hover:bg-slate-800"
+                }
+                size="sm"
+                onClick={() => setSortMode("role")}
+              >
+                <Users className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
 
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -50,45 +134,46 @@ export default function TeamMembersSidebar({
               placeholder="Search team..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 bg-slate-900 border-slate-800 text-white"
+              className="pl-9 bg-slate-900 border-slate-800 text-white placeholder:text-slate-500"
             />
           </div>
         </div>
 
-        {/* LIST */}
         <ScrollArea className="flex-1 min-h-0">
           <div className="p-2 space-y-1">
             {filteredProfiles.map((profile) => (
-              <div
+              <button
                 key={profile.user_id}
+                type="button"
                 onClick={() => onStartDM(profile.user_id)}
-                className="group flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/60 cursor-pointer"
+                className="w-full group flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/60 transition text-left"
               >
                 <Avatar className="w-10 h-10 shrink-0">
                   <AvatarFallback className="bg-indigo-600 text-white text-sm">
-                    {(profile.full_name || "U")
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .toUpperCase()
-                      .slice(0, 2)}
+                    {getInitials(profile.full_name)}
                   </AvatarFallback>
                 </Avatar>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <p className="text-white text-sm truncate">
                       {profile.full_name || "Unknown"}
                     </p>
-
-                    <MessageCircle className="w-4 h-4 text-slate-600 opacity-0 group-hover:opacity-100 transition" />
+                    <MessageCircle className="w-4 h-4 text-slate-600 opacity-0 group-hover:opacity-100 transition shrink-0" />
                   </div>
 
-                  <p className="text-xs text-slate-500 capitalize">
-                    {profile.role}
-                  </p>
+                  <div className="flex items-center gap-1 text-xs text-slate-500 capitalize">
+                    {profile.role === "admin" ? (
+                      <Shield className="w-3 h-3" />
+                    ) : profile.role === "manager" ? (
+                      <UserCog className="w-3 h-3" />
+                    ) : (
+                      <Users className="w-3 h-3" />
+                    )}
+                    <span>{profile.role}</span>
+                  </div>
                 </div>
-              </div>
+              </button>
             ))}
 
             {filteredProfiles.length === 0 && (

@@ -11,7 +11,6 @@ import {
   getConversationInitials,
   getConversationName,
   getMembersForGroup,
-  getUserInitials,
 } from "../utils";
 
 type Props = {
@@ -54,31 +53,35 @@ export default function ChatSidebar({
       .includes(q)
   );
 
-  const directConversations = filteredConversations.filter((group) => group.type === "DIRECT");
-  const projectConversations = filteredConversations.filter((group) => group.type === "PROJECT");
-  const taskConversations = filteredConversations.filter((group) => group.type === "TASK");
-  const groupConversations = filteredConversations.filter((group) => group.type === "GROUP");
+  const directConversations = filteredConversations.filter(
+    (group) => group.type === "DIRECT"
+  );
+  const projectConversations = filteredConversations.filter(
+    (group) => group.type === "PROJECT"
+  );
+  const taskConversations = filteredConversations.filter(
+    (group) => group.type === "TASK"
+  );
+  const groupConversations = filteredConversations.filter(
+    (group) => group.type === "GROUP"
+  );
 
   const canDeleteChat = (group: ChatGroupRow) => {
-  if (!currentUserId) return false;
+    if (!currentUserId) return false;
 
-  // admin → always allowed
-  if (currentUserRole === "admin") {
-    return true;
-  }
+    if (currentUserRole === "admin") {
+      return true;
+    }
 
-  // direct chat → any member can delete
-  if (group.type === "DIRECT") {
-    return groupMembers.some(
-      (member) =>
-        member.group_id === group.id &&
-        member.user_id === currentUserId
-    );
-  }
+    if (group.type === "DIRECT") {
+      return groupMembers.some(
+        (member) =>
+          member.group_id === group.id && member.user_id === currentUserId
+      );
+    }
 
-  // group chat → only creator
-  return group.created_by === currentUserId;
-};
+    return group.created_by === currentUserId;
+  };
 
   const renderConversationButton = (
     group: ChatGroupRow,
@@ -95,26 +98,45 @@ export default function ChatSidebar({
       >
         <div className="flex items-center gap-3 p-3">
           <button
+            type="button"
             onClick={() => onOpenConversation(group.id)}
             className="flex items-center gap-3 flex-1 text-left min-w-0"
           >
             {iconType ? (
               <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
-                {iconType === "project" && <FolderKanban className="w-5 h-5 text-indigo-400" />}
-                {iconType === "task" && <CheckSquare className="w-5 h-5 text-indigo-400" />}
-                {iconType === "group" && <Users className="w-5 h-5 text-indigo-400" />}
+                {iconType === "project" && (
+                  <FolderKanban className="w-5 h-5 text-indigo-400" />
+                )}
+                {iconType === "task" && (
+                  <CheckSquare className="w-5 h-5 text-indigo-400" />
+                )}
+                {iconType === "group" && (
+                  <Users className="w-5 h-5 text-indigo-400" />
+                )}
               </div>
             ) : (
               <Avatar className="w-10 h-10 shrink-0">
                 <AvatarFallback className="bg-indigo-600 text-white">
-                  {getConversationInitials(group, currentUserId, profiles, groupMembers, t)}
+                  {getConversationInitials(
+                    group,
+                    currentUserId,
+                    profiles,
+                    groupMembers,
+                    t
+                  )}
                 </AvatarFallback>
               </Avatar>
             )}
 
             <div className="flex-1 min-w-0">
               <p className="text-white font-medium text-sm truncate">
-                {getConversationName(group, currentUserId, profiles, groupMembers, t)}
+                {getConversationName(
+                  group,
+                  currentUserId,
+                  profiles,
+                  groupMembers,
+                  t
+                )}
               </p>
               <p className="text-slate-500 text-xs">
                 {t("chat.sidebar.participantsCount", undefined, {
@@ -176,7 +198,9 @@ export default function ChatSidebar({
                 <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">
                   {t("chat.sidebar.projectChats")}
                 </h3>
-                {projectConversations.map((group) => renderConversationButton(group, "project"))}
+                {projectConversations.map((group) =>
+                  renderConversationButton(group, "project")
+                )}
               </>
             )}
 
@@ -186,7 +210,9 @@ export default function ChatSidebar({
                 <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">
                   {t("chat.sidebar.taskChats")}
                 </h3>
-                {taskConversations.map((group) => renderConversationButton(group, "task"))}
+                {taskConversations.map((group) =>
+                  renderConversationButton(group, "task")
+                )}
               </>
             )}
 
@@ -196,30 +222,11 @@ export default function ChatSidebar({
                 <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">
                   {t("chat.sidebar.groupChats")}
                 </h3>
-                {groupConversations.map((group) => renderConversationButton(group, "group"))}
+                {groupConversations.map((group) =>
+                  renderConversationButton(group, "group")
+                )}
               </>
             )}
-                <button
-                  key={user.user_id}
-                  onClick={() => onStartDirectMessage(user.user_id)}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-slate-800/50 transition-all"
-                >
-                  <Avatar className="w-10 h-10 shrink-0">
-                    <AvatarFallback className="bg-indigo-600 text-white">
-                      {getUserInitials(user.full_name)}
-                    </AvatarFallback>
-                  </Avatar>
-
-                  <div className="flex-1 text-left min-w-0">
-                    <p className="text-white font-medium text-sm truncate">
-                      {user.full_name || t("chat.common.unknown")}
-                    </p>
-                    <p className="text-slate-500 text-xs">{user.role}</p>
-                  </div>
-
-                  <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-                </button>
-              ))}
           </div>
         </ScrollArea>
       </CardContent>

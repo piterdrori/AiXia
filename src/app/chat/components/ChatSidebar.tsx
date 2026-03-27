@@ -1,10 +1,10 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckSquare, FolderKanban, Plus, Search, Trash2, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { useLanguage } from "@/lib/i18n";
 import type { ChatGroupRow, ChatGroupMemberRow, ProfileRow } from "../types";
 import {
@@ -28,6 +28,9 @@ type Props = {
   onDeleteChat: (group: ChatGroupRow) => void;
 };
 
+const MIN_SECTION_PERCENT = 20;
+const MAX_SECTION_PERCENT = 80;
+
 export default function ChatSidebar({
   currentUserId,
   currentUserRole,
@@ -43,26 +46,59 @@ export default function ChatSidebar({
   onDeleteChat,
 }: Props) {
   const { t } = useLanguage();
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [topSectionPercent, setTopSectionPercent] = useState(45);
+  const [isDragging, setIsDragging] = useState(false);
+
   const q = searchQuery.trim().toLowerCase();
 
-  const filteredConversations = groups.filter((group) =>
-    getConversationName(group, currentUserId, profiles, groupMembers, t)
-      .toLowerCase()
-      .includes(q)
-  );
+  const filteredConversations = useMemo(() => {
+    return groups.filter((group) =>
+      getConversationName(group, currentUserId, profiles, groupMembers, t)
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [currentUserId, groupMembers, groups, profiles, q, t]);
 
   const directConversations = filteredConversations.filter(
     (group) => group.type === "DIRECT"
   );
-  const projectConversations = filteredConversations.filter(
-    (group) => group.type === "PROJECT"
+
+  const groupChats = filteredConversations.filter(
+    (group) => group.type !== "DIRECT"
   );
-  const taskConversations = filteredConversations.filter(
-    (group) => group.type === "TASK"
-  );
-  const groupConversations = filteredConversations.filter(
-    (group) => group.type === "GROUP"
-  );
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+      const offsetY = event.clientY - rect.top;
+      const nextPercent = (offsetY / rect.height) * 100;
+
+      const clamped = Math.max(
+        MIN_SECTION_PERCENT,
+        Math.min(MAX_SECTION_PERCENT, nextPercent)
+      );
+
+      setTopSectionPercent(clamped);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging]);
 
   const canDeleteChat = (group: ChatGroupRow) => {
     if (!currentUserId) return false;
@@ -81,10 +117,16 @@ export default function ChatSidebar({
     return group.created_by === currentUserId;
   };
 
-  const renderConversationButton = (
-    group: ChatGroupRow,
-    iconType?: "project" | "task" | "group"
-  ) => {
+  const renderConversationButton = (group: ChatGroupRow) => {
+    const iconType =
+      group.type === "PROJECT"
+        ? "project"
+        : group.type === "TASK"
+          ? "task"
+          : group.type === "GROUP"
+            ? "group"
+            : null;
+
     return (
       <div
         key={group.id}
@@ -183,50 +225,62 @@ export default function ChatSidebar({
           </Button>
         </div>
 
-        <ScrollArea className="flex-1 min-h-0 -mx-2">
-          <div className="space-y-1 px-2">
-            <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">
-              {t("chat.sidebar.directMessages")}
-            </h3>
-            {directConversations.map((group) => renderConversationButton(group))}
+        <div
+          ref={containerRef}
+          className="flex-1 min-h-0 flex flex-col rounded-lg border border-slate-800 bg-slate-950/40 overflow-hidden"
+        >
+          <div
+            className="min-h-0 flex flex-col"
+            style={{ height: `${topSectionPercent}%` }}
+          >
+            <div className="px-4 py-3 border-b border-slate-800 shrink-0">
+              <h3 className="text-xs font-medium text-slate-500 uppercase">
+                {t("chat.sidebar.directMessages")}
+              </h3>
+            </div>
 
-            {projectConversations.length > 0 && (
-              <>
-                <Separator className="my-3 bg-slate-800" />
-                <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">
-                  {t("chat.sidebar.projectChats")}
-                </h3>
-                {projectConversations.map((group) =>
-                  renderConversationButton(group, "project")
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="p-2 space-y-1">
+                {directConversations.length > 0 ? (
+                  directConversations.map((group) => renderConversationButton(group))
+                ) : (
+                  <div className="px-2 py-6 text-center text-sm text-slate-500">
+                    No direct messages
+                  </div>
                 )}
-              </>
-            )}
-
-            {taskConversations.length > 0 && (
-              <>
-                <Separator className="my-3 bg-slate-800" />
-                <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">
-                  {t("chat.sidebar.taskChats")}
-                </h3>
-                {taskConversations.map((group) =>
-                  renderConversationButton(group, "task")
-                )}
-              </>
-            )}
-
-            {groupConversations.length > 0 && (
-              <>
-                <Separator className="my-3 bg-slate-800" />
-                <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">
-                  {t("chat.sidebar.groupChats")}
-                </h3>
-                {groupConversations.map((group) =>
-                  renderConversationButton(group, "group")
-                )}
-              </>
-            )}
+              </div>
+            </ScrollArea>
           </div>
-        </ScrollArea>
+
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            onMouseDown={() => setIsDragging(true)}
+            className="h-3 shrink-0 cursor-row-resize bg-slate-900 border-y border-slate-700 relative group"
+          >
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-slate-600 group-hover:bg-indigo-500" />
+          </div>
+
+          <div className="flex-1 min-h-0 flex flex-col">
+            <div className="px-4 py-3 border-b border-slate-800 shrink-0">
+              <h3 className="text-xs font-medium text-slate-500 uppercase">
+                {t("chat.sidebar.groupChats")}
+              </h3>
+            </div>
+
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="p-2 space-y-1">
+                {groupChats.length > 0 ? (
+                  groupChats.map((group) => renderConversationButton(group))
+                ) : (
+                  <div className="px-2 py-6 text-center text-sm text-slate-500">
+                    No group chats
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

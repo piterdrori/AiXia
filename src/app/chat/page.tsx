@@ -33,6 +33,7 @@ import CreateGroupDialog from "./components/CreateGroupDialog";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import TeamMembersSidebar from "./components/TeamMembersSidebar";
 
 export default function ChatPage() {
   const navigate = useNavigate();
@@ -846,7 +847,7 @@ export default function ChatPage() {
           onDeleteChat={(group) => void handleDeleteChat(group)}
         />
 
-       {selectedConversation ? (
+        {selectedConversation ? (
           <Card className="flex-1 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden min-h-0">
             <ChatHeader
               title={conversationTitle}
@@ -858,7 +859,7 @@ export default function ChatPage() {
                 setSelectedMessageIds([]);
               }}
             />
-
+            
             {(isSelectionMode || selectedMessageIds.length > 0) && (
               <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-800 bg-slate-950/60 shrink-0">
                 <div className="text-sm text-slate-300">
@@ -977,6 +978,12 @@ export default function ChatPage() {
             </div>
           </Card>
         )}
+
+        <TeamMembersSidebar
+  profiles={profiles}
+  currentUserId={currentUserId}
+  onStartDM={(userId) => void startDirectMessage(userId)}
+/>
       </div>
 
       <CreateGroupDialog

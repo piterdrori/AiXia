@@ -230,7 +230,7 @@ export default function InboxPage() {
 
         if (!mounted || !requestTracker.current.isLatest(requestId)) return;
 
-       inboxRequestRef.current.setState((prev) => ({
+        inboxRequestRef.current.setState((prev) => ({
           ...prev,
           status: "success",
           error: null,
@@ -246,13 +246,30 @@ export default function InboxPage() {
       }
     };
 
-  useEffect(() => {
     void init();
 
     return () => {
       mounted = false;
     };
   }, [fetchNotifications, navigate, t]);
+
+  const playNotificationSound = () => {
+    try {
+      const audio = new Audio("/sounds/notification.mp3");
+      audio.preload = "auto";
+      void audio.play().catch(() => {});
+    } catch {
+      // ignore
+    }
+  };
+
+  const showDesktopNotification = (title: string, body: string) => {
+    if (typeof window === "undefined") return;
+    if (!("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+
+    new Notification(title, { body });
+  };
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -302,26 +319,8 @@ export default function InboxPage() {
   }, [notifications, filter]);
 
   const unreadCount = useMemo(() => {
-  return notifications.filter((notification) => !notification.is_read).length;
-}, [notifications]);
-
-const playNotificationSound = () => {
-  try {
-    const audio = new Audio("/sounds/notification.mp3");
-    audio.preload = "auto";
-    void audio.play().catch(() => {});
-  } catch {
-    // ignore
-  }
-};
-
-const showDesktopNotification = (title: string, body: string) => {
-  if (typeof window === "undefined") return;
-  if (!("Notification" in window)) return;
-  if (Notification.permission !== "granted") return;
-
-  new Notification(title, { body });
-};
+    return notifications.filter((notification) => !notification.is_read).length;
+  }, [notifications]);
 
 const handleNotificationClick = async (notification: NotificationRow) => {
     try {

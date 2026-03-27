@@ -246,6 +246,7 @@ export default function InboxPage() {
       }
     };
 
+  useEffect(() => {
     void init();
 
     return () => {
@@ -270,29 +271,18 @@ export default function InboxPage() {
             table: "notifications",
             filter: `user_id=eq.${currentUserId}`,
           },
-          () => {
-           .on(
-  "postgres_changes",
-  {
-    event: "*",
-    schema: "public",
-    table: "notifications",
-    filter: `user_id=eq.${currentUserId}`,
-  },
-  (payload) => {
-    void fetchNotifications(currentUserId, { setLoading: false });
+          (payload) => {
+            void fetchNotifications(currentUserId, { setLoading: false });
 
-    if (payload.eventType === "INSERT") {
-      const row = payload.new as NotificationRow;
+            if (payload.eventType === "INSERT") {
+              const row = payload.new as NotificationRow;
 
-      playNotificationSound();
-      showDesktopNotification(
-        row.title || "New notification",
-        row.message || "You have a new update"
-      );
-    }
-  }
-)
+              playNotificationSound();
+              showDesktopNotification(
+                row.title || "New notification",
+                row.message || "You have a new update"
+              );
+            }
           }
         )
         .subscribe()

@@ -104,12 +104,13 @@ export default function ChatPage() {
   const [latestMessageByGroup, setLatestMessageByGroup] = useState<
   Record<string, ChatMessageRow | null>
 >({});
-  const sidebarRealtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+const sidebarRealtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+const notificationAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  const [isParticipantsPanelOpen, setIsParticipantsPanelOpen] = useState(false);
-  const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null);
+const [isParticipantsPanelOpen, setIsParticipantsPanelOpen] = useState(false);
+const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null);
 
-  const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>(() => {
+const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>(() => {
   if (typeof window === "undefined") return {};
   return ((window as Window & {
     __AIXIA_ONLINE_USERS__?: Record<string, boolean>;
@@ -136,11 +137,19 @@ export default function ChatPage() {
   setMessageSearchQuery("");
 }, [selectedConversationId]);
 
-  useEffect(() => {
+ useEffect(() => {
   setIsParticipantsPanelOpen(false);
 }, [selectedConversationId]);
 
-  const selectedConversation = useMemo(() => {
+useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  const audio = new Audio("/sounds/notification.mp3");
+  audio.preload = "auto";
+  notificationAudioRef.current = audio;
+}, []);
+
+const selectedConversation = useMemo(() => {
     if (!selectedConversationId) return null;
     return groups.find((group) => group.id === selectedConversationId) || null;
   }, [groups, selectedConversationId]);
@@ -300,14 +309,22 @@ useEffect(() => {
         moveGroupToTop(fullMessage.group_id);
 
         if (
-          fullMessage.group_id !== selectedConversationId &&
-          fullMessage.user_id !== currentUserId
-        ) {
-          setUnreadCounts((prev) => ({
-            ...prev,
-            [fullMessage.group_id]: (prev[fullMessage.group_id] || 0) + 1,
-          }));
-        }
+  fullMessage.group_id !== selectedConversationId &&
+  fullMessage.user_id !== currentUserId
+) {
+  setUnreadCounts((prev) => ({
+    ...prev,
+    [fullMessage.group_id]: (prev[fullMessage.group_id] || 0) + 1,
+  }));
+
+  playNotificationSound();
+
+  showDesktopNotification(
+    "New message",
+    fullMessage.content?.trim() || "New attachment",
+    `/chat/${fullMessage.group_id}`
+  );
+}
       }
     )
     .subscribe();
@@ -323,9 +340,36 @@ useEffect(() => {
 }, [groups, currentUserId, selectedConversationId, moveGroupToTop]);
 
   const getMembers = useCallback(
-    (groupId: string) => getMembersForGroup(groupMembers, groupId),
-    [groupMembers]
-  );
+  (groupId: string) => getMembersForGroup(groupMembers, groupId),
+  [groupMembers]
+);
+
+const playNotificationSound = () => {
+  try {
+    notificationAudioRef.current?.play().catch(() => {});
+  } catch {
+    // ignore
+  }
+};
+
+const showDesktopNotification = (
+  title: string,
+  body: string,
+  link?: string
+) => {
+  if (typeof window === "undefined") return;
+  if (!("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+
+  const notification = new Notification(title, { body });
+
+  notification.onclick = () => {
+    window.focus();
+    if (link) {
+      window.location.href = link;
+    }
+  };
+};
 
   const conversationTitle = useMemo(() => {
     if (!selectedConversation) return "";

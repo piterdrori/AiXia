@@ -109,6 +109,8 @@ export default function ChatPage() {
   const [isParticipantsPanelOpen, setIsParticipantsPanelOpen] = useState(false);
   const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null);
 
+  const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>({});
+
   useEffect(() => {
   if (!id) return;
 
@@ -201,6 +203,42 @@ export default function ChatPage() {
 }, [groups]);
 
   useEffect(() => {
+  if (!currentUserId) return;
+
+  const channel = supabase.channel("online-users", {
+    config: {
+      presence: {
+        key: currentUserId,
+      },
+    },
+  });
+
+  channel.on("presence", { event: "sync" }, () => {
+    const state = channel.presenceState();
+    const onlineMap: Record<string, boolean> = {};
+
+    Object.keys(state).forEach((userId) => {
+      onlineMap[userId] = true;
+    });
+
+    setOnlineUsers(onlineMap);
+  });
+
+  channel.subscribe(async (status) => {
+    if (status === "SUBSCRIBED") {
+      await channel.track({
+        user_id: currentUserId,
+        online_at: new Date().toISOString(),
+      });
+    }
+  });
+
+  return () => {
+    channel.unsubscribe();
+  };
+}, [currentUserId]);
+
+useEffect(() => {
   if (sidebarRealtimeChannelRef.current) {
     sidebarRealtimeChannelRef.current.unsubscribe();
     sidebarRealtimeChannelRef.current = null;
@@ -1249,9 +1287,10 @@ const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
           </Card>
         )}
 
-        <TeamMembersSidebar
+   <TeamMembersSidebar
   profiles={profiles}
   currentUserId={currentUserId}
+  onlineUsers={onlineUsers}
   onStartDM={(userId) => void startDirectMessage(userId)}
 />
       </div>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Check, Square, Trash2 } from "lucide-react";
 
@@ -98,6 +98,12 @@ export default function ChatPage() {
 
   const [messageSearchQuery, setMessageSearchQuery] = useState("");
 
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+const [latestMessageByGroup, setLatestMessageByGroup] = useState<
+  Record<string, ChatMessageRow | null>
+>({});
+const sidebarRealtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
   useEffect(() => {
   if (!id) return;
 
@@ -122,6 +128,151 @@ export default function ChatPage() {
     if (!selectedConversationId) return null;
     return groups.find((group) => group.id === selectedConversationId) || null;
   }, [groups, selectedConversationId]);
+
+  useEffect(() => {
+  if (selectedConversationId) {
+    setUnreadCounts((prev) => {
+      if (!prev[selectedConversationId]) return prev;
+      return {
+        ...prev,
+        [selectedConversationId]: 0,
+      };
+    });
+  }
+}, [selectedConversationId]);
+
+  useEffect(() => {
+  const loadLatestMessages = async () => {
+    const groupIds = groups.map((group) => group.id);
+    if (groupIds.length === 0) {
+      setLatestMessageByGroup({});
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("chat_messages")
+      .select(`
+        id,
+        group_id,
+        user_id,
+        content,
+        created_at,
+        attachments:chat_attachments(
+          id,
+          message_id,
+          group_id,
+          uploaded_by,
+          file_name,
+          file_path,
+          mime_type,
+          file_size,
+          created_at
+        )
+      `)
+      .in("group_id", groupIds)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Load latest sidebar messages error:", error);
+      return;
+    }
+
+    const nextMap: Record<string, ChatMessageRow | null> = {};
+
+    for (const item of (data || []) as ChatMessageRow[]) {
+      if (!nextMap[item.group_id]) {
+        nextMap[item.group_id] = item;
+      }
+    }
+
+    setLatestMessageByGroup(nextMap);
+  };
+
+  void loadLatestMessages();
+}, [groups]);
+
+  useEffect(() => {
+  if (sidebarRealtimeChannelRef.current) {
+    sidebarRealtimeChannelRef.current.unsubscribe();
+    sidebarRealtimeChannelRef.current = null;
+  }
+
+  const visibleGroupIds = new Set(groups.map((group) => group.id));
+  if (visibleGroupIds.size === 0) return;
+
+  const channel = supabase
+    .channel("chat-sidebar-realtime")
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "chat_messages",
+      },
+      async (payload) => {
+        const newMessage = payload.new as ChatMessageRow;
+        if (!newMessage?.group_id) return;
+        if (!visibleGroupIds.has(newMessage.group_id)) return;
+
+        const { data, error } = await supabase
+          .from("chat_messages")
+          .select(`
+            id,
+            group_id,
+            user_id,
+            content,
+            created_at,
+            attachments:chat_attachments(
+              id,
+              message_id,
+              group_id,
+              uploaded_by,
+              file_name,
+              file_path,
+              mime_type,
+              file_size,
+              created_at
+            )
+          `)
+          .eq("id", newMessage.id)
+          .single();
+
+        if (error || !data) {
+          console.error("Sidebar realtime fetch message error:", error);
+          return;
+        }
+
+        const fullMessage = data as ChatMessageRow;
+
+        setLatestMessageByGroup((prev) => ({
+          ...prev,
+          [fullMessage.group_id]: fullMessage,
+        }));
+
+        moveGroupToTop(fullMessage.group_id);
+
+        if (
+          fullMessage.group_id !== selectedConversationId &&
+          fullMessage.user_id !== currentUserId
+        ) {
+          setUnreadCounts((prev) => ({
+            ...prev,
+            [fullMessage.group_id]: (prev[fullMessage.group_id] || 0) + 1,
+          }));
+        }
+      }
+    )
+    .subscribe();
+
+  sidebarRealtimeChannelRef.current = channel;
+
+  return () => {
+    channel.unsubscribe();
+    if (sidebarRealtimeChannelRef.current === channel) {
+      sidebarRealtimeChannelRef.current = null;
+    }
+  };
+}, [groups, currentUserId, selectedConversationId, moveGroupToTop]);
 
   const getMembers = useCallback(
     (groupId: string) => getMembersForGroup(groupMembers, groupId),
@@ -209,16 +360,20 @@ export default function ChatPage() {
     allSelectableIds.every((messageId) => selectedMessageIds.includes(messageId));
 
   const openConversation = useCallback(
-    (groupId: string) => {
-      setSelectedConversationId(groupId);
-      navigate(`/chat/${groupId}`);
+  (groupId: string) => {
+    setSelectedConversationId(groupId);
+    setUnreadCounts((prev) => ({
+      ...prev,
+      [groupId]: 0,
+    }));
+    navigate(`/chat/${groupId}`);
 
-      if (!messages[groupId]) {
-        void loadMessagesForGroup(groupId);
-      }
-    },
-    [loadMessagesForGroup, messages, navigate, setSelectedConversationId]
-  );
+    if (!messages[groupId]) {
+      void loadMessagesForGroup(groupId);
+    }
+  },
+  [loadMessagesForGroup, messages, navigate, setSelectedConversationId]
+);
 
   const handleMessageInputChange = (value: string) => {
     setMessageInput(value);
@@ -600,6 +755,10 @@ export default function ChatPage() {
     };
 
     appendMessageLocally(selectedConversationId, optimisticMessage);
+    setLatestMessageByGroup((prev) => ({
+  ...prev,
+  [selectedConversationId]: optimisticMessage,
+}));
     moveGroupToTop(selectedConversationId);
 
     setMessageInput("");
@@ -838,19 +997,21 @@ export default function ChatPage() {
     <>
       <div className="h-[calc(100vh-140px)] flex gap-4 overflow-hidden min-h-0">
         <ChatSidebar
-          currentUserId={currentUserId}
-          currentUserRole={currentUserRole}
-          groups={groups}
-          groupMembers={groupMembers}
-          profiles={profiles}
-          searchQuery={searchQuery}
-          selectedConversationId={selectedConversationId}
-          groupActionLoading={groupActionLoading}
-          onSearchChange={setSearchQuery}
-          onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
-          onOpenConversation={openConversation}
-          onDeleteChat={(group) => void handleDeleteChat(group)}
-        />
+  currentUserId={currentUserId}
+  currentUserRole={currentUserRole}
+  groups={groups}
+  groupMembers={groupMembers}
+  profiles={profiles}
+  searchQuery={searchQuery}
+  selectedConversationId={selectedConversationId}
+  groupActionLoading={groupActionLoading}
+  unreadCounts={unreadCounts}
+  latestMessageByGroup={latestMessageByGroup}
+  onSearchChange={setSearchQuery}
+  onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
+  onOpenConversation={openConversation}
+  onDeleteChat={(group) => void handleDeleteChat(group)}
+/>
 
         {selectedConversation ? (
           <Card className="flex-1 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden min-h-0">

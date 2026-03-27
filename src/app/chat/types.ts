@@ -82,6 +82,7 @@ export type MessageListProps = {
   messageActionLoading: string | null;
   hasMore: boolean;
   isLoadingOlder: boolean;
+  messageSearchQuery: string;
   scrollAreaRef: React.RefObject<HTMLDivElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   onLoadOlder: () => void;

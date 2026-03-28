@@ -6,10 +6,6 @@ import { supabase } from "@/lib/supabase";
 import { extractMentionedUserIds } from "@/lib/notifications";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
-import {
-  initNotificationSound,
-  playNotificationSound,
-} from "@/lib/sound";
 
 import { useChatBootstrap } from "./hooks/useChatBootstrap";
 import { useChatMessages } from "./hooks/useChatMessages";
@@ -144,37 +140,6 @@ const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>(() => {
  useEffect(() => {
   setIsParticipantsPanelOpen(false);
 }, [selectedConversationId]);
-
-  const showDesktopNotification = useCallback(
-  (title: string, body: string, link?: string) => {
-    if (typeof window === "undefined") return;
-    if (!("Notification" in window)) return;
-    if (Notification.permission !== "granted") return;
-
-    const notification = new Notification(title, { body });
-
-    notification.onclick = () => {
-      window.focus();
-      if (link) {
-        window.location.href = link;
-      }
-    };
-  },
-  []
-);
-
-  useEffect(() => {
-  initNotificationSound();
-}, []);
-
-    useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!("Notification" in window)) return;
-
-    if (Notification.permission === "default") {
-      void Notification.requestPermission();
-    }
-  }, []);
 
 const selectedConversation = useMemo(() => {
     if (!selectedConversationId) return null;
@@ -333,25 +298,18 @@ useEffect(() => {
           [fullMessage.group_id]: fullMessage,
         }));
 
-        moveGroupToTop(fullMessage.group_id);
+                moveGroupToTop(fullMessage.group_id);
 
-            if (fullMessage.user_id === currentUserId) {
+        if (fullMessage.user_id === currentUserId) {
           return;
         }
+
         if (fullMessage.group_id !== selectedConversationId) {
           setUnreadCounts((prev) => ({
             ...prev,
             [fullMessage.group_id]: (prev[fullMessage.group_id] || 0) + 1,
           }));
-
-          showDesktopNotification(
-            "New message",
-            fullMessage.content?.trim() || "New attachment",
-            `/chat/${fullMessage.group_id}`
-          );
         }
-
-        void playNotificationSound();
       }
     )
     .subscribe();
@@ -368,9 +326,8 @@ useEffect(() => {
 }, [
   groups,
   currentUserId,
-  selectedConversationId,
   moveGroupToTop,
-  showDesktopNotification,
+  selectedConversationId,
 ]);
 
   const getMembers = useCallback(

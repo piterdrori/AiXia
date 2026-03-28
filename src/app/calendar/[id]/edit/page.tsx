@@ -478,7 +478,7 @@ if (!canEdit) {
         return;
       }
 
-      await supabase.from("activity_logs").insert({
+            await supabase.from("activity_logs").insert({
         project_id: selectedProjectId === "NONE" ? null : selectedProjectId,
         task_id: selectedTaskId === "NONE" ? null : selectedTaskId,
         user_id: currentUserId,
@@ -487,6 +487,26 @@ if (!canEdit) {
         entity_id: id,
         message: `Updated calendar event "${title.trim()}"`,
       });
+
+      // 🔥 RESET + RECREATE REMINDER DELIVERY
+      await supabase
+        .from("calendar_event_reminder_deliveries")
+        .delete()
+        .eq("calendar_event_id", id);
+
+      if (reminderMinutes !== "NONE" && startTime) {
+        const eventTime = new Date(`${startDate}T${startTime}`);
+        const reminderTime = new Date(
+          eventTime.getTime() - Number(reminderMinutes) * 60000
+        );
+
+        await supabase.from("calendar_event_reminder_deliveries").insert({
+          calendar_event_id: id,
+          reminder_minutes: Number(reminderMinutes),
+          reminder_at: reminderTime.toISOString(),
+          delivery_status: "pending",
+        });
+      }
 
       if (!pageRequestTracker.current.isLatest(requestId)) return;
       navigate("/calendar");

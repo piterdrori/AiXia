@@ -471,7 +471,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       const { data: insertedEvent, error: insertError } = await supabase
         .from("calendar_events")
         .insert(payload)
-        .select("id, project_id, task_id, title, start_date")
+        .select("id, project_id, task_id, title, start_date, start_time, reminder_minutes")
         .single();
 
       if (!requestTracker.current.isLatest(requestId)) return;
@@ -490,6 +490,23 @@ const handleSubmit = async (e: React.FormEvent) => {
         entity_id: insertedEvent.id,
         message: `Created calendar event "${insertedEvent.title}" for ${insertedEvent.start_date}`,
       });
+
+      if (insertedEvent.reminder_minutes && insertedEvent.start_time) {
+        const eventTime = new Date(
+          `${insertedEvent.start_date}T${insertedEvent.start_time}`
+        );
+
+        const reminderTime = new Date(
+          eventTime.getTime() - insertedEvent.reminder_minutes * 60000
+        );
+
+        await supabase.from("calendar_event_reminder_deliveries").insert({
+          calendar_event_id: insertedEvent.id,
+          reminder_minutes: insertedEvent.reminder_minutes,
+          reminder_at: reminderTime.toISOString(),
+          delivery_status: "pending",
+        });
+      }
 
       if (!requestTracker.current.isLatest(requestId)) return;
       navigate("/calendar");

@@ -607,7 +607,7 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
     }
   };
 
-  const renderActionButtons = ({
+    const renderActionButtons = ({
     fieldKey,
     filled,
     canEditThisField,
@@ -622,18 +622,18 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
 
     return (
       <div className="flex flex-wrap items-center gap-2">
-        {!filled ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="border-slate-700 text-slate-200 hover:bg-slate-800"
-            onClick={() => beginEditing(fieldKey)}
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            {addLabel}
-          </Button>
-        ) : (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="border-slate-700 text-slate-200 hover:bg-slate-800"
+          onClick={() => beginEditing(fieldKey)}
+        >
+          <Plus className="w-4 h-4 mr-1" />
+          {addLabel}
+        </Button>
+
+        {filled && (
           <>
             <Button
               type="button"

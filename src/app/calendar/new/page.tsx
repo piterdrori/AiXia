@@ -53,30 +53,10 @@ type ProjectMemberRow = {
   user_id: string;
 };
 
-const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) =>
-  String(i).padStart(2, "0")
-);
-
-const MINUTE_OPTIONS = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
-
 function normalizeTime(value: string) {
   const [rawHour = "09", rawMinute = "00"] = (value || "09:00").split(":");
-  const hour = HOUR_OPTIONS.includes(rawHour) ? rawHour : "09";
-  const minute = MINUTE_OPTIONS.includes(rawMinute) ? rawMinute : "00";
-  return `${hour}:${minute}`;
-}
-
-function getHour(value: string) {
-  return normalizeTime(value).split(":")[0];
-}
-
-function getMinute(value: string) {
-  return normalizeTime(value).split(":")[1];
-}
-
-function buildTime(hour: string, minute: string) {
-  const safeHour = HOUR_OPTIONS.includes(hour) ? hour : "00";
-  const safeMinute = MINUTE_OPTIONS.includes(minute) ? minute : "00";
+  const safeHour = /^\d{2}$/.test(rawHour) ? rawHour : "09";
+  const safeMinute = /^\d{2}$/.test(rawMinute) ? rawMinute : "00";
   return `${safeHour}:${safeMinute}`;
 }
 
@@ -115,63 +95,6 @@ function isEndBeforeStart(
   return end.getTime() < start.getTime();
 }
 
-function Time24Field({
-  label,
-  value,
-  onChange,
-  disabled = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (next: string) => void;
-  disabled?: boolean;
-}) {
-  const { t } = useLanguage();
-  const hour = getHour(value);
-  const minute = getMinute(value);
-
-  return (
-    <div className="space-y-2">
-      <Label className="text-slate-300">{label}</Label>
-      <div className="grid grid-cols-2 gap-2">
-        <Select
-          value={hour}
-          onValueChange={(nextHour) => onChange(buildTime(nextHour, minute))}
-          disabled={disabled}
-        >
-          <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-            <SelectValue placeholder={t("calendarNew.time.hour")} />
-          </SelectTrigger>
-          <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-64">
-            {HOUR_OPTIONS.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={minute}
-          onValueChange={(nextMinute) => onChange(buildTime(hour, nextMinute))}
-          disabled={disabled}
-        >
-          <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-            <SelectValue placeholder={t("calendarNew.time.minute")} />
-          </SelectTrigger>
-          <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-64">
-            {MINUTE_OPTIONS.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
-  );
-}
-
 function CalendarFormSkeleton() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -198,6 +121,31 @@ function CalendarFormSkeleton() {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function TimeInput({
+  label,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label className="text-slate-300">{label}</Label>
+      <Input
+        type="time"
+        value={normalizeTime(value)}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className="bg-slate-950 border-slate-800 text-white"
+      />
     </div>
   );
 }
@@ -691,8 +639,8 @@ const handleSubmit = async (e: React.FormEvent) => {
                 />
               </div>
 
-              {!allDay && (
-                <Time24Field
+                           {!allDay && (
+                <TimeInput
                   label={t("calendarNew.fields.startTime")}
                   value={startTime}
                   onChange={(nextStartTime) => {
@@ -753,8 +701,8 @@ const handleSubmit = async (e: React.FormEvent) => {
                 </div>
               )}
 
-              {needsStartAndEnd && !allDay && (
-                <Time24Field
+                           {needsStartAndEnd && !allDay && (
+                <TimeInput
                   label={t("calendarNew.fields.endTime")}
                   value={endTime}
                   onChange={setEndTime}

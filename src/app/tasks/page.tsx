@@ -615,7 +615,14 @@ export default function TasksPage() {
             <SelectTrigger className="w-36 bg-slate-900 border-slate-800 text-white">
               <SelectValue placeholder={t("tasks.filters.status")} />
             </SelectTrigger>
-            <SelectContent className="bg-slate-900 border-slate-800">
+                        <SelectContent
+              position="popper"
+              side="bottom"
+              align="start"
+              sideOffset={6}
+              avoidCollisions={false}
+              className="bg-slate-900 border-slate-800"
+            >
               <SelectItem value="ALL">{t("tasks.filters.allStatus")}</SelectItem>
               <SelectItem value="TODO">{t("tasks.status.todo")}</SelectItem>
               <SelectItem value="IN_PROGRESS">
@@ -632,7 +639,14 @@ export default function TasksPage() {
             <SelectTrigger className="w-36 bg-slate-900 border-slate-800 text-white">
               <SelectValue placeholder={t("tasks.filters.priority")} />
             </SelectTrigger>
-            <SelectContent className="bg-slate-900 border-slate-800">
+                        <SelectContent
+              position="popper"
+              side="bottom"
+              align="start"
+              sideOffset={6}
+              avoidCollisions={false}
+              className="bg-slate-900 border-slate-800"
+            >
               <SelectItem value="ALL">
                 {t("tasks.filters.allPriorities")}
               </SelectItem>
@@ -647,7 +661,14 @@ export default function TasksPage() {
             <SelectTrigger className="w-44 bg-slate-900 border-slate-800 text-white">
               <SelectValue placeholder={t("tasks.filters.project")} />
             </SelectTrigger>
-            <SelectContent className="bg-slate-900 border-slate-800">
+                        <SelectContent
+              position="popper"
+              side="bottom"
+              align="start"
+              sideOffset={6}
+              avoidCollisions={false}
+              className="bg-slate-900 border-slate-800"
+            >
               <SelectItem value="ALL">
                 {t("tasks.filters.allProjects")}
               </SelectItem>

@@ -6,6 +6,10 @@ import { supabase } from "@/lib/supabase";
 import { extractMentionedUserIds } from "@/lib/notifications";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
+import {
+  registerRealtimeChannel,
+  removeRealtimeChannel,
+} from "@/lib/realtime";
 
 import { useChatBootstrap } from "./hooks/useChatBootstrap";
 import { useChatMessages } from "./hooks/useChatMessages";
@@ -105,6 +109,8 @@ export default function ChatPage() {
     ReturnType<typeof supabase.channel> | null
   >(null);
 
+    const notificationRealtimeChannelKeyRef = useRef<string | null>(null);
+
   const [isParticipantsPanelOpen, setIsParticipantsPanelOpen] = useState(false);
   const [memberActionLoading, setMemberActionLoading] = useState<string | null>(
     null
@@ -146,6 +152,44 @@ const selectedConversation = useMemo(() => {
     return groups.find((group) => group.id === selectedConversationId) || null;
   }, [groups, selectedConversationId]);
 
+    const loadUnreadConversationCounts = useCallback(async () => {
+    if (!currentUserId) {
+      setUnreadCounts({});
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("id, link")
+      .eq("user_id", currentUserId)
+      .eq("is_read", false)
+      .in("type", ["MESSAGE", "MENTION"])
+      .like("link", "/chat/%");
+
+    if (error) {
+      console.error("Load unread conversation counts error:", error);
+      return;
+    }
+
+    const nextCounts: Record<string, number> = {};
+
+    for (const item of (data || []) as Array<{ id: string; link: string | null }>) {
+      const link = item.link || "";
+      if (!link.startsWith("/chat/")) continue;
+
+      const groupId = link.replace("/chat/", "");
+      if (!groupId) continue;
+
+      nextCounts[groupId] = (nextCounts[groupId] || 0) + 1;
+    }
+
+    if (selectedConversationId) {
+      nextCounts[selectedConversationId] = 0;
+    }
+
+    setUnreadCounts(nextCounts);
+  }, [currentUserId, selectedConversationId]);
+
   useEffect(() => {
   if (selectedConversationId) {
     setUnreadCounts((prev) => {
@@ -157,6 +201,37 @@ const selectedConversation = useMemo(() => {
     });
   }
 }, [selectedConversationId]);
+
+    useEffect(() => {
+    void loadUnreadConversationCounts();
+  }, [loadUnreadConversationCounts]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    if (!selectedConversationId) return;
+
+    const markConversationNotificationsRead = async () => {
+      const { error } = await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("user_id", currentUserId)
+        .eq("is_read", false)
+        .in("type", ["MESSAGE", "MENTION"])
+        .eq("link", `/chat/${selectedConversationId}`);
+
+      if (error) {
+        console.error("Mark conversation notifications read error:", error);
+        return;
+      }
+
+      setUnreadCounts((prev) => ({
+        ...prev,
+        [selectedConversationId]: 0,
+      }));
+    };
+
+    void markConversationNotificationsRead();
+  }, [currentUserId, selectedConversationId]);
 
   useEffect(() => {
   const loadLatestMessages = async () => {
@@ -329,6 +404,44 @@ useEffect(() => {
   moveGroupToTop,
   selectedConversationId,
 ]);
+
+    useEffect(() => {
+    if (!currentUserId) return;
+
+    if (notificationRealtimeChannelKeyRef.current) {
+      void removeRealtimeChannel(notificationRealtimeChannelKeyRef.current);
+      notificationRealtimeChannelKeyRef.current = null;
+    }
+
+    const channelKey = `chat-notification-counts:${currentUserId}`;
+    notificationRealtimeChannelKeyRef.current = channelKey;
+
+    registerRealtimeChannel(
+      channelKey,
+      supabase
+        .channel(channelKey)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${currentUserId}`,
+          },
+          () => {
+            void loadUnreadConversationCounts();
+          }
+        )
+        .subscribe()
+    );
+
+    return () => {
+      if (notificationRealtimeChannelKeyRef.current === channelKey) {
+        notificationRealtimeChannelKeyRef.current = null;
+      }
+      void removeRealtimeChannel(channelKey);
+    };
+  }, [currentUserId, loadUnreadConversationCounts]);
 
   const getMembers = useCallback(
   (groupId: string) => getMembersForGroup(groupMembers, groupId),

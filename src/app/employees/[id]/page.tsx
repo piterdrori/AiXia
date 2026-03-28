@@ -492,11 +492,20 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
   };
 
   const beginEditing = (fieldKey: string) => {
+  setActiveEditor(null); // force reset
+  setIsEditing(false);
+
+  requestAnimationFrame(() => {
     setIsEditing(true);
     setActiveEditor(fieldKey);
-  };
+  });
+};
 
   const clearField = (fieldKey: string) => {
+  setActiveEditor(null);
+  setIsEditing(false);
+
+  requestAnimationFrame(() => {
     switch (fieldKey) {
       case "registered_email":
         setEmail("");
@@ -536,13 +545,12 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
         setCity("");
         setShippingAddress("");
         break;
-      default:
-        break;
     }
 
     setIsEditing(true);
     setActiveEditor(fieldKey);
-  };
+  });
+};
 
   const updateArrayValue = (
     values: string[],
@@ -604,24 +612,17 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
     filled,
     canEditThisField,
     addLabel = t("employeeDetail.actions.add"),
-    alwaysShowAdd = false,
   }: {
     fieldKey: string;
     filled: boolean;
     canEditThisField: boolean;
     addLabel?: string;
-    alwaysShowAdd?: boolean;
   }) => {
     if (!canEditThisField) return null;
 
-    const showAdd =
-      fieldKey === "registered_email"
-        ? !filled
-        : alwaysShowAdd || !filled;
-
     return (
       <div className="flex flex-wrap items-center gap-2">
-        {showAdd && (
+        {!filled ? (
           <Button
             type="button"
             size="sm"
@@ -632,9 +633,7 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
             <Plus className="w-4 h-4 mr-1" />
             {addLabel}
           </Button>
-        )}
-
-        {filled && (
+        ) : (
           <>
             <Button
               type="button"
@@ -726,7 +725,6 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
     label,
     values,
     setValues,
-    alwaysShowAdd = true,
   }: {
     fieldKey: string;
     label: string;
@@ -749,7 +747,6 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
             fieldKey,
             filled,
             canEditThisField: canEditProfileFields,
-            alwaysShowAdd,
             addLabel: t("employeeDetail.actions.add"),
           })}
         </div>
@@ -1346,7 +1343,6 @@ disabled={
                             fieldKey: "location",
                             filled: Boolean(country || city || shippingAddress),
                             canEditThisField: canEditProfileFields,
-                            alwaysShowAdd: true,
                           })}
                         </div>
 

@@ -3,10 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Check, Square, Trash2 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
-import {
-  createNotification,
-  extractMentionedUserIds,
-} from "@/lib/notifications";
+import { extractMentionedUserIds } from "@/lib/notifications";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
 import {
@@ -880,12 +877,21 @@ moveGroupToTop(selectedConversationId);
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     });
 
+        const mentionedUserIds = extractMentionedUserIds(
+      contentToSend,
+      mentionCandidates.map((profile) => ({
+        user_id: profile.user_id,
+        full_name: profile.full_name,
+      }))
+    ).filter((userId) => userId !== currentUserId);
+
     const { data: insertedMessage, error: sendError } = await supabase
       .from("chat_messages")
       .insert({
         group_id: selectedConversationId,
         user_id: currentUserId,
         content: contentToSend,
+        mentioned_user_ids: mentionedUserIds,
       })
       .select("id, group_id, user_id, content, created_at")
       .single();
@@ -898,31 +904,10 @@ moveGroupToTop(selectedConversationId);
       return;
     }
 
-    replaceTempMessageWithRealOne(selectedConversationId, insertedMessage as ChatMessageRow);
-
-    const mentionedUserIds = extractMentionedUserIds(
-      contentToSend,
-      mentionCandidates.map((profile) => ({
-        user_id: profile.user_id,
-        full_name: profile.full_name,
-      }))
-    ).filter((userId) => userId !== currentUserId);
-
-    for (const userId of mentionedUserIds) {
-      await createNotification({
-        userId,
-        actorUserId: currentUserId,
-        type: "MENTION",
-        title: t("chat.notifications.mentionedTitle"),
-        message: t("chat.notifications.mentionedMessage", undefined, {
-          conversationTitle,
-        }),
-        link: `/chat/${selectedConversationId}`,
-        entityType: "chat_message",
-        entityId: insertedMessage.id,
-      });
-    }
-
+        replaceTempMessageWithRealOne(
+      selectedConversationId,
+      insertedMessage as ChatMessageRow
+    );
     setIsSending(false);
   };
 

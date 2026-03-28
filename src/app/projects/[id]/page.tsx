@@ -206,8 +206,10 @@ export default function ProjectDetailPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-const [fileActionLoading, setFileActionLoading] = useState<string | null>(null);
-const [error, setError] = useState("");
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [isDragOverUploadZone, setIsDragOverUploadZone] = useState(false);
+  const [fileActionLoading, setFileActionLoading] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
@@ -720,10 +722,9 @@ const [error, setError] = useState("");
     setActivityLogs((newLogs || []) as ActivityLogRow[]);
   };
 
-  const handleProjectFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!project || !e.target.files || e.target.files.length === 0) return;
+   const uploadProjectFile = async (file: File) => {
+    if (!project) return;
 
-    const file = e.target.files[0];
     setError("");
     setIsUploading(true);
 
@@ -760,13 +761,22 @@ const [error, setError] = useState("");
       }
 
       await refreshActivityLogs(project.id);
+      setIsUploadDialogOpen(false);
+      setIsDragOverUploadZone(false);
     } catch (err: any) {
       console.error("Project file upload error:", err);
       setError(err?.message || t("projects.failedToUploadFile", "Failed to upload file."));
     } finally {
       setIsUploading(false);
-      e.target.value = "";
+      if (projectFileInputRef.current) {
+        projectFileInputRef.current.value = "";
+      }
     }
+  };
+
+  const handleProjectFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    await uploadProjectFile(e.target.files[0]);
   };
 
   const handleDeleteFile = async (fileId: string, filePath: string, fileName: string) => {
@@ -1490,7 +1500,7 @@ setTranslatedComments((prev) => ({
           </Dialog>
         </TabsContent>
 
-        <TabsContent value="files" className="space-y-4">
+                <TabsContent value="files" className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium text-white">
               {t("projects.projectFiles", "Project Files")}
@@ -1509,13 +1519,131 @@ setTranslatedComments((prev) => ({
                 type="button"
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
                 disabled={isUploading}
-                onClick={() => projectFileInputRef.current?.click()}
+                onClick={() => setIsUploadDialogOpen(true)}
               >
                 <Upload className="w-4 h-4 mr-2" />
                 {isUploading
                   ? t("projects.uploading", "Uploading...")
                   : t("projects.uploadFile", "Upload File")}
               </Button>
+
+              <Dialog
+                open={isUploadDialogOpen}
+                onOpenChange={(open) => {
+                  if (isUploading) return;
+                  setIsUploadDialogOpen(open);
+                  if (!open) {
+                    setIsDragOverUploadZone(false);
+                    if (projectFileInputRef.current) {
+                      projectFileInputRef.current.value = "";
+                    }
+                  }
+                }}
+              >
+                <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {t("projects.uploadProjectFile", "Upload Project File")}
+                    </DialogTitle>
+                  </DialogHeader>
+
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      if (!isUploading) {
+                        projectFileInputRef.current?.click();
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (isUploading) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        projectFileInputRef.current?.click();
+                      }
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (!isUploading) {
+                        setIsDragOverUploadZone(true);
+                      }
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (!isUploading) {
+                        setIsDragOverUploadZone(true);
+                      }
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const relatedTarget = e.relatedTarget as Node | null;
+                      if (!e.currentTarget.contains(relatedTarget)) {
+                        setIsDragOverUploadZone(false);
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDragOverUploadZone(false);
+
+                      if (isUploading) return;
+
+                      const droppedFile = e.dataTransfer.files?.[0];
+                      if (droppedFile) {
+                        void uploadProjectFile(droppedFile);
+                      }
+                    }}
+                    className={`rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${
+                      isDragOverUploadZone
+                        ? "border-indigo-500 bg-indigo-500/10"
+                        : "border-slate-700 bg-slate-900/60 hover:border-slate-500 hover:bg-slate-900"
+                    } ${isUploading ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
+                  >
+                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-800">
+                      <Upload className="h-7 w-7 text-indigo-400" />
+                    </div>
+
+                    <h4 className="text-xl font-semibold text-white">
+                      {t(
+                        "projects.dragAndDropFilesHere",
+                        "Drag files here to upload"
+                      )}
+                    </h4>
+
+                    <p className="mt-2 text-sm text-slate-400">
+                      {t(
+                        "projects.orClickToChooseFile",
+                        "Or click to choose a file from your computer"
+                      )}
+                    </p>
+
+                    <div className="mt-6">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                        disabled={isUploading}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          projectFileInputRef.current?.click();
+                        }}
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        {t("projects.chooseFile", "Choose File")}
+                      </Button>
+                    </div>
+
+                    {isUploading && (
+                      <p className="mt-4 text-sm text-indigo-300">
+                        {t("projects.uploading", "Uploading...")}
+                      </p>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
             </>
           </div>
 
@@ -1532,79 +1660,79 @@ setTranslatedComments((prev) => ({
 
                     return (
                       <div
-  key={file.id}
-  className="flex items-center gap-4 rounded-lg border border-slate-800 bg-slate-950/50 p-3"
->
-  <div className="flex min-w-0 flex-1 items-center gap-3">
-    <FileText className="w-5 h-5 shrink-0 text-indigo-400" />
-    <div className="min-w-0">
-      <p className="truncate text-sm text-white">{file.file_name}</p>
-      <p className="text-xs text-slate-500">
-        {uploader?.full_name || t("projects.unknownUser", "Unknown user")} •{" "}
-        {format(clock.shiftDate(file.created_at), "MMM d, yyyy h:mm a")}
-      </p>
-    </div>
-  </div>
+                        key={file.id}
+                        className="flex items-center gap-4 rounded-lg border border-slate-800 bg-slate-950/50 p-3"
+                      >
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <FileText className="w-5 h-5 shrink-0 text-indigo-400" />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm text-white">{file.file_name}</p>
+                            <p className="text-xs text-slate-500">
+                              {uploader?.full_name || t("projects.unknownUser", "Unknown user")} •{" "}
+                              {format(clock.shiftDate(file.created_at), "MMM d, yyyy h:mm a")}
+                            </p>
+                          </div>
+                        </div>
 
-  <div className="ml-auto flex shrink-0 items-center gap-2">
-    <Button
-      type="button"
-      variant="outline"
-      className="border-slate-700 text-slate-300 hover:bg-slate-800"
-      onClick={async () => {
-        try {
-          setFileActionLoading(file.id);
-          await openFile("project-files", file.file_path, file.id);
-        } catch (err) {
-          console.error("Open file error:", err);
-          setError(t("projects.failedToOpenFile", "Failed to open file."));
-        } finally {
-          setFileActionLoading(null);
-        }
-      }}
-      disabled={fileActionLoading === file.id}
-    >
-      <ExternalLink className="mr-2 h-4 w-4" />
-      {t("projects.open", "Open")}
-    </Button>
+                        <div className="ml-auto flex shrink-0 items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                            onClick={async () => {
+                              try {
+                                setFileActionLoading(file.id);
+                                await openFile("project-files", file.file_path, file.id);
+                              } catch (err) {
+                                console.error("Open file error:", err);
+                                setError(t("projects.failedToOpenFile", "Failed to open file."));
+                              } finally {
+                                setFileActionLoading(null);
+                              }
+                            }}
+                            disabled={fileActionLoading === file.id}
+                          >
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            {t("projects.open", "Open")}
+                          </Button>
 
-    <Button
-      type="button"
-      variant="outline"
-      className="border-slate-700 text-green-400 hover:bg-slate-800"
-      onClick={async () => {
-        try {
-          setFileActionLoading(file.id);
-          await downloadFile("project-files", file.file_path, file.file_name);
-        } catch (err) {
-          console.error("Download file error:", err);
-          setError(t("projects.failedToDownloadFile", "Failed to download file."));
-        } finally {
-          setFileActionLoading(null);
-        }
-      }}
-      disabled={fileActionLoading === file.id}
-    >
-      <Download className="mr-2 h-4 w-4" />
-      Download
-    </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="border-slate-700 text-green-400 hover:bg-slate-800"
+                            onClick={async () => {
+                              try {
+                                setFileActionLoading(file.id);
+                                await downloadFile("project-files", file.file_path, file.file_name);
+                              } catch (err) {
+                                console.error("Download file error:", err);
+                                setError(t("projects.failedToDownloadFile", "Failed to download file."));
+                              } finally {
+                                setFileActionLoading(null);
+                              }
+                            }}
+                            disabled={fileActionLoading === file.id}
+                          >
+                            <Download className="mr-2 h-4 w-4" />
+                            Download
+                          </Button>
 
-    {canDeleteThisProjectFile(file) && (
-      <Button
-        type="button"
-        variant="outline"
-        className="border-red-800 text-red-400 hover:bg-red-900/20"
-        onClick={() =>
-          void handleDeleteFile(file.id, file.file_path, file.file_name)
-        }
-        disabled={fileActionLoading === file.id}
-      >
-        <Trash2 className="mr-2 h-4 w-4" />
-        {t("projects.delete", "Delete")}
-      </Button>
-    )}
-  </div>
-</div>
+                          {canDeleteThisProjectFile(file) && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="border-red-800 text-red-400 hover:bg-red-900/20"
+                              onClick={() =>
+                                void handleDeleteFile(file.id, file.file_path, file.file_name)
+                              }
+                              disabled={fileActionLoading === file.id}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              {t("projects.delete", "Delete")}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>

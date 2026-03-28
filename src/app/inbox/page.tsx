@@ -28,7 +28,6 @@ import {
   removeRealtimeChannel,
 } from "@/lib/realtime";
 import { useLanguage } from "@/lib/i18n";
-import { initNotificationSound } from "@/lib/sound";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -253,10 +252,6 @@ export default function InboxPage() {
       mounted = false;
     };
   }, [fetchNotifications, navigate, t]);
-
-    useEffect(() => {
-    initNotificationSound();
-  }, []);
 
   useEffect(() => {
     if (!currentUserId) return;

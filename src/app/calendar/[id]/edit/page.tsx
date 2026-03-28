@@ -60,14 +60,57 @@ type TaskRow = {
   project_id: string | null;
 };
 
+function normalizeTime(value: string) {
+  const [rawHour = "09", rawMinute = "00"] = (value || "09:00").split(":");
+  const safeHour = /^\d{2}$/.test(rawHour) ? rawHour : "09";
+  const safeMinute = /^\d{2}$/.test(rawMinute) ? rawMinute : "00";
+  return `${safeHour}:${safeMinute}`;
+}
+
 function addMinutesToTime(time: string, minutesToAdd: number) {
-  const [hours, minutes] = time.split(":").map(Number);
+  const [hours, minutes] = normalizeTime(time).split(":").map(Number);
   const totalMinutes = hours * 60 + minutes + minutesToAdd;
   const normalizedMinutes = ((totalMinutes % 1440) + 1440) % 1440;
   const nextHours = Math.floor(normalizedMinutes / 60);
   const nextMinutes = normalizedMinutes % 60;
 
   return `${String(nextHours).padStart(2, "0")}:${String(nextMinutes).padStart(2, "0")}`;
+}
+
+function isEndBeforeStart(
+  startDate: string,
+  startTime: string,
+  endDate: string,
+  endTime: string
+) {
+  const start = new Date(`${startDate}T${startTime || "00:00"}`);
+  const end = new Date(`${endDate}T${endTime || "00:00"}`);
+  return end.getTime() < start.getTime();
+}
+
+function TimeInput({
+  label,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label className="text-slate-300">{label}</Label>
+      <Input
+        type="time"
+        value={normalizeTime(value)}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className="bg-slate-950 border-slate-800 text-white"
+      />
+    </div>
+  );
 }
 
 function addDaysToDate(dateStr: string, daysToAdd: number) {
@@ -80,17 +123,6 @@ function addDaysToDate(dateStr: string, daysToAdd: number) {
   const nextDay = String(date.getDate()).padStart(2, "0");
 
   return `${nextYear}-${nextMonth}-${nextDay}`;
-}
-
-function isEndBeforeStart(
-  startDate: string,
-  startTime: string,
-  endDate: string,
-  endTime: string
-) {
-  const start = new Date(`${startDate}T${startTime || "00:00"}`);
-  const end = new Date(`${endDate}T${endTime || "00:00"}`);
-  return end.getTime() < start.getTime();
 }
 
 export default function CalendarEditPage() {
@@ -677,37 +709,29 @@ if (!canDelete) return;
                 />
               </div>
 
-              {!allDay && (
-                <div className="space-y-2">
-                  <Label className="text-slate-300">{t("calendarEdit.fields.startTime")}</Label>
-                  <Input
-                    type="time"
-                    step="60"
-                    inputMode="numeric"
-                    pattern="[0-9]{2}:[0-9]{2}"
-                    value={startTime}
-                    onChange={(e) => {
-                      const nextStartTime = e.target.value;
-                      setStartTime(nextStartTime);
+                            {!allDay && (
+                <TimeInput
+                  label={t("calendarEdit.fields.startTime")}
+                  value={startTime}
+                  onChange={(nextStartTime) => {
+                    setStartTime(nextStartTime);
 
-                      const autoDuration = usesDuration ? Number(meetingDuration || 60) : 60;
-                      const nextEndTime = addMinutesToTime(nextStartTime, autoDuration);
-                      setEndTime(nextEndTime);
+                    const autoDuration = usesDuration ? Number(meetingDuration || 60) : 60;
+                    const nextEndTime = addMinutesToTime(nextStartTime, autoDuration);
+                    setEndTime(nextEndTime);
 
-                      const [startHour, startMinute] = nextStartTime.split(":").map(Number);
-                      const startTotal = startHour * 60 + startMinute;
-                      const endTotal = startTotal + autoDuration;
+                    const [startHour, startMinute] = normalizeTime(nextStartTime).split(":").map(Number);
+                    const startTotal = startHour * 60 + startMinute;
+                    const endTotal = startTotal + autoDuration;
 
-                      if (endTotal >= 1440) {
-                        setEndDate(addDaysToDate(startDate, 1));
-                      } else {
-                        setEndDate(startDate);
-                      }
-                    }}
-                    className="bg-slate-950 border-slate-800 text-white"
-                    disabled={isPageBusy}
-                  />
-                </div>
+                    if (endTotal >= 1440) {
+                      setEndDate(addDaysToDate(startDate, 1));
+                    } else {
+                      setEndDate(startDate);
+                    }
+                  }}
+                  disabled={isPageBusy}
+                />
               )}
 
               {usesDuration && !allDay && (
@@ -745,20 +769,13 @@ if (!canDelete) return;
                 </div>
               )}
 
-              {needsStartAndEnd && !allDay && (
-                <div className="space-y-2">
-                  <Label className="text-slate-300">{t("calendarEdit.fields.endTime")}</Label>
-                  <Input
-                    type="time"
-                    step="60"
-                    inputMode="numeric"
-                    pattern="[0-9]{2}:[0-9]{2}"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    className="bg-slate-950 border-slate-800 text-white"
-                    disabled={isPageBusy}
-                  />
-                </div>
+                            {needsStartAndEnd && !allDay && (
+                <TimeInput
+                  label={t("calendarEdit.fields.endTime")}
+                  value={endTime}
+                  onChange={setEndTime}
+                  disabled={isPageBusy}
+                />
               )}
 
               <div className="space-y-2">

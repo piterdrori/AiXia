@@ -72,6 +72,8 @@ export default function CalendarDayPage() {
 
   const [events, setEvents] = useState<CalendarEventRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
+  const [projectsMap, setProjectsMap] = useState<Record<string, string>>({});
+  const [tasksMap, setTasksMap] = useState<Record<string, string>>({});
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -141,21 +143,34 @@ export default function CalendarDayPage() {
   membershipList
 );
 
-      const [{ data: eventsData, error: eventsError }, { data: tasksData, error: tasksError }] =
-        await Promise.all([
-          supabase
-            .from("calendar_events")
-            .select(
-              "id, title, description, event_type, start_date, start_time, end_date, end_time, all_day, project_id, task_id, created_by"
-            )
-            .eq("start_date", date)
-            .order("start_time", { ascending: true }),
-          supabase
-            .from("tasks")
-            .select("id, title, due_date, status, project_id")
-            .eq("due_date", date)
-            .order("created_at", { ascending: false }),
-        ]);
+            const [
+        { data: eventsData, error: eventsError },
+        { data: tasksData, error: tasksError },
+        { data: projectsFull },
+        { data: allVisibleTasksForNames },
+      ] = await Promise.all([
+        supabase
+          .from("calendar_events")
+          .select(
+            "id, title, description, event_type, start_date, start_time, end_date, end_time, all_day, project_id, task_id, created_by"
+          )
+          .eq("start_date", date)
+          .order("start_time", { ascending: true }),
+
+        supabase
+          .from("tasks")
+          .select("id, title, due_date, status, project_id")
+          .eq("due_date", date)
+          .order("created_at", { ascending: false }),
+
+        supabase
+          .from("projects")
+          .select("id, name"),
+
+        supabase
+          .from("tasks")
+          .select("id, title, project_id"),
+      ]);
 
       if (!requestTracker.current.isLatest(requestId)) return;
 
@@ -181,6 +196,29 @@ export default function CalendarDayPage() {
 
       setEvents(safeEvents);
       setTasks(safeTasks);
+
+            const projectMap: Record<string, string> = {};
+      ((projectsFull || []) as Array<{ id: string; name: string }>).forEach((project) => {
+        projectMap[project.id] = project.name;
+      });
+
+            const taskMap: Record<string, string> = {};
+      ((allVisibleTasksForNames || []) as Array<{
+        id: string;
+        title: string;
+        project_id: string | null;
+      }>)
+        .filter((task) => {
+          if (profile.role === "admin") return true;
+          if (!task.project_id) return false;
+          return visibleProjectIds.has(task.project_id);
+        })
+        .forEach((task) => {
+          taskMap[task.id] = task.title;
+        });
+
+      setProjectsMap(projectMap);
+      setTasksMap(taskMap);
 
       if (eventsError || tasksError) {
         setLoadError(t("calendarDay.errors.someDayDataCouldNotBeLoaded"));
@@ -381,18 +419,16 @@ export default function CalendarDayPage() {
   <div className="text-slate-400 text-sm">{event.description}</div>
 )}
 
-                  {(event.project_id || event.task_id) && (
-                    <div className="text-xs text-slate-500 space-y-1">
-                      {event.project_id && (
-                        <div>
-                          {t("calendarDay.labels.linkedProject", undefined, { id: event.project_id })}
-                        </div>
-                      )}
-                      {event.task_id && (
-                        <div>{t("calendarDay.labels.linkedTask", undefined, { id: event.task_id })}</div>
-                      )}
-                    </div>
-                  )}
+{(event.project_id || event.task_id) && (
+  <div className="text-xs text-slate-500 space-y-1">
+    {event.project_id && (
+      <div>{projectsMap[event.project_id] || "Unknown Project"}</div>
+    )}
+    {event.task_id && (
+      <div>{tasksMap[event.task_id] || "Unknown Task"}</div>
+    )}
+  </div>
+)}
                 </div>
               ))
             )}
@@ -440,10 +476,10 @@ export default function CalendarDayPage() {
                   </div>
 
                   {task.project_id && (
-                    <div className="text-xs text-slate-500">
-                      {t("calendarDay.labels.project", undefined, { id: task.project_id })}
-                    </div>
-                  )}
+  <div className="text-xs text-slate-500">
+    {projectsMap[task.project_id] || "Unknown Project"}
+  </div>
+)}
 
                   <Button
                     size="sm"

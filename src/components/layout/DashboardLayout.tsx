@@ -221,13 +221,14 @@ export default function DashboardLayout({
     !initialCacheRef.current?.userProfile
   );
 
-  const [notifications, setNotifications] = useState<NotificationRow[]>(
+    const [notifications, setNotifications] = useState<NotificationRow[]>(
     initialCacheRef.current?.notifications || []
   );
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
-
-    const [calendarTodayCount, setCalendarTodayCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const [calendarTodayCount, setCalendarTodayCount] = useState(0);
 
   const userProfileRef = useRef<UserProfile | null>(
     initialCacheRef.current?.userProfile || null
@@ -290,25 +291,6 @@ export default function DashboardLayout({
     });
   }, [clock.now, language, timezone]);
 
-  const unreadCount = useMemo(() => {
-    return notifications.filter((notification) => !notification.is_read).length;
-  }, [notifications]);
-
-    const chatUnreadCount = useMemo(() => {
-    if (location.pathname.startsWith("/chat")) {
-      return 0;
-    }
-
-    return notifications.filter((notification) => {
-      if (notification.is_read) return false;
-
-      return (
-        notification.type === "MESSAGE" ||
-        notification.type === "MENTION"
-      );
-    }).length;
-  }, [location.pathname, notifications]);
-
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 1024;
@@ -325,6 +307,42 @@ export default function DashboardLayout({
     return () => {
       window.removeEventListener("resize", checkMobile);
     };
+  }, []);
+
+  const loadUnreadCounts = useCallback(async (userId: string) => {
+    const [
+      { count: totalUnread, error: totalUnreadError },
+      { count: totalChatUnread, error: totalChatUnreadError },
+    ] = await Promise.all([
+      supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("is_read", false),
+      supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("is_read", false)
+        .in("type", ["MESSAGE", "MENTION"]),
+    ]);
+
+    if (totalUnreadError) {
+      console.error(
+        "Failed to load unread notification count:",
+        totalUnreadError
+      );
+    }
+
+    if (totalChatUnreadError) {
+      console.error(
+        "Failed to load unread chat notification count:",
+        totalChatUnreadError
+      );
+    }
+
+    setUnreadCount(totalUnread || 0);
+    setChatUnreadCount(totalChatUnread || 0);
   }, []);
 
   const loadNotifications = useCallback(
@@ -360,7 +378,7 @@ export default function DashboardLayout({
             typeof item.is_read === "boolean"
         );
 
-                notificationsRef.current = nextNotifications;
+        notificationsRef.current = nextNotifications;
         setNotifications(nextNotifications);
         writeLayoutCache(
           profileForCache ?? userProfileRef.current,
@@ -470,11 +488,13 @@ export default function DashboardLayout({
     [clock.todayKey]
   );
 
-  const clearUserState = useCallback(() => {
+    const clearUserState = useCallback(() => {
     userProfileRef.current = null;
     notificationsRef.current = [];
     setUserProfile(null);
     setNotifications([]);
+    setUnreadCount(0);
+    setChatUnreadCount(0);
     setCalendarTodayCount(0);
     clearLayoutCache();
     publishOnlineUsers({});
@@ -530,8 +550,9 @@ export default function DashboardLayout({
       userProfileRef.current = loadedUser;
       setUserProfile(loadedUser);
 
-      await Promise.all([
+            await Promise.all([
         loadNotifications(loadedUser.userId, loadedUser),
+        loadUnreadCounts(loadedUser.userId),
         loadCalendarBadge(loadedUser.userId, loadedUser.role || null),
       ]);
     } catch (error) {
@@ -543,17 +564,18 @@ export default function DashboardLayout({
       if (requestId !== loadUserRequestIdRef.current) return;
       setIsLoadingUser(false);
     }
-    }, [clearUserState, loadCalendarBadge, loadNotifications]);
+        }, [clearUserState, loadCalendarBadge, loadNotifications, loadUnreadCounts]);
 
   useEffect(() => {
     mountedRef.current = true;
 
     if (initialCacheRef.current?.userProfile) {
       setIsLoadingUser(false);
-      void loadNotifications(
+            void loadNotifications(
         initialCacheRef.current.userProfile.userId,
         initialCacheRef.current.userProfile
       );
+      void loadUnreadCounts(initialCacheRef.current.userProfile.userId);
       void loadCalendarBadge(
         initialCacheRef.current.userProfile.userId,
         initialCacheRef.current.userProfile.role || null
@@ -585,7 +607,13 @@ export default function DashboardLayout({
       mountedRef.current = false;
       subscription.unsubscribe();
     };
-  }, [clearUserState, loadCalendarBadge, loadNotifications, loadUser]);
+    }, [
+    clearUserState,
+    loadCalendarBadge,
+    loadNotifications,
+    loadUnreadCounts,
+    loadUser,
+  ]);
 
   useEffect(() => {
     if (!userProfile?.userId) {
@@ -678,21 +706,21 @@ export default function DashboardLayout({
             if (payload.eventType === "INSERT") {
               const insertedNotification = payload.new as NotificationRow;
               const isChatMessageNotification =
-                insertedNotification.type === "MESSAGE" ||
-                insertedNotification.type === "MENTION";
-              const isChatRoute = location.pathname.startsWith("/chat");
+  insertedNotification.type === "MESSAGE" ||
+  insertedNotification.type === "MENTION";
 
-              if (!(isChatRoute && isChatMessageNotification)) {
-                void playNotificationSound();
-                showDesktopNotification(
-                  insertedNotification.title || "New notification",
-                  insertedNotification.message || "You have a new update",
-                  insertedNotification.link
-                );
-              }
+void playNotificationSound();
+
+if (!location.pathname.startsWith("/chat") || !isChatMessageNotification) {
+  showDesktopNotification(
+    insertedNotification.title || "New notification",
+    insertedNotification.message || "You have a new update",
+    insertedNotification.link
+  );
+}
             }
 
-                        setNotifications((prev) => {
+                                    setNotifications((prev) => {
               let next = prev;
 
               if (payload.eventType === "INSERT") {
@@ -715,6 +743,7 @@ export default function DashboardLayout({
               return next;
             });
 
+            void loadUnreadCounts(userProfile.userId);
             void loadCalendarBadge(userProfile.userId, userProfile.role || null);
           }
         )
@@ -724,12 +753,50 @@ export default function DashboardLayout({
     return () => {
       void removeRealtimeChannel(channelKey);
     };
-   }, [loadCalendarBadge, location.pathname, showDesktopNotification, userProfile]);
+      }, [
+    loadCalendarBadge,
+    loadUnreadCounts,
+    location.pathname,
+    showDesktopNotification,
+    userProfile,
+  ]);
 
  useEffect(() => {
   if (!notificationsOpen || !userProfile?.userId) return;
   void loadNotifications(userProfile.userId, userProfile);
 }, [notificationsOpen, userProfile, loadNotifications]);
+
+   useEffect(() => {
+    if (!userProfile?.userId) return;
+    if (!location.pathname.startsWith("/chat")) return;
+
+    const markChatNotificationsRead = async () => {
+      const { error } = await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("user_id", userProfile.userId)
+        .eq("is_read", false)
+        .in("type", ["MESSAGE", "MENTION"]);
+
+      if (error) {
+        console.error("Mark chat notifications read error:", error);
+        return;
+      }
+
+      const nextNotifications = notificationsRef.current.map((notification) =>
+        notification.type === "MESSAGE" || notification.type === "MENTION"
+          ? { ...notification, is_read: true }
+          : notification
+      );
+
+      notificationsRef.current = nextNotifications;
+      setNotifications(nextNotifications);
+      writeLayoutCache(userProfileRef.current, nextNotifications);
+      await loadUnreadCounts(userProfile.userId);
+    };
+
+    void markChatNotificationsRead();
+  }, [loadUnreadCounts, location.pathname, userProfile?.userId]);
 
   useEffect(() => {
     if (!userProfile?.userId) return;
@@ -815,7 +882,7 @@ const navItems: NavItem[] = useMemo(
         href: "/calendar",
         badge: calendarTodayCount || undefined,
       },
-      {
+           {
         label: t("common.chat", "Chat"),
         icon: MessageSquare,
         href: "/chat",
@@ -842,7 +909,7 @@ const navItems: NavItem[] = useMemo(
         href: "/settings",
       },
     ],
-    [calendarTodayCount, chatUnreadCount, unreadCount, effectivePermissions, t]
+        [calendarTodayCount, chatUnreadCount, unreadCount, effectivePermissions, t]
   );
 
   const handleLogout = async () => {
@@ -868,13 +935,17 @@ const handleNotificationClick = async (notification: NotificationRow) => {
     if (!notification.is_read) {
       await markNotificationRead(notification.id);
 
-      const nextNotifications = notifications.map((item) =>
+            const nextNotifications = notifications.map((item) =>
         item.id === notification.id ? { ...item, is_read: true } : item
       );
 
       notificationsRef.current = nextNotifications;
       setNotifications(nextNotifications);
       writeLayoutCache(userProfileRef.current, nextNotifications);
+
+      if (userProfileRef.current?.userId) {
+        await loadUnreadCounts(userProfileRef.current.userId);
+      }
     }
 
     setNotificationsOpen(false);
@@ -889,20 +960,21 @@ const handleNotificationClick = async (notification: NotificationRow) => {
   }
 };
 
-  const handleMarkAllRead = async () => {
+    const handleMarkAllRead = async () => {
     if (!userProfile?.userId) return;
 
     try {
       await markAllNotificationsRead(userProfile.userId);
 
-      const nextNotifications = notifications.map((item) => ({
+            const nextNotifications = notifications.map((item) => ({
         ...item,
         is_read: true,
       }));
 
-            notificationsRef.current = nextNotifications;
+      notificationsRef.current = nextNotifications;
       setNotifications(nextNotifications);
       writeLayoutCache(userProfileRef.current, nextNotifications);
+      await loadUnreadCounts(userProfile.userId);
     } catch (error) {
       console.error("Mark all read error:", error);
     }

@@ -779,6 +779,11 @@ if (!location.pathname.startsWith("/chat") || !isChatMessageNotification) {
   void loadNotifications(userProfile.userId, userProfile);
 }, [notificationsOpen, userProfile, loadNotifications]);
 
+    useEffect(() => {
+    if (!userProfile?.userId) return;
+    void loadUnreadCounts(userProfile.userId);
+  }, [location.pathname, loadUnreadCounts, userProfile?.userId]);
+
   useEffect(() => {
     if (!userProfile?.userId) return;
 

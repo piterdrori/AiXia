@@ -908,27 +908,6 @@ moveGroupToTop(selectedConversationId);
       }))
     ).filter((userId) => userId !== currentUserId);
 
-    const mentionedSet = new Set(mentionedUserIds);
-
-    const recipientMembers = getMembers(selectedConversationId).filter(
-      (member) => member.user_id !== currentUserId && !mentionedSet.has(member.user_id)
-    );
-
-    for (const member of recipientMembers) {
-      await createNotification({
-        userId: member.user_id,
-        actorUserId: currentUserId,
-        type: "MESSAGE",
-        title: t("chat.notifications.newMessageTitle", undefined, {
-          conversationTitle,
-        }),
-        message: contentToSend,
-        link: `/chat/${selectedConversationId}`,
-        entityType: "chat_message",
-        entityId: insertedMessage.id,
-      });
-    }
-
     for (const userId of mentionedUserIds) {
       await createNotification({
         userId,

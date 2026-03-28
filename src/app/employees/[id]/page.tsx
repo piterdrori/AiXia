@@ -1746,7 +1746,7 @@ disabled={
 </section>
                 </div>
 
-               {(canManage || isOwnProfile) && isEditing && activeEditor === null && (
+                              {(canManage || isOwnProfile) && isEditing && (
   <div className="sticky bottom-4 flex items-center justify-end gap-2 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 backdrop-blur">
     <Button
       variant="outline"

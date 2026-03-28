@@ -46,7 +46,8 @@ type NotificationType =
   | "TASK_UPDATED"
   | "COMMENT"
   | "FILE_UPLOAD"
-  | "PROJECT_UPDATE";
+  | "PROJECT_UPDATE"
+  | "REMINDER";
 
 type NotificationRow = {
   id: string;
@@ -69,6 +70,7 @@ const notificationIcons: Record<NotificationType, ElementType> = {
   COMMENT: MessageSquare,
   FILE_UPLOAD: FileText,
   PROJECT_UPDATE: FolderKanban,
+  REMINDER: Bell,
 };
 
 const notificationColors: Record<NotificationType, string> = {
@@ -78,6 +80,7 @@ const notificationColors: Record<NotificationType, string> = {
   COMMENT: "bg-purple-500/20 text-purple-400",
   FILE_UPLOAD: "bg-amber-500/20 text-amber-400",
   PROJECT_UPDATE: "bg-slate-500/20 text-slate-300",
+  REMINDER: "bg-yellow-500/20 text-yellow-400",
 };
 
 function isValidNotificationType(value: string): value is NotificationType {
@@ -87,7 +90,8 @@ function isValidNotificationType(value: string): value is NotificationType {
     value === "TASK_UPDATED" ||
     value === "COMMENT" ||
     value === "FILE_UPLOAD" ||
-    value === "PROJECT_UPDATE"
+    value === "PROJECT_UPDATE" ||
+    value === "REMINDER"
   );
 }
 
@@ -405,7 +409,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
             <SelectValue placeholder={t("inbox.filters.placeholder")} />
           </SelectTrigger>
 
-          <SelectContent className="border-slate-800 bg-slate-900">
+                    <SelectContent className="border-slate-800 bg-slate-900">
             <SelectItem value="ALL">{t("inbox.filters.all")}</SelectItem>
             <SelectItem value="UNREAD">{t("inbox.filters.unread")}</SelectItem>
             <SelectItem value="MESSAGE">{t("inbox.filters.messages")}</SelectItem>
@@ -422,6 +426,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
             <SelectItem value="PROJECT_UPDATE">
               {t("inbox.filters.projectUpdates")}
             </SelectItem>
+            <SelectItem value="REMINDER">Reminders</SelectItem>
           </SelectContent>
         </Select>
       </div>

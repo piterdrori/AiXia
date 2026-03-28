@@ -387,7 +387,14 @@ const canDeleteProject = (project: ProjectRow) => {
           <SelectTrigger className="w-full sm:w-40 bg-slate-900 border-slate-800 text-white">
             <SelectValue placeholder={t("projects.status", "Status")} />
           </SelectTrigger>
-          <SelectContent className="bg-slate-900 border-slate-800">
+                    <SelectContent
+            position="popper"
+            side="bottom"
+            align="start"
+            sideOffset={6}
+            avoidCollisions={false}
+            className="bg-slate-900 border-slate-800"
+          >
             <SelectItem value="ALL">{t("projects.allStatus", "All Status")}</SelectItem>
             <SelectItem value="PLANNING">{t("projects.statusPlanning", "Planning")}</SelectItem>
             <SelectItem value="ACTIVE">{t("projects.statusActive", "Active")}</SelectItem>
@@ -401,7 +408,14 @@ const canDeleteProject = (project: ProjectRow) => {
           <SelectTrigger className="w-full sm:w-40 bg-slate-900 border-slate-800 text-white">
             <SelectValue placeholder={t("projects.sortBy", "Sort by")} />
           </SelectTrigger>
-          <SelectContent className="bg-slate-900 border-slate-800">
+                    <SelectContent
+            position="popper"
+            side="bottom"
+            align="start"
+            sideOffset={6}
+            avoidCollisions={false}
+            className="bg-slate-900 border-slate-800"
+          >
             <SelectItem value="newest">{t("projects.newestFirst", "Newest First")}</SelectItem>
             <SelectItem value="oldest">{t("projects.oldestFirst", "Oldest First")}</SelectItem>
             <SelectItem value="name">{t("projects.name", "Name")}</SelectItem>

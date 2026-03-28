@@ -148,7 +148,7 @@ type ProfileRow = {
   city?: string | null;
   shipping_address?: string | null;
   company?: string | null;
-  member_type?: MemberType | null;
+    member_type?: string | null;
   job_title?: string | null;
   avatar_url?: string | null;
   wechat?: string | null;
@@ -209,6 +209,92 @@ function joinMultiValue(values: string[]) {
   return cleaned || null;
 }
 
+const ALL_MEMBER_TYPE_VALUES = new Set<MemberType>(
+  Object.values(MEMBER_TYPE_OPTIONS).flatMap((options) =>
+    options.map((option) => option.value)
+  )
+);
+
+type AddressRow = {
+  country: string;
+  city: string;
+  shippingAddress: string;
+};
+
+function emptyAddressRow(): AddressRow {
+  return {
+    country: "",
+    city: "",
+    shippingAddress: "",
+  };
+}
+
+function splitAddressRows(profile: {
+  country?: string | null;
+  city?: string | null;
+  shipping_address?: string | null;
+}): AddressRow[] {
+  const countries = splitMultiValue(profile.country);
+  const cities = splitMultiValue(profile.city);
+  const shippingAddresses = splitMultiValue(profile.shipping_address);
+
+  const maxLength = Math.max(
+    countries.length,
+    cities.length,
+    shippingAddresses.length,
+    1
+  );
+
+  const rows = Array.from({ length: maxLength }, (_, index) => ({
+    country: countries[index] || "",
+    city: cities[index] || "",
+    shippingAddress: shippingAddresses[index] || "",
+  }));
+
+  const filledRows = rows.filter(
+    (row) =>
+      row.country.trim() ||
+      row.city.trim() ||
+      row.shippingAddress.trim()
+  );
+
+  return filledRows.length > 0 ? filledRows : [emptyAddressRow()];
+}
+
+function joinAddressRows(rows: AddressRow[]) {
+  const normalizedRows = rows.filter(
+    (row) =>
+      row.country.trim() ||
+      row.city.trim() ||
+      row.shippingAddress.trim()
+  );
+
+  return {
+    country: joinMultiValue(normalizedRows.map((row) => row.country)),
+    city: joinMultiValue(normalizedRows.map((row) => row.city)),
+    shipping_address: joinMultiValue(
+      normalizedRows.map((row) => row.shippingAddress)
+    ),
+  };
+}
+
+function splitMemberTypeRows(
+  value?: string | null
+): Array<MemberType | ""> {
+  const rows = splitMultiValue(value).filter(
+    (item): item is MemberType => ALL_MEMBER_TYPE_VALUES.has(item as MemberType)
+  );
+
+  return rows.length > 0 ? rows : [""];
+}
+
+function joinMemberTypeRows(values: Array<MemberType | "">) {
+  const cleaned = values.filter(
+    (value): value is MemberType => Boolean(value)
+  );
+  return cleaned.length > 0 ? cleaned.join("\n") : null;
+}
+
 export default function EmployeeDetailPage() {
   const { t } = useLanguage();
   const clock = useAppClock();
@@ -247,11 +333,9 @@ useEffect(() => {
   const [additionalEmails, setAdditionalEmails] = useState<string[]>([""]);
   const [displayName, setDisplayName] = useState("");
   const [phones, setPhones] = useState<string[]>([""]);
-  const [country, setCountry] = useState("");
-  const [city, setCity] = useState("");
-  const [shippingAddress, setShippingAddress] = useState("");
-  const [companies, setCompanies] = useState<string[]>([""]);
-  const [memberType, setMemberType] = useState<MemberType | "">("");
+  const [locations, setLocations] = useState<AddressRow[]>([emptyAddressRow()]);
+    const [companies, setCompanies] = useState<string[]>([""]);
+  const [memberTypes, setMemberTypes] = useState<Array<MemberType | "">>([""]);
   const [jobTitles, setJobTitles] = useState<string[]>([""]);
   const [bio, setBio] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -337,11 +421,9 @@ const canEditProfileFields = canManage || isOwnProfile;
     setAdditionalEmails(splitMultiValue(profile.additional_emails));
     setDisplayName(profile.display_name || "");
     setPhones(splitMultiValue(profile.phone));
-    setCountry(profile.country || "");
-    setCity(profile.city || "");
-    setShippingAddress(profile.shipping_address || "");
-    setCompanies(splitMultiValue(profile.company));
-    setMemberType(profile.member_type || "");
+    setLocations(splitAddressRows(profile));
+        setCompanies(splitMultiValue(profile.company));
+    setMemberTypes(splitMemberTypeRows(profile.member_type));
     setJobTitles(splitMultiValue(profile.job_title));
     setBio(profile.bio || "");
     setAvatarUrl(profile.avatar_url || "");
@@ -491,15 +573,23 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
     }
   };
 
-  const beginEditing = (fieldKey: string) => {
-  setActiveEditor(null); // force reset
-  setIsEditing(false);
+    const beginEditingWithAction = (
+    fieldKey: string,
+    action?: () => void
+  ) => {
+    setActiveEditor(null);
+    setIsEditing(false);
 
-  requestAnimationFrame(() => {
-    setIsEditing(true);
-    setActiveEditor(fieldKey);
-  });
-};
+    requestAnimationFrame(() => {
+      setIsEditing(true);
+      setActiveEditor(fieldKey);
+      action?.();
+    });
+  };
+
+  const beginEditing = (fieldKey: string) => {
+    beginEditingWithAction(fieldKey);
+  };
 
   const clearField = (fieldKey: string) => {
   setActiveEditor(null);
@@ -522,8 +612,8 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
       case "company":
         setCompanies([""]);
         break;
-      case "member_type":
-        setMemberType("");
+            case "member_type":
+        setMemberTypes([""]);
         break;
       case "job_title":
         setJobTitles([""]);
@@ -540,10 +630,8 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
       case "profile_photo":
         setAvatarUrl("");
         break;
-      case "location":
-        setCountry("");
-        setCity("");
-        setShippingAddress("");
+            case "location":
+        setLocations([emptyAddressRow()]);
         break;
     }
 
@@ -571,13 +659,72 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
     }
   };
 
-  const removeArrayValue = (
+    const removeArrayValue = (
     values: string[],
     setValues: Dispatch<SetStateAction<string[]>>,
     index: number
   ) => {
     const next = values.filter((_, itemIndex) => itemIndex !== index);
     setValues(next.length > 0 ? next : [""]);
+  };
+
+  const updateLocationValue = (
+    index: number,
+    field: keyof AddressRow,
+    nextValue: string
+  ) => {
+    setLocations((prev) =>
+      prev.map((row, rowIndex) =>
+        rowIndex === index ? { ...row, [field]: nextValue } : row
+      )
+    );
+  };
+
+  const addLocationRow = () => {
+    setLocations((prev) => {
+      const hasEmptyRow = prev.some(
+        (row) =>
+          !row.country.trim() &&
+          !row.city.trim() &&
+          !row.shippingAddress.trim()
+      );
+
+      if (hasEmptyRow) return prev;
+      return [...prev, emptyAddressRow()];
+    });
+  };
+
+    const removeLocationRow = (index: number) => {
+    setLocations((prev) => {
+      const next = prev.filter((_, rowIndex) => rowIndex !== index);
+      return next.length > 0 ? next : [emptyAddressRow()];
+    });
+  };
+
+  const updateMemberTypeValue = (
+    index: number,
+    nextValue: MemberType | ""
+  ) => {
+    setMemberTypes((prev) =>
+      prev.map((value, valueIndex) =>
+        valueIndex === index ? nextValue : value
+      )
+    );
+  };
+
+  const addMemberTypeRow = () => {
+    setMemberTypes((prev) => {
+      const hasEmptyRow = prev.some((value) => !value);
+      if (hasEmptyRow) return prev;
+      return [...prev, ""];
+    });
+  };
+
+  const removeMemberTypeRow = (index: number) => {
+    setMemberTypes((prev) => {
+      const next = prev.filter((_, valueIndex) => valueIndex !== index);
+      return next.length > 0 ? next : [""];
+    });
   };
 
   const handleProfilePhotoUpload = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -607,67 +754,92 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
     }
   };
 
-    const renderActionButtons = ({
+      const renderActionButtons = ({
     fieldKey,
     filled,
     canEditThisField,
+    showAdd = false,
+    showEdit = false,
+    showDelete = false,
+    deleteAlwaysVisible = false,
     addLabel = t("employeeDetail.actions.add"),
+    deleteLabel = t("employeeDetail.actions.delete"),
+    onAdd,
+    onEdit,
+    onDelete,
   }: {
     fieldKey: string;
     filled: boolean;
     canEditThisField: boolean;
+    showAdd?: boolean;
+    showEdit?: boolean;
+    showDelete?: boolean;
+    deleteAlwaysVisible?: boolean;
     addLabel?: string;
+    deleteLabel?: string;
+    onAdd?: () => void;
+    onEdit?: () => void;
+    onDelete?: () => void;
   }) => {
     if (!canEditThisField) return null;
 
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="border-slate-700 text-slate-200 hover:bg-slate-800"
-          onClick={() => beginEditing(fieldKey)}
-        >
-          <Plus className="w-4 h-4 mr-1" />
-          {addLabel}
-        </Button>
+        {showAdd && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="border-slate-700 text-slate-200 hover:bg-slate-800"
+            onClick={onAdd ?? (() => beginEditing(fieldKey))}
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            {addLabel}
+          </Button>
+        )}
 
-        {filled && (
-          <>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-slate-700 text-slate-200 hover:bg-slate-800"
-              onClick={() => beginEditing(fieldKey)}
-            >
-              <Edit className="w-4 h-4 mr-1" />
-              {t("employeeDetail.actions.edit")}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-red-800 text-red-400 hover:bg-red-900/20"
-              onClick={() => clearField(fieldKey)}
-            >
-              <Trash2 className="w-4 h-4 mr-1" />
-              {t("employeeDetail.actions.delete")}
-            </Button>
-          </>
+        {showEdit && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="border-slate-700 text-slate-200 hover:bg-slate-800"
+            onClick={onEdit ?? (() => beginEditing(fieldKey))}
+          >
+            <Edit className="w-4 h-4 mr-1" />
+            {t("employeeDetail.actions.edit")}
+          </Button>
+        )}
+
+        {showDelete && (deleteAlwaysVisible || filled) && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="border-red-800 text-red-400 hover:bg-red-900/20"
+            onClick={onDelete ?? (() => clearField(fieldKey))}
+          >
+            <Trash2 className="w-4 h-4 mr-1" />
+            {deleteLabel}
+          </Button>
         )}
       </div>
     );
   };
 
-  const renderSingleFieldCard = ({
+    const renderSingleFieldCard = ({
     fieldKey,
     label,
     value,
     setValue,
     adminOnly = false,
     multiline = false,
+    showAdd = false,
+    showEdit = true,
+    showDelete = true,
+    deleteAlwaysVisible = false,
+    deleteLabel,
+    onDelete,
   }: {
     fieldKey: string;
     label: string;
@@ -675,6 +847,12 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
     setValue: (value: string) => void;
     adminOnly?: boolean;
     multiline?: boolean;
+    showAdd?: boolean;
+    showEdit?: boolean;
+    showDelete?: boolean;
+    deleteAlwaysVisible?: boolean;
+    deleteLabel?: string;
+    onDelete?: () => void;
   }) => {
     const canEditThisField = adminOnly ? canManage : canEditProfileFields;
     const isThisEditing = isEditing && activeEditor === fieldKey;
@@ -691,6 +869,12 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
             fieldKey,
             filled,
             canEditThisField,
+            showAdd,
+            showEdit,
+            showDelete,
+            deleteAlwaysVisible,
+            deleteLabel,
+            onDelete,
           })}
         </div>
 
@@ -720,7 +904,7 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
     );
   };
 
-  const renderMultiFieldCard = ({
+      const renderMultiFieldCard = ({
     fieldKey,
     label,
     values,
@@ -730,11 +914,23 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
     label: string;
     values: string[];
     setValues: Dispatch<SetStateAction<string[]>>;
-    alwaysShowAdd?: boolean;
   }) => {
     const filledValues = values.map((item) => item.trim()).filter(Boolean);
     const isThisEditing = isEditing && activeEditor === fieldKey;
     const filled = filledValues.length > 0;
+
+    const handleAdd = () => {
+      if (isThisEditing) {
+        addArrayValue(values, setValues);
+        return;
+      }
+
+      beginEditingWithAction(fieldKey, () => {
+        if (filled) {
+          addArrayValue(values, setValues);
+        }
+      });
+    };
 
     return (
       <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
@@ -747,7 +943,11 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
             fieldKey,
             filled,
             canEditThisField: canEditProfileFields,
+            showAdd: true,
+            showEdit: true,
+            showDelete: true,
             addLabel: t("employeeDetail.actions.add"),
+            onAdd: handleAdd,
           })}
         </div>
 
@@ -840,16 +1040,18 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
 
     const nextUpdatedAt = clock.nowIso;
 
+           const addressPayload = joinAddressRows(locations);
+
     const payload: Record<string, unknown> = {
       full_name: fullName.trim() || null,
       display_name: displayName.trim() || null,
       additional_emails: joinMultiValue(additionalEmails),
       phone: joinMultiValue(phones),
-      country: country.trim() || null,
-      city: city.trim() || null,
-      shipping_address: shippingAddress.trim() || null,
+      country: addressPayload.country,
+      city: addressPayload.city,
+      shipping_address: addressPayload.shipping_address,
       company: joinMultiValue(companies),
-      member_type: memberType || null,
+      member_type: joinMemberTypeRows(memberTypes),
       job_title: joinMultiValue(jobTitles),
       bio: normalizeOptional(bio),
       avatar_url: normalizeOptional(avatarUrl),
@@ -1173,16 +1375,34 @@ disabled={
                       "sidebar-phones"
                     )}
 
-                  {(country || city || shippingAddress) &&
+                                    {locations.some(
+                    (row) =>
+                      row.country.trim() ||
+                      row.city.trim() ||
+                      row.shippingAddress.trim()
+                  ) &&
                     renderSidebarCard(
-                      <div className="flex items-start gap-2 text-slate-300">
-                        <MapPin className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
-                        <div className="space-y-1">
-                          <div>{[city, country].filter(Boolean).join(", ")}</div>
-                          {shippingAddress && (
-                            <div className="text-xs text-slate-500">{shippingAddress}</div>
-                          )}
-                        </div>
+                      <div className="space-y-3 w-full">
+                        {locations.map((row, index) =>
+                          row.country.trim() ||
+                          row.city.trim() ||
+                          row.shippingAddress.trim() ? (
+                            <div
+                              key={`sidebar-location-${index}`}
+                              className="flex items-start gap-2 text-slate-300"
+                            >
+                              <MapPin className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+                              <div className="space-y-1">
+                                <div>{[row.city, row.country].filter(Boolean).join(", ")}</div>
+                                {row.shippingAddress && (
+                                  <div className="text-xs text-slate-500">
+                                    {row.shippingAddress}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ) : null
+                        )}
                       </div>,
                       "sidebar-location"
                     )}
@@ -1205,11 +1425,20 @@ disabled={
                       "sidebar-companies"
                     )}
 
-                  {memberType &&
+                                    {memberTypes.some((value) => Boolean(value)) &&
                     renderSidebarCard(
-                      <div className="flex items-center gap-2 text-slate-300">
-                        <User className="w-4 h-4 text-slate-500 shrink-0" />
-                        <span>{getTranslatedMemberTypeLabel(memberType)}</span>
+                      <div className="space-y-2 w-full">
+                        {memberTypes.map((value, index) =>
+                          value ? (
+                            <div
+                              key={`sidebar-member-type-${index}`}
+                              className="flex items-center gap-2 text-slate-300"
+                            >
+                              <User className="w-4 h-4 text-slate-500 shrink-0" />
+                              <span>{getTranslatedMemberTypeLabel(value)}</span>
+                            </div>
+                          ) : null
+                        )}
                       </div>,
                       "sidebar-member-type"
                     )}
@@ -1310,12 +1539,20 @@ disabled={
                       </h3>
                     </div>
 
-                    {renderSingleFieldCard({
+                                        {renderSingleFieldCard({
                       fieldKey: "registered_email",
                       label: t("employeeDetail.fields.registeredEmail"),
                       value: email,
                       setValue: setEmail,
                       adminOnly: true,
+                      showAdd: false,
+                      showEdit: false,
+                      showDelete: true,
+                      deleteAlwaysVisible: true,
+                      deleteLabel: t("employeeDetail.actions.deleteUser"),
+                      onDelete: () => {
+                        void handleDeleteUser();
+                      },
                     })}
 
                     {renderMultiFieldCard({
@@ -1323,7 +1560,6 @@ disabled={
                       label: t("employeeDetail.fields.additionalEmails"),
                       values: additionalEmails,
                       setValues: setAdditionalEmails,
-                      alwaysShowAdd: true,
                     })}
                   </section>
 
@@ -1333,79 +1569,209 @@ disabled={
                     </div>
 
                     <div className="grid md:grid-cols-2 gap-4">
-                      <div className="md:col-span-2 rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+                                                                <div className="md:col-span-2 rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
                         <div className="flex flex-col gap-4">
                           <div className="space-y-1">
-                            <h4 className="text-base font-semibold text-white">{t("employeeDetail.fields.location")}</h4>
+                            <h4 className="text-base font-semibold text-white">
+                              {t("employeeDetail.fields.location")}
+                            </h4>
                           </div>
 
                           {renderActionButtons({
                             fieldKey: "location",
-                            filled: Boolean(country || city || shippingAddress),
+                            filled: locations.some(
+                              (row) =>
+                                row.country.trim() ||
+                                row.city.trim() ||
+                                row.shippingAddress.trim()
+                            ),
                             canEditThisField: canEditProfileFields,
+                            showAdd: true,
+                            showEdit: true,
+                            showDelete: true,
+                            addLabel: t("employeeDetail.actions.add"),
+                            onAdd: () => {
+                              const hasFilledLocation = locations.some(
+                                (row) =>
+                                  row.country.trim() ||
+                                  row.city.trim() ||
+                                  row.shippingAddress.trim()
+                              );
+
+                              beginEditingWithAction("location", () => {
+                                if (hasFilledLocation) {
+                                  addLocationRow();
+                                }
+                              });
+                            },
                           })}
                         </div>
 
                         <div className="mt-4">
                           {isEditing && activeEditor === "location" ? (
-                            <div className="grid md:grid-cols-3 gap-4">
-                              <div className="space-y-2">
-                                <Label className="text-slate-300">{t("employeeDetail.fields.country")}</Label>
-                                <Input
-                                  value={country}
-                                  onChange={(e) => setCountry(e.target.value)}
-                                  className="bg-slate-950 border-slate-800 text-white"
-                                />
-                              </div>
+                            <div className="space-y-4">
+                              {locations.map((row, index) => (
+                                <div
+                                  key={`location-${index}`}
+                                  className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/40 p-4"
+                                >
+                                  <div className="grid md:grid-cols-3 gap-4">
+                                    <div className="space-y-2">
+                                      <Label className="text-slate-300">
+                                        {t("employeeDetail.fields.country")}
+                                      </Label>
+                                      <Input
+                                        value={row.country}
+                                        onChange={(e) =>
+                                          updateLocationValue(index, "country", e.target.value)
+                                        }
+                                        className="bg-slate-950 border-slate-800 text-white"
+                                      />
+                                    </div>
 
-                              <div className="space-y-2">
-                                <Label className="text-slate-300">{t("employeeDetail.fields.city")}</Label>
-                                <Input
-                                  value={city}
-                                  onChange={(e) => setCity(e.target.value)}
-                                  className="bg-slate-950 border-slate-800 text-white"
-                                />
-                              </div>
+                                    <div className="space-y-2">
+                                      <Label className="text-slate-300">
+                                        {t("employeeDetail.fields.city")}
+                                      </Label>
+                                      <Input
+                                        value={row.city}
+                                        onChange={(e) =>
+                                          updateLocationValue(index, "city", e.target.value)
+                                        }
+                                        className="bg-slate-950 border-slate-800 text-white"
+                                      />
+                                    </div>
 
-                              <div className="space-y-2">
-                                <Label className="text-slate-300">{t("employeeDetail.fields.shippingAddress")}</Label>
-                                <Input
-                                  value={shippingAddress}
-                                  onChange={(e) => setShippingAddress(e.target.value)}
-                                  className="bg-slate-950 border-slate-800 text-white"
-                                />
-                              </div>
+                                    <div className="space-y-2">
+                                      <Label className="text-slate-300">
+                                        {t("employeeDetail.fields.shippingAddress")}
+                                      </Label>
+                                      <Input
+                                        value={row.shippingAddress}
+                                        onChange={(e) =>
+                                          updateLocationValue(
+                                            index,
+                                            "shippingAddress",
+                                            e.target.value
+                                          )
+                                        }
+                                        className="bg-slate-950 border-slate-800 text-white"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="flex justify-end">
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="outline"
+                                      className="border-red-800 text-red-400 hover:bg-red-900/20 shrink-0"
+                                      onClick={() => removeLocationRow(index)}
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                                onClick={addLocationRow}
+                              >
+                                <Plus className="w-4 h-4 mr-2" />
+                                Add another address
+                              </Button>
                             </div>
                           ) : (
-                            <div className="grid md:grid-cols-3 gap-4">
-                              <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
-                                <div className="text-xs text-slate-500 mb-1">{t("employeeDetail.fields.country")}</div>
-                                <div className="text-sm text-slate-200">
-                                  {country || t("employeeDetail.empty.noValue")}
+                            <div className="space-y-4">
+                              {locations.some(
+                                (row) =>
+                                  row.country.trim() ||
+                                  row.city.trim() ||
+                                  row.shippingAddress.trim()
+                              ) ? (
+                                locations.map((row, index) =>
+                                  row.country.trim() ||
+                                  row.city.trim() ||
+                                  row.shippingAddress.trim() ? (
+                                    <div
+                                      key={`location-display-${index}`}
+                                      className="grid md:grid-cols-3 gap-4"
+                                    >
+                                      <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
+                                        <div className="text-xs text-slate-500 mb-1">
+                                          {t("employeeDetail.fields.country")}
+                                        </div>
+                                        <div className="text-sm text-slate-200">
+                                          {row.country || t("employeeDetail.empty.noValue")}
+                                        </div>
+                                      </div>
+
+                                      <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
+                                        <div className="text-xs text-slate-500 mb-1">
+                                          {t("employeeDetail.fields.city")}
+                                        </div>
+                                        <div className="text-sm text-slate-200">
+                                          {row.city || t("employeeDetail.empty.noValue")}
+                                        </div>
+                                      </div>
+
+                                      <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
+                                        <div className="text-xs text-slate-500 mb-1">
+                                          {t("employeeDetail.fields.shippingAddress")}
+                                        </div>
+                                        <div className="text-sm text-slate-200">
+                                          {row.shippingAddress || t("employeeDetail.empty.noValue")}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : null
+                                )
+                              ) : (
+                                <div className="grid md:grid-cols-3 gap-4">
+                                  <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
+                                    <div className="text-xs text-slate-500 mb-1">
+                                      {t("employeeDetail.fields.country")}
+                                    </div>
+                                    <div className="text-sm text-slate-200">
+                                      {t("employeeDetail.empty.noValue")}
+                                    </div>
+                                  </div>
+
+                                  <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
+                                    <div className="text-xs text-slate-500 mb-1">
+                                      {t("employeeDetail.fields.city")}
+                                    </div>
+                                    <div className="text-sm text-slate-200">
+                                      {t("employeeDetail.empty.noValue")}
+                                    </div>
+                                  </div>
+
+                                  <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
+                                    <div className="text-xs text-slate-500 mb-1">
+                                      {t("employeeDetail.fields.shippingAddress")}
+                                    </div>
+                                    <div className="text-sm text-slate-200">
+                                      {t("employeeDetail.empty.noValue")}
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
-                                <div className="text-xs text-slate-500 mb-1">{t("employeeDetail.fields.city")}</div>
-                                <div className="text-sm text-slate-200">
-                                  {city || t("employeeDetail.empty.noValue")}
-                                </div>
-                              </div>
-                              <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3">
-                                <div className="text-xs text-slate-500 mb-1">{t("employeeDetail.fields.shippingAddress")}</div>
-                                <div className="text-sm text-slate-200">
-                                  {shippingAddress || t("employeeDetail.empty.noValue")}
-                                </div>
-                              </div>
+                              )}
                             </div>
                           )}
                         </div>
                       </div>
 
-                      {renderSingleFieldCard({
+                                            {renderSingleFieldCard({
                         fieldKey: "display_name",
                         label: t("employeeDetail.fields.displayName"),
                         value: displayName,
                         setValue: setDisplayName,
+                        showAdd: false,
+                        showEdit: true,
+                        showDelete: true,
                       })}
 
                       {renderMultiFieldCard({
@@ -1422,7 +1788,7 @@ disabled={
                         setValues: setCompanies,
                       })}
 
-                      <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+                                           <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
                         <div className="flex flex-col gap-4">
                           <div className="space-y-1">
                             <h4 className="text-base font-semibold text-white">
@@ -1432,8 +1798,20 @@ disabled={
 
                           {renderActionButtons({
                             fieldKey: "member_type",
-                            filled: Boolean(memberType),
+                            filled: memberTypes.some((value) => Boolean(value)),
                             canEditThisField: canEditProfileFields,
+                            showAdd: true,
+                            showEdit: true,
+                            showDelete: true,
+                            onAdd: () => {
+                              const hasFilledMemberType = memberTypes.some((value) => Boolean(value));
+
+                              beginEditingWithAction("member_type", () => {
+                                if (hasFilledMemberType) {
+                                  addMemberTypeRow();
+                                }
+                              });
+                            },
                           })}
                         </div>
 
@@ -1444,31 +1822,66 @@ disabled={
                                 {t("employeeDetail.messages.adminNoMemberType")}
                               </div>
                             ) : (
-                              <Select
-                                value={memberType}
-                                onValueChange={(value) =>
-                                  setMemberType(value as MemberType)
-                                }
-                              >
-                                <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                                  <SelectValue placeholder={t("employeeDetail.placeholders.selectMemberType")} />
-                                </SelectTrigger>
-                                <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                                  {MEMBER_TYPE_OPTIONS[role].map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {getTranslatedMemberTypeLabel(option.value)}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <div className="space-y-3">
+                                {memberTypes.map((value, index) => (
+                                  <div key={`member-type-${index}`} className="flex items-center gap-2">
+                                    <Select
+                                      value={value}
+                                      onValueChange={(nextValue) =>
+                                        updateMemberTypeValue(index, nextValue as MemberType)
+                                      }
+                                    >
+                                      <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                                        <SelectValue placeholder={t("employeeDetail.placeholders.selectMemberType")} />
+                                      </SelectTrigger>
+                                      <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                                        {MEMBER_TYPE_OPTIONS[role].map((option) => (
+                                          <SelectItem key={option.value} value={option.value}>
+                                            {getTranslatedMemberTypeLabel(option.value)}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="outline"
+                                      className="border-red-800 text-red-400 hover:bg-red-900/20 shrink-0"
+                                      onClick={() => removeMemberTypeRow(index)}
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                ))}
+
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                                  onClick={addMemberTypeRow}
+                                >
+                                  <Plus className="w-4 h-4 mr-2" />
+                                  {t("employeeDetail.actions.add")}
+                                </Button>
+                              </div>
                             )
+                          ) : memberTypes.some((value) => Boolean(value)) ? (
+                            <div className="space-y-2">
+                              {memberTypes.map((value, index) =>
+                                value ? (
+                                  <div
+                                    key={`member-type-display-${index}`}
+                                    className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3 text-sm text-slate-200 min-h-[52px] flex items-center"
+                                  >
+                                    {getTranslatedMemberTypeLabel(value)}
+                                  </div>
+                                ) : null
+                              )}
+                            </div>
                           ) : (
                             <div className="rounded-xl bg-slate-900/60 border border-slate-800 px-4 py-3 text-sm text-slate-200 min-h-[52px] flex items-center">
-                              {memberType ? (
-                                getTranslatedMemberTypeLabel(memberType)
-                              ) : (
-                                <span className="text-slate-500">{t("employeeDetail.empty.noValue")}</span>
-                              )}
+                              <span className="text-slate-500">{t("employeeDetail.empty.noValue")}</span>
                             </div>
                           )}
                         </div>
@@ -1501,7 +1914,7 @@ disabled={
                             <h4 className="text-base font-semibold text-white">{t("employeeDetail.fields.profilePhoto")}</h4>
                           </div>
 
-                          {canEditProfileFields && (
+                                                    {canEditProfileFields && (
                             <div className="flex flex-wrap items-center gap-2">
                               <Button
                                 type="button"
@@ -1515,39 +1928,22 @@ disabled={
                                 }}
                                 disabled={isUploadingPhoto}
                               >
-                                <Plus className="w-4 h-4 mr-1" />
-                                {t("employeeDetail.actions.add")}
+                                <Edit className="w-4 h-4 mr-1" />
+                                {t("employeeDetail.actions.edit")}
                               </Button>
 
                               {avatarUrl && (
-                                <>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    className="border-slate-700 text-slate-200 hover:bg-slate-800"
-                                    onClick={() => {
-                                      setIsEditing(true);
-                                      setActiveEditor("profile_photo");
-                                      profilePhotoInputRef.current?.click();
-                                    }}
-                                    disabled={isUploadingPhoto}
-                                  >
-                                    <Edit className="w-4 h-4 mr-1" />
-                                    {t("employeeDetail.actions.edit")}
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    className="border-red-800 text-red-400 hover:bg-red-900/20"
-                                    onClick={() => clearField("profile_photo")}
-                                    disabled={isUploadingPhoto}
-                                  >
-                                    <Trash2 className="w-4 h-4 mr-1" />
-                                    {t("employeeDetail.actions.delete")}
-                                  </Button>
-                                </>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-red-800 text-red-400 hover:bg-red-900/20"
+                                  onClick={() => clearField("profile_photo")}
+                                  disabled={isUploadingPhoto}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-1" />
+                                  {t("employeeDetail.actions.delete")}
+                                </Button>
                               )}
                             </div>
                           )}
@@ -1589,12 +1985,15 @@ disabled={
                       </div>
 
                       <div className="md:col-span-2">
-                        {renderSingleFieldCard({
+                                                {renderSingleFieldCard({
                           fieldKey: "bio",
                           label: t("employeeDetail.fields.bio"),
                           value: bio,
                           setValue: setBio,
                           multiline: true,
+                          showAdd: false,
+                          showEdit: true,
+                          showDelete: true,
                         })}
                       </div>
                     </div>
@@ -1661,12 +2060,12 @@ disabled={
               <Label className="text-slate-300">{t("employeeDetail.fields.role")}</Label>
               <Select
                 value={role}
-                onValueChange={(value) => {
+                                onValueChange={(value) => {
                   const nextRole = value as Role;
                   setRole(nextRole);
 
                   if (nextRole === "admin") {
-                    setMemberType("");
+                    setMemberTypes([""]);
                     return;
                   }
 
@@ -1674,9 +2073,13 @@ disabled={
                     (option) => option.value
                   );
 
-                  if (memberType && !allowedValues.includes(memberType)) {
-                    setMemberType("");
-                  }
+                  setMemberTypes((prev) => {
+                    const filtered = prev.map((item) =>
+                      item && allowedValues.includes(item) ? item : ""
+                    );
+
+                    return filtered.some(Boolean) ? filtered : [""];
+                  });
                 }}
                 disabled={!isEditing || !canManage}
               >

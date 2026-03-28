@@ -291,6 +291,10 @@ export default function DashboardLayout({
     });
   }, [clock.now, language, timezone]);
 
+    const visibleChatUnreadCount = location.pathname.startsWith("/chat")
+    ? 0
+    : chatUnreadCount;
+
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 1024;
@@ -312,7 +316,7 @@ export default function DashboardLayout({
   const loadUnreadCounts = useCallback(async (userId: string) => {
     const [
       { count: totalUnread, error: totalUnreadError },
-      { count: totalChatUnread, error: totalChatUnreadError },
+      { data: unreadChatNotifications, error: unreadChatError },
     ] = await Promise.all([
       supabase
         .from("notifications")
@@ -321,10 +325,11 @@ export default function DashboardLayout({
         .eq("is_read", false),
       supabase
         .from("notifications")
-        .select("*", { count: "exact", head: true })
+        .select("link")
         .eq("user_id", userId)
         .eq("is_read", false)
-        .in("type", ["MESSAGE", "MENTION"]),
+        .in("type", ["MESSAGE", "MENTION"])
+        .like("link", "/chat/%"),
     ]);
 
     if (totalUnreadError) {
@@ -334,15 +339,23 @@ export default function DashboardLayout({
       );
     }
 
-    if (totalChatUnreadError) {
+    if (unreadChatError) {
       console.error(
         "Failed to load unread chat notification count:",
-        totalChatUnreadError
+        unreadChatError
       );
     }
 
+    const unreadConversationIds = new Set(
+      ((unreadChatNotifications || []) as Array<{ link: string | null }>)
+        .map((item) => item.link || "")
+        .filter((link) => link.startsWith("/chat/"))
+        .map((link) => link.replace("/chat/", ""))
+        .filter(Boolean)
+    );
+
     setUnreadCount(totalUnread || 0);
-    setChatUnreadCount(totalChatUnread || 0);
+    setChatUnreadCount(unreadConversationIds.size);
   }, []);
 
   const loadNotifications = useCallback(
@@ -766,38 +779,6 @@ if (!location.pathname.startsWith("/chat") || !isChatMessageNotification) {
   void loadNotifications(userProfile.userId, userProfile);
 }, [notificationsOpen, userProfile, loadNotifications]);
 
-   useEffect(() => {
-    if (!userProfile?.userId) return;
-    if (!location.pathname.startsWith("/chat")) return;
-
-    const markChatNotificationsRead = async () => {
-      const { error } = await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("user_id", userProfile.userId)
-        .eq("is_read", false)
-        .in("type", ["MESSAGE", "MENTION"]);
-
-      if (error) {
-        console.error("Mark chat notifications read error:", error);
-        return;
-      }
-
-      const nextNotifications = notificationsRef.current.map((notification) =>
-        notification.type === "MESSAGE" || notification.type === "MENTION"
-          ? { ...notification, is_read: true }
-          : notification
-      );
-
-      notificationsRef.current = nextNotifications;
-      setNotifications(nextNotifications);
-      writeLayoutCache(userProfileRef.current, nextNotifications);
-      await loadUnreadCounts(userProfile.userId);
-    };
-
-    void markChatNotificationsRead();
-  }, [loadUnreadCounts, location.pathname, userProfile?.userId]);
-
   useEffect(() => {
     if (!userProfile?.userId) return;
 
@@ -882,11 +863,11 @@ const navItems: NavItem[] = useMemo(
         href: "/calendar",
         badge: calendarTodayCount || undefined,
       },
-           {
+                {
         label: t("common.chat", "Chat"),
         icon: MessageSquare,
         href: "/chat",
-        badge: chatUnreadCount || undefined,
+        badge: visibleChatUnreadCount || undefined,
       },
       {
         label: t("common.inbox", "Inbox"),
@@ -909,7 +890,13 @@ const navItems: NavItem[] = useMemo(
         href: "/settings",
       },
     ],
-        [calendarTodayCount, chatUnreadCount, unreadCount, effectivePermissions, t]
+            [
+      calendarTodayCount,
+      effectivePermissions,
+      t,
+      unreadCount,
+      visibleChatUnreadCount,
+    ]
   );
 
   const handleLogout = async () => {

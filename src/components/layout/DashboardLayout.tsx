@@ -1005,8 +1005,8 @@ const handleNotificationClick = async (notification: NotificationRow) => {
                   }}
                   className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-200 ${
                     isActive(item.href)
-                      ? "border border-primary/30 bg-primary/15 text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      ? "bg-primary/10 text-primary backdrop-blur-md shadow-sm"
+                      : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
                   }`}
                 >
                   <item.icon
@@ -1041,7 +1041,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
 
       <div className="border-t border-border p-4">
         <div className="flex flex-col gap-3">
-          <div className="rounded-lg border border-border bg-card/60 px-3 py-2">
+          <div className="rounded-xl border border-border bg-background/40 backdrop-blur-md px-3 py-2">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
               {t("clock.systemTime", "System Time")}
             </p>
@@ -1053,7 +1053,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
             </p>
           </div>
 
-          <div className="rounded-lg border border-border bg-card/60 px-3 py-2">
+          <div className="rounded-xl border border-border bg-background/40 backdrop-blur-md px-3 py-2">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
               {t("clock.localTime", "My Local Time")}
             </p>
@@ -1119,7 +1119,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
     <div className="flex min-h-screen bg-background text-foreground">
       {!isMobile && (
         <aside
-          className={`fixed left-0 top-0 z-40 h-full border-r border-border bg-card/95 backdrop-blur-xl transition-all duration-300 ${
+          className={`fixed left-0 top-0 z-40 h-full border-r border-border bg-background/60 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)] transition-all duration-300 ${
             sidebarOpen ? "w-64" : "w-16"
           }`}
         >
@@ -1145,7 +1145,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
                           className={`relative flex w-full items-center justify-center rounded-lg p-2.5 transition-all duration-200 ${
                             isActive(item.href)
                               ? "bg-primary/15 text-primary"
-                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                              : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
                           }`}
                         >
                           <item.icon className="h-5 w-5" />
@@ -1219,7 +1219,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
             className="fixed inset-0 z-40 bg-black/50"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <aside className="fixed left-0 top-0 z-50 h-full w-64 border-r border-border bg-card/95 backdrop-blur-xl">
+          <aside className="fixed left-0 top-0 z-50 h-full w-64 border-r border-border bg-background/70 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
             <SidebarContent />
           </aside>
         </>
@@ -1230,7 +1230,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
     !isMobile && sidebarOpen ? "ml-64" : !isMobile ? "ml-16" : ""
   }`}
 >
-        <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
+        <header className="sticky top-0 z-30 border-b border-border bg-background/60 backdrop-blur-2xl shadow-[0_1px_0_rgba(255,255,255,0.03)]">
           <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-4">
               {isMobile && (
@@ -1384,7 +1384,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
             </div>
           </div>
         </header>
-        <div className="flex-1 p-4 lg:p-6">{children}</div>
+        <div className="flex-1 p-5 lg:p-8 space-y-6">{children}</div>
       </main>
     </div>
   );

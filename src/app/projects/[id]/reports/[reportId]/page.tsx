@@ -16,7 +16,6 @@ import {
   FileText,
   Users,
   CheckSquare,
-  MessageSquare,
   Clock3,
   Shield,
 } from "lucide-react";

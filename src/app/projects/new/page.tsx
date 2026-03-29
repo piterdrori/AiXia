@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-import { logActivity } from "@/lib/activity";
-import { createNotification } from "@/lib/notifications";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
 import { projectSchema } from "@/lib/validation";
@@ -192,90 +190,44 @@ if (!myProfile || !canPerform(myProfile.role, "createProjects")) {
   return;
 }
 
-      const { data: projectData, error: insertError } = await supabase
-        .from("projects")
-        .insert([
-          {
+      const { data, error: invokeError } = await supabase.functions.invoke(
+        "project-create",
+        {
+          body: {
             name: name.trim(),
             description: description.trim() || null,
             status,
-            progress: 0,
-            created_by: user.id,
-            start_date: startDate || null,
-            end_date: endDate || null,
+            startDate: startDate || null,
+            endDate: endDate || null,
+            memberIds: selectedMembers,
           },
-        ])
-        .select()
-        .single();
+        }
+      );
 
       if (!requestTracker.current.isLatest(requestId)) return;
 
-      if (insertError || !projectData) {
+      if (invokeError) {
+        console.error("Project create function invoke error:", invokeError);
         setError(
-          insertError?.message ||
+          invokeError.message ||
             t("projects.failedToCreateProject", "Failed to create project")
         );
         setIsLoading(false);
         return;
       }
 
-      await logActivity({
-        projectId: projectData.id,
-        actionType: "project_created",
-        entityType: "project",
-        entityId: projectData.id,
-        message: `Created project "${projectData.name}"`,
-      });
-
-      if (selectedMembers.length > 0) {
-        const memberRows = selectedMembers.map((memberId) => ({
-          project_id: projectData.id,
-          user_id: memberId,
-          role: "member",
-        }));
-
-        const { error: membersInsertError } = await supabase
-          .from("project_members")
-          .insert(memberRows);
-
-        if (!requestTracker.current.isLatest(requestId)) return;
-
-        if (membersInsertError) {
-          console.error("Insert project members error:", membersInsertError);
-          setError(
-            `Project created, but failed to assign members: ${membersInsertError.message}`
-          );
-          setIsLoading(false);
-          return;
-        }
-
-        await logActivity({
-          projectId: projectData.id,
-          actionType: "project_members_assigned",
-          entityType: "member",
-          entityId: projectData.id,
-          message: `Assigned ${selectedMembers.length} member(s) to project "${projectData.name}"`,
-        });
-
-        for (const memberId of selectedMembers) {
-          if (memberId === user.id) continue;
-
-          await createNotification({
-            userId: memberId,
-            actorUserId: user.id,
-            type: "PROJECT_UPDATE",
-            title: t("projects.addedToProject", "Added to Project"),
-            message: `You were added to project "${projectData.name}"`,
-            link: `/projects/${projectData.id}`,
-            entityType: "project",
-            entityId: projectData.id,
-          });
-        }
+      if (!data?.success) {
+        setError(
+          data?.error ||
+            t("projects.failedToCreateProject", "Failed to create project")
+        );
+        setIsLoading(false);
+        return;
       }
 
       if (!requestTracker.current.isLatest(requestId)) return;
 
-      navigate(`/projects/${projectData.id}`);
+      navigate(`/projects/${data.project.id}`);
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Create project error:", err);

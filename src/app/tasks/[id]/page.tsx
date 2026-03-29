@@ -715,13 +715,7 @@ const handleDelete = async () => {
     setCommentSaving(true);
     setError("");
 
-        try {
-      console.log("TASK COMMENT EDGE INVOKE START", {
-        taskId: task.id,
-        content: newComment.trim(),
-      });
-
-      const { data, error: invokeError } = await supabase.functions.invoke(
+              const { data, error: invokeError } = await supabase.functions.invoke(
         "task-comment-create",
         {
           body: {
@@ -730,11 +724,6 @@ const handleDelete = async () => {
           },
         }
       );
-
-      console.log("TASK COMMENT EDGE INVOKE RESULT", {
-        data,
-        error: invokeError,
-      });
 
       if (!requestTracker.current.isLatest(requestId)) return;
 
@@ -1448,7 +1437,7 @@ setTranslatedComments((prev) => ({
                     className="bg-indigo-600 hover:bg-indigo-700 text-white"
                   >
                     <Send className="w-4 h-4 mr-2" />
-                    {commentSaving ? "POSTING EDGE..." : "Post Update EDGE"}
+                    {commentSaving ? t("taskDetail.discussion.posting") : t("taskDetail.discussion.postUpdate")}
                   </Button>
                 </div>
               </div>

@@ -711,100 +711,48 @@ const handleDelete = async () => {
 
     navigate("/tasks");
   };
-  const handleAddComment = async () => {
-    if (!task || !currentUserId || !newComment.trim()) return;
+    const handleAddComment = async () => {
+    if (!task || !newComment.trim()) return;
 
     const requestId = requestTracker.current.next();
     setCommentSaving(true);
     setError("");
 
-    const commentText = newComment.trim();
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke(
+        "task-comment-create",
+        {
+          body: {
+            taskId: task.id,
+            content: newComment.trim(),
+          },
+        }
+      );
 
-    const { data, error: commentError } = await supabase
-      .from("task_comments")
-      .insert({
-        task_id: task.id,
-        user_id: currentUserId,
-        content: commentText,
-      })
-      .select("id, task_id, user_id, content, created_at")
-      .single();
+      if (!requestTracker.current.isLatest(requestId)) return;
 
-    if (!requestTracker.current.isLatest(requestId)) return;
+      if (invokeError) {
+        setError(invokeError.message || t("taskDetail.errors.addComment"));
+        setCommentSaving(false);
+        return;
+      }
 
-    if (commentError) {
-      setError(commentError.message || t("taskDetail.errors.addComment"));
+      if (!data?.success || !data?.comment) {
+        setError(data?.error || t("taskDetail.errors.addComment"));
+        setCommentSaving(false);
+        return;
+      }
+
+      setComments((prev) => [...prev, data.comment as TaskCommentRow]);
+      setNewComment("");
+    } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Add task comment error:", err);
+      setError(t("taskDetail.errors.addComment"));
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
       setCommentSaving(false);
-      return;
     }
-
-    await logActivity({
-      projectId: task.project_id,
-      taskId: task.id,
-      actionType: "task_comment_added",
-      entityType: "comment",
-      entityId: task.id,
-      message: `Added an update to task "${task.title}"`,
-    });
-
-    const recipientIds = Array.from(
-      new Set([
-        ...(task.created_by ? [task.created_by] : []),
-        ...taskMembers.map((member) => member.user_id),
-      ])
-    ).filter((userId) => userId !== currentUserId);
-
-    for (const userId of recipientIds) {
-      await createNotification({
-        userId,
-        actorUserId: currentUserId,
-        type: "COMMENT",
-        title: t("taskDetail.notifications.newTaskCommentTitle"),
-        message: t(
-  "taskDetail.notifications.newTaskCommentMessage",
-  undefined,
-  {
-    title: task.title,
-  }
-),
-        link: `/tasks/${task.id}`,
-        entityType: "task_comment",
-        entityId: data.id,
-      });
-    }
-
-    const mentionedUserIds = extractMentionedUserIds(
-      commentText,
-      profiles.map((profile) => ({
-        user_id: profile.user_id,
-        full_name: profile.full_name,
-      }))
-    ).filter((userId) => userId !== currentUserId);
-
-    for (const userId of mentionedUserIds) {
-      await createNotification({
-        userId,
-        actorUserId: currentUserId,
-        type: "MENTION",
-        title: t("taskDetail.notifications.mentionedTitle"),
-        message: t(
-  "taskDetail.notifications.mentionedMessage",
-  undefined,
-  {
-    title: task.title,
-  }
-),
-        link: `/tasks/${task.id}`,
-        entityType: "task_comment",
-        entityId: data.id,
-      });
-    }
-
-    if (!requestTracker.current.isLatest(requestId)) return;
-
-    setComments((prev) => [...prev, data as TaskCommentRow]);
-    setNewComment("");
-    setCommentSaving(false);
   };
 
   const startEditingComment = (comment: TaskCommentRow) => {

@@ -804,83 +804,49 @@ export default function ProjectDetailPage() {
   };
 
   const handleAddComment = async () => {
-    if (!project || !currentUserId || !newComment.trim()) return;
+    if (!project || !newComment.trim()) return;
 
     setCommentSaving(true);
     setError("");
 
-    const commentText = newComment.trim();
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke(
+        "project-comment-create",
+        {
+          body: {
+            projectId: project.id,
+            content: newComment.trim(),
+          },
+        }
+      );
 
-    const { data, error: commentError } = await supabase
-      .from("project_comments")
-      .insert({
-        project_id: project.id,
-        user_id: currentUserId,
-        content: commentText,
-      })
-      .select("id, project_id, user_id, content, created_at")
-      .single();
+      if (invokeError) {
+        setError(
+          invokeError.message ||
+            t("projects.failedToAddComment", "Failed to add comment.")
+        );
+        setCommentSaving(false);
+        return;
+      }
 
-    if (commentError) {
-      setError(commentError.message || t("projects.failedToAddComment", "Failed to add comment."));
+      if (!data?.success || !data?.comment) {
+        setError(
+          data?.error ||
+            t("projects.failedToAddComment", "Failed to add comment.")
+        );
+        setCommentSaving(false);
+        return;
+      }
+
+      setComments((prev) => [...prev, data.comment as ProjectCommentRow]);
+      setNewComment("");
+      await refreshActivityLogs(project.id);
+    } catch (err) {
+      console.error("Add project comment error:", err);
+      setError(t("projects.failedToAddComment", "Failed to add comment."));
+    } finally {
       setCommentSaving(false);
-      return;
     }
-
-    await logActivity({
-      projectId: project.id,
-      taskId: null,
-      actionType: "project_comment_added",
-      entityType: "comment",
-      entityId: data.id,
-      message: `Added an update to project "${project.name}"`,
-    });
-
-    const recipientIds = Array.from(
-      new Set([
-        ...(project.created_by ? [project.created_by] : []),
-        ...projectMembers.map((member) => member.user_id),
-      ])
-    ).filter((userId) => userId !== currentUserId);
-
-    for (const userId of recipientIds) {
-      await createNotification({
-        userId,
-        actorUserId: currentUserId,
-        type: "COMMENT",
-        title: t("projects.newProjectComment", "New Project Comment"),
-        message: t("projects.newCommentOnProject", `New comment on project "${project.name}"`),
-        link: `/projects/${project.id}`,
-        entityType: "project_comment",
-        entityId: data.id,
-      });
-    }
-
-    const mentionedUserIds = extractMentionedUserIds(
-      commentText,
-      profiles.map((profile) => ({
-        user_id: profile.user_id,
-        full_name: profile.full_name,
-      }))
-    ).filter((userId) => userId !== currentUserId);
-
-    for (const userId of mentionedUserIds) {
-      await createNotification({
-        userId,
-        actorUserId: currentUserId,
-        type: "MENTION",
-        title: t("projects.youWereMentionedInProjectComment", "You were mentioned in a project comment"),
-        message: t("projects.youWereMentionedInProject", `You were mentioned in project "${project.name}"`),
-        link: `/projects/${project.id}`,
-        entityType: "project_comment",
-        entityId: data.id,
-      });
-    }
-
-    setComments((prev) => [...prev, data as ProjectCommentRow]);
-    setNewComment("");
-    setCommentSaving(false);
-    await refreshActivityLogs(project.id);
   };
 
   const startEditingComment = (comment: ProjectCommentRow) => {

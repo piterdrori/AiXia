@@ -271,8 +271,8 @@ export default function SettingsPage() {
   const [mentions, setMentions] = useState(true);
   const [digestFrequency, setDigestFrequency] = useState("daily");
 
-  const [theme, setTheme] = useState("dark");
-  const [accentColor, setAccentColor] = useState("indigo");
+    const [theme, setTheme] = useState("dark");
+  const [accentColor, setAccentColor] = useState("blue");
   const [fontSize, setFontSize] = useState("medium");
   const [compactMode, setCompactMode] = useState(false);
 
@@ -322,8 +322,8 @@ export default function SettingsPage() {
     setMentions(profile.mention_notifications ?? true);
     setDigestFrequency(profile.digest_frequency || "daily");
 
-    setTheme(profile.theme || "dark");
-    setAccentColor(profile.accent_color || "indigo");
+        setTheme(profile.theme || "dark");
+    setAccentColor(profile.accent_color || "blue");
     setFontSize(profile.font_size || "medium");
     setCompactMode(profile.compact_mode ?? false);
   }, []);
@@ -478,25 +478,96 @@ const handleSaveAccount = async () => {
     });
   };
 
-  const handleSaveAppearance = async () => {
-    await updateProfile("appearance", {
+    const applyAppearanceToRoot = useCallback(
+    (
+      nextTheme: string,
+      nextAccentColor: string,
+      nextFontSize: string,
+      nextCompactMode: boolean
+    ) => {
+      const root = document.documentElement;
+      const resolvedTheme =
+        nextTheme === "system"
+          ? window.matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light"
+          : nextTheme || "dark";
+
+      root.setAttribute("data-theme-preference", nextTheme || "dark");
+      root.setAttribute("data-theme", resolvedTheme);
+      root.setAttribute("data-accent", nextAccentColor || "blue");
+      root.setAttribute("data-font-size", nextFontSize || "medium");
+
+      if (nextCompactMode) {
+        root.classList.add("compact");
+      } else {
+        root.classList.remove("compact");
+      }
+    },
+    []
+  );
+
+  const saveAppearancePatch = useCallback(
+    async (patch: {
+      theme?: string;
+      accent_color?: string;
+      font_size?: string;
+      compact_mode?: boolean;
+    }) => {
+      const nextTheme = patch.theme ?? theme;
+      const nextAccentColor = patch.accent_color ?? accentColor;
+      const nextFontSize = patch.font_size ?? fontSize;
+      const nextCompactMode = patch.compact_mode ?? compactMode;
+
+      applyAppearanceToRoot(
+        nextTheme,
+        nextAccentColor,
+        nextFontSize,
+        nextCompactMode
+      );
+
+      const didSave = await updateProfile("appearance", {
+        theme: nextTheme,
+        accent_color: nextAccentColor,
+        font_size: nextFontSize,
+        compact_mode: nextCompactMode,
+      });
+
+      if (!didSave) {
+        applyAppearanceToRoot(theme, accentColor, fontSize, compactMode);
+        setTheme(theme);
+        setAccentColor(accentColor);
+        setFontSize(fontSize);
+        setCompactMode(compactMode);
+      }
+    },
+    [
+      accentColor,
+      applyAppearanceToRoot,
+      compactMode,
+      fontSize,
       theme,
-      accent_color: accentColor,
-      font_size: fontSize,
-      compact_mode: compactMode,
-    });
+    ]
+  );
 
-    const root = document.documentElement;
+  const handleThemeChange = async (value: string) => {
+    setTheme(value);
+    await saveAppearancePatch({ theme: value });
+  };
 
-    root.setAttribute("data-theme", theme || "dark");
-    root.setAttribute("data-accent", accentColor || "indigo");
-    root.setAttribute("data-font-size", fontSize || "medium");
+  const handleAccentColorChange = async (value: string) => {
+    setAccentColor(value);
+    await saveAppearancePatch({ accent_color: value });
+  };
 
-    if (compactMode) {
-      root.classList.add("compact");
-    } else {
-      root.classList.remove("compact");
-    }
+  const handleFontSizeChange = async (value: string) => {
+    setFontSize(value);
+    await saveAppearancePatch({ font_size: value });
+  };
+
+  const handleCompactModeChange = async (value: boolean) => {
+    setCompactMode(value);
+    await saveAppearancePatch({ compact_mode: value });
   };
 
   const handleProfilePhotoUpload = async (
@@ -1272,11 +1343,17 @@ const handleSaveAccount = async () => {
                     <Label className="text-slate-300">
                       {t("settings.theme", "Theme")}
                     </Label>
-                    <Select value={theme} onValueChange={setTheme}>
+                                        <Select
+                      value={theme}
+                      onValueChange={(value) => {
+                        void handleThemeChange(value);
+                      }}
+                      disabled={isSavingAppearance}
+                    >
                       <SelectTrigger className="border-slate-800 bg-slate-950 text-white">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="border-slate-800 bg-slate-950 text-white">
+                                            <SelectContent className="border-slate-800 bg-slate-950 text-white">
                         <SelectItem value="light">
                           <div className="flex items-center gap-2">
                             <Sun className="h-4 w-4" />
@@ -1304,29 +1381,24 @@ const handleSaveAccount = async () => {
                       <Label className="text-slate-300">
                         {t("settings.accentColor", "Accent Color")}
                       </Label>
-                      <Select
+                                            <Select
                         value={accentColor}
-                        onValueChange={setAccentColor}
+                        onValueChange={(value) => {
+                          void handleAccentColorChange(value);
+                        }}
+                        disabled={isSavingAppearance}
                       >
                         <SelectTrigger className="border-slate-800 bg-slate-950 text-white">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="border-slate-800 bg-slate-950 text-white">
-                          <SelectItem value="indigo">
-                            {t("settings.indigo", "Indigo")}
-                          </SelectItem>
+                     <SelectContent className="border-slate-800 bg-slate-950 text-white">
                           <SelectItem value="blue">
                             {t("settings.blue", "Blue")}
                           </SelectItem>
-                          <SelectItem value="green">
-                            {t("settings.green", "Green")}
-                          </SelectItem>
-                          <SelectItem value="purple">
-                            {t("settings.purple", "Purple")}
-                          </SelectItem>
-                          <SelectItem value="red">
-                            {t("settings.red", "Red")}
-                          </SelectItem>
+                          <SelectItem value="teal">Teal</SelectItem>
+                          <SelectItem value="emerald">Emerald</SelectItem>
+                          <SelectItem value="violet">Violet</SelectItem>
+                          <SelectItem value="rose">Rose</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1335,7 +1407,13 @@ const handleSaveAccount = async () => {
                       <Label className="text-slate-300">
                         {t("settings.fontSize", "Font Size")}
                       </Label>
-                      <Select value={fontSize} onValueChange={setFontSize}>
+                                            <Select
+                        value={fontSize}
+                        onValueChange={(value) => {
+                          void handleFontSizeChange(value);
+                        }}
+                        disabled={isSavingAppearance}
+                      >
                         <SelectTrigger className="border-slate-800 bg-slate-950 text-white">
                           <SelectValue />
                         </SelectTrigger>
@@ -1362,23 +1440,29 @@ const handleSaveAccount = async () => {
                           {t("settings.compactModeDesc", "Denser layout")}
                         </p>
                       </div>
-                      <Switch
+                                           <Switch
                         checked={compactMode}
-                        onCheckedChange={setCompactMode}
+                        onCheckedChange={(value) => {
+                          void handleCompactModeChange(value);
+                        }}
+                        disabled={isSavingAppearance}
                       />
                     </div>
                   </div>
 
-                  <Button
-                    onClick={() => void handleSaveAppearance()}
-                    className="bg-indigo-600 text-white hover:bg-indigo-700"
-                    disabled={isSavingAppearance}
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    {isSavingAppearance
-                      ? t("settings.saveAppearanceSaving", "Saving...")
-                      : t("settings.saveAppearance", "Save Appearance")}
-                  </Button>
+                                    <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+                    <p className="text-sm font-medium text-white">
+                      {t("settings.appearanceLiveSync", "Appearance updates instantly")}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {isSavingAppearance
+                        ? t("settings.saveAppearanceSaving", "Saving...")
+                        : t(
+                            "settings.appearanceLiveSyncDesc",
+                            "Theme, accent, font size, and compact mode now apply live without a save button."
+                          )}
+                    </p>
+                  </div>
                 </>
               )}
             </CardContent>

@@ -91,6 +91,10 @@ const permissionLabels: Record<
     label: "Visibility",
     description: "Can view sensitive information",
   },
+    generateProjectReports: {
+    label: "Generate Project Reports",
+    description: "Can generate and download project reports",
+  },
 };
 
 export default function EmployeePermissionsPage() {

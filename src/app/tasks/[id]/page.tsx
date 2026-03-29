@@ -715,7 +715,8 @@ const handleDelete = async () => {
     setCommentSaving(true);
     setError("");
 
-              const { data, error: invokeError } = await supabase.functions.invoke(
+              try {
+      const { data, error: invokeError } = await supabase.functions.invoke(
         "task-comment-create",
         {
           body: {

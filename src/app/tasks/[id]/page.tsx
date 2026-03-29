@@ -129,6 +129,28 @@ type FileUploadRow = {
   created_at: string;
 };
 
+function InfoRow({
+  icon,
+  label,
+  value,
+  valueClassName = "text-white",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  valueClassName?: string;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <div>{icon}</div>
+      <div>
+        <p className="text-xs text-slate-500">{label}</p>
+        <p className={`${valueClassName} text-sm`}>{value}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function TaskDetailPage() {
   const { t } = useLanguage();
   const clock = useAppClock();
@@ -1513,7 +1535,7 @@ if (isBootstrapping) {
                     </p>
                   </div>
                 ) : (
-                  [...comments].slice(-50).reverse().map((comment) => {
+                  visibleComments.map((comment) => {
                     const isMine = comment.user_id === currentUserId;
                     const authorName = getProfileName(comment.user_id);
                     const authorRole = getProfileRole(comment.user_id);

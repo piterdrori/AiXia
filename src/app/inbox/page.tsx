@@ -45,6 +45,7 @@ type NotificationType =
   | "TASK_ASSIGNED"
   | "TASK_UPDATED"
   | "COMMENT"
+  | "MENTION"
   | "FILE_UPLOAD"
   | "PROJECT_UPDATE"
   | "REMINDER";
@@ -68,6 +69,7 @@ const notificationIcons: Record<NotificationType, ElementType> = {
   TASK_ASSIGNED: CheckSquare,
   TASK_UPDATED: Info,
   COMMENT: MessageSquare,
+  MENTION: MessageSquare,
   FILE_UPLOAD: FileText,
   PROJECT_UPDATE: FolderKanban,
   REMINDER: Bell,
@@ -78,6 +80,7 @@ const notificationColors: Record<NotificationType, string> = {
   TASK_ASSIGNED: "bg-blue-500/20 text-blue-400",
   TASK_UPDATED: "bg-green-500/20 text-green-400",
   COMMENT: "bg-purple-500/20 text-purple-400",
+  MENTION: "bg-pink-500/20 text-pink-400",
   FILE_UPLOAD: "bg-amber-500/20 text-amber-400",
   PROJECT_UPDATE: "bg-slate-500/20 text-slate-300",
   REMINDER: "bg-yellow-500/20 text-yellow-400",
@@ -89,6 +92,7 @@ function isValidNotificationType(value: string): value is NotificationType {
     value === "TASK_ASSIGNED" ||
     value === "TASK_UPDATED" ||
     value === "COMMENT" ||
+    value === "MENTION" ||
     value === "FILE_UPLOAD" ||
     value === "PROJECT_UPDATE" ||
     value === "REMINDER"
@@ -409,7 +413,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
             <SelectValue placeholder={t("inbox.filters.placeholder")} />
           </SelectTrigger>
 
-                    <SelectContent className="border-slate-800 bg-slate-900">
+                      <SelectContent className="border-slate-800 bg-slate-900">
             <SelectItem value="ALL">{t("inbox.filters.all")}</SelectItem>
             <SelectItem value="UNREAD">{t("inbox.filters.unread")}</SelectItem>
             <SelectItem value="MESSAGE">{t("inbox.filters.messages")}</SelectItem>
@@ -420,6 +424,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
               {t("inbox.filters.taskUpdated")}
             </SelectItem>
             <SelectItem value="COMMENT">{t("inbox.filters.comments")}</SelectItem>
+            <SelectItem value="MENTION">Mentions</SelectItem>
             <SelectItem value="FILE_UPLOAD">
               {t("inbox.filters.fileUploads")}
             </SelectItem>

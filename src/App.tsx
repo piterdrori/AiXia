@@ -734,6 +734,7 @@ function AppRoutes() {
 function AppContent() {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const { setLanguage } = useLanguage();
+  const mediaQueryListenerRef = useRef<((event: MediaQueryListEvent) => void) | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -831,19 +832,19 @@ function AppContent() {
 
         mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
-        const handleSystemThemeChange = () => {
-          const currentPreference =
-            root.getAttribute("data-theme-preference") || "dark";
+        mediaQueryListenerRef.current = () => {
+  const currentPreference =
+    root.getAttribute("data-theme-preference") || "dark";
 
-          if (currentPreference === "system") {
-            root.setAttribute("data-theme", resolveTheme("system"));
-          }
-        };
+  if (currentPreference === "system") {
+    root.setAttribute("data-theme", resolveTheme("system"));
+  }
+};
 
         if (typeof mediaQuery.addEventListener === "function") {
-          mediaQuery.addEventListener("change", handleSystemThemeChange);
+          mediaQuery.addEventListener("change", mediaQueryListenerRef.current!);
         } else {
-          mediaQuery.addListener(handleSystemThemeChange);
+          mediaQuery.addListener(mediaQueryListenerRef.current!);
         }
 
         profileChannel = supabase
@@ -890,22 +891,13 @@ function AppContent() {
         supabase.removeChannel(profileChannel);
       }
 
-      if (mediaQuery) {
-        const handleSystemThemeChange = () => {
-          const currentPreference =
-            root.getAttribute("data-theme-preference") || "dark";
-
-          if (currentPreference === "system") {
-            root.setAttribute("data-theme", resolveTheme("system"));
-          }
-        };
-
-        if (typeof mediaQuery.removeEventListener === "function") {
-          mediaQuery.removeEventListener("change", handleSystemThemeChange);
-        } else {
-          mediaQuery.removeListener(handleSystemThemeChange);
-        }
-      }
+      if (mediaQuery && mediaQueryListenerRef.current) {
+  if (typeof mediaQuery.removeEventListener === "function") {
+    mediaQuery.removeEventListener("change", mediaQueryListenerRef.current);
+  } else {
+    mediaQuery.removeListener(mediaQueryListenerRef.current);
+  }
+}
     };
   }, [setLanguage]);
 

@@ -629,13 +629,13 @@ export default function ProjectDetailPage() {
     });
   }, [mentionCandidates, mentionQuery, showMentionDropdown]);
 
-  const handleCommentInputChange = (value: string) => {
+   const handleCommentInputChange = (value: string) => {
     setNewComment(value);
 
-    const matches = value.match(/@([a-zA-Z0-9_]*)$/);
+    const matches = value.match(/@([a-zA-Z0-9 _-]*)$/);
 
     if (matches) {
-      setMentionQuery(matches[1] || "");
+      setMentionQuery((matches[1] || "").trimStart());
       setShowMentionDropdown(true);
     } else {
       setMentionQuery("");
@@ -647,12 +647,15 @@ export default function ProjectDetailPage() {
     const safeName = fullName.trim();
     if (!safeName) return;
 
-    const updatedValue = newComment.replace(/@([a-zA-Z0-9_]*)$/, `@${safeName} `);
+    const updatedValue = newComment.replace(
+      /@([a-zA-Z0-9 _-]*)$/,
+      `@${safeName} `,
+    );
+
     setNewComment(updatedValue);
     setMentionQuery("");
     setShowMentionDropdown(false);
   };
-
   const handleDelete = async () => {
     if (!project) return;
 
@@ -837,7 +840,9 @@ export default function ProjectDetailPage() {
 
       setComments((prev) => [...prev, data.comment as ProjectCommentRow]);
       setNewComment("");
-      await refreshActivityLogs(project.id);
+setMentionQuery("");
+setShowMentionDropdown(false);
+await refreshActivityLogs(project.id);
     } catch (err) {
       console.error("Add project comment error:", err);
       setError(t("projects.failedToAddComment", "Failed to add comment."));
@@ -856,7 +861,7 @@ export default function ProjectDetailPage() {
     setEditingCommentText("");
   };
 
-  const handleSaveEditedComment = async (comment: ProjectCommentRow) => {
+    const handleSaveEditedComment = async (comment: ProjectCommentRow) => {
     if (!editingCommentText.trim()) {
       setError(t("projects.commentCannotBeEmpty", "Comment cannot be empty."));
       return;
@@ -865,49 +870,61 @@ export default function ProjectDetailPage() {
     setCommentActionLoading(comment.id);
     setError("");
 
-    const { error: updateError } = await supabase
-      .from("project_comments")
-      .update({
-        content: editingCommentText.trim(),
-      })
-      .eq("id", comment.id);
+    try {
+      const nextContent = editingCommentText.trim();
 
-    if (updateError) {
-      setError(updateError.message || t("projects.failedToUpdateComment", "Failed to update comment."));
+      const { data, error: invokeError } = await supabase.functions.invoke(
+        "project-comment-edit",
+        {
+          body: {
+            commentId: comment.id,
+            content: nextContent,
+          },
+        }
+      );
+
+      if (invokeError) {
+        setError(
+          invokeError.message ||
+            t("projects.failedToUpdateComment", "Failed to update comment.")
+        );
+        return;
+      }
+
+      if (!data?.success || !data?.comment) {
+        setError(
+          data?.error ||
+            t("projects.failedToUpdateComment", "Failed to update comment.")
+        );
+        return;
+      }
+
+      setComments((prev) =>
+        prev.map((item) =>
+          item.id === comment.id
+            ? {
+                ...item,
+                content: data.comment.content,
+              }
+            : item
+        )
+      );
+
+      setEditingCommentId(null);
+      setEditingCommentText("");
+
+      if (project) {
+        await refreshActivityLogs(project.id);
+      }
+    } catch (err) {
+      console.error("Edit project comment error:", err);
+      setError(t("projects.failedToUpdateComment", "Failed to update comment."));
+    } finally {
       setCommentActionLoading(null);
-      return;
-    }
-
-    await logActivity({
-      projectId: project?.id,
-      taskId: null,
-      actionType: "project_comment_edited",
-      entityType: "comment",
-      entityId: comment.id,
-      message: `Edited a comment in project "${project?.name || ""}"`,
-    });
-
-    setComments((prev) =>
-      prev.map((item) =>
-        item.id === comment.id
-          ? {
-              ...item,
-              content: editingCommentText.trim(),
-            }
-          : item
-      )
-    );
-
-    setEditingCommentId(null);
-    setEditingCommentText("");
-    setCommentActionLoading(null);
-
-    if (project) {
-      await refreshActivityLogs(project.id);
     }
   };
 
-  const handleDeleteComment = async (comment: ProjectCommentRow) => {
+    const handleDeleteComment = async (comment: ProjectCommentRow) => {
     const confirmed = window.confirm(
       t("projects.deleteCommentConfirm", "Are you sure you want to delete this comment?")
     );
@@ -916,37 +933,47 @@ export default function ProjectDetailPage() {
     setCommentActionLoading(comment.id);
     setError("");
 
-    const { error: deleteError } = await supabase
-      .from("project_comments")
-      .delete()
-      .eq("id", comment.id);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke(
+        "project-comment-delete",
+        {
+          body: {
+            commentId: comment.id,
+          },
+        }
+      );
 
-    if (deleteError) {
-      setError(deleteError.message || t("projects.failedToDeleteComment", "Failed to delete comment."));
+      if (invokeError) {
+        setError(
+          invokeError.message ||
+            t("projects.failedToDeleteComment", "Failed to delete comment.")
+        );
+        return;
+      }
+
+      if (!data?.success) {
+        setError(
+          data?.error ||
+            t("projects.failedToDeleteComment", "Failed to delete comment.")
+        );
+        return;
+      }
+
+      setComments((prev) => prev.filter((item) => item.id !== comment.id));
+
+      if (editingCommentId === comment.id) {
+        setEditingCommentId(null);
+        setEditingCommentText("");
+      }
+
+      if (project) {
+        await refreshActivityLogs(project.id);
+      }
+    } catch (err) {
+      console.error("Delete project comment error:", err);
+      setError(t("projects.failedToDeleteComment", "Failed to delete comment."));
+    } finally {
       setCommentActionLoading(null);
-      return;
-    }
-
-    await logActivity({
-      projectId: project?.id,
-      taskId: null,
-      actionType: "project_comment_deleted",
-      entityType: "comment",
-      entityId: comment.id,
-      message: `Deleted a comment in project "${project?.name || ""}"`,
-    });
-
-    setComments((prev) => prev.filter((item) => item.id !== comment.id));
-
-    if (editingCommentId === comment.id) {
-      setEditingCommentId(null);
-      setEditingCommentText("");
-    }
-
-    setCommentActionLoading(null);
-
-    if (project) {
-      await refreshActivityLogs(project.id);
     }
   };
 
@@ -1729,15 +1756,20 @@ setTranslatedComments((prev) => ({
                 </div>
 
                 <Textarea
-                  placeholder={t(
-                    "projects.writeProjectUpdatePlaceholder",
-                    "Write a project update, decision, blocker, or note..."
-                  )}
-                  value={newComment}
-                  onChange={(e) => handleCommentInputChange(e.target.value)}
-                  rows={4}
-                  className="bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 resize-none"
-                />
+  placeholder={t(
+    "projects.writeProjectUpdatePlaceholder",
+    "Write a project update, decision, blocker, or note..."
+  )}
+  value={newComment}
+  onChange={(e) => handleCommentInputChange(e.target.value)}
+  onBlur={() => {
+    window.setTimeout(() => {
+      setShowMentionDropdown(false);
+    }, 150);
+  }}
+  rows={4}
+  className="bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 resize-none"
+/>
 
                 {showMentionDropdown && (
                   <div className="mt-2 rounded-lg border border-slate-800 bg-slate-900 shadow-lg overflow-hidden">
@@ -1748,11 +1780,12 @@ setTranslatedComments((prev) => ({
                     ) : (
                       filteredMentionCandidates.map((profile) => (
                         <button
-                          key={profile.user_id}
-                          type="button"
-                          onClick={() => insertMention(profile.full_name || "")}
-                          className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-800 transition-colors"
-                        >
+  key={profile.user_id}
+  type="button"
+  onMouseDown={(e) => e.preventDefault()}
+  onClick={() => insertMention(profile.full_name || "")}
+  className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-800 transition-colors"
+>
                           <div>
                             <div className="text-sm font-medium text-white">
                               {profile.full_name || t("projects.unknown", "Unknown")}

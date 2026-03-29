@@ -350,17 +350,17 @@ export default function ProjectReportDetailPage() {
   }, [payload, t]);
 
   const limitedProjectComments = useMemo(
-  () => [...payload.projectComments].slice(-50).reverse(),
+  () => (payload ? [...payload.projectComments].slice(-50).reverse() : []),
   [payload]
 );
 
 const limitedTaskComments = useMemo(
-  () => [...payload.taskComments].slice(-50).reverse(),
+  () => (payload ? [...payload.taskComments].slice(-50).reverse() : []),
   [payload]
 );
 
 const limitedActivity = useMemo(
-  () => [...payload.activityTimeline].slice(-50).reverse(),
+  () => (payload ? [...payload.activityTimeline].slice(-50).reverse() : []),
   [payload]
 );
 

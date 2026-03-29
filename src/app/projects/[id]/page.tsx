@@ -13,6 +13,8 @@ import {
   canViewProject,
   canEditProject,
   canDeleteProject,
+  canPerform,
+  type Permission,
 } from "@/lib/permissions";
 
 import { createRequestTracker } from "@/lib/safeAsync";
@@ -53,6 +55,7 @@ type ProfileRow = {
   full_name: string | null;
   role: Role;
   status: "active" | "pending" | "inactive" | "denied";
+  permissions?: Partial<Record<Permission, boolean>> | null;
 };
 
 type ProjectRow = {
@@ -208,8 +211,11 @@ export default function ProjectDetailPage() {
   const [fileActionLoading, setFileActionLoading] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+  const [currentUserPermissions, setCurrentUserPermissions] = useState<
+    Partial<Record<Permission, boolean>> | null
+  >(null);
 
   const [project, setProject] = useState<ProjectRow | null>(null);
   const [projectMembers, setProjectMembers] = useState<ProjectMemberRow[]>([]);
@@ -234,7 +240,8 @@ export default function ProjectDetailPage() {
   const [mentionQuery, setMentionQuery] = useState("");
   const [isTeamDialogOpen, setIsTeamDialogOpen] = useState(false);
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
-  const [isSavingTeamMembers, setIsSavingTeamMembers] = useState(false);
+    const [isSavingTeamMembers, setIsSavingTeamMembers] = useState(false);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   const loadProjectPage = async (mode: "initial" | "refresh" = "initial") => {
     if (!id) {
@@ -276,7 +283,11 @@ export default function ProjectDetailPage() {
         { data: filesData },
         { data: commentsData },
       ] = await Promise.all([
-        supabase.from("profiles").select("role").eq("user_id", user.id).single(),
+                supabase
+          .from("profiles")
+          .select("role, permissions")
+          .eq("user_id", user.id)
+          .single(),
         supabase
           .from("projects")
           .select(
@@ -330,8 +341,12 @@ export default function ProjectDetailPage() {
         return;
       }
 
-      const role = myProfile.role as Role;
+            const role = myProfile.role as Role;
       setCurrentUserRole(role);
+      setCurrentUserPermissions(
+        ((myProfile as { permissions?: Partial<Record<Permission, boolean>> | null })
+          .permissions ?? null)
+      );
 
       if (projectError || !projectData) {
         setProject(null);
@@ -397,7 +412,7 @@ export default function ProjectDetailPage() {
   );
 }, [project, currentUserId, currentUserRole]);
 
-  const canDelete = useMemo(() => {
+   const canDelete = useMemo(() => {
   if (!project || !currentUserId || !currentUserRole) return false;
 
   return canDeleteProject(
@@ -406,6 +421,16 @@ export default function ProjectDetailPage() {
     currentUserRole
   );
 }, [project, currentUserId, currentUserRole]);
+
+  const canGenerateReports = useMemo(() => {
+    if (!currentUserRole) return false;
+
+    return canPerform(
+      currentUserRole,
+      "generateProjectReports",
+      currentUserPermissions,
+    );
+  }, [currentUserRole, currentUserPermissions]);
 
   const canDeleteThisProjectFile = (file: FileUploadRow) => {
     if (!currentUserId) return false;
@@ -656,7 +681,7 @@ export default function ProjectDetailPage() {
     setMentionQuery("");
     setShowMentionDropdown(false);
   };
-  const handleDelete = async () => {
+    const handleDelete = async () => {
     if (!project) return;
 
     const confirmed = window.confirm(
@@ -691,7 +716,10 @@ export default function ProjectDetailPage() {
         .eq("id", project.id);
 
       if (deleteProjectError) {
-        setError(deleteProjectError.message || t("projects.failedToDeleteProject", "Failed to delete project."));
+        setError(
+          deleteProjectError.message ||
+            t("projects.failedToDeleteProject", "Failed to delete project.")
+        );
         setIsDeleting(false);
         return;
       }
@@ -706,6 +734,54 @@ export default function ProjectDetailPage() {
         )
       );
       setIsDeleting(false);
+    }
+  };
+
+  const handleGenerateReport = async () => {
+    if (!project || !canGenerateReports || isGeneratingReport) return;
+
+    setIsGeneratingReport(true);
+    setError("");
+
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke(
+        "generate-project-report",
+        {
+          body: {
+            projectId: project.id,
+            reportType: "full_snapshot",
+            format: "json",
+          },
+        },
+      );
+
+      if (invokeError) {
+        setError(
+          invokeError.message ||
+            t("projects.failedToGenerateReport", "Failed to generate report."),
+        );
+        return;
+      }
+
+      if (!data?.success || !data?.reportId) {
+        setError(
+          data?.error ||
+            t("projects.failedToGenerateReport", "Failed to generate report."),
+        );
+        return;
+      }
+
+      navigate(`/projects/${project.id}/reports/${data.reportId}`);
+    } catch (err) {
+      console.error("Generate project report error:", err);
+      setError(
+        t(
+          "projects.failedToGenerateReport",
+          "Failed to generate report.",
+        ),
+      );
+    } finally {
+      setIsGeneratingReport(false);
     }
   };
 
@@ -1074,7 +1150,7 @@ setTranslatedComments((prev) => ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
             className="border-slate-700 text-slate-300 hover:bg-slate-800"
@@ -1085,6 +1161,19 @@ setTranslatedComments((prev) => ({
               ? t("projects.refreshing", "Refreshing...")
               : t("projects.refresh", "Refresh")}
           </Button>
+
+          {canGenerateReports && (
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() => void handleGenerateReport()}
+              disabled={isGeneratingReport}
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              {isGeneratingReport
+                ? t("projects.generatingReport", "Generating Report...")
+                : t("projects.generateReport", "Generate Report")}
+            </Button>
+          )}
 
           {canEdit && (
             <Button

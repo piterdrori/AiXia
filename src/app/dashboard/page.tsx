@@ -100,12 +100,12 @@ type UpcomingItem = {
 
 function StatCardSkeleton() {
   return (
-    <Card className="bg-slate-900/50 border-slate-800">
+    <Card>
       <CardContent className="p-4 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-slate-800 animate-pulse shrink-0" />
+        <div className="w-10 h-10 rounded-xl bg-muted/50 animate-pulse shrink-0" />
         <div className="w-full space-y-2">
-          <div className="h-6 w-16 rounded bg-slate-800 animate-pulse" />
-          <div className="h-4 w-28 rounded bg-slate-800 animate-pulse" />
+          <div className="h-6 w-16 rounded bg-muted/50 animate-pulse" />
+          <div className="h-4 w-28 rounded bg-muted/50 animate-pulse" />
         </div>
       </CardContent>
     </Card>
@@ -120,9 +120,9 @@ function PanelSkeleton({
   icon?: ReactNode;
 }) {
   return (
-    <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
+    <Card className="flex flex-col overflow-hidden">
       <CardHeader className="shrink-0 pb-4">
-        <CardTitle className="text-white flex items-center gap-2">
+        <CardTitle className="text-foreground flex items-center gap-2">
           {icon}
           {title}
         </CardTitle>
@@ -133,10 +133,10 @@ function PanelSkeleton({
           {Array.from({ length: 5 }).map((_, index) => (
             <div
               key={index}
-              className="p-3 rounded-lg border border-slate-800 bg-slate-950/40"
+              className="p-3 rounded-xl border border-border bg-background/60 backdrop-blur-md"
             >
-              <div className="h-4 w-2/3 rounded bg-slate-800 animate-pulse mb-2" />
-              <div className="h-3 w-1/3 rounded bg-slate-800 animate-pulse" />
+              <div className="h-4 w-2/3 rounded bg-muted/50 animate-pulse mb-2" />
+              <div className="h-3 w-1/3 rounded bg-muted/50 animate-pulse" />
             </div>
           ))}
         </div>
@@ -478,17 +478,17 @@ export default function DashboardPage() {
       : Math.round((completedTasks / totalRelevantTasks) * 100);
 
   return (
-    <div className="min-h-[calc(100vh-126px)] flex flex-col gap-5">
+    <div className="min-h-[calc(100vh-126px)] flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4 shrink-0">
         <div>
-          <h1 className="text-3xl font-bold text-white">
+          <h1 className="text-3xl font-semibold tracking-[-0.02em] text-foreground">
                         {dashboardRequest.status === "loading" && !hasLoadedOnce
               ? t("dashboard.welcome", "Welcome,")
               : t("dashboard.welcomeUser", "Welcome, {{name}}", {
                   name: currentUserName || t("common.user", "User"),
                 })}
           </h1>
-          <p className="text-slate-400">
+          <p className="text-muted-foreground">
             {t(
               "dashboard.subtitle",
               "Here is a live overview of your projects, tasks, and events"
@@ -498,7 +498,7 @@ export default function DashboardPage() {
 
         <div className="flex gap-2">
           <Button
-            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            className=""
             onClick={() => navigate("/projects/new")}
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -507,7 +507,7 @@ export default function DashboardPage() {
 
           <Button
             variant="outline"
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            className=""
             onClick={() => navigate("/calendar/new")}
           >
             <CalendarDays className="w-4 h-4 mr-2" />
@@ -516,7 +516,7 @@ export default function DashboardPage() {
 
                     <Button
             variant="outline"
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            className=""
             onClick={() => void loadDashboard()}
             disabled={dashboardRequest.status === "loading"}
           >
@@ -542,60 +542,60 @@ export default function DashboardPage() {
     }
   >
     <>
-      <Card className="bg-slate-900/50 border-slate-800">
+      <Card>
         <CardContent className="p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/15 flex items-center justify-center shrink-0">
-            <FolderKanban className="w-5 h-5 text-indigo-400" />
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <FolderKanban className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <div className="text-xl font-bold text-white">
+            <div className="text-xl font-bold text-foreground">
               {activeProjectsForProgress.length}
             </div>
-            <div className="text-sm text-slate-400">
+            <div className="text-sm text-muted-foreground">
               {t("dashboard.activeProjects", "Active Projects")}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="bg-slate-900/50 border-slate-800">
+      <Card>
         <CardContent className="p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
-            <CheckSquare className="w-5 h-5 text-emerald-400" />
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <CheckSquare className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <div className="text-xl font-bold text-white">
+            <div className="text-xl font-bold text-foreground">
               {activeTasksForCompletion.length}
             </div>
-            <div className="text-sm text-slate-400">
+            <div className="text-sm text-muted-foreground">
               {t("dashboard.activeTasks", "Active Tasks")}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="bg-slate-900/50 border-slate-800">
+      <Card>
         <CardContent className="p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
-            <Users className="w-5 h-5 text-amber-400" />
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <Users className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <div className="text-xl font-bold text-white">{profiles.length}</div>
-            <div className="text-sm text-slate-400">
+            <div className="text-xl font-bold text-foreground">{profiles.length}</div>
+            <div className="text-sm text-muted-foreground">
               {t("dashboard.activeMembers", "Active Members")}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="bg-slate-900/50 border-slate-800">
+      <Card>
         <CardContent className="p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/15 flex items-center justify-center shrink-0">
-            <TrendingUp className="w-5 h-5 text-blue-400" />
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <TrendingUp className="w-5 h-5 text-primary" />
           </div>
           <div className="w-full">
-            <div className="text-xl font-bold text-white">{averageProgress}%</div>
-            <div className="text-sm text-slate-400 mb-2">
+            <div className="text-xl font-bold text-foreground">{averageProgress}%</div>
+            <div className="text-sm text-muted-foreground mb-2">
               {t("dashboard.averageProjectProgress", "Average Project Progress")}
             </div>
             <Progress value={averageProgress} />
@@ -606,27 +606,27 @@ export default function DashboardPage() {
   </PageLoader>
 </div>
 
-      <div className="grid xl:grid-cols-2 gap-5 min-h-[1100px]">
-        <div className="grid gap-5 content-start" style={{ gridTemplateRows: "520px 520px" }}>
+      <div className="grid xl:grid-cols-2 gap-6 min-h-[1100px]">
+        <div className="grid gap-6 content-start" style={{ gridTemplateRows: "520px 520px" }}>
                     {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
             <>
               <PanelSkeleton
                 title={t("dashboard.upcomingDeadlines", "Upcoming Deadlines")}
-                icon={<AlertCircle className="w-5 h-5 text-amber-400" />}
+                icon={<AlertCircle className="w-5 h-5 text-primary" />}
               />
               <PanelSkeleton title={t("dashboard.projectProgress", "Project Progress")} />
             </>
           ) : (
             <>
-              <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
+              <Card className="flex flex-col overflow-hidden">
                 <CardHeader className="flex flex-row items-center justify-between shrink-0 pb-4">
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <AlertCircle className="w-5 h-5 text-amber-400" />
+                  <CardTitle className="text-foreground flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-primary" />
                     {t("dashboard.upcomingDeadlines", "Upcoming Deadlines")}
                   </CardTitle>
                   <Button
                     variant="ghost"
-                    className="text-slate-400 hover:text-white"
+                    className="text-muted-foreground hover:text-foreground"
                     onClick={() => navigate("/calendar")}
                   >
                     {t("dashboard.viewCalendar", "View Calendar")}
@@ -636,7 +636,7 @@ export default function DashboardPage() {
 
                 <CardContent className="flex-1 overflow-hidden">
                   {upcomingItems.length === 0 ? (
-                    <div className="text-slate-400">
+                    <div className="text-muted-foreground">
                       {t(
                         "dashboard.noUpcomingDeadlinesOrEvents",
                         "No upcoming deadlines or events."
@@ -650,27 +650,21 @@ export default function DashboardPage() {
                             key={item.id}
                             type="button"
                             onClick={() => navigate(item.link)}
-                            className="w-full text-left p-4 rounded-lg border border-slate-800 bg-slate-950/40 hover:border-indigo-500/30 transition"
+                            className="w-full text-left p-4 rounded-xl border border-border bg-background/60 backdrop-blur-md hover:border-primary/30 transition"
                           >
                             <div className="flex items-center justify-between gap-3">
                               <div className="min-w-0">
-                                <div className="text-white font-medium truncate">
+                                <div className="text-foreground font-medium truncate">
                                   {item.title}
                                 </div>
-                                <div className="text-sm text-slate-400">
+                                <div className="text-sm text-muted-foreground">
                                   {format(parseISO(item.date), "MMM d, yyyy")}
                                 </div>
                               </div>
 
                               <div className="shrink-0">
                                 <Badge
-                                  className={
-                                    item.type === "task"
-                                      ? "bg-emerald-500/20 text-emerald-300"
-                                      : item.type === "event"
-                                        ? "bg-indigo-500/20 text-indigo-300"
-                                        : "bg-amber-500/20 text-amber-300"
-                                  }
+                                                                    className="bg-primary/10 text-primary"
                                 >
                                   {item.meta || item.type}
                                 </Badge>
@@ -684,16 +678,16 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
+              <Card className="flex flex-col overflow-hidden">
                 <CardHeader className="shrink-0 pb-4">
-                  <CardTitle className="text-white">
+                  <CardTitle className="text-foreground">
                     {t("dashboard.projectProgress", "Project Progress")}
                   </CardTitle>
                 </CardHeader>
 
                 <CardContent className="flex-1 overflow-hidden">
                   {activeProjectsForProgress.length === 0 ? (
-                    <div className="text-slate-400">
+                    <div className="text-muted-foreground">
                       {t("dashboard.noActiveProjectsAvailable", "No active projects available.")}
                     </div>
                   ) : (
@@ -703,12 +697,12 @@ export default function DashboardPage() {
                           <div key={project.id} className="space-y-2">
                             <div className="flex items-center justify-between gap-3">
                               <button
-                                className="text-white hover:text-indigo-300 truncate"
+                                className="text-foreground hover:text-primary truncate"
                                 onClick={() => navigate(`/projects/${project.id}`)}
                               >
                                 {project.name}
                               </button>
-                              <span className="text-sm text-slate-400">
+                              <span className="text-sm text-muted-foreground">
                                 {project.progress || 0}%
                               </span>
                             </div>
@@ -724,28 +718,28 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="grid gap-5 content-start" style={{ gridTemplateRows: "520px 520px" }}>
+        <div className="grid gap-6 content-start" style={{ gridTemplateRows: "520px 520px" }}>
                     {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
             <>
               <PanelSkeleton
                 title={t("dashboard.activityFeed", "Activity Feed")}
-                icon={<Activity className="w-5 h-5 text-indigo-400" />}
+                icon={<Activity className="w-5 h-5 text-primary" />}
               />
               <PanelSkeleton title={t("dashboard.taskCompletion", "Task Completion")} />
             </>
           ) : (
             <>
-              <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
+              <Card className="flex flex-col overflow-hidden">
                 <CardHeader className="shrink-0 pb-4">
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-indigo-400" />
+                  <CardTitle className="text-foreground flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-primary" />
                     {t("dashboard.activityFeed", "Activity Feed")}
                   </CardTitle>
                 </CardHeader>
 
                 <CardContent className="flex-1 overflow-hidden">
                   {visibleActivity.length === 0 ? (
-                    <div className="text-slate-400">
+                    <div className="text-muted-foreground">
                       {t("dashboard.noRecentActivityYet", "No recent activity yet.")}
                     </div>
                   ) : (
@@ -754,10 +748,10 @@ export default function DashboardPage() {
                         {visibleActivity.map((log) => (
                           <div
                             key={log.id}
-                            className="p-3 rounded-lg border border-slate-800 bg-slate-950/40"
+                            className="p-3 rounded-xl border border-border bg-background/60 backdrop-blur-md"
                           >
-                            <div className="text-white text-sm">{log.message}</div>
-                            <div className="text-xs text-slate-500 mt-1">
+                            <div className="text-foreground text-sm">{log.message}</div>
+                            <div className="text-xs text-muted-foreground mt-1">
                               {format(parseISO(log.created_at), "MMM d, yyyy h:mm a")}
                             </div>
                           </div>
@@ -768,16 +762,16 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-slate-900/50 border-slate-800 flex flex-col overflow-hidden">
+              <Card className="flex flex-col overflow-hidden">
                 <CardHeader className="shrink-0 pb-3">
-                  <CardTitle className="text-white">
+                  <CardTitle className="text-foreground">
                     {t("dashboard.taskCompletion", "Task Completion")}
                   </CardTitle>
                 </CardHeader>
 
                 <CardContent className="flex flex-col flex-1 overflow-hidden">
                   <div className="shrink-0 space-y-3 pb-3">
-                    <div className="text-white text-lg font-semibold">
+                    <div className="text-foreground text-lg font-semibold">
                       {t("dashboard.completedSummary", "{{completed}} / {{total}} completed", {
                         completed: completedTasks,
                         total: totalRelevantTasks,
@@ -786,7 +780,7 @@ export default function DashboardPage() {
 
                     <Progress value={completionPercent} />
 
-                    <div className="text-sm text-slate-400">
+                    <div className="text-sm text-muted-foreground">
                       {totalRelevantTasks === 0
                         ? t("dashboard.noRelevantTasksYet", "No relevant tasks yet.")
                         : t(
@@ -806,20 +800,20 @@ export default function DashboardPage() {
                               key={task.id}
                               type="button"
                               onClick={() => navigate(`/tasks/${task.id}`)}
-                              className="w-full text-left p-3 rounded-lg border border-slate-800 bg-slate-950/40 hover:border-indigo-500/30 transition"
+                              className="w-full text-left p-3 rounded-xl border border-border bg-background/60 backdrop-blur-md hover:border-primary/30 transition"
                             >
                               <div className="flex items-center justify-between gap-3">
                                 <div className="min-w-0">
-                                  <div className="text-white truncate">{task.title}</div>
+                                  <div className="text-foreground truncate">{task.title}</div>
                                   {task.due_date && (
-                                    <div className="text-xs text-slate-400">
+                                    <div className="text-xs text-muted-foreground">
                                       {t("dashboard.dueLabel", "Due")}{" "}
                                       {format(parseISO(task.due_date), "MMM d, yyyy")}
                                     </div>
                                   )}
                                 </div>
 
-                                <Badge className="bg-emerald-500/20 text-emerald-300 shrink-0">
+                                <Badge className="bg-primary/10 text-primary shrink-0">
                                   {(task.status || t("dashboard.taskLabel", "Task")).replaceAll(
                                     "_",
                                     " "
@@ -831,7 +825,7 @@ export default function DashboardPage() {
                         </div>
                       </ScrollArea>
                     ) : (
-                      <div className="text-slate-400">
+                      <div className="text-muted-foreground">
                         {t("dashboard.noActiveTasksToDisplay", "No active tasks to display.")}
                       </div>
                     )}

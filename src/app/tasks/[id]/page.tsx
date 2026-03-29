@@ -768,7 +768,7 @@ const handleDelete = async () => {
     setEditingCommentText("");
   };
 
-  const handleSaveEditedComment = async (comment: TaskCommentRow) => {
+    const handleSaveEditedComment = async (comment: TaskCommentRow) => {
     if (!editingCommentText.trim()) {
       setError(t("taskDetail.errors.commentEmpty"));
       return;
@@ -778,49 +778,54 @@ const handleDelete = async () => {
     setCommentActionLoading(comment.id);
     setError("");
 
-    const { error: updateError } = await supabase
-      .from("task_comments")
-      .update({
-        content: editingCommentText.trim(),
-      })
-      .eq("id", comment.id);
+    try {
+      const nextContent = editingCommentText.trim();
 
-    if (!requestTracker.current.isLatest(requestId)) return;
+      const { data, error: invokeError } = await supabase.functions.invoke(
+        "task-comment-edit",
+        {
+          body: {
+            commentId: comment.id,
+            content: nextContent,
+          },
+        },
+      );
 
-    if (updateError) {
-      setError(updateError.message || t("taskDetail.errors.updateComment"));
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (invokeError) {
+        setError(invokeError.message || t("taskDetail.errors.updateComment"));
+        return;
+      }
+
+      if (!data?.success || !data?.comment) {
+        setError(data?.error || t("taskDetail.errors.updateComment"));
+        return;
+      }
+
+      setComments((prev) =>
+        prev.map((item) =>
+          item.id === comment.id
+            ? {
+                ...item,
+                content: data.comment.content,
+              }
+            : item
+        )
+      );
+
+      setEditingCommentId(null);
+      setEditingCommentText("");
+    } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Edit task comment error:", err);
+      setError(t("taskDetail.errors.updateComment"));
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
       setCommentActionLoading(null);
-      return;
     }
-
-    await logActivity({
-      projectId: task?.project_id,
-      taskId: task?.id,
-      actionType: "task_comment_edited",
-      entityType: "comment",
-      entityId: comment.id,
-      message: `Edited a comment in task "${task?.title || ""}"`,
-    });
-
-    if (!requestTracker.current.isLatest(requestId)) return;
-
-    setComments((prev) =>
-      prev.map((item) =>
-        item.id === comment.id
-          ? {
-              ...item,
-              content: editingCommentText.trim(),
-            }
-          : item
-      )
-    );
-
-    setEditingCommentId(null);
-    setEditingCommentText("");
-    setCommentActionLoading(null);
   };
-
-  const handleDeleteComment = async (comment: TaskCommentRow) => {
+    const handleDeleteComment = async (comment: TaskCommentRow) => {
     const confirmed = window.confirm(t("taskDetail.confirmations.deleteComment"));
     if (!confirmed) return;
 
@@ -828,38 +833,42 @@ const handleDelete = async () => {
     setCommentActionLoading(comment.id);
     setError("");
 
-    const { error: deleteError } = await supabase
-      .from("task_comments")
-      .delete()
-      .eq("id", comment.id);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke(
+        "task-comment-delete",
+        {
+          body: {
+            commentId: comment.id,
+          },
+        },
+      );
 
-    if (!requestTracker.current.isLatest(requestId)) return;
+      if (!requestTracker.current.isLatest(requestId)) return;
 
-    if (deleteError) {
-      setError(deleteError.message || t("taskDetail.errors.deleteComment"));
+      if (invokeError) {
+        setError(invokeError.message || t("taskDetail.errors.deleteComment"));
+        return;
+      }
+
+      if (!data?.success) {
+        setError(data?.error || t("taskDetail.errors.deleteComment"));
+        return;
+      }
+
+      setComments((prev) => prev.filter((item) => item.id !== comment.id));
+
+      if (editingCommentId === comment.id) {
+        setEditingCommentId(null);
+        setEditingCommentText("");
+      }
+    } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Delete task comment error:", err);
+      setError(t("taskDetail.errors.deleteComment"));
+    } finally {
+      if (!requestTracker.current.isLatest(requestId)) return;
       setCommentActionLoading(null);
-      return;
     }
-
-    await logActivity({
-      projectId: task?.project_id,
-      taskId: task?.id,
-      actionType: "task_comment_deleted",
-      entityType: "comment",
-      entityId: comment.id,
-      message: `Deleted a comment in task "${task?.title || ""}"`,
-    });
-
-    if (!requestTracker.current.isLatest(requestId)) return;
-
-    setComments((prev) => prev.filter((item) => item.id !== comment.id));
-
-    if (editingCommentId === comment.id) {
-      setEditingCommentId(null);
-      setEditingCommentText("");
-    }
-
-    setCommentActionLoading(null);
   };
 
     const handleTranslateComment = async (comment: TaskCommentRow) => {

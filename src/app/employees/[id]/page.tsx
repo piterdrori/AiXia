@@ -979,27 +979,29 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
                 </div>
               ))}
 
-              <Button
-                type="button"
-                variant="outline"
-                className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                onClick={() => addArrayValue(values, setValues)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                {fieldKey === "additional_emails"
-                  ? t("employeeDetail.actions.addAnotherAdditionalEmail")
-                  : fieldKey === "phone"
-                    ? t("employeeDetail.actions.addAnotherPhone")
-                    : fieldKey === "company"
-                      ? t("employeeDetail.actions.addAnotherCompany")
-                      : fieldKey === "job_title"
-                        ? t("employeeDetail.actions.addAnotherJobTitle")
-                        : fieldKey === "whatsapp"
-                          ? t("employeeDetail.actions.addAnotherWhatsApp")
-                          : fieldKey === "wechat"
-                            ? t("employeeDetail.actions.addAnotherWeChat")
-                            : t("employeeDetail.actions.add")}
-              </Button>
+             {!values.some((v) => !v.trim()) && (
+  <Button
+    type="button"
+    variant="outline"
+    className="border-slate-700 text-slate-300 hover:bg-slate-800"
+    onClick={() => addArrayValue(values, setValues)}
+  >
+    <Plus className="w-4 h-4 mr-2" />
+    {fieldKey === "additional_emails"
+      ? t("employeeDetail.actions.addAnotherAdditionalEmail")
+      : fieldKey === "phone"
+        ? t("employeeDetail.actions.addAnotherPhone")
+        : fieldKey === "company"
+          ? t("employeeDetail.actions.addAnotherCompany")
+          : fieldKey === "job_title"
+            ? t("employeeDetail.actions.addAnotherJobTitle")
+            : fieldKey === "whatsapp"
+              ? t("employeeDetail.actions.addAnotherWhatsApp")
+              : fieldKey === "wechat"
+                ? t("employeeDetail.actions.addAnotherWeChat")
+                : t("employeeDetail.actions.add")}
+  </Button>
+)}
             </div>
           ) : filled ? (
             <div className="space-y-2">
@@ -1674,15 +1676,22 @@ disabled={
                                 </div>
                               ))}
 
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                                onClick={addLocationRow}
-                              >
-                                <Plus className="w-4 h-4 mr-2" />
-                                Add another address
-                              </Button>
+                              {!locations.some(
+  (row) =>
+    !row.country.trim() &&
+    !row.city.trim() &&
+    !row.shippingAddress.trim()
+) && (
+  <Button
+    type="button"
+    variant="outline"
+    className="border-slate-700 text-slate-300 hover:bg-slate-800"
+    onClick={addLocationRow}
+  >
+    <Plus className="w-4 h-4 mr-2" />
+    Add another address
+  </Button>
+)}
                             </div>
                           ) : (
                             <div className="space-y-4">
@@ -1855,15 +1864,17 @@ disabled={
                                   </div>
                                 ))}
 
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                                  onClick={addMemberTypeRow}
-                                >
-                                  <Plus className="w-4 h-4 mr-2" />
-                                  {t("employeeDetail.actions.add")}
-                                </Button>
+                                {!memberTypes.some((v) => !v) && (
+  <Button
+    type="button"
+    variant="outline"
+    className="border-slate-700 text-slate-300 hover:bg-slate-800"
+    onClick={addMemberTypeRow}
+  >
+    <Plus className="w-4 h-4 mr-2" />
+    {t("employeeDetail.actions.add")}
+  </Button>
+)}
                               </div>
                             )
                           ) : memberTypes.some((value) => Boolean(value)) ? (

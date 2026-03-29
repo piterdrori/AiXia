@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-import { logActivity } from "@/lib/activity";
-import { createNotification } from "@/lib/notifications";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
 import { taskSchema } from "@/lib/validation";
@@ -346,89 +344,32 @@ if (!validation.success) {
         return;
       }
 
-      const { data: taskData, error: taskError } = await supabase
-        .from("tasks")
-        .insert({
-          title: title.trim(),
-          description: description.trim() || null,
-          status,
-          priority,
-          project_id: projectId,
-          due_date: dueDate || null,
-          created_by: currentUserId,
-          assignee_id: selectedAssignees.length > 0 ? selectedAssignees[0] : null,
-        })
-        .select("id, title, assignee_id")
-        .single();
+      const { data, error: invokeError } = await supabase.functions.invoke(
+        "task-create",
+        {
+          body: {
+            title: title.trim(),
+            description: description.trim() || null,
+            projectId,
+            priority,
+            status,
+            dueDate: dueDate || null,
+            assigneeIds: selectedAssignees,
+          },
+        }
+      );
 
       if (!pageRequestTracker.current.isLatest(requestId)) return;
 
-      if (taskError || !taskData) {
-        console.error("Create task error:", taskError);
-        setError(taskError?.message || t("taskNew.errors.createTask"));
+      if (invokeError) {
+        console.error("Task create function invoke error:", invokeError);
+        setError(invokeError.message || t("taskNew.errors.createTask"));
         return;
       }
 
-      await logActivity({
-        projectId,
-        taskId: taskData.id,
-        actionType: "task_created",
-        entityType: "task",
-        entityId: taskData.id,
-        message: t("taskNew.activity.createdTask", undefined, {
-          title: title.trim(),
-        }),
-      });
-
-      if (selectedAssignees.length > 0) {
-        const memberRows = selectedAssignees.map((userId) => ({
-          task_id: taskData.id,
-          user_id: userId,
-          role: "assignee",
-        }));
-
-        const { error: taskMembersError } = await supabase
-          .from("task_members")
-          .insert(memberRows);
-
-        if (!pageRequestTracker.current.isLatest(requestId)) return;
-
-        if (taskMembersError) {
-          console.error("Create task members error:", taskMembersError);
-          setError(
-            taskMembersError.message || t("taskNew.errors.assignMembersAfterCreate")
-          );
-          return;
-        }
-
-        await logActivity({
-          projectId,
-          taskId: taskData.id,
-          actionType: "task_assignees_added",
-          entityType: "member",
-          entityId: taskData.id,
-          message: t("taskNew.activity.assignedMembers", undefined, {
-            count: selectedAssignees.length,
-            title: title.trim(),
-          }),
-        });
-
-        for (const assigneeId of selectedAssignees) {
-          if (assigneeId === currentUserId) continue;
-
-          await createNotification({
-            userId: assigneeId,
-            actorUserId: currentUserId,
-            type: "TASK_ASSIGNED",
-            title: t("taskNew.notifications.newTaskAssignedTitle"),
-            message: t("taskNew.notifications.newTaskAssignedMessage", undefined, {
-              title: taskData.title,
-            }),
-            link: `/tasks/${taskData.id}`,
-            entityType: "task",
-            entityId: taskData.id,
-          });
-        }
+      if (!data?.success) {
+        setError(data?.error || t("taskNew.errors.createTask"));
+        return;
       }
 
       if (!pageRequestTracker.current.isLatest(requestId)) return;

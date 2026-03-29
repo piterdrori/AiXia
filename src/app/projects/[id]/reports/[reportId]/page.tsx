@@ -349,6 +349,21 @@ export default function ProjectReportDetailPage() {
     ];
   }, [payload, t]);
 
+  const limitedProjectComments = useMemo(
+  () => [...payload.projectComments].slice(-50).reverse(),
+  [payload]
+);
+
+const limitedTaskComments = useMemo(
+  () => [...payload.taskComments].slice(-50).reverse(),
+  [payload]
+);
+
+const limitedActivity = useMemo(
+  () => [...payload.activityTimeline].slice(-50).reverse(),
+  [payload]
+);
+
   const handleDownloadJson = async () => {
     if (!report?.storage_bucket || !report.file_path || isDownloading) return;
 
@@ -428,7 +443,7 @@ export default function ProjectReportDetailPage() {
       )}
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-3">
+  <div className="space-y-3">
           <Button
             variant="ghost"
             className="w-fit px-0 text-slate-400 hover:text-white hover:bg-transparent"
@@ -534,7 +549,9 @@ export default function ProjectReportDetailPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="mt-4">
+  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+    <div className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
             <Card className="bg-slate-900/50 border-slate-800">
               <CardHeader>
@@ -643,7 +660,7 @@ export default function ProjectReportDetailPage() {
                 <p className="text-slate-500">
                   {t("projects.noRisksDetected", "No risks detected in this report.")}
                 </p>
-              ) : (
+                            ) : (
                 <div className="space-y-3">
                   {payload.risks.map((risk, index) => (
                     <div
@@ -668,9 +685,13 @@ export default function ProjectReportDetailPage() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+            </div>
+  </div>
+</TabsContent>
 
-        <TabsContent value="team" className="space-y-4">
+        <TabsContent value="team" className="mt-4">
+  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+    <div className="space-y-4">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2">
@@ -683,7 +704,7 @@ export default function ProjectReportDetailPage() {
                 <p className="text-slate-500">
                   {t("projects.noTeamMembersAssigned", "No team members assigned")}
                 </p>
-              ) : (
+                            ) : (
                 <div className="space-y-3">
                   {payload.members.map((member) => (
                     <div
@@ -711,9 +732,13 @@ export default function ProjectReportDetailPage() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+            </div>
+  </div>
+</TabsContent>
 
-        <TabsContent value="tasks" className="space-y-4">
+        <TabsContent value="tasks" className="mt-4">
+  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+    <div className="space-y-4">
           {payload.tasks.length === 0 ? (
             <Card className="bg-slate-900/50 border-slate-800">
               <CardContent className="p-6">
@@ -784,9 +809,13 @@ export default function ProjectReportDetailPage() {
               </Card>
             ))
           )}
-        </TabsContent>
+            </div>
+  </div>
+</TabsContent>
 
-        <TabsContent value="files" className="space-y-6">
+        <TabsContent value="files" className="mt-4">
+  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+    <div className="space-y-6">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
               <CardTitle className="text-white">
@@ -798,7 +827,7 @@ export default function ProjectReportDetailPage() {
                 <p className="text-slate-500">
                   {t("projects.noProjectFilesUploadedYet", "No project files uploaded yet.")}
                 </p>
-              ) : (
+                            ) : (
                 <div className="space-y-3">
                   {payload.files.projectFiles.map((file) => (
                     <div
@@ -837,7 +866,7 @@ export default function ProjectReportDetailPage() {
                 <p className="text-slate-500">
                   {t("projects.noTaskFiles", "No task files")}
                 </p>
-              ) : (
+                            ) : (
                 <div className="space-y-3">
                   {payload.files.taskFiles.map((file) => (
                     <div
@@ -864,9 +893,13 @@ export default function ProjectReportDetailPage() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+            </div>
+  </div>
+</TabsContent>
 
-        <TabsContent value="comments" className="space-y-6">
+        <TabsContent value="comments" className="mt-4">
+  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+    <div className="space-y-6">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
               <CardTitle className="text-white">
@@ -878,9 +911,15 @@ export default function ProjectReportDetailPage() {
                 <p className="text-slate-500">
                   {t("projects.noDiscussionYet", "No discussion yet")}
                 </p>
-              ) : (
-                <div className="space-y-3">
-                  {payload.projectComments.map((comment) => (
+                            ) : (
+                <>
+                  {payload.projectComments.length > 50 && (
+                    <div className="mb-3 text-xs text-slate-500">
+                      Showing latest 50 project comments
+                    </div>
+                  )}
+                  <div className="space-y-3">
+                    {limitedProjectComments.map((comment) => (
                     <div
                       key={comment.id}
                       className="rounded-lg border border-slate-800 bg-slate-950/50 p-4"
@@ -891,8 +930,9 @@ export default function ProjectReportDetailPage() {
                         {format(clock.shiftDate(comment.created_at), "MMM d, yyyy • h:mm a")}
                       </p>
                     </div>
-                  ))}
-                </div>
+                   ))}
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -908,9 +948,15 @@ export default function ProjectReportDetailPage() {
                 <p className="text-slate-500">
                   {t("projects.noTaskComments", "No task comments")}
                 </p>
-              ) : (
-                <div className="space-y-3">
-                  {payload.taskComments.map((comment) => (
+                                         ) : (
+                <>
+                  {payload.taskComments.length > 50 && (
+                    <div className="mb-3 text-xs text-slate-500">
+                      Showing latest 50 task comments
+                    </div>
+                  )}
+                  <div className="space-y-3">
+                    {limitedTaskComments.map((comment) => (
                     <div
                       key={comment.id}
                       className="rounded-lg border border-slate-800 bg-slate-950/50 p-4"
@@ -921,14 +967,19 @@ export default function ProjectReportDetailPage() {
                         {format(clock.shiftDate(comment.created_at), "MMM d, yyyy • h:mm a")}
                       </p>
                     </div>
-                  ))}
-                </div>
+                      ))}
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+           </div>
+  </div>
+</TabsContent>
 
-        <TabsContent value="activity" className="space-y-4">
+        <TabsContent value="activity" className="mt-4">
+  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+    <div className="space-y-4">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2">
@@ -941,9 +992,15 @@ export default function ProjectReportDetailPage() {
                 <p className="text-slate-500">
                   {t("projects.noActivityYet", "No activity yet.")}
                 </p>
-              ) : (
-                <div className="space-y-4">
-                  {payload.activityTimeline.map((entry) => (
+                            ) : (
+                <>
+                  {payload.activityTimeline.length > 50 && (
+                    <div className="mb-3 text-xs text-slate-500">
+                      Showing latest 50 activity items
+                    </div>
+                  )}
+                  <div className="space-y-4">
+                    {limitedActivity.map((entry) => (
                     <div
                       key={entry.id}
                       className="border-b border-slate-800 pb-4 last:border-b-0"
@@ -963,14 +1020,19 @@ export default function ProjectReportDetailPage() {
                         {format(clock.shiftDate(entry.created_at), "MMM d, yyyy • h:mm a")}
                       </p>
                     </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+            </div>
+  </div>
+</TabsContent>
 
-        <TabsContent value="audit" className="space-y-6">
+        <TabsContent value="audit" className="mt-4">
+  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+    <div className="space-y-6">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2">
@@ -1024,7 +1086,9 @@ export default function ProjectReportDetailPage() {
               </pre>
             </CardContent>
           </Card>
-        </TabsContent>
+            </div>
+  </div>
+</TabsContent>
       </Tabs>
     </div>
   );

@@ -915,7 +915,7 @@ const limitedActivity = useMemo(
                 <>
                   {payload.projectComments.length > 50 && (
                     <div className="mb-3 text-xs text-slate-500">
-                      Showing latest 50 project comments
+                      Showing latest 50 of {payload.projectComments.length} project comments
                     </div>
                   )}
                   <div className="space-y-3">
@@ -952,7 +952,7 @@ const limitedActivity = useMemo(
                 <>
                   {payload.taskComments.length > 50 && (
                     <div className="mb-3 text-xs text-slate-500">
-                      Showing latest 50 task comments
+                      Showing latest 50 of {payload.taskComments.length} task comments
                     </div>
                   )}
                   <div className="space-y-3">

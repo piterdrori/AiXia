@@ -124,6 +124,19 @@ type ProjectCommentRow = {
   created_at: string;
 };
 
+type ProjectReportRow = {
+  id: string;
+  project_id: string;
+  report_type: string;
+  format: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  requested_by: string;
+  generated_at: string | null;
+  storage_bucket: string | null;
+  file_path: string | null;
+  created_at: string;
+};
+
 function ProjectDetailSkeleton() {
   return (
     <div className="space-y-6 animate-pulse">
@@ -236,11 +249,14 @@ export default function ProjectDetailPage() {
 >({});
   const [translatingCommentId, setTranslatingCommentId] = useState<string | null>(null);
 
-  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+    const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [isTeamDialogOpen, setIsTeamDialogOpen] = useState(false);
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
-    const [isSavingTeamMembers, setIsSavingTeamMembers] = useState(false);
+  const [isSavingTeamMembers, setIsSavingTeamMembers] = useState(false);
+  const [isReportsDialogOpen, setIsReportsDialogOpen] = useState(false);
+  const [projectReports, setProjectReports] = useState<ProjectReportRow[]>([]);
+  const [reportFileLoadingId, setReportFileLoadingId] = useState<string | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   const loadProjectPage = async (mode: "initial" | "refresh" = "initial") => {
@@ -273,7 +289,7 @@ export default function ProjectDetailPage() {
 
       setCurrentUserId(user.id);
 
-      const [
+            const [
         { data: myProfile, error: myProfileError },
         { data: projectData, error: projectError },
         { data: membersData },
@@ -282,8 +298,9 @@ export default function ProjectDetailPage() {
         { data: logsData },
         { data: filesData },
         { data: commentsData },
+        { data: reportsData },
       ] = await Promise.all([
-                supabase
+        supabase
           .from("profiles")
           .select("role, permissions")
           .eq("user_id", user.id)
@@ -332,6 +349,13 @@ export default function ProjectDetailPage() {
           .select("id, project_id, user_id, content, created_at")
           .eq("project_id", id)
           .order("created_at", { ascending: true }),
+        supabase
+          .from("project_reports")
+          .select(
+            "id, project_id, report_type, format, status, requested_by, generated_at, storage_bucket, file_path, created_at"
+          )
+          .eq("project_id", id)
+          .order("created_at", { ascending: false }),
       ]);
 
       if (!requestTracker.current.isLatest(requestId)) return;
@@ -354,13 +378,14 @@ export default function ProjectDetailPage() {
         return;
       }
 
-      const loadedProject = projectData as ProjectRow;
+            const loadedProject = projectData as ProjectRow;
       const loadedMembers = (membersData || []) as ProjectMemberRow[];
       const loadedProfiles = (profilesData || []) as ProfileRow[];
       const loadedTasks = (tasksData || []) as TaskRow[];
       const loadedLogs = (logsData || []) as ActivityLogRow[];
       const loadedFiles = (filesData || []) as FileUploadRow[];
       const loadedComments = (commentsData || []) as ProjectCommentRow[];
+      const loadedReports = (reportsData || []) as ProjectReportRow[];
 
       if (
   !canViewProject(
@@ -374,13 +399,14 @@ export default function ProjectDetailPage() {
   return;
 }
 
-      setProject(loadedProject);
+            setProject(loadedProject);
       setProjectMembers(loadedMembers);
       setProfiles(loadedProfiles);
       setTasks(loadedTasks);
       setActivityLogs(loadedLogs);
       setFiles(loadedFiles);
       setComments(loadedComments);
+      setProjectReports(loadedReports);
       setHasLoadedOnce(true);
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
@@ -771,6 +797,8 @@ export default function ProjectDetailPage() {
         return;
       }
 
+      await loadProjectPage("refresh");
+      setIsReportsDialogOpen(false);
       navigate(`/projects/${project.id}/reports/${data.reportId}`);
     } catch (err) {
       console.error("Generate project report error:", err);
@@ -785,7 +813,7 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const refreshActivityLogs = async (projectId: string) => {
+    const refreshActivityLogs = async (projectId: string) => {
     const { data: newLogs } = await supabase
       .from("activity_logs")
       .select(
@@ -796,6 +824,43 @@ export default function ProjectDetailPage() {
       .limit(50);
 
     setActivityLogs((newLogs || []) as ActivityLogRow[]);
+  };
+
+  const handleDownloadReport = async (report: ProjectReportRow) => {
+    if (!report.storage_bucket || !report.file_path || reportFileLoadingId) return;
+
+    setReportFileLoadingId(report.id);
+    setError("");
+
+    try {
+      const { data, error: downloadError } = await supabase.storage
+        .from(report.storage_bucket)
+        .download(report.file_path);
+
+      if (downloadError || !data) {
+        setError(
+          downloadError?.message ||
+            t("projects.failedToDownloadReport", "Failed to download report."),
+        );
+        return;
+      }
+
+      const url = window.URL.createObjectURL(data);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${project?.name || "project-report"}-${report.id}.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Download report error:", err);
+      setError(
+        t("projects.failedToDownloadReport", "Failed to download report."),
+      );
+    } finally {
+      setReportFileLoadingId(null);
+    }
   };
 
    const uploadProjectFile = async (file: File) => {
@@ -1162,16 +1227,13 @@ setTranslatedComments((prev) => ({
               : t("projects.refresh", "Refresh")}
           </Button>
 
-          {canGenerateReports && (
+                    {canGenerateReports && (
             <Button
               className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              onClick={() => void handleGenerateReport()}
-              disabled={isGeneratingReport}
+              onClick={() => setIsReportsDialogOpen(true)}
             >
               <FileText className="w-4 h-4 mr-2" />
-              {isGeneratingReport
-                ? t("projects.generatingReport", "Generating Report...")
-                : t("projects.generateReport", "Generate Report")}
+              {t("projects.reports", "Reports")}
             </Button>
           )}
 
@@ -1202,7 +1264,7 @@ setTranslatedComments((prev) => ({
         </div>
       </div>
 
-      <Card className="bg-slate-900/50 border-slate-800">
+            <Card className="bg-slate-900/50 border-slate-800">
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
             <span className="text-slate-400">
@@ -1237,6 +1299,128 @@ setTranslatedComments((prev) => ({
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={isReportsDialogOpen} onOpenChange={setIsReportsDialogOpen}>
+        <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>{t("projects.reports", "Reports")}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-white">
+                  {t("projects.projectReports", "Project Reports")}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {t(
+                    "projects.openPreviousOrGenerateNew",
+                    "Open previous reports or generate a new one."
+                  )}
+                </p>
+              </div>
+
+              <Button
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={() => void handleGenerateReport()}
+                disabled={isGeneratingReport}
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                {isGeneratingReport
+                  ? t("projects.generatingReport", "Generating Report...")
+                  : t("projects.generateNewReport", "Generate New Report")}
+              </Button>
+            </div>
+
+            {projectReports.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-800 bg-slate-950/40 p-8 text-center">
+                <FileText className="mx-auto mb-3 h-10 w-10 text-slate-600" />
+                <p className="text-white font-medium">
+                  {t("projects.noReportsYet", "No reports yet")}
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {t(
+                    "projects.generateFirstReportForProject",
+                    "Generate the first report for this project."
+                  )}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-slate-800 overflow-hidden">
+                <div className="grid grid-cols-12 gap-3 border-b border-slate-800 bg-slate-900/80 px-4 py-3 text-xs font-medium text-slate-400">
+                  <div className="col-span-3">{t("projects.created", "Created")}</div>
+                  <div className="col-span-2">{t("projects.type", "Type")}</div>
+                  <div className="col-span-2">{t("projects.format", "Format")}</div>
+                  <div className="col-span-2">{t("projects.status", "Status")}</div>
+                  <div className="col-span-3 text-right">{t("projects.actions", "Actions")}</div>
+                </div>
+
+                <div className="max-h-[420px] overflow-y-auto">
+                  {projectReports.map((report) => (
+                    <div
+                      key={report.id}
+                      className="grid grid-cols-12 gap-3 border-b border-slate-800 px-4 py-3 text-sm last:border-b-0"
+                    >
+                      <div className="col-span-3 text-slate-300">
+                        {format(
+                          clock.shiftDate(report.generated_at || report.created_at),
+                          "MMM d, yyyy • h:mm a"
+                        )}
+                      </div>
+
+                      <div className="col-span-2 text-slate-300">
+                        {report.report_type}
+                      </div>
+
+                      <div className="col-span-2 text-slate-300 uppercase">
+                        {report.format}
+                      </div>
+
+                      <div className="col-span-2">
+                        <Badge className="bg-slate-800 text-slate-300">
+                          {report.status.toUpperCase()}
+                        </Badge>
+                      </div>
+
+                      <div className="col-span-3 flex items-center justify-end gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                          onClick={() => {
+                            setIsReportsDialogOpen(false);
+                            navigate(`/projects/${project.id}/reports/${report.id}`);
+                          }}
+                        >
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          {t("projects.open", "Open")}
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-slate-700 text-green-400 hover:bg-slate-800"
+                          onClick={() => void handleDownloadReport(report)}
+                          disabled={
+                            reportFileLoadingId === report.id ||
+                            !report.storage_bucket ||
+                            !report.file_path
+                          }
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          {reportFileLoadingId === report.id
+                            ? t("projects.downloading", "Downloading...")
+                            : t("projects.download", "Download")}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-slate-900 border border-slate-800">

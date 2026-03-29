@@ -237,6 +237,7 @@ export default function ProjectDetailPage() {
   const [activityLogs, setActivityLogs] = useState<ActivityLogRow[]>([]);
   const [files, setFiles] = useState<FileUploadRow[]>([]);
   const [comments, setComments] = useState<ProjectCommentRow[]>([]);
+const visibleComments = useMemo(() => comments.slice(-50), [comments]);
 
   const [newComment, setNewComment] = useState("");
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
@@ -1408,7 +1409,7 @@ setTranslatedComments((prev) => ({
 </Dialog>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-slate-900 border border-slate-800">
+        <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto">
           <TabsTrigger value="overview" className="data-[state=active]:bg-slate-800">
             {t("projects.overview", "Overview")}
           </TabsTrigger>
@@ -1429,95 +1430,100 @@ setTranslatedComments((prev) => ({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            <Card className="bg-slate-900/50 border-slate-800">
-              <CardHeader>
-                <CardTitle className="text-white text-lg">
-                  {t("projects.projectDetails", "Project Details")}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">{t("projects.status", "Status")}</span>
-                  <Badge className={getStatusColor(project.status)}>
-                    {project.status || t("projects.unknownUpper", "UNKNOWN")}
-                  </Badge>
-                </div>
+       <TabsContent value="overview" className="mt-4">
+  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+    <div className="space-y-6">
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card className="bg-slate-900/50 border-slate-800">
+          <CardHeader>
+            <CardTitle className="text-white text-lg">
+              {t("projects.projectDetails", "Project Details")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex justify-between">
+              <span className="text-slate-400">{t("projects.status", "Status")}</span>
+              <Badge className={getStatusColor(project.status)}>
+                {project.status || t("projects.unknownUpper", "UNKNOWN")}
+              </Badge>
+            </div>
 
-                <div className="flex justify-between">
-                  <span className="text-slate-400">{t("projects.startDate", "Start Date")}</span>
-                  <span className="text-white">
-                    {project.start_date
-                      ? format(clock.shiftDate(project.start_date), "MMM d, yyyy")
-                      : t("projects.notSet", "Not set")}
-                  </span>
-                </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">{t("projects.startDate", "Start Date")}</span>
+              <span className="text-white">
+                {project.start_date
+                  ? format(clock.shiftDate(project.start_date), "MMM d, yyyy")
+                  : t("projects.notSet", "Not set")}
+              </span>
+            </div>
 
-                <div className="flex justify-between">
-                  <span className="text-slate-400">{t("projects.endDate", "End Date")}</span>
-                  <span className="text-white">
-                    {project.end_date
-                      ? format(clock.shiftDate(project.end_date), "MMM d, yyyy")
-                      : t("projects.notSet", "Not set")}
-                  </span>
-                </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">{t("projects.endDate", "End Date")}</span>
+              <span className="text-white">
+                {project.end_date
+                  ? format(clock.shiftDate(project.end_date), "MMM d, yyyy")
+                  : t("projects.notSet", "Not set")}
+              </span>
+            </div>
 
-                <div className="flex justify-between">
-                  <span className="text-slate-400">{t("projects.created", "Created")}</span>
-                  <span className="text-white">
-                    {format(clock.shiftDate(project.created_at), "MMM d, yyyy")}
-                  </span>
-                </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">{t("projects.created", "Created")}</span>
+              <span className="text-white">
+                {format(clock.shiftDate(project.created_at), "MMM d, yyyy")}
+              </span>
+            </div>
 
-                <div className="flex justify-between">
-                  <span className="text-slate-400">{t("projects.assignedMembers", "Assigned Members")}</span>
-                  <span className="text-white">{projectMembers.length}</span>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="flex justify-between">
+              <span className="text-slate-400">{t("projects.assignedMembers", "Assigned Members")}</span>
+              <span className="text-white">{projectMembers.length}</span>
+            </div>
+          </CardContent>
+        </Card>
 
-            <Card className="bg-slate-900/50 border-slate-800">
-              <CardHeader>
-                <CardTitle className="text-white text-lg">
-                  {t("projects.teamMembers", "Team Members")}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {projectMembers.length === 0 ? (
-                    <p className="text-slate-500">
-                      {t("projects.noTeamMembersAssigned", "No team members assigned")}
-                    </p>
-                  ) : (
-                    projectMembers.map((member) => {
-                      const profile = getProfileByUserId(member.user_id);
+        <Card className="bg-slate-900/50 border-slate-800">
+          <CardHeader>
+            <CardTitle className="text-white text-lg">
+              {t("projects.teamMembers", "Team Members")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {projectMembers.length === 0 ? (
+                <p className="text-slate-500">
+                  {t("projects.noTeamMembersAssigned", "No team members assigned")}
+                </p>
+              ) : (
+                projectMembers.map((member) => {
+                  const profile = getProfileByUserId(member.user_id);
 
-                      return (
-                        <div key={member.id} className="flex items-center gap-3">
-                          <Avatar className="w-8 h-8">
-                            <AvatarFallback className="bg-indigo-600 text-white text-xs">
-                              {getInitials(profile?.full_name || null)}
-                            </AvatarFallback>
-                          </Avatar>
+                  return (
+                    <div key={member.id} className="flex items-center gap-3">
+                      <Avatar className="w-8 h-8">
+                        <AvatarFallback className="bg-indigo-600 text-white text-xs">
+                          {getInitials(profile?.full_name || null)}
+                        </AvatarFallback>
+                      </Avatar>
 
-                          <div className="flex-1">
-                            <p className="text-white text-sm">
-                              {profile?.full_name || t("projects.unnamedUser", "Unnamed user")}
-                            </p>
-                            <p className="text-slate-500 text-xs">{member.role}</p>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="tasks" className="space-y-4">
+                      <div className="flex-1">
+                        <p className="text-white text-sm">
+                          {profile?.full_name || t("projects.unnamedUser", "Unnamed user")}
+                        </p>
+                        <p className="text-slate-500 text-xs">{member.role}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  </div>
+</TabsContent>
+       <TabsContent value="tasks" className="mt-4">
+  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+    <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium text-white">
               {t("projects.projectTasks", "Project Tasks")}
@@ -1611,9 +1617,13 @@ setTranslatedComments((prev) => ({
               </div>
             )}
           </div>
-        </TabsContent>
+           </div>
+  </div>
+</TabsContent>
 
-        <TabsContent value="team" className="space-y-4">
+        <TabsContent value="team" className="mt-4">
+  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+    <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium text-white">
               {t("projects.teamMembers", "Team Members")}
@@ -1746,9 +1756,13 @@ setTranslatedComments((prev) => ({
               </div>
             </DialogContent>
           </Dialog>
-        </TabsContent>
+            </div>
+  </div>
+</TabsContent>
 
-                <TabsContent value="files" className="space-y-4">
+                <TabsContent value="files" className="mt-4">
+  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+    <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium text-white">
               {t("projects.projectFiles", "Project Files")}
@@ -1987,265 +2001,290 @@ setTranslatedComments((prev) => ({
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+            </div>
+  </div>
+</TabsContent>
 
-        <TabsContent value="discussion" className="space-y-4">
-          <Card className="bg-slate-900/50 border-slate-800">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-indigo-400" />
-                <CardTitle className="text-white">
-                  {t("projects.projectDiscussion", "Project Discussion")}
-                </CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-                <div className="mb-2">
-                  <p className="text-sm font-medium text-white">
-                    {t("projects.addUpdate", "Add Update")}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {t(
-                      "projects.shareProjectWideUpdates",
-                      "Share project-wide updates, blockers, notes, and decisions"
-                    )}
-                  </p>
-                </div>
+    <TabsContent value="discussion" className="mt-4">
+  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+    <div className="space-y-4">
+      <Card className="bg-slate-900/50 border-slate-800 overflow-hidden">
+        <CardHeader className="border-b border-slate-800 pb-4">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-indigo-400" />
+            <CardTitle className="text-white">
+              {t("projects.projectDiscussion", "Project Discussion")}
+            </CardTitle>
+          </div>
+        </CardHeader>
 
-                <Textarea
-  placeholder={t(
-    "projects.writeProjectUpdatePlaceholder",
-    "Write a project update, decision, blocker, or note..."
-  )}
-  value={newComment}
-  onChange={(e) => handleCommentInputChange(e.target.value)}
-  onBlur={() => {
-    window.setTimeout(() => {
-      setShowMentionDropdown(false);
-    }, 150);
-  }}
-  rows={4}
-  className="bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 resize-none"
-/>
-
-                {showMentionDropdown && (
-                  <div className="mt-2 rounded-lg border border-slate-800 bg-slate-900 shadow-lg overflow-hidden">
-                    {filteredMentionCandidates.length === 0 ? (
-                      <div className="px-3 py-2 text-sm text-slate-500">
-                        {t("projects.noMatchingParticipants", "No matching participants")}
-                      </div>
-                    ) : (
-                      filteredMentionCandidates.map((profile) => (
-                        <button
-  key={profile.user_id}
-  type="button"
-  onMouseDown={(e) => e.preventDefault()}
-  onClick={() => insertMention(profile.full_name || "")}
-  className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-800 transition-colors"
->
-                          <div>
-                            <div className="text-sm font-medium text-white">
-                              {profile.full_name || t("projects.unknown", "Unknown")}
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              {profile.role.toUpperCase()}
-                            </div>
-                          </div>
-                        </button>
-                      ))
-                    )}
-                  </div>
+        <CardContent className="p-0">
+          <div className="border-b border-slate-800 bg-slate-950/40 px-5 py-5">
+            <div className="mb-3">
+              <p className="text-sm font-semibold text-white">
+                {t("projects.addUpdate", "Add Update")}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {t(
+                  "projects.shareProjectWideUpdates",
+                  "Share project-wide updates, blockers, notes, and decisions"
                 )}
+              </p>
+            </div>
 
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <p className="text-xs text-slate-500">
-                    {t(
-                      "projects.updateVisibilityNote",
-                      "This update will be visible to people who can access this project."
-                    )}
-                  </p>
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
+              <Textarea
+                placeholder={t(
+                  "projects.writeProjectUpdatePlaceholder",
+                  "Write a project update, decision, blocker, or note..."
+                )}
+                value={newComment}
+                onChange={(e) => handleCommentInputChange(e.target.value)}
+                onBlur={() => {
+                  window.setTimeout(() => {
+                    setShowMentionDropdown(false);
+                  }, 150);
+                }}
+                rows={4}
+                className="min-h-[120px] border-0 bg-transparent px-0 py-0 text-white placeholder:text-slate-600 shadow-none focus-visible:ring-0 resize-none"
+              />
 
-                  <Button
-                    type="button"
-                    onClick={() => void handleAddComment()}
-                    disabled={commentSaving || !newComment.trim()}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                  >
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    {commentSaving
-                      ? t("projects.posting", "Posting...")
-                      : t("projects.postUpdate", "Post Update")}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                {comments.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-800 bg-slate-950/40 p-8 text-center">
-                    <MessageSquare className="mx-auto mb-3 h-10 w-10 text-slate-600" />
-                    <p className="text-white font-medium">
-                      {t("projects.noDiscussionYet", "No discussion yet")}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {t(
-                        "projects.startThreadWithFirstUpdate",
-                        "Start the thread with the first project-wide update."
-                      )}
-                    </p>
-                  </div>
-                ) : (
-                  comments.map((comment) => {
-                    const isMine = comment.user_id === currentUserId;
-                    const authorName = getProfileName(comment.user_id);
-                    const authorRole = getProfileRole(comment.user_id);
-                    const isEditing = editingCommentId === comment.id;
-
-                    return (
-                      <div
-                        key={comment.id}
-                        className={`rounded-xl border p-4 ${
-                          isMine
-                            ? "border-indigo-800/40 bg-indigo-950/20"
-                            : "border-slate-800 bg-slate-950/50"
-                        }`}
+              {showMentionDropdown && (
+                <div className="mt-3 overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+                  {filteredMentionCandidates.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-slate-500">
+                      {t("projects.noMatchingParticipants", "No matching participants")}
+                    </div>
+                  ) : (
+                    filteredMentionCandidates.map((profile) => (
+                      <button
+                        key={profile.user_id}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => insertMention(profile.full_name || "")}
+                        className="flex w-full items-center justify-between px-3 py-2 text-left transition-colors hover:bg-slate-800"
                       >
-                        <div className="mb-3 flex items-start justify-between gap-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-xs font-medium text-white">
-                              {getInitials(authorName)}
-                            </div>
+                        <div>
+                          <div className="text-sm font-medium text-white">
+                            {profile.full_name || t("projects.unknown", "Unknown")}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {profile.role.toUpperCase()}
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
 
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="text-sm font-medium text-white">{authorName}</p>
+              <div className="mt-4 flex flex-col gap-3 border-t border-slate-800 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-slate-500">
+                  {t(
+                    "projects.updateVisibilityNote",
+                    "This update will be visible to people who can access this project."
+                  )}
+                </p>
 
-                                {authorRole && (
-                                  <Badge className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5">
-                                    {authorRole.toUpperCase()}
-                                  </Badge>
-                                )}
+                <Button
+                  type="button"
+                  onClick={() => void handleAddComment()}
+                  disabled={commentSaving || !newComment.trim()}
+                  className="h-10 bg-indigo-600 px-4 text-white hover:bg-indigo-700"
+                >
+                  <MessageSquare className="mr-2 h-4 w-4" />
+                  {commentSaving
+                    ? t("projects.posting", "Posting...")
+                    : t("projects.postUpdate", "Post Update")}
+                </Button>
+              </div>
+            </div>
+          </div>
 
-                                {isMine && (
-                                  <Badge className="bg-indigo-500/20 text-indigo-300 text-[10px] px-2 py-0.5">
-                                    {t("projects.youUpper", "YOU")}
-                                  </Badge>
-                                )}
-                              </div>
+          <div className="px-5 py-5">
+  {comments.length > 50 && (
+    <div className="mb-4 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 text-xs text-slate-400">
+      Showing latest 50 updates.
+    </div>
+  )}
+            {visibleComments.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 p-10 text-center">
+                <MessageSquare className="mx-auto mb-3 h-10 w-10 text-slate-600" />
+                <p className="text-base font-medium text-white">
+                  {t("projects.noDiscussionYet", "No discussion yet")}
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {t(
+                    "projects.startThreadWithFirstUpdate",
+                    "Start the thread with the first project-wide update."
+                  )}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+  {visibleComments.map((comment) => {
+    const isMine = comment.user_id === currentUserId;
+    const authorName = getProfileName(comment.user_id);
+    const authorRole = getProfileRole(comment.user_id);
+    const isEditing = editingCommentId === comment.id;
 
-                              <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-                                <Clock3 className="h-3 w-3" />
-                                <span>
-                                  {format(clock.shiftDate(comment.created_at), "MMM d, yyyy • h:mm a")}
-                                </span>
-                              </div>
-                            </div>
+                  return (
+                    <div
+                      key={comment.id}
+                      className={`rounded-2xl border px-4 py-4 transition-colors ${
+                        isMine
+                          ? "border-indigo-800/40 bg-indigo-950/20"
+                          : "border-slate-800 bg-slate-950/40"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex items-start gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white">
+                            {getInitials(authorName)}
                           </div>
 
-                          {canManageComment(comment) && !isEditing && (
-                            <div className="flex items-center gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                                onClick={() => startEditingComment(comment)}
-                                disabled={commentActionLoading === comment.id}
-                              >
-                                <Edit className="w-3 h-3 mr-1" />
-                                {t("projects.edit", "Edit")}
-                              </Button>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-semibold text-white">
+                                {authorName}
+                              </p>
 
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="border-red-800 text-red-400 hover:bg-red-900/20"
-                                onClick={() => void handleDeleteComment(comment)}
-                                disabled={commentActionLoading === comment.id}
-                              >
-                                <Trash2 className="w-3 h-3 mr-1" />
-                                {t("projects.delete", "Delete")}
-                              </Button>
+                              {authorRole && (
+                                <Badge className="border-slate-700 bg-slate-800 text-[10px] text-slate-300 px-2 py-0.5">
+                                  {authorRole.toUpperCase()}
+                                </Badge>
+                              )}
+
+                              {isMine && (
+                                <Badge className="bg-indigo-500/20 text-[10px] text-indigo-300 px-2 py-0.5">
+                                  {t("projects.youUpper", "YOU")}
+                                </Badge>
+                              )}
                             </div>
-                          )}
+
+                            <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                              <Clock3 className="h-3 w-3" />
+                              <span>
+                                {format(
+                                  clock.shiftDate(comment.created_at),
+                                  "MMM d, yyyy • h:mm a"
+                                )}
+                              </span>
+                            </div>
+                          </div>
                         </div>
 
-                        <div className="pl-12">
-                          {isEditing ? (
-                            <div className="space-y-3">
+                        {canManageComment(comment) && !isEditing && (
+                          <div className="flex shrink-0 items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 border-slate-700 px-3 text-slate-300 hover:bg-slate-800"
+                              onClick={() => startEditingComment(comment)}
+                              disabled={commentActionLoading === comment.id}
+                            >
+                              <Edit className="mr-1 h-3 w-3" />
+                              {t("projects.edit", "Edit")}
+                            </Button>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 border-red-800 px-3 text-red-400 hover:bg-red-900/20"
+                              onClick={() => void handleDeleteComment(comment)}
+                              disabled={commentActionLoading === comment.id}
+                            >
+                              <Trash2 className="mr-1 h-3 w-3" />
+                              {t("projects.delete", "Delete")}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-4 pl-[52px]">
+                        {isEditing ? (
+                          <div className="space-y-3">
+                            <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-3">
                               <Textarea
                                 value={editingCommentText}
                                 onChange={(e) => setEditingCommentText(e.target.value)}
                                 rows={4}
-                                className="bg-slate-900 border-slate-800 text-white resize-none"
+                                className="border-0 bg-transparent px-0 py-0 text-white shadow-none focus-visible:ring-0 resize-none"
                               />
-
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                                  onClick={() => void handleSaveEditedComment(comment)}
-                                  disabled={
-                                    commentActionLoading === comment.id ||
-                                    !editingCommentText.trim()
-                                  }
-                                >
-                                  <Save className="w-3 h-3 mr-1" />
-                                  {t("common.save", "Save")}
-                                </Button>
-
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                                  onClick={cancelEditingComment}
-                                  disabled={commentActionLoading === comment.id}
-                                >
-                                  <X className="w-3 h-3 mr-1" />
-                                  {t("projects.cancel", "Cancel")}
-                                </Button>
-                              </div>
                             </div>
-                                                    ) : (
-                            <div className="space-y-2">
-  <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">
-    {translatedComments[comment.id]?.text || comment.content}
-  </p>
 
-  {translatedComments[comment.id]?.source && (
-    <p className="text-[10px] opacity-70 text-slate-400">
-      Source: {translatedComments[comment.id].source}
-    </p>
-  )}
+                            <div className="flex items-center gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="bg-indigo-600 text-white hover:bg-indigo-700"
+                                onClick={() => void handleSaveEditedComment(comment)}
+                                disabled={
+                                  commentActionLoading === comment.id ||
+                                  !editingCommentText.trim()
+                                }
+                              >
+                                <Save className="mr-1 h-3 w-3" />
+                                {t("common.save", "Save")}
+                              </Button>
 
-  <button
-    type="button"
-    className="text-xs text-indigo-400 hover:text-indigo-300"
-    onClick={() => void handleTranslateComment(comment)}
-    disabled={translatingCommentId === comment.id}
-  >
-    {translatingCommentId === comment.id
-      ? "Translating..."
-      : translatedComments[comment.id]
-      ? "Original"
-      : "Translate"}
-  </button>
-</div>
-                          )}
-                        </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                                onClick={cancelEditingComment}
+                                disabled={commentActionLoading === comment.id}
+                              >
+                                <X className="mr-1 h-3 w-3" />
+                                {t("projects.cancel", "Cancel")}
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">
+                              {translatedComments[comment.id]?.text || comment.content}
+                            </p>
+
+                            {translatedComments[comment.id]?.source && (
+                              <p className="text-[10px] text-slate-400 opacity-70">
+                                Source: {translatedComments[comment.id].source}
+                              </p>
+                            )}
+
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-indigo-400 hover:text-indigo-300"
+                              onClick={() => void handleTranslateComment(comment)}
+                              disabled={translatingCommentId === comment.id}
+                            >
+                              {translatingCommentId === comment.id
+                                ? "Translating..."
+                                : translatedComments[comment.id]
+                                ? "Original"
+                                : "Translate"}
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    );
-                  })
-                )}
+                    </div>
+                  );
+                })}
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  </div>
+</TabsContent>
 
-        <TabsContent value="activity" className="space-y-4">
+        <TabsContent value="activity" className="mt-4">
+  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+    <div className="space-y-4">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
               <CardTitle className="text-white">
@@ -2291,7 +2330,9 @@ setTranslatedComments((prev) => ({
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+           </div>
+  </div>
+</TabsContent>
       </Tabs>
     </div>
   );

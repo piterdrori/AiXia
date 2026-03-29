@@ -13,6 +13,7 @@ export type Permission =
   | "manageUsers"
 
   | "viewReports"
+  | "generateProjectReports"
   | "accessChat"
   | "changeSettings"
   | "visibility";
@@ -60,6 +61,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
   manageUsers: true,
 
   viewReports: true,
+  generateProjectReports: true,
   accessChat: true,
   changeSettings: true,
   visibility: true,
@@ -77,7 +79,8 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
   viewEmployeeDetail: true,
   manageUsers: false,
 
-  viewReports: true,
+   viewReports: true,
+  generateProjectReports: false,
   accessChat: true,
   changeSettings: true,
   visibility: true,
@@ -96,6 +99,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
   manageUsers: false,
 
   viewReports: false,
+  generateProjectReports: false,
   accessChat: true,
   changeSettings: true,
   visibility: false,
@@ -114,6 +118,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
   manageUsers: false,
 
   viewReports: false,
+  generateProjectReports: false,
   accessChat: true,
   changeSettings: false,
   visibility: false,

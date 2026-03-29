@@ -504,10 +504,10 @@ const availableEmployees = useMemo(() => {
   const handleCommentInputChange = (value: string) => {
     setNewComment(value);
 
-    const matches = value.match(/@([a-zA-Z0-9_]*)$/);
+    const matches = value.match(/@([a-zA-Z0-9 _-]*)$/);
 
     if (matches) {
-      setMentionQuery(matches[1] || "");
+      setMentionQuery((matches[1] || "").trimStart());
       setShowMentionDropdown(true);
     } else {
       setMentionQuery("");
@@ -519,7 +519,11 @@ const availableEmployees = useMemo(() => {
     const safeName = fullName.trim();
     if (!safeName) return;
 
-    const updatedValue = newComment.replace(/@([a-zA-Z0-9_]*)$/, `@${safeName} `);
+    const updatedValue = newComment.replace(
+      /@([a-zA-Z0-9 _-]*)$/,
+      `@${safeName} `,
+    );
+
     setNewComment(updatedValue);
     setMentionQuery("");
     setShowMentionDropdown(false);
@@ -708,40 +712,42 @@ const handleDelete = async () => {
 
     navigate("/tasks");
   };
-    const handleAddComment = async () => {
-    if (!task || !newComment.trim()) return;
+      const handleAddComment = async () => {
+    if (!task || !newComment.trim() || commentSaving) return;
 
     const requestId = requestTracker.current.next();
     setCommentSaving(true);
     setError("");
 
-              try {
+    try {
+      const commentContent = newComment.trim();
+
       const { data, error: invokeError } = await supabase.functions.invoke(
         "task-comment-create",
         {
           body: {
             taskId: task.id,
-            content: newComment.trim(),
+            content: commentContent,
           },
-        }
+        },
       );
 
       if (!requestTracker.current.isLatest(requestId)) return;
 
       if (invokeError) {
         setError(invokeError.message || t("taskDetail.errors.addComment"));
-        setCommentSaving(false);
         return;
       }
 
       if (!data?.success || !data?.comment) {
         setError(data?.error || t("taskDetail.errors.addComment"));
-        setCommentSaving(false);
         return;
       }
 
       setComments((prev) => [...prev, data.comment as TaskCommentRow]);
       setNewComment("");
+      setMentionQuery("");
+      setShowMentionDropdown(false);
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Add task comment error:", err);
@@ -1390,10 +1396,15 @@ setTranslatedComments((prev) => ({
                   </p>
                 </div>
 
-                <Textarea
+                                <Textarea
                   placeholder={t("taskDetail.discussion.placeholder")}
                   value={newComment}
                   onChange={(e) => handleCommentInputChange(e.target.value)}
+                  onBlur={() => {
+                    window.setTimeout(() => {
+                      setShowMentionDropdown(false);
+                    }, 150);
+                  }}
                   rows={4}
                   className="bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 resize-none"
                 />
@@ -1406,9 +1417,10 @@ setTranslatedComments((prev) => ({
                       </div>
                     ) : (
                       filteredMentionCandidates.map((profile) => (
-                        <button
+                                                <button
                           key={profile.user_id}
                           type="button"
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => insertMention(profile.full_name || "")}
                           className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-800 transition-colors"
                         >

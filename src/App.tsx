@@ -736,30 +736,90 @@ function AppContent() {
   const { setLanguage } = useLanguage();
 
   useEffect(() => {
-    const applyUserSettings = async () => {
+    let mounted = true;
+    let profileChannel: ReturnType<typeof supabase.channel> | null = null;
+    let mediaQuery: MediaQueryList | null = null;
+
+    const root = document.documentElement;
+
+    const resolveTheme = (theme: string | null | undefined) => {
+      if (theme === "light" || theme === "dark") return theme;
+
+      const prefersDark =
+        typeof window !== "undefined" &&
+        window.matchMedia &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+      return prefersDark ? "dark" : "light";
+    };
+
+    const applyRootSettings = (settings?: {
+      theme?: string | null;
+      accent_color?: string | null;
+      font_size?: string | null;
+      compact_mode?: boolean | null;
+      language?: string | null;
+    }) => {
+      const themePreference = settings?.theme || "dark";
+      const resolvedTheme = resolveTheme(themePreference);
+      const accent = settings?.accent_color || "blue";
+      const fontSize = settings?.font_size || "medium";
+
+      root.setAttribute("data-theme-preference", themePreference);
+      root.setAttribute("data-theme", resolvedTheme);
+      root.setAttribute("data-accent", accent);
+      root.setAttribute("data-font-size", fontSize);
+
+      if (settings?.compact_mode) {
+        root.classList.add("compact");
+      } else {
+        root.classList.remove("compact");
+      }
+
+      const profileLanguage =
+        settings?.language === "zh" ||
+        settings?.language === "ru" ||
+        settings?.language === "en"
+          ? (settings.language as Language)
+          : "en";
+
+      setLanguage(profileLanguage);
+    };
+
+    const applyDefaultSettings = () => {
+      applyRootSettings({
+        theme: "dark",
+        accent_color: "blue",
+        font_size: "medium",
+        compact_mode: false,
+        language: "en",
+      });
+    };
+
+    const loadAndSubscribe = async () => {
       try {
+        applyDefaultSettings();
+
         const {
           data: { session },
         } = await supabase.auth.getSession();
 
-        const root = document.documentElement;
-
-        root.setAttribute("data-theme", "dark");
-        root.setAttribute("data-accent", "indigo");
-        root.setAttribute("data-font-size", "medium");
-        root.classList.remove("compact");
-        setLanguage("en");
+        if (!mounted) return;
 
         if (!session?.user) {
           setSettingsLoaded(true);
           return;
         }
 
+        const userId = session.user.id;
+
         const { data, error } = await supabase
           .from("profiles")
           .select("theme, accent_color, font_size, compact_mode, language")
-          .eq("user_id", session.user.id)
+          .eq("user_id", userId)
           .single();
+
+        if (!mounted) return;
 
         if (error) {
           console.error("Failed to load appearance settings:", error);
@@ -767,30 +827,86 @@ function AppContent() {
           return;
         }
 
-        root.setAttribute("data-theme", data?.theme || "dark");
-        root.setAttribute("data-accent", data?.accent_color || "indigo");
-        root.setAttribute("data-font-size", data?.font_size || "medium");
+        applyRootSettings(data || undefined);
 
-        if (data?.compact_mode) {
-          root.classList.add("compact");
+        mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+        const handleSystemThemeChange = () => {
+          const currentPreference =
+            root.getAttribute("data-theme-preference") || "dark";
+
+          if (currentPreference === "system") {
+            root.setAttribute("data-theme", resolveTheme("system"));
+          }
+        };
+
+        if (typeof mediaQuery.addEventListener === "function") {
+          mediaQuery.addEventListener("change", handleSystemThemeChange);
         } else {
-          root.classList.remove("compact");
+          mediaQuery.addListener(handleSystemThemeChange);
         }
 
-        const profileLanguage =
-          data?.language === "zh" || data?.language === "ru" || data?.language === "en"
-            ? (data.language as Language)
-            : "en";
+        profileChannel = supabase
+          .channel(`user-theme-settings-${userId}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "UPDATE",
+              schema: "public",
+              table: "profiles",
+              filter: `user_id=eq.${userId}`,
+            },
+            (payload) => {
+              if (!mounted) return;
 
-        setLanguage(profileLanguage);
+              const nextProfile = payload.new as {
+                theme?: string | null;
+                accent_color?: string | null;
+                font_size?: string | null;
+                compact_mode?: boolean | null;
+                language?: string | null;
+              };
+
+              applyRootSettings(nextProfile);
+            }
+          )
+          .subscribe();
+
+        setSettingsLoaded(true);
       } catch (error) {
         console.error("Failed to apply user settings:", error);
-      } finally {
+        if (!mounted) return;
+        applyDefaultSettings();
         setSettingsLoaded(true);
       }
     };
 
-    void applyUserSettings();
+    void loadAndSubscribe();
+
+    return () => {
+      mounted = false;
+
+      if (profileChannel) {
+        supabase.removeChannel(profileChannel);
+      }
+
+      if (mediaQuery) {
+        const handleSystemThemeChange = () => {
+          const currentPreference =
+            root.getAttribute("data-theme-preference") || "dark";
+
+          if (currentPreference === "system") {
+            root.setAttribute("data-theme", resolveTheme("system"));
+          }
+        };
+
+        if (typeof mediaQuery.removeEventListener === "function") {
+          mediaQuery.removeEventListener("change", handleSystemThemeChange);
+        } else {
+          mediaQuery.removeListener(handleSystemThemeChange);
+        }
+      }
+    };
   }, [setLanguage]);
 
   if (!settingsLoaded) {

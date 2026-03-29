@@ -36,6 +36,7 @@ import ProjectsPage from "@/app/projects/page";
 import ProjectDetailPage from "@/app/projects/[id]/page";
 import ProjectNewPage from "@/app/projects/new/page";
 import ProjectEditPage from "@/app/projects/[id]/edit/page";
+import ProjectReportDetailPage from "@/app/projects/[id]/reports/[reportId]/page";
 import TasksPage from "@/app/tasks/page";
 import TaskDetailPage from "@/app/tasks/[id]/page";
 import TaskNewPage from "@/app/tasks/new/page";
@@ -559,12 +560,22 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      <Route
+            <Route
         path="/projects/:id/edit"
         element={
           <ProtectedRoute>
             <DashboardLayout>
               <ProjectEditPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:id/reports/:reportId"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <ProjectReportDetailPage />
             </DashboardLayout>
           </ProtectedRoute>
         }

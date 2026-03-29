@@ -237,7 +237,10 @@ export default function ProjectDetailPage() {
   const [activityLogs, setActivityLogs] = useState<ActivityLogRow[]>([]);
   const [files, setFiles] = useState<FileUploadRow[]>([]);
   const [comments, setComments] = useState<ProjectCommentRow[]>([]);
-const visibleComments = useMemo(() => comments.slice(-50), [comments]);
+const visibleComments = useMemo(
+  () => [...comments].slice(-50).reverse(),
+  [comments]
+);
 
   const [newComment, setNewComment] = useState("");
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);

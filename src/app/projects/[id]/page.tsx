@@ -1301,138 +1301,111 @@ setTranslatedComments((prev) => ({
       </Card>
 
             <Dialog open={isReportsDialogOpen} onOpenChange={setIsReportsDialogOpen}>
-        <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-6xl p-0 overflow-hidden">
-          <DialogHeader className="border-b border-slate-800 px-8 py-6">
-            <DialogTitle className="text-2xl font-semibold">
-              {t("projects.reports", "Reports")}
-            </DialogTitle>
-          </DialogHeader>
+  <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-4xl p-0 overflow-hidden">
+    <DialogHeader className="border-b border-slate-800 px-6 py-5">
+      <DialogTitle className="text-2xl font-semibold">
+        {t("projects.reports", "Reports")}
+      </DialogTitle>
+    </DialogHeader>
 
-          <div className="space-y-6 px-8 py-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="space-y-2">
-                <p className="text-base font-semibold text-white">
-                  {t("projects.projectReports", "Project Reports")}
-                </p>
-                <p className="max-w-2xl text-sm text-slate-400 leading-6">
-                  {t(
-                    "projects.openPreviousOrGenerateNew",
-                    "Open previous reports or generate a new one."
-                  )}
-                </p>
-              </div>
-
-              <Button
-                className="bg-indigo-600 hover:bg-indigo-700 text-white h-11 px-5"
-                onClick={() => void handleGenerateReport()}
-                disabled={isGeneratingReport}
-              >
-                <FileText className="w-4 h-4 mr-2" />
-                {isGeneratingReport
-                  ? t("projects.generatingReport", "Generating Report...")
-                  : t("projects.generateNewReport", "Generate New Report")}
-              </Button>
-            </div>
-
-            {projectReports.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 px-8 py-14 text-center">
-                <FileText className="mx-auto mb-4 h-12 w-12 text-slate-600" />
-                <p className="text-lg font-medium text-white">
-                  {t("projects.noReportsYet", "No reports yet")}
-                </p>
-                <p className="mt-2 text-sm text-slate-500">
-                  {t(
-                    "projects.generateFirstReportForProject",
-                    "Generate the first report for this project."
-                  )}
-                </p>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden">
-                <div className="grid grid-cols-12 gap-6 border-b border-slate-800 bg-slate-900/80 px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  <div className="col-span-3">{t("projects.created", "Created")}</div>
-                  <div className="col-span-3">{t("projects.type", "Type")}</div>
-                  <div className="col-span-2">{t("projects.format", "Format")}</div>
-                  <div className="col-span-2">{t("projects.status", "Status")}</div>
-                  <div className="col-span-2 text-right">{t("projects.actions", "Actions")}</div>
-                </div>
-
-                <div className="max-h-[520px] overflow-y-auto">
-                  {projectReports.map((report) => (
-                    <div
-                      key={report.id}
-                      className="grid grid-cols-12 gap-6 border-b border-slate-800 px-6 py-5 text-sm last:border-b-0"
-                    >
-                      <div className="col-span-3">
-                        <p className="text-slate-200 font-medium">
-                          {format(
-                            clock.shiftDate(report.generated_at || report.created_at),
-                            "MMM d, yyyy"
-                          )}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {format(
-                            clock.shiftDate(report.generated_at || report.created_at),
-                            "h:mm a"
-                          )}
-                        </p>
-                      </div>
-
-                      <div className="col-span-3">
-                        <p className="text-slate-200 font-medium break-words">
-                          {report.report_type}
-                        </p>
-                      </div>
-
-                      <div className="col-span-2 flex items-center">
-                        <span className="text-slate-300 uppercase">{report.format}</span>
-                      </div>
-
-                      <div className="col-span-2 flex items-center">
-                        <Badge className="bg-slate-800 text-slate-300 px-3 py-1">
-                          {report.status.toUpperCase()}
-                        </Badge>
-                      </div>
-
-                      <div className="col-span-2 flex items-center justify-end gap-3">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="border-slate-700 text-slate-300 hover:bg-slate-800 h-10 px-4"
-                          onClick={() => {
-                            setIsReportsDialogOpen(false);
-                            navigate(`/projects/${project.id}/reports/${report.id}`);
-                          }}
-                        >
-                          <ExternalLink className="mr-2 h-4 w-4" />
-                          {t("projects.open", "Open")}
-                        </Button>
-
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="border-slate-700 text-green-400 hover:bg-slate-800 h-10 px-4"
-                          onClick={() => void handleDownloadReport(report)}
-                          disabled={
-                            reportFileLoadingId === report.id ||
-                            !report.storage_bucket ||
-                            !report.file_path
-                          }
-                        >
-                          <Download className="mr-2 h-4 w-4" />
-                          {reportFileLoadingId === report.id
-                            ? t("projects.downloading", "Downloading...")
-                            : t("projects.download", "Download")}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+    <div className="space-y-5 px-6 py-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <p className="text-base font-semibold text-white">
+            {t("projects.projectReports", "Project Reports")}
+          </p>
+          <p className="text-sm text-slate-400">
+            {t(
+              "projects.openPreviousOrGenerateNew",
+              "Open previous reports or generate a new one."
             )}
+          </p>
+        </div>
+
+        <Button
+          className="bg-indigo-600 hover:bg-indigo-700 text-white h-10 px-4 shrink-0"
+          onClick={() => void handleGenerateReport()}
+          disabled={isGeneratingReport}
+        >
+          <FileText className="w-4 h-4 mr-2" />
+          {isGeneratingReport
+            ? t("projects.generatingReport", "Generating Report...")
+            : t("projects.generateNewReport", "Generate New Report")}
+        </Button>
+      </div>
+
+      {projectReports.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 px-8 py-14 text-center">
+          <FileText className="mx-auto mb-4 h-12 w-12 text-slate-600" />
+          <p className="text-lg font-medium text-white">
+            {t("projects.noReportsYet", "No reports yet")}
+          </p>
+          <p className="mt-2 text-sm text-slate-500">
+            {t(
+              "projects.generateFirstReportForProject",
+              "Generate the first report for this project."
+            )}
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/30 overflow-hidden">
+          <div className="max-h-[520px] overflow-y-auto">
+            {projectReports.map((report) => (
+              <div
+                key={report.id}
+                className="flex flex-col gap-4 border-b border-slate-800 px-5 py-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-medium text-white">
+                    {format(
+                      clock.shiftDate(report.generated_at || report.created_at),
+                      "MMM d, yyyy • h:mm a"
+                    )}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Created by {getProfileName(report.requested_by)}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 sm:justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-slate-700 text-slate-300 hover:bg-slate-800 h-9 px-3"
+                    onClick={() => {
+                      setIsReportsDialogOpen(false);
+                      navigate(`/projects/${project.id}/reports/${report.id}`);
+                    }}
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    {t("projects.open", "Open")}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-slate-700 text-green-400 hover:bg-slate-800 h-9 px-3"
+                    onClick={() => void handleDownloadReport(report)}
+                    disabled={
+                      reportFileLoadingId === report.id ||
+                      !report.storage_bucket ||
+                      !report.file_path
+                    }
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    {reportFileLoadingId === report.id
+                      ? t("projects.downloading", "Downloading...")
+                      : t("projects.download", "Download")}
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
+    </div>
+  </DialogContent>
+</Dialog>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-slate-900 border border-slate-800">

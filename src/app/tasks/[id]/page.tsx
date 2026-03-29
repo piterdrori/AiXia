@@ -29,6 +29,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import {
   Select,
   SelectContent,
@@ -134,6 +137,7 @@ export default function TaskDetailPage() {
   const requestTracker = useRef(createRequestTracker());
   const taskFileInputRef = useRef<HTMLInputElement | null>(null);
 
+    const [activeTab, setActiveTab] = useState("overview");
   const [task, setTask] = useState<TaskRow | null>(null);
   const [project, setProject] = useState<ProjectRow | null>(null);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
@@ -474,6 +478,11 @@ const availableEmployees = useMemo(() => {
 
   return assignableProfiles.filter((profile) => !existingMemberIds.has(profile.user_id));
 }, [assignableProfiles, taskMembers]);
+
+const visibleComments = useMemo(
+  () => [...comments].slice(-50).reverse(),
+  [comments]
+);
   
   const mentionCandidates = useMemo(() => {
     const candidateIds = Array.from(
@@ -997,48 +1006,48 @@ setTranslatedComments((prev) => ({
     }
   };
 
-  if (isBootstrapping) {
-    return (
-      <div className="space-y-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 w-64 rounded bg-slate-800" />
-          <div className="h-4 w-40 rounded bg-slate-800" />
+if (isBootstrapping) {
+  return (
+    <div className="space-y-6">
+      <div className="animate-pulse space-y-4">
+        <div className="h-8 w-64 rounded bg-slate-800" />
+        <div className="h-4 w-40 rounded bg-slate-800" />
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Card key={index} className="bg-slate-900/50 border-slate-800">
+              <CardContent className="p-6">
+                <div className="animate-pulse space-y-4">
+                  <div className="h-5 w-40 rounded bg-slate-800" />
+                  <div className="h-4 w-full rounded bg-slate-800" />
+                  <div className="h-4 w-5/6 rounded bg-slate-800" />
+                  <div className="h-4 w-3/4 rounded bg-slate-800" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <Card key={index} className="bg-slate-900/50 border-slate-800">
-                <CardContent className="p-6">
-                  <div className="animate-pulse space-y-4">
-                    <div className="h-5 w-40 rounded bg-slate-800" />
-                    <div className="h-4 w-full rounded bg-slate-800" />
-                    <div className="h-4 w-5/6 rounded bg-slate-800" />
-                    <div className="h-4 w-3/4 rounded bg-slate-800" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <div className="space-y-6">
-            {Array.from({ length: 2 }).map((_, index) => (
-              <Card key={index} className="bg-slate-900/50 border-slate-800">
-                <CardContent className="p-6">
-                  <div className="animate-pulse space-y-4">
-                    <div className="h-5 w-28 rounded bg-slate-800" />
-                    <div className="h-4 w-full rounded bg-slate-800" />
-                    <div className="h-4 w-4/5 rounded bg-slate-800" />
-                    <div className="h-4 w-3/5 rounded bg-slate-800" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+        <div className="space-y-6">
+          {Array.from({ length: 2 }).map((_, index) => (
+            <Card key={index} className="bg-slate-900/50 border-slate-800">
+              <CardContent className="p-6">
+                <div className="animate-pulse space-y-4">
+                  <div className="h-5 w-28 rounded bg-slate-800" />
+                  <div className="h-4 w-full rounded bg-slate-800" />
+                  <div className="h-4 w-4/5 rounded bg-slate-800" />
+                  <div className="h-4 w-3/5 rounded bg-slate-800" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   if (!task) return null;
   return (
@@ -1109,14 +1118,30 @@ setTranslatedComments((prev) => ({
         </Alert>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="bg-slate-900/50 border-slate-800">
-            <CardHeader>
-              <CardTitle className="text-white">{t("taskDetail.overview.title")}</CardTitle>
-            </CardHeader>
+            <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto">
+              <TabsTrigger value="overview" className="data-[state=active]:bg-slate-800">
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="files" className="data-[state=active]:bg-slate-800">
+                Files
+              </TabsTrigger>
+              <TabsTrigger value="discussion" className="data-[state=active]:bg-slate-800">
+                Discussion
+              </TabsTrigger>
+            </TabsList>
 
-            <CardContent className="space-y-5">
+            <TabsContent value="overview" className="mt-4">
+              <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+                <div className="space-y-6">
+                  <Card className="bg-slate-900/50 border-slate-800">
+                    <CardHeader>
+                      <CardTitle className="text-white">{t("taskDetail.overview.title")}</CardTitle>
+                    </CardHeader>
+
+                    <CardContent className="space-y-5">
               <div className="flex flex-wrap gap-2">
   <Badge className={getStatusColor(task.status)}>{task.status || "TODO"}</Badge>
   <Badge className={getPriorityColor(task.priority)}>{task.priority || "LOW"}</Badge>
@@ -1165,10 +1190,17 @@ setTranslatedComments((prev) => ({
             </CardContent>
           </Card>
 
-                    <Card className="bg-slate-900/50 border-slate-800">
-            <CardHeader>
-              <div className="flex items-center justify-between gap-4">
-                <CardTitle className="text-white">{t("taskDetail.files.title")}</CardTitle>
+                            </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="files" className="mt-4">
+              <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+                <div className="space-y-6">
+                  <Card className="bg-slate-900/50 border-slate-800">
+                    <CardHeader>
+                      <div className="flex items-center justify-between gap-4">
+                        <CardTitle className="text-white">{t("taskDetail.files.title")}</CardTitle>
 
                 <>
                   <input
@@ -1387,12 +1419,19 @@ setTranslatedComments((prev) => ({
                 </div>
               )}
             </CardContent>
-          </Card>
-          <Card className="bg-slate-900/50 border-slate-800">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-indigo-400" />
-                <CardTitle className="text-white">{t("taskDetail.discussion.title")}</CardTitle>
+                            </Card>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="discussion" className="mt-4">
+              <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+                <div className="space-y-6">
+                  <Card className="bg-slate-900/50 border-slate-800">
+                    <CardHeader>
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="w-5 h-5 text-indigo-400" />
+                        <CardTitle className="text-white">{t("taskDetail.discussion.title")}</CardTitle>
               </div>
             </CardHeader>
 
@@ -1474,7 +1513,7 @@ setTranslatedComments((prev) => ({
                     </p>
                   </div>
                 ) : (
-                  comments.map((comment) => {
+                  [...comments].slice(-50).reverse().map((comment) => {
                     const isMine = comment.user_id === currentUserId;
                     const authorName = getProfileName(comment.user_id);
                     const authorRole = getProfileRole(comment.user_id);
@@ -1622,6 +1661,10 @@ setTranslatedComments((prev) => ({
               </div>
             </CardContent>
           </Card>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
 
         <div className="space-y-6">
@@ -1726,10 +1769,11 @@ setTranslatedComments((prev) => ({
       ? t("taskDetail.members.actions.adding")
       : t("taskDetail.members.actions.add")}
   </Button>
-</div>
-                  </div>
-                </div>
-              )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
               {taskMembers.length === 0 ? (
                 <p className="text-slate-500">{t("taskDetail.members.empty")}</p>
@@ -1763,29 +1807,7 @@ setTranslatedComments((prev) => ({
             </CardContent>
           </Card>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function InfoRow({
-  icon,
-  label,
-  value,
-  valueClassName = "text-white",
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  valueClassName?: string;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <div>{icon}</div>
-      <div>
-        <p className="text-slate-500 text-xs">{label}</p>
-        <p className={`${valueClassName} text-sm`}>{value}</p>
-      </div>
+      </div>  
     </div>
   );
 }

@@ -336,9 +336,10 @@ const canDeleteProject = (project: ProjectRow) => {
     }
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    return (
+    <div className="h-full flex flex-col overflow-hidden">
+      <div className="shrink-0 space-y-6 pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">
             {t("projects.projectsTitle", "Projects")}
@@ -439,9 +440,11 @@ const canDeleteProject = (project: ProjectRow) => {
         </ToggleGroup>
       </div>
 
-      <PageError message={projectsRequest.error || ""} />
+              <PageError message={projectsRequest.error || ""} />
+      </div>
 
-     <PageLoader
+      <div className="flex-1 overflow-y-auto pr-1">
+        <PageLoader
   loading={projectsRequest.status === "loading"}
   fallback={
     viewMode === "grid" ? (
@@ -655,31 +658,36 @@ const canDeleteProject = (project: ProjectRow) => {
       </CardContent>
     </Card>
   )}
-</PageLoader>
-      {filteredProjects.length === 0 && (
-  <div className="text-center py-12">
-    <FolderKanban className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-    <h3 className="text-lg font-medium text-white mb-2">
-      {t("projects.noProjectsFound", "No projects found")}
-    </h3>
-    <p className="text-slate-500 mb-4">
-      {searchQuery || statusFilter !== "ALL"
-        ? t("projects.tryAdjustingYourFilters", "Try adjusting your filters")
-        : t("projects.createYourFirstProject", "Create your first project to get started")}
-    </p>
+        </PageLoader>
 
-    {!searchQuery && statusFilter === "ALL" && canCreateProjects && (
-      <Button
-        className="bg-indigo-600 hover:bg-indigo-700 text-white"
-        onClick={() => navigate("/projects/new")}
-      >
-        <Plus className="w-4 h-4 mr-2" />
-        {t("projects.createProject", "Create Project")}
-      </Button>
-    )}
-  </div>
-)}
+        {filteredProjects.length === 0 && (
+          <div className="text-center py-12">
+            <FolderKanban className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-white mb-2">
+              {t("projects.noProjectsFound", "No projects found")}
+            </h3>
+            <p className="text-slate-500 mb-4">
+              {searchQuery || statusFilter !== "ALL"
+                ? t("projects.tryAdjustingYourFilters", "Try adjusting your filters")
+                : t(
+                    "projects.createYourFirstProject",
+                    "Create your first project to get started"
+                  )}
+            </p>
+
+            {!searchQuery && statusFilter === "ALL" && canCreateProjects && (
+              <Button
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={() => navigate("/projects/new")}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                {t("projects.createProject", "Create Project")}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
+    </div>
   );
 }
     

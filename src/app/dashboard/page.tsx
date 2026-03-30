@@ -2,7 +2,12 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { addDays, format, isBefore, parseISO } from "date-fns";
 import { supabase } from "@/lib/supabase";
-import { registerRealtimeChannel, removeRealtimeChannel } from "@/lib/realtime";
+import {
+  removeRealtimeChannel,
+  subscribeToDashboardActivity,
+  subscribeToDashboardTasks,
+  subscribeToDashboardProjects,
+} from "@/lib/realtime";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useRequest } from "@/lib/useRequest";
 import { useLanguage } from "@/lib/i18n";
@@ -181,11 +186,7 @@ export default function DashboardPage() {
           return true;
         }
 
-                const { data, error } = await supabase.functions.invoke("dashboard-summary", {
-  headers: {
-    "x-invalidate-cache": "true",
-  },
-});
+      const { data, error } = await supabase.functions.invoke("dashboard-summary");
 
         if (!requestTracker.current.isLatest(requestId)) return true;
 
@@ -228,42 +229,86 @@ export default function DashboardPage() {
     void loadDashboard();
   }, []);
 
-  useEffect(() => {
+    useEffect(() => {
     if (!currentUserId) return;
 
-    const channelKey = `dashboard-activity:${currentUserId}`;
+    subscribeToDashboardActivity({
+      userId: currentUserId,
+      onInsert: (payload) => {
+        const newLog = payload as ActivityLogRow;
 
-    registerRealtimeChannel(
-      channelKey,
-      supabase
-        .channel(channelKey)
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "activity_logs" },
-          (payload) => {
-            const newLog = payload.new as ActivityLogRow;
+        setActivityLogs((prev) => {
+          const alreadyExists = prev.some((log) => log.id === newLog.id);
+          if (alreadyExists) return prev;
+          return [newLog, ...prev].slice(0, 50);
+        });
+      },
+      onDelete: (payload) => {
+        const deletedId = (payload as { id?: string } | null)?.id;
+        if (!deletedId) return;
 
-            setActivityLogs((prev) => {
-              const alreadyExists = prev.some((log) => log.id === newLog.id);
-              if (alreadyExists) return prev;
-              return [newLog, ...prev].slice(0, 50);
-            });
-          }
-        )
-        .on(
-          "postgres_changes",
-          { event: "DELETE", schema: "public", table: "activity_logs" },
-          (payload) => {
-            const deletedId = (payload.old as { id?: string } | null)?.id;
-            if (!deletedId) return;
-            setActivityLogs((prev) => prev.filter((log) => log.id !== deletedId));
-          }
-        )
-        .subscribe()
-    );
+        setActivityLogs((prev) => prev.filter((log) => log.id !== deletedId));
+      },
+    });
+
+    subscribeToDashboardTasks({
+      userId: currentUserId,
+      onInsert: (payload) => {
+        const newTask = payload as TaskRow;
+
+        setTasks((prev) => {
+          const alreadyExists = prev.some((task) => task.id === newTask.id);
+          if (alreadyExists) return prev;
+          return [newTask, ...prev];
+        });
+      },
+      onUpdate: (payload) => {
+        const updatedTask = payload as TaskRow;
+
+        setTasks((prev) =>
+          prev.map((task) => (task.id === updatedTask.id ? updatedTask : task))
+        );
+      },
+      onDelete: (payload) => {
+        const deletedId = (payload as { id?: string } | null)?.id;
+        if (!deletedId) return;
+
+        setTasks((prev) => prev.filter((task) => task.id !== deletedId));
+      },
+    });
+
+    subscribeToDashboardProjects({
+      userId: currentUserId,
+      onInsert: (payload) => {
+        const newProject = payload as ProjectRow;
+
+        setProjects((prev) => {
+          const alreadyExists = prev.some((project) => project.id === newProject.id);
+          if (alreadyExists) return prev;
+          return [newProject, ...prev];
+        });
+      },
+      onUpdate: (payload) => {
+        const updatedProject = payload as ProjectRow;
+
+        setProjects((prev) =>
+          prev.map((project) =>
+            project.id === updatedProject.id ? updatedProject : project
+          )
+        );
+      },
+      onDelete: (payload) => {
+        const deletedId = (payload as { id?: string } | null)?.id;
+        if (!deletedId) return;
+
+        setProjects((prev) => prev.filter((project) => project.id !== deletedId));
+      },
+    });
 
     return () => {
-      void removeRealtimeChannel(channelKey);
+      void removeRealtimeChannel(`dashboard:activity:${currentUserId}`);
+      void removeRealtimeChannel(`dashboard:tasks:${currentUserId}`);
+      void removeRealtimeChannel(`dashboard:projects:${currentUserId}`);
     };
   }, [currentUserId]);
 

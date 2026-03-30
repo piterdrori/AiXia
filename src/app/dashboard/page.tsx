@@ -181,7 +181,11 @@ export default function DashboardPage() {
           return true;
         }
 
-                const { data, error } = await supabase.functions.invoke("dashboard-summary");
+                const { data, error } = await supabase.functions.invoke("dashboard-summary", {
+  headers: {
+    "x-invalidate-cache": "true",
+  },
+});
 
         if (!requestTracker.current.isLatest(requestId)) return true;
 

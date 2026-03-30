@@ -58,12 +58,14 @@ type TaskRow = {
   description: string | null;
   status: string | null;
   priority: string | null;
+  start_date: string | null;
   due_date: string | null;
   project_id: string | null;
   assignee_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  last_status_update_at: string | null;
 };
 
 type ProjectRow = {
@@ -153,6 +155,7 @@ export default function TasksPage() {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [actionError, setActionError] = useState("");
 
+ 
   const getTaskDateStatus = (dueDate: string | null) => {
     if (!dueDate) return "none";
 
@@ -161,6 +164,67 @@ export default function TasksPage() {
     if (dueDate < today) return "overdue";
     if (dueDate === today) return "today";
     return "upcoming";
+  };
+
+  const getCheckpointState = (task: TaskRow) => {
+    const status = (task.status || "").toUpperCase();
+    const startDate = task.start_date;
+    const dueDate = task.due_date;
+    const lastStatusUpdateAt = task.last_status_update_at;
+
+    if (!startDate || !dueDate || status === "DONE") {
+      return {
+        behindSchedule: false,
+        updateRequired: false,
+      };
+    }
+
+    const totalMs =
+      new Date(`${dueDate}T00:00:00`).getTime() -
+      new Date(`${startDate}T00:00:00`).getTime();
+
+    if (totalMs <= 0) {
+      return {
+        behindSchedule: false,
+        updateRequired: false,
+      };
+    }
+
+    const elapsedMs =
+      new Date(`${clock.todayKey}T00:00:00`).getTime() -
+      new Date(`${startDate}T00:00:00`).getTime();
+
+    const progressRatio = Math.min(Math.max(elapsedMs / totalMs, 0), 1);
+
+    let expectedStatus: "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE" = "TODO";
+
+    if (progressRatio >= 1) {
+      expectedStatus = "DONE";
+    } else if (progressRatio >= 0.66) {
+      expectedStatus = "IN_REVIEW";
+    } else if (progressRatio >= 0.33) {
+      expectedStatus = "IN_PROGRESS";
+    }
+
+    const statusRank: Record<string, number> = {
+      TODO: 0,
+      IN_PROGRESS: 1,
+      IN_REVIEW: 2,
+      DONE: 3,
+    };
+
+    const behindSchedule =
+      (statusRank[status] ?? 0) < (statusRank[expectedStatus] ?? 0);
+
+    const updateRequired = lastStatusUpdateAt
+      ? Date.now() - new Date(lastStatusUpdateAt).getTime() >
+        1000 * 60 * 60 * 24 * 2
+      : true;
+
+    return {
+      behindSchedule,
+      updateRequired,
+    };
   };
 
   const initialProjectId = searchParams.get("projectId") || "ALL";
@@ -809,6 +873,28 @@ export default function TasksPage() {
                               {getProjectName(task.project_id)}
                             </div>
 
+                                                        <div className="mb-3 flex flex-wrap gap-2">
+                              {(() => {
+                                const checkpoint = getCheckpointState(task);
+
+                                return (
+                                  <>
+                                    {checkpoint.behindSchedule && (
+                                      <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+                                        Behind Schedule
+                                      </Badge>
+                                    )}
+
+                                    {checkpoint.updateRequired && (
+                                      <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                                        Update Required
+                                      </Badge>
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </div>
+
                             <div className="flex items-center justify-between">
                               <MemberStack profiles={assigneeProfiles} />
 
@@ -892,9 +978,31 @@ export default function TasksPage() {
                       </div>
 
                       <div className="hidden sm:flex items-center gap-4">
-                        <Badge className={getPriorityColor(task.priority)}>
-                          {task.priority || t("tasks.priority.low")}
-                        </Badge>
+                                                <div className="flex flex-col gap-2">
+                          <Badge className={getPriorityColor(task.priority)}>
+                            {task.priority || t("tasks.priority.low")}
+                          </Badge>
+
+                          {(() => {
+                            const checkpoint = getCheckpointState(task);
+
+                            return (
+                              <div className="flex flex-wrap gap-2">
+                                {checkpoint.behindSchedule && (
+                                  <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+                                    Behind Schedule
+                                  </Badge>
+                                )}
+
+                                {checkpoint.updateRequired && (
+                                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                                    Update Required
+                                  </Badge>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
 
                         <span className="text-sm text-slate-500">
                           {getProjectName(task.project_id)}

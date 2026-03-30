@@ -77,6 +77,7 @@ export default function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [sortBy, setSortBy] = useState<string>("newest");
   const [activeTab, setActiveTab] = useState<"ALL" | "ACTIVE" | "MINE" | "COMPLETED">("ALL");
+  const [pinnedIds, setPinnedIds] = useState<string[]>([]);
 
   
   const [projects, setProjects] = useState<ProjectRow[]>([]);
@@ -296,7 +297,7 @@ return matchesSearch && matchesStatus && matchesTab;
       return 0;
   }
 });
-  }, [projects, searchQuery, statusFilter, sortBy, activeTab, currentUserId]);
+  }, [projects, searchQuery, statusFilter, sortBy, activeTab, currentUserId, pinnedIds]);
 
   const kpi = useMemo(() => {
   let total = projects.length;
@@ -357,14 +358,13 @@ return matchesSearch && matchesStatus && matchesTab;
     }
   };
 
-  function getPriorityScore(project: ProjectRow) {
+function getPriorityScore(project: ProjectRow) {
   let score = 0;
 
-  // future pin (placeholder)
-  const isPinned = false;
-  if (isPinned) score += 1000;
+  // PINNED
+  if (pinnedIds.includes(project.id)) score += 10000;
 
-  // urgent (due soon / overdue)
+  // URGENT
   if (project.end_date) {
     const now = Date.now();
     const end = new Date(project.end_date).getTime();
@@ -374,7 +374,7 @@ return matchesSearch && matchesStatus && matchesTab;
     else if (diffDays <= 3) score += 300;
   }
 
-  // recent
+  // RECENT
   const created = new Date(project.created_at).getTime();
   score += created / 1_000_000_000;
 
@@ -628,6 +628,19 @@ return matchesSearch && matchesStatus && matchesTab;
               >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-3">
+  <button
+    onClick={(e) => {
+      e.stopPropagation();
+      setPinnedIds((prev) =>
+        prev.includes(project.id)
+          ? prev.filter((id) => id !== project.id)
+          : [...prev, project.id]
+      );
+    }}
+    className="text-yellow-400 hover:scale-110 transition"
+  >
+    {pinnedIds.includes(project.id) ? "⭐" : "☆"}
+  </button>
                     <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110">
                       <FolderKanban className="w-4 h-4 text-indigo-400" />
                     </div>
@@ -711,11 +724,24 @@ return matchesSearch && matchesStatus && matchesTab;
       <CardContent className="p-0">
         <div className="divide-y divide-slate-800">
           {filteredProjects.map((project) => (
-            <div
-              key={project.id}
-              onClick={() => navigate(`/projects/${project.id}`)}
-              className="flex items-center gap-4 p-4 hover:bg-slate-800/50 cursor-pointer transition-colors"
-            >
+  <div
+    key={project.id}
+    onClick={() => navigate(`/projects/${project.id}`)}
+    className="flex items-center gap-4 p-4 hover:bg-slate-800/50 cursor-pointer transition-colors"
+  >
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        setPinnedIds((prev) =>
+          prev.includes(project.id)
+            ? prev.filter((id) => id !== project.id)
+            : [...prev, project.id]
+        );
+      }}
+      className="text-yellow-400"
+    >
+      {pinnedIds.includes(project.id) ? "⭐" : "☆"}
+    </button>
               <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
                 <FolderKanban className="w-5 h-5 text-indigo-400" />
               </div>

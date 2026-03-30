@@ -269,19 +269,22 @@ const canDeleteProject = (project: ProjectRow) => {
         return matchesSearch && matchesStatus;
       })
       .sort((a, b) => {
-        switch (sortBy) {
-          case "newest":
-            return clock.shiftDate(b.created_at).getTime() - clock.shiftDate(a.created_at).getTime();
-          case "oldest":
-            return clock.shiftDate(a.created_at).getTime() - clock.shiftDate(b.created_at).getTime();
-          case "name":
-            return a.name.localeCompare(b.name);
-          case "progress":
-            return (b.progress || 0) - (a.progress || 0);
-          default:
-            return 0;
-        }
-      });
+  const priorityDiff = getPriorityScore(b) - getPriorityScore(a);
+  if (priorityDiff !== 0) return priorityDiff;
+
+  switch (sortBy) {
+    case "newest":
+      return clock.shiftDate(b.created_at).getTime() - clock.shiftDate(a.created_at).getTime();
+    case "oldest":
+      return clock.shiftDate(a.created_at).getTime() - clock.shiftDate(b.created_at).getTime();
+    case "name":
+      return a.name.localeCompare(b.name);
+    case "progress":
+      return (b.progress || 0) - (a.progress || 0);
+    default:
+      return 0;
+  }
+});
   }, [projects, searchQuery, statusFilter, sortBy]);
 
   const getStatusColor = (status: string | null) => {
@@ -317,6 +320,30 @@ const canDeleteProject = (project: ProjectRow) => {
         return t("projects.statusUnknown", "Unknown");
     }
   };
+
+  function getPriorityScore(project: ProjectRow) {
+  let score = 0;
+
+  // future pin (placeholder)
+  const isPinned = false;
+  if (isPinned) score += 1000;
+
+  // urgent (due soon / overdue)
+  if (project.end_date) {
+    const now = Date.now();
+    const end = new Date(project.end_date).getTime();
+    const diffDays = (end - now) / (1000 * 60 * 60 * 24);
+
+    if (diffDays < 0) score += 500;
+    else if (diffDays <= 3) score += 300;
+  }
+
+  // recent
+  const created = new Date(project.created_at).getTime();
+  score += created / 1_000_000_000;
+
+  return score;
+}
 
   const handleDelete = async (projectId: string) => {
     const confirmed = window.confirm(
@@ -500,90 +527,108 @@ const canDeleteProject = (project: ProjectRow) => {
   }
 >
   {viewMode === "grid" ? (
-    <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
-      {filteredProjects.map((project) => (
-        <Card
-          key={project.id}
-          className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/40 transition-all duration-300 cursor-pointer group hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(99,102,241,0.18)]"
-          onClick={() => navigate(`/projects/${project.id}`)}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between mb-3">
-              <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110">
-                <FolderKanban className="w-4 h-4 text-indigo-400" />
-              </div>
+  <div className="space-y-6">
+    {["ACTIVE", "PLANNING", "ON_HOLD", "COMPLETED"].map((status) => {
+      const sectionProjects = filteredProjects.filter(
+        (p) => (p.status || "").toUpperCase() === status
+      );
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreVertical className="w-4 h-4 text-slate-400" />
-                  </Button>
-                </DropdownMenuTrigger>
+      if (sectionProjects.length === 0) return null;
 
-                <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800">
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/projects/${project.id}/edit`);
-                    }}
-                  >
-                    <Edit className="w-4 h-4 mr-2" />
-                    {t("projects.edit", "Edit")}
-                  </DropdownMenuItem>
+      return (
+        <div key={status} className="space-y-3">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            {getStatusLabel(status)}
+          </h2>
 
-                  {canDeleteProject(project) && (
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleDelete(project.id);
-                      }}
-                      className="text-red-400"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      {t("projects.delete", "Delete")}
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
+            {sectionProjects.map((project) => (
+              <Card
+                key={project.id}
+                className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/40 transition-all duration-300 cursor-pointer group hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(99,102,241,0.18)]"
+                onClick={() => navigate(`/projects/${project.id}`)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110">
+                      <FolderKanban className="w-4 h-4 text-indigo-400" />
+                    </div>
 
-            <h3 className="text-base font-semibold text-white mb-1 truncate group-hover:text-indigo-400 transition-colors">
-              {project.name}
-            </h3>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="w-4 h-4 text-slate-400" />
+                        </Button>
+                      </DropdownMenuTrigger>
 
-            <p className="text-slate-400 text-xs mb-3 line-clamp-2 min-h-[2.5rem]">
-              {project.description || t("projects.noDescription", "No description")}
-            </p>
+                      <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/projects/${project.id}/edit`);
+                          }}
+                        >
+                          <Edit className="w-4 h-4 mr-2" />
+                          {t("projects.edit", "Edit")}
+                        </DropdownMenuItem>
 
-            <div className="flex items-center gap-2 mb-3">
-              <Badge className={getStatusColor(project.status)}>
-                {getStatusLabel(project.status)}
-              </Badge>
-            </div>
+                        {canDeleteProject(project) && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleDelete(project.id);
+                            }}
+                            className="text-red-400"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            {t("projects.delete", "Delete")}
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500">{t("projects.progress", "Progress")}</span>
-                <span className="text-white">{project.progress || 0}%</span>
-              </div>
-              <Progress value={project.progress || 0} className="h-1.5 bg-slate-800" />
-            </div>
+                  <h3 className="text-base font-semibold text-white mb-1 truncate group-hover:text-indigo-400 transition-colors">
+                    {project.name}
+                  </h3>
 
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-800">
-              <div className="flex items-center gap-4 text-sm text-slate-500">
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5" />
-                  {project.end_date
-                    ? format(clock.shiftDate(project.end_date), "MMM d")
-                    : t("projects.noDate", "No date")}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  ) : (
+                  <p className="text-slate-400 text-xs mb-3 line-clamp-2 min-h-[2.5rem]">
+                    {project.description || t("projects.noDescription", "No description")}
+                  </p>
+
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge className={getStatusColor(project.status)}>
+                      {getStatusLabel(project.status)}
+                    </Badge>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-500">{t("projects.progress", "Progress")}</span>
+                      <span className="text-white">{project.progress || 0}%</span>
+                    </div>
+                    <Progress value={project.progress || 0} className="h-1.5 bg-slate-800" />
+                  </div>
+
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-800">
+                    <div className="flex items-center gap-4 text-sm text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {project.end_date
+                          ? format(clock.shiftDate(project.end_date), "MMM d")
+                          : t("projects.noDate", "No date")}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+) : (
     <Card className="bg-slate-900/50 border-slate-800">
       <CardContent className="p-0">
         <div className="divide-y divide-slate-800">

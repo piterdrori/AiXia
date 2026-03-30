@@ -74,3 +74,91 @@ export function subscribeToMessages({
 
   return registerRealtimeChannel(channelKey, channel);
 }
+
+/* =========================================================
+   TASK REALTIME SUBSCRIPTIONS
+========================================================= */
+
+export function subscribeToTask({
+  taskId,
+  onUpdate,
+}: {
+  taskId: string;
+  onUpdate: (payload: any) => void;
+}) {
+  const channelKey = `task:${taskId}`;
+
+  const channel = supabase
+    .channel(channelKey)
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "tasks",
+        filter: `id=eq.${taskId}`,
+      },
+      (payload) => {
+        onUpdate(payload.new);
+      }
+    )
+    .subscribe();
+
+  return registerRealtimeChannel(channelKey, channel);
+}
+
+export function subscribeToTaskComments({
+  taskId,
+  onInsert,
+}: {
+  taskId: string;
+  onInsert: (payload: any) => void;
+}) {
+  const channelKey = `task:comments:${taskId}`;
+
+  const channel = supabase
+    .channel(channelKey)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "task_comments",
+        filter: `task_id=eq.${taskId}`,
+      },
+      (payload) => {
+        onInsert(payload.new);
+      }
+    )
+    .subscribe();
+
+  return registerRealtimeChannel(channelKey, channel);
+}
+
+export function subscribeToTaskActivity({
+  taskId,
+  onInsert,
+}: {
+  taskId: string;
+  onInsert: (payload: any) => void;
+}) {
+  const channelKey = `task:activity:${taskId}`;
+
+  const channel = supabase
+    .channel(channelKey)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "activity_logs",
+        filter: `task_id=eq.${taskId}`,
+      },
+      (payload) => {
+        onInsert(payload.new);
+      }
+    )
+    .subscribe();
+
+  return registerRealtimeChannel(channelKey, channel);
+}

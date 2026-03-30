@@ -361,6 +361,19 @@ return matchesSearch && matchesStatus && matchesTab;
 function getPriorityScore(project: ProjectRow) {
   let score = 0;
 
+  function getUrgency(project: ProjectRow) {
+  if (!project.end_date) return null;
+
+  const now = Date.now();
+  const end = new Date(project.end_date).getTime();
+  const diffDays = (end - now) / (1000 * 60 * 60 * 24);
+
+  if (diffDays < 0) return "OVERDUE";
+  if (diffDays <= 3) return "SOON";
+
+  return null;
+}
+
   // PINNED
   if (pinnedIds.includes(project.id)) score += 10000;
 
@@ -688,10 +701,22 @@ function getPriorityScore(project: ProjectRow) {
                   </p>
 
                   <div className="flex items-center gap-2 mb-3">
-                    <Badge className={getStatusColor(project.status)}>
-                      {getStatusLabel(project.status)}
-                    </Badge>
-                  </div>
+  <Badge className={getStatusColor(project.status)}>
+    {getStatusLabel(project.status)}
+  </Badge>
+
+  {getUrgency(project) === "OVERDUE" && (
+    <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+      Overdue
+    </Badge>
+  )}
+
+  {getUrgency(project) === "SOON" && (
+    <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+      Due Soon
+    </Badge>
+  )}
+</div>
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs">

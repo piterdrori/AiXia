@@ -427,8 +427,15 @@ useEffect(() => {
   );
 }, [task, currentUserId, currentUserRole]);
 
-  const canUpdateStatus = useMemo(() => {
+const canUpdateStatus = useMemo(() => {
   if (!task || !currentUserId || !currentUserRole) return false;
+
+  console.log("PERMISSION DEBUG:", {
+    currentUserId,
+    currentUserRole,
+    task,
+    taskMembers,
+  });
 
   return canMoveTask(
     task,

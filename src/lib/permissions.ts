@@ -319,7 +319,8 @@ export function canMoveTask(
   task: TaskRow,
   userId: string | null,
   role: Role,
-  taskMembers: TaskMemberRow[]
+  taskMembers: TaskMemberRow[],
+  visibleProjectIds?: Set<string>
 ): boolean {
   if (!userId) return false;
 
@@ -330,7 +331,17 @@ export function canMoveTask(
     (m) => m.task_id === task.id && m.user_id === userId
   );
 
-  return role === "admin" || isCreator || isAssignee || isTaskMember;
+  const isProjectVisible =
+    !!task.project_id && !!visibleProjectIds?.has(task.project_id);
+
+  return (
+    role === "admin" ||
+    role === "manager" ||
+    isCreator ||
+    isAssignee ||
+    isTaskMember ||
+    isProjectVisible
+  );
 }
 
 export function canCreateTask(role: Role): boolean {

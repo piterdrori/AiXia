@@ -173,6 +173,10 @@ export default function TaskDetailPage() {
   const [comments, setComments] = useState<TaskCommentRow[]>([]);
   const [files, setFiles] = useState<FileUploadRow[]>([]);
 
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+const [statusRemark, setStatusRemark] = useState("");
+
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
 
@@ -1116,9 +1120,10 @@ if (isBootstrapping) {
   );
 }
 
-  if (!task) return null;
+    if (!task) return null;
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
@@ -1210,7 +1215,7 @@ if (isBootstrapping) {
 
                     <CardContent className="space-y-5">
               <div className="flex flex-wrap gap-2">
-  <Badge className={getStatusColor(task.status)}>{task.status || "TODO"}</Badge>
+  <Badge className={getStatusColor(task.status)}>{task.status || "-"}</Badge>
   <Badge className={getPriorityColor(task.priority)}>{task.priority || "LOW"}</Badge>
 
   {task.due_date && (
@@ -1238,15 +1243,18 @@ if (isBootstrapping) {
                 <div className="space-y-2">
                   <div className="text-slate-300 text-sm font-medium">{t("taskDetail.overview.updateStatus")}</div>
                   <Select
-                    value={(task.status || "TODO").toUpperCase()}
-                    onValueChange={(value) => void handleStatusUpdate(value)}
+                    value={(task.status || "").toUpperCase()}
+                    onValueChange={(value) => {
+  if ((task.status || "").toUpperCase() === value.toUpperCase()) return;
+  setPendingStatus(value);
+  setStatusModalOpen(true);
+}}
                     disabled={statusSaving}
                   >
                     <SelectTrigger className="w-56 bg-slate-900 border-slate-700 text-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="TODO">{t("taskDetail.status.todo")}</SelectItem>
                       <SelectItem value="IN_PROGRESS">{t("taskDetail.status.inProgress")}</SelectItem>
                       <SelectItem value="IN_REVIEW">{t("taskDetail.status.inReview")}</SelectItem>
                       <SelectItem value="DONE">{t("taskDetail.status.done")}</SelectItem>
@@ -1754,7 +1762,7 @@ if (isBootstrapping) {
               <InfoRow
                 icon={<CheckSquare className="w-4 h-4 text-blue-400" />}
                 label={t("taskDetail.details.status")}
-                value={task.status || "TODO"}
+                value={task.status || "-"}
               />
               <InfoRow
   icon={<Calendar className="w-4 h-4 text-green-400" />}
@@ -1877,5 +1885,60 @@ if (isBootstrapping) {
         </div>
       </div>  
     </div>
-  );
-}
+      
+ <Dialog open={statusModalOpen} onOpenChange={setStatusModalOpen}>
+  <DialogContent className="bg-slate-950 border-slate-800 text-white">
+    <DialogHeader>
+      <DialogTitle>Update Status</DialogTitle>
+    </DialogHeader>
+
+    <div className="space-y-4">
+      <div className="text-sm text-slate-400">
+        New status: <span className="text-white">{pendingStatus}</span>
+      </div>
+
+      <Textarea
+        placeholder="Write what you did / progress update..."
+        value={statusRemark}
+        onChange={(e) => setStatusRemark(e.target.value)}
+        rows={4}
+        className="bg-slate-900 border-slate-800 text-white"
+      />
+
+      <Button
+        disabled={statusSaving || statusRemark.trim().length < 5}
+        className="w-full bg-indigo-600 hover:bg-indigo-700"
+        onClick={async () => {
+          if (!pendingStatus || !task) return;
+
+          setStatusSaving(true);
+
+          const { error } = await supabase.functions.invoke(
+            "task-status-update",
+            {
+              body: {
+                taskId: task.id,
+                status: pendingStatus,
+                remark: statusRemark,
+              },
+            }
+          );
+
+          if (error) {
+            setError(error.message || "Failed to update status");
+          } else {
+            setStatusModalOpen(false);
+setStatusRemark("");
+setPendingStatus(null);
+setError("");
+          }
+
+          setStatusSaving(false);
+        }}
+      >
+        {statusSaving ? "Updating..." : "Confirm Update"}
+      </Button>
+    </div>
+  </DialogContent>
+    </Dialog>
+  </>

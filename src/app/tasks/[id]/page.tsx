@@ -656,6 +656,11 @@ const visibleComments = useMemo(
   () => [...comments].slice(-50).reverse(),
   [comments]
 );
+
+const visibleActivity = useMemo(
+  () => [...activity].slice(0, 100),
+  [activity]
+);
   
   const mentionCandidates = useMemo(() => {
     const candidateIds = Array.from(
@@ -1209,7 +1214,7 @@ if (isBootstrapping) {
             <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto">
+                       <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto">
               <TabsTrigger value="overview" className="data-[state=active]:bg-slate-800">
                 Overview
               </TabsTrigger>
@@ -1218,6 +1223,9 @@ if (isBootstrapping) {
               </TabsTrigger>
               <TabsTrigger value="discussion" className="data-[state=active]:bg-slate-800">
                 Discussion
+              </TabsTrigger>
+              <TabsTrigger value="activity" className="data-[state=active]:bg-slate-800">
+                Activity
               </TabsTrigger>
             </TabsList>
 
@@ -1553,7 +1561,7 @@ if (isBootstrapping) {
               </div>
             </TabsContent>
 
-            <TabsContent value="discussion" className="mt-4">
+                        <TabsContent value="discussion" className="mt-4">
               <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                 <div className="space-y-6">
                   <Card className="bg-slate-900/50 border-slate-800">
@@ -1561,235 +1569,304 @@ if (isBootstrapping) {
                       <div className="flex items-center gap-2">
                         <MessageSquare className="w-5 h-5 text-indigo-400" />
                         <CardTitle className="text-white">{t("taskDetail.discussion.title")}</CardTitle>
-              </div>
-            </CardHeader>
-
-            <CardContent className="space-y-5">
-              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-                <div className="mb-2">
-                  <p className="text-sm font-medium text-white">{t("taskDetail.discussion.addUpdate")}</p>
-                  <p className="text-xs text-slate-500">
-                    {t("taskDetail.discussion.addUpdateHelper")}
-                  </p>
-                </div>
-
-                                <Textarea
-                  placeholder={t("taskDetail.discussion.placeholder")}
-                  value={newComment}
-                  onChange={(e) => handleCommentInputChange(e.target.value)}
-                  onBlur={() => {
-                    window.setTimeout(() => {
-                      setShowMentionDropdown(false);
-                    }, 150);
-                  }}
-                  rows={4}
-                  className="bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 resize-none"
-                />
-
-                {showMentionDropdown && (
-                  <div className="mt-2 rounded-lg border border-slate-800 bg-slate-900 shadow-lg overflow-hidden">
-                    {filteredMentionCandidates.length === 0 ? (
-                      <div className="px-3 py-2 text-sm text-slate-500">
-                        {t("taskDetail.discussion.noMatchingParticipants")}
                       </div>
-                    ) : (
-                      filteredMentionCandidates.map((profile) => (
-                                                <button
-                          key={profile.user_id}
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => insertMention(profile.full_name || "")}
-                          className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-800 transition-colors"
-                        >
-                          <div>
-                            <div className="text-sm font-medium text-white">
-                              {profile.full_name || t("taskDetail.fallbacks.unknown")}
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              {profile.role.toUpperCase()}
-                            </div>
-                          </div>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
+                    </CardHeader>
 
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <p className="text-xs text-slate-500">
-                    {t("taskDetail.discussion.visibilityNote")}
-                  </p>
-
-                  <Button
-                    type="button"
-                    onClick={() => void handleAddComment()}
-                    disabled={commentSaving || !newComment.trim()}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                  >
-                    <Send className="w-4 h-4 mr-2" />
-                    {commentSaving ? t("taskDetail.discussion.posting") : t("taskDetail.discussion.postUpdate")}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                {comments.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-800 bg-slate-950/40 p-8 text-center">
-                    <MessageSquare className="mx-auto mb-3 h-10 w-10 text-slate-600" />
-                    <p className="text-white font-medium">{t("taskDetail.discussion.emptyTitle")}</p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {t("taskDetail.discussion.emptyDescription")}
-                    </p>
-                  </div>
-                ) : (
-                  visibleComments.map((comment) => {
-                    const isMine = comment.user_id === currentUserId;
-                    const authorName = getProfileName(comment.user_id);
-                    const authorRole = getProfileRole(comment.user_id);
-                    const isEditing = editingCommentId === comment.id;
-
-                    return (
-                      <div
-                        key={comment.id}
-                        className={`rounded-xl border p-4 ${
-                          isMine
-                            ? "border-indigo-800/40 bg-indigo-950/20"
-                            : "border-slate-800 bg-slate-950/50"
-                        }`}
-                      >
-                        <div className="mb-3 flex items-start justify-between gap-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-xs font-medium text-white">
-                              {getInitials(authorName)}
-                            </div>
-
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="text-sm font-medium text-white">{authorName}</p>
-
-                                {authorRole && (
-                                  <Badge className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5">
-                                    {authorRole.toUpperCase()}
-                                  </Badge>
-                                )}
-
-                                {isMine && (
-                                  <Badge className="bg-indigo-500/20 text-indigo-300 text-[10px] px-2 py-0.5">
-                                    {t("taskDetail.discussion.you")}
-                                  </Badge>
-                                )}
-                              </div>
-
-                              <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-                                <Clock3 className="h-3 w-3" />
-                                <span>
-                                  {format(clock.shiftDate(comment.created_at), "MMM d, yyyy • h:mm a")}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {canManageComment(comment) && !isEditing && (
-                            <div className="flex items-center gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                                onClick={() => startEditingComment(comment)}
-                                disabled={commentActionLoading === comment.id}
-                              >
-                                <Edit className="w-3 h-3 mr-1" />
-                                {t("taskDetail.actions.edit")}
-                              </Button>
-
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="border-red-800 text-red-400 hover:bg-red-900/20"
-                                onClick={() => void handleDeleteComment(comment)}
-                                disabled={commentActionLoading === comment.id}
-                              >
-                                <Trash2 className="w-3 h-3 mr-1" />
-                                {t("taskDetail.actions.delete")}
-                              </Button>
-                            </div>
-                          )}
+                    <CardContent className="space-y-5">
+                      <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+                        <div className="mb-2">
+                          <p className="text-sm font-medium text-white">{t("taskDetail.discussion.addUpdate")}</p>
+                          <p className="text-xs text-slate-500">
+                            {t("taskDetail.discussion.addUpdateHelper")}
+                          </p>
                         </div>
 
-                        <div className="pl-12">
-                          {isEditing ? (
-                            <div className="space-y-3">
-                              <Textarea
-                                value={editingCommentText}
-                                onChange={(e) => setEditingCommentText(e.target.value)}
-                                rows={4}
-                                className="bg-slate-900 border-slate-800 text-white resize-none"
-                              />
+                        <Textarea
+                          placeholder={t("taskDetail.discussion.placeholder")}
+                          value={newComment}
+                          onChange={(e) => handleCommentInputChange(e.target.value)}
+                          onBlur={() => {
+                            window.setTimeout(() => {
+                              setShowMentionDropdown(false);
+                            }, 150);
+                          }}
+                          rows={4}
+                          className="bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 resize-none"
+                        />
 
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                                  onClick={() => void handleSaveEditedComment(comment)}
-                                  disabled={
-                                    commentActionLoading === comment.id ||
-                                    !editingCommentText.trim()
-                                  }
-                                >
-                                  <Save className="w-3 h-3 mr-1" />
-                                  {t("taskDetail.actions.save")}
-                                </Button>
-
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                                  onClick={cancelEditingComment}
-                                  disabled={commentActionLoading === comment.id}
-                                >
-                                  <X className="w-3 h-3 mr-1" />
-                                  {t("taskDetail.actions.cancel")}
-                                </Button>
+                        {showMentionDropdown && (
+                          <div className="mt-2 rounded-lg border border-slate-800 bg-slate-900 shadow-lg overflow-hidden">
+                            {filteredMentionCandidates.length === 0 ? (
+                              <div className="px-3 py-2 text-sm text-slate-500">
+                                {t("taskDetail.discussion.noMatchingParticipants")}
                               </div>
-                            </div>
-                                                    ) : (
-                            <div className="space-y-2">
-  <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">
-    {translatedComments[comment.id]?.text || comment.content}
-  </p>
+                            ) : (
+                              filteredMentionCandidates.map((profile) => (
+                                <button
+                                  key={profile.user_id}
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => insertMention(profile.full_name || "")}
+                                  className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-800 transition-colors"
+                                >
+                                  <div>
+                                    <div className="text-sm font-medium text-white">
+                                      {profile.full_name || t("taskDetail.fallbacks.unknown")}
+                                    </div>
+                                    <div className="text-xs text-slate-500">
+                                      {profile.role.toUpperCase()}
+                                    </div>
+                                  </div>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
 
-  {translatedComments[comment.id]?.source && (
-    <p className="text-[10px] opacity-70 text-slate-400">
-      Source: {translatedComments[comment.id].source}
-    </p>
-  )}
+                        <div className="mt-3 flex items-center justify-between gap-3">
+                          <p className="text-xs text-slate-500">
+                            {t("taskDetail.discussion.visibilityNote")}
+                          </p>
 
-  <button
-    type="button"
-    className="text-xs text-indigo-400 hover:text-indigo-300"
-    onClick={() => void handleTranslateComment(comment)}
-    disabled={translatingCommentId === comment.id}
-  >
-    {translatingCommentId === comment.id
-      ? "Translating..."
-      : translatedComments[comment.id]
-      ? "Original"
-      : "Translate"}
-  </button>
-</div>
-                          )}
+                          <Button
+                            type="button"
+                            onClick={() => void handleAddComment()}
+                            disabled={commentSaving || !newComment.trim()}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                          >
+                            <Send className="w-4 h-4 mr-2" />
+                            {commentSaving ? t("taskDetail.discussion.posting") : t("taskDetail.discussion.postUpdate")}
+                          </Button>
                         </div>
                       </div>
-                    );
-                  })
-                )}
+
+                      <div className="space-y-4">
+                        {comments.length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-slate-800 bg-slate-950/40 p-8 text-center">
+                            <MessageSquare className="mx-auto mb-3 h-10 w-10 text-slate-600" />
+                            <p className="text-white font-medium">{t("taskDetail.discussion.emptyTitle")}</p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              {t("taskDetail.discussion.emptyDescription")}
+                            </p>
+                          </div>
+                        ) : (
+                          visibleComments.map((comment) => {
+                            const isMine = comment.user_id === currentUserId;
+                            const authorName = getProfileName(comment.user_id);
+                            const authorRole = getProfileRole(comment.user_id);
+                            const isEditing = editingCommentId === comment.id;
+
+                            return (
+                              <div
+                                key={comment.id}
+                                className={`rounded-xl border p-4 ${
+                                  isMine
+                                    ? "border-indigo-800/40 bg-indigo-950/20"
+                                    : "border-slate-800 bg-slate-950/50"
+                                }`}
+                              >
+                                <div className="mb-3 flex items-start justify-between gap-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-xs font-medium text-white">
+                                      {getInitials(authorName)}
+                                    </div>
+
+                                    <div>
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="text-sm font-medium text-white">{authorName}</p>
+
+                                        {authorRole && (
+                                          <Badge className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5">
+                                            {authorRole.toUpperCase()}
+                                          </Badge>
+                                        )}
+
+                                        {isMine && (
+                                          <Badge className="bg-indigo-500/20 text-indigo-300 text-[10px] px-2 py-0.5">
+                                            {t("taskDetail.discussion.you")}
+                                          </Badge>
+                                        )}
+                                      </div>
+
+                                      <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                                        <Clock3 className="h-3 w-3" />
+                                        <span>
+                                          {format(clock.shiftDate(comment.created_at), "MMM d, yyyy • h:mm a")}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {canManageComment(comment) && !isEditing && (
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                                        onClick={() => startEditingComment(comment)}
+                                        disabled={commentActionLoading === comment.id}
+                                      >
+                                        <Edit className="w-3 h-3 mr-1" />
+                                        {t("taskDetail.actions.edit")}
+                                      </Button>
+
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="border-red-800 text-red-400 hover:bg-red-900/20"
+                                        onClick={() => void handleDeleteComment(comment)}
+                                        disabled={commentActionLoading === comment.id}
+                                      >
+                                        <Trash2 className="w-3 h-3 mr-1" />
+                                        {t("taskDetail.actions.delete")}
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="pl-12">
+                                  {isEditing ? (
+                                    <div className="space-y-3">
+                                      <Textarea
+                                        value={editingCommentText}
+                                        onChange={(e) => setEditingCommentText(e.target.value)}
+                                        rows={4}
+                                        className="bg-slate-900 border-slate-800 text-white resize-none"
+                                      />
+
+                                      <div className="flex items-center gap-2">
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                                          onClick={() => void handleSaveEditedComment(comment)}
+                                          disabled={
+                                            commentActionLoading === comment.id ||
+                                            !editingCommentText.trim()
+                                          }
+                                        >
+                                          <Save className="w-3 h-3 mr-1" />
+                                          {t("taskDetail.actions.save")}
+                                        </Button>
+
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="outline"
+                                          className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                                          onClick={cancelEditingComment}
+                                          disabled={commentActionLoading === comment.id}
+                                        >
+                                          <X className="w-3 h-3 mr-1" />
+                                          {t("taskDetail.actions.cancel")}
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">
+                                        {translatedComments[comment.id]?.text || comment.content}
+                                      </p>
+
+                                      {translatedComments[comment.id]?.source && (
+                                        <p className="text-[10px] opacity-70 text-slate-400">
+                                          Source: {translatedComments[comment.id].source}
+                                        </p>
+                                      )}
+
+                                      <button
+                                        type="button"
+                                        className="text-xs text-indigo-400 hover:text-indigo-300"
+                                        onClick={() => void handleTranslateComment(comment)}
+                                        disabled={translatingCommentId === comment.id}
+                                      >
+                                        {translatingCommentId === comment.id
+                                          ? "Translating..."
+                                          : translatedComments[comment.id]
+                                          ? "Original"
+                                          : "Translate"}
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            </TabsContent>
+
+            <TabsContent value="activity" className="mt-4">
+              <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+                <div className="space-y-6">
+                  <Card className="bg-slate-900/50 border-slate-800">
+                    <CardHeader>
+                      <div className="flex items-center gap-2">
+                        <Clock3 className="w-5 h-5 text-indigo-400" />
+                        <CardTitle className="text-white">Activity</CardTitle>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent>
+                      {visibleActivity.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-slate-800 bg-slate-950/40 p-8 text-center">
+                          <Clock3 className="mx-auto mb-3 h-10 w-10 text-slate-600" />
+                          <p className="text-white font-medium">No activity yet</p>
+                          <p className="mt-1 text-sm text-slate-500">
+                            System actions will appear here in real time.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {visibleActivity.map((item) => {
+                            const actorName = getProfileName(item.user_id);
+
+                            return (
+                              <div
+                                key={item.id}
+                                className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-xs font-medium text-white">
+                                    {getInitials(actorName)}
+                                  </div>
+
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <p className="text-sm font-medium text-white">
+                                        {actorName}
+                                      </p>
+
+                                      <Badge className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5">
+                                        {item.action_type}
+                                      </Badge>
+                                    </div>
+
+                                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">
+                                      {item.message || "System activity"}
+                                    </p>
+
+                                    <div className="mt-2 flex items-center gap-1 text-xs text-slate-500">
+                                      <Clock3 className="h-3 w-3" />
+                                      <span>
+                                        {format(clock.shiftDate(item.created_at), "MMM d, yyyy • h:mm a")}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
             </TabsContent>

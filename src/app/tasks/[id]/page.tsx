@@ -21,6 +21,12 @@ import {
 import { useAppClock } from "@/lib/clock/provider";
 import { smartTranslate } from "@/lib/smartTranslate";
 import { openFile, downloadFile } from "@/lib/file-actions";
+import {
+  subscribeToTask,
+  subscribeToTaskComments,
+  subscribeToTaskActivity,
+  removeRealtimeChannel,
+} from "@/lib/realtime";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -341,6 +347,53 @@ if (
   useEffect(() => {
     void loadTaskPage("initial");
   }, [id]);
+
+useEffect(() => {
+  if (!id) return;
+
+  // TASK UPDATE
+  subscribeToTask({
+    taskId: id,
+    onUpdate: (updatedTask) => {
+      setTask((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...updatedTask,
+            }
+          : prev
+      );
+    },
+  });
+
+  // COMMENTS (DISCUSSION)
+   subscribeToTaskComments({
+    taskId: id,
+    onInsert: (newComment) => {
+      setComments((prev) => {
+        if (prev.some((comment) => comment.id === newComment.id)) {
+          return prev;
+        }
+        return [...prev, newComment];
+      });
+    },
+  });
+
+  // ACTIVITY (OPTIONAL FUTURE USE)
+  subscribeToTaskActivity({
+    taskId: id,
+    onInsert: () => {
+      // reserved for activity tab later
+    },
+  });
+
+  return () => {
+    removeRealtimeChannel(`task:${id}`);
+    removeRealtimeChannel(`task:comments:${id}`);
+    removeRealtimeChannel(`task:activity:${id}`);
+  };
+}, [id]);
+  
   const canEditTask = useMemo(() => {
   if (!task || !currentUserId || !currentUserRole) return false;
 
@@ -628,14 +681,6 @@ const visibleComments = useMemo(
 
       if (!requestTracker.current.isLatest(requestId)) return;
 
-      setTask((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: newStatus,
-            }
-          : prev
-      );
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Status update error:", err);
@@ -775,7 +820,7 @@ const handleDelete = async () => {
         return;
       }
 
-      setComments((prev) => [...prev, data.comment as TaskCommentRow]);
+      
       setNewComment("");
       setMentionQuery("");
       setShowMentionDropdown(false);

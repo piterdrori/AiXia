@@ -1116,7 +1116,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
   );
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground">
       {!isMobile && (
         <aside
           className={`fixed left-0 top-0 z-40 h-full border-r border-border bg-background/60 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)] transition-all duration-300 ${
@@ -1384,7 +1384,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
             </div>
           </div>
         </header>
-        <div className="flex-1 min-h-0 p-5 lg:p-8 space-y-6 overflow-hidden">{children}</div>
+        <div className="flex-1 min-h-0 p-5 lg:p-8 space-y-6">{children}</div>
       </main>
     </div>
   );

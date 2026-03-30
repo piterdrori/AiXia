@@ -76,6 +76,7 @@ export default function ProjectsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [sortBy, setSortBy] = useState<string>("newest");
+  const [activeTab, setActiveTab] = useState<"ALL" | "ACTIVE" | "MINE" | "COMPLETED">("ALL");
 
   
   const [projects, setProjects] = useState<ProjectRow[]>([]);
@@ -266,7 +267,17 @@ const canDeleteProject = (project: ProjectRow) => {
         const matchesStatus =
           statusFilter === "ALL" || (project.status || "").toUpperCase() === statusFilter;
 
-        return matchesSearch && matchesStatus;
+        let matchesTab = true;
+
+if (activeTab === "ACTIVE") {
+  matchesTab = (project.status || "").toUpperCase() === "ACTIVE";
+} else if (activeTab === "COMPLETED") {
+  matchesTab = (project.status || "").toUpperCase() === "COMPLETED";
+} else if (activeTab === "MINE") {
+  matchesTab = project.created_by === currentUserId;
+}
+
+return matchesSearch && matchesStatus && matchesTab;
       })
       .sort((a, b) => {
   const priorityDiff = getPriorityScore(b) - getPriorityScore(a);
@@ -285,7 +296,7 @@ const canDeleteProject = (project: ProjectRow) => {
       return 0;
   }
 });
-  }, [projects, searchQuery, statusFilter, sortBy]);
+  }, [projects, searchQuery, statusFilter, sortBy, activeTab, currentUserId]);
 
   const kpi = useMemo(() => {
   let total = projects.length;
@@ -425,7 +436,28 @@ const canDeleteProject = (project: ProjectRow) => {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4">
+     <div className="flex gap-2 overflow-x-auto">
+  {[
+    { key: "ALL", label: "All" },
+    { key: "ACTIVE", label: "Active" },
+    { key: "MINE", label: "My Projects" },
+    { key: "COMPLETED", label: "Completed" },
+  ].map((tab) => (
+    <button
+      key={tab.key}
+      onClick={() => setActiveTab(tab.key as any)}
+      className={`px-3 py-1.5 rounded-lg text-sm border transition ${
+        activeTab === tab.key
+          ? "bg-indigo-600 text-white border-indigo-500"
+          : "bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800"
+      }`}
+    >
+      {tab.label}
+    </button>
+  ))}
+</div>
+        
+        <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <Input

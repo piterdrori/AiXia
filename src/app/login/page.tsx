@@ -86,10 +86,21 @@ export default function LoginPage() {
         return;
       }
 
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
-      });
+      const signInPromise = supabase.auth.signInWithPassword({
+  email: normalizedEmail,
+  password,
+});
+
+const timeoutPromise = new Promise<never>((_, reject) =>
+  setTimeout(() => reject(new Error("Login timeout. Please try again.")), 10000)
+);
+
+const result = await Promise.race([
+  signInPromise,
+  timeoutPromise,
+]) as Awaited<typeof signInPromise>;
+
+const signInError = result.error;
 
       if (signInError) {
         setError(getFriendlyLoginError(signInError.message));
@@ -167,11 +178,17 @@ export default function LoginPage() {
           await supabase.auth.signOut();
           return;
       }
-    } catch (err) {
-      console.error("Login error:", err);
-      setError("Unexpected login error.");
-      await supabase.auth.signOut();
-    } finally {
+    } catch (err: any) {
+  console.error("Login error:", err);
+
+  if (err?.message?.toLowerCase().includes("timeout")) {
+    setError("Login request timed out. Please try again.");
+  } else {
+    setError("Unexpected login error.");
+  }
+
+  await supabase.auth.signOut();
+} finally {
       setIsLoading(false);
     }
   };

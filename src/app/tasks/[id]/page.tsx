@@ -73,12 +73,14 @@ type TaskRow = {
   description: string | null;
   status: string | null;
   priority: string | null;
+  start_date: string | null;
   due_date: string | null;
   project_id: string | null;
   assignee_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  last_status_update_at: string | null;
 };
 
 type ProjectRow = {
@@ -502,6 +504,67 @@ const dueDateLabel = useMemo(() => {
   if (isDueToday) return "Due today";
   return null;
 }, [task?.due_date, isOverdue, isDueToday]);
+
+const checkpointState = useMemo(() => {
+  const status = (task?.status || "").toUpperCase();
+  const startDate = task?.start_date;
+  const dueDate = task?.due_date;
+  const lastStatusUpdateAt = task?.last_status_update_at;
+
+  if (!task || !startDate || !dueDate || status === "DONE") {
+    return {
+      behindSchedule: false,
+      updateRequired: false,
+    };
+  }
+
+  const totalMs =
+    new Date(`${dueDate}T00:00:00`).getTime() -
+    new Date(`${startDate}T00:00:00`).getTime();
+
+  if (totalMs <= 0) {
+    return {
+      behindSchedule: false,
+      updateRequired: false,
+    };
+  }
+
+  const elapsedMs =
+    new Date(`${clock.todayKey}T00:00:00`).getTime() -
+    new Date(`${startDate}T00:00:00`).getTime();
+
+  const progressRatio = Math.min(Math.max(elapsedMs / totalMs, 0), 1);
+
+  let expectedStatus: "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE" = "TODO";
+
+  if (progressRatio >= 1) {
+    expectedStatus = "DONE";
+  } else if (progressRatio >= 0.66) {
+    expectedStatus = "IN_REVIEW";
+  } else if (progressRatio >= 0.33) {
+    expectedStatus = "IN_PROGRESS";
+  }
+
+  const statusRank: Record<string, number> = {
+    TODO: 0,
+    IN_PROGRESS: 1,
+    IN_REVIEW: 2,
+    DONE: 3,
+  };
+
+  const behindSchedule =
+    (statusRank[status] ?? 0) < (statusRank[expectedStatus] ?? 0);
+
+  const updateRequired = lastStatusUpdateAt
+    ? Date.now() - new Date(lastStatusUpdateAt).getTime() >
+      1000 * 60 * 60 * 24 * 2
+    : true;
+
+  return {
+    behindSchedule,
+    updateRequired,
+  };
+}, [task, clock.todayKey]);
   
   const getProfileName = (userId: string | null) => {
     if (!userId) return t("taskDetail.fallbacks.unknown");
@@ -1134,86 +1197,100 @@ if (isBootstrapping) {
             <TabsContent value="overview" className="mt-4">
               <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                 <div className="space-y-6">
-                  <Card className="bg-slate-900/50 border-slate-800">
+
+                                    <Card className="bg-slate-900/50 border-slate-800">
                     <CardHeader>
                       <CardTitle className="text-white">{t("taskDetail.overview.title")}</CardTitle>
                     </CardHeader>
 
                     <CardContent className="space-y-5">
-              <div className="flex flex-wrap gap-2">
-  <Badge className={getStatusColor(task.status)}>{task.status || "-"}</Badge>
-  <Badge className={getPriorityColor(task.priority)}>{task.priority || "LOW"}</Badge>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge className={getStatusColor(task.status)}>{task.status || "-"}</Badge>
+                        <Badge className={getPriorityColor(task.priority)}>{task.priority || "LOW"}</Badge>
 
-  {task.due_date && (
-    <Badge className={dueDateBadgeClassName}>
-      {dueDateLabel ? `${dueDateLabel} • ${dueDateDisplay}` : dueDateDisplay}
-    </Badge>
-  )}
-</div>
+                        {task.due_date && (
+                          <Badge className={dueDateBadgeClassName}>
+                            {dueDateLabel ? `${dueDateLabel} • ${dueDateDisplay}` : dueDateDisplay}
+                          </Badge>
+                        )}
 
-              <div>
-                <p className="text-slate-300 whitespace-pre-wrap">
-                  {task.description || t("taskDetail.fallbacks.noDescription")}
-                </p>
-              </div>
+                        {checkpointState.behindSchedule && (
+                          <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+                            Behind Schedule
+                          </Badge>
+                        )}
 
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-slate-400 text-sm">{t("taskDetail.overview.progress")}</span>
-                  <span className="text-white text-sm">{progressValue}%</span>
-                </div>
-                <Progress value={progressValue} className="h-2 bg-slate-800" />
-              </div>
+                        {checkpointState.updateRequired && (
+                          <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                            Update Required
+                          </Badge>
+                        )}
+                      </div>
 
-              {canUpdateStatus && (
-                <div className="space-y-3">
-  <div className="flex items-center justify-between">
-    <div className="text-slate-300 text-sm font-medium">
-      {t("taskDetail.overview.updateStatus")}
-    </div>
+                      <div>
+                        <p className="text-slate-300 whitespace-pre-wrap">
+                          {task.description || t("taskDetail.fallbacks.noDescription")}
+                        </p>
+                      </div>
 
-    <Badge className={getStatusColor(task.status)}>
-      {task.status || "-"}
-    </Badge>
-  </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-slate-400 text-sm">{t("taskDetail.overview.progress")}</span>
+                          <span className="text-white text-sm">{progressValue}%</span>
+                        </div>
+                        <Progress value={progressValue} className="h-2 bg-slate-800" />
+                      </div>
 
-  <div className="flex gap-2">
-    {[
-      { value: "IN_PROGRESS", label: t("taskDetail.status.inProgress") },
-      { value: "IN_REVIEW", label: t("taskDetail.status.inReview") },
-      { value: "DONE", label: t("taskDetail.status.done") },
-    ].map((statusOption) => {
-      const isActive =
-        (task.status || "").toUpperCase() === statusOption.value;
+                      {canUpdateStatus && (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="text-slate-300 text-sm font-medium">
+                              {t("taskDetail.overview.updateStatus")}
+                            </div>
 
-      return (
-        <button
-          key={statusOption.value}
-          disabled={statusSaving}
-          onClick={() => {
-            if (isActive) return;
-            setPendingStatus(statusOption.value);
-            setStatusModalOpen(true);
-          }}
-          className={`
-            flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all
-            border
-            ${
-              isActive
-                ? "bg-indigo-600 text-white border-indigo-500"
-                : "bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white"
-            }
-          `}
-        >
-          {statusOption.label}
-        </button>
-      );
-    })}
-  </div>
-</div>
-              )}
-            </CardContent>
-          </Card>
+                            <Badge className={getStatusColor(task.status)}>
+                              {task.status || "-"}
+                            </Badge>
+                          </div>
+
+                          <div className="flex gap-2">
+                            {[
+                              { value: "IN_PROGRESS", label: t("taskDetail.status.inProgress") },
+                              { value: "IN_REVIEW", label: t("taskDetail.status.inReview") },
+                              { value: "DONE", label: t("taskDetail.status.done") },
+                            ].map((statusOption) => {
+                              const isActive =
+                                (task.status || "").toUpperCase() === statusOption.value;
+
+                              return (
+                                <button
+                                  key={statusOption.value}
+                                  disabled={statusSaving}
+                                  onClick={() => {
+                                    if (isActive) return;
+                                    setPendingStatus(statusOption.value);
+                                    setStatusModalOpen(true);
+                                  }}
+                                  className={`
+                                    flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all
+                                    border
+                                    ${
+                                      isActive
+                                        ? "bg-indigo-600 text-white border-indigo-500"
+                                        : "bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white"
+                                    }
+                                  `}
+                                >
+                                  {statusOption.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                  
 
                             </div>
               </div>

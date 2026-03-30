@@ -1226,7 +1226,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
       )}
 
       <main
-  className={`flex min-h-screen flex-1 flex-col transition-all duration-300 ${
+  className={`flex flex-1 min-h-0 flex-col overflow-hidden transition-all duration-300 ${
     !isMobile && sidebarOpen ? "ml-64" : !isMobile ? "ml-16" : ""
   }`}
 >
@@ -1384,7 +1384,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
             </div>
           </div>
         </header>
-        <div className="flex-1 p-5 lg:p-8 space-y-6">{children}</div>
+        <div className="flex-1 min-h-0 p-5 lg:p-8 space-y-6 overflow-hidden">{children}</div>
       </main>
     </div>
   );

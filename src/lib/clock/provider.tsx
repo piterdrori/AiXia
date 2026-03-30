@@ -84,13 +84,21 @@ export function ClockProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
     let activeChannel: ReturnType<typeof supabase.channel> | null = null;
 
-    const setup = async () => {
-      await refresh();
-
+        const setup = async () => {
       const {
         data: { session },
         error: sessionError,
       } = await supabase.auth.getSession();
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (!sessionError && session) {
+        await refresh();
+      } else {
+        setIsLoaded(true);
+      }
 
       if (!isMounted || sessionError || !session) {
         return;

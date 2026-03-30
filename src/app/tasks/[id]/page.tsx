@@ -1875,7 +1875,7 @@ if (isBootstrapping) {
           );
 
           if (error) {
-            setError(error.message || "Failed to update status");
+            setError("Failed to update status");
           } else {
             setStatusModalOpen(false);
 setStatusRemark("");

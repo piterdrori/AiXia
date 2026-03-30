@@ -181,94 +181,36 @@ export default function DashboardPage() {
           return true;
         }
 
-        const [
-          { data: myProfile, error: myProfileError },
-          { data: projectsData, error: projectsError },
-          { data: projectMembersData, error: projectMembersError },
-          { data: tasksData, error: tasksError },
-          { data: profilesData, error: profilesError },
-          { data: eventsData, error: eventsError },
-          { data: logsData, error: logsError },
-        ] = await Promise.all([
-          supabase
-            .from("profiles")
-            .select("full_name, role")
-            .eq("user_id", user.id)
-            .single(),
-          supabase
-            .from("projects")
-            .select(
-              "id, name, description, status, progress, created_by, end_date, created_at"
-            )
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("project_members")
-            .select("id, project_id, user_id, role, created_at"),
-          supabase
-            .from("tasks")
-            .select(
-              "id, title, status, priority, due_date, assignee_id, project_id, created_by, created_at"
-            )
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("profiles")
-            .select("user_id, full_name, role, status, created_at")
-            .eq("status", "active"),
-          supabase
-            .from("calendar_events")
-            .select("id, title, event_type, start_date, project_id, task_id, created_by")
-            .order("start_date", { ascending: true }),
-          supabase
-            .from("activity_logs")
-            .select(
-              "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
-            )
-            .order("created_at", { ascending: false })
-            .limit(50),
-        ]);
+                const { data, error } = await supabase.functions.invoke("dashboard-summary");
 
         if (!requestTracker.current.isLatest(requestId)) return true;
 
-        if (myProfileError || !myProfile) {
-          navigate("/login");
-          return true;
-        }
-
-        if (projectsError) console.error("Dashboard projects load error:", projectsError);
-        if (projectMembersError) {
-          console.error("Dashboard project members load error:", projectMembersError);
-        }
-        if (tasksError) console.error("Dashboard tasks load error:", tasksError);
-        if (profilesError) console.error("Dashboard profiles load error:", profilesError);
-        if (eventsError) console.error("Dashboard events load error:", eventsError);
-        if (logsError) console.error("Dashboard activity load error:", logsError);
-
-        setCurrentUserId(user.id);
-        setCurrentUserName(myProfile.full_name || t("common.user", "User"));
-        setCurrentUserRole((myProfile.role as Role) || null);
-        setProjects((projectsData || []) as ProjectRow[]);
-        setProjectMembers((projectMembersData || []) as ProjectMemberRow[]);
-        setTasks((tasksData || []) as TaskRow[]);
-        setProfiles((profilesData || []) as ProfileRow[]);
-        setCalendarEvents((eventsData || []) as CalendarEventRow[]);
-        setActivityLogs((logsData || []) as ActivityLogRow[]);
-        setHasLoadedOnce(true);
-
-        if (
-          projectsError ||
-          projectMembersError ||
-          tasksError ||
-          profilesError ||
-          eventsError ||
-          logsError
-        ) {
+        if (error || !data?.payload) {
           throw new Error(
-            t(
-              "dashboard.someDataCouldNotBeLoaded",
-              "Some dashboard data could not be loaded."
-            )
+            t("dashboard.someDataCouldNotBeLoaded", "Some dashboard data could not be loaded.")
           );
         }
+
+        const {
+          currentUser,
+          projects,
+          projectMembers,
+          tasks,
+          profiles,
+          calendarEvents,
+          activityLogs,
+        } = data.payload;
+
+        setCurrentUserId(currentUser?.id || user.id);
+        setCurrentUserName(currentUser?.full_name || t("common.user", "User"));
+        setCurrentUserRole((currentUser?.role as Role) || null);
+        setProjects((projects || []) as ProjectRow[]);
+        setProjectMembers((projectMembers || []) as ProjectMemberRow[]);
+        setTasks((tasks || []) as TaskRow[]);
+        setProfiles((profiles || []) as ProfileRow[]);
+        setCalendarEvents((calendarEvents || []) as CalendarEventRow[]);
+        setActivityLogs((activityLogs || []) as ActivityLogRow[]);
+        setHasLoadedOnce(true);
 
         return true;
       }, "dashboard:load");

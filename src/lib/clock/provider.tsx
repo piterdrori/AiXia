@@ -40,8 +40,21 @@ export function ClockProvider({ children }: { children: ReactNode }) {
     getClockNowMs(readClockSettings())
   );
 
-  const refresh = async () => {
+    const refresh = async () => {
     try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session) {
+        const fallbackSettings = readClockSettings();
+
+        setSettings(fallbackSettings);
+        setNowMs(getClockNowMs(fallbackSettings));
+        return;
+      }
+
       const { data, error } = await supabase
         .from("app_clock_settings")
         .select("id, mode, offset_ms, fixed_now, updated_at")
@@ -67,34 +80,54 @@ export function ClockProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  useEffect(() => {
-    void refresh();
+    useEffect(() => {
+    let isMounted = true;
+    let activeChannel: ReturnType<typeof supabase.channel> | null = null;
 
-    const channel = supabase
-      .channel("app-clock-settings")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "app_clock_settings",
-          filter: "id=eq.global",
-        },
-        (payload) => {
-          const nextSettings = normalizeClockSettings(
-            (payload.new as Partial<AppClockSettings> | null) ??
-              DEFAULT_APP_CLOCK_SETTINGS
-          );
+    const setup = async () => {
+      await refresh();
 
-          setSettings(nextSettings);
-          writeClockSettingsCache(nextSettings);
-          setNowMs(getClockNowMs(nextSettings));
-        }
-      )
-      .subscribe();
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (!isMounted || sessionError || !session) {
+        return;
+      }
+
+      activeChannel = supabase
+        .channel("app-clock-settings")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "app_clock_settings",
+            filter: "id=eq.global",
+          },
+          (payload) => {
+            const nextSettings = normalizeClockSettings(
+              (payload.new as Partial<AppClockSettings> | null) ??
+                DEFAULT_APP_CLOCK_SETTINGS
+            );
+
+            setSettings(nextSettings);
+            writeClockSettingsCache(nextSettings);
+            setNowMs(getClockNowMs(nextSettings));
+          }
+        )
+        .subscribe();
+    };
+
+    void setup();
 
     return () => {
-      void supabase.removeChannel(channel);
+      isMounted = false;
+
+      if (activeChannel) {
+        void supabase.removeChannel(activeChannel);
+      }
     };
   }, []);
 

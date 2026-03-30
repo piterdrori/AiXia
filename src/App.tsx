@@ -315,13 +315,13 @@ const [isCheckingRole, setIsCheckingRole] = useState(false);
       setIsCheckingRole(true);
 
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+                const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
         if (!mounted) return;
 
-                if (!session?.user) {
+        if (!user) {
           setRole(null);
           setPermissions({});
           setIsCheckingRole(false);
@@ -331,7 +331,7 @@ const [isCheckingRole, setIsCheckingRole] = useState(false);
         const { data, error } = await supabase
           .from("profiles")
           .select("role, permissions")
-          .eq("user_id", session.user.id)
+          .eq("user_id", user.id)
           .single();
 
         if (!mounted) return;
@@ -812,18 +812,18 @@ function AppContent() {
       try {
         applyDefaultSettings();
 
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+       const {
+  data: { user },
+} = await supabase.auth.getUser();
 
-        if (!mounted) return;
+if (!mounted) return;
 
-        if (!session?.user) {
-          setSettingsLoaded(true);
-          return;
-        }
+if (!user) {
+  setSettingsLoaded(true);
+  return;
+}
 
-        const userId = session.user.id;
+const userId = user.id;
 
         const { data, error } = await supabase
           .from("profiles")

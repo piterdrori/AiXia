@@ -93,18 +93,18 @@ function FullScreenLoader() {
 async function getAccessState(): Promise<AccessState> {
   try {
     const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-    if (sessionError || !session) {
+    if (userError || !user) {
       return "unauthenticated";
     }
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("status, profile_completed")
-      .eq("user_id", session.user.id)
+      .eq("user_id", user.id)
       .maybeSingle();
 
     if (profileError || !profile) {

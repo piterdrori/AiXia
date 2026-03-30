@@ -340,7 +340,7 @@ return matchesSearch && matchesStatus && matchesTab;
         return "bg-slate-500/20 text-slate-400 border-slate-500/30";
     }
   };
-
+  
   const getStatusLabel = (status: string | null) => {
     switch ((status || "").toUpperCase()) {
       case "ACTIVE":
@@ -358,9 +358,6 @@ return matchesSearch && matchesStatus && matchesTab;
     }
   };
 
-function getPriorityScore(project: ProjectRow) {
-  let score = 0;
-
   function getUrgency(project: ProjectRow) {
   if (!project.end_date) return null;
 
@@ -373,6 +370,9 @@ function getPriorityScore(project: ProjectRow) {
 
   return null;
 }
+
+function getPriorityScore(project: ProjectRow) {
+  let score = 0;
 
   // PINNED
   if (pinnedIds.includes(project.id)) score += 10000;
@@ -779,20 +779,34 @@ function getPriorityScore(project: ProjectRow) {
               </div>
 
               <div className="hidden sm:flex items-center gap-4">
-                <Badge className={getStatusColor(project.status)}>
-                  {getStatusLabel(project.status)}
-                </Badge>
+  <div className="flex items-center gap-2">
+    <Badge className={getStatusColor(project.status)}>
+      {getStatusLabel(project.status)}
+    </Badge>
 
-                <div className="w-32">
-                  <Progress value={project.progress || 0} className="h-2 bg-slate-800" />
-                </div>
+    {getUrgency(project) === "OVERDUE" && (
+      <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+        Overdue
+      </Badge>
+    )}
 
-                <span className="text-sm text-slate-500">
-                  {project.end_date
-                    ? format(clock.shiftDate(project.end_date), "MMM d")
-                    : t("projects.noDate", "No date")}
-                </span>
-              </div>
+    {getUrgency(project) === "SOON" && (
+      <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+        Due Soon
+      </Badge>
+    )}
+  </div>
+
+  <div className="w-32">
+    <Progress value={project.progress || 0} className="h-2 bg-slate-800" />
+  </div>
+
+  <span className="text-sm text-slate-500">
+    {project.end_date
+      ? format(clock.shiftDate(project.end_date), "MMM d")
+      : t("projects.noDate", "No date")}
+  </span>
+</div>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>

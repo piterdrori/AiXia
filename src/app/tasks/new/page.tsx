@@ -60,6 +60,7 @@ export default function TaskNewPage() {
   const [projectId, setProjectId] = useState(initialProjectId);
   const [priority, setPriority] = useState<TaskPriority>("MEDIUM");
   const [status, setStatus] = useState<TaskStatus>("TODO");
+  const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
@@ -306,6 +307,7 @@ export default function TaskNewPage() {
 const validation = taskSchema.safeParse({
   title: title.trim(),
   projectId,
+  startDate: startDate || undefined,
   dueDate: dueDate || undefined,
 });
 
@@ -319,6 +321,11 @@ if (!validation.success) {
 
   if (firstIssue?.path[0] === "projectId") {
     setError(t("taskNew.errors.projectRequired"));
+    return;
+  }
+
+  if (firstIssue?.path[0] === "startDate") {
+    setError(t("taskNew.errors.invalidStartDate"));
     return;
   }
 
@@ -353,6 +360,7 @@ if (!validation.success) {
             projectId,
             priority,
             status,
+            startDate: startDate || null,
             dueDate: dueDate || null,
             assigneeIds: selectedAssignees,
           },
@@ -510,6 +518,20 @@ if (!validation.success) {
                     <SelectItem value="DONE">{t("taskNew.status.done")}</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+                            <div className="space-y-2">
+                <Label htmlFor="startDate" className="text-slate-300">
+                  {t("taskNew.form.startDate")}
+                </Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  disabled={isBootstrapping || isSaving}
+                  className="bg-slate-950 border-slate-800 text-white"
+                />
               </div>
 
               <div className="space-y-2">

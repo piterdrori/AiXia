@@ -430,20 +430,18 @@ useEffect(() => {
 const canUpdateStatus = useMemo(() => {
   if (!task || !currentUserId || !currentUserRole) return false;
 
-  console.log("PERMISSION DEBUG:", {
-    currentUserId,
-    currentUserRole,
-    task,
-    taskMembers,
-  });
+  const visibleProjectIds = new Set(
+    project?.id ? [project.id] : []
+  );
 
   return canMoveTask(
     task,
     currentUserId,
     currentUserRole,
-    taskMembers
+    taskMembers,
+    visibleProjectIds
   );
-}, [task, currentUserId, currentUserRole, taskMembers]);
+}, [task, currentUserId, currentUserRole, taskMembers, project?.id]);
 
   const canDeleteThisFile = (file: FileUploadRow) => {
     if (!currentUserId) return false;

@@ -1161,27 +1161,51 @@ if (isBootstrapping) {
               </div>
 
               {canUpdateStatus && (
-                <div className="space-y-2">
-                  <div className="text-slate-300 text-sm font-medium">{t("taskDetail.overview.updateStatus")}</div>
-                  <Select
-                    value={(task.status || "").toUpperCase()}
-                    onValueChange={(value) => {
-  if ((task.status || "").toUpperCase() === value.toUpperCase()) return;
-  setPendingStatus(value);
-  setStatusModalOpen(true);
-}}
-                    disabled={statusSaving}
-                  >
-                    <SelectTrigger className="w-56 bg-slate-900 border-slate-700 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="IN_PROGRESS">{t("taskDetail.status.inProgress")}</SelectItem>
-                      <SelectItem value="IN_REVIEW">{t("taskDetail.status.inReview")}</SelectItem>
-                      <SelectItem value="DONE">{t("taskDetail.status.done")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <div className="space-y-3">
+  <div className="flex items-center justify-between">
+    <div className="text-slate-300 text-sm font-medium">
+      {t("taskDetail.overview.updateStatus")}
+    </div>
+
+    <Badge className={getStatusColor(task.status)}>
+      {task.status || "-"}
+    </Badge>
+  </div>
+
+  <div className="flex gap-2">
+    {[
+      { value: "IN_PROGRESS", label: t("taskDetail.status.inProgress") },
+      { value: "IN_REVIEW", label: t("taskDetail.status.inReview") },
+      { value: "DONE", label: t("taskDetail.status.done") },
+    ].map((statusOption) => {
+      const isActive =
+        (task.status || "").toUpperCase() === statusOption.value;
+
+      return (
+        <button
+          key={statusOption.value}
+          disabled={statusSaving}
+          onClick={() => {
+            if (isActive) return;
+            setPendingStatus(statusOption.value);
+            setStatusModalOpen(true);
+          }}
+          className={`
+            flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all
+            border
+            ${
+              isActive
+                ? "bg-indigo-600 text-white border-indigo-500"
+                : "bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white"
+            }
+          `}
+        >
+          {statusOption.label}
+        </button>
+      );
+    })}
+  </div>
+</div>
               )}
             </CardContent>
           </Card>

@@ -162,3 +162,153 @@ export function subscribeToTaskActivity({
 
   return registerRealtimeChannel(channelKey, channel);
 }
+
+/* =========================================================
+   DASHBOARD REALTIME SUBSCRIPTIONS
+========================================================= */
+
+export function subscribeToDashboardActivity({
+  userId,
+  onInsert,
+  onDelete,
+}: {
+  userId: string;
+  onInsert: (payload: any) => void;
+  onDelete: (payload: any) => void;
+}) {
+  const channelKey = `dashboard:activity:${userId}`;
+
+  const channel = supabase
+    .channel(channelKey)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "activity_logs",
+      },
+      (payload) => {
+        onInsert(payload.new);
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "DELETE",
+        schema: "public",
+        table: "activity_logs",
+      },
+      (payload) => {
+        onDelete(payload.old);
+      }
+    )
+    .subscribe();
+
+  return registerRealtimeChannel(channelKey, channel);
+}
+
+export function subscribeToDashboardTasks({
+  userId,
+  onInsert,
+  onUpdate,
+  onDelete,
+}: {
+  userId: string;
+  onInsert: (payload: any) => void;
+  onUpdate: (payload: any) => void;
+  onDelete: (payload: any) => void;
+}) {
+  const channelKey = `dashboard:tasks:${userId}`;
+
+  const channel = supabase
+    .channel(channelKey)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "tasks",
+      },
+      (payload) => {
+        onInsert(payload.new);
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "tasks",
+      },
+      (payload) => {
+        onUpdate(payload.new);
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "DELETE",
+        schema: "public",
+        table: "tasks",
+      },
+      (payload) => {
+        onDelete(payload.old);
+      }
+    )
+    .subscribe();
+
+  return registerRealtimeChannel(channelKey, channel);
+}
+
+export function subscribeToDashboardProjects({
+  userId,
+  onInsert,
+  onUpdate,
+  onDelete,
+}: {
+  userId: string;
+  onInsert: (payload: any) => void;
+  onUpdate: (payload: any) => void;
+  onDelete: (payload: any) => void;
+}) {
+  const channelKey = `dashboard:projects:${userId}`;
+
+  const channel = supabase
+    .channel(channelKey)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "projects",
+      },
+      (payload) => {
+        onInsert(payload.new);
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "projects",
+      },
+      (payload) => {
+        onUpdate(payload.new);
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "DELETE",
+        schema: "public",
+        table: "projects",
+      },
+      (payload) => {
+        onDelete(payload.old);
+      }
+    )
+    .subscribe();
+
+  return registerRealtimeChannel(channelKey, channel);
+}

@@ -136,6 +136,18 @@ type FileUploadRow = {
   created_at: string;
 };
 
+type TaskActivityRow = {
+  id: string;
+  project_id: string | null;
+  task_id: string | null;
+  user_id: string | null;
+  action_type: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  message: string | null;
+  created_at: string;
+};
+
 function InfoRow({
   icon,
   label,
@@ -173,6 +185,7 @@ export default function TaskDetailPage() {
   const [taskMembers, setTaskMembers] = useState<TaskMemberRow[]>([]);
   const [comments, setComments] = useState<TaskCommentRow[]>([]);
   const [files, setFiles] = useState<FileUploadRow[]>([]);
+  const [activity, setActivity] = useState<TaskActivityRow[]>([]);
 
   const [statusModalOpen, setStatusModalOpen] = useState(false);
 const [pendingStatus, setPendingStatus] = useState<string | null>(null);
@@ -270,13 +283,14 @@ const [statusRemark, setStatusRemark] = useState("");
 
       const loadedTask = taskData as TaskRow;
 
-      const [
+            const [
         { data: projectData },
         { data: profilesData },
         { data: taskMembersData },
         { data: projectMembersData },
         { data: commentsData },
         { data: filesData },
+        { data: activityData },
       ] = await Promise.all([
         loadedTask.project_id
           ? supabase.from("projects").select("*").eq("id", loadedTask.project_id).single()
@@ -300,13 +314,20 @@ const [statusRemark, setStatusRemark] = useState("");
           .select("id, task_id, user_id, content, created_at")
           .eq("task_id", id)
           .order("created_at", { ascending: true }),
-        supabase
+                supabase
           .from("file_uploads")
           .select(
             "id, project_id, task_id, user_id, file_name, file_path, file_size, mime_type, entity_type, created_at"
           )
           .eq("task_id", id)
           .eq("entity_type", "task")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("activity_logs")
+          .select(
+            "id, project_id, task_id, user_id, action_type, entity_type, entity_id, message, created_at"
+          )
+          .eq("task_id", id)
           .order("created_at", { ascending: false }),
       ]);
 
@@ -332,12 +353,13 @@ if (
   return;
 }
 
-      setTask(loadedTask);
+            setTask(loadedTask);
       setProject((projectData || null) as ProjectRow | null);
       setProfiles((profilesData || []) as ProfileRow[]);
       setTaskMembers(loadedTaskMembers);
       setComments((commentsData || []) as TaskCommentRow[]);
       setFiles((filesData || []) as FileUploadRow[]);
+      setActivity((activityData || []) as TaskActivityRow[]);
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Load task detail error:", err);
@@ -385,10 +407,15 @@ useEffect(() => {
   });
 
   // ACTIVITY (OPTIONAL FUTURE USE)
-  subscribeToTaskActivity({
+    subscribeToTaskActivity({
     taskId: id,
-    onInsert: () => {
-      // reserved for activity tab later
+    onInsert: (newActivity) => {
+      setActivity((prev) => {
+        if (prev.some((item) => item.id === newActivity.id)) {
+          return prev;
+        }
+        return [newActivity, ...prev];
+      });
     },
   });
 

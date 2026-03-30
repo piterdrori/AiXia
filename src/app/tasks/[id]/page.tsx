@@ -603,7 +603,7 @@ const checkpointState = useMemo(() => {
     return profiles.find((profile) => profile.user_id === userId)?.role || "";
   };
 
-  const getStatusColor = (status: string | null) => {
+    const getStatusColor = (status: string | null) => {
     switch ((status || "").toUpperCase()) {
       case "DONE":
         return "bg-green-500/20 text-green-400 border-green-500/30";
@@ -611,6 +611,46 @@ const checkpointState = useMemo(() => {
         return "bg-blue-500/20 text-blue-400 border-blue-500/30";
       case "IN_REVIEW":
         return "bg-purple-500/20 text-purple-400 border-purple-500/30";
+      default:
+        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
+    }
+  };
+
+  const getActivityActionLabel = (actionType: string) => {
+    switch ((actionType || "").toLowerCase()) {
+      case "task_status_changed":
+        return "Status Updated";
+      case "task_created":
+        return "Task Created";
+      case "task_updated":
+        return "Task Updated";
+      case "task_deleted":
+        return "Task Deleted";
+      case "comment_added":
+        return "Comment Added";
+      case "file_uploaded":
+        return "File Uploaded";
+      default:
+        return actionType
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (char) => char.toUpperCase());
+    }
+  };
+
+  const getActivityActionColor = (actionType: string) => {
+    switch ((actionType || "").toLowerCase()) {
+      case "task_status_changed":
+        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+      case "task_created":
+        return "bg-green-500/20 text-green-400 border-green-500/30";
+      case "task_updated":
+        return "bg-amber-500/20 text-amber-400 border-amber-500/30";
+      case "task_deleted":
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+      case "comment_added":
+        return "bg-purple-500/20 text-purple-400 border-purple-500/30";
+      case "file_uploaded":
+        return "bg-indigo-500/20 text-indigo-400 border-indigo-500/30";
       default:
         return "bg-slate-500/20 text-slate-400 border-slate-500/30";
     }
@@ -661,6 +701,23 @@ const visibleActivity = useMemo(
   () => [...activity].slice(0, 100),
   [activity]
 );
+
+const groupedActivity = useMemo(() => {
+  const groups = new Map<string, TaskActivityRow[]>();
+
+  for (const item of visibleActivity) {
+    const dateKey = format(clock.shiftDate(item.created_at), "yyyy-MM-dd");
+    const existing = groups.get(dateKey) || [];
+    existing.push(item);
+    groups.set(dateKey, existing);
+  }
+
+  return Array.from(groups.entries()).map(([dateKey, items]) => ({
+    dateKey,
+    label: format(new Date(`${dateKey}T00:00:00`), "MMMM d, yyyy"),
+    items,
+  }));
+}, [visibleActivity, clock]);
   
   const mentionCandidates = useMemo(() => {
     const candidateIds = Array.from(
@@ -1814,7 +1871,7 @@ if (isBootstrapping) {
                     </CardHeader>
 
                     <CardContent>
-                      {visibleActivity.length === 0 ? (
+                                            {groupedActivity.length === 0 ? (
                         <div className="rounded-xl border border-dashed border-slate-800 bg-slate-950/40 p-8 text-center">
                           <Clock3 className="mx-auto mb-3 h-10 w-10 text-slate-600" />
                           <p className="text-white font-medium">No activity yet</p>
@@ -1823,46 +1880,66 @@ if (isBootstrapping) {
                           </p>
                         </div>
                       ) : (
-                        <div className="space-y-4">
-                          {visibleActivity.map((item) => {
-                            const actorName = getProfileName(item.user_id);
-
-                            return (
-                              <div
-                                key={item.id}
-                                className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"
-                              >
-                                <div className="flex items-start gap-3">
-                                  <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-xs font-medium text-white">
-                                    {getInitials(actorName)}
-                                  </div>
-
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <p className="text-sm font-medium text-white">
-                                        {actorName}
-                                      </p>
-
-                                      <Badge className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5">
-                                        {item.action_type}
-                                      </Badge>
-                                    </div>
-
-                                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">
-                                      {item.message || "System activity"}
-                                    </p>
-
-                                    <div className="mt-2 flex items-center gap-1 text-xs text-slate-500">
-                                      <Clock3 className="h-3 w-3" />
-                                      <span>
-                                        {format(clock.shiftDate(item.created_at), "MMM d, yyyy • h:mm a")}
-                                      </span>
-                                    </div>
-                                  </div>
+                        <div className="space-y-6">
+                          {groupedActivity.map((group) => (
+                            <div key={group.dateKey} className="space-y-4">
+                              <div className="sticky top-0 z-10 bg-slate-950/95 backdrop-blur py-2">
+                                <div className="inline-flex rounded-full border border-slate-800 bg-slate-900 px-3 py-1 text-xs font-medium text-slate-300">
+                                  {group.label}
                                 </div>
                               </div>
-                            );
-                          })}
+
+                              <div className="space-y-4">
+                                {group.items.map((item) => {
+                                  const actorName = getProfileName(item.user_id);
+
+                                  return (
+                                    <div
+                                      key={item.id}
+                                      className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"
+                                    >
+                                      <div className="flex items-start gap-3">
+                                        <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-xs font-medium text-white">
+                                          {getInitials(actorName)}
+                                        </div>
+
+                                        <div className="min-w-0 flex-1">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <p className="text-sm font-medium text-white">
+                                              {actorName}
+                                            </p>
+
+                                            <Badge className={`${getActivityActionColor(item.action_type)} text-[10px] px-2 py-0.5`}>
+                                              {getActivityActionLabel(item.action_type)}
+                                            </Badge>
+                                          </div>
+
+                                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">
+                                            {item.message || "System activity"}
+                                          </p>
+
+                                          {item.entity_type && (
+                                            <div className="mt-2">
+                                              <Badge className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5">
+                                                {item.entity_type}
+                                              </Badge>
+                                            </div>
+                                          )}
+
+                                          <div className="mt-2 flex items-center gap-1 text-xs text-slate-500">
+                                            <Clock3 className="h-3 w-3" />
+                                            <span>
+                                              {format(clock.shiftDate(item.created_at), "h:mm a")}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </CardContent>

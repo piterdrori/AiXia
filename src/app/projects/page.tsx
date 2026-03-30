@@ -287,6 +287,31 @@ const canDeleteProject = (project: ProjectRow) => {
 });
   }, [projects, searchQuery, statusFilter, sortBy]);
 
+  const kpi = useMemo(() => {
+  let total = projects.length;
+  let active = 0;
+  let completed = 0;
+  let overdue = 0;
+
+  const now = Date.now();
+
+  for (const p of projects) {
+    const status = (p.status || "").toUpperCase();
+
+    if (status === "ACTIVE") active++;
+    if (status === "COMPLETED") completed++;
+
+    if (p.end_date) {
+      const end = new Date(p.end_date).getTime();
+      if (end < now && status !== "COMPLETED") {
+        overdue++;
+      }
+    }
+  }
+
+  return { total, active, completed, overdue };
+}, [projects]);
+
   const getStatusColor = (status: string | null) => {
     switch ((status || "").toUpperCase()) {
       case "ACTIVE":
@@ -468,6 +493,27 @@ const canDeleteProject = (project: ProjectRow) => {
       </div>
 
               <PageError message={projectsRequest.error || ""} />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+  <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
+    <div className="text-xs text-slate-400">Total</div>
+    <div className="text-lg font-semibold text-white">{kpi.total}</div>
+  </div>
+
+  <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
+    <div className="text-xs text-slate-400">Active</div>
+    <div className="text-lg font-semibold text-green-400">{kpi.active}</div>
+  </div>
+
+  <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
+    <div className="text-xs text-slate-400">Completed</div>
+    <div className="text-lg font-semibold text-purple-400">{kpi.completed}</div>
+  </div>
+
+  <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
+    <div className="text-xs text-slate-400">Overdue</div>
+    <div className="text-lg font-semibold text-red-400">{kpi.overdue}</div>
+  </div>
+</div>
       </div>
 
       <div className="flex-1 overflow-y-auto pr-1">

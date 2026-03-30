@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
-import { logActivity } from "@/lib/activity";
 import { createNotification } from "@/lib/notifications";
 import {
   uploadProjectOrTaskFile,

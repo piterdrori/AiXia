@@ -168,7 +168,7 @@ export default function DashboardPage() {
   const loadDashboard = async () => {
     const requestId = requestTracker.current.next();
 
-    try {
+        try {
       await dashboardRequest.run(async () => {
         const {
           data: { user },
@@ -271,7 +271,7 @@ export default function DashboardPage() {
         }
 
         return true;
-      });
+      }, "dashboard:load");
     } catch (error) {
       if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Dashboard load error:", error);

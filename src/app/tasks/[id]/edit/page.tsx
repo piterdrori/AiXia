@@ -32,6 +32,7 @@ type TaskRow = {
   description: string | null;
   status: string | null;
   priority: string | null;
+  start_date: string | null;
   due_date: string | null;
   project_id: string | null;
   assignee_id: string | null;
@@ -80,6 +81,7 @@ export default function TaskEditPage() {
   const [projectId, setProjectId] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("MEDIUM");
   const [status, setStatus] = useState<TaskStatus>("TODO");
+  const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
@@ -240,6 +242,7 @@ if (!canEdit) {
       setProjectId(task.project_id || "");
       setPriority((task.priority as TaskPriority) || "MEDIUM");
       setStatus((task.status as TaskStatus) || "TODO");
+      setStartDate(task.start_date || "");
       setDueDate(task.due_date || "");
 
       setProjects(visibleProjects);
@@ -344,8 +347,18 @@ const handleSubmit = async (e: React.FormEvent) => {
     return;
   }
 
+   if (startDate && Number.isNaN(new Date(startDate).getTime())) {
+    setError(t("taskEdit.errors.invalidStartDate"));
+    return;
+  }
+
   if (dueDate && Number.isNaN(new Date(dueDate).getTime())) {
     setError(t("taskEdit.errors.invalidDueDate"));
+    return;
+  }
+
+  if (startDate && dueDate && startDate > dueDate) {
+    setError(t("taskEdit.errors.startDateAfterDueDate"));
     return;
   }
 
@@ -396,15 +409,17 @@ if (!canEdit) {
 
     const { error: updateError } = await supabase
       .from("tasks")
-      .update({
+       .update({
         title: title.trim(),
         description: description.trim() || null,
         project_id: projectId,
         priority,
         status,
+        start_date: startDate || null,
         due_date: dueDate || null,
         assignee_id: selectedAssignees.length > 0 ? selectedAssignees[0] : null,
         updated_at: new Date().toISOString(),
+        last_status_update_at: new Date().toISOString(),
       })
       .eq("id", id);
 
@@ -640,6 +655,19 @@ if (!canEdit) {
                     <SelectItem value="DONE">{t("taskEdit.status.done")}</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+                            <div className="space-y-2">
+                <Label htmlFor="startDate" className="text-slate-300">
+                  {t("taskEdit.form.startDate")}
+                </Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-slate-950 border-slate-800 text-white"
+                />
               </div>
 
               <div className="space-y-2">

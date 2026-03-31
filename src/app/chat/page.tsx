@@ -1424,6 +1424,9 @@ const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
   onSaveEdit={(message) => void handleSaveEditedMessage(message)}
   onCancelEdit={cancelEditingMessage}
   onDeleteMessage={(message) => void handleDeleteMessage(message)}
+                onToggleReaction={(messageId, emoji) =>
+    handleToggleReaction(messageId, emoji)
+  }
 />
 
                        <div className="px-4 py-2 space-y-1">

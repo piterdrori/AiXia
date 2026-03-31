@@ -1113,38 +1113,42 @@ const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
   await reloadChatShell(selectedConversation.id);
 };
 
-    const handleDeleteChat = async (group: ChatGroupRow) => {
-    if (!canDeleteChat(group)) {
-      setError(t("chat.errors.notAuthorized", "Not authorized"));
-      return;
+   const handleDeleteChat = async (group: ChatGroupRow) => {
+  if (!canDeleteChat(group)) {
+    setError(t("chat.errors.notAuthorized", "Not authorized"));
+    return;
+  }
+
+  const confirmed = window.confirm(t("chat.confirms.deleteChat"));
+  if (!confirmed) return;
+
+  setGroupActionLoading(group.id);
+  setError("");
+
+  const { data, error: functionError } = await supabase.functions.invoke(
+    "chat-delete-group",
+    {
+      body: {
+        groupId: group.id,
+      },
     }
+  );
 
-    const confirmed = window.confirm(t("chat.confirms.deleteChat"));
-    if (!confirmed) return;
-
-    setGroupActionLoading(group.id);
-    setError("");
-
-    const { error: deleteError } = await supabase
-      .from("chat_groups")
-      .delete()
-      .eq("id", group.id);
-
-    if (deleteError) {
-      setError(deleteError.message || t("chat.errors.deleteChat"));
-      setGroupActionLoading(null);
-      return;
-    }
-
-    removeGroupLocally(group.id);
-
-    if (selectedConversationId === group.id) {
-      navigate("/chat");
-    }
-
+  if (functionError || !data?.success) {
+    setError(functionError?.message || data?.error || t("chat.errors.deleteChat"));
     setGroupActionLoading(null);
-    void reloadChatShell(null);
-  };
+    return;
+  }
+
+  removeGroupLocally(group.id);
+
+  if (selectedConversationId === group.id) {
+    navigate("/chat");
+  }
+
+  setGroupActionLoading(null);
+  void reloadChatShell(null);
+};
 
   return (
     <>

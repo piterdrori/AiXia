@@ -1899,15 +1899,17 @@ disabled={employeesRequest.status === "loading"}
             </Card>
           ))}
         </div>
-      ) : (
+            ) : (
         <Card className="bg-slate-900/50 border-slate-800">
           <CardContent className="p-10 text-center text-slate-500">
             {t("employees.empty.noUsersFound")}
           </CardContent>
         </Card>
       )}
-          </div>
-                 <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+        </div>
+      </div>
+
+      <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
         <DialogContent className="bg-slate-950 border-slate-800 text-white sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t("employees.dialog.inviteMember")}</DialogTitle>

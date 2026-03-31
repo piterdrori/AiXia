@@ -800,8 +800,8 @@ export default function TasksPage() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 pt-2">
-        <div className="grid h-full items-stretch grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="flex-1 min-h-0 overflow-hidden pt-2">
+        <div className="grid h-full min-h-0 auto-rows-fr items-stretch grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {columns.map((column) => {
             const columnTasks = filteredTasks.filter(
               (task) => (task.status || "").toUpperCase() === column.id

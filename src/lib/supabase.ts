@@ -7,41 +7,20 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Missing Supabase environment variables.");
 }
 
-const hybridStorageAdapter: SupportedStorage = {
+const browserStorageAdapter: SupportedStorage = {
   getItem: (key: string) => {
     if (typeof window === "undefined") return null;
-
-    const useLocalStorage = key.includes("code-verifier");
-
-    return useLocalStorage
-      ? window.localStorage.getItem(key)
-      : window.sessionStorage.getItem(key);
+    return window.localStorage.getItem(key);
   },
 
   setItem: (key: string, value: string) => {
     if (typeof window === "undefined") return;
-
-    const useLocalStorage = key.includes("code-verifier");
-
-    if (useLocalStorage) {
-      window.localStorage.setItem(key, value);
-      return;
-    }
-
-    window.sessionStorage.setItem(key, value);
+    window.localStorage.setItem(key, value);
   },
 
   removeItem: (key: string) => {
     if (typeof window === "undefined") return;
-
-    const useLocalStorage = key.includes("code-verifier");
-
-    if (useLocalStorage) {
-      window.localStorage.removeItem(key);
-      return;
-    }
-
-    window.sessionStorage.removeItem(key);
+    window.localStorage.removeItem(key);
   },
 };
 
@@ -51,7 +30,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: "implicit",
-    storage: hybridStorageAdapter,
+    storage: browserStorageAdapter,
     storageKey: "taskflow-auth",
   },
   global: {

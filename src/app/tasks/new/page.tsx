@@ -409,9 +409,9 @@ if (!validation.success) {
         </div>
       </div>
 
-      <Card className="w-full bg-slate-900/50 border border-slate-800 h-[calc(100vh-220px)] min-h-0">
+      <Card className="w-full bg-slate-900/50 border border-slate-800 h-[calc(100vh-200px)] min-h-0">
         <CardContent className="flex h-full min-h-0 flex-col p-6">
-          <form onSubmit={handleSubmit} className="flex h-full min-h-0 flex-col gap-5">
+          <form onSubmit={handleSubmit} className="flex h-full min-h-0 flex-col gap-4">
   {error && (
     <Alert className="bg-red-900/20 border-red-800 text-red-300">
       <AlertDescription>{error}</AlertDescription>
@@ -605,7 +605,7 @@ if (!validation.success) {
     </div>
   </div>
 
-  <div className="shrink-0 flex items-center justify-end gap-4 border-t border-slate-800 pt-4">
+  <div className="shrink-0 flex items-center justify-end gap-4 border-t border-slate-800 pt-3">
     <Button
       type="button"
       variant="outline"

@@ -1181,29 +1181,29 @@ setTranslatedComments((prev) => ({
     );
   }
 
-  const pageBusy = isRefreshing && hasLoadedOnce;
+    const pageBusy = isRefreshing && hasLoadedOnce;
   return (
-    <div className="space-y-6">
+    <div className="flex h-full min-h-0 w-full flex-col gap-4">
       {error && (
-        <Alert className="bg-red-900/20 border-red-800 text-red-300">
+        <Alert className="border-red-800 bg-red-900/20 py-2 text-red-300">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => navigate("/projects")}
-            className="text-slate-400 hover:text-white"
+            className="mt-0.5 h-9 w-9 shrink-0 text-slate-400 hover:text-white"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="h-4 w-4" />
           </Button>
 
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-white">{project.name}</h1>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate text-2xl font-bold text-white">{project.name}</h1>
               <Badge className={getStatusColor(project.status)}>
                 {project.status || t("projects.unknownUpper", "UNKNOWN")}
               </Badge>
@@ -1213,16 +1213,16 @@ setTranslatedComments((prev) => ({
                 </span>
               )}
             </div>
-            <p className="text-slate-400">
+            <p className="mt-1 text-sm text-slate-400">
               {project.description || t("projects.noDescription", "No description")}
             </p>
           </div>
         </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            className="h-9 border-slate-700 px-3 text-slate-300 hover:bg-slate-800"
             onClick={() => void loadProjectPage("refresh")}
             disabled={isRefreshing}
           >
@@ -1231,12 +1231,12 @@ setTranslatedComments((prev) => ({
               : t("projects.refresh", "Refresh")}
           </Button>
 
-                    {canGenerateReports && (
+          {canGenerateReports && (
             <Button
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              className="h-9 bg-indigo-600 px-3 text-white hover:bg-indigo-700"
               onClick={() => setIsReportsDialogOpen(true)}
             >
-              <FileText className="w-4 h-4 mr-2" />
+              <FileText className="mr-2 h-4 w-4" />
               {t("projects.reports", "Reports")}
             </Button>
           )}
@@ -1244,10 +1244,10 @@ setTranslatedComments((prev) => ({
           {canEdit && (
             <Button
               variant="outline"
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              className="h-9 border-slate-700 px-3 text-slate-300 hover:bg-slate-800"
               onClick={() => navigate(`/projects/${project.id}/edit`)}
             >
-              <Edit className="w-4 h-4 mr-2" />
+              <Edit className="mr-2 h-4 w-4" />
               {t("projects.edit", "Edit")}
             </Button>
           )}
@@ -1255,11 +1255,11 @@ setTranslatedComments((prev) => ({
           {canDelete && (
             <Button
               variant="outline"
-              className="border-red-800 text-red-400 hover:bg-red-900/20"
+              className="h-9 border-red-800 px-3 text-red-400 hover:bg-red-900/20"
               onClick={() => void handleDelete()}
               disabled={isDeleting}
             >
-              <Trash2 className="w-4 h-4 mr-2" />
+              <Trash2 className="mr-2 h-4 w-4" />
               {isDeleting
                 ? t("projects.deleting", "Deleting...")
                 : t("projects.delete", "Delete")}
@@ -1268,37 +1268,39 @@ setTranslatedComments((prev) => ({
         </div>
       </div>
 
-            <Card className="bg-slate-900/50 border-slate-800">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-slate-400">
+      <Card className="border-slate-800 bg-slate-900/50">
+        <CardContent className="p-4 lg:p-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <span className="text-sm text-slate-400">
               {t("projects.projectProgress", "Project Progress")}
             </span>
-            <span className="text-white font-medium">{project.progress || 0}%</span>
+            <span className="text-sm font-medium text-white">
+              {project.progress || 0}%
+            </span>
           </div>
 
-          <Progress value={project.progress || 0} className="h-3 bg-slate-800" />
+          <Progress value={project.progress || 0} className="h-2.5 bg-slate-800" />
 
-          <div className="grid grid-cols-5 gap-4 mt-6">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-white">{taskStats.total}</p>
-              <p className="text-xs text-slate-500">{t("projects.total", "Total")}</p>
+          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+            <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-center">
+              <p className="text-xl font-bold text-white">{taskStats.total}</p>
+              <p className="text-[11px] text-slate-500">{t("projects.total", "Total")}</p>
             </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-slate-400">{taskStats.todo}</p>
-              <p className="text-xs text-slate-500">{t("projects.toDo", "To Do")}</p>
+            <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-center">
+              <p className="text-xl font-bold text-slate-300">{taskStats.todo}</p>
+              <p className="text-[11px] text-slate-500">{t("projects.toDo", "To Do")}</p>
             </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-blue-400">{taskStats.inProgress}</p>
-              <p className="text-xs text-slate-500">{t("projects.inProgress", "In Progress")}</p>
+            <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-center">
+              <p className="text-xl font-bold text-blue-400">{taskStats.inProgress}</p>
+              <p className="text-[11px] text-slate-500">{t("projects.inProgress", "In Progress")}</p>
             </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-purple-400">{taskStats.inReview}</p>
-              <p className="text-xs text-slate-500">{t("projects.inReview", "In Review")}</p>
+            <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-center">
+              <p className="text-xl font-bold text-purple-400">{taskStats.inReview}</p>
+              <p className="text-[11px] text-slate-500">{t("projects.inReview", "In Review")}</p>
             </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-green-400">{taskStats.done}</p>
-              <p className="text-xs text-slate-500">{t("projects.done", "Done")}</p>
+            <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-center">
+              <p className="text-xl font-bold text-green-400">{taskStats.done}</p>
+              <p className="text-[11px] text-slate-500">{t("projects.done", "Done")}</p>
             </div>
           </div>
         </CardContent>
@@ -1411,32 +1413,32 @@ setTranslatedComments((prev) => ({
   </DialogContent>
 </Dialog>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto">
-          <TabsTrigger value="overview" className="data-[state=active]:bg-slate-800">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
+        <TabsList className="h-auto flex-wrap gap-1 border border-slate-800 bg-slate-900 p-1">
+          <TabsTrigger value="overview" className="h-9 px-3 data-[state=active]:bg-slate-800">
             {t("projects.overview", "Overview")}
           </TabsTrigger>
-          <TabsTrigger value="tasks" className="data-[state=active]:bg-slate-800">
+          <TabsTrigger value="tasks" className="h-9 px-3 data-[state=active]:bg-slate-800">
             {t("projects.tasks", "Tasks")}
           </TabsTrigger>
-          <TabsTrigger value="team" className="data-[state=active]:bg-slate-800">
+          <TabsTrigger value="team" className="h-9 px-3 data-[state=active]:bg-slate-800">
             {t("projects.team", "Team")}
           </TabsTrigger>
-          <TabsTrigger value="files" className="data-[state=active]:bg-slate-800">
+          <TabsTrigger value="files" className="h-9 px-3 data-[state=active]:bg-slate-800">
             {t("projects.files", "Files")}
           </TabsTrigger>
-          <TabsTrigger value="discussion" className="data-[state=active]:bg-slate-800">
+          <TabsTrigger value="discussion" className="h-9 px-3 data-[state=active]:bg-slate-800">
             {t("projects.discussion", "Discussion")}
           </TabsTrigger>
-          <TabsTrigger value="activity" className="data-[state=active]:bg-slate-800">
+          <TabsTrigger value="activity" className="h-9 px-3 data-[state=active]:bg-slate-800">
             {t("projects.activity", "Activity")}
           </TabsTrigger>
         </TabsList>
 
-       <TabsContent value="overview" className="mt-4">
-  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
-    <div className="space-y-6">
-      <div className="grid md:grid-cols-2 gap-6">
+              <TabsContent value="overview" className="mt-4 min-h-0 flex-1">
+  <div className="h-full max-h-[calc(100vh-360px)] overflow-y-auto pr-1">
+    <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card className="bg-slate-900/50 border-slate-800">
           <CardHeader>
             <CardTitle className="text-white text-lg">
@@ -1524,19 +1526,19 @@ setTranslatedComments((prev) => ({
     </div>
   </div>
 </TabsContent>
-       <TabsContent value="tasks" className="mt-4">
-  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
-    <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-medium text-white">
+              <TabsContent value="tasks" className="mt-4 min-h-0 flex-1">
+  <div className="h-full max-h-[calc(100vh-360px)] overflow-y-auto pr-1">
+    <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-base font-semibold text-white">
               {t("projects.projectTasks", "Project Tasks")}
             </h3>
 
             <Button
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              className="h-9 bg-indigo-600 px-3 text-white hover:bg-indigo-700"
               onClick={() => navigate(`/tasks/new?projectId=${project.id}`)}
             >
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="mr-2 h-4 w-4" />
               {t("projects.addTask", "Add Task")}
             </Button>
           </div>
@@ -1546,14 +1548,14 @@ setTranslatedComments((prev) => ({
               const assignee = task.assignee_id ? getProfileByUserId(task.assignee_id) : null;
 
               return (
-                <Card
+                               <Card
                   key={task.id}
-                  className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/30 cursor-pointer transition-all"
+                  className="cursor-pointer border-slate-800 bg-slate-900/50 transition-all hover:border-indigo-500/30"
                   onClick={() => navigate(`/tasks/${task.id}`)}
                 >
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3 min-w-0">
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
                         <CheckSquare
                           className={`w-5 h-5 ${
                             (task.status || "").toUpperCase() === "DONE"
@@ -1624,20 +1626,20 @@ setTranslatedComments((prev) => ({
   </div>
 </TabsContent>
 
-        <TabsContent value="team" className="mt-4">
-  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
-    <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-medium text-white">
+                <TabsContent value="team" className="mt-4 min-h-0 flex-1">
+  <div className="h-full max-h-[calc(100vh-360px)] overflow-y-auto pr-1">
+    <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-base font-semibold text-white">
               {t("projects.teamMembers", "Team Members")}
             </h3>
 
             {canEdit && (
               <Button
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                className="h-9 bg-indigo-600 px-3 text-white hover:bg-indigo-700"
                 onClick={openTeamDialog}
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="mr-2 h-4 w-4" />
                 {t("projects.addTeamMember", "Add Team Member")}
               </Button>
             )}
@@ -1763,11 +1765,11 @@ setTranslatedComments((prev) => ({
   </div>
 </TabsContent>
 
-                <TabsContent value="files" className="mt-4">
-  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
-    <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-medium text-white">
+                               <TabsContent value="files" className="mt-4 min-h-0 flex-1">
+  <div className="h-full max-h-[calc(100vh-360px)] overflow-y-auto pr-1">
+    <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-base font-semibold text-white">
               {t("projects.projectFiles", "Project Files")}
             </h3>
 
@@ -2008,9 +2010,9 @@ setTranslatedComments((prev) => ({
   </div>
 </TabsContent>
 
-    <TabsContent value="discussion" className="mt-4">
-  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
-    <div className="space-y-4">
+        <TabsContent value="discussion" className="mt-4 min-h-0 flex-1">
+  <div className="h-full max-h-[calc(100vh-360px)] overflow-y-auto pr-1">
+    <div className="space-y-3">
       <Card className="bg-slate-900/50 border-slate-800 overflow-hidden">
         <CardHeader className="border-b border-slate-800 pb-4">
           <div className="flex items-center gap-2">
@@ -2285,9 +2287,9 @@ setTranslatedComments((prev) => ({
   </div>
 </TabsContent>
 
-        <TabsContent value="activity" className="mt-4">
-  <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
-    <div className="space-y-4">
+               <TabsContent value="activity" className="mt-4 min-h-0 flex-1">
+  <div className="h-full max-h-[calc(100vh-360px)] overflow-y-auto pr-1">
+    <div className="space-y-3">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
               <CardTitle className="text-white">

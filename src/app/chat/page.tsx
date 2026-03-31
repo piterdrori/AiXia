@@ -878,16 +878,18 @@ await reloadChatShell(newGroup.id);
       }))
     ).filter((userId) => userId !== currentUserId);
 
-    const { data: insertedMessage, error: sendError } = await supabase
-      .from("chat_messages")
-      .insert({
-        group_id: selectedConversationId,
-        user_id: currentUserId,
-        content: contentToSend,
-        mentioned_user_ids: mentionedUserIds,
-      })
-      .select("id, group_id, user_id, content, created_at")
-      .single();
+   const { data, error: sendError } = await supabase.functions.invoke(
+  "chat-send-message",
+  {
+    body: {
+      groupId: selectedConversationId,
+      content: contentToSend,
+      mentionedUserIds,
+    },
+  }
+);
+
+const insertedMessage = data?.message;
 
     if (sendError || !insertedMessage) {
       deleteMessageLocally(selectedConversationId, tempId);

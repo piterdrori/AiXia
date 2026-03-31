@@ -434,7 +434,14 @@ export default function MessageList({
                             )}
                           </>
                         )}
-                      </div>
+                         </div>
+
+                        {isOwn && readReceiptLabel ? (
+                          <div className="mt-1 text-[10px] text-slate-400">
+                            {readReceiptLabel}
+                          </div>
+                        ) : null}
+                      </>
                     )}
                   </div>
                 </div>
@@ -456,16 +463,8 @@ export default function MessageList({
                     ? "Try a different keyword"
                     : t("chat.messageList.startConversation")}
                 </p>
-                                    </div>
-
-                        {isOwn && readReceiptLabel ? (
-                          <div className="mt-1 text-[10px] text-slate-400">
-                            {readReceiptLabel}
-                          </div>
-                        ) : null}
-                      </>
-                    )}
-
+                </div>
+               )}
             <div ref={messagesEndRef} />
           </div>
         </div>

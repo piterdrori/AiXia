@@ -1906,6 +1906,7 @@ disabled={employeesRequest.status === "loading"}
           </CardContent>
         </Card>
       )}
+          </div>
                  <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
         <DialogContent className="bg-slate-950 border-slate-800 text-white sm:max-w-lg">
           <DialogHeader>
@@ -2101,7 +2102,6 @@ disabled={employeesRequest.status === "loading"}
     </div>
   </div>
 )}
-
     </div>
     );
 }

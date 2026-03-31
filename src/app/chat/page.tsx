@@ -668,7 +668,13 @@ moveGroupToTop(selectedConversationId);
   };
 
   const startDirectMessage = async (targetUserId: string) => {
-    if (!currentUserId) return;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const currentUserId = user.id;
 
     setError("");
 
@@ -822,7 +828,13 @@ moveGroupToTop(selectedConversationId);
   };
 
   const handleCreateGroup = async () => {
-    if (!currentUserId) return;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const currentUserId = user.id;
 
     if (!groupName.trim()) {
   setError(t("chat.errors.groupNameRequired"));

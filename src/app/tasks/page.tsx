@@ -772,7 +772,7 @@ export default function TasksPage() {
   fallback={viewMode === "board" ? renderBoardSkeleton() : renderListSkeleton()}
 >
   {viewMode === "board" ? (
-  <div className="h-[calc(100vh-420px)] min-h-0">
+  <div className="flex-1 min-h-0">
     <div className="grid h-full min-h-0 auto-rows-fr items-stretch grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
       {columns.map((column) => {
         const columnTasks = filteredTasks.filter(

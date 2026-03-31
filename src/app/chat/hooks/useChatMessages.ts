@@ -12,6 +12,7 @@ import {
 } from "../utils";
 import type {
   ChatAttachmentRow,
+  ChatMessageReadRow,
   ChatMessageRow,
   HasMoreByGroup,
   MessagesByGroup,
@@ -68,6 +69,18 @@ export function useChatMessages(selectedConversationId: string | null) {
         attachments:chat_attachments(
           id,
           message_id,
+  const fetchMessageById = useCallback(async (messageId: string) => {
+    const { data, error } = await supabase
+      .from("chat_messages")
+      .select(`
+        id,
+        group_id,
+        user_id,
+        content,
+        created_at,
+        attachments:chat_attachments(
+          id,
+          message_id,
           group_id,
           uploaded_by,
           file_name,
@@ -75,6 +88,12 @@ export function useChatMessages(selectedConversationId: string | null) {
           mime_type,
           file_size,
           created_at
+        ),
+        reads:chat_message_reads(
+          message_id,
+          group_id,
+          user_id,
+          read_at
         )
       `)
       .eq("id", messageId)
@@ -87,6 +106,7 @@ export function useChatMessages(selectedConversationId: string | null) {
     return {
       ...data,
       attachments: ((data as any).attachments || []) as ChatAttachmentRow[],
+      reads: ((data as any).reads || []) as ChatMessageReadRow[],
     } as ChatMessageRow;
   }, []);
 
@@ -99,7 +119,7 @@ export function useChatMessages(selectedConversationId: string | null) {
       setIsLoadingMessages(true);
 
       try {
-        const { data, error } = await supabase
+                const { data, error } = await supabase
           .from("chat_messages")
           .select(`
             id,
@@ -117,6 +137,12 @@ export function useChatMessages(selectedConversationId: string | null) {
               mime_type,
               file_size,
               created_at
+            ),
+            reads:chat_message_reads(
+              message_id,
+              group_id,
+              user_id,
+              read_at
             )
           `)
           .eq("group_id", groupId)
@@ -253,7 +279,7 @@ export function useChatMessages(selectedConversationId: string | null) {
     setIsLoadingOlder(true);
 
     try {
-      const { data, error } = await supabase
+            const { data, error } = await supabase
         .from("chat_messages")
         .select(`
           id,
@@ -271,6 +297,12 @@ export function useChatMessages(selectedConversationId: string | null) {
             mime_type,
             file_size,
             created_at
+          ),
+          reads:chat_message_reads(
+            message_id,
+            group_id,
+            user_id,
+            read_at
           )
         `)
         .eq("group_id", selectedConversationId)
@@ -321,6 +353,7 @@ export function useChatMessages(selectedConversationId: string | null) {
 
     const messageChannelKey = `chat-messages:${groupId}`;
     const attachmentChannelKey = `chat-attachments:${groupId}`;
+    const readChannelKey = `chat-message-reads:${groupId}`;
 
     registerRealtimeChannel(
       messageChannelKey,
@@ -409,9 +442,40 @@ export function useChatMessages(selectedConversationId: string | null) {
         .subscribe()
     );
 
+    registerRealtimeChannel(
+      readChannelKey,
+      supabase
+        .channel(readChannelKey)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "chat_message_reads",
+            filter: `group_id=eq.${groupId}`,
+          },
+          async (payload) => {
+            try {
+              const messageId =
+                (payload.new as { message_id?: string } | null)?.message_id ||
+                (payload.old as { message_id?: string } | null)?.message_id;
+
+              if (!messageId) return;
+
+              const fullMessage = await fetchMessageById(messageId);
+              updateMessageLocally(groupId, fullMessage);
+            } catch (error) {
+              console.error("Realtime chat_message_reads error:", error);
+            }
+          }
+        )
+        .subscribe()
+    );
+
     return () => {
       void removeRealtimeChannel(messageChannelKey);
       void removeRealtimeChannel(attachmentChannelKey);
+      void removeRealtimeChannel(readChannelKey);
     };
   }, [
     deleteMessageLocally,

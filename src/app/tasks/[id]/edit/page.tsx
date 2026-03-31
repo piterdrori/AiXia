@@ -518,34 +518,35 @@ if (!canEdit) {
   }
 };
 
-  if (isBootstrapping) {
+    if (isBootstrapping) {
     return (
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="w-full max-w-[calc(100vw-360px)] mx-auto space-y-6">
         <div className="animate-pulse space-y-3">
           <div className="h-8 w-40 rounded bg-slate-800" />
           <div className="h-4 w-56 rounded bg-slate-800" />
         </div>
 
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardContent className="p-6">
+        <Card className="w-full bg-slate-900/50 border border-slate-800 h-[calc(100vh-200px)] min-h-0">
+          <CardContent className="flex h-full min-h-0 flex-col p-6">
             <div className="animate-pulse space-y-4">
               <div className="h-10 w-full rounded bg-slate-800" />
               <div className="h-28 w-full rounded bg-slate-800" />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5">
+                <div className="h-10 w-full rounded bg-slate-800" />
                 <div className="h-10 w-full rounded bg-slate-800" />
                 <div className="h-10 w-full rounded bg-slate-800" />
                 <div className="h-10 w-full rounded bg-slate-800" />
                 <div className="h-10 w-full rounded bg-slate-800" />
               </div>
-              <div className="h-40 w-full rounded bg-slate-800" />
+              <div className="h-full min-h-[220px] w-full rounded bg-slate-800" />
             </div>
           </CardContent>
         </Card>
       </div>
     );
   }
-  return (
-    <div className="max-w-2xl mx-auto">
+    return (
+    <div className="w-full max-w-[calc(100vw-360px)] mx-auto">
       <div className="flex items-center gap-4 mb-6">
         <Button
           variant="ghost"
@@ -571,9 +572,9 @@ if (!canEdit) {
         </Button>
       </div>
 
-      <Card className="bg-slate-900/50 border-slate-800">
-        <CardContent className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+      <Card className="w-full bg-slate-900/50 border border-slate-800 h-[calc(100vh-200px)] min-h-0">
+        <CardContent className="flex h-full min-h-0 flex-col p-6">
+          <form onSubmit={handleSubmit} className="flex h-full min-h-0 flex-col gap-4">
             {error && (
               <Alert className="bg-red-900/20 border-red-800 text-red-300">
                 <AlertDescription>{error}</AlertDescription>
@@ -608,7 +609,7 @@ if (!canEdit) {
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5">
               <div className="space-y-2">
                 <Label className="text-slate-300">
                   {t("taskEdit.form.project")} <span className="text-red-400">*</span>
@@ -657,7 +658,7 @@ if (!canEdit) {
                 </Select>
               </div>
 
-                            <div className="space-y-2">
+              <div className="space-y-2">
                 <Label htmlFor="startDate" className="text-slate-300">
                   {t("taskEdit.form.startDate")}
                 </Label>
@@ -684,53 +685,63 @@ if (!canEdit) {
               </div>
             </div>
 
-            <div className="space-y-3">
-  <div className="space-y-1">
-    <Label className="text-slate-300">
-      {t("taskEdit.form.assignees")}
-    </Label>
-    <div className="text-xs text-slate-400">
-      {t("taskEdit.assignees.projectRequirement")}
-    </div>
-  </div>
-
-              {!projectId ? (
-                <div className="text-slate-500 text-sm">{t("taskEdit.assignees.selectProjectFirst")}</div>
-              ) : isMembersLoading ? (
-                <div className="text-slate-500 text-sm">{t("taskEdit.assignees.loadingProjectMembers")}</div>
-              ) : availableAssignees.length === 0 ? (
-                <div className="text-slate-500 text-sm">
-                  {t("taskEdit.assignees.noneAvailable")}
+            <div className="flex-1 min-h-0 rounded-lg border border-slate-800 bg-slate-950/40 p-4">
+              <div className="flex h-full min-h-0 flex-col">
+                <div className="shrink-0 space-y-1">
+                  <Label className="text-slate-300">
+                    {t("taskEdit.form.assignees")}
+                  </Label>
+                  <div className="text-xs text-slate-400">
+                    {t("taskEdit.assignees.projectRequirement")}
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3 max-h-64 overflow-y-auto">
-                  {availableAssignees.map((member) => (
-                    <label
-                      key={member.user_id}
-                      className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-900 cursor-pointer"
-                    >
-                      <div>
-                        <div className="text-white text-sm font-medium">
-                          {member.full_name || t("taskEdit.assignees.unnamedUser")}
-                        </div>
-                        <div className="text-slate-500 text-xs">
-                          {member.role.toUpperCase()}
-                        </div>
+
+                <div className="mt-3 flex-1 min-h-0">
+                  {!projectId ? (
+                    <div className="text-slate-500 text-sm">
+                      {t("taskEdit.assignees.selectProjectFirst")}
+                    </div>
+                  ) : isMembersLoading ? (
+                    <div className="text-slate-500 text-sm">
+                      {t("taskEdit.assignees.loadingProjectMembers")}
+                    </div>
+                  ) : availableAssignees.length === 0 ? (
+                    <div className="text-slate-500 text-sm">
+                      {t("taskEdit.assignees.noneAvailable")}
+                    </div>
+                  ) : (
+                    <div className="h-full min-h-0 rounded-lg border border-slate-800 bg-slate-950 p-2 overflow-y-auto">
+                      <div className="space-y-2">
+                        {availableAssignees.map((member) => (
+                          <label
+                            key={member.user_id}
+                            className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-900 cursor-pointer"
+                          >
+                            <div>
+                              <div className="text-white text-sm font-medium">
+                                {member.full_name || t("taskEdit.assignees.unnamedUser")}
+                              </div>
+                              <div className="text-slate-500 text-xs">
+                                {member.role.toUpperCase()}
+                              </div>
+                            </div>
+
+                            <input
+                              type="checkbox"
+                              checked={selectedAssignees.includes(member.user_id)}
+                              onChange={() => toggleAssignee(member.user_id)}
+                              className="h-4 w-4"
+                            />
+                          </label>
+                        ))}
                       </div>
-
-                      <input
-                        type="checkbox"
-                        checked={selectedAssignees.includes(member.user_id)}
-                        onChange={() => toggleAssignee(member.user_id)}
-                        className="h-4 w-4"
-                      />
-                    </label>
-                  ))}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
 
-            <div className="flex items-center justify-end gap-4 pt-4">
+            <div className="shrink-0 flex items-center justify-end gap-4 border-t border-slate-800 pt-3">
               <Button
                 type="button"
                 variant="outline"

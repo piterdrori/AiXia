@@ -240,7 +240,7 @@ if (!myProfile || !canPerform(myProfile.role, "createProjects")) {
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
+  <div className="w-full max-w-none">
       <div className="flex items-center gap-4 mb-6">
         <Button
           variant="ghost"
@@ -261,7 +261,7 @@ if (!myProfile || !canPerform(myProfile.role, "createProjects")) {
         </div>
       </div>
 
-      <Card className="bg-slate-900/50 border-slate-800">
+      <Card className="w-full bg-slate-900/50 border-slate-800">
         <CardContent className="p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (

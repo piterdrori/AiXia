@@ -772,8 +772,8 @@ export default function TasksPage() {
   fallback={viewMode === "board" ? renderBoardSkeleton() : renderListSkeleton()}
 >
   {viewMode === "board" ? (
-  <div className="flex-1 min-h-0">
-    <div className="grid h-full min-h-0 auto-rows-fr items-stretch grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+  <div className="h-[calc(100vh-260px)] min-h-0">
+    <div className="grid h-full min-h-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
       {columns.map((column) => {
         const columnTasks = filteredTasks.filter(
           (task) => (task.status || "").toUpperCase() === column.id
@@ -782,7 +782,7 @@ export default function TasksPage() {
         return (
           <div
   key={column.id}
-  className="flex h-full min-h-0 self-stretch flex-col rounded-lg border border-slate-800 bg-slate-900/30"
+  className="flex h-full min-h-0 flex-col rounded-lg border border-slate-800 bg-slate-900/30"
   onDragOver={handleDragOver}
   onDrop={(e) => void handleDrop(e, column.id)}
 >

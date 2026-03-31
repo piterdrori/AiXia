@@ -2010,10 +2010,10 @@ setTranslatedComments((prev) => ({
   </div>
 </TabsContent>
 
-                     <TabsContent value="discussion" className="mt-4 min-h-0 flex-1">
-  <div className="grid gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
-    <Card className="self-start border-slate-800 bg-slate-900/50 overflow-hidden">
-      <CardHeader className="border-b border-slate-800 pb-4">
+                                         <TabsContent value="discussion" className="mt-4 min-h-0 flex-1">
+  <div className="grid items-start gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
+    <Card className="border-slate-800 bg-slate-900/50">
+      <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <MessageSquare className="w-5 h-5 text-indigo-400" />
           <CardTitle className="text-white">
@@ -2022,8 +2022,8 @@ setTranslatedComments((prev) => ({
         </div>
       </CardHeader>
 
-      <CardContent className="p-5">
-        <div className="mb-3">
+      <CardContent className="space-y-4">
+        <div>
           <p className="text-sm font-semibold text-white">
             {t("projects.addUpdate", "Add Update")}
           </p>
@@ -2035,7 +2035,7 @@ setTranslatedComments((prev) => ({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
+        <div className="space-y-3">
           <Textarea
             placeholder={t(
               "projects.writeProjectUpdatePlaceholder",
@@ -2049,11 +2049,11 @@ setTranslatedComments((prev) => ({
               }, 150);
             }}
             rows={8}
-            className="min-h-[220px] border-0 bg-transparent px-0 py-0 text-white placeholder:text-slate-600 shadow-none focus-visible:ring-0 resize-none"
+            className="min-h-[220px] resize-none border-slate-800 bg-slate-950 text-white placeholder:text-slate-600"
           />
 
           {showMentionDropdown && (
-            <div className="mt-3 overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+            <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
               {filteredMentionCandidates.length === 0 ? (
                 <div className="px-3 py-2 text-sm text-slate-500">
                   {t("projects.noMatchingParticipants", "No matching participants")}
@@ -2081,32 +2081,30 @@ setTranslatedComments((prev) => ({
             </div>
           )}
 
-          <div className="mt-4 flex flex-col gap-3 border-t border-slate-800 pt-3">
-            <p className="text-xs text-slate-500">
-              {t(
-                "projects.updateVisibilityNote",
-                "This update will be visible to people who can access this project."
-              )}
-            </p>
+          <p className="text-xs text-slate-500">
+            {t(
+              "projects.updateVisibilityNote",
+              "This update will be visible to people who can access this project."
+            )}
+          </p>
 
-            <Button
-              type="button"
-              onClick={() => void handleAddComment()}
-              disabled={commentSaving || !newComment.trim()}
-              className="h-10 w-full bg-indigo-600 px-4 text-white hover:bg-indigo-700"
-            >
-              <MessageSquare className="mr-2 h-4 w-4" />
-              {commentSaving
-                ? t("projects.posting", "Posting...")
-                : t("projects.postUpdate", "Post Update")}
-            </Button>
-          </div>
+          <Button
+            type="button"
+            onClick={() => void handleAddComment()}
+            disabled={commentSaving || !newComment.trim()}
+            className="h-10 w-full bg-indigo-600 px-4 text-white hover:bg-indigo-700"
+          >
+            <MessageSquare className="mr-2 h-4 w-4" />
+            {commentSaving
+              ? t("projects.posting", "Posting...")
+              : t("projects.postUpdate", "Post Update")}
+          </Button>
         </div>
       </CardContent>
     </Card>
 
-    <Card className="border-slate-800 bg-slate-900/50 overflow-hidden">
-      <CardHeader className="border-b border-slate-800 pb-4">
+    <Card className="border-slate-800 bg-slate-900/50">
+      <CardHeader className="border-b border-slate-800 pb-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-indigo-400" />
@@ -2121,7 +2119,7 @@ setTranslatedComments((prev) => ({
       </CardHeader>
 
       <CardContent className="p-0">
-        <div className="max-h-[calc(100vh-420px)] overflow-y-auto px-5 py-5">
+        <div className="max-h-[calc(100vh-420px)] overflow-y-auto p-4">
           {comments.length > 50 && (
             <div className="mb-4 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 text-xs text-slate-400">
               Showing latest 50 updates.

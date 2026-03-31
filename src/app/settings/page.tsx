@@ -646,7 +646,7 @@ const handleSaveAccount = async () => {
   );
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto w-full max-w-[calc(100vw-360px)] space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">
@@ -686,8 +686,8 @@ const handleSaveAccount = async () => {
         </Alert>
       )}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="h-auto flex-wrap border border-slate-800 bg-slate-900">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col gap-3">
+        <TabsList className="h-auto w-full flex-wrap justify-start border border-slate-800 bg-slate-900">
           <TabsTrigger
             value="profile"
             className="data-[state=active]:bg-slate-800"
@@ -729,7 +729,7 @@ const handleSaveAccount = async () => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="profile" className="space-y-6">
+        <TabsContent value="profile" className="mt-0 h-[calc(100vh-245px)] min-h-0">
           <Card className="border-slate-800 bg-slate-900/50">
             <CardHeader>
               <CardTitle className="text-white">
@@ -737,7 +737,7 @@ const handleSaveAccount = async () => {
               </CardTitle>
             </CardHeader>
 
-            <CardContent className="space-y-6">
+            <CardContent className="min-h-0 overflow-y-auto pb-6 space-y-6">
               {isBootstrapping ? (
                 <SkeletonBlock />
               ) : (
@@ -1028,15 +1028,15 @@ const handleSaveAccount = async () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="account" className="space-y-6">
-          <Card className="border-slate-800 bg-slate-900/50">
+        <TabsContent value="account" className="mt-0 h-[calc(100vh-245px)] min-h-0">
+          <Card className="h-full min-h-0 border-slate-800 bg-slate-900/50">
             <CardHeader>
               <CardTitle className="text-white">
                 {t("settings.accountSettings", "Account Settings")}
               </CardTitle>
             </CardHeader>
 
-            <CardContent className="space-y-6">
+            <CardContent className="min-h-0 overflow-y-auto pb-6 space-y-6">
               {isBootstrapping ? (
                 <SkeletonBlock />
               ) : (
@@ -1169,10 +1169,10 @@ const handleSaveAccount = async () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="notifications" className="space-y-6">
-          <Card className="border-slate-800 bg-slate-900/50">
+        <TabsContent value="notifications" className="mt-0 h-[calc(100vh-245px)] min-h-0">
+          <Card className="h-full min-h-0 border-slate-800 bg-slate-900/50">
             <CardHeader>
-              <CardTitle className="text-white">
+             <CardTitle className="text-white">
                 {t(
                   "settings.notificationPreferences",
                   "Notification Preferences"
@@ -1180,7 +1180,7 @@ const handleSaveAccount = async () => {
               </CardTitle>
             </CardHeader>
 
-            <CardContent className="space-y-6">
+            <CardContent className="min-h-0 overflow-y-auto pb-6 space-y-6">
               {isBootstrapping ? (
                 <SkeletonBlock />
               ) : (
@@ -1326,15 +1326,15 @@ const handleSaveAccount = async () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="appearance" className="space-y-6">
-          <Card className="border-slate-800 bg-slate-900/50">
+        <TabsContent value="appearance" className="mt-0 h-[calc(100vh-245px)] min-h-0">
+          <Card className="h-full min-h-0 border-slate-800 bg-slate-900/50">
             <CardHeader>
-              <CardTitle className="text-white">
+             <CardTitle className="text-white">
                 {t("settings.appearanceTitle", "Appearance")}
               </CardTitle>
             </CardHeader>
 
-            <CardContent className="space-y-6">
+            <CardContent className="min-h-0 overflow-y-auto pb-6 space-y-6">
               {isBootstrapping ? (
                 <SkeletonBlock />
               ) : (
@@ -1469,15 +1469,15 @@ const handleSaveAccount = async () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="security" className="space-y-6">
-          <Card className="border-slate-800 bg-slate-900/50">
+        <TabsContent value="security" className="mt-0 h-[calc(100vh-245px)] min-h-0">
+          <Card className="h-full min-h-0 border-slate-800 bg-slate-900/50">
             <CardHeader>
-              <CardTitle className="text-white">
+             <CardTitle className="text-white">
                 {t("settings.securityTitle", "Security")}
               </CardTitle>
             </CardHeader>
 
-            <CardContent className="space-y-4">
+            <CardContent className="min-h-0 overflow-y-auto pb-6 space-y-4">
               {isBootstrapping ? (
                 <SkeletonBlock />
               ) : (

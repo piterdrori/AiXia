@@ -2010,14 +2010,10 @@ setTranslatedComments((prev) => ({
   </div>
 </TabsContent>
 
-                    <TabsContent value="discussion" className="mt-4 min-h-0 flex-1">
-
-  <div className="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
-
-    {/* LEFT — POST PANEL (NO SCROLL, FIXED) */}
-    <Card className="border-slate-800 bg-slate-900/50 h-fit">
-
-      <CardHeader className="pb-3">
+                     <TabsContent value="discussion" className="mt-4 min-h-0 flex-1">
+  <div className="grid gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
+    <Card className="self-start border-slate-800 bg-slate-900/50 overflow-hidden">
+      <CardHeader className="border-b border-slate-800 pb-4">
         <div className="flex items-center gap-2">
           <MessageSquare className="w-5 h-5 text-indigo-400" />
           <CardTitle className="text-white">
@@ -2026,13 +2022,12 @@ setTranslatedComments((prev) => ({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-3">
-
-        <div>
-          <p className="text-sm font-medium text-white">
+      <CardContent className="p-5">
+        <div className="mb-3">
+          <p className="text-sm font-semibold text-white">
             {t("projects.addUpdate", "Add Update")}
           </p>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="mt-1 text-xs text-slate-500">
             {t(
               "projects.shareProjectWideUpdates",
               "Share project-wide updates, blockers, notes, and decisions"
@@ -2040,99 +2035,271 @@ setTranslatedComments((prev) => ({
           </p>
         </div>
 
-        <Textarea
-          placeholder={t(
-            "projects.writeProjectUpdatePlaceholder",
-            "Write a project update..."
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
+          <Textarea
+            placeholder={t(
+              "projects.writeProjectUpdatePlaceholder",
+              "Write a project update, decision, blocker, or note..."
+            )}
+            value={newComment}
+            onChange={(e) => handleCommentInputChange(e.target.value)}
+            onBlur={() => {
+              window.setTimeout(() => {
+                setShowMentionDropdown(false);
+              }, 150);
+            }}
+            rows={8}
+            className="min-h-[220px] border-0 bg-transparent px-0 py-0 text-white placeholder:text-slate-600 shadow-none focus-visible:ring-0 resize-none"
+          />
+
+          {showMentionDropdown && (
+            <div className="mt-3 overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+              {filteredMentionCandidates.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-slate-500">
+                  {t("projects.noMatchingParticipants", "No matching participants")}
+                </div>
+              ) : (
+                filteredMentionCandidates.map((profile) => (
+                  <button
+                    key={profile.user_id}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => insertMention(profile.full_name || "")}
+                    className="flex w-full items-center justify-between px-3 py-2 text-left transition-colors hover:bg-slate-800"
+                  >
+                    <div>
+                      <div className="text-sm font-medium text-white">
+                        {profile.full_name || t("projects.unknown", "Unknown")}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {profile.role.toUpperCase()}
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
           )}
-          value={newComment}
-          onChange={(e) => handleCommentInputChange(e.target.value)}
-          rows={6}
-          className="bg-slate-950 border border-slate-800 text-white resize-none"
-        />
 
-        {showMentionDropdown && (
-          <div className="border border-slate-800 rounded-md bg-slate-900">
-            {filteredMentionCandidates.map((profile) => (
-              <button
-                key={profile.user_id}
-                onClick={() => insertMention(profile.full_name || "")}
-                className="w-full text-left px-3 py-2 hover:bg-slate-800"
-              >
-                {profile.full_name}
-              </button>
-            ))}
+          <div className="mt-4 flex flex-col gap-3 border-t border-slate-800 pt-3">
+            <p className="text-xs text-slate-500">
+              {t(
+                "projects.updateVisibilityNote",
+                "This update will be visible to people who can access this project."
+              )}
+            </p>
+
+            <Button
+              type="button"
+              onClick={() => void handleAddComment()}
+              disabled={commentSaving || !newComment.trim()}
+              className="h-10 w-full bg-indigo-600 px-4 text-white hover:bg-indigo-700"
+            >
+              <MessageSquare className="mr-2 h-4 w-4" />
+              {commentSaving
+                ? t("projects.posting", "Posting...")
+                : t("projects.postUpdate", "Post Update")}
+            </Button>
           </div>
-        )}
-
-        <Button
-          onClick={() => void handleAddComment()}
-          disabled={commentSaving || !newComment.trim()}
-          className="w-full bg-indigo-600 hover:bg-indigo-700"
-        >
-          {commentSaving
-            ? t("projects.posting", "Posting...")
-            : t("projects.postUpdate", "Post Update")}
-        </Button>
-
+        </div>
       </CardContent>
     </Card>
 
-    {/* RIGHT — DISCUSSION LIST (ONLY SCROLL HERE) */}
-    <Card className="border-slate-800 bg-slate-900/50 flex flex-col min-h-0">
-
-      <CardHeader className="pb-3 border-b border-slate-800">
-        <div className="flex items-center justify-between">
+    <Card className="border-slate-800 bg-slate-900/50 overflow-hidden">
+      <CardHeader className="border-b border-slate-800 pb-4">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-indigo-400" />
             <CardTitle className="text-white">
               {t("projects.discussion", "Discussion")}
             </CardTitle>
           </div>
-
-          <span className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500">
             {visibleComments.length} updates
-          </span>
+          </p>
         </div>
       </CardHeader>
 
-      {/* 🔥 ONLY THIS PART SCROLLS */}
-      <CardContent className="flex-1 overflow-y-auto p-4 space-y-3">
-
-        {visibleComments.length === 0 && (
-          <div className="text-center text-slate-500 py-10">
-            {t("projects.noDiscussionYet", "No discussion yet")}
-          </div>
-        )}
-
-        {visibleComments.map((comment) => {
-          const isMine = comment.user_id === currentUserId;
-
-          return (
-            <div
-              key={comment.id}
-              className={`rounded-lg border p-3 ${
-                isMine
-                  ? "border-indigo-800/40 bg-indigo-950/20"
-                  : "border-slate-800 bg-slate-950/40"
-              }`}
-            >
-              <div className="text-sm text-white mb-1">
-                {getProfileName(comment.user_id)}
-              </div>
-
-              <div className="text-sm text-slate-300 whitespace-pre-wrap">
-                {translatedComments[comment.id]?.text || comment.content}
-              </div>
+      <CardContent className="p-0">
+        <div className="max-h-[calc(100vh-420px)] overflow-y-auto px-5 py-5">
+          {comments.length > 50 && (
+            <div className="mb-4 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 text-xs text-slate-400">
+              Showing latest 50 updates.
             </div>
-          );
-        })}
+          )}
 
+          {visibleComments.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 p-10 text-center">
+              <MessageSquare className="mx-auto mb-3 h-10 w-10 text-slate-600" />
+              <p className="text-base font-medium text-white">
+                {t("projects.noDiscussionYet", "No discussion yet")}
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                {t(
+                  "projects.startThreadWithFirstUpdate",
+                  "Start the thread with the first project-wide update."
+                )}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {visibleComments.map((comment) => {
+                const isMine = comment.user_id === currentUserId;
+                const authorName = getProfileName(comment.user_id);
+                const authorRole = getProfileRole(comment.user_id);
+                const isEditing = editingCommentId === comment.id;
+
+                return (
+                  <div
+                    key={comment.id}
+                    className={`rounded-2xl border px-4 py-4 transition-colors ${
+                      isMine
+                        ? "border-indigo-800/40 bg-indigo-950/20"
+                        : "border-slate-800 bg-slate-950/40"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white">
+                          {getInitials(authorName)}
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-semibold text-white">
+                              {authorName}
+                            </p>
+
+                            {authorRole && (
+                              <Badge className="border-slate-700 bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+                                {authorRole.toUpperCase()}
+                              </Badge>
+                            )}
+
+                            {isMine && (
+                              <Badge className="bg-indigo-500/20 px-2 py-0.5 text-[10px] text-indigo-300">
+                                {t("projects.youUpper", "YOU")}
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                            <Clock3 className="h-3 w-3" />
+                            <span>
+                              {format(
+                                clock.shiftDate(comment.created_at),
+                                "MMM d, yyyy • h:mm a"
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {canManageComment(comment) && !isEditing && (
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 border-slate-700 px-3 text-slate-300 hover:bg-slate-800"
+                            onClick={() => startEditingComment(comment)}
+                            disabled={commentActionLoading === comment.id}
+                          >
+                            <Edit className="mr-1 h-3 w-3" />
+                            {t("projects.edit", "Edit")}
+                          </Button>
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 border-red-800 px-3 text-red-400 hover:bg-red-900/20"
+                            onClick={() => void handleDeleteComment(comment)}
+                            disabled={commentActionLoading === comment.id}
+                          >
+                            <Trash2 className="mr-1 h-3 w-3" />
+                            {t("projects.delete", "Delete")}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-4 pl-[52px]">
+                      {isEditing ? (
+                        <div className="space-y-3">
+                          <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-3">
+                            <Textarea
+                              value={editingCommentText}
+                              onChange={(e) => setEditingCommentText(e.target.value)}
+                              rows={4}
+                              className="border-0 bg-transparent px-0 py-0 text-white shadow-none focus-visible:ring-0 resize-none"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="bg-indigo-600 text-white hover:bg-indigo-700"
+                              onClick={() => void handleSaveEditedComment(comment)}
+                              disabled={
+                                commentActionLoading === comment.id ||
+                                !editingCommentText.trim()
+                              }
+                            >
+                              <Save className="mr-1 h-3 w-3" />
+                              {t("common.save", "Save")}
+                            </Button>
+
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                              onClick={cancelEditingComment}
+                              disabled={commentActionLoading === comment.id}
+                            >
+                              <X className="mr-1 h-3 w-3" />
+                              {t("projects.cancel", "Cancel")}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">
+                            {translatedComments[comment.id]?.text || comment.content}
+                          </p>
+
+                          {translatedComments[comment.id]?.source && (
+                            <p className="text-[10px] text-slate-400 opacity-70">
+                              Source: {translatedComments[comment.id].source}
+                            </p>
+                          )}
+
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-indigo-400 hover:text-indigo-300"
+                            onClick={() => void handleTranslateComment(comment)}
+                            disabled={translatingCommentId === comment.id}
+                          >
+                            {translatingCommentId === comment.id
+                              ? "Translating..."
+                              : translatedComments[comment.id]
+                              ? "Original"
+                              : "Translate"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
-
   </div>
-
 </TabsContent>
                <TabsContent value="activity" className="mt-4 min-h-0 flex-1">
   <div className="h-full max-h-[calc(100vh-360px)] overflow-y-auto pr-1">

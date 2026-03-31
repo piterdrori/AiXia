@@ -1047,17 +1047,19 @@ const handleAddParticipant = async (userId: string) => {
   setMemberActionLoading("add");
   setError("");
 
-  const { error: insertError } = await supabase
-    .from("chat_group_members")
-    .insert({
-      group_id: selectedConversation.id,
-      user_id: userId,
-      role: "member",
-      invited_by: currentUserId,
-    });
+  const { data, error: functionError } = await supabase.functions.invoke(
+    "chat-update-members",
+    {
+      body: {
+        groupId: selectedConversation.id,
+        action: "add",
+        userId,
+      },
+    }
+  );
 
-  if (insertError) {
-    setError(insertError.message || "Failed to add participant.");
+  if (functionError || !data?.success) {
+    setError(functionError?.message || data?.error || "Failed to add participant.");
     setMemberActionLoading(null);
     return;
   }
@@ -1087,13 +1089,19 @@ const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
   setMemberActionLoading(member.id);
   setError("");
 
-  const { error: deleteError } = await supabase
-    .from("chat_group_members")
-    .delete()
-    .eq("id", member.id);
+  const { data, error: functionError } = await supabase.functions.invoke(
+    "chat-update-members",
+    {
+      body: {
+        groupId: selectedConversation.id,
+        action: "remove",
+        userId: member.user_id,
+      },
+    }
+  );
 
-  if (deleteError) {
-    setError(deleteError.message || "Failed to remove participant.");
+  if (functionError || !data?.success) {
+    setError(functionError?.message || data?.error || "Failed to remove participant.");
     setMemberActionLoading(null);
     return;
   }

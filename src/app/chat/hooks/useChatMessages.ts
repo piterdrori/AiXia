@@ -69,18 +69,6 @@ export function useChatMessages(selectedConversationId: string | null) {
         attachments:chat_attachments(
           id,
           message_id,
-  const fetchMessageById = useCallback(async (messageId: string) => {
-    const { data, error } = await supabase
-      .from("chat_messages")
-      .select(`
-        id,
-        group_id,
-        user_id,
-        content,
-        created_at,
-        attachments:chat_attachments(
-          id,
-          message_id,
           group_id,
           uploaded_by,
           file_name,
@@ -119,7 +107,7 @@ export function useChatMessages(selectedConversationId: string | null) {
       setIsLoadingMessages(true);
 
       try {
-                const { data, error } = await supabase
+        const { data, error } = await supabase
           .from("chat_messages")
           .select(`
             id,
@@ -153,7 +141,9 @@ export function useChatMessages(selectedConversationId: string | null) {
           throw new Error(error.message || "Failed to load messages.");
         }
 
-        const newestMessages = sortMessagesAscending((data || []) as ChatMessageRow[]);
+        const newestMessages = sortMessagesAscending(
+          (data || []) as ChatMessageRow[]
+        );
 
         setMessages((prev) => ({
           ...prev,
@@ -188,37 +178,45 @@ export function useChatMessages(selectedConversationId: string | null) {
     void loadMessagesForGroup(selectedConversationId);
   }, [selectedConversationId, loadMessagesForGroup]);
 
-  const appendMessageLocally = useCallback((groupId: string, message: ChatMessageRow) => {
-    setMessages((prev) => {
-      const current = prev[groupId] || [];
-      const exists = current.some((item) => item.id === message.id);
-      if (exists) return prev;
+  const appendMessageLocally = useCallback(
+    (groupId: string, message: ChatMessageRow) => {
+      setMessages((prev) => {
+        const current = prev[groupId] || [];
+        const exists = current.some((item) => item.id === message.id);
+        if (exists) return prev;
 
-      return {
-        ...prev,
-        [groupId]: dedupeMessages([...current, message]),
-      };
-    });
-  }, []);
-
-  const updateMessageLocally = useCallback((groupId: string, message: ChatMessageRow) => {
-    setMessages((prev) => {
-      const current = prev[groupId] || [];
-      const exists = current.some((item) => item.id === message.id);
-
-      if (!exists) {
         return {
           ...prev,
           [groupId]: dedupeMessages([...current, message]),
         };
-      }
+      });
+    },
+    []
+  );
 
-      return {
-        ...prev,
-        [groupId]: current.map((item) => (item.id === message.id ? message : item)),
-      };
-    });
-  }, []);
+  const updateMessageLocally = useCallback(
+    (groupId: string, message: ChatMessageRow) => {
+      setMessages((prev) => {
+        const current = prev[groupId] || [];
+        const exists = current.some((item) => item.id === message.id);
+
+        if (!exists) {
+          return {
+            ...prev,
+            [groupId]: dedupeMessages([...current, message]),
+          };
+        }
+
+        return {
+          ...prev,
+          [groupId]: current.map((item) =>
+            item.id === message.id ? message : item
+          ),
+        };
+      });
+    },
+    []
+  );
 
   const deleteMessageLocally = useCallback((groupId: string, messageId: string) => {
     setMessages((prev) => ({
@@ -279,7 +277,7 @@ export function useChatMessages(selectedConversationId: string | null) {
     setIsLoadingOlder(true);
 
     try {
-            const { data, error } = await supabase
+      const { data, error } = await supabase
         .from("chat_messages")
         .select(`
           id,
@@ -395,10 +393,7 @@ export function useChatMessages(selectedConversationId: string | null) {
               }
 
               if (payload.eventType === "DELETE" && payload.old) {
-                deleteMessageLocally(
-                  groupId,
-                  (payload.old as { id: string }).id
-                );
+                deleteMessageLocally(groupId, (payload.old as { id: string }).id);
               }
             } catch (error) {
               console.error("Realtime chat_messages error:", error);

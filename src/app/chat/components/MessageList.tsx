@@ -22,6 +22,7 @@ import { smartTranslate } from "@/lib/smartTranslate";
 export default function MessageList({
   currentUserId,
   currentUserRole,
+  onToggleReaction,
   messages,
   profiles,
   isSelectionMode,
@@ -41,7 +42,10 @@ export default function MessageList({
   onSaveEdit,
   onCancelEdit,
   onDeleteMessage,
-}: MessageListProps) {
+  onToggleReaction,
+}: MessageListProps & {
+  onToggleReaction: (messageId: string, emoji: string) => void;
+}) {
   const { t } = useLanguage();
 
   const [translatedMessages, setTranslatedMessages] = useState<
@@ -294,6 +298,31 @@ export default function MessageList({
                               Source: {translatedMessages[message.id].source}
                             </p>
                           )}
+                                                    <div className="flex gap-2 mt-2">
+                            <button
+                              type="button"
+                              className="text-xs px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600"
+                              onClick={() => onToggleReaction(message.id, "👍")}
+                            >
+                              👍
+                            </button>
+
+                            <button
+                              type="button"
+                              className="text-xs px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600"
+                              onClick={() => onToggleReaction(message.id, "❤️")}
+                            >
+                              ❤️
+                            </button>
+
+                            <button
+                              type="button"
+                              className="text-xs px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600"
+                              onClick={() => onToggleReaction(message.id, "😂")}
+                            >
+                              😂
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>

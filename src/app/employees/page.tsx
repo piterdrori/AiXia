@@ -1407,223 +1407,247 @@ disabled={employeesRequest.status === "loading"}
       )}
 
 {canManageUsers && (
-  <Card className="bg-slate-900/50 border-slate-800">
-    <CardContent className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium text-white">
-          Access Requests
-        </h3>
-        <Badge className="bg-slate-800 text-slate-200 border-slate-700">
-          {accessRequests.length}
-        </Badge>
-      </div>
-
-      {accessRequests.length > 0 ? (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-          {accessRequests.map((req) => (
-            <div
-              key={req.id}
-              className="rounded-lg border border-slate-800 bg-slate-950/60 p-3"
-            >
-              <div className="space-y-2">
-                <div className="text-sm text-white font-medium">
-                  {req.requester?.full_name || "Unknown"} →{" "}
-                  {req.target?.full_name || "Unknown"}
-                </div>
-
-                <div className="text-xs text-slate-400">
-                  {new Date(req.created_at).toLocaleString()}
-                </div>
-
-                <div className="flex gap-2 pt-2">
-  <Button
-    size="sm"
-    className="bg-green-600 hover:bg-green-700 text-white"
-    onClick={async () => {
-      const { data: requesterProfile, error: requesterProfileError } = await supabase
-        .from("profiles")
-        .select("permissions")
-        .eq("user_id", req.requester_user_id)
-        .single();
-
-      if (requesterProfileError) {
-        throw requesterProfileError;
-      }
-
-      const nextPermissions: Partial<Record<Permission, boolean>> = {
-        ...(((requesterProfile as { permissions?: Partial<Record<Permission, boolean>> | null })?.permissions) || {}),
-        viewEmployeeDetail: true,
-      };
-
-      await supabase
-        .from("employee_access_requests")
-        .update({ status: "approved" })
-        .eq("id", req.id);
-
-      await supabase
-        .from("profiles")
-        .update({
-          permissions: nextPermissions,
-        })
-        .eq("user_id", req.requester_user_id);
-
-      void loadProfiles();
-    }}
-  >
-    Approve
-  </Button>
-
-  <Button
-    size="sm"
-    variant="outline"
-    className="border-red-800 text-red-400"
-    onClick={async () => {
-      await supabase
-        .from("employee_access_requests")
-        .update({ status: "rejected" })
-        .eq("id", req.id);
-
-      void loadProfiles();
-    }}
-  >
-    Reject
-  </Button>
-</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-sm text-slate-500">
-          No access requests
-        </div>
-      )}
-    </CardContent>
-  </Card>
-)}
-      
-      {canManageUsers && (
-  <Card className="bg-slate-900/50 border-slate-800">
-    <CardContent className="p-4 space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <div>
+  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+    <Card className="bg-slate-900/50 border-slate-800 h-[170px] min-h-0">
+      <CardContent className="p-4 h-full min-h-0 flex flex-col">
+        <div className="flex items-center justify-between shrink-0">
           <h3 className="text-lg font-medium text-white">
-            {t("employees.invitationManagement.title")}
+            Access Requests
           </h3>
-          <p className="text-sm text-slate-400">
-            {showInviteHistory ? t("employees.invitationManagement.historyView") : t("employees.invitationManagement.activeQueue")}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            onClick={() => setShowInviteHistory((prev) => !prev)}
-          >
-            {showInviteHistory ? t("employees.actions.hideHistory") : t("employees.actions.showHistory")}
-          </Button>
-
           <Badge className="bg-slate-800 text-slate-200 border-slate-700">
-            {visibleInvitations.length}
+            {accessRequests.length}
           </Badge>
         </div>
-      </div>
 
-            {inviteError && (
-        <div className="rounded-lg border border-red-800 bg-red-950/30 px-3 py-2 text-sm text-red-300">
-          {inviteError}
-        </div>
-      )}
+        <div className="mt-4 flex-1 min-h-0 overflow-y-auto">
+          {accessRequests.length > 0 ? (
+            <div className="space-y-3 pr-1">
+              {accessRequests.map((req) => (
+                <div
+                  key={req.id}
+                  className="rounded-lg border border-slate-800 bg-slate-950/60 p-3"
+                >
+                  <div className="space-y-2">
+                    <div className="text-sm text-white font-medium">
+                      {req.requester?.full_name || "Unknown"} →{" "}
+                      {req.target?.full_name || "Unknown"}
+                    </div>
 
-      {inviteSuccess && (
-        <div className="rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-300">
-          {inviteSuccess}
-        </div>
-      )}
-      
-      {visibleInvitations.length > 0 ? (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-          {visibleInvitations.map((invitation) => (
-            <div
-              key={invitation.id}
-              className="rounded-lg border border-slate-800 bg-slate-950/60 p-3"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 space-y-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-white font-medium break-all text-sm">
-                      {invitation.full_name}
-                    </p>
-                    <Badge className={getInvitationStatusColor(invitation.status)}>
-                      {getInvitationStatusLabel(invitation.status)}
-                    </Badge>
-                    <Badge className={getRoleColor(invitation.role)}>
-                      {invitation.role.toUpperCase()}
-                    </Badge>
-                  </div>
+                    <div className="text-xs text-slate-400">
+                      {new Date(req.created_at).toLocaleString()}
+                    </div>
 
-                  <div className="space-y-1 text-xs text-slate-400">
-                    <p className="break-all">{invitation.email}</p>
-                    <p>
-                      {invitation.role === "admin"
-                        ? t("employees.roles.admin")
-                        : getTranslatedMemberTypeLabel(invitation.member_type)}
-                    </p>
-                    <p>{t("employees.invitationManagement.sentAt", undefined, { date: new Date(invitation.last_invited_at).toLocaleString() })}</p>
-                    <p>{t("employees.invitationManagement.expiresAt", undefined, { date: new Date(invitation.expires_at).toLocaleString() })}</p>
-                    <p>{t("employees.invitationManagement.inviteCount", undefined, { count: invitation.invite_count })}</p>
-                    {invitation.error_message && (
-                      <p className="text-red-400 break-words">
-                        {t("employees.invitationManagement.error", undefined, { message: invitation.error_message })}
-                      </p>
-                    )}
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        onClick={async () => {
+                          const { data: requesterProfile, error: requesterProfileError } = await supabase
+                            .from("profiles")
+                            .select("permissions")
+                            .eq("user_id", req.requester_user_id)
+                            .single();
+
+                          if (requesterProfileError) {
+                            throw requesterProfileError;
+                          }
+
+                          const nextPermissions: Partial<Record<Permission, boolean>> = {
+                            ...(((requesterProfile as { permissions?: Partial<Record<Permission, boolean>> | null })?.permissions) || {}),
+                            viewEmployeeDetail: true,
+                          };
+
+                          await supabase
+                            .from("employee_access_requests")
+                            .update({ status: "approved" })
+                            .eq("id", req.id);
+
+                          await supabase
+                            .from("profiles")
+                            .update({
+                              permissions: nextPermissions,
+                            })
+                            .eq("user_id", req.requester_user_id);
+
+                          void loadProfiles();
+                        }}
+                      >
+                        Approve
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-red-800 text-red-400"
+                        onClick={async () => {
+                          await supabase
+                            .from("employee_access_requests")
+                            .update({ status: "rejected" })
+                            .eq("id", req.id);
+
+                          void loadProfiles();
+                        }}
+                      >
+                        Reject
+                      </Button>
+                    </div>
                   </div>
                 </div>
-
-                <div className="flex flex-col gap-2 shrink-0">
-                  {(invitation.status === "pending" ||
-                    invitation.status === "expired" ||
-                    invitation.status === "failed") && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                      onClick={() => void handleResendInvite(invitation)}
-                      disabled={invitationActionId === invitation.id}
-                    >
-                      {invitationActionId === invitation.id ? t("employees.actions.sending") : t("employees.actions.resend")}
-                    </Button>
-                  )}
-
-                  {invitation.status === "pending" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-red-800 text-red-400 hover:bg-red-900/20"
-                      onClick={() => void handleCancelInvite(invitation.id)}
-                      disabled={invitationActionId === invitation.id}
-                    >
-                      {t("employees.actions.cancel")}
-                    </Button>
-                  )}
-                </div>
-              </div>
+              ))}
             </div>
-          ))}
+          ) : (
+            <div className="text-sm text-slate-500">
+              No access requests
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="text-sm text-slate-500">
-          {t("employees.empty.noActiveInvitations")}
+      </CardContent>
+    </Card>
+
+    <Card className="bg-slate-900/50 border-slate-800 h-[170px] min-h-0">
+      <CardContent className="p-4 h-full min-h-0 flex flex-col">
+        <div className="flex items-center justify-between gap-4 shrink-0">
+          <div>
+            <h3 className="text-lg font-medium text-white">
+              {t("employees.invitationManagement.title")}
+            </h3>
+            <p className="text-sm text-slate-400">
+              {showInviteHistory
+                ? t("employees.invitationManagement.historyView")
+                : t("employees.invitationManagement.activeQueue")}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              onClick={() => setShowInviteHistory((prev) => !prev)}
+            >
+              {showInviteHistory
+                ? t("employees.actions.hideHistory")
+                : t("employees.actions.showHistory")}
+            </Button>
+
+            <Badge className="bg-slate-800 text-slate-200 border-slate-700">
+              {visibleInvitations.length}
+            </Badge>
+          </div>
         </div>
-      )}
-    </CardContent>
-  </Card>
+
+        <div className="mt-4 flex-1 min-h-0 overflow-y-auto">
+          {inviteError && (
+            <div className="mb-3 rounded-lg border border-red-800 bg-red-950/30 px-3 py-2 text-sm text-red-300">
+              {inviteError}
+            </div>
+          )}
+
+          {inviteSuccess && (
+            <div className="mb-3 rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-300">
+              {inviteSuccess}
+            </div>
+          )}
+
+          {visibleInvitations.length > 0 ? (
+            <div className="space-y-3 pr-1">
+              {visibleInvitations.map((invitation) => (
+                <div
+                  key={invitation.id}
+                  className="rounded-lg border border-slate-800 bg-slate-950/60 p-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-white font-medium break-all text-sm">
+                          {invitation.full_name}
+                        </p>
+                        <Badge className={getInvitationStatusColor(invitation.status)}>
+                          {getInvitationStatusLabel(invitation.status)}
+                        </Badge>
+                        <Badge className={getRoleColor(invitation.role)}>
+                          {invitation.role.toUpperCase()}
+                        </Badge>
+                      </div>
+
+                      <div className="space-y-1 text-xs text-slate-400">
+                        <p className="break-all">{invitation.email}</p>
+                        <p>
+                          {invitation.role === "admin"
+                            ? t("employees.roles.admin")
+                            : getTranslatedMemberTypeLabel(invitation.member_type)}
+                        </p>
+                        <p>
+                          {t("employees.invitationManagement.sentAt", undefined, {
+                            date: new Date(invitation.last_invited_at).toLocaleString(),
+                          })}
+                        </p>
+                        <p>
+                          {t("employees.invitationManagement.expiresAt", undefined, {
+                            date: new Date(invitation.expires_at).toLocaleString(),
+                          })}
+                        </p>
+                        <p>
+                          {t("employees.invitationManagement.inviteCount", undefined, {
+                            count: invitation.invite_count,
+                          })}
+                        </p>
+                        {invitation.error_message && (
+                          <p className="text-red-400 break-words">
+                            {t("employees.invitationManagement.error", undefined, {
+                              message: invitation.error_message,
+                            })}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 shrink-0">
+                      {(invitation.status === "pending" ||
+                        invitation.status === "expired" ||
+                        invitation.status === "failed") && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                          onClick={() => void handleResendInvite(invitation)}
+                          disabled={invitationActionId === invitation.id}
+                        >
+                          {invitationActionId === invitation.id
+                            ? t("employees.actions.sending")
+                            : t("employees.actions.resend")}
+                        </Button>
+                      )}
+
+                      {invitation.status === "pending" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-red-800 text-red-400 hover:bg-red-900/20"
+                          onClick={() => void handleCancelInvite(invitation.id)}
+                          disabled={invitationActionId === invitation.id}
+                        >
+                          {t("employees.actions.cancel")}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-slate-500">
+              {t("employees.empty.noActiveInvitations")}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  </div>
 )}
 
-      <div className="flex flex-col gap-4">
-        <div className="relative">
+      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 h-[calc(100vh-330px)] min-h-0 flex flex-col">
+        <div className="relative shrink-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <Input
             placeholder={t("employees.search.placeholder")}
@@ -1633,7 +1657,7 @@ disabled={employeesRequest.status === "loading"}
           />
         </div>
 
-        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+        <div className="mt-4 flex shrink-0 flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full xl:max-w-[560px]">
             <div className="space-y-2">
               <Select
@@ -1701,7 +1725,8 @@ disabled={employeesRequest.status === "loading"}
             </Tabs>
           )}
         </div>
-      </div>
+
+        <div className="mt-4 flex-1 min-h-0 overflow-y-auto pr-1">
 
       {employeesRequest.status === "loading" && !hasLoadedOnce ? (
         <div className="grid xl:grid-cols-2 gap-4">

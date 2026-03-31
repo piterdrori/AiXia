@@ -88,7 +88,7 @@ function ProjectEditSkeleton() {
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col space-y-2">
+          <div className="flex flex-col space-y-2">
             <div className="h-4 w-36 rounded bg-slate-800" />
             <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3">
               {Array.from({ length: 4 }).map((_, index) => (
@@ -555,7 +555,7 @@ if (!canEdit) {
 
 </div>
 
-            <div className="flex min-h-0 flex-1 flex-col space-y-2">
+            <div className="flex flex-col space-y-2">
   <div className="flex items-center justify-between gap-3">
     <Label className="text-slate-300">
       {t("projects.assignTeamMembers", "Assign Team Members")}
@@ -570,7 +570,7 @@ if (!canEdit) {
                   {t("projects.noActiveTeamMembersFound", "No active team members found.")}
                 </div>
               ) : (
-                <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-2.5">
+                <div className="max-h-[220px] overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-2.5">
                   {teamMembers.map((member) => (
                     <label
                       key={member.user_id}

@@ -797,7 +797,7 @@ export default function TasksPage() {
             </div>
 
            <div className="flex-1 min-h-0 overflow-y-auto p-3">
-  <div className="flex min-h-full flex-col gap-3">
+  <div className="flex flex-col gap-3">
               {columnTasks.map((task) => {
                 const assigneeProfiles = getTaskMemberProfiles(task.id);
 
@@ -933,13 +933,14 @@ export default function TasksPage() {
                               </div>
                             );
                           })()}
-                      </div>
+                                            </div>
                     </CardContent>
                   </Card>
                                );
               })}
             </div>
           </div>
+        </div>
         );
       })}
     </div>

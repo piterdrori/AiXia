@@ -459,7 +459,7 @@ if (!canEdit) {
     </div>
 
     {/* FRAME */}
-    <Card className="flex min-h-0 flex-1 w-full flex-col overflow-hidden border-slate-800 bg-slate-900/50">
+    <Card className="w-full flex flex-col border-slate-800 bg-slate-900/50">
       <CardContent className="flex min-h-0 flex-1 flex-col p-4 pb-4">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
             {error && (
@@ -604,7 +604,7 @@ if (!canEdit) {
               </p>
             </div>
 
-            <div className="flex shrink-0 mt-auto items-center justify-end gap-3 border-t border-slate-800 pt-3 pb-2">
+            <div className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-800 pt-3 pb-2">
               <Button
                 type="button"
                 variant="outline"

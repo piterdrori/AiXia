@@ -342,7 +342,7 @@ const visibleProjectIds = getVisibleProjectIds(
         </Card>
       )}
 
-      <Card className="bg-slate-900/40 border-slate-800 p-4">
+      <Card className="bg-slate-900/40 border-slate-800 p-4 h-[calc(100vh-250px)] min-h-0 flex flex-col">
         <div className="grid grid-cols-7 gap-3 text-slate-400 text-sm mb-3">
           {[
             t("calendar.weekdays.sun"),
@@ -359,7 +359,7 @@ const visibleProjectIds = getVisibleProjectIds(
           ))}
         </div>
 
-        <div className="grid grid-cols-7 gap-3">
+        <div className="grid flex-1 min-h-0 grid-cols-7 gap-3 auto-rows-fr">
           {isBootstrapping
             ? Array.from({ length: 35 }).map((_, index) => (
                 <div
@@ -388,12 +388,12 @@ const visibleProjectIds = getVisibleProjectIds(
                 const totalCount = dayEvents.length + dayTasks.length;
 
                 return (
-                  <button
+                                   <button
                     key={key}
                     type="button"
                     onClick={() => navigate(`/calendar/day/${key}`)}
                     className={[
-                      "text-left rounded-xl border p-3 min-h-[110px] transition",
+                      "h-full min-h-0 text-left rounded-xl border p-3 transition",
                       "bg-slate-950/30 border-slate-800 hover:border-indigo-500/40 hover:bg-slate-950/50",
                       !inMonth ? "opacity-50" : "",
                     ].join(" ")}

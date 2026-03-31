@@ -392,7 +392,7 @@ if (!validation.success) {
     }
   };
   return (
-    <div className="w-full max-w-5xl mx-auto">
+    <div className="w-full max-w-[calc(100vw-360px)] mx-auto">
       <div className="flex items-center gap-4 mb-6">
         <Button
           variant="ghost"
@@ -409,9 +409,9 @@ if (!validation.success) {
         </div>
       </div>
 
-      <Card className="w-full bg-slate-900/50 border border-slate-800">
-        <CardContent className="p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
+      <Card className="w-full bg-slate-900/50 border border-slate-800 h-[calc(100vh-220px)] min-h-0">
+        <CardContent className="flex h-full min-h-0 flex-col p-6">
+          <form onSubmit={handleSubmit} className="flex h-full min-h-0 flex-col gap-5">
   {error && (
     <Alert className="bg-red-900/20 border-red-800 text-red-300">
       <AlertDescription>{error}</AlertDescription>
@@ -549,8 +549,8 @@ if (!validation.success) {
     </div>
   </div>
 
-    <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-4">
-    <div className="flex h-[240px] min-h-[240px] flex-col">
+      <div className="flex-1 min-h-0 rounded-lg border border-slate-800 bg-slate-950/40 p-4">
+    <div className="flex h-full min-h-0 flex-col">
       <Label className="shrink-0 text-slate-300">
         {t("taskNew.form.assignMembers")}
       </Label>
@@ -605,7 +605,7 @@ if (!validation.success) {
     </div>
   </div>
 
-  <div className="flex items-center justify-end gap-4 border-t border-slate-800 pt-6">
+  <div className="shrink-0 flex items-center justify-end gap-4 border-t border-slate-800 pt-4">
     <Button
       type="button"
       variant="outline"

@@ -511,7 +511,31 @@ useEffect(() => {
     return () => {
       void channel.unsubscribe();
     };
-  }, [selectedConversationId, currentUserId]);
+    }, [selectedConversationId, currentUserId]);
+
+  useEffect(() => {
+    if (!selectedConversationId) return;
+
+    const channel = supabase
+      .channel(`chat-reactions:${selectedConversationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "chat_message_reactions",
+          filter: `group_id=eq.${selectedConversationId}`,
+        },
+        () => {
+          void loadMessagesForGroup(selectedConversationId);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void channel.unsubscribe();
+    };
+  }, [selectedConversationId, loadMessagesForGroup]);
 
   const getMembers = useCallback(
   (groupId: string) => getMembersForGroup(groupMembers, groupId),
@@ -1065,6 +1089,20 @@ const updatedMessage = data?.message;
     }
 
     setMessageActionLoading(null);
+  };
+
+  const handleToggleReaction = async (
+    messageId: string,
+    emoji: string
+  ) => {
+    try {
+      await supabase.functions.invoke("chat-toggle-reaction", {
+        body: {
+          messageId,
+          emoji,
+        },
+      });
+    } catch {}
   };
 
   const handleBulkDeleteMessages = async () => {

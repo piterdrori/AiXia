@@ -392,7 +392,7 @@ if (!validation.success) {
     }
   };
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="w-full max-w-5xl mx-auto">
       <div className="flex items-center gap-4 mb-6">
         <Button
           variant="ghost"
@@ -409,8 +409,8 @@ if (!validation.success) {
         </div>
       </div>
 
-      <Card className="bg-slate-900/50 border-slate-800">
-        <CardContent className="p-6">
+      <Card className="w-full bg-slate-900/50 border border-slate-800">
+        <CardContent className="p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
               <Alert className="bg-red-900/20 border-red-800 text-red-300">
@@ -459,7 +459,7 @@ if (!validation.success) {
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="space-y-2">
                 <Label className="text-slate-300">
                   {t("taskNew.form.project")} <span className="text-red-400">*</span>
@@ -549,7 +549,7 @@ if (!validation.success) {
               </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 md:col-span-3">
               <Label className="text-slate-300">{t("taskNew.form.assignMembers")}</Label>
 
               {!projectId ? (

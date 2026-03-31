@@ -773,7 +773,7 @@ export default function TasksPage() {
 >
   {viewMode === "board" ? (
     <div className="flex h-[calc(100vh-420px)] min-h-0 flex-col">
-      <div className="shrink-0">
+      <div className="shrink-0 pb-2">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {columns.map((column) => {
             const columnTasks = filteredTasks.filter(
@@ -800,21 +800,21 @@ export default function TasksPage() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-hidden pt-2">
-        <div className="grid h-full grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="flex-1 min-h-0 pt-2">
+        <div className="grid h-full items-stretch grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {columns.map((column) => {
             const columnTasks = filteredTasks.filter(
               (task) => (task.status || "").toUpperCase() === column.id
             );
 
-            return (
+          return (
               <div
                 key={column.id}
-                className="min-h-0 rounded-lg border border-slate-800 bg-slate-900/30"
+                className="flex h-full min-h-0 flex-col rounded-lg border border-slate-800 bg-slate-900/30"
                 onDragOver={handleDragOver}
                 onDrop={(e) => void handleDrop(e, column.id)}
               >
-                <div className="h-full min-h-0 overflow-y-auto p-3 space-y-3">
+                <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
                   {columnTasks.map((task) => {
                     const assigneeProfiles = getTaskMemberProfiles(task.id);
 

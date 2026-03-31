@@ -809,12 +809,12 @@ export default function TasksPage() {
 
           return (
               <div
-                key={column.id}
-                className="flex h-full min-h-0 flex-col rounded-lg border border-slate-800 bg-slate-900/30"
-                onDragOver={handleDragOver}
-                onDrop={(e) => void handleDrop(e, column.id)}
-              >
-                <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
+  key={column.id}
+  className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-slate-800 bg-slate-900/30"
+  onDragOver={handleDragOver}
+  onDrop={(e) => void handleDrop(e, column.id)}
+>
+                <div className="h-full min-h-0 flex-1 overflow-y-auto p-3 space-y-3">
                   {columnTasks.map((task) => {
                     const assigneeProfiles = getTaskMemberProfiles(task.id);
 

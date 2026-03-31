@@ -446,5 +446,6 @@ if (!myProfile || !canPerform(myProfile.role, "createProjects")) {
           </form>
         </CardContent>
       </Card>
-    </div>
+       </div>
   );
+}

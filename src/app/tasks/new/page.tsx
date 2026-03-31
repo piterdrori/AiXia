@@ -549,54 +549,60 @@ if (!validation.success) {
     </div>
   </div>
 
-  <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/40 p-4">
-    <Label className="text-slate-300">{t("taskNew.form.assignMembers")}</Label>
+    <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-4">
+    <div className="flex h-[240px] min-h-[240px] flex-col">
+      <Label className="shrink-0 text-slate-300">
+        {t("taskNew.form.assignMembers")}
+      </Label>
 
-    {!projectId ? (
-      <div className="text-slate-500 text-sm">
-        {t("taskNew.assignees.selectProjectFirst")}
-      </div>
-    ) : isMembersLoading ? (
-      <div className="text-slate-500 text-sm">
-        {t("taskNew.assignees.loadingProjectMembers")}
-      </div>
-    ) : availableAssignees.length === 0 ? (
-      <div className="text-slate-500 text-sm">
-        {t("taskNew.assignees.noAvailableMembers")}
-      </div>
-    ) : (
-      <div className="rounded-lg border border-slate-800 bg-slate-950 p-2 max-h-64 overflow-y-auto">
-        <div className="space-y-2">
-          {availableAssignees.map((member) => (
-            <label
-              key={member.user_id}
-              className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-900 cursor-pointer"
-            >
-              <div>
-                <div className="text-white text-sm font-medium">
-                  {member.full_name || t("taskNew.assignees.unnamedUser")}
-                </div>
-                <div className="text-slate-500 text-xs">
-                  {member.role.toUpperCase()}
-                </div>
-              </div>
+      <div className="mt-3 flex-1 min-h-0">
+        {!projectId ? (
+          <div className="text-slate-500 text-sm">
+            {t("taskNew.assignees.selectProjectFirst")}
+          </div>
+        ) : isMembersLoading ? (
+          <div className="text-slate-500 text-sm">
+            {t("taskNew.assignees.loadingProjectMembers")}
+          </div>
+        ) : availableAssignees.length === 0 ? (
+          <div className="text-slate-500 text-sm">
+            {t("taskNew.assignees.noAvailableMembers")}
+          </div>
+        ) : (
+          <div className="h-full min-h-0 rounded-lg border border-slate-800 bg-slate-950 p-2 overflow-y-auto">
+            <div className="space-y-2">
+              {availableAssignees.map((member) => (
+                <label
+                  key={member.user_id}
+                  className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-900 cursor-pointer"
+                >
+                  <div>
+                    <div className="text-white text-sm font-medium">
+                      {member.full_name || t("taskNew.assignees.unnamedUser")}
+                    </div>
+                    <div className="text-slate-500 text-xs">
+                      {member.role.toUpperCase()}
+                    </div>
+                  </div>
 
-              <input
-                type="checkbox"
-                checked={selectedAssignees.includes(member.user_id)}
-                onChange={() => toggleAssignee(member.user_id)}
-                disabled={isSaving}
-                className="h-4 w-4"
-              />
-            </label>
-          ))}
-        </div>
+                  <input
+                    type="checkbox"
+                    checked={selectedAssignees.includes(member.user_id)}
+                    onChange={() => toggleAssignee(member.user_id)}
+                    disabled={isSaving}
+                    className="h-4 w-4"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
-    )}
 
-    <p className="text-slate-500 text-xs">
-      {t("taskNew.form.visibilityNote")}
-    </p>
+      <p className="mt-3 shrink-0 text-slate-500 text-xs">
+        {t("taskNew.form.visibilityNote")}
+      </p>
+    </div>
   </div>
 
   <div className="flex items-center justify-end gap-4 border-t border-slate-800 pt-6">

@@ -568,43 +568,54 @@ useEffect(() => {
     setShowMentionDropdown(false);
   };
 
-  const handleUploadFile = async (file: File) => {
-    if (!selectedConversationId || !currentUserId) return;
+const handleUploadFile = async (file: File) => {
+  if (!selectedConversationId || !currentUserId) return;
 
-    setIsUploadingFile(true);
-    setError("");
+  setIsUploadingFile(true);
+  setError("");
 
-    try {
-      const fileExt = file.name.split(".").pop();
-      const safeExt = fileExt ? `.${fileExt}` : "";
-      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}${safeExt}`;
-      const filePath = `${selectedConversationId}/${fileName}`;
+  try {
+    const fileExt = file.name.split(".").pop();
+    const safeExt = fileExt ? `.${fileExt}` : "";
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}${safeExt}`;
+    const filePath = `${selectedConversationId}/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from("chat-files")
-        .upload(filePath, file);
+    const { error: uploadError } = await supabase.storage
+      .from("chat-files")
+      .upload(filePath, file);
 
-      if (uploadError) {
-        throw new Error(uploadError.message);
+    if (uploadError) {
+      throw new Error(uploadError.message);
+    }
+
+    const { data, error: functionError } = await supabase.functions.invoke(
+      "chat-upload-attachment",
+      {
+        body: {
+          groupId: selectedConversationId,
+          fileName: file.name,
+          filePath,
+          mimeType: file.type || null,
+          fileSize: file.size,
+        },
       }
+    );
 
-      const { data: message, error: messageError } = await supabase
-        .from("chat_messages")
-        .insert({
-          group_id: selectedConversationId,
-          user_id: currentUserId,
-          content: "",
-        })
-        .select("id")
-        .single();
+    const message = data?.message;
 
-      if (messageError || !message) {
-        throw new Error(messageError?.message || "Failed to create message");
-      }
+    if (functionError || !message) {
+      throw new Error(functionError?.message || "Upload failed");
+    }
 
-      const { error: attachmentError } = await supabase
-        .from("chat_attachments")
-        .insert({
+    const optimisticAttachmentMessage: ChatMessageRow = {
+      id: message.id,
+      group_id: selectedConversationId,
+      user_id: currentUserId,
+      content: "",
+      created_at: clock.nowIso,
+      attachments: [
+        {
+          id: `local-${message.id}`,
           message_id: message.id,
           group_id: selectedConversationId,
           uploaded_by: currentUserId,
@@ -612,52 +623,30 @@ useEffect(() => {
           file_path: filePath,
           mime_type: file.type || null,
           file_size: file.size,
-        });
+          created_at: clock.nowIso,
+        },
+      ],
+    };
 
-      if (attachmentError) {
-        throw new Error(attachmentError.message);
-      }
+    appendMessageLocally(selectedConversationId, optimisticAttachmentMessage);
 
-      const optimisticAttachmentMessage: ChatMessageRow = {
-  id: message.id,
-  group_id: selectedConversationId,
-  user_id: currentUserId,
-  content: "",
-  created_at: clock.nowIso,
-  attachments: [
-    {
-      id: `local-${message.id}`,
-      message_id: message.id,
-      group_id: selectedConversationId,
-      uploaded_by: currentUserId,
-      file_name: file.name,
-      file_path: filePath,
-      mime_type: file.type || null,
-      file_size: file.size,
-      created_at: clock.nowIso,
-    },
-  ],
+    setLatestMessageByGroup((prev) => ({
+      ...prev,
+      [selectedConversationId]: optimisticAttachmentMessage,
+    }));
+
+    moveGroupToTop(selectedConversationId);
+
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    });
+  } catch (err: any) {
+    console.error(err);
+    setError(err?.message || t("chat.errors.uploadFailed", "Upload failed"));
+  } finally {
+    setIsUploadingFile(false);
+  }
 };
-
-appendMessageLocally(selectedConversationId, optimisticAttachmentMessage);
-
-setLatestMessageByGroup((prev) => ({
-  ...prev,
-  [selectedConversationId]: optimisticAttachmentMessage,
-}));
-
-moveGroupToTop(selectedConversationId);
-
-      requestAnimationFrame(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      });
-    } catch (err: any) {
-      console.error(err);
-      setError(err?.message || t("chat.errors.uploadFailed", "Upload failed"));
-    } finally {
-      setIsUploadingFile(false);
-    }
-  };
 
   const toggleGroupMember = (userId: string) => {
     setSelectedGroupMembers((prev) =>
@@ -927,10 +916,17 @@ const insertedMessage = data?.message;
     setMessageActionLoading(message.id);
     setError("");
 
-    const { error: updateError } = await supabase
-      .from("chat_messages")
-      .update({ content: editingMessageText.trim() })
-      .eq("id", message.id);
+    const { data, error: updateError } = await supabase.functions.invoke(
+  "chat-update-message",
+  {
+    body: {
+      messageId: message.id,
+      content: editingMessageText.trim(),
+    },
+  }
+);
+
+const updatedMessage = data?.message;
 
     if (updateError) {
       setError(updateError.message || t("chat.errors.updateMessage"));
@@ -938,10 +934,7 @@ const insertedMessage = data?.message;
       return;
     }
 
-    updateMessageLocally(message.group_id, {
-      ...message,
-      content: editingMessageText.trim(),
-    });
+    updateMessageLocally(message.group_id, updatedMessage);
 
     setEditingMessageId(null);
     setEditingMessageText("");
@@ -955,10 +948,14 @@ const insertedMessage = data?.message;
     setMessageActionLoading(message.id);
     setError("");
 
-    const { error: deleteError } = await supabase
-      .from("chat_messages")
-      .delete()
-      .eq("id", message.id);
+    const { error: deleteError } = await supabase.functions.invoke(
+  "chat-delete-messages",
+  {
+    body: {
+      messageIds: [message.id],
+    },
+  }
+);
 
     if (deleteError) {
       setError(deleteError.message || t("chat.errors.deleteMessage"));
@@ -1003,10 +1000,14 @@ const insertedMessage = data?.message;
     setBulkDeleteLoading(true);
     setError("");
 
-    const { error: deleteError } = await supabase
-      .from("chat_messages")
-      .delete()
-      .in("id", idsToDelete);
+    const { error: deleteError } = await supabase.functions.invoke(
+  "chat-delete-messages",
+  {
+    body: {
+      messageIds: idsToDelete,
+    },
+  }
+);
 
     if (deleteError) {
       setError(deleteError.message || t("chat.errors.deleteSelectedMessages"));

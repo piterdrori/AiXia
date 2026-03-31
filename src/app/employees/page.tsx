@@ -1646,7 +1646,7 @@ disabled={employeesRequest.status === "loading"}
   </div>
 )}
 
-      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 h-[calc(100vh-330px)] min-h-0 flex flex-col">
+      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 h-[calc(100vh-345px)] min-h-0 flex flex-col">
         <div className="relative shrink-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <Input
@@ -1726,7 +1726,7 @@ disabled={employeesRequest.status === "loading"}
           )}
         </div>
 
-        <div className="mt-4 flex-1 min-h-0 overflow-y-auto pr-1 pb-4">
+        <div className="mt-4 flex-1 min-h-0 overflow-y-auto pr-1 pb-6">
 
       {employeesRequest.status === "loading" && !hasLoadedOnce ? (
         <div className="grid xl:grid-cols-2 gap-4">
@@ -1899,13 +1899,15 @@ disabled={employeesRequest.status === "loading"}
             </Card>
           ))}
         </div>
-            ) : (
+                 ) : (
         <Card className="bg-slate-900/50 border-slate-800">
           <CardContent className="p-10 text-center text-slate-500">
             {t("employees.empty.noUsersFound")}
           </CardContent>
         </Card>
       )}
+
+      <div className="h-4 shrink-0" />
         </div>
       </div>
 

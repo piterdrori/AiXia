@@ -115,6 +115,9 @@ export default function ChatPage() {
     null
   );
 
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+
 const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>(() => {
   if (typeof window === "undefined") return {};
   return ((window as Window & {
@@ -131,11 +134,17 @@ const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>(() => {
   }
 }, [id, selectedConversationId, setSelectedConversationId]);
 
-  useEffect(() => {
+    useEffect(() => {
     setIsSelectionMode(false);
     setSelectedMessageIds([]);
     setEditingMessageId(null);
     setEditingMessageText("");
+    setTypingUsers([]);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
   }, [selectedConversationId]);
 
   useEffect(() => {
@@ -442,6 +451,68 @@ useEffect(() => {
     };
   }, [currentUserId, loadUnreadConversationCounts]);
 
+    useEffect(() => {
+    if (!selectedConversationId || !currentUserId) {
+      setTypingUsers([]);
+      return;
+    }
+
+    const channel = supabase
+      .channel(`chat-typing:${selectedConversationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "chat_typing_status",
+          filter: `group_id=eq.${selectedConversationId}`,
+        },
+        (payload) => {
+          const eventType = payload.eventType;
+          const newRow = payload.new as
+            | { user_id?: string; expires_at?: string }
+            | undefined;
+          const oldRow = payload.old as { user_id?: string } | undefined;
+
+          const affectedUserId =
+            String(newRow?.user_id || oldRow?.user_id || "").trim();
+
+          if (!affectedUserId || affectedUserId === currentUserId) {
+            return;
+          }
+
+          if (eventType === "DELETE") {
+            setTypingUsers((prev) =>
+              prev.filter((userId) => userId !== affectedUserId)
+            );
+            return;
+          }
+
+          const expiresAt = newRow?.expires_at
+            ? new Date(newRow.expires_at).getTime()
+            : 0;
+
+          if (expiresAt && expiresAt <= Date.now()) {
+            setTypingUsers((prev) =>
+              prev.filter((userId) => userId !== affectedUserId)
+            );
+            return;
+          }
+
+          setTypingUsers((prev) =>
+            prev.includes(affectedUserId)
+              ? prev
+              : [...prev, affectedUserId]
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void channel.unsubscribe();
+    };
+  }, [selectedConversationId, currentUserId]);
+
   const getMembers = useCallback(
   (groupId: string) => getMembersForGroup(groupMembers, groupId),
   [groupMembers]
@@ -490,6 +561,24 @@ useEffect(() => {
       return !q || name.includes(q);
     });
   }, [mentionCandidates, mentionQuery, showMentionDropdown]);
+
+    const typingLabel = useMemo(() => {
+    const names = typingUsers
+      .map((userId) => profiles.find((profile) => profile.user_id === userId)?.full_name)
+      .filter(Boolean) as string[];
+
+    if (names.length === 0) return "";
+
+    if (names.length === 1) {
+      return `${names[0]} is typing...`;
+    }
+
+    if (names.length === 2) {
+      return `${names[0]} and ${names[1]} are typing...`;
+    }
+
+    return "Several people are typing...";
+  }, [profiles, typingUsers]);
 
     const canManageMessage = useCallback(
     (message: ChatMessageRow) => {
@@ -543,8 +632,34 @@ useEffect(() => {
   [loadMessagesForGroup, messages, navigate, setSelectedConversationId]
 );
 
+    const setTypingState = useCallback(
+    async (groupId: string, isTyping: boolean) => {
+      try {
+        await supabase.functions.invoke("chat-set-typing", {
+          body: {
+            groupId,
+            isTyping,
+          },
+        });
+      } catch {}
+    },
+    []
+  );
+
   const handleMessageInputChange = (value: string) => {
     setMessageInput(value);
+
+    if (selectedConversationId) {
+      void setTypingState(selectedConversationId, value.trim().length > 0);
+
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      typingTimeoutRef.current = setTimeout(() => {
+        void setTypingState(selectedConversationId, false);
+      }, 3000);
+    }
 
     const match = value.match(/@([a-zA-Z0-9_]*)$/);
 
@@ -821,11 +936,18 @@ await reloadChatShell(newGroup.id);
 }));
     moveGroupToTop(selectedConversationId);
 
-    setMessageInput("");
+       setMessageInput("");
     setMentionQuery("");
     setShowMentionDropdown(false);
     setIsSending(true);
     setError("");
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+
+    void setTypingState(selectedConversationId, false);
 
     requestAnimationFrame(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1122,6 +1244,15 @@ const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
   void reloadChatShell(null);
 };
 
+    useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   return (
     <>
       <div className="h-[calc(100vh-140px)] flex gap-4 overflow-hidden min-h-0">
@@ -1257,12 +1388,20 @@ const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
   onDeleteMessage={(message) => void handleDeleteMessage(message)}
 />
 
-            <div className="px-4 py-2 text-xs text-slate-500">
-              {isLoadingMessages && !messages[selectedConversation.id]
-                ? t("chat.status.openingConversation")
-                : t("chat.status.loadedMessages", undefined, {
-                    total: selectedMessages.length,
-                  })}
+                       <div className="px-4 py-2 space-y-1">
+              <div className="text-xs text-slate-500">
+                {isLoadingMessages && !messages[selectedConversation.id]
+                  ? t("chat.status.openingConversation")
+                  : t("chat.status.loadedMessages", undefined, {
+                      total: selectedMessages.length,
+                    })}
+              </div>
+
+              {typingLabel ? (
+                <div className="text-xs text-indigo-300">
+                  {typingLabel}
+                </div>
+              ) : null}
             </div>
 
             <MessageComposer

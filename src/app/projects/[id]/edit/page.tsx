@@ -77,7 +77,7 @@ function ProjectEditSkeleton() {
             <div className="h-10 w-full rounded bg-slate-900" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <div className="h-4 w-20 rounded bg-slate-800" />
               <div className="h-10 w-full rounded bg-slate-900" />
@@ -88,7 +88,7 @@ function ProjectEditSkeleton() {
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="flex min-h-0 flex-1 flex-col space-y-2">
             <div className="h-4 w-36 rounded bg-slate-800" />
             <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3">
               {Array.from({ length: 4 }).map((_, index) => (
@@ -428,38 +428,40 @@ if (!canEdit) {
     return <ProjectEditSkeleton />;
   }
 
-  return (
-    <div className="max-w-2xl mx-auto">
-      <div className="flex items-center gap-4 mb-6">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate(`/projects/${id}`)}
-          className="text-slate-400 hover:text-white"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
+ return (
+  <div className="flex h-[calc(100vh-420px)] min-h-0 w-full flex-col">
+    {/* HEADER */}
+    <div className="mb-3 flex items-center gap-3 shrink-0">
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => navigate(`/projects/${id}`)}
+        className="h-9 w-9 text-slate-400 hover:text-white"
+      >
+        <ArrowLeft className="h-4 w-4" />
+      </Button>
 
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-white">
-              {t("projects.editProject", "Edit Project")}
-            </h1>
-            {isRefreshing && (
-              <span className="text-xs text-slate-500">
-                {t("projects.refreshing", "Refreshing...")}
-              </span>
-            )}
-          </div>
-          <p className="text-slate-400">
-            {t("projects.updateProjectDetailsAndTeam", "Update your project details and team")}
-          </p>
+      <div className="min-w-0">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-white">
+            {t("projects.editProject", "Edit Project")}
+          </h1>
+          {isRefreshing && (
+            <span className="text-xs text-slate-500">
+              {t("projects.refreshing", "Refreshing...")}
+            </span>
+          )}
         </div>
+        <p className="text-sm text-slate-400">
+          {t("projects.updateProjectDetailsAndTeam", "Update your project details and team")}
+        </p>
       </div>
+    </div>
 
-      <Card className="bg-slate-900/50 border-slate-800">
-        <CardContent className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+    {/* FRAME */}
+    <Card className="flex min-h-0 flex-1 w-full flex-col overflow-hidden border-slate-800 bg-slate-900/50">
+      <CardContent className="flex min-h-0 flex-1 flex-col p-4 lg:p-5 pb-4">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
             {error && (
               <Alert className="bg-red-900/20 border-red-800 text-red-300">
                 <AlertDescription>{error}</AlertDescription>
@@ -491,7 +493,7 @@ if (!canEdit) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+                className="h-10 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
               />
             </div>
 
@@ -505,7 +507,7 @@ if (!canEdit) {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={4}
-                className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 resize-none"
+                className="min-h-[96px] max-h-[140px] shrink-0 resize-none bg-slate-950 text-white placeholder:text-slate-600 border-slate-800"
               />
             </div>
 
@@ -537,7 +539,7 @@ if (!canEdit) {
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="startDate" className="text-slate-300">
                   {t("projects.startDate", "Start Date")}
@@ -565,17 +567,22 @@ if (!canEdit) {
               </div>
             </div>
 
-            <div className="space-y-3">
-              <Label className="text-slate-300">
-                {t("projects.assignTeamMembers", "Assign Team Members")}
-              </Label>
+            <div className="flex min-h-0 flex-1 flex-col space-y-2">
+  <div className="flex items-center justify-between gap-3">
+    <Label className="text-slate-300">
+      {t("projects.assignTeamMembers", "Assign Team Members")}
+    </Label>
+    <p className="text-[11px] text-slate-500">
+      {selectedMembers.length} selected
+    </p>
+  </div>
 
               {teamMembers.length === 0 ? (
                 <div className="text-slate-500 text-sm">
                   {t("projects.noActiveTeamMembersFound", "No active team members found.")}
                 </div>
               ) : (
-                <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3 max-h-64 overflow-y-auto">
+                <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-2.5">
                   {teamMembers.map((member) => (
                     <label
                       key={member.user_id}
@@ -609,7 +616,7 @@ if (!canEdit) {
               </p>
             </div>
 
-            <div className="flex items-center justify-end gap-4 pt-4">
+            <div className="flex shrink-0 mt-auto items-center justify-end gap-3 border-t border-slate-800 pt-3 pb-2">
               <Button
                 type="button"
                 variant="outline"

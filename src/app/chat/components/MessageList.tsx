@@ -196,6 +196,15 @@ export default function MessageList({
               const isSelected = selectedMessageIds.includes(message.id);
               const isAttachmentOnlyMessage =
                 Boolean(message.attachments?.length) && !message.content?.trim();
+                    const otherReaders = (message.reads || []).filter(
+                (read) => read.user_id !== currentUserId
+              );
+              const readReceiptLabel =
+                otherReaders.length === 0
+                  ? ""
+                  : otherReaders.length === 1
+                  ? "Seen"
+                  : `Seen by ${otherReaders.length}`;
 
               return (
                 <div
@@ -326,8 +335,9 @@ export default function MessageList({
                       )}
                     </div>
 
-                    {!isEditing && !isSelectionMode && (
-                      <div className={`mt-1 flex flex-wrap gap-2 ${isOwn ? "justify-end" : "justify-start"}`}>
+                                        {!isEditing && !isSelectionMode && (
+                      <>
+                        <div className={`mt-1 flex flex-wrap gap-2 ${isOwn ? "justify-end" : "justify-start"}`}>
                         {isAttachmentOnlyMessage ? (
                           <>
                             {message.attachments?.map((file) => {
@@ -446,8 +456,15 @@ export default function MessageList({
                     ? "Try a different keyword"
                     : t("chat.messageList.startConversation")}
                 </p>
-              </div>
-            )}
+                                    </div>
+
+                        {isOwn && readReceiptLabel ? (
+                          <div className="mt-1 text-[10px] text-slate-400">
+                            {readReceiptLabel}
+                          </div>
+                        ) : null}
+                      </>
+                    )}
 
             <div ref={messagesEndRef} />
           </div>

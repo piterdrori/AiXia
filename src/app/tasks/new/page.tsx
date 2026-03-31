@@ -412,223 +412,225 @@ if (!validation.success) {
       <Card className="w-full bg-slate-900/50 border border-slate-800">
         <CardContent className="p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
-              <Alert className="bg-red-900/20 border-red-800 text-red-300">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+  {error && (
+    <Alert className="bg-red-900/20 border-red-800 text-red-300">
+      <AlertDescription>{error}</AlertDescription>
+    </Alert>
+  )}
 
-            {isBootstrapping && (
-              <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-4">
-                <div className="animate-pulse space-y-4">
-                  <div className="h-4 w-28 rounded bg-slate-800" />
-                  <div className="h-10 w-full rounded bg-slate-800" />
-                  <div className="h-4 w-24 rounded bg-slate-800" />
-                  <div className="h-28 w-full rounded bg-slate-800" />
+  {isBootstrapping && (
+    <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-4">
+      <div className="animate-pulse space-y-4">
+        <div className="h-4 w-28 rounded bg-slate-800" />
+        <div className="h-10 w-full rounded bg-slate-800" />
+        <div className="h-4 w-24 rounded bg-slate-800" />
+        <div className="h-28 w-full rounded bg-slate-800" />
+      </div>
+    </div>
+  )}
+
+  <div className="space-y-2">
+    <Label htmlFor="title" className="text-slate-300">
+      {t("taskNew.form.taskTitle")} <span className="text-red-400">*</span>
+    </Label>
+    <Input
+      id="title"
+      placeholder={t("taskNew.form.taskTitlePlaceholder")}
+      value={title}
+      onChange={(e) => setTitle(e.target.value)}
+      required
+      disabled={isBootstrapping || isSaving}
+      className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+    />
+  </div>
+
+  <div className="space-y-2">
+    <Label htmlFor="description" className="text-slate-300">
+      {t("taskNew.form.description")}
+    </Label>
+    <Textarea
+      id="description"
+      placeholder={t("taskNew.form.descriptionPlaceholder")}
+      value={description}
+      onChange={(e) => setDescription(e.target.value)}
+      rows={4}
+      disabled={isBootstrapping || isSaving}
+      className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 resize-none"
+    />
+  </div>
+
+  <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5">
+    <div className="space-y-2">
+      <Label className="text-slate-300">
+        {t("taskNew.form.project")} <span className="text-red-400">*</span>
+      </Label>
+      <Select
+        value={projectId}
+        onValueChange={setProjectId}
+        disabled={isBootstrapping || isSaving}
+      >
+        <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+          <SelectValue placeholder={t("taskNew.form.selectProject")} />
+        </SelectTrigger>
+        <SelectContent className="bg-slate-900 border-slate-800">
+          {projects.map((project) => (
+            <SelectItem key={project.id} value={project.id}>
+              {project.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+
+    <div className="space-y-2">
+      <Label className="text-slate-300">{t("taskNew.form.priority")}</Label>
+      <Select
+        value={priority}
+        onValueChange={(v) => setPriority(v as TaskPriority)}
+        disabled={isBootstrapping || isSaving}
+      >
+        <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+          <SelectValue placeholder={t("taskNew.form.selectPriority")} />
+        </SelectTrigger>
+        <SelectContent className="bg-slate-900 border-slate-800">
+          <SelectItem value="LOW">{t("taskNew.priority.low")}</SelectItem>
+          <SelectItem value="MEDIUM">{t("taskNew.priority.medium")}</SelectItem>
+          <SelectItem value="HIGH">{t("taskNew.priority.high")}</SelectItem>
+          <SelectItem value="URGENT">{t("taskNew.priority.urgent")}</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+
+    <div className="space-y-2">
+      <Label className="text-slate-300">{t("taskNew.form.status")}</Label>
+      <Select
+        value={status}
+        onValueChange={(v) => setStatus(v as TaskStatus)}
+        disabled={isBootstrapping || isSaving}
+      >
+        <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+          <SelectValue placeholder={t("taskNew.form.selectStatus")} />
+        </SelectTrigger>
+        <SelectContent className="bg-slate-900 border-slate-800">
+          <SelectItem value="TODO">{t("taskNew.status.todo")}</SelectItem>
+          <SelectItem value="IN_PROGRESS">{t("taskNew.status.inProgress")}</SelectItem>
+          <SelectItem value="IN_REVIEW">{t("taskNew.status.inReview")}</SelectItem>
+          <SelectItem value="DONE">{t("taskNew.status.done")}</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+
+    <div className="space-y-2">
+      <Label htmlFor="startDate" className="text-slate-300">
+        {t("taskNew.form.startDate")}
+      </Label>
+      <Input
+        id="startDate"
+        type="date"
+        value={startDate}
+        onChange={(e) => setStartDate(e.target.value)}
+        disabled={isBootstrapping || isSaving}
+        className="bg-slate-950 border-slate-800 text-white"
+      />
+    </div>
+
+    <div className="space-y-2">
+      <Label htmlFor="dueDate" className="text-slate-300">
+        {t("taskNew.form.dueDate")}
+      </Label>
+      <Input
+        id="dueDate"
+        type="date"
+        value={dueDate}
+        onChange={(e) => setDueDate(e.target.value)}
+        disabled={isBootstrapping || isSaving}
+        className="bg-slate-950 border-slate-800 text-white"
+      />
+    </div>
+  </div>
+
+  <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/40 p-4">
+    <Label className="text-slate-300">{t("taskNew.form.assignMembers")}</Label>
+
+    {!projectId ? (
+      <div className="text-slate-500 text-sm">
+        {t("taskNew.assignees.selectProjectFirst")}
+      </div>
+    ) : isMembersLoading ? (
+      <div className="text-slate-500 text-sm">
+        {t("taskNew.assignees.loadingProjectMembers")}
+      </div>
+    ) : availableAssignees.length === 0 ? (
+      <div className="text-slate-500 text-sm">
+        {t("taskNew.assignees.noAvailableMembers")}
+      </div>
+    ) : (
+      <div className="rounded-lg border border-slate-800 bg-slate-950 p-2 max-h-64 overflow-y-auto">
+        <div className="space-y-2">
+          {availableAssignees.map((member) => (
+            <label
+              key={member.user_id}
+              className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-900 cursor-pointer"
+            >
+              <div>
+                <div className="text-white text-sm font-medium">
+                  {member.full_name || t("taskNew.assignees.unnamedUser")}
+                </div>
+                <div className="text-slate-500 text-xs">
+                  {member.role.toUpperCase()}
                 </div>
               </div>
-            )}
 
-            <div className="space-y-2">
-              <Label htmlFor="title" className="text-slate-300">
-                {t("taskNew.form.taskTitle")} <span className="text-red-400">*</span>
-              </Label>
-              <Input
-                id="title"
-                placeholder={t("taskNew.form.taskTitlePlaceholder")}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-                disabled={isBootstrapping || isSaving}
-                className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description" className="text-slate-300">
-                {t("taskNew.form.description")}
-              </Label>
-              <Textarea
-                id="description"
-                placeholder={t("taskNew.form.descriptionPlaceholder")}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={4}
-                disabled={isBootstrapping || isSaving}
-                className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 resize-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <Label className="text-slate-300">
-                  {t("taskNew.form.project")} <span className="text-red-400">*</span>
-                </Label>
-                <Select
-                  value={projectId}
-                  onValueChange={setProjectId}
-                  disabled={isBootstrapping || isSaving}
-                >
-                  <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                    <SelectValue placeholder={t("taskNew.form.selectProject")} />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-800">
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">{t("taskNew.form.priority")}</Label>
-                <Select
-                  value={priority}
-                  onValueChange={(v) => setPriority(v as TaskPriority)}
-                  disabled={isBootstrapping || isSaving}
-                >
-                  <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                    <SelectValue placeholder={t("taskNew.form.selectPriority")} />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-800">
-                    <SelectItem value="LOW">{t("taskNew.priority.low")}</SelectItem>
-                    <SelectItem value="MEDIUM">{t("taskNew.priority.medium")}</SelectItem>
-                    <SelectItem value="HIGH">{t("taskNew.priority.high")}</SelectItem>
-                    <SelectItem value="URGENT">{t("taskNew.priority.urgent")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">{t("taskNew.form.status")}</Label>
-                <Select
-                  value={status}
-                  onValueChange={(v) => setStatus(v as TaskStatus)}
-                  disabled={isBootstrapping || isSaving}
-                >
-                  <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                    <SelectValue placeholder={t("taskNew.form.selectStatus")} />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-800">
-                    <SelectItem value="TODO">{t("taskNew.status.todo")}</SelectItem>
-                    <SelectItem value="IN_PROGRESS">{t("taskNew.status.inProgress")}</SelectItem>
-                    <SelectItem value="IN_REVIEW">{t("taskNew.status.inReview")}</SelectItem>
-                    <SelectItem value="DONE">{t("taskNew.status.done")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-                            <div className="space-y-2">
-                <Label htmlFor="startDate" className="text-slate-300">
-                  {t("taskNew.form.startDate")}
-                </Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  disabled={isBootstrapping || isSaving}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="dueDate" className="text-slate-300">
-                  {t("taskNew.form.dueDate")}
-                </Label>
-                <Input
-                  id="dueDate"
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  disabled={isBootstrapping || isSaving}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-3 md:col-span-3">
-              <Label className="text-slate-300">{t("taskNew.form.assignMembers")}</Label>
-
-              {!projectId ? (
-                <div className="text-slate-500 text-sm">
-                  {t("taskNew.assignees.selectProjectFirst")}
-                </div>
-              ) : isMembersLoading ? (
-                <div className="text-slate-500 text-sm">
-                  {t("taskNew.assignees.loadingProjectMembers")}
-                </div>
-              ) : availableAssignees.length === 0 ? (
-                <div className="text-slate-500 text-sm">
-                  {t("taskNew.assignees.noAvailableMembers")}
-                </div>
-              ) : (
-                <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3 max-h-64 overflow-y-auto">
-                  {availableAssignees.map((member) => (
-                    <label
-                      key={member.user_id}
-                      className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-900 cursor-pointer"
-                    >
-                      <div>
-                        <div className="text-white text-sm font-medium">
-                          {member.full_name || t("taskNew.assignees.unnamedUser")}
-                        </div>
-                        <div className="text-slate-500 text-xs">
-                          {member.role.toUpperCase()}
-                        </div>
-                      </div>
-
-                      <input
-                        type="checkbox"
-                        checked={selectedAssignees.includes(member.user_id)}
-                        onChange={() => toggleAssignee(member.user_id)}
-                        disabled={isSaving}
-                        className="h-4 w-4"
-                      />
-                    </label>
-                  ))}
-                </div>
-              )}
-
-              <p className="text-slate-500 text-xs">
-                {t("taskNew.form.visibilityNote")}
-              </p>
-            </div>
-
-            <div className="flex items-center justify-end gap-4 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate(projectId ? `/projects/${projectId}` : "/tasks")}
+              <input
+                type="checkbox"
+                checked={selectedAssignees.includes(member.user_id)}
+                onChange={() => toggleAssignee(member.user_id)}
                 disabled={isSaving}
-                className="border-slate-700 text-slate-300 hover:bg-slate-800"
-              >
-                {t("taskNew.actions.cancel")}
-              </Button>
+                className="h-4 w-4"
+              />
+            </label>
+          ))}
+        </div>
+      </div>
+    )}
 
-              <Button
-  type="submit"
-  className="bg-indigo-600 hover:bg-indigo-700 text-white"
-  disabled={
-    isBootstrapping ||
-    isSaving ||
-    !currentUserRole ||
-    !canPerform(currentUserRole, "createTasks")
-  }
->
-                {isSaving ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {t("taskNew.actions.creating")}
-                  </>
-                ) : (
-                  t("taskNew.actions.createTask")
-                )}
-              </Button>
-            </div>
-          </form>
+    <p className="text-slate-500 text-xs">
+      {t("taskNew.form.visibilityNote")}
+    </p>
+  </div>
+
+  <div className="flex items-center justify-end gap-4 border-t border-slate-800 pt-6">
+    <Button
+      type="button"
+      variant="outline"
+      onClick={() => navigate(projectId ? `/projects/${projectId}` : "/tasks")}
+      disabled={isSaving}
+      className="border-slate-700 text-slate-300 hover:bg-slate-800"
+    >
+      {t("taskNew.actions.cancel")}
+    </Button>
+
+    <Button
+      type="submit"
+      className="bg-indigo-600 hover:bg-indigo-700 text-white"
+      disabled={
+        isBootstrapping ||
+        isSaving ||
+        !currentUserRole ||
+        !canPerform(currentUserRole, "createTasks")
+      }
+    >
+      {isSaving ? (
+        <>
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          {t("taskNew.actions.creating")}
+        </>
+      ) : (
+        t("taskNew.actions.createTask")
+      )}
+    </Button>
+  </div>
+</form>
         </CardContent>
       </Card>
     </div>

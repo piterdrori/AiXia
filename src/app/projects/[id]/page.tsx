@@ -2010,9 +2010,9 @@ setTranslatedComments((prev) => ({
   </div>
 </TabsContent>
 
-                                         <TabsContent value="discussion" className="mt-4 min-h-0 flex-1">
-  <div className="grid items-start gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
-    <Card className="border-slate-800 bg-slate-900/50">
+                                                                                 <TabsContent value="discussion" className="mt-4 h-[calc(100vh-420px)] min-h-0">
+  <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
+    <Card className="flex h-full min-h-0 flex-col border-slate-800 bg-slate-900/50">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <MessageSquare className="w-5 h-5 text-indigo-400" />
@@ -2022,7 +2022,7 @@ setTranslatedComments((prev) => ({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
         <div>
           <p className="text-sm font-semibold text-white">
             {t("projects.addUpdate", "Add Update")}
@@ -2035,7 +2035,7 @@ setTranslatedComments((prev) => ({
           </p>
         </div>
 
-        <div className="space-y-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
           <Textarea
             placeholder={t(
               "projects.writeProjectUpdatePlaceholder",
@@ -2048,12 +2048,12 @@ setTranslatedComments((prev) => ({
                 setShowMentionDropdown(false);
               }, 150);
             }}
-            rows={8}
-            className="min-h-[220px] resize-none border-slate-800 bg-slate-950 text-white placeholder:text-slate-600"
+            rows={6}
+            className="min-h-[160px] flex-1 resize-none border-slate-800 bg-slate-950 text-white placeholder:text-slate-600"
           />
 
           {showMentionDropdown && (
-            <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+            <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-800 bg-slate-900">
               {filteredMentionCandidates.length === 0 ? (
                 <div className="px-3 py-2 text-sm text-slate-500">
                   {t("projects.noMatchingParticipants", "No matching participants")}
@@ -2092,7 +2092,7 @@ setTranslatedComments((prev) => ({
             type="button"
             onClick={() => void handleAddComment()}
             disabled={commentSaving || !newComment.trim()}
-            className="h-10 w-full bg-indigo-600 px-4 text-white hover:bg-indigo-700"
+            className="h-10 w-full shrink-0 bg-indigo-600 px-4 text-white hover:bg-indigo-700"
           >
             <MessageSquare className="mr-2 h-4 w-4" />
             {commentSaving
@@ -2103,7 +2103,7 @@ setTranslatedComments((prev) => ({
       </CardContent>
     </Card>
 
-    <Card className="border-slate-800 bg-slate-900/50">
+    <Card className="flex h-full min-h-0 flex-col border-slate-800 bg-slate-900/50">
       <CardHeader className="border-b border-slate-800 pb-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -2118,8 +2118,8 @@ setTranslatedComments((prev) => ({
         </div>
       </CardHeader>
 
-      <CardContent className="p-0">
-        <div className="max-h-[calc(100vh-420px)] overflow-y-auto p-4">
+      <CardContent className="min-h-0 flex-1 p-0">
+        <div className="h-full overflow-y-auto p-4">
           {comments.length > 50 && (
             <div className="mb-4 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 text-xs text-slate-400">
               Showing latest 50 updates.
@@ -2140,7 +2140,7 @@ setTranslatedComments((prev) => ({
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3 pb-2">
               {visibleComments.map((comment) => {
                 const isMine = comment.user_id === currentUserId;
                 const authorName = getProfileName(comment.user_id);

@@ -461,7 +461,7 @@ if (!canEdit) {
     {/* FRAME */}
     <Card className="flex min-h-0 flex-1 w-full flex-col overflow-hidden border-slate-800 bg-slate-900/50">
       <CardContent className="flex min-h-0 flex-1 flex-col p-4 pb-4">
-        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4 w-full">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
             {error && (
               <Alert className="bg-red-900/20 border-red-800 text-red-300">
                 <AlertDescription>{error}</AlertDescription>

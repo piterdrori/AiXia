@@ -686,7 +686,7 @@ const handleSaveAccount = async () => {
         </Alert>
       )}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col gap-3">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-[calc(100vh-180px)] min-h-0 flex-col gap-3">
         <TabsList className="h-auto w-full flex-wrap justify-start border border-slate-800 bg-slate-900">
           <TabsTrigger
             value="profile"
@@ -729,15 +729,15 @@ const handleSaveAccount = async () => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="profile" className="mt-0 h-[calc(100vh-245px)] min-h-0">
-          <Card className="border-slate-800 bg-slate-900/50">
-            <CardHeader>
+        <TabsContent value="profile" className="mt-0 flex-1 min-h-0 data-[state=inactive]:hidden">
+          <Card className="h-full min-h-0 border-slate-800 bg-slate-900/50 flex flex-col">
+            <CardHeader className="shrink-0">
               <CardTitle className="text-white">
                 {t("settings.profileInformation", "Profile Information")}
               </CardTitle>
             </CardHeader>
 
-            <CardContent className="min-h-0 overflow-y-auto pb-6 space-y-6">
+            <CardContent className="flex-1 min-h-0 overflow-y-auto pb-6 space-y-6">
               {isBootstrapping ? (
                 <SkeletonBlock />
               ) : (
@@ -1028,7 +1028,7 @@ const handleSaveAccount = async () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="account" className="mt-0 h-[calc(100vh-245px)] min-h-0">
+        <TabsContent value="account" className="mt-0 flex-1 min-h-0 data-[state=inactive]:hidden">
           <Card className="h-full min-h-0 border-slate-800 bg-slate-900/50">
             <CardHeader>
               <CardTitle className="text-white">
@@ -1169,7 +1169,7 @@ const handleSaveAccount = async () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="notifications" className="mt-0 h-[calc(100vh-245px)] min-h-0">
+        <TabsContent value="notifications" className="mt-0 flex-1 min-h-0 data-[state=inactive]:hidden">
           <Card className="h-full min-h-0 border-slate-800 bg-slate-900/50">
             <CardHeader>
              <CardTitle className="text-white">
@@ -1326,7 +1326,7 @@ const handleSaveAccount = async () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="appearance" className="mt-0 h-[calc(100vh-245px)] min-h-0">
+        <TabsContent value="appearance" className="mt-0 flex-1 min-h-0 data-[state=inactive]:hidden">
           <Card className="h-full min-h-0 border-slate-800 bg-slate-900/50">
             <CardHeader>
              <CardTitle className="text-white">
@@ -1469,7 +1469,7 @@ const handleSaveAccount = async () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="security" className="mt-0 h-[calc(100vh-245px)] min-h-0">
+        <TabsContent value="security" className="mt-0 flex-1 min-h-0 data-[state=inactive]:hidden">
           <Card className="h-full min-h-0 border-slate-800 bg-slate-900/50">
             <CardHeader>
              <CardTitle className="text-white">

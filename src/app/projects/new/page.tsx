@@ -239,38 +239,38 @@ if (!myProfile || !canPerform(myProfile.role, "createProjects")) {
     }
   };
 
-  return (
-  <div className="w-full max-w-none">
-      <div className="flex items-center gap-4 mb-6">
+   return (
+    <div className="flex h-full min-h-0 w-full flex-col">
+      <div className="mb-4 flex items-center gap-3">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => navigate("/projects")}
-          className="text-slate-400 hover:text-white"
+          className="h-9 w-9 text-slate-400 hover:text-white"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="h-4 w-4" />
         </Button>
 
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-white">
             {t("projects.createNewProject", "Create New Project")}
           </h1>
-          <p className="text-slate-400">
+          <p className="text-sm text-slate-400">
             {t("projects.setUpNewProjectForTeam", "Set up a new project for your team")}
           </p>
         </div>
       </div>
 
-      <Card className="w-full bg-slate-900/50 border-slate-800">
-        <CardContent className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+      <Card className="flex min-h-0 flex-1 w-full flex-col overflow-hidden border-slate-800 bg-slate-900/50">
+        <CardContent className="flex min-h-0 flex-1 flex-col p-4 lg:p-5">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
             {error && (
-              <Alert className="bg-red-900/20 border-red-800 text-red-300">
+              <Alert className="border-red-800 bg-red-900/20 py-2 text-red-300">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="name" className="text-slate-300">
                 {t("projects.projectName", "Project Name")}{" "}
                 <span className="text-red-400">*</span>
@@ -281,11 +281,11 @@ if (!myProfile || !canPerform(myProfile.role, "createProjects")) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+                className="h-10 bg-slate-950 text-white placeholder:text-slate-600 border-slate-800"
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="description" className="text-slate-300">
                 {t("projects.description", "Description")}
               </Label>
@@ -294,114 +294,123 @@ if (!myProfile || !canPerform(myProfile.role, "createProjects")) {
                 placeholder={t("projects.describeYourProject", "Describe your project...")}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                rows={4}
-                className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 resize-none"
+                rows={3}
+                className="min-h-[96px] resize-none bg-slate-950 text-white placeholder:text-slate-600 border-slate-800"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="status" className="text-slate-300">
-                {t("projects.status", "Status")}
-              </Label>
-              <Select
-                value={status}
-                onValueChange={(v) => setStatus(v as ProjectStatus)}
-              >
-                <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                  <SelectValue
-                    placeholder={t("projects.selectStatus", "Select status")}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+              <div className="space-y-1.5">
+                <Label htmlFor="status" className="text-slate-300">
+                  {t("projects.status", "Status")}
+                </Label>
+                <Select
+                  value={status}
+                  onValueChange={(v) => setStatus(v as ProjectStatus)}
+                >
+                  <SelectTrigger className="h-10 bg-slate-950 text-white border-slate-800">
+                    <SelectValue
+                      placeholder={t("projects.selectStatus", "Select status")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="border-slate-800 bg-slate-900">
+                    <SelectItem value="PLANNING">
+                      {t("projects.statusPlanning", "Planning")}
+                    </SelectItem>
+                    <SelectItem value="ACTIVE">
+                      {t("projects.statusActive", "Active")}
+                    </SelectItem>
+                    <SelectItem value="ON_HOLD">
+                      {t("projects.statusOnHold", "On Hold")}
+                    </SelectItem>
+                    <SelectItem value="COMPLETED">
+                      {t("projects.statusCompleted", "Completed")}
+                    </SelectItem>
+                    <SelectItem value="CANCELLED">
+                      {t("projects.statusCancelled", "Cancelled")}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="startDate" className="text-slate-300">
+                    {t("projects.startDate", "Start Date")}
+                  </Label>
+                  <Input
+                    id="startDate"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="h-10 bg-slate-950 text-white border-slate-800"
                   />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-900 border-slate-800">
-                  <SelectItem value="PLANNING">
-                    {t("projects.statusPlanning", "Planning")}
-                  </SelectItem>
-                  <SelectItem value="ACTIVE">
-                    {t("projects.statusActive", "Active")}
-                  </SelectItem>
-                  <SelectItem value="ON_HOLD">
-                    {t("projects.statusOnHold", "On Hold")}
-                  </SelectItem>
-                  <SelectItem value="COMPLETED">
-                    {t("projects.statusCompleted", "Completed")}
-                  </SelectItem>
-                  <SelectItem value="CANCELLED">
-                    {t("projects.statusCancelled", "Cancelled")}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="startDate" className="text-slate-300">
-                  {t("projects.startDate", "Start Date")}
-                </Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="endDate" className="text-slate-300">
-                  {t("projects.endDate", "End Date")}
-                </Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
+                <div className="space-y-1.5">
+                  <Label htmlFor="endDate" className="text-slate-300">
+                    {t("projects.endDate", "End Date")}
+                  </Label>
+                  <Input
+                    id="endDate"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="h-10 bg-slate-950 text-white border-slate-800"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="space-y-3">
-              <Label className="text-slate-300">
-                {t("projects.assignTeamMembers", "Assign Team Members")}
-              </Label>
+            <div className="flex min-h-0 flex-1 flex-col space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <Label className="text-slate-300">
+                  {t("projects.assignTeamMembers", "Assign Team Members")}
+                </Label>
+                <p className="text-[11px] text-slate-500">
+                  {selectedMembers.length} selected
+                </p>
+              </div>
 
               {isMembersLoading ? (
-                <div className="text-slate-500 text-sm">
+                <div className="text-sm text-slate-500">
                   {t("projects.loadingTeamMembers", "Loading team members...")}
                 </div>
               ) : teamMembers.length === 0 ? (
-                <div className="text-slate-500 text-sm">
+                <div className="text-sm text-slate-500">
                   {t("projects.noActiveTeamMembersFound", "No active team members found.")}
                 </div>
               ) : (
-                <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3 max-h-64 overflow-y-auto">
-                  {teamMembers.map((member) => (
-                    <label
-                      key={member.user_id}
-                      className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-900 cursor-pointer"
-                    >
-                      <div>
-                        <div className="text-white text-sm font-medium">
-                          {member.full_name ||
-                            t("projects.unnamedUser", "Unnamed user")}
+                <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-2.5">
+                  <div className="space-y-1.5">
+                    {teamMembers.map((member) => (
+                      <label
+                        key={member.user_id}
+                        className="flex cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-900"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium text-white">
+                            {member.full_name ||
+                              t("projects.unnamedUser", "Unnamed user")}
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            {member.role.toUpperCase()}
+                          </div>
                         </div>
-                        <div className="text-slate-500 text-xs">
-                          {member.role.toUpperCase()}
-                        </div>
-                      </div>
 
-                      <input
-                        type="checkbox"
-                        checked={selectedMembers.includes(member.user_id)}
-                        onChange={() => toggleMember(member.user_id)}
-                        className="h-4 w-4"
-                      />
-                    </label>
-                  ))}
+                        <input
+                          type="checkbox"
+                          checked={selectedMembers.includes(member.user_id)}
+                          onChange={() => toggleMember(member.user_id)}
+                          className="h-4 w-4 shrink-0"
+                        />
+                      </label>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              <p className="text-slate-500 text-xs">
+              <p className="text-[11px] leading-4 text-slate-500">
                 {t(
                   "projects.projectVisibilityNote",
                   "Only assigned members, the creator, and admin will be able to see this project."
@@ -409,24 +418,24 @@ if (!myProfile || !canPerform(myProfile.role, "createProjects")) {
               </p>
             </div>
 
-            <div className="flex items-center justify-end gap-4 pt-4">
+            <div className="flex items-center justify-end gap-3 border-t border-slate-800 pt-3">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => navigate("/projects")}
-                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                className="h-10 border-slate-700 text-slate-300 hover:bg-slate-800"
               >
                 {t("projects.cancel", "Cancel")}
               </Button>
 
               <Button
                 type="submit"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                className="h-10 bg-indigo-600 text-white hover:bg-indigo-700"
                 disabled={isLoading || !currentUserRole || !canPerform(currentUserRole, "createProjects")}
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     {t("projects.creating", "Creating...")}
                   </>
                 ) : (
@@ -439,4 +448,3 @@ if (!myProfile || !canPerform(myProfile.role, "createProjects")) {
       </Card>
     </div>
   );
-}

@@ -22,7 +22,6 @@ import { smartTranslate } from "@/lib/smartTranslate";
 export default function MessageList({
   currentUserId,
   currentUserRole,
-  onToggleReaction,
   messages,
   profiles,
   isSelectionMode,

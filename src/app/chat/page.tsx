@@ -724,35 +724,6 @@ moveGroupToTop(selectedConversationId);
 
       upsertGroupLocally(existingDb as ChatGroupRow, optimisticMembers);
 
-      const { error: ensureMembersError } = await supabase
-        .from("chat_group_members")
-        .upsert(
-          [
-            {
-              group_id: existingDb.id,
-              user_id: currentUserId,
-              role: "member",
-              invited_by: currentUserId,
-            },
-            {
-              group_id: existingDb.id,
-              user_id: targetUserId,
-              role: "member",
-              invited_by: currentUserId,
-            },
-          ],
-          {
-            onConflict: "group_id,user_id",
-          }
-        );
-
-      if (ensureMembersError) {
-        setError(
-          ensureMembersError.message || t("chat.errors.addDirectChatMembers")
-        );
-        return;
-      }
-
       openConversation(existingDb.id);
       await reloadChatShell(existingDb.id);
       return;
@@ -1055,7 +1026,7 @@ await reloadChatShell(newGroup.id);
     setBulkDeleteLoading(false);
   };
 
-  const handleAddParticipant = async (userId: string) => {
+const handleAddParticipant = async (userId: string) => {
   if (!selectedConversation || !currentUserId) return;
   if (selectedConversation.type !== "GROUP") return;
 

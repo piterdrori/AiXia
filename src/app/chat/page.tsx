@@ -20,7 +20,6 @@ import type {
   ProfileRow,
 } from "./types";
 import {
-  buildDirectKey,
   getConversationInitials,
   getConversationName,
   getMembersForGroup,
@@ -656,7 +655,7 @@ const handleUploadFile = async (file: File) => {
     );
   };
 
-  const startDirectMessage = async (targetUserId: string) => {
+const startDirectMessage = async (targetUserId: string) => {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -665,96 +664,69 @@ const handleUploadFile = async (file: File) => {
 
   const currentUserId = user.id;
 
-    setError("");
+  setError("");
 
-    const directKey = buildDirectKey(currentUserId, targetUserId);
+const existingLocal = groups.find((group) => {
+  if (group.type !== "DIRECT") return false;
 
-    const existingLocal = groups.find(
-      (group) => group.type === "DIRECT" && group.direct_key === directKey
-    );
+  const members = getMembers(group.id).map((member) => member.user_id);
+  return (
+    members.includes(currentUserId) &&
+    members.includes(targetUserId) &&
+    members.length === 2
+  );
+});
 
-    if (existingLocal) {
+if (existingLocal) {
   openConversation(existingLocal.id);
   await reloadChatShell(existingLocal.id);
   return;
 }
 
-    const { data: existingDb, error: existingError } = await supabase
-      .from("chat_groups")
-      .select("id, name, type, project_id, task_id, created_by, created_at, direct_key")
-      .eq("type", "DIRECT")
-      .eq("direct_key", directKey)
-      .maybeSingle();
-
-    if (existingError) {
-      setError(existingError.message || t("chat.errors.checkDirectChat"));
-      return;
+  const { data, error: functionError } = await supabase.functions.invoke(
+    "chat-create",
+    {
+      body: {
+        mode: "DIRECT",
+        targetUserId,
+      },
     }
+  );
 
-    if (existingDb) {
-      const optimisticMembers: ChatGroupMemberRow[] = [
-        {
-          id: `local-${existingDb.id}-${currentUserId}`,
-          group_id: existingDb.id,
-          user_id: currentUserId,
-          role: "member",
-          invited_by: currentUserId,
-          created_at: clock.nowIso,
-        },
-        {
-          id: `local-${existingDb.id}-${targetUserId}`,
-          group_id: existingDb.id,
-          user_id: targetUserId,
-          role: "member",
-          invited_by: currentUserId,
-          created_at: clock.nowIso,
-        },
-      ];
+  if (functionError || !data?.success || !data?.group) {
+    setError(
+      functionError?.message ||
+        data?.error ||
+        t("chat.errors.createDirectChat")
+    );
+    return;
+  }
 
-      upsertGroupLocally(existingDb as ChatGroupRow, optimisticMembers);
+  const resolvedGroup = data.group as ChatGroupRow;
 
-      openConversation(existingDb.id);
-      await reloadChatShell(existingDb.id);
-      return;
-    }
+  const optimisticMembers: ChatGroupMemberRow[] = [
+    {
+      id: `local-${resolvedGroup.id}-${currentUserId}`,
+      group_id: resolvedGroup.id,
+      user_id: currentUserId,
+      role: "member",
+      invited_by: currentUserId,
+      created_at: clock.nowIso,
+    },
+    {
+      id: `local-${resolvedGroup.id}-${targetUserId}`,
+      group_id: resolvedGroup.id,
+      user_id: targetUserId,
+      role: "member",
+      invited_by: currentUserId,
+      created_at: clock.nowIso,
+    },
+  ];
 
-const { data, error: functionError } = await supabase.functions.invoke("chat-create", {
-  body: {
-    mode: "DIRECT",
-    targetUserId,
-  },
-});
-
-if (functionError || !data?.success || !data?.group) {
-  setError(functionError?.message || data?.error || t("chat.errors.createDirectChat"));
-  return;
-}
-
-const newGroup = data.group as ChatGroupRow;
-
-const optimisticMembers: ChatGroupMemberRow[] = [
-  {
-    id: `local-${newGroup.id}-${currentUserId}`,
-    group_id: newGroup.id,
-    user_id: currentUserId,
-    role: "member",
-    invited_by: currentUserId,
-    created_at: clock.nowIso,
-  },
-  {
-    id: `local-${newGroup.id}-${targetUserId}`,
-    group_id: newGroup.id,
-    user_id: targetUserId,
-    role: "member",
-    invited_by: currentUserId,
-    created_at: clock.nowIso,
-  },
-];
-
-upsertGroupLocally(newGroup, optimisticMembers);
-openConversation(newGroup.id);
-await reloadChatShell(newGroup.id);
-  };
+  upsertGroupLocally(resolvedGroup, optimisticMembers);
+  openConversation(resolvedGroup.id);
+  await reloadChatShell(resolvedGroup.id);
+};
 
   const handleCreateGroup = async () => {
   const {

@@ -460,27 +460,13 @@ if (!canEdit) {
 
     {/* FRAME */}
     <Card className="flex min-h-0 flex-1 w-full flex-col overflow-hidden border-slate-800 bg-slate-900/50">
-      <CardContent className="flex min-h-0 flex-1 flex-col p-4 lg:p-5 pb-4">
-        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
+      <CardContent className="flex min-h-0 flex-1 flex-col p-4 pb-4">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4 w-full">
             {error && (
               <Alert className="bg-red-900/20 border-red-800 text-red-300">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void loadProject("refresh")}
-                className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                disabled={isRefreshing}
-              >
-                {isRefreshing
-                  ? t("projects.refreshing", "Refreshing...")
-                  : t("projects.refresh", "Refresh")}
-              </Button>
-            </div>
 
             <div className="space-y-2">
               <Label htmlFor="name" className="text-slate-300">
@@ -511,61 +497,63 @@ if (!canEdit) {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="status" className="text-slate-300">
-                {t("projects.status", "Status")}
-              </Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as ProjectStatus)}>
-                <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                  <SelectValue placeholder={t("projects.selectStatus", "Select status")} />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-900 border-slate-800">
-                  <SelectItem value="PLANNING">
-                    {t("projects.statusPlanning", "Planning")}
-                  </SelectItem>
-                  <SelectItem value="ACTIVE">
-                    {t("projects.statusActive", "Active")}
-                  </SelectItem>
-                  <SelectItem value="ON_HOLD">
-                    {t("projects.statusOnHold", "On Hold")}
-                  </SelectItem>
-                  <SelectItem value="COMPLETED">
-                    {t("projects.statusCompleted", "Completed")}
-                  </SelectItem>
-                  <SelectItem value="CANCELLED">
-                    {t("projects.statusCancelled", "Cancelled")}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="startDate" className="text-slate-300">
-                  {t("projects.startDate", "Start Date")}
-                </Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
+  <div className="space-y-2">
+    <Label htmlFor="status" className="text-slate-300">
+      {t("projects.status", "Status")}
+    </Label>
+    <Select value={status} onValueChange={(v) => setStatus(v as ProjectStatus)}>
+      <SelectTrigger className="bg-slate-950 border-slate-800 text-white h-10">
+        <SelectValue placeholder={t("projects.selectStatus", "Select status")} />
+      </SelectTrigger>
+      <SelectContent className="bg-slate-900 border-slate-800">
+        <SelectItem value="PLANNING">
+          {t("projects.statusPlanning", "Planning")}
+        </SelectItem>
+        <SelectItem value="ACTIVE">
+          {t("projects.statusActive", "Active")}
+        </SelectItem>
+        <SelectItem value="ON_HOLD">
+          {t("projects.statusOnHold", "On Hold")}
+        </SelectItem>
+        <SelectItem value="COMPLETED">
+          {t("projects.statusCompleted", "Completed")}
+        </SelectItem>
+        <SelectItem value="CANCELLED">
+          {t("projects.statusCancelled", "Cancelled")}
+        </SelectItem>
+      </SelectContent>
+    </Select>
+  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="endDate" className="text-slate-300">
-                  {t("projects.endDate", "End Date")}
-                </Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                />
-              </div>
-            </div>
+  <div className="space-y-2">
+    <Label htmlFor="startDate" className="text-slate-300">
+      {t("projects.startDate", "Start Date")}
+    </Label>
+    <Input
+      id="startDate"
+      type="date"
+      value={startDate}
+      onChange={(e) => setStartDate(e.target.value)}
+      className="h-10 bg-slate-950 border-slate-800 text-white"
+    />
+  </div>
+
+  <div className="space-y-2">
+    <Label htmlFor="endDate" className="text-slate-300">
+      {t("projects.endDate", "End Date")}
+    </Label>
+    <Input
+      id="endDate"
+      type="date"
+      value={endDate}
+      onChange={(e) => setEndDate(e.target.value)}
+      className="h-10 bg-slate-950 border-slate-800 text-white"
+    />
+  </div>
+
+</div>
 
             <div className="flex min-h-0 flex-1 flex-col space-y-2">
   <div className="flex items-center justify-between gap-3">

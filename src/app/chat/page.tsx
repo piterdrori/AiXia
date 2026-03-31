@@ -1091,7 +1091,7 @@ const updatedMessage = data?.message;
     setMessageActionLoading(null);
   };
 
-  const handleToggleReaction = async (
+   const handleToggleReaction = async (
     messageId: string,
     emoji: string
   ) => {
@@ -1104,6 +1104,24 @@ const updatedMessage = data?.message;
       });
     } catch {}
   };
+
+  useEffect(() => {
+    if (!selectedConversationId || !currentUserId) return;
+    if (selectedMessages.length === 0) return;
+
+    const unreadIncomingIds = selectedMessages
+      .filter((message) => message.user_id !== currentUserId)
+      .map((message) => message.id);
+
+    if (unreadIncomingIds.length === 0) return;
+
+    void supabase.functions.invoke("chat-mark-read", {
+      body: {
+        groupId: selectedConversationId,
+        messageIds: unreadIncomingIds,
+      },
+    });
+  }, [selectedConversationId, currentUserId, selectedMessages]);
 
   const handleBulkDeleteMessages = async () => {
     if (!selectedConversationId || selectedMessageIds.length === 0) return;

@@ -314,9 +314,9 @@ const [isCheckingRole, setIsCheckingRole] = useState(false);
 
       setIsCheckingRole(true);
 
-      try {
-                const { data } = await supabase.auth.getSession();
-const user = data.session?.user;
+           try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const user = sessionData.session?.user;
 
         if (!mounted) return;
 
@@ -327,7 +327,7 @@ const user = data.session?.user;
           return;
         }
 
-        const { data, error } = await supabase
+        const { data: profileData, error } = await supabase
           .from("profiles")
           .select("role, permissions")
           .eq("user_id", user.id)
@@ -335,15 +335,15 @@ const user = data.session?.user;
 
         if (!mounted) return;
 
-        if (error || !data?.role) {
+        if (error || !profileData?.role) {
   setRole(null);
   setPermissions({});
   setIsCheckingRole(false);
   return;
 }
 
-setRole(data.role as Role);
-setPermissions(data.permissions || {});
+setRole(profileData.role as Role);
+setPermissions(profileData.permissions || {});
             } catch (error) {
         console.error("ProtectedRoute role load error:", error);
         if (!mounted) return;
@@ -808,22 +808,22 @@ function AppContent() {
     };
 
     const loadAndSubscribe = async () => {
-      try {
+            try {
         applyDefaultSettings();
 
-      const { data } = await supabase.auth.getSession();
-const user = data.session?.user;
+        const { data: sessionData } = await supabase.auth.getSession();
+        const user = sessionData.session?.user;
 
-if (!mounted) return;
+        if (!mounted) return;
 
-if (!user) {
-  setSettingsLoaded(true);
-  return;
-}
+        if (!user) {
+          setSettingsLoaded(true);
+          return;
+        }
 
-const userId = user.id;
+        const userId = user.id;
 
-        const { data, error } = await supabase
+        const { data: profileData, error } = await supabase
           .from("profiles")
           .select("theme, accent_color, font_size, compact_mode, language")
           .eq("user_id", userId)
@@ -837,7 +837,7 @@ const userId = user.id;
           return;
         }
 
-        applyRootSettings(data || undefined);
+        applyRootSettings(profileData || undefined);
 
         mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 

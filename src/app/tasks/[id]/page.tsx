@@ -1268,7 +1268,7 @@ if (isBootstrapping) {
         </Alert>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-6 items-start lg:h-[calc(100vh-240px)]">
+      <div className="grid lg:grid-cols-3 gap-6 items-start lg:h-[calc(100vh-220px)]">
         <div className="lg:col-span-2 min-h-0 flex flex-col">
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
             <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto shrink-0 self-start">
@@ -1286,11 +1286,11 @@ if (isBootstrapping) {
               </TabsTrigger>
             </TabsList>
 
-                        <TabsContent value="overview" className="mt-4 min-h-0 flex-1">
-              <div className="h-full overflow-y-auto pb-4 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+                                   <TabsContent value="overview" className="mt-4 min-h-0 flex-1">
+              <div className="h-full overflow-y-auto pb-6 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                 <div className="space-y-6">
 
-                                    <Card className="bg-slate-900/50 border-slate-800">
+                  <Card className="bg-slate-900/50 border-slate-800">
                     <CardHeader>
                       <CardTitle className="text-white">{t("taskDetail.overview.title")}</CardTitle>
                     </CardHeader>
@@ -1389,7 +1389,7 @@ if (isBootstrapping) {
             </TabsContent>
 
                         <TabsContent value="files" className="mt-4 min-h-0 flex-1">
-              <div className="h-full overflow-y-auto pb-4 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+              <div className="h-full overflow-y-auto pb-6 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                 <div className="space-y-6">
                   <Card className="bg-slate-900/50 border-slate-800">
                     <CardHeader>
@@ -1619,7 +1619,7 @@ if (isBootstrapping) {
             </TabsContent>
 
                                   <TabsContent value="discussion" className="mt-4 min-h-0 flex-1">
-              <div className="h-full overflow-y-auto pb-4 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+              <div className="h-full overflow-y-auto pb-6 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                 <div className="space-y-6">
                   <Card className="bg-slate-900/50 border-slate-800">
                     <CardHeader>
@@ -1860,7 +1860,7 @@ if (isBootstrapping) {
             </TabsContent>
 
                         <TabsContent value="activity" className="mt-4 min-h-0 flex-1">
-              <div className="h-full overflow-y-auto pb-4 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+              <div className="h-full overflow-y-auto pb-6 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                         <div className="min-h-0 space-y-6 lg:flex lg:h-full lg:flex-col">
                     <Card className="bg-slate-900/50 border-slate-800 min-h-0 lg:flex-1 lg:overflow-hidden">
             <CardHeader className="shrink-0 pb-4">
@@ -1950,7 +1950,7 @@ if (isBootstrapping) {
           </Tabs>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-6 lg:h-[calc(100vh-220px)] lg:flex lg:flex-col">
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>
               <CardTitle className="text-white">{t("taskDetail.details.title")}</CardTitle>
@@ -1987,8 +1987,8 @@ if (isBootstrapping) {
             </CardContent>
           </Card>
 
-                    <Card className="bg-slate-900/50 border-slate-800">
-            <CardHeader>
+              <Card className="bg-slate-900/50 border-slate-800 lg:flex lg:flex-col lg:flex-1 overflow-hidden">
+            <CardHeader className="shrink-0">
               <div className="flex items-center justify-between gap-4">
                 <CardTitle className="text-white">{t("taskDetail.members.title")}</CardTitle>
 
@@ -2009,7 +2009,7 @@ if (isBootstrapping) {
               </div>
             </CardHeader>
 
-                                              <CardContent className="min-h-0 space-y-3 lg:flex lg:flex-1 lg:flex-col">
+                                              <CardContent className="min-h-0 space-y-3 flex flex-col">
               {canManageMembers && showManageMembers && (
                 <div className="shrink-0 rounded-lg border border-slate-800 bg-slate-950/50 p-3 space-y-3">
                   <div className="space-y-2">
@@ -2062,7 +2062,7 @@ if (isBootstrapping) {
               {taskMembers.length === 0 ? (
                 <p className="text-slate-500">{t("taskDetail.members.empty")}</p>
               ) : (
-                <div className="min-h-0 overflow-y-auto pb-4 pr-1 space-y-3 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+                <div className="flex-1 min-h-0 overflow-y-auto pb-6 pr-1 space-y-3 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                   {taskMembers.map((member) => (
                     <div
                       key={member.id}

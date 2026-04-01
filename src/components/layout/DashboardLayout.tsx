@@ -518,18 +518,13 @@ export default function DashboardLayout({
     setIsLoadingUser(true);
 
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+    const session = await supabase.auth.getSession();
+const user = session.data.session?.user;
 
-      if (!mountedRef.current) return;
-      if (requestId !== loadUserRequestIdRef.current) return;
-
-      if (userError || !user) {
-        clearUserState();
-        return;
-      }
+if (!user) {
+  clearUserState();
+  return;
+}
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")

@@ -1521,6 +1521,7 @@ const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
   currentUserId={currentUserId}
   currentUserRole={currentUserRole}
   messages={selectedMessages}
+  lastIncomingMessageId={lastIncomingMessageId}
   profiles={profiles}
   isSelectionMode={isSelectionMode}
   selectedMessageIds={selectedMessageIds}

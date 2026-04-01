@@ -315,9 +315,7 @@ const [isCheckingRole, setIsCheckingRole] = useState(false);
       setIsCheckingRole(true);
 
       try {
-                const {
-          data: { user },
-       const { data } = await supabase.auth.getSession();
+                const { data } = await supabase.auth.getSession();
 const user = data.session?.user;
 
         if (!mounted) return;
@@ -813,9 +811,7 @@ function AppContent() {
       try {
         applyDefaultSettings();
 
-       const {
-  data: { user },
-} = const { data } = await supabase.auth.getSession();
+      const { data } = await supabase.auth.getSession();
 const user = data.session?.user;
 
 if (!mounted) return;

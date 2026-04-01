@@ -186,6 +186,7 @@ export function subscribeToDashboardActivity({
         event: "INSERT",
         schema: "public",
         table: "activity_logs",
+         filter: `user_id=eq.${userId}`,
       },
       (payload) => {
         onInsert(payload.new);
@@ -197,6 +198,7 @@ export function subscribeToDashboardActivity({
         event: "DELETE",
         schema: "public",
         table: "activity_logs",
+         filter: `user_id=eq.${userId}`,
       },
       (payload) => {
         onDelete(payload.old);
@@ -228,6 +230,7 @@ export function subscribeToDashboardTasks({
         event: "INSERT",
         schema: "public",
         table: "tasks",
+         filter: `created_by=eq.${userId}`,
       },
       (payload) => {
         onInsert(payload.new);
@@ -239,6 +242,7 @@ export function subscribeToDashboardTasks({
         event: "UPDATE",
         schema: "public",
         table: "tasks",
+        filter: `created_by=eq.${userId}`,
       },
       (payload) => {
         onUpdate(payload.new);
@@ -250,6 +254,7 @@ export function subscribeToDashboardTasks({
         event: "DELETE",
         schema: "public",
         table: "tasks",
+         filter: `created_by=eq.${userId}`,
       },
       (payload) => {
         onDelete(payload.old);
@@ -281,6 +286,7 @@ export function subscribeToDashboardProjects({
         event: "INSERT",
         schema: "public",
         table: "projects",
+         filter: `created_by=eq.${userId}`,
       },
       (payload) => {
         onInsert(payload.new);
@@ -292,6 +298,7 @@ export function subscribeToDashboardProjects({
         event: "UPDATE",
         schema: "public",
         table: "projects",
+         filter: `created_by=eq.${userId}`,
       },
       (payload) => {
         onUpdate(payload.new);
@@ -303,6 +310,7 @@ export function subscribeToDashboardProjects({
         event: "DELETE",
         schema: "public",
         table: "projects",
+         filter: `created_by=eq.${userId}`,
       },
       (payload) => {
         onDelete(payload.old);

@@ -99,31 +99,6 @@ type NotificationRow = {
   created_at: string;
 };
 
-type ProjectMemberRow = {
-  project_id: string;
-  user_id: string;
-};
-
-type ProjectRow = {
-  id: string;
-  created_by: string | null;
-};
-
-type TaskRow = {
-  id: string;
-  due_date: string | null;
-  created_by: string | null;
-  project_id: string | null;
-  assignee_id: string | null;
-};
-
-type CalendarEventRow = {
-  id: string;
-  start_date: string;
-  created_by: string | null;
-  project_id: string | null;
-};
-
 type CachedLayoutState = {
   userProfile: UserProfile | null;
   notifications: NotificationRow[];
@@ -410,96 +385,44 @@ export default function DashboardLayout({
     []
   );
 
-  const loadCalendarBadge = useCallback(
-    async (userId: string, role?: string | null) => {
-      const requestId = ++loadCalendarBadgeRequestIdRef.current;
+  const loadCalendarBadge = useCallback(async () => {
+    const requestId = ++loadCalendarBadgeRequestIdRef.current;
 
-      try {
-        const today = clock.todayKey;
+    try {
+      const today = clock.todayKey;
 
-        const [
-          { data: allProjects, error: projectsError },
-          { data: allProjectMembers, error: membersError },
-          { data: allTasks, error: tasksError },
-          { data: allEvents, error: eventsError },
-        ] = await Promise.all([
-          supabase.from("projects").select("id, created_by"),
-          supabase.from("project_members").select("project_id, user_id"),
-          supabase
-            .from("tasks")
-            .select("id, due_date, created_by, project_id, assignee_id")
-            .eq("due_date", today),
-          supabase
-            .from("calendar_events")
-            .select("id, start_date, created_by, project_id")
-            .eq("start_date", today),
-        ]);
+      const [
+        { count: taskCount, error: tasksError },
+        { count: eventCount, error: eventsError },
+      ] = await Promise.all([
+        supabase
+          .from("tasks")
+          .select("id", { count: "exact", head: true })
+          .eq("due_date", today),
+        supabase
+          .from("calendar_events")
+          .select("id", { count: "exact", head: true })
+          .eq("start_date", today),
+      ]);
 
-        if (!mountedRef.current) return;
-        if (requestId !== loadCalendarBadgeRequestIdRef.current) return;
+      if (!mountedRef.current) return;
+      if (requestId !== loadCalendarBadgeRequestIdRef.current) return;
 
-        if (projectsError || membersError || tasksError || eventsError) {
-          console.error(
-            "Calendar badge load error:",
-            projectsError || membersError || tasksError || eventsError
-          );
-          return;
-        }
-
-        const projects = (allProjects || []) as ProjectRow[];
-        const projectMembers = (allProjectMembers || []) as ProjectMemberRow[];
-        const todayTasks = (allTasks || []) as TaskRow[];
-        const todayEvents = (allEvents || []) as CalendarEventRow[];
-
-        const visibleProjectIds =
-          role === "admin"
-            ? new Set(projects.map((project) => project.id))
-            : new Set(
-                projects
-                  .filter(
-                    (project) =>
-                      project.created_by === userId ||
-                      projectMembers.some(
-                        (member) =>
-                          member.project_id === project.id &&
-                          member.user_id === userId
-                      )
-                  )
-                  .map((project) => project.id)
-              );
-
-        const visibleTasks =
-          role === "admin"
-            ? todayTasks
-            : todayTasks.filter((task) => {
-                const isCreator = task.created_by === userId;
-                const isAssignee = task.assignee_id === userId;
-                const isInsideVisibleProject =
-                  !!task.project_id && visibleProjectIds.has(task.project_id);
-
-                return isCreator || isAssignee || isInsideVisibleProject;
-              });
-
-        const visibleEvents =
-          role === "admin"
-            ? todayEvents
-            : todayEvents.filter((event) => {
-                const isCreator = event.created_by === userId;
-                const isInsideVisibleProject =
-                  !!event.project_id && visibleProjectIds.has(event.project_id);
-
-                return isCreator || isInsideVisibleProject;
-              });
-
-        setCalendarTodayCount(visibleTasks.length + visibleEvents.length);
-      } catch (error) {
-        if (!mountedRef.current) return;
-        if (requestId !== loadCalendarBadgeRequestIdRef.current) return;
-        console.error("Load calendar badge error:", error);
+      if (tasksError || eventsError) {
+        console.error(
+          "Calendar badge load error:",
+          tasksError || eventsError
+        );
+        return;
       }
-    },
-    [clock.todayKey]
-  );
+
+      setCalendarTodayCount((taskCount || 0) + (eventCount || 0));
+    } catch (error) {
+      if (!mountedRef.current) return;
+      if (requestId !== loadCalendarBadgeRequestIdRef.current) return;
+      console.error("Load calendar badge error:", error);
+    }
+  }, [clock.todayKey]);
 
     const clearUserState = useCallback(() => {
     userProfileRef.current = null;
@@ -558,10 +481,10 @@ if (!user) {
       userProfileRef.current = loadedUser;
       setUserProfile(loadedUser);
 
-            await Promise.all([
+               await Promise.all([
         loadNotifications(loadedUser.userId, loadedUser),
         loadUnreadCounts(loadedUser.userId),
-        loadCalendarBadge(loadedUser.userId, loadedUser.role || null),
+        loadCalendarBadge(),
       ]);
     } catch (error) {
       if (!mountedRef.current) return;
@@ -584,10 +507,7 @@ if (!user) {
         initialCacheRef.current.userProfile
       );
       void loadUnreadCounts(initialCacheRef.current.userProfile.userId);
-      void loadCalendarBadge(
-        initialCacheRef.current.userProfile.userId,
-        initialCacheRef.current.userProfile.role || null
-      );
+           void loadCalendarBadge();
     } else {
       void loadUser();
     }
@@ -751,8 +671,8 @@ if (!location.pathname.startsWith("/chat") || !isChatMessageNotification) {
               return next;
             });
 
-            void loadUnreadCounts(userProfile.userId);
-            void loadCalendarBadge(userProfile.userId, userProfile.role || null);
+                        void loadUnreadCounts(userProfile.userId);
+            void loadCalendarBadge();
           }
         )
         .subscribe()
@@ -814,10 +734,7 @@ if (!location.pathname.startsWith("/chat") || !isChatMessageNotification) {
                             userProfileRef.current = nextProfile;
               writeLayoutCache(nextProfile, notificationsRef.current);
 
-              void loadCalendarBadge(
-                nextProfile.userId,
-                nextProfile.role || null
-              );
+                            void loadCalendarBadge();
 
               return nextProfile;
             });

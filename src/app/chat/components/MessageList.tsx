@@ -205,6 +205,16 @@ export default function MessageList({
                   : otherReaders.length === 1
                   ? "Seen"
                   : `Seen by ${otherReaders.length}`;
+     
+      const reactionCounts = Object.entries(
+  (message.reactions || []).reduce(
+    (acc: Record<string, number>, reaction) => {
+      acc[reaction.emoji] = (acc[reaction.emoji] || 0) + 1;
+      return acc;
+    },
+    {}
+  )
+);
 
               return (
                 <div
@@ -306,30 +316,45 @@ export default function MessageList({
                               Source: {translatedMessages[message.id].source}
                             </p>
                           )}
-                                                    <div className="flex gap-2 mt-2">
-                            <button
-                              type="button"
-                              className="text-xs px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600"
-                              onClick={() => onToggleReaction(message.id, "👍")}
-                            >
-                              👍
-                            </button>
+                                                      <div className="flex flex-col gap-2 mt-2">
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                className="text-xs px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600"
+                                onClick={() => onToggleReaction(message.id, "👍")}
+                              >
+                                👍
+                              </button>
 
-                            <button
-                              type="button"
-                              className="text-xs px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600"
-                              onClick={() => onToggleReaction(message.id, "❤️")}
-                            >
-                              ❤️
-                            </button>
+                              <button
+                                type="button"
+                                className="text-xs px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600"
+                                onClick={() => onToggleReaction(message.id, "❤️")}
+                              >
+                                ❤️
+                              </button>
 
-                            <button
-                              type="button"
-                              className="text-xs px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600"
-                              onClick={() => onToggleReaction(message.id, "😂")}
-                            >
-                              😂
-                            </button>
+                              <button
+                                type="button"
+                                className="text-xs px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600"
+                                onClick={() => onToggleReaction(message.id, "😂")}
+                              >
+                                😂
+                              </button>
+                            </div>
+
+                            {reactionCounts.length > 0 ? (
+                              <div className="flex gap-2 flex-wrap">
+                                {reactionCounts.map(([emoji, count]) => (
+                                  <div
+                                    key={emoji}
+                                    className="text-xs px-2 py-0.5 rounded bg-indigo-600 text-white"
+                                  >
+                                    {emoji} {count}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       )}

@@ -1091,18 +1091,65 @@ const updatedMessage = data?.message;
     setMessageActionLoading(null);
   };
 
-   const handleToggleReaction = async (
+     const handleToggleReaction = async (
     messageId: string,
     emoji: string
   ) => {
+    if (!selectedConversationId || !currentUserId) return;
+
+    const targetMessage = selectedMessages.find(
+      (message) => message.id === messageId
+    );
+
+    if (!targetMessage) return;
+
+    const existingReaction = (targetMessage.reactions || []).find(
+      (reaction) =>
+        reaction.user_id === currentUserId && reaction.emoji === emoji
+    );
+
+    const nextReactions = existingReaction
+      ? (targetMessage.reactions || []).filter(
+          (reaction) =>
+            !(
+              reaction.user_id === currentUserId &&
+              reaction.emoji === emoji
+            )
+        )
+      : [
+          ...(targetMessage.reactions || []),
+          {
+            id: `temp-reaction-${Date.now()}`,
+            message_id: messageId,
+            group_id: selectedConversationId,
+            user_id: currentUserId,
+            emoji,
+            created_at: new Date().toISOString(),
+          },
+        ];
+
+    updateMessageLocally(selectedConversationId, {
+      ...targetMessage,
+      reactions: nextReactions,
+    });
+
     try {
-      await supabase.functions.invoke("chat-toggle-reaction", {
-        body: {
-          messageId,
-          emoji,
-        },
-      });
-    } catch {}
+      const { data, error } = await supabase.functions.invoke(
+        "chat-toggle-reaction",
+        {
+          body: {
+            messageId,
+            emoji,
+          },
+        }
+      );
+
+      if (error || !data?.success) {
+        updateMessageLocally(selectedConversationId, targetMessage);
+      }
+    } catch {
+      updateMessageLocally(selectedConversationId, targetMessage);
+    }
   };
 
   useEffect(() => {

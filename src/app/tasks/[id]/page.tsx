@@ -1268,7 +1268,7 @@ if (isBootstrapping) {
         </Alert>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-6 items-start lg:h-[calc(100vh-220px)]">
+            <div className="grid lg:grid-cols-3 gap-6 items-start lg:h-[calc(100vh-210px)]">
         <div className="lg:col-span-2 min-h-0 flex flex-col">
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
             <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto shrink-0 self-start">
@@ -1950,8 +1950,8 @@ if (isBootstrapping) {
           </Tabs>
         </div>
 
-        <div className="space-y-6 lg:h-[calc(100vh-220px)] lg:flex lg:flex-col">
-          <Card className="bg-slate-900/50 border-slate-800">
+                <div className="space-y-6 lg:h-[calc(100vh-210px)] lg:min-h-0 lg:flex lg:flex-col">
+          <Card className="bg-slate-900/50 border-slate-800 shrink-0">
             <CardHeader>
               <CardTitle className="text-white">{t("taskDetail.details.title")}</CardTitle>
             </CardHeader>
@@ -1987,7 +1987,7 @@ if (isBootstrapping) {
             </CardContent>
           </Card>
 
-              <Card className="bg-slate-900/50 border-slate-800 lg:flex lg:flex-col lg:flex-1 overflow-hidden">
+              <Card className="bg-slate-900/50 border-slate-800 min-h-0 lg:min-h-0 lg:flex lg:flex-1 lg:flex-col overflow-hidden">
             <CardHeader className="shrink-0">
               <div className="flex items-center justify-between gap-4">
                 <CardTitle className="text-white">{t("taskDetail.members.title")}</CardTitle>
@@ -2009,7 +2009,7 @@ if (isBootstrapping) {
               </div>
             </CardHeader>
 
-                                              <CardContent className="min-h-0 space-y-3 flex flex-col">
+                                              <CardContent className="flex flex-1 min-h-0 flex-col space-y-3">
               {canManageMembers && showManageMembers && (
                 <div className="shrink-0 rounded-lg border border-slate-800 bg-slate-950/50 p-3 space-y-3">
                   <div className="space-y-2">

@@ -122,9 +122,8 @@ export default function CalendarPage() {
 const monthEnd = format(clock.shiftDate(endOfMonth(cursor)), "yyyy-MM-dd");
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const session = await supabase.auth.getSession();
+const user = session.data.session?.user;
 
       if (!requestTracker.current.isLatest(requestId)) return;
 
@@ -150,37 +149,80 @@ const monthEnd = format(clock.shiftDate(endOfMonth(cursor)), "yyyy-MM-dd");
       }
 
       const currentProfile = profileData as ProfileRow;
-      const { data: allProjects } = await supabase
-  .from("projects")
-  .select("id, created_by");
+     let visibleProjectIds = new Set<string>();
 
-const { data: memberRows } = await supabase
-  .from("project_members")
-  .select("project_id, user_id")
-  .eq("user_id", user.id);
+if (currentProfile.role !== "admin") {
+  const { data: allProjects } = await supabase
+    .from("projects")
+    .select("id, created_by");
 
-const visibleProjectIds = getVisibleProjectIds(
-  user.id,
-  currentProfile.role,
-  (allProjects || []) as ProjectRow[],
-  (memberRows || []) as ProjectMemberRow[]
-);
+  const { data: memberRows } = await supabase
+    .from("project_members")
+    .select("project_id, user_id")
+    .eq("user_id", user.id);
+
+  visibleProjectIds = getVisibleProjectIds(
+    user.id,
+    currentProfile.role,
+    (allProjects || []) as ProjectRow[],
+    (memberRows || []) as ProjectMemberRow[]
+  );
+}
+
+                 const visibleProjectIdList = Array.from(visibleProjectIds);
+
+      const eventsQuery =
+        currentProfile.role === "admin"
+          ? supabase
+              .from("calendar_events")
+              .select("id, title, description, event_type, start_date, all_day, project_id, created_by")
+              .gte("start_date", monthStart)
+              .lte("start_date", monthEnd)
+              .order("start_date", { ascending: true })
+          : visibleProjectIdList.length > 0
+          ? supabase
+              .from("calendar_events")
+              .select("id, title, description, event_type, start_date, all_day, project_id, created_by")
+              .gte("start_date", monthStart)
+              .lte("start_date", monthEnd)
+              .or(
+                `created_by.eq.${user.id},project_id.in.(${visibleProjectIdList.join(",")})`
+              )
+              .order("start_date", { ascending: true })
+          : supabase
+              .from("calendar_events")
+              .select("id, title, description, event_type, start_date, all_day, project_id, created_by")
+              .gte("start_date", monthStart)
+              .lte("start_date", monthEnd)
+              .eq("created_by", user.id)
+              .order("start_date", { ascending: true });
+
+      const tasksQuery =
+        currentProfile.role === "admin"
+          ? supabase
+              .from("tasks")
+              .select("id, title, due_date, status, project_id")
+              .gte("due_date", monthStart)
+              .lte("due_date", monthEnd)
+              .order("due_date", { ascending: true })
+          : visibleProjectIdList.length > 0
+          ? supabase
+              .from("tasks")
+              .select("id, title, due_date, status, project_id")
+              .gte("due_date", monthStart)
+              .lte("due_date", monthEnd)
+              .in("project_id", visibleProjectIdList)
+              .order("due_date", { ascending: true })
+          : supabase
+              .from("tasks")
+              .select("id, title, due_date, status, project_id")
+              .gte("due_date", monthStart)
+              .lte("due_date", monthEnd)
+              .eq("project_id", "__no_visible_projects__")
+              .order("due_date", { ascending: true });
 
       const [{ data: eventsData, error: eventsError }, { data: tasksData, error: tasksError }] =
-        await Promise.all([
-          supabase
-            .from("calendar_events")
-            .select("id, title, description, event_type, start_date, all_day, project_id, created_by")
-            .gte("start_date", monthStart)
-            .lte("start_date", monthEnd)
-            .order("start_date", { ascending: true }),
-          supabase
-            .from("tasks")
-            .select("id, title, due_date, status, project_id")
-            .gte("due_date", monthStart)
-            .lte("due_date", monthEnd)
-            .order("due_date", { ascending: true }),
-        ]);
+        await Promise.all([eventsQuery, tasksQuery]);
 
       if (!requestTracker.current.isLatest(requestId)) return;
 
@@ -192,17 +234,8 @@ const visibleProjectIds = getVisibleProjectIds(
         console.error("Load calendar tasks error:", tasksError);
       }
 
-      const safeEvents = ((eventsData || []) as CalendarEventAccessRow[]).filter((event) => {
-        if (currentProfile.role === "admin") return true;
-        if (!event.project_id) return event.created_by === user.id;
-        return visibleProjectIds.has(event.project_id);
-      });
-
-      const safeTasks = ((tasksData || []) as TaskRow[]).filter((task) => {
-        if (currentProfile.role === "admin") return true;
-        if (!task.project_id) return false;
-        return visibleProjectIds.has(task.project_id);
-      });
+           const safeEvents = (eventsData || []) as CalendarEventAccessRow[];
+      const safeTasks = (tasksData || []) as TaskRow[];
 
       setEvents(safeEvents);
       setTasks(safeTasks);

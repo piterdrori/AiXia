@@ -1268,7 +1268,7 @@ if (isBootstrapping) {
         </Alert>
       )}
 
-            <div className="grid lg:grid-cols-3 gap-6 items-start lg:h-[calc(100vh-150px)]">
+            <div className="grid lg:grid-cols-3 gap-6 items-start lg:h-[calc(100vh-300px)]">
         <div className="lg:col-span-2 min-h-0 flex flex-col">
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
             <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto shrink-0 self-start">

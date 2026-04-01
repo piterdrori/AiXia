@@ -54,7 +54,6 @@ type ProfileRow = {
   user_id: string;
   full_name: string | null;
   role: Role;
-  status: "active" | "pending" | "inactive" | "denied";
   permissions?: Partial<Record<Permission, boolean>> | null;
 };
 
@@ -280,9 +279,8 @@ const visibleComments = useMemo(
     setError("");
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const session = await supabase.auth.getSession();
+const user = session.data.session?.user;
 
       if (!requestTracker.current.isLatest(requestId)) return;
 
@@ -320,9 +318,9 @@ const visibleComments = useMemo(
           .from("project_members")
           .select("id, project_id, user_id, role, created_at")
           .eq("project_id", id),
-        supabase
+                supabase
           .from("profiles")
-          .select("user_id, full_name, role, status")
+          .select("user_id, full_name, role")
           .eq("status", "active"),
         supabase
           .from("tasks")
@@ -495,9 +493,8 @@ const visibleComments = useMemo(
     setIsSavingTeamMembers(true);
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const session = await supabase.auth.getSession();
+const user = session.data.session?.user;
 
       if (!user) {
         navigate("/login");

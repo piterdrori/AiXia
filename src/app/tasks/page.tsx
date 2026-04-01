@@ -266,9 +266,8 @@ export default function TasksPage() {
 
     try {
       await tasksPageRequest.run(async () => {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const session = await supabase.auth.getSession();
+const user = session.data.session?.user;
 
         if (!requestTracker.current.isLatest(requestId)) return true;
 
@@ -281,27 +280,29 @@ export default function TasksPage() {
 
         const [
           { data: myProfile, error: myProfileError },
-          { data: allTasks, error: tasksError },
+          { data: visibleTasksData, error: tasksError },
           { data: allProjects, error: projectsError },
           { data: allProfiles, error: profilesError },
           { data: allProjectMembers, error: projectMembersError },
           { data: allTaskMembers, error: taskMembersError },
         ] = await Promise.all([
           supabase.from("profiles").select("role").eq("user_id", user.id).single(),
-          supabase.from("tasks").select("*").order("created_at", { ascending: false }),
+                    supabase
+            .from("tasks")
+            .select("*")
+            .order("created_at", { ascending: false }),
           supabase
             .from("projects")
             .select("id, name, created_by")
             .order("created_at", { ascending: false }),
           supabase
-            .from("profiles")
-            .select("user_id, full_name, role, status")
-            .eq("status", "active")
-            .order("full_name", { ascending: true }),
-          supabase
+  .from("profiles")
+  .select("user_id, full_name")
+  .eq("status", "active"),
+                    supabase
             .from("project_members")
             .select("id, project_id, user_id, role, created_at"),
-          supabase
+                    supabase
             .from("task_members")
             .select("id, task_id, user_id, role, created_at"),
         ]);
@@ -322,7 +323,7 @@ export default function TasksPage() {
         if (projectMembersError) throw projectMembersError;
         if (taskMembersError) throw taskMembersError;
 
-        const tasksData = (allTasks || []) as TaskRow[];
+        const tasksData = (visibleTasksData || []) as TaskRow[];
         const projectsData = (allProjects || []) as ProjectRow[];
         const profilesData = (allProfiles || []) as ProfileRow[];
         const projectMembersData = (allProjectMembers || []) as ProjectMemberRow[];

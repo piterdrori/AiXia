@@ -269,6 +269,9 @@ export default function DashboardLayout({
     const visibleChatUnreadCount = location.pathname.startsWith("/chat")
     ? 0
     : chatUnreadCount;
+  const selectedConversationId = location.pathname.startsWith("/chat/")
+  ? location.pathname.replace("/chat/", "")
+  : null;
 
   useEffect(() => {
     const checkMobile = () => {

@@ -1286,8 +1286,8 @@ if (isBootstrapping) {
               </TabsTrigger>
             </TabsList>
 
-                                   <TabsContent value="overview" className="mt-4 min-h-0 flex-1">
-              <div className="h-full overflow-y-auto pb-6 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+                                 <TabsContent value="overview" className="min-h-0 flex-1">
+  <div className="flex-1 min-h-0 overflow-y-auto pb-6 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                 <div className="space-y-6">
 
                   <Card className="bg-slate-900/50 border-slate-800">
@@ -1388,8 +1388,8 @@ if (isBootstrapping) {
               </div>
             </TabsContent>
 
-                        <TabsContent value="files" className="mt-4 min-h-0 flex-1">
-              <div className="h-full overflow-y-auto pb-6 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+                        <TabsContent value="files" className="min-h-0 flex-1">
+  <div className="flex-1 min-h-0 overflow-y-auto pb-6 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                 <div className="space-y-6">
                   <Card className="bg-slate-900/50 border-slate-800">
                     <CardHeader>
@@ -1618,8 +1618,8 @@ if (isBootstrapping) {
               </div>
             </TabsContent>
 
-                                  <TabsContent value="discussion" className="mt-4 min-h-0 flex-1">
-              <div className="h-full overflow-y-auto pb-6 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+                                 <TabsContent value="discussion" className="min-h-0 flex-1">
+  <div className="flex-1 min-h-0 overflow-y-auto pb-6 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                 <div className="space-y-6">
                   <Card className="bg-slate-900/50 border-slate-800">
                     <CardHeader>
@@ -1859,8 +1859,8 @@ if (isBootstrapping) {
               </div>
             </TabsContent>
 
-                        <TabsContent value="activity" className="mt-4 min-h-0 flex-1">
-              <div className="h-full overflow-y-auto pb-6 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+                      <TabsContent value="activity" className="min-h-0 flex-1">
+  <div className="flex-1 min-h-0 overflow-y-auto pb-6 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                         <div className="min-h-0 space-y-6 lg:flex lg:h-full lg:flex-col">
                     <Card className="bg-slate-900/50 border-slate-800 min-h-0 lg:flex-1 lg:overflow-hidden">
             <CardHeader className="shrink-0 pb-4">

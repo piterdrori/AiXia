@@ -33,14 +33,6 @@ import {
 
 type Role = "admin" | "manager" | "employee" | "guest";
 
-type ProfileRow = {
-  user_id: string;
-  full_name: string | null;
-  role: Role;
-  status: "active" | "pending" | "inactive" | "denied";
-  created_at: string;
-};
-
 type ProjectRow = {
   id: string;
   name: string;
@@ -166,7 +158,7 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [projectMembers, setProjectMembers] = useState<ProjectMemberRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
-  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [activeMembersCount, setActiveMembersCount] = useState(0);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEventRow[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLogRow[]>([]);
 
@@ -188,14 +180,14 @@ export default function DashboardPage() {
         }
 
         const {
-          currentUser,
-          projects,
-          projectMembers,
-          tasks,
-          profiles,
-          calendarEvents,
-          activityLogs,
-        } = data.payload;
+  currentUser,
+  projects,
+  projectMembers,
+  tasks,
+  activeMembersCount,
+  calendarEvents,
+  activityLogs,
+} = data.payload;
 
         setCurrentUserId(currentUser?.id || null);
         setCurrentUserName(currentUser?.full_name || t("common.user", "User"));
@@ -203,7 +195,7 @@ export default function DashboardPage() {
         setProjects((projects || []) as ProjectRow[]);
         setProjectMembers((projectMembers || []) as ProjectMemberRow[]);
         setTasks((tasks || []) as TaskRow[]);
-        setProfiles((profiles || []) as ProfileRow[]);
+        setActiveMembersCount(activeMembersCount || 0);
         setCalendarEvents((calendarEvents || []) as CalendarEventRow[]);
         setActivityLogs((activityLogs || []) as ActivityLogRow[]);
         setHasLoadedOnce(true);
@@ -562,7 +554,7 @@ export default function DashboardPage() {
             <Users className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <div className="text-xl font-bold text-foreground">{profiles.length}</div>
+            <div className="text-xl font-bold text-foreground">{activeMembersCount}</div>
             <div className="text-sm text-muted-foreground">
               {t("dashboard.activeMembers", "Active Members")}
             </div>

@@ -23,6 +23,7 @@ export default function MessageList({
   currentUserId,
   currentUserRole,
   messages,
+  lastIncomingMessageId,
   profiles,
   isSelectionMode,
   selectedMessageIds,
@@ -43,6 +44,7 @@ export default function MessageList({
   onDeleteMessage,
   onToggleReaction,
 }: MessageListProps & {
+  lastIncomingMessageId?: string | null;
   onToggleReaction: (messageId: string, emoji: string) => void;
 }) {
   const { t } = useLanguage();
@@ -248,15 +250,19 @@ export default function MessageList({
                       </p>
                     )}
 
-                    <div
-                      className={`px-4 py-2 rounded-2xl border ${
-                        isSelected ? "border-indigo-400" : "border-transparent"
-                      } ${
-                        isOwn
-                          ? "bg-indigo-600 text-white rounded-br-none"
-                          : "bg-slate-800 text-slate-200 rounded-bl-none"
-                      }`}
-                    >
+                   <div
+  className={`px-4 py-2 rounded-2xl border ${
+    isSelected ? "border-indigo-400" : "border-transparent"
+  } ${
+    isOwn
+      ? "bg-indigo-600 text-white rounded-br-none"
+      : "bg-slate-800 text-slate-200 rounded-bl-none"
+  } ${
+    message.id === lastIncomingMessageId
+      ? "bg-indigo-500/10 transition-colors duration-500"
+      : ""
+  }`}
+>
                       {isEditing ? (
                         <div className="space-y-2 min-w-[260px]">
                           <Textarea

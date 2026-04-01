@@ -1158,6 +1158,12 @@ const updatedMessage = data?.message;
 
     const unreadIncomingIds = selectedMessages
       .filter((message) => message.user_id !== currentUserId)
+      .filter(
+        (message) =>
+          !(message.reads || []).some(
+            (read) => read.user_id === currentUserId
+          )
+      )
       .map((message) => message.id);
 
     if (unreadIncomingIds.length === 0) return;

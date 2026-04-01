@@ -77,11 +77,19 @@ export function useChatMessages(selectedConversationId: string | null) {
           file_size,
           created_at
         ),
-        reads:chat_message_reads(
+                reads:chat_message_reads(
           message_id,
           group_id,
           user_id,
           read_at
+        ),
+        reactions:chat_message_reactions(
+          id,
+          message_id,
+          group_id,
+          user_id,
+          emoji,
+          created_at
         )
       `)
       .eq("id", messageId)
@@ -91,10 +99,11 @@ export function useChatMessages(selectedConversationId: string | null) {
       throw new Error(error?.message || "Failed to fetch message.");
     }
 
-    return {
+        return {
       ...data,
       attachments: ((data as any).attachments || []) as ChatAttachmentRow[],
       reads: ((data as any).reads || []) as ChatMessageReadRow[],
+      reactions: ((data as any).reactions || []) as ChatMessageReactionRow[],
     } as ChatMessageRow;
   }, []);
 
@@ -126,11 +135,19 @@ export function useChatMessages(selectedConversationId: string | null) {
               file_size,
               created_at
             ),
-            reads:chat_message_reads(
+                        reads:chat_message_reads(
               message_id,
               group_id,
               user_id,
               read_at
+            ),
+            reactions:chat_message_reactions(
+              id,
+              message_id,
+              group_id,
+              user_id,
+              emoji,
+              created_at
             )
           `)
           .eq("group_id", groupId)
@@ -296,11 +313,19 @@ export function useChatMessages(selectedConversationId: string | null) {
             file_size,
             created_at
           ),
-          reads:chat_message_reads(
+                    reads:chat_message_reads(
             message_id,
             group_id,
             user_id,
             read_at
+          ),
+          reactions:chat_message_reactions(
+            id,
+            message_id,
+            group_id,
+            user_id,
+            emoji,
+            created_at
           )
         `)
         .eq("group_id", selectedConversationId)

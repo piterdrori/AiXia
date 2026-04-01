@@ -19,12 +19,16 @@ import type {
   MessagesByGroup,
 } from "../types";
 
-export function useChatMessages(selectedConversationId: string | null) {
+export function useChatMessages(
+  selectedConversationId: string | null,
+  currentUserId: string | null
+) {
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const selectedConversationIdRef = useRef<string | null>(selectedConversationId);
   const suppressNextAutoScrollRef = useRef(false);
   const shouldScrollToBottomRef = useRef(false);
+  const [lastIncomingMessageId, setLastIncomingMessageId] = useState<string | null>(null);
 
   const [messages, setMessages] = useState<MessagesByGroup>({});
   const [hasMoreMessages, setHasMoreMessages] = useState<HasMoreByGroup>({});
@@ -370,6 +374,16 @@ export function useChatMessages(selectedConversationId: string | null) {
   }, [getScrollViewport, messages, selectedConversationId]);
 
   useEffect(() => {
+  if (!lastIncomingMessageId) return;
+
+  const timeout = setTimeout(() => {
+    setLastIncomingMessageId(null);
+  }, 2000);
+
+  return () => clearTimeout(timeout);
+}, [lastIncomingMessageId]);
+
+  useEffect(() => {
     if (!selectedConversationId) return;
 
     const groupId = selectedConversationId;
@@ -401,6 +415,10 @@ export function useChatMessages(selectedConversationId: string | null) {
 
                 const fullMessage = await fetchMessageById(messageId);
                 replaceTempMessageWithRealOne(groupId, fullMessage);
+
+if (fullMessage.user_id !== currentUserId) {
+  setLastIncomingMessageId(fullMessage.id);
+}
 
                 if (shouldScroll) {
                   shouldScrollToBottomRef.current = true;
@@ -528,18 +546,19 @@ export function useChatMessages(selectedConversationId: string | null) {
   }, [isLoadingOlder, selectedMessages.length, scrollToBottom]);
 
   return {
-    messages,
-    hasMoreMessages,
-    isLoadingMessages,
-    isLoadingOlder,
-    selectedMessages,
-    scrollAreaRef,
-    messagesEndRef,
-    loadMessagesForGroup,
-    handleLoadOlderMessages,
-    appendMessageLocally,
-    updateMessageLocally,
-    deleteMessageLocally,
-    replaceTempMessageWithRealOne,
-  };
+  messages,
+  hasMoreMessages,
+  isLoadingMessages,
+  isLoadingOlder,
+  selectedMessages,
+  scrollAreaRef,
+  messagesEndRef,
+  loadMessagesForGroup,
+  handleLoadOlderMessages,
+  appendMessageLocally,
+  updateMessageLocally,
+  deleteMessageLocally,
+  replaceTempMessageWithRealOne,
+  lastIncomingMessageId,
+};
 }

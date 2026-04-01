@@ -393,12 +393,14 @@ export function useChatMessages(selectedConversationId: string | null) {
           },
           async (payload) => {
             try {
-              if (payload.eventType === "INSERT" && payload.new) {
-  const shouldScroll = shouldStayAtBottomForInsert();
+                           if (payload.eventType === "INSERT" && payload.new) {
+                const shouldScroll = shouldStayAtBottomForInsert();
 
-  const fullMessage = payload.new as ChatMessageRow;
+                const messageId = (payload.new as { id?: string }).id;
+                if (!messageId) return;
 
-  replaceTempMessageWithRealOne(groupId, fullMessage);
+                const fullMessage = await fetchMessageById(messageId);
+                replaceTempMessageWithRealOne(groupId, fullMessage);
 
                 if (shouldScroll) {
                   shouldScrollToBottomRef.current = true;

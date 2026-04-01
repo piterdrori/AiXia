@@ -1262,16 +1262,16 @@ if (isBootstrapping) {
         </div>
       </div>
 
-      {error && (
+            {error && (
         <Alert className="bg-red-900/20 border-red-800 text-red-300">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-            <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-                       <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto">
+      <div className="grid lg:grid-cols-3 gap-6 items-start lg:h-[calc(100vh-240px)]">
+        <div className="lg:col-span-2 min-h-0 flex flex-col">
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
+            <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto shrink-0 self-start">
               <TabsTrigger value="overview" className="data-[state=active]:bg-slate-800">
                 Overview
               </TabsTrigger>
@@ -1286,8 +1286,8 @@ if (isBootstrapping) {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="mt-4">
-              <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+                        <TabsContent value="overview" className="mt-4 min-h-0 flex-1">
+              <div className="h-full overflow-y-auto pb-4 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                 <div className="space-y-6">
 
                                     <Card className="bg-slate-900/50 border-slate-800">
@@ -1307,15 +1307,15 @@ if (isBootstrapping) {
                         )}
 
                         {checkpointState.behindSchedule && (
-                          <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
-                            t("taskDetail.status.behindSchedule")
-                          </Badge>
+                                                  <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+                          {t("taskDetail.status.behindSchedule")}
+                        </Badge>
                         )}
 
                         {checkpointState.updateRequired && (
-                          <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-                            t("taskDetail.status.updateRequired")
-                          </Badge>
+                                                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                          {t("taskDetail.status.updateRequired")}
+                        </Badge>
                         )}
                       </div>
 
@@ -1388,8 +1388,8 @@ if (isBootstrapping) {
               </div>
             </TabsContent>
 
-            <TabsContent value="files" className="mt-4">
-              <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+                        <TabsContent value="files" className="mt-4 min-h-0 flex-1">
+              <div className="h-full overflow-y-auto pb-4 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                 <div className="space-y-6">
                   <Card className="bg-slate-900/50 border-slate-800">
                     <CardHeader>
@@ -1618,8 +1618,8 @@ if (isBootstrapping) {
               </div>
             </TabsContent>
 
-                        <TabsContent value="discussion" className="mt-4">
-              <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+                                  <TabsContent value="discussion" className="mt-4 min-h-0 flex-1">
+              <div className="h-full overflow-y-auto pb-4 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                 <div className="space-y-6">
                   <Card className="bg-slate-900/50 border-slate-800">
                     <CardHeader>
@@ -1859,11 +1859,11 @@ if (isBootstrapping) {
               </div>
             </TabsContent>
 
-            <TabsContent value="activity" className="mt-4">
-              <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
-                <div className="space-y-6">
-                  <Card className="bg-slate-900/50 border-slate-800">
-                    <CardHeader>
+                        <TabsContent value="activity" className="mt-4 min-h-0 flex-1">
+              <div className="h-full overflow-y-auto pb-4 pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+                        <div className="min-h-0 space-y-6 lg:flex lg:h-full lg:flex-col">
+                    <Card className="bg-slate-900/50 border-slate-800 min-h-0 lg:flex-1 lg:overflow-hidden">
+            <CardHeader className="shrink-0 pb-4">
                       <div className="flex items-center gap-2">
                         <Clock3 className="w-5 h-5 text-indigo-400" />
                         <CardTitle className="text-white">{t("taskDetail.activity.title")}</CardTitle>
@@ -2009,9 +2009,9 @@ if (isBootstrapping) {
               </div>
             </CardHeader>
 
-                                   <CardContent className="space-y-3">
+                                              <CardContent className="min-h-0 space-y-3 lg:flex lg:flex-1 lg:flex-col">
               {canManageMembers && showManageMembers && (
-                <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-3 space-y-3">
+                <div className="shrink-0 rounded-lg border border-slate-800 bg-slate-950/50 p-3 space-y-3">
                   <div className="space-y-2">
                     <div className="text-sm font-medium text-slate-300">
                       {t("taskDetail.members.actions.addMember")}
@@ -2062,31 +2062,36 @@ if (isBootstrapping) {
               {taskMembers.length === 0 ? (
                 <p className="text-slate-500">{t("taskDetail.members.empty")}</p>
               ) : (
-                taskMembers.map((member) => (
-                  <div key={member.id} className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <span className="text-white">{getProfileName(member.user_id)}</span>
-                    </div>
+                <div className="min-h-0 overflow-y-auto pb-4 pr-1 space-y-3 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+                  {taskMembers.map((member) => (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3"
+                    >
+                      <div className="min-w-0">
+                        <span className="text-white">{getProfileName(member.user_id)}</span>
+                      </div>
 
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-slate-800 text-slate-300">{member.role}</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-slate-800 text-slate-300">{member.role}</Badge>
 
-                      {canManageMembers && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="border-red-800 text-red-400 hover:bg-red-900/20"
-                          onClick={() => void handleRemoveMember(member)}
-                          disabled={memberActionLoading === member.id}
-                        >
-                          <UserMinus className="w-3 h-3 mr-1" />
-                          {t("taskDetail.members.actions.remove")}
-                        </Button>
-                      )}
+                        {canManageMembers && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="border-red-800 text-red-400 hover:bg-red-900/20"
+                            onClick={() => void handleRemoveMember(member)}
+                            disabled={memberActionLoading === member.id}
+                          >
+                            <UserMinus className="w-3 h-3 mr-1" />
+                            {t("taskDetail.members.actions.remove")}
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>

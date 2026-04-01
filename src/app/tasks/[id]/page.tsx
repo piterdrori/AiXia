@@ -204,7 +204,7 @@ const [statusRemark, setStatusRemark] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isDragOverUploadZone, setIsDragOverUploadZone] = useState(false);
-  const [fileActionLoading, setFileActionLoading] = useState<string | null>(null);
+  const [fileActionLoading, setFileActionLoading] = useState<string | null>(null); 
   const [showManageMembers, setShowManageMembers] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
   const [memberSaving, setMemberSaving] = useState(false);
@@ -239,9 +239,8 @@ const [statusRemark, setStatusRemark] = useState("");
     setError("");
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+            const session = await supabase.auth.getSession();
+      const user = session.data.session?.user;
 
       if (!requestTracker.current.isLatest(requestId)) return;
 
@@ -295,10 +294,10 @@ const [statusRemark, setStatusRemark] = useState("");
         loadedTask.project_id
           ? supabase.from("projects").select("*").eq("id", loadedTask.project_id).single()
           : Promise.resolve({ data: null }),
-        supabase
-          .from("profiles")
-          .select("user_id, full_name, role, status")
-          .order("full_name", { ascending: true }),
+             supabase
+  .from("profiles")
+  .select("user_id, full_name, role, status")
+  .eq("status", "active"),
         supabase
           .from("task_members")
           .select("id, task_id, user_id, role, created_at")
@@ -354,10 +353,11 @@ if (
 }
 
             setTask(loadedTask);
-      setProject((projectData || null) as ProjectRow | null);
+            setProject((projectData || null) as ProjectRow | null);
       setProfiles((profilesData || []) as ProfileRow[]);
       setTaskMembers(loadedTaskMembers);
       setComments((commentsData || []) as TaskCommentRow[]);
+      setTranslatedComments({});
       setFiles((filesData || []) as FileUploadRow[]);
       setActivity((activityData || []) as TaskActivityRow[]);
     } catch (err) {
@@ -527,8 +527,8 @@ const dueDateBadgeClassName = useMemo(() => {
 
 const dueDateLabel = useMemo(() => {
   if (!task?.due_date) return null;
-  if (isOverdue) return "Overdue";
-  if (isDueToday) return "Due today";
+  if (isOverdue) return t("taskDetail.due.overdue");
+  if (isDueToday) return t("taskDetail.due.today");
   return null;
 }, [task?.due_date, isOverdue, isDueToday]);
 
@@ -1055,7 +1055,7 @@ setTranslatedComments((prev) => ({
 }));
     } catch (err) {
       console.error("Task comment translate error:", err);
-      setError("Failed to translate comment.");
+      setError(t("taskDetail.errors.translateComment"));
     } finally {
       setTranslatingCommentId(null);
     }
@@ -1308,13 +1308,13 @@ if (isBootstrapping) {
 
                         {checkpointState.behindSchedule && (
                           <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
-                            Behind Schedule
+                            t("taskDetail.status.behindSchedule")
                           </Badge>
                         )}
 
                         {checkpointState.updateRequired && (
                           <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-                            Update Required
+                            t("taskDetail.status.updateRequired")
                           </Badge>
                         )}
                       </div>
@@ -1561,7 +1561,7 @@ if (isBootstrapping) {
                               await openFile("project-files", file.file_path, file.id);
                             } catch (err) {
                               console.error("Open file error:", err);
-                              setError("Failed to open file.");
+                              setError(t("taskDetail.errors.openFile"));
                             } finally {
                               setFileActionLoading(null);
                             }
@@ -1577,20 +1577,20 @@ if (isBootstrapping) {
                           variant="outline"
                           className="border-slate-700 text-green-400 hover:bg-slate-800"
                           onClick={async () => {
-                            try {
-                              setFileActionLoading(file.id);
-                              await downloadFile("project-files", file.file_path, file.file_name);
-                            } catch (err) {
-                              console.error("Download file error:", err);
-                              setError("Failed to download file.");
-                            } finally {
-                              setFileActionLoading(null);
-                            }
-                          }}
+  try {
+    setFileActionLoading(file.id);
+    await downloadFile("project-files", file.file_path, file.file_name);
+  } catch (err) {
+    console.error("Download file error:", err);
+    setError(t("taskDetail.errors.downloadFile"));
+  } finally {
+    setFileActionLoading(null);
+  }
+}}
                           disabled={fileActionLoading === file.id}
                         >
                           <Download className="mr-2 h-4 w-4" />
-                          Download
+                          {t("taskDetail.files.download")}
                         </Button>
 
                         {canDeleteThisFile(file) && (
@@ -1840,10 +1840,10 @@ if (isBootstrapping) {
                                         disabled={translatingCommentId === comment.id}
                                       >
                                         {translatingCommentId === comment.id
-                                          ? "Translating..."
+                                          ? t("taskDetail.discussion.translating")
                                           : translatedComments[comment.id]
-                                          ? "Original"
-                                          : "Translate"}
+                                          ? t("taskDetail.discussion.original")
+                                          : t("taskDetail.discussion.translate")}
                                       </button>
                                     </div>
                                   )}
@@ -1866,7 +1866,7 @@ if (isBootstrapping) {
                     <CardHeader>
                       <div className="flex items-center gap-2">
                         <Clock3 className="w-5 h-5 text-indigo-400" />
-                        <CardTitle className="text-white">Activity</CardTitle>
+                        <CardTitle className="text-white">{t("taskDetail.activity.title")}</CardTitle>
                       </div>
                     </CardHeader>
 
@@ -1874,10 +1874,10 @@ if (isBootstrapping) {
                                             {groupedActivity.length === 0 ? (
                         <div className="rounded-xl border border-dashed border-slate-800 bg-slate-950/40 p-8 text-center">
                           <Clock3 className="mx-auto mb-3 h-10 w-10 text-slate-600" />
-                          <p className="text-white font-medium">No activity yet</p>
+                          <p className="text-white font-medium">{t("taskDetail.activity.emptyTitle")}</p>
                           <p className="mt-1 text-sm text-slate-500">
-                            System actions will appear here in real time.
-                          </p>
+  {t("taskDetail.activity.emptyDescription")}
+</p>
                         </div>
                       ) : (
                         <div className="space-y-6">
@@ -1915,7 +1915,7 @@ if (isBootstrapping) {
                                           </div>
 
                                           <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">
-                                            {item.message || "System activity"}
+                                            {item.message || t("taskDetail.activity.system")}
                                           </p>
 
                                           {item.entity_type && (
@@ -2097,16 +2097,17 @@ if (isBootstrapping) {
  <Dialog open={statusModalOpen} onOpenChange={setStatusModalOpen}>
   <DialogContent className="bg-slate-950 border-slate-800 text-white">
     <DialogHeader>
-      <DialogTitle>Update Status</DialogTitle>
+      <DialogTitle>{t("taskDetail.statusModal.title")}</DialogTitle>
     </DialogHeader>
 
     <div className="space-y-4">
       <div className="text-sm text-slate-400">
-        New status: <span className="text-white">{pendingStatus}</span>
+        {t("taskDetail.statusModal.newStatus")}{" "}
+<span className="text-white">{pendingStatus}</span>
       </div>
 
       <Textarea
-        placeholder="Write what you did / progress update..."
+        placeholder={t("taskDetail.statusModal.placeholder")}
         value={statusRemark}
         onChange={(e) => setStatusRemark(e.target.value)}
         rows={4}
@@ -2116,35 +2117,49 @@ if (isBootstrapping) {
       <Button
         disabled={statusSaving || statusRemark.trim().length < 5}
         className="w-full bg-indigo-600 hover:bg-indigo-700"
-        onClick={async () => {
+                onClick={async () => {
           if (!pendingStatus || !task) return;
 
+          const requestId = requestTracker.current.next();
           setStatusSaving(true);
+          setError("");
 
-          const { error } = await supabase.functions.invoke(
-            "task-status-update",
-            {
-              body: {
-                taskId: task.id,
-                status: pendingStatus,
-                remark: statusRemark,
-              },
+          try {
+            const { error } = await supabase.functions.invoke(
+              "task-status-update",
+              {
+                body: {
+                  taskId: task.id,
+                  status: pendingStatus,
+                  remark: statusRemark,
+                },
+              }
+            );
+
+            if (!requestTracker.current.isLatest(requestId)) return;
+
+            if (error) {
+              setError(t("taskDetail.errors.updateStatus"));
+              return;
             }
-          );
 
-          if (error) {
-            setError("Failed to update status");
-          } else {
             setStatusModalOpen(false);
-setStatusRemark("");
-setPendingStatus(null);
-setError("");
+            setStatusRemark("");
+            setPendingStatus(null);
+            setError("");
+          } catch (err) {
+            if (!requestTracker.current.isLatest(requestId)) return;
+            console.error("Task status update error:", err);
+            setError(t("taskDetail.errors.updateStatus"));
+          } finally {
+            if (!requestTracker.current.isLatest(requestId)) return;
+            setStatusSaving(false);
           }
-
-          setStatusSaving(false);
         }}
       >
-        {statusSaving ? "Updating..." : "Confirm Update"}
+       {statusSaving
+  ? t("taskDetail.statusModal.updating")
+  : t("taskDetail.statusModal.confirm")}
       </Button>
     </div>
   </DialogContent>

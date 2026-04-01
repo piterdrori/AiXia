@@ -288,51 +288,6 @@ export default function DashboardLayout({
     };
   }, []);
 
-  const loadUnreadCounts = useCallback(async (userId: string) => {
-    const [
-      { count: totalUnread, error: totalUnreadError },
-      { data: unreadChatNotifications, error: unreadChatError },
-    ] = await Promise.all([
-      supabase
-        .from("notifications")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .eq("is_read", false),
-      supabase
-        .from("notifications")
-        .select("link")
-        .eq("user_id", userId)
-        .eq("is_read", false)
-        .in("type", ["MESSAGE", "MENTION"])
-        .like("link", "/chat/%"),
-    ]);
-
-    if (totalUnreadError) {
-      console.error(
-        "Failed to load unread notification count:",
-        totalUnreadError
-      );
-    }
-
-    if (unreadChatError) {
-      console.error(
-        "Failed to load unread chat notification count:",
-        unreadChatError
-      );
-    }
-
-    const unreadConversationIds = new Set(
-      ((unreadChatNotifications || []) as Array<{ link: string | null }>)
-        .map((item) => item.link || "")
-        .filter((link) => link.startsWith("/chat/"))
-        .map((link) => link.replace("/chat/", ""))
-        .filter(Boolean)
-    );
-
-    setUnreadCount(totalUnread || 0);
-    setChatUnreadCount(unreadConversationIds.size);
-  }, []);
-
   const loadNotifications = useCallback(
     async (userId: string, profileForCache?: UserProfile | null) => {
       const requestId = ++loadNotificationsRequestIdRef.current;
@@ -481,9 +436,8 @@ if (!user) {
       userProfileRef.current = loadedUser;
       setUserProfile(loadedUser);
 
-               await Promise.all([
+              await Promise.all([
         loadNotifications(loadedUser.userId, loadedUser),
-        loadUnreadCounts(loadedUser.userId),
         loadCalendarBadge(),
       ]);
     } catch (error) {
@@ -495,7 +449,7 @@ if (!user) {
       if (requestId !== loadUserRequestIdRef.current) return;
       setIsLoadingUser(false);
     }
-        }, [clearUserState, loadCalendarBadge, loadNotifications, loadUnreadCounts]);
+        }, [clearUserState, loadCalendarBadge, loadNotifications]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -506,7 +460,24 @@ if (!user) {
         initialCacheRef.current.userProfile.userId,
         initialCacheRef.current.userProfile
       );
-      void loadUnreadCounts(initialCacheRef.current.userProfile.userId);
+            const cachedUnreadCount = (
+        initialCacheRef.current.notifications || []
+      ).filter((item) => !item.is_read).length;
+
+      const cachedChatUnreadCount = new Set(
+        (initialCacheRef.current.notifications || [])
+          .filter((item) => !item.is_read)
+          .filter(
+            (item) =>
+              (item.type === "MESSAGE" || item.type === "MENTION") &&
+              (item.link || "").startsWith("/chat/")
+          )
+          .map((item) => (item.link || "").replace("/chat/", ""))
+          .filter(Boolean)
+      ).size;
+
+      setUnreadCount(cachedUnreadCount);
+      setChatUnreadCount(cachedChatUnreadCount);
            void loadCalendarBadge();
     } else {
       void loadUser();
@@ -539,7 +510,6 @@ if (!user) {
     clearUserState,
     loadCalendarBadge,
     loadNotifications,
-    loadUnreadCounts,
     loadUser,
   ]);
 
@@ -631,47 +601,63 @@ if (!user) {
             filter: `user_id=eq.${userProfile.userId}`,
           },
                    (payload) => {
+                    const nextNotifications =
+              payload.eventType === "INSERT"
+                ? [payload.new as NotificationRow, ...notificationsRef.current]
+                : payload.eventType === "UPDATE"
+                ? notificationsRef.current.map((notification) =>
+                    notification.id === (payload.new as NotificationRow).id
+                      ? (payload.new as NotificationRow)
+                      : notification
+                  )
+                : payload.eventType === "DELETE"
+                ? notificationsRef.current.filter(
+                    (notification) =>
+                      notification.id !==
+                      ((payload.old as { id?: string } | null)?.id || "")
+                  )
+                : notificationsRef.current;
+
+            notificationsRef.current = nextNotifications;
+            setNotifications(nextNotifications);
+            writeLayoutCache(userProfileRef.current, nextNotifications);
+
+            setUnreadCount(
+              nextNotifications.filter((item) => !item.is_read).length
+            );
+
+            setChatUnreadCount(
+              new Set(
+                nextNotifications
+                  .filter((item) => !item.is_read)
+                  .filter(
+                    (item) =>
+                      (item.type === "MESSAGE" || item.type === "MENTION") &&
+                      (item.link || "").startsWith("/chat/") &&
+                      item.link !== `/chat/${selectedConversationId}`
+                  )
+                  .map((item) => (item.link || "").replace("/chat/", ""))
+                  .filter(Boolean)
+              ).size
+            );
+
             if (payload.eventType === "INSERT") {
               const insertedNotification = payload.new as NotificationRow;
               const isChatMessageNotification =
-  insertedNotification.type === "MESSAGE" ||
-  insertedNotification.type === "MENTION";
+                insertedNotification.type === "MESSAGE" ||
+                insertedNotification.type === "MENTION";
 
-void playNotificationSound();
+              void playNotificationSound();
 
-if (!location.pathname.startsWith("/chat") || !isChatMessageNotification) {
-  showDesktopNotification(
-    insertedNotification.title || "New notification",
-    insertedNotification.message || "You have a new update",
-    insertedNotification.link
-  );
-}
-            }
-
-                                    setNotifications((prev) => {
-              let next = prev;
-
-              if (payload.eventType === "INSERT") {
-                next = [payload.new as NotificationRow, ...prev];
-              } else if (payload.eventType === "UPDATE") {
-                next = prev.map((notification) =>
-                  notification.id === (payload.new as NotificationRow).id
-                    ? (payload.new as NotificationRow)
-                    : notification
-                );
-              } else if (payload.eventType === "DELETE") {
-                const deletedId = (payload.old as { id?: string } | null)?.id;
-                next = prev.filter(
-                  (notification) => notification.id !== deletedId
+              if (!location.pathname.startsWith("/chat") || !isChatMessageNotification) {
+                showDesktopNotification(
+                  insertedNotification.title || "New notification",
+                  insertedNotification.message || "You have a new update",
+                  insertedNotification.link
                 );
               }
+            }
 
-              notificationsRef.current = next;
-              writeLayoutCache(userProfileRef.current, next);
-              return next;
-            });
-
-                        void loadUnreadCounts(userProfile.userId);
             void loadCalendarBadge();
           }
         )
@@ -681,10 +667,10 @@ if (!location.pathname.startsWith("/chat") || !isChatMessageNotification) {
     return () => {
       void removeRealtimeChannel(channelKey);
     };
-      }, [
+            }, [
     loadCalendarBadge,
-    loadUnreadCounts,
     location.pathname,
+    selectedConversationId,
     showDesktopNotification,
     userProfile,
   ]);
@@ -693,11 +679,6 @@ if (!location.pathname.startsWith("/chat") || !isChatMessageNotification) {
   if (!notificationsOpen || !userProfile?.userId) return;
   void loadNotifications(userProfile.userId, userProfile);
 }, [notificationsOpen, userProfile, loadNotifications]);
-
-    useEffect(() => {
-    if (!userProfile?.userId) return;
-    void loadUnreadCounts(userProfile.userId);
-  }, [location.pathname, loadUnreadCounts, userProfile?.userId]);
 
   useEffect(() => {
     if (!userProfile?.userId) return;
@@ -847,8 +828,14 @@ const handleNotificationClick = async (notification: NotificationRow) => {
       setNotifications(nextNotifications);
       writeLayoutCache(userProfileRef.current, nextNotifications);
 
-      if (userProfileRef.current?.userId) {
-        await loadUnreadCounts(userProfileRef.current.userId);
+            setUnreadCount((prev) => Math.max(prev - 1, 0));
+
+      const isChatNotification =
+        (notification.type === "MESSAGE" || notification.type === "MENTION") &&
+        (notification.link || "").startsWith("/chat/");
+
+      if (isChatNotification) {
+        setChatUnreadCount((prev) => Math.max(prev - 1, 0));
       }
     }
 
@@ -878,7 +865,8 @@ const handleNotificationClick = async (notification: NotificationRow) => {
       notificationsRef.current = nextNotifications;
       setNotifications(nextNotifications);
       writeLayoutCache(userProfileRef.current, nextNotifications);
-      await loadUnreadCounts(userProfile.userId);
+      setUnreadCount(0);
+      setChatUnreadCount(0);
     } catch (error) {
       console.error("Mark all read error:", error);
     }

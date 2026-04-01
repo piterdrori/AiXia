@@ -49,6 +49,15 @@ export type ChatMessageReadRow = {
   read_at: string;
 };
 
+export type ChatMessageReactionRow = {
+  id: string;
+  message_id: string;
+  group_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: string;
+};
+
 export type ChatMessageRow = {
   id: string;
   group_id: string;
@@ -57,6 +66,7 @@ export type ChatMessageRow = {
   created_at: string;
   attachments?: ChatAttachmentRow[];
   reads?: ChatMessageReadRow[];
+  reactions?: ChatMessageReactionRow[];
 };
 
 export type MessagesByGroup = Record<string, ChatMessageRow[]>;

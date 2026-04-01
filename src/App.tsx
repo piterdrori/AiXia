@@ -72,11 +72,21 @@ type AccessState =
 type ProfileAccessRow = {
   status: ProfileStatus | null;
   profile_completed?: boolean | null;
+  role?: Role | null;
+  permissions?: Partial<Record<Permission, boolean>> | null;
+};
+
+type AccessSnapshot = {
+  accessState: AccessState;
+  role: Role | null;
+  permissions: Partial<Record<Permission, boolean>>;
 };
 
 type AuthAccessContextValue = {
   isBootstrapping: boolean;
   accessState: AccessState;
+  role: Role | null;
+  permissions: Partial<Record<Permission, boolean>>;
   refreshAccessState: () => Promise<void>;
 };
 
@@ -90,58 +100,84 @@ function FullScreenLoader() {
   );
 }
 
-async function getAccessState(): Promise<AccessState> {
+async function getAccessState(): Promise<AccessSnapshot> {
   try {
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData.session?.user;
 
-    if (userError || !user) {
-      return "unauthenticated";
+    if (!user) {
+      return {
+        accessState: "unauthenticated",
+        role: null,
+        permissions: {},
+      };
     }
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("status, profile_completed")
+      .select("status, profile_completed, role, permissions")
       .eq("user_id", user.id)
       .maybeSingle();
 
     if (profileError || !profile) {
       console.error("Failed to load access profile:", profileError);
-      return "unauthenticated";
+      return {
+        accessState: "unauthenticated",
+        role: null,
+        permissions: {},
+      };
     }
 
     const typedProfile = profile as ProfileAccessRow;
 
+    let accessState: AccessState;
+
     switch (typedProfile.status) {
       case "pending_verification":
-        return "pending_verification";
+        accessState = "pending_verification";
+        break;
 
       case "pending_profile":
-        return "needs_profile";
+        accessState = "needs_profile";
+        break;
 
       case "pending_approval":
-        return "pending_approval";
+        accessState = "pending_approval";
+        break;
 
       case "rejected":
-        return "rejected";
+        accessState = "rejected";
+        break;
 
       case "active":
-        return typedProfile.profile_completed ? "ready" : "needs_profile";
+        accessState = typedProfile.profile_completed ? "ready" : "needs_profile";
+        break;
 
       default:
-        return "unauthenticated";
+        accessState = "unauthenticated";
+        break;
     }
+
+    return {
+      accessState,
+      role: typedProfile.role || null,
+      permissions: typedProfile.permissions || {},
+    };
   } catch (error) {
     console.error("getAccessState error:", error);
-    return "unauthenticated";
+    return {
+      accessState: "unauthenticated",
+      role: null,
+      permissions: {},
+    };
   }
 }
 
 function AuthAccessProvider({ children }: { children: ReactNode }) {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [accessState, setAccessState] = useState<AccessState>("unauthenticated");
+  const [role, setRole] = useState<Role | null>(null);
+  const [permissions, setPermissions] = useState<Partial<Record<Permission, boolean>>>({});
   const requestIdRef = useRef(0);
   const mountedRef = useRef(true);
 
@@ -149,13 +185,15 @@ function AuthAccessProvider({ children }: { children: ReactNode }) {
     const requestId = ++requestIdRef.current;
 
     try {
-      const nextState = await getAccessState();
+      const snapshot = await getAccessState();
 
       if (!mountedRef.current || requestId !== requestIdRef.current) {
         return;
       }
 
-      setAccessState(nextState);
+      setAccessState(snapshot.accessState);
+      setRole(snapshot.role);
+      setPermissions(snapshot.permissions);
     } catch (error) {
       console.error("refreshAccessState error:", error);
 
@@ -164,6 +202,8 @@ function AuthAccessProvider({ children }: { children: ReactNode }) {
       }
 
       setAccessState("unauthenticated");
+      setRole(null);
+      setPermissions({});
     } finally {
       if (!mountedRef.current || requestId !== requestIdRef.current) {
         return;
@@ -192,13 +232,15 @@ function AuthAccessProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const value = useMemo<AuthAccessContextValue>(
+    const value = useMemo<AuthAccessContextValue>(
     () => ({
       isBootstrapping,
       accessState,
+      role,
+      permissions,
       refreshAccessState,
     }),
-    [isBootstrapping, accessState]
+    [isBootstrapping, accessState, role, permissions]
   );
 
   return (
@@ -294,76 +336,19 @@ function ProtectedRoute({
   children: ReactNode;
 }) {
   const location = useLocation();
-  const { isBootstrapping, accessState } = useAuthAccess();
-  const [role, setRole] = useState<Role | null>(null);
-const [permissions, setPermissions] = useState<Partial<Record<Permission, boolean>>>({});
-const [isCheckingRole, setIsCheckingRole] = useState(false);
+  const { isBootstrapping, accessState, role, permissions, refreshAccessState } = useAuthAccess();
 
   useEffect(() => {
     let mounted = true;
-
-    const loadRole = async () => {
-            if (accessState !== "ready") {
-        if (mounted) {
-          setRole(null);
-          setPermissions({});
-          setIsCheckingRole(false);
-        }
-        return;
-      }
-
-      setIsCheckingRole(true);
-
-           try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const user = sessionData.session?.user;
-
-        if (!mounted) return;
-
-        if (!user) {
-          setRole(null);
-          setPermissions({});
-          setIsCheckingRole(false);
-          return;
-        }
-
-        const { data: profileData, error } = await supabase
-          .from("profiles")
-          .select("role, permissions")
-          .eq("user_id", user.id)
-          .single();
-
-        if (!mounted) return;
-
-        if (error || !profileData?.role) {
-  setRole(null);
-  setPermissions({});
-  setIsCheckingRole(false);
-  return;
-}
-
-setRole(profileData.role as Role);
-setPermissions(profileData.permissions || {});
-            } catch (error) {
-        console.error("ProtectedRoute role load error:", error);
-        if (!mounted) return;
-        setRole(null);
-        setPermissions({});
-      } finally {
-        if (mounted) {
-          setIsCheckingRole(false);
-        }
-      }
-    };
-
-    void loadRole();
-
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
     const setupProfileSubscription = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      if (accessState !== "ready") {
+        return;
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const user = sessionData.session?.user;
 
       if (!mounted || !user?.id) return;
 
@@ -377,23 +362,16 @@ setPermissions(profileData.permissions || {});
             table: "profiles",
             filter: `user_id=eq.${user.id}`,
           },
-          (payload) => {
-            const newProfile = payload.new as {
-  role: Role;
-  permissions?: Partial<Record<Permission, boolean>> | null;
-};
-
+          () => {
             if (!mounted) return;
-
-            setRole(newProfile.role as Role);
-            setPermissions(newProfile.permissions || {});
+            void refreshAccessState();
           }
         )
         .subscribe();
     };
 
     void setupProfileSubscription();
-    
+
     return () => {
       mounted = false;
 
@@ -401,9 +379,9 @@ setPermissions(profileData.permissions || {});
         supabase.removeChannel(channel);
       }
     };
-  }, [accessState]);
+  }, [accessState, refreshAccessState]);
 
-  if (isBootstrapping || (accessState === "ready" && isCheckingRole)) {
+  if (isBootstrapping) {
     return <FullScreenLoader />;
   }
 

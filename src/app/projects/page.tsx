@@ -89,9 +89,8 @@ const loadProjects = async () => {
 
   try {
     const result = await projectsRequest.run(async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+     const session = await supabase.auth.getSession();
+const user = session.data.session?.user;
 
       if (!requestTracker.current.isLatest(requestId)) return [];
 
@@ -104,7 +103,7 @@ const loadProjects = async () => {
 
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("user_id, role")
+        .select("role")
         .eq("user_id", user.id)
         .single();
 
@@ -141,21 +140,10 @@ const loadProjects = async () => {
         return (projectsData || []) as ProjectRow[];
       }
 
-      const [
-        { data: memberRows, error: membersError },
-        { data: createdProjects, error: createdError },
-      ] = await Promise.all([
-        supabase
-          .from("project_members")
-          .select("project_id, user_id")
-          .eq("user_id", user.id),
-        supabase
-          .from("projects")
-          .select(
-            "id, name, description, status, progress, created_by, start_date, end_date, created_at"
-          )
-          .eq("created_by", user.id),
-      ]);
+            const { data: memberRows, error: membersError } = await supabase
+        .from("project_members")
+        .select("project_id, user_id")
+        .eq("user_id", user.id);
 
       if (!requestTracker.current.isLatest(requestId)) return [];
 
@@ -169,16 +157,6 @@ const loadProjects = async () => {
         );
       }
 
-      if (createdError) {
-        throw new Error(
-          createdError.message ||
-            t(
-              "projects.failedToLoadCreatedProjects",
-              "Failed to load created projects."
-            )
-        );
-      }
-
       const visibleProjectIds = Array.from(
         new Set(
           ((memberRows as ProjectMemberRow[] | null) || []).map(
@@ -187,46 +165,36 @@ const loadProjects = async () => {
         )
       );
 
-      let assignedProjects: ProjectRow[] = [];
-
-      if (visibleProjectIds.length > 0) {
-        const { data: assignedProjectsData, error: assignedProjectsError } =
-          await supabase
-            .from("projects")
-            .select(
-              "id, name, description, status, progress, created_by, start_date, end_date, created_at"
-            )
-            .in("id", visibleProjectIds);
-
-        if (!requestTracker.current.isLatest(requestId)) return [];
-
-        if (assignedProjectsError) {
-          throw new Error(
-            assignedProjectsError.message ||
-              t(
-                "projects.failedToLoadAssignedProjects",
-                "Failed to load assigned projects."
+      const projectsQuery =
+        visibleProjectIds.length > 0
+          ? supabase
+              .from("projects")
+              .select(
+                "id, name, description, status, progress, created_by, start_date, end_date, created_at"
               )
-          );
-        }
+              .or(`created_by.eq.${user.id},id.in.(${visibleProjectIds.join(",")})`)
+          : supabase
+              .from("projects")
+              .select(
+                "id, name, description, status, progress, created_by, start_date, end_date, created_at"
+              )
+              .eq("created_by", user.id);
 
-        assignedProjects = (assignedProjectsData || []) as ProjectRow[];
-      }
-
-      const mergedProjects = [
-        ...((createdProjects || []) as ProjectRow[]),
-        ...assignedProjects,
-      ];
-
-      const uniqueProjects = Array.from(
-        new Map(mergedProjects.map((project) => [project.id, project])).values()
-      ).sort(
-        (a, b) =>
-          clock.shiftDate(b.created_at).getTime() -
-          clock.shiftDate(a.created_at).getTime()
+      const { data: projectsData, error: projectsError } = await projectsQuery.order(
+        "created_at",
+        { ascending: false }
       );
 
-      return uniqueProjects;
+      if (!requestTracker.current.isLatest(requestId)) return [];
+
+      if (projectsError) {
+        throw new Error(
+          projectsError.message ||
+            t("projects.failedToLoadProjects", "Failed to load projects.")
+        );
+      }
+
+      return (projectsData || []) as ProjectRow[];
     });
 
     if (requestTracker.current.isLatest(requestId)) {

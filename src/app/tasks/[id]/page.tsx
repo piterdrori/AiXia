@@ -1201,8 +1201,8 @@ if (isBootstrapping) {
     if (!task) return null;
   return (
     <>
-            <div className="space-y-6 h-[calc(100vh-100px)] flex flex-col overflow-hidden">
-      <div className="flex items-center gap-4">
+            <div className="h-[calc(100vh-100px)] flex flex-col">
+            <div className="flex items-center gap-4 shrink-0">
         <Button
           variant="ghost"
           size="icon"
@@ -1268,8 +1268,8 @@ if (isBootstrapping) {
         </Alert>
       )}
 
-            <div className="grid lg:grid-cols-3 gap-6 items-start flex-1 min-h-0">
-        <div className="lg:col-span-2 min-h-0 flex flex-col">
+            <div className="grid lg:grid-cols-3 gap-6 items-start flex-1 min-h-0 overflow-hidden">
+        <div className="lg:col-span-2 min-h-0 flex flex-col overflow-hidden">
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
             <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto shrink-0 self-start">
               <TabsTrigger value="overview" className="data-[state=active]:bg-slate-800">
@@ -1950,7 +1950,7 @@ if (isBootstrapping) {
           </Tabs>
         </div>
 
-                <div className="space-y-6 lg:flex-1 lg:min-h-0 lg:flex lg:flex-col">
+                <div className="space-y-6 lg:flex-1 lg:min-h-0 lg:flex lg:flex-col overflow-hidden">
           <Card className="bg-slate-900/50 border-slate-800 shrink-0">
             <CardHeader>
               <CardTitle className="text-white">{t("taskDetail.details.title")}</CardTitle>

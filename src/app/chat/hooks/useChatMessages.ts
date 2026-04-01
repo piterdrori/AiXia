@@ -13,6 +13,7 @@ import {
 import type {
   ChatAttachmentRow,
   ChatMessageReadRow,
+  ChatMessageReactionRow,
   ChatMessageRow,
   HasMoreByGroup,
   MessagesByGroup,

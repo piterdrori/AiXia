@@ -115,7 +115,8 @@ export default function ChatPage() {
     null
   );
 
-  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notificationAudioRef = useRef<HTMLAudioElement | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
 
 const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>(() => {
@@ -133,6 +134,17 @@ const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>(() => {
     setSelectedConversationId(id);
   }
 }, [id, selectedConversationId, setSelectedConversationId]);
+
+  useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  notificationAudioRef.current = new Audio("/sounds/notification.mp3");
+  notificationAudioRef.current.preload = "auto";
+
+  return () => {
+    notificationAudioRef.current = null;
+  };
+}, []);
 
     useEffect(() => {
     setIsSelectionMode(false);
@@ -168,7 +180,7 @@ const selectedConversation = useMemo(() => {
 
     const { data, error } = await supabase
       .from("notifications")
-      .select("id, link")
+      .select("link")
       .eq("user_id", currentUserId)
       .eq("is_read", false)
       .in("type", ["MESSAGE", "MENTION"])
@@ -270,7 +282,8 @@ const selectedConversation = useMemo(() => {
         )
       `)
       .in("group_id", groupIds)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+.limit(100);
 
     if (error) {
       console.error("Load latest sidebar messages error:", error);
@@ -384,9 +397,16 @@ useEffect(() => {
 
                 moveGroupToTop(fullMessage.group_id);
 
-        if (fullMessage.user_id === currentUserId) {
+                if (fullMessage.user_id === currentUserId) {
           return;
         }
+
+        try {
+  const playPromise = notificationAudioRef.current?.play();
+  if (playPromise !== undefined) {
+    playPromise.catch(() => {});
+  }
+} catch {}
 
         if (fullMessage.group_id !== selectedConversationId) {
           setUnreadCounts((prev) => ({
@@ -514,7 +534,7 @@ useEffect(() => {
     };
     }, [selectedConversationId, currentUserId]);
 
-  useEffect(() => {
+     useEffect(() => {
     if (!selectedConversationId) return;
 
     const channel = supabase
@@ -527,8 +547,35 @@ useEffect(() => {
           table: "chat_message_reactions",
           filter: `group_id=eq.${selectedConversationId}`,
         },
-        () => {
-          void loadMessagesForGroup(selectedConversationId);
+        async (payload) => {
+          try {
+            const messageId =
+              (payload.new as { message_id?: string } | null)?.message_id ||
+              (payload.old as { message_id?: string } | null)?.message_id;
+
+            if (!messageId) return;
+
+            const { data, error } = await supabase
+              .from("chat_messages")
+              .select(`
+                id,
+                group_id,
+                user_id,
+                content,
+                created_at,
+                attachments:chat_attachments(*),
+                reads:chat_message_reads(*),
+                reactions:chat_message_reactions(*)
+              `)
+              .eq("id", messageId)
+              .single();
+
+            if (error || !data) return;
+
+            updateMessageLocally(selectedConversationId, data as ChatMessageRow);
+          } catch (err) {
+            console.error("Reaction realtime error:", err);
+          }
         }
       )
       .subscribe();
@@ -536,7 +583,7 @@ useEffect(() => {
     return () => {
       void channel.unsubscribe();
     };
-  }, [selectedConversationId, loadMessagesForGroup]);
+  }, [selectedConversationId, updateMessageLocally]);
 
   const getMembers = useCallback(
   (groupId: string) => getMembersForGroup(groupMembers, groupId),
@@ -588,22 +635,27 @@ useEffect(() => {
   }, [mentionCandidates, mentionQuery, showMentionDropdown]);
 
     const typingLabel = useMemo(() => {
-    const names = typingUsers
-      .map((userId) => profiles.find((profile) => profile.user_id === userId)?.full_name)
-      .filter(Boolean) as string[];
+  const names = typingUsers
+    .map((userId) =>
+      profiles.find((profile) => profile.user_id === userId)?.full_name
+    )
+    .filter(Boolean) as string[];
 
-    if (names.length === 0) return "";
+  if (names.length === 0) return "";
 
-    if (names.length === 1) {
-      return `${names[0]} is typing...`;
-    }
+  if (names.length === 1) {
+    return t("chat.typing.single", undefined, { name: names[0] });
+  }
 
-    if (names.length === 2) {
-      return `${names[0]} and ${names[1]} are typing...`;
-    }
+  if (names.length === 2) {
+    return t("chat.typing.double", undefined, {
+      name1: names[0],
+      name2: names[1],
+    });
+  }
 
-    return "Several people are typing...";
-  }, [profiles, typingUsers]);
+  return t("chat.typing.multiple");
+}, [profiles, typingUsers, t]);
 
     const canManageMessage = useCallback(
     (message: ChatMessageRow) => {
@@ -796,9 +848,8 @@ const handleUploadFile = async (file: File) => {
   };
 
 const startDirectMessage = async (targetUserId: string) => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+ const session = await supabase.auth.getSession();
+const user = session.data.session?.user;
 
   if (!user) return;
 
@@ -869,9 +920,8 @@ if (existingLocal) {
 };
 
   const handleCreateGroup = async () => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const session = await supabase.auth.getSession();
+const user = session.data.session?.user;
 
   if (!user) return;
 

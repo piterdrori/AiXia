@@ -175,15 +175,7 @@ export default function DashboardPage() {
 
         try {
       await dashboardRequest.run(async () => {
-        const session = await supabase.auth.getSession();
-const user = session.data.session?.user;
-
-if (!requestTracker.current.isLatest(requestId)) return true;
-
-if (!user) {
-  navigate("/login");
-  return true;
-}
+       if (!requestTracker.current.isLatest(requestId)) return true;
 
       const { data, error } = await supabase.functions.invoke("dashboard-summary");
 
@@ -205,7 +197,7 @@ if (!user) {
           activityLogs,
         } = data.payload;
 
-        setCurrentUserId(currentUser?.id || user.id);
+        setCurrentUserId(currentUser?.id || null);
         setCurrentUserName(currentUser?.full_name || t("common.user", "User"));
         setCurrentUserRole((currentUser?.role as Role) || null);
         setProjects((projects || []) as ProjectRow[]);

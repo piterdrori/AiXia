@@ -291,11 +291,10 @@ const user = session.data.session?.user;
 
       setCurrentUserId(user.id);
 
-            const [
+              const [
         { data: myProfile, error: myProfileError },
         { data: projectData, error: projectError },
         { data: membersData },
-        { data: profilesData },
         { data: tasksData },
         { data: logsData },
         { data: filesData },
@@ -318,10 +317,6 @@ const user = session.data.session?.user;
           .from("project_members")
           .select("id, project_id, user_id, role, created_at")
           .eq("project_id", id),
-                supabase
-          .from("profiles")
-          .select("user_id, full_name, role")
-          .eq("status", "active"),
         supabase
           .from("tasks")
           .select(
@@ -380,14 +375,47 @@ const user = session.data.session?.user;
         return;
       }
 
-            const loadedProject = projectData as ProjectRow;
+           const loadedProject = projectData as ProjectRow;
       const loadedMembers = (membersData || []) as ProjectMemberRow[];
-      const loadedProfiles = (profilesData || []) as ProfileRow[];
       const loadedTasks = (tasksData || []) as TaskRow[];
       const loadedLogs = (logsData || []) as ActivityLogRow[];
       const loadedFiles = (filesData || []) as FileUploadRow[];
       const loadedComments = (commentsData || []) as ProjectCommentRow[];
       const loadedReports = (reportsData || []) as ProjectReportRow[];
+
+      const relevantUserIds = Array.from(
+        new Set(
+          [
+            user.id,
+            loadedProject.created_by,
+            ...loadedMembers.map((member) => member.user_id),
+            ...loadedTasks.flatMap((task) => [task.assignee_id, task.created_by]),
+            ...loadedLogs.map((log) => log.user_id),
+            ...loadedFiles.map((file) => file.user_id),
+            ...loadedComments.map((comment) => comment.user_id),
+            ...loadedReports.map((report) => report.requested_by),
+          ].filter((value): value is string => Boolean(value))
+        )
+      );
+
+      const { data: profilesData, error: profilesError } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, role")
+        .in("user_id", relevantUserIds);
+
+      if (!requestTracker.current.isLatest(requestId)) return;
+
+      if (profilesError) {
+        throw new Error(
+          profilesError.message ||
+            t(
+              "projects.somethingWentWrongWhileLoadingProject",
+              "Something went wrong while loading the project."
+            )
+        );
+      }
+
+      const loadedProfiles = (profilesData || []) as ProfileRow[];
 
       if (
   !canViewProject(
@@ -409,6 +437,7 @@ const user = session.data.session?.user;
       setFiles(loadedFiles);
       setComments(loadedComments);
       setProjectReports(loadedReports);
+      setTranslatedComments({});
       setHasLoadedOnce(true);
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
@@ -426,9 +455,60 @@ const user = session.data.session?.user;
     }
   };
 
-  useEffect(() => {
-    void loadProjectPage("initial");
-  }, [id, navigate]);
+useEffect(() => {
+  void loadProjectPage("initial");
+}, [id, navigate]);
+
+useEffect(() => {
+  if (!id) return;
+
+  let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
+  let isActive = true;
+
+  const queueRefresh = () => {
+    if (!isActive) return;
+    if (refreshTimeout) clearTimeout(refreshTimeout);
+    refreshTimeout = setTimeout(() => {
+      if (!isActive) return;
+      void loadProjectPage("refresh");
+    }, 150);
+  };
+
+  const channel = supabase
+    .channel(`project-${id}-realtime`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "tasks", filter: `project_id=eq.${id}` },
+      queueRefresh
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "activity_logs", filter: `project_id=eq.${id}` },
+      queueRefresh
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "project_comments", filter: `project_id=eq.${id}` },
+      queueRefresh
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "file_uploads", filter: `project_id=eq.${id}` },
+      queueRefresh
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "project_reports", filter: `project_id=eq.${id}` },
+      queueRefresh
+    )
+    .subscribe();
+
+  return () => {
+    isActive = false;
+    if (refreshTimeout) clearTimeout(refreshTimeout);
+    void supabase.removeChannel(channel);
+  };
+}, [id]);
 
   const canEdit = useMemo(() => {
   if (!project || !currentUserId || !currentUserRole) return false;
@@ -574,7 +654,6 @@ const user = session.data.session?.user;
         });
       }
 
-      await loadProjectPage("refresh");
       setIsTeamDialogOpen(false);
     } catch (err) {
       console.error("Save team members error:", err);
@@ -798,9 +877,8 @@ const user = session.data.session?.user;
         return;
       }
 
-      await loadProjectPage("refresh");
       setIsReportsDialogOpen(false);
-      navigate(`/projects/${project.id}/reports/${data.reportId}`);
+navigate(`/projects/${project.id}/reports/${data.reportId}`);
     } catch (err) {
       console.error("Generate project report error:", err);
       setError(
@@ -981,10 +1059,13 @@ const user = session.data.session?.user;
       }
 
       setComments((prev) => [...prev, data.comment as ProjectCommentRow]);
-      setNewComment("");
+setNewComment("");
 setMentionQuery("");
 setShowMentionDropdown(false);
+
+// NO full reload — only logs refresh
 await refreshActivityLogs(project.id);
+      
     } catch (err) {
       console.error("Add project comment error:", err);
       setError(t("projects.failedToAddComment", "Failed to add comment."));

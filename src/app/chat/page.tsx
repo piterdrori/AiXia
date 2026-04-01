@@ -337,10 +337,11 @@ useEffect(() => {
     .on(
       "postgres_changes",
       {
-        event: "INSERT",
-        schema: "public",
-        table: "chat_messages",
-      },
+  event: "INSERT",
+  schema: "public",
+  table: "chat_messages",
+  filter: `group_id=in.(${Array.from(visibleGroupIds).join(",")})`,
+},
       async (payload) => {
         const newMessage = payload.new as ChatMessageRow;
         if (!newMessage?.group_id) return;

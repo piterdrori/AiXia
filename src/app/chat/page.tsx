@@ -60,21 +60,22 @@ export default function ChatPage() {
     reloadChatShell,
   } = useChatBootstrap(id || null);
 
-  const {
-    messages,
-    hasMoreMessages,
-    isLoadingMessages,
-    isLoadingOlder,
-    selectedMessages,
-    scrollAreaRef,
-    messagesEndRef,
-    loadMessagesForGroup,
-    handleLoadOlderMessages,
-    appendMessageLocally,
-    updateMessageLocally,
-    deleteMessageLocally,
-    replaceTempMessageWithRealOne,
-  } = useChatMessages(selectedConversationId);
+const {
+  messages,
+  hasMoreMessages,
+  isLoadingMessages,
+  isLoadingOlder,
+  selectedMessages,
+  scrollAreaRef,
+  messagesEndRef,
+  loadMessagesForGroup,
+  handleLoadOlderMessages,
+  appendMessageLocally,
+  updateMessageLocally,
+  deleteMessageLocally,
+  replaceTempMessageWithRealOne,
+  lastIncomingMessageId,
+} = useChatMessages(selectedConversationId, currentUserId);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [messageInput, setMessageInput] = useState("");

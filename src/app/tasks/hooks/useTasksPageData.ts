@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useRequest } from "@/lib/useRequest";
 import { getVisibleProjectIds, canViewTask } from "@/lib/permissions";
-import { Role, TaskRow, ProjectRow, ProfileRow, TaskMemberRow, ProjectMemberRow } from "../lib/task.types";
+import type { Role, TaskRow, ProjectRow, ProfileRow, TaskMemberRow, ProjectMemberRow } from "../lib/task.types";
 
 export function useTasksPageData() {
   const navigate = useNavigate();
@@ -38,11 +38,11 @@ export function useTasksPageData() {
 
         const [
           { data: myProfile, error: myProfileError },
-          { data: visibleTasksData, error: tasksError },
-          { data: allProjects, error: projectsError },
-          { data: allProfiles, error: profilesError },
-          { data: allProjectMembers, error: projectMembersError },
-          { data: allTaskMembers, error: taskMembersError },
+          { data: visibleTasksData },
+          { data: allProjects },
+          { data: allProfiles },
+          { data: allProjectMembers },
+          { data: allTaskMembers },
         ] = await Promise.all([
           supabase.from("profiles").select("role").eq("user_id", user.id).single(),
           supabase.from("tasks").select("*").order("created_at", { ascending: false }),
@@ -61,12 +61,6 @@ export function useTasksPageData() {
 
         const role = myProfile.role as Role;
         setCurrentUserRole(role);
-
-        if (tasksError) throw tasksError;
-        if (projectsError) throw projectsError;
-        if (profilesError) throw profilesError;
-        if (projectMembersError) throw projectMembersError;
-        if (taskMembersError) throw taskMembersError;
 
         const tasksData = (visibleTasksData || []) as TaskRow[];
         const projectsData = (allProjects || []) as ProjectRow[];

@@ -33,6 +33,8 @@ import type {
   TranslatedComment,
 } from "../lib/task.types";
 
+type TranslateOptions = Record<string, string | number>;
+
 export default function TaskDetailPage() {
   const { t } = useLanguage();
   const clock = useAppClock();
@@ -63,7 +65,9 @@ export default function TaskDetailPage() {
 
   const [task, setTask] = useState<TaskRow | null>(taskFromHook);
   const [profiles, setProfiles] = useState<ProfileRow[]>(profilesFromHook);
-  const [taskMembers, setTaskMembers] = useState<TaskMemberRow[]>(taskMembersFromHook);
+  const [taskMembers, setTaskMembers] = useState<TaskMemberRow[]>(
+    taskMembersFromHook,
+  );
   const [comments, setComments] = useState<TaskCommentRow[]>(commentsFromHook);
   const [files, setFiles] = useState<FileUploadRow[]>(filesFromHook);
   const [activity, setActivity] = useState<TaskActivityRow[]>(activityFromHook);
@@ -75,6 +79,12 @@ export default function TaskDetailPage() {
   useEffect(() => setFiles(filesFromHook), [filesFromHook]);
   useEffect(() => setActivity(activityFromHook), [activityFromHook]);
   useEffect(() => setLocalError(error || ""), [error]);
+
+  const translateWithOptions = useCallback(
+    (key: string, options?: object) =>
+      t(key, undefined, options as TranslateOptions | undefined),
+    [t],
+  );
 
   const visibleProjectIds = useMemo(
     () => new Set(project?.id ? [project.id] : []),
@@ -104,10 +114,9 @@ export default function TaskDetailPage() {
   });
 
   const actions = useTaskDetailActions(
-  task,
-  currentUserId,
-  (key: string, _fallback?: string, params?: Record<string, string | number>) =>
-    t(key, params),
+    task,
+    currentUserId,
+    translateWithOptions,
     requestTracker,
     setLocalError,
     setTaskMembers,
@@ -247,6 +256,20 @@ export default function TaskDetailPage() {
     actions.setEditingCommentId(null);
     actions.setEditingCommentText("");
   }, [actions]);
+
+  const handleAddMember = useCallback(
+    (employeeId: string) => {
+      void actions.handleAddMember(employeeId, canManageMembers);
+    },
+    [actions, canManageMembers],
+  );
+
+  const handleRemoveMember = useCallback(
+    (member: TaskMemberRow) => {
+      void actions.handleRemoveMember(member, canManageMembers);
+    },
+    [actions, canManageMembers],
+  );
 
   if (isBootstrapping) {
     return (
@@ -391,6 +414,7 @@ export default function TaskDetailPage() {
                 mentionCandidates={filteredMentionCandidates}
                 canManageComment={canManageComment}
                 onNewCommentChange={actions.handleCommentInputChange}
+                onEditingCommentTextChange={actions.setEditingCommentText}
                 onAddComment={actions.handleAddComment}
                 onStartEdit={handleStartEdit}
                 onCancelEdit={handleCancelEdit}
@@ -416,7 +440,7 @@ export default function TaskDetailPage() {
             project={project}
             dueDateDisplay={dueDateDisplay}
             dueDateColorClass={dueDateInfo.color}
-            t={(key: string, params?: Record<string, string | number>) => t(key, params)}
+            t={translateWithOptions}
           />
 
           <TaskMembersSidebar
@@ -428,8 +452,8 @@ export default function TaskDetailPage() {
             memberActionLoading={actions.memberActionLoading}
             showManageMembers={actions.showManageMembers}
             onShowManageMembersChange={actions.setShowManageMembers}
-            onAddMember={actions.handleAddMember}
-            onRemoveMember={actions.handleRemoveMember}
+            onAddMember={handleAddMember}
+            onRemoveMember={handleRemoveMember}
           />
         </div>
       </div>

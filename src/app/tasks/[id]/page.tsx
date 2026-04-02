@@ -77,11 +77,24 @@ export default function TaskDetailPage() {
   useEffect(() => setActivity(activityFromHook), [activityFromHook]);
   useEffect(() => setLocalError(error || ""), [error]);
 
-  const translateObject = useCallback(
-    (key: string, options?: object) =>
-      t(key, undefined, options as Record<string, string | number> | undefined),
-    [t],
-  );
+const translateObject = useCallback(
+  (
+    key: string,
+    fallbackOrOptions?: string | Record<string, string | number>,
+    params?: Record<string, string | number>,
+  ) => {
+    if (
+      fallbackOrOptions &&
+      typeof fallbackOrOptions === "object" &&
+      !Array.isArray(fallbackOrOptions)
+    ) {
+      return t(key, undefined, fallbackOrOptions);
+    }
+
+    return t(key, fallbackOrOptions, params);
+  },
+  [t],
+);
 
   const visibleProjectIds = useMemo(
     () => new Set(project?.id ? [project.id] : []),

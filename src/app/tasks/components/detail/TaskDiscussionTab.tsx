@@ -42,6 +42,7 @@ interface TaskDiscussionTabProps {
   mentionCandidates: ProfileRow[];
   canManageComment: (comment: TaskCommentRow) => boolean;
   onNewCommentChange: (value: string) => void;
+  onEditingCommentTextChange: (value: string) => void;
   onAddComment: () => void;
   onStartEdit: (comment: TaskCommentRow) => void;
   onCancelEdit: () => void;
@@ -57,17 +58,23 @@ export function TaskDiscussionTab({
   currentUserId,
   newComment,
   editingCommentId,
+  editingCommentText,
   commentSaving,
+  commentActionLoading,
   translatingCommentId,
   translatedComments,
+  showMentionDropdown,
+  mentionCandidates,
   canManageComment,
   onNewCommentChange,
+  onEditingCommentTextChange,
   onAddComment,
   onStartEdit,
   onCancelEdit,
   onSaveEdit,
   onDeleteComment,
   onTranslateComment,
+  onInsertMention,
 }: TaskDiscussionTabProps) {
   const { t } = useLanguage();
   const clock = useAppClock();
@@ -119,7 +126,7 @@ export function TaskDiscussionTab({
                   {t("taskDetail.discussion.noMatchingParticipants")}
                 </div>
               ) : (
-                mentionCandidates.map((profile) => (
+                mentionCandidates.map((profile: ProfileRow) => (
                   <button
                     key={profile.user_id}
                     type="button"
@@ -257,7 +264,9 @@ export function TaskDiscussionTab({
                       <div className="space-y-3">
                         <Textarea
                           value={editingCommentText}
-                          onChange={(e) => onNewCommentChange(editingCommentText === newComment ? e.target.value : e.target.value)}
+                          onChange={(e) =>
+                            onEditingCommentTextChange(e.target.value)
+                          }
                           rows={4}
                           className="resize-none border-slate-800 bg-slate-900 text-white"
                         />

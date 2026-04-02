@@ -581,7 +581,7 @@ export default function DashboardPage() {
 </div>
 
       <div className="grid xl:grid-cols-2 gap-6">
-        <div className="grid gap-6 content-start" className="grid gap-6 content-start">
+        <div className="grid gap-6 content-start">
                     {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
             <>
               <PanelSkeleton
@@ -692,7 +692,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="grid gap-6 content-start" className="grid gap-6 content-start">
+        <div className="grid gap-6 content-start">
                     {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
             <>
               <PanelSkeleton

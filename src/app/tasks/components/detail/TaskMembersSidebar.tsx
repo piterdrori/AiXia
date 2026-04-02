@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { UserPlus, UserMinus } from "lucide-react";
-import { TaskMemberRow, ProfileRow, Role } from "../../lib/task.types";
+import type { TaskMemberRow, ProfileRow } from "../../lib/task.types";
 import { getProfileName } from "../../lib/task.utils";
 import { useLanguage } from "@/lib/i18n";
 

@@ -1,5 +1,8 @@
+import { useMemo, useCallback } from "react";
 import type { FormEvent } from "react";
+
 import { Loader2 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,223 +15,280 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { TaskAssigneePicker } from "./TaskAssigneePicker";
-import type { ProjectRow, ProfileRow, ProjectMemberRow, TaskPriority, TaskStatus, Role } from "../../lib/task.types";
-import { canPerform } from "@/lib/permissions";
+
 import { useLanguage } from "@/lib/i18n";
+import { canPerform } from "@/lib/permissions";
+
+import { TaskAssigneePicker } from "./TaskAssigneePicker";
+
+import type {
+  ProjectRow,
+  ProfileRow,
+  ProjectMemberRow,
+  TaskPriority,
+  TaskStatus,
+  Role,
+} from "../../lib/task.types";
 
 interface TaskFormProps {
   mode: "create" | "edit";
-  // Form values
+
   title: string;
   setTitle: (value: string) => void;
+
   description: string;
   setDescription: (value: string) => void;
+
   projectId: string;
   setProjectId: (value: string) => void;
+
   priority: TaskPriority;
   setPriority: (value: TaskPriority) => void;
+
   status: TaskStatus;
   setStatus: (value: TaskStatus) => void;
+
   startDate: string;
   setStartDate: (value: string) => void;
+
   dueDate: string;
   setDueDate: (value: string) => void;
+
   selectedAssignees: string[];
   toggleAssignee: (userId: string) => void;
-  
-  // Data
+
   projects: ProjectRow[];
   projectMembers: ProjectMemberRow[];
   profiles: ProfileRow[];
+
   currentUserRole: Role | null;
-  
-  // States
+
   isBootstrapping: boolean;
   isMembersLoading: boolean;
   isSaving: boolean;
   error: string;
-  
-  // Handlers
+
   onSubmit: (e: FormEvent) => void;
   onCancel: () => void;
 }
 
-export function TaskForm({
-  mode,
-  title,
-  setTitle,
-  description,
-  setDescription,
-  projectId,
-  setProjectId,
-  priority,
-  setPriority,
-  status,
-  setStatus,
-  startDate,
-  setStartDate,
-  dueDate,
-  setDueDate,
-  selectedAssignees,
-  toggleAssignee,
-  projects,
-  projectMembers,
-  profiles,
-  currentUserRole,
-  isBootstrapping,
-  isMembersLoading,
-  isSaving,
-  error,
-  onSubmit,
-  onCancel,
-}: TaskFormProps) {
+export function TaskForm(props: TaskFormProps) {
+  const {
+    mode,
+    title,
+    setTitle,
+    description,
+    setDescription,
+    projectId,
+    setProjectId,
+    priority,
+    setPriority,
+    status,
+    setStatus,
+    startDate,
+    setStartDate,
+    dueDate,
+    setDueDate,
+    selectedAssignees,
+    toggleAssignee,
+    projects,
+    projectMembers,
+    profiles,
+    currentUserRole,
+    isBootstrapping,
+    isMembersLoading,
+    isSaving,
+    error,
+    onSubmit,
+    onCancel,
+  } = props;
+
   const { t } = useLanguage();
 
   const isCreate = mode === "create";
 
+  // =========================
+  // TRANSLATION KEYS (CENTRALIZED)
+  // =========================
+
+  const text = useMemo(() => {
+    const base = isCreate ? "taskNew" : "taskEdit";
+
+    return {
+      title: t(`${base}.form.taskTitle`),
+      titlePlaceholder: t(`${base}.form.taskTitlePlaceholder`),
+      description: t(`${base}.form.description`),
+      descriptionPlaceholder: t(`${base}.form.descriptionPlaceholder`),
+      project: t(`${base}.form.project`),
+      selectProject: t(`${base}.form.selectProject`),
+      priority: t(`${base}.form.priority`),
+      selectPriority: t(`${base}.form.selectPriority`),
+      status: t(`${base}.form.status`),
+      selectStatus: t(`${base}.form.selectStatus`),
+      startDate: t(`${base}.form.startDate`),
+      dueDate: t(`${base}.form.dueDate`),
+      cancel: t(`${base}.actions.cancel`),
+      submit: t(
+        isCreate
+          ? `${base}.actions.createTask`
+          : `${base}.actions.saveChanges`
+      ),
+      submitting: t(
+        isCreate
+          ? `${base}.actions.creating`
+          : `${base}.actions.saving`
+      ),
+    };
+  }, [isCreate, t]);
+
+  // =========================
+  // OPTIONS
+  // =========================
+
+  const priorityOptions = useMemo(
+    () => [
+      { value: "LOW", label: t("tasks.priority.low") },
+      { value: "MEDIUM", label: t("tasks.priority.medium") },
+      { value: "HIGH", label: t("tasks.priority.high") },
+      { value: "URGENT", label: t("tasks.priority.urgent") },
+    ],
+    [t]
+  );
+
+  const statusOptions = useMemo(
+    () => [
+      { value: "TODO", label: t("tasks.status.todo") },
+      { value: "IN_PROGRESS", label: t("tasks.status.inProgress") },
+      { value: "IN_REVIEW", label: t("tasks.status.inReview") },
+      { value: "DONE", label: t("tasks.status.done") },
+    ],
+    [t]
+  );
+
+  // =========================
+  // HANDLERS
+  // =========================
+
+  const handleSubmit = useCallback(
+    (e: FormEvent) => {
+      onSubmit(e);
+    },
+    [onSubmit]
+  );
+
+  const isDisabled =
+    isBootstrapping ||
+    isSaving ||
+    !currentUserRole ||
+    !canPerform(currentUserRole, "createTasks");
+
+  // =========================
+  // RENDER
+  // =========================
+
   return (
-    <form onSubmit={onSubmit} className="flex h-full min-h-0 flex-col gap-4">
+    <form
+      onSubmit={handleSubmit}
+      className="flex h-full min-h-0 flex-col gap-4"
+    >
+      {/* ERROR */}
       {error && (
         <Alert className="bg-red-900/20 border-red-800 text-red-300">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      {isBootstrapping && (
-        <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-4">
-          <div className="animate-pulse space-y-4">
-            <div className="h-4 w-28 rounded bg-slate-800" />
-            <div className="h-10 w-full rounded bg-slate-800" />
-            <div className="h-4 w-24 rounded bg-slate-800" />
-            <div className="h-28 w-full rounded bg-slate-800" />
-          </div>
-        </div>
-      )}
-
+      {/* TITLE */}
       <div className="space-y-2">
-        <Label htmlFor="title" className="text-slate-300">
-          {t(isCreate ? "taskNew.form.taskTitle" : "taskEdit.form.taskTitle")}{" "}
-          <span className="text-red-400">*</span>
-        </Label>
+        <Label>{text.title} *</Label>
         <Input
-          id="title"
-          placeholder={t(isCreate ? "taskNew.form.taskTitlePlaceholder" : "taskEdit.form.taskTitlePlaceholder")}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          required
-          disabled={isBootstrapping || isSaving}
-          className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+          placeholder={text.titlePlaceholder}
+          disabled={isDisabled}
         />
       </div>
 
+      {/* DESCRIPTION */}
       <div className="space-y-2">
-        <Label htmlFor="description" className="text-slate-300">
-          {t(isCreate ? "taskNew.form.description" : "taskEdit.form.description")}
-        </Label>
+        <Label>{text.description}</Label>
         <Textarea
-          id="description"
-          placeholder={t(isCreate ? "taskNew.form.descriptionPlaceholder" : "taskEdit.form.descriptionPlaceholder")}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
+          placeholder={text.descriptionPlaceholder}
           rows={4}
-          disabled={isBootstrapping || isSaving}
-          className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 resize-none"
+          disabled={isDisabled}
         />
       </div>
 
+      {/* GRID */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5">
-        <div className="space-y-2">
-          <Label className="text-slate-300">
-            {t(isCreate ? "taskNew.form.project" : "taskEdit.form.project")}{" "}
-            <span className="text-red-400">*</span>
-          </Label>
-          <Select
-            value={projectId}
-            onValueChange={setProjectId}
-            disabled={isBootstrapping || isSaving}
-          >
-            <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-              <SelectValue placeholder={t(isCreate ? "taskNew.form.selectProject" : "taskEdit.form.selectProject")} />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-900 border-slate-800">
-              {projects.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
-                  {project.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* PROJECT */}
+        <Select value={projectId} onValueChange={setProjectId}>
+          <SelectTrigger>
+            <SelectValue placeholder={text.selectProject} />
+          </SelectTrigger>
+          <SelectContent>
+            {projects.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        <div className="space-y-2">
-          <Label className="text-slate-300">{t(isCreate ? "taskNew.form.priority" : "taskEdit.form.priority")}</Label>
-          <Select
-            value={priority}
-            onValueChange={(v) => setPriority(v as TaskPriority)}
-            disabled={isBootstrapping || isSaving}
-          >
-            <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-              <SelectValue placeholder={t(isCreate ? "taskNew.form.selectPriority" : "taskEdit.form.selectPriority")} />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-900 border-slate-800">
-              <SelectItem value="LOW">{t(isCreate ? "taskNew.priority.low" : "taskEdit.priority.low")}</SelectItem>
-              <SelectItem value="MEDIUM">{t(isCreate ? "taskNew.priority.medium" : "taskEdit.priority.medium")}</SelectItem>
-              <SelectItem value="HIGH">{t(isCreate ? "taskNew.priority.high" : "taskEdit.priority.high")}</SelectItem>
-              <SelectItem value="URGENT">{t(isCreate ? "taskNew.priority.urgent" : "taskEdit.priority.urgent")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {/* PRIORITY */}
+        <Select
+          value={priority}
+          onValueChange={(v) => setPriority(v as TaskPriority)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder={text.selectPriority} />
+          </SelectTrigger>
+          <SelectContent>
+            {priorityOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        <div className="space-y-2">
-          <Label className="text-slate-300">{t(isCreate ? "taskNew.form.status" : "taskEdit.form.status")}</Label>
-          <Select
-            value={status}
-            onValueChange={(v) => setStatus(v as TaskStatus)}
-            disabled={isBootstrapping || isSaving}
-          >
-            <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-              <SelectValue placeholder={t(isCreate ? "taskNew.form.selectStatus" : "taskEdit.form.selectStatus")} />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-900 border-slate-800">
-              <SelectItem value="TODO">{t(isCreate ? "taskNew.status.todo" : "taskEdit.status.todo")}</SelectItem>
-              <SelectItem value="IN_PROGRESS">{t(isCreate ? "taskNew.status.inProgress" : "taskEdit.status.inProgress")}</SelectItem>
-              <SelectItem value="IN_REVIEW">{t(isCreate ? "taskNew.status.inReview" : "taskEdit.status.inReview")}</SelectItem>
-              <SelectItem value="DONE">{t(isCreate ? "taskNew.status.done" : "taskEdit.status.done")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {/* STATUS */}
+        <Select
+          value={status}
+          onValueChange={(v) => setStatus(v as TaskStatus)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder={text.selectStatus} />
+          </SelectTrigger>
+          <SelectContent>
+            {statusOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        <div className="space-y-2">
-          <Label htmlFor="startDate" className="text-slate-300">
-            {t(isCreate ? "taskNew.form.startDate" : "taskEdit.form.startDate")}
-          </Label>
-          <Input
-            id="startDate"
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            disabled={isBootstrapping || isSaving}
-            className="bg-slate-950 border-slate-800 text-white"
-          />
-        </div>
+        {/* DATES */}
+        <Input
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          disabled={isDisabled}
+        />
 
-        <div className="space-y-2">
-          <Label htmlFor="dueDate" className="text-slate-300">
-            {t(isCreate ? "taskNew.form.dueDate" : "taskEdit.form.dueDate")}
-          </Label>
-          <Input
-            id="dueDate"
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            disabled={isBootstrapping || isSaving}
-            className="bg-slate-950 border-slate-800 text-white"
-          />
-        </div>
+        <Input
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          disabled={isDisabled}
+        />
       </div>
 
-      <div className="flex-1 min-h-0 rounded-lg border border-slate-800 bg-slate-950/40 p-4">
+      {/* ASSIGNEES */}
+      <div className="flex-1 min-h-0 rounded-lg border p-4">
         <TaskAssigneePicker
           projectId={projectId}
           projectMembers={projectMembers}
@@ -237,42 +297,23 @@ export function TaskForm({
           toggleAssignee={toggleAssignee}
           isLoading={isMembersLoading}
           disabled={isSaving}
-          label={t(isCreate ? "taskNew.form.assignMembers" : "taskEdit.form.assignees")}
-          helperText={t(isCreate ? "taskNew.form.visibilityNote" : "taskEdit.assignees.projectRequirement")}
-          selectProjectFirstText={t(isCreate ? "taskNew.assignees.selectProjectFirst" : "taskEdit.assignees.selectProjectFirst")}
-          loadingText={t(isCreate ? "taskNew.assignees.loadingProjectMembers" : "taskEdit.assignees.loadingProjectMembers")}
-          noAvailableText={t(isCreate ? "taskNew.assignees.noAvailableMembers" : "taskEdit.assignees.noneAvailable")}
         />
       </div>
 
-      <div className="shrink-0 flex items-center justify-end gap-4 border-t border-slate-800 pt-3">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={isSaving}
-          className="border-slate-700 text-slate-300 hover:bg-slate-800"
-        >
-          {t(isCreate ? "taskNew.actions.cancel" : "taskEdit.actions.cancel")}
+      {/* ACTIONS */}
+      <div className="flex justify-end gap-4 border-t pt-3">
+        <Button variant="outline" onClick={onCancel}>
+          {text.cancel}
         </Button>
 
-        <Button
-          type="submit"
-          className="bg-indigo-600 hover:bg-indigo-700 text-white"
-          disabled={
-            isBootstrapping ||
-            isSaving ||
-            !currentUserRole ||
-            !canPerform(currentUserRole, "createTasks")
-          }
-        >
+        <Button type="submit" disabled={isDisabled}>
           {isSaving ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              {t(isCreate ? "taskNew.actions.creating" : "taskEdit.actions.saving")}
+              {text.submitting}
             </>
           ) : (
-            t(isCreate ? "taskNew.actions.createTask" : "taskEdit.actions.saveChanges")
+            text.submit
           )}
         </Button>
       </div>

@@ -77,21 +77,24 @@ export default function TaskDetailPage() {
   useEffect(() => setActivity(activityFromHook), [activityFromHook]);
   useEffect(() => setLocalError(error || ""), [error]);
 
-const translateObject = useCallback(
+const translateForActions = useCallback(
   (
     key: string,
-    fallbackOrOptions?: string | Record<string, string | number>,
+    fallback?: string,
     params?: Record<string, string | number>,
   ) => {
-    if (
-      fallbackOrOptions &&
-      typeof fallbackOrOptions === "object" &&
-      !Array.isArray(fallbackOrOptions)
-    ) {
-      return t(key, undefined, fallbackOrOptions);
-    }
+    return t(key, fallback, params);
+  },
+  [t],
+);
 
-    return t(key, fallbackOrOptions, params);
+const translateForSidebar = useCallback(
+  (key: string, options?: object) => {
+    return t(
+      key,
+      undefined,
+      options as Record<string, string | number> | undefined,
+    );
   },
   [t],
 );
@@ -123,17 +126,17 @@ const translateObject = useCallback(
     todayKey: clock.todayKey,
   });
 
-  const actions = useTaskDetailActions(
-    task,
-    currentUserId,
-    translateObject,
-    requestTracker,
-    setLocalError,
-    setTaskMembers,
-    setComments,
-    setFiles,
-    setTranslatedComments,
-  );
+const actions = useTaskDetailActions(
+  task,
+  currentUserId,
+  translateForActions,
+  requestTracker,
+  setLocalError,
+  setTaskMembers,
+  setComments,
+  setFiles,
+  setTranslatedComments,
+);
 
   useTaskDetailRealtime({
     taskId: id,
@@ -447,12 +450,12 @@ const translateObject = useCallback(
 
         <div className="space-y-6 overflow-hidden lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
           <TaskDetailsSidebar
-            task={task}
-            project={project}
-            dueDateDisplay={dueDateDisplay}
-            dueDateColorClass={dueDateInfo.color}
-            t={translateObject}
-          />
+  task={task}
+  project={project}
+  dueDateDisplay={dueDateDisplay}
+  dueDateColorClass={dueDateInfo.color}
+  t={translateForSidebar}
+/>
 
           <TaskMembersSidebar
             taskMembers={taskMembers}

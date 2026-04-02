@@ -1,6 +1,18 @@
 import { useMemo } from "react";
-import type { TaskRow, ProfileRow, TaskMemberRow, CheckpointState, TaskDateStatus } from "../lib/task.types";
-import { getCheckpointState, getTaskDateDisplay, getProgressValue, getTaskMemberProfiles } from "../lib/task.utils";
+import type {
+  TaskRow,
+  ProfileRow,
+  TaskMemberRow,
+  CheckpointState,
+  TaskDateStatus,
+} from "../lib/task.types";
+
+import {
+  getCheckpointState,
+  getTaskDateDisplay,
+  getProgressValue,
+  getTaskMemberProfiles,
+} from "../lib/task.utils";
 
 interface UseTaskDerivedStateProps {
   task: TaskRow | null;
@@ -10,6 +22,19 @@ interface UseTaskDerivedStateProps {
   now?: number;
 }
 
+interface DueDateInfo {
+  display: string;
+  status: TaskDateStatus["status"];
+  color: string;
+  label: string | null;
+  isOverdue: boolean;
+  isDueToday: boolean;
+}
+
+function normalizeStatus(status: string | null): string {
+  return (status || "").toUpperCase();
+}
+
 export function useTaskDerivedState({
   task,
   taskMembers,
@@ -17,19 +42,17 @@ export function useTaskDerivedState({
   todayKey,
   now = Date.now(),
 }: UseTaskDerivedStateProps) {
-  const checkpointState: CheckpointState = useMemo(() => {
-    if (!task) return { behindSchedule: false, updateRequired: false };
-    return getCheckpointState(task, todayKey, now);
-  }, [task, todayKey, now]);
+  const isReady = Boolean(task);
 
-  const dueDateInfo: {
-    display: string;
-    status: TaskDateStatus["status"];
-    color: string;
-    label: string | null;
-    isOverdue: boolean;
-    isDueToday: boolean;
-  } = useMemo(() => {
+  const checkpointState: CheckpointState = useMemo(() => {
+    if (!isReady || !task) {
+      return { behindSchedule: false, updateRequired: false };
+    }
+
+    return getCheckpointState(task, todayKey, now);
+  }, [isReady, task, todayKey, now]);
+
+  const dueDateInfo: DueDateInfo = useMemo(() => {
     if (!task?.due_date) {
       return {
         display: "-",
@@ -41,16 +64,21 @@ export function useTaskDerivedState({
       };
     }
 
-    const { status, color, label } = getTaskDateDisplay(task.due_date, todayKey);
-    const isTaskDone = (task.status || "").toUpperCase() === "DONE";
-    
+    const { status, color, label } = getTaskDateDisplay(
+      task.due_date,
+      todayKey
+    );
+
+    const normalizedStatus = normalizeStatus(task.status);
+    const isDone = normalizedStatus === "DONE";
+
     return {
       display: task.due_date,
       status,
-      color: isTaskDone ? "text-slate-500" : color,
-      label: isTaskDone ? null : label,
-      isOverdue: !isTaskDone && status === "overdue",
-      isDueToday: !isTaskDone && status === "today",
+      color: isDone ? "text-slate-500" : color,
+      label: isDone ? null : label,
+      isOverdue: !isDone && status === "overdue",
+      isDueToday: !isDone && status === "today",
     };
   }, [task, todayKey]);
 

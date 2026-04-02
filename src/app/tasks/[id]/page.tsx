@@ -1,25 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type React from "react";
+import { format } from "date-fns";
+
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import { useTaskDetailData } from "@/features/tasks/hooks/useTaskDetailData";
-import { useTaskPermissions } from "@/features/tasks/hooks/useTaskPermissions";
-import { useTaskDerivedState } from "@/features/tasks/hooks/useTaskDerivedState";
-import { useTaskDetailActions } from "@/features/tasks/hooks/useTaskDetailActions";
-import { useTaskDetailRealtime } from "@/features/tasks/hooks/useTaskDetailRealtime";
-
-import { TaskDetailHeader } from "@/features/tasks/components/detail/TaskDetailHeader";
-import { TaskOverviewTab } from "@/features/tasks/components/detail/TaskOverviewTab";
-import { TaskFilesTab } from "@/features/tasks/components/detail/TaskFilesTab";
-import { TaskDiscussionTab } from "@/features/tasks/components/detail/TaskDiscussionTab";
-import { TaskActivityTab } from "@/features/tasks/components/detail/TaskActivityTab";
-import { TaskDetailsSidebar } from "@/features/tasks/components/detail/TaskDetailsSidebar";
-import { TaskMembersSidebar } from "@/features/tasks/components/detail/TaskMembersSidebar";
-import { TaskStatusDialog } from "@/features/tasks/components/detail/TaskStatusDialog";
-
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
-import { formatDateInTimezone } from "@/lib/datetime";
+
+import { useTaskDetailData } from "../hooks/useTaskDetailData";
+import { useTaskPermissions } from "../hooks/useTaskPermissions";
+import { useTaskDerivedState } from "../hooks/useTaskDerivedState";
+import { useTaskDetailActions } from "../hooks/useTaskDetailActions";
+import { useTaskDetailRealtime } from "../hooks/useTaskDetailRealtime";
+
+import { TaskDetailHeader } from "../components/detail/TaskDetailHeader";
+import { TaskOverviewTab } from "../components/detail/TaskOverviewTab";
+import { TaskFilesTab } from "../components/detail/TaskFilesTab";
+import { TaskDiscussionTab } from "../components/detail/TaskDiscussionTab";
+import { TaskActivityTab } from "../components/detail/TaskActivityTab";
+import { TaskDetailsSidebar } from "../components/detail/TaskDetailsSidebar";
+import { TaskMembersSidebar } from "../components/detail/TaskMembersSidebar";
+import { TaskStatusDialog } from "../components/detail/TaskStatusDialog";
 
 import type {
   FileUploadRow,
@@ -29,10 +31,10 @@ import type {
   TaskMemberRow,
   TaskRow,
   TranslatedComment,
-} from "@/features/tasks/lib/task.types";
+} from "../lib/task.types";
 
 export default function TaskDetailPage() {
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const clock = useAppClock();
 
   const [activeTab, setActiveTab] = useState("overview");
@@ -66,37 +68,18 @@ export default function TaskDetailPage() {
   const [files, setFiles] = useState<FileUploadRow[]>(filesFromHook);
   const [activity, setActivity] = useState<TaskActivityRow[]>(activityFromHook);
 
-  useEffect(() => {
-    setTask(taskFromHook);
-  }, [taskFromHook]);
+  useEffect(() => setTask(taskFromHook), [taskFromHook]);
+  useEffect(() => setProfiles(profilesFromHook), [profilesFromHook]);
+  useEffect(() => setTaskMembers(taskMembersFromHook), [taskMembersFromHook]);
+  useEffect(() => setComments(commentsFromHook), [commentsFromHook]);
+  useEffect(() => setFiles(filesFromHook), [filesFromHook]);
+  useEffect(() => setActivity(activityFromHook), [activityFromHook]);
+  useEffect(() => setLocalError(error || ""), [error]);
 
-  useEffect(() => {
-    setProfiles(profilesFromHook);
-  }, [profilesFromHook]);
-
-  useEffect(() => {
-    setTaskMembers(taskMembersFromHook);
-  }, [taskMembersFromHook]);
-
-  useEffect(() => {
-    setComments(commentsFromHook);
-  }, [commentsFromHook]);
-
-  useEffect(() => {
-    setFiles(filesFromHook);
-  }, [filesFromHook]);
-
-  useEffect(() => {
-    setActivity(activityFromHook);
-  }, [activityFromHook]);
-
-  useEffect(() => {
-    setLocalError(error || "");
-  }, [error]);
-
-  const visibleProjectIds = useMemo(() => {
-    return new Set(project?.id ? [project.id] : []);
-  }, [project?.id]);
+  const visibleProjectIds = useMemo(
+    () => new Set(project?.id ? [project.id] : []),
+    [project?.id],
+  );
 
   const {
     canEdit,
@@ -123,7 +106,7 @@ export default function TaskDetailPage() {
   const actions = useTaskDetailActions(
     task,
     currentUserId,
-    (key: string, options?: object) => t(key, undefined, options),
+    t,
     requestTracker,
     setLocalError,
     setTaskMembers,
@@ -135,10 +118,10 @@ export default function TaskDetailPage() {
   useTaskDetailRealtime({
     taskId: id,
     onTaskUpdate: (updatedTask: Partial<TaskRow>) => {
-      setTask((prev) => (prev ? { ...prev, ...updatedTask } : prev));
+      setTask((prev: TaskRow | null) => (prev ? { ...prev, ...updatedTask } : prev));
     },
     onCommentInsert: (newComment: TaskCommentRow) => {
-      setComments((prev) => {
+      setComments((prev: TaskCommentRow[]) => {
         if (prev.some((comment) => comment.id === newComment.id)) {
           return prev;
         }
@@ -146,7 +129,7 @@ export default function TaskDetailPage() {
       });
     },
     onActivityInsert: (newActivity: TaskActivityRow) => {
-      setActivity((prev) => {
+      setActivity((prev: TaskActivityRow[]) => {
         if (prev.some((item) => item.id === newActivity.id)) {
           return prev;
         }
@@ -168,9 +151,7 @@ export default function TaskDetailPage() {
       ids.add(task.created_by);
     }
 
-    taskMembers.forEach((member) => {
-      ids.add(member.user_id);
-    });
+    taskMembers.forEach((member) => ids.add(member.user_id));
 
     return Array.from(ids)
       .map((userId) => profileMap.get(userId))
@@ -195,12 +176,13 @@ export default function TaskDetailPage() {
     const existingIds = new Set(taskMembers.map((member) => member.user_id));
 
     return profiles.filter((profile) => {
-      const isAllowedRole =
+      const allowedRole =
         profile.role === "employee" || profile.role === "manager";
-      const isActive = profile.status === "active";
-      const isMissing = !existingIds.has(profile.user_id);
-
-      return isAllowedRole && isActive && isMissing;
+      return (
+        allowedRole &&
+        profile.status === "active" &&
+        !existingIds.has(profile.user_id)
+      );
     });
   }, [profiles, taskMembers]);
 
@@ -209,8 +191,8 @@ export default function TaskDetailPage() {
       return "-";
     }
 
-    return formatDateInTimezone(clock.shiftDate(task.due_date), language);
-  }, [task?.due_date, clock, language]);
+    return format(clock.shiftDate(task.due_date), "MMM d, yyyy");
+  }, [task?.due_date, clock]);
 
   const dueDateBadgeClassName = useMemo(() => {
     if (dueDateInfo.isOverdue) {
@@ -323,7 +305,7 @@ export default function TaskDetailPage() {
             onValueChange={setActiveTab}
             className="flex min-h-0 flex-1 flex-col"
           >
-            <TabsList className="h-auto shrink-0 self-start border border-slate-800 bg-slate-900 flex-wrap">
+            <TabsList className="h-auto shrink-0 self-start flex-wrap border border-slate-800 bg-slate-900">
               <TabsTrigger
                 value="overview"
                 className="data-[state=active]:bg-slate-800"

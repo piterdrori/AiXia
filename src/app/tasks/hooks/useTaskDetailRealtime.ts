@@ -1,17 +1,22 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   subscribeToTask,
   subscribeToTaskComments,
   subscribeToTaskActivity,
   removeRealtimeChannel,
 } from "@/lib/realtime";
-import type { TaskRow, TaskCommentRow, TaskActivityRow } from "../lib/task.types";
+
+import type {
+  TaskRow,
+  TaskCommentRow,
+  TaskActivityRow,
+} from "../lib/task.types";
 
 interface UseTaskDetailRealtimeProps {
   taskId: string | undefined;
-  onTaskUpdate: (updatedTask: Partial<TaskRow>) => void;
-  onCommentInsert: (newComment: TaskCommentRow) => void;
-  onActivityInsert: (newActivity: TaskActivityRow) => void;
+  onTaskUpdate?: (updatedTask: Partial<TaskRow>) => void;
+  onCommentInsert?: (newComment: TaskCommentRow) => void;
+  onActivityInsert?: (newActivity: TaskActivityRow) => void;
 }
 
 export function useTaskDetailRealtime({
@@ -20,28 +25,47 @@ export function useTaskDetailRealtime({
   onCommentInsert,
   onActivityInsert,
 }: UseTaskDetailRealtimeProps) {
+  const activeTaskRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!taskId) return;
 
-    subscribeToTask({
-      taskId,
-      onUpdate: onTaskUpdate,
-    });
+    // Prevent duplicate subscriptions for same task
+    if (activeTaskRef.current === taskId) return;
 
-    subscribeToTaskComments({
-      taskId,
-      onInsert: onCommentInsert,
-    });
+    activeTaskRef.current = taskId;
 
-    subscribeToTaskActivity({
-      taskId,
-      onInsert: onActivityInsert,
-    });
+    // === TASK CHANNEL ===
+    if (onTaskUpdate) {
+      subscribeToTask({
+        taskId,
+        onUpdate: onTaskUpdate,
+      });
+    }
 
+    // === COMMENTS CHANNEL ===
+    if (onCommentInsert) {
+      subscribeToTaskComments({
+        taskId,
+        onInsert: onCommentInsert,
+      });
+    }
+
+    // === ACTIVITY CHANNEL ===
+    if (onActivityInsert) {
+      subscribeToTaskActivity({
+        taskId,
+        onInsert: onActivityInsert,
+      });
+    }
+
+    // === CLEANUP ===
     return () => {
       removeRealtimeChannel(`task:${taskId}`);
       removeRealtimeChannel(`task:comments:${taskId}`);
       removeRealtimeChannel(`task:activity:${taskId}`);
+
+      activeTaskRef.current = null;
     };
-  }, [taskId, onTaskUpdate, onCommentInsert, onActivityInsert]);
+  }, [taskId]);
 }

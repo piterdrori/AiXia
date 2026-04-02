@@ -5,7 +5,7 @@ import {
   subscribeToTaskActivity,
   removeRealtimeChannel,
 } from "@/lib/realtime";
-import { TaskRow, TaskCommentRow, TaskActivityRow } from "../lib/task.types";
+import type { TaskRow, TaskCommentRow, TaskActivityRow } from "../lib/task.types";
 
 interface UseTaskDetailRealtimeProps {
   taskId: string | undefined;

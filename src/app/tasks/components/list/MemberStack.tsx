@@ -1,5 +1,5 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ProfileRow } from "../../lib/task.types";
+import type { ProfileRow } from "../../lib/task.types";
 import { getInitials } from "../../lib/task.utils";
 import { useLanguage } from "@/lib/i18n";
 

@@ -105,3 +105,6 @@ export interface TaskDateStatus {
   color: string;
   label: string | null;
 }
+
+export const DEFAULT_TASK_STATUS: TaskStatus = "TODO";
+export const DEFAULT_TASK_PRIORITY: TaskPriority = "MEDIUM";

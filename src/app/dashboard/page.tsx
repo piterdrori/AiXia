@@ -452,7 +452,7 @@ export default function DashboardPage() {
       : Math.round((completedTasks / totalRelevantTasks) * 100);
 
   return (
-    <div className="min-h-[calc(100vh-126px)] flex flex-col gap-6">
+    <div className="h-[calc(100vh-126px)] flex flex-col gap-6 overflow-y-auto pb-6">
       <div className="flex flex-wrap items-start justify-between gap-4 shrink-0">
         <div>
           <h1 className="text-3xl font-semibold tracking-[-0.02em] text-foreground">
@@ -580,8 +580,8 @@ export default function DashboardPage() {
   </PageLoader>
 </div>
 
-      <div className="grid xl:grid-cols-2 gap-6 min-h-[1100px]">
-        <div className="grid gap-6 content-start" style={{ gridTemplateRows: "520px 520px" }}>
+      <div className="grid xl:grid-cols-2 gap-6">
+        <div className="grid gap-6 content-start" className="grid gap-6 content-start">
                     {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
             <>
               <PanelSkeleton
@@ -692,7 +692,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="grid gap-6 content-start" style={{ gridTemplateRows: "520px 520px" }}>
+        <div className="grid gap-6 content-start" className="grid gap-6 content-start">
                     {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
             <>
               <PanelSkeleton

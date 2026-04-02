@@ -1,211 +1,316 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { canPerform } from "@/lib/permissions";
-import type { Role, ProjectRow, ProjectMemberRow, ProfileRow, TaskPriority, TaskStatus } from "../lib/task.types";
-import { DEFAULT_TASK_STATUS, DEFAULT_TASK_PRIORITY } from "../lib/task.types";
+
+import type {
+  Role,
+  ProjectRow,
+  ProjectMemberRow,
+  ProfileRow,
+  TaskPriority,
+  TaskStatus,
+} from "../lib/task.types";
+
+import {
+  DEFAULT_TASK_STATUS,
+  DEFAULT_TASK_PRIORITY,
+} from "../lib/task.types";
+
+interface FormState {
+  title: string;
+  description: string;
+  projectId: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  startDate: string;
+  dueDate: string;
+  selectedAssignees: string[];
+}
+
+interface DataState {
+  projects: ProjectRow[];
+  projectMembers: ProjectMemberRow[];
+  profiles: ProfileRow[];
+  allProjectMembers: ProjectMemberRow[];
+}
+
+interface MetaState {
+  currentUserId: string | null;
+  currentUserRole: Role | null;
+  isBootstrapping: boolean;
+  isMembersLoading: boolean;
+}
+
+const INITIAL_FORM: FormState = {
+  title: "",
+  description: "",
+  projectId: "",
+  priority: DEFAULT_TASK_PRIORITY,
+  status: DEFAULT_TASK_STATUS,
+  startDate: "",
+  dueDate: "",
+  selectedAssignees: [],
+};
+
+const INITIAL_DATA: DataState = {
+  projects: [],
+  projectMembers: [],
+  profiles: [],
+  allProjectMembers: [],
+};
+
+const INITIAL_META: MetaState = {
+  currentUserId: null,
+  currentUserRole: null,
+  isBootstrapping: true,
+  isMembersLoading: false,
+};
 
 export function useTaskFormData() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const pageRequestTracker = useRef(createRequestTracker());
-  const membersRequestTracker = useRef(createRequestTracker());
+
+  const pageTracker = useRef(createRequestTracker());
+  const membersTracker = useRef(createRequestTracker());
 
   const initialProjectId = searchParams.get("projectId") || "";
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [projectId, setProjectId] = useState(initialProjectId);
-  const [priority, setPriority] = useState<TaskPriority>(DEFAULT_TASK_PRIORITY);
-  const [status, setStatus] = useState<TaskStatus>(DEFAULT_TASK_STATUS);
-  const [startDate, setStartDate] = useState("");
-  const [dueDate, setDueDate] = useState("");
+  const [form, setForm] = useState<FormState>({
+    ...INITIAL_FORM,
+    projectId: initialProjectId,
+  });
 
-  const [projects, setProjects] = useState<ProjectRow[]>([]);
-  const [projectMembers, setProjectMembers] = useState<ProjectMemberRow[]>([]);
-  const [allProjectMembers, setAllProjectMembers] = useState<ProjectMemberRow[]>([]);
-  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
-  const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const [data, setData] = useState<DataState>(INITIAL_DATA);
+  const [meta, setMeta] = useState<MetaState>(INITIAL_META);
 
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
-  const [isBootstrapping, setIsBootstrapping] = useState(true);
-  const [isMembersLoading, setIsMembersLoading] = useState(false);
+  // =========================
+  // LOAD PAGE
+  // =========================
 
-  useEffect(() => {
-    let mounted = true;
+  const loadPage = useCallback(async () => {
+    const requestId = pageTracker.current.next();
 
-    const loadPage = async () => {
-      const requestId = pageRequestTracker.current.next();
-      setIsBootstrapping(true);
+    setMeta((prev) => ({ ...prev, isBootstrapping: true }));
 
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-        if (!user) {
-          navigate("/login");
-          return;
-        }
+      if (!pageTracker.current.isLatest(requestId)) return;
 
-        setCurrentUserId(user.id);
+      if (!user) {
+        navigate("/login");
+        return;
+      }
 
-        const [
-          { data: myProfile, error: myProfileError },
-          { data: allProjects },
-          { data: allProjectMembers },
-          { data: allProfiles },
-        ] = await Promise.all([
-          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
-          supabase.from("projects").select("id, name, created_by").order("created_at", { ascending: false }),
-          supabase.from("project_members").select("id, project_id, user_id, role, created_at"),
-          supabase.from("profiles").select("user_id, full_name, role, status").eq("status", "active").order("full_name", { ascending: true }),
-        ]);
+      const [
+        { data: myProfile, error: myProfileError },
+        { data: projectsData, error: projectsError },
+        { data: projectMembersData, error: projectMembersError },
+        { data: profilesData, error: profilesError },
+      ] = await Promise.all([
+        supabase.from("profiles").select("role").eq("user_id", user.id).single(),
+        supabase.from("projects").select("id, name, created_by").order("created_at", { ascending: false }),
+        supabase.from("project_members").select("id, project_id, user_id, role, created_at"),
+        supabase.from("profiles").select("user_id, full_name, role, status").eq("status", "active"),
+      ]);
 
-        if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
-        if (myProfileError || !myProfile) {
-          navigate("/tasks");
-          return;
-        }
+      if (!pageTracker.current.isLatest(requestId)) return;
 
-        const role = myProfile.role as Role;
-        setCurrentUserRole(role);
+      if (
+        myProfileError ||
+        !myProfile ||
+        projectsError ||
+        projectMembersError ||
+        profilesError
+      ) {
+        throw new Error("Failed loading task form data");
+      }
 
-        if (!canPerform(role, "createTasks")) {
-          navigate("/tasks");
-          return;
-        }
+      const role = myProfile.role as Role;
 
-        const projectsData = (allProjects || []) as ProjectRow[];
-        const projectMembersData = (allProjectMembers || []) as ProjectMemberRow[];
-        const profilesData = (allProfiles || []) as ProfileRow[];
+      if (!canPerform(role, "createTasks")) {
+        navigate("/tasks");
+        return;
+      }
 
-        const visibleProjects = role === "admin"
-          ? projectsData
-          : projectsData.filter((project) => {
+      const safeProjects = (projectsData || []) as ProjectRow[];
+      const safeMembers = (projectMembersData || []) as ProjectMemberRow[];
+      const safeProfiles = (profilesData || []) as ProfileRow[];
+
+      const visibleProjects =
+        role === "admin"
+          ? safeProjects
+          : safeProjects.filter((project) => {
               const isCreator = project.created_by === user.id;
-              const isAssigned = projectMembersData.some(
-                (member) => member.project_id === project.id && member.user_id === user.id
+              const isMember = safeMembers.some(
+                (m) => m.project_id === project.id && m.user_id === user.id
               );
-              return isCreator || isAssigned;
+              return isCreator || isMember;
             });
 
-        const safeProjectId = initialProjectId && visibleProjects.some((p) => p.id === initialProjectId)
-          ? initialProjectId
+      const safeProjectId =
+        form.projectId &&
+        visibleProjects.some((p) => p.id === form.projectId)
+          ? form.projectId
           : "";
 
-        setProjects(visibleProjects);
-        setProfiles(profilesData);
-        setAllProjectMembers(projectMembersData);
-        setProjectId(safeProjectId);
+      const initialMembers = safeMembers.filter(
+        (m) => m.project_id === safeProjectId
+      );
 
-        if (safeProjectId) {
-          const initialMembers = projectMembersData.filter((m) => m.project_id === safeProjectId);
-          setProjectMembers(initialMembers);
-        }
-      } catch (err) {
-        if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
-        console.error("Load task form data error:", err);
-      } finally {
-        if (!mounted || !pageRequestTracker.current.isLatest(requestId)) return;
-        setIsBootstrapping(false);
-      }
-    };
+      setData({
+        projects: visibleProjects,
+        projectMembers: initialMembers,
+        profiles: safeProfiles,
+        allProjectMembers: safeMembers,
+      });
 
+      setForm((prev) => ({
+        ...prev,
+        projectId: safeProjectId,
+      }));
+
+      setMeta({
+        currentUserId: user.id,
+        currentUserRole: role,
+        isBootstrapping: false,
+        isMembersLoading: false,
+      });
+    } catch (err) {
+      if (!pageTracker.current.isLatest(requestId)) return;
+      console.error("useTaskFormData error:", err);
+      setMeta((prev) => ({ ...prev, isBootstrapping: false }));
+    }
+  }, [navigate, form.projectId]);
+
+  useEffect(() => {
     void loadPage();
-    return () => { mounted = false; };
-  }, [navigate, initialProjectId]);
+  }, [loadPage]);
+
+  // =========================
+  // LOAD MEMBERS
+  // =========================
 
   useEffect(() => {
     let mounted = true;
 
     const loadMembers = async () => {
-      const requestId = membersRequestTracker.current.next();
+      const requestId = membersTracker.current.next();
 
-      if (!projectId) {
-        setProjectMembers([]);
-        setSelectedAssignees([]);
-        setIsMembersLoading(false);
+      if (!form.projectId) {
+        setData((prev) => ({ ...prev, projectMembers: [] }));
+        setForm((prev) => ({ ...prev, selectedAssignees: [] }));
+        setMeta((prev) => ({ ...prev, isMembersLoading: false }));
         return;
       }
 
-      const cached = allProjectMembers.filter((m) => m.project_id === projectId);
+      const cached = data.allProjectMembers.filter(
+        (m) => m.project_id === form.projectId
+      );
+
       if (cached.length > 0) {
-        setProjectMembers(cached);
-        setSelectedAssignees((prev) => prev.filter((id) => cached.some((m) => m.user_id === id)));
-        setIsMembersLoading(false);
+        setData((prev) => ({ ...prev, projectMembers: cached }));
+        setForm((prev) => ({
+          ...prev,
+          selectedAssignees: prev.selectedAssignees.filter((id) =>
+            cached.some((m) => m.user_id === id)
+          ),
+        }));
         return;
       }
 
-      setIsMembersLoading(true);
+      setMeta((prev) => ({ ...prev, isMembersLoading: true }));
+
       try {
-        const { data, error } = await supabase
+        const { data: fetched, error } = await supabase
           .from("project_members")
           .select("id, project_id, user_id, role, created_at")
-          .eq("project_id", projectId);
+          .eq("project_id", form.projectId);
 
-        if (!mounted || !membersRequestTracker.current.isLatest(requestId)) return;
+        if (!mounted || !membersTracker.current.isLatest(requestId)) return;
+
         if (error) throw error;
 
-        const members = (data || []) as ProjectMemberRow[];
-        setProjectMembers(members);
-        setAllProjectMembers((prev) => {
-          const without = prev.filter((item) => item.project_id !== projectId);
-          return [...without, ...members];
-        });
-        setSelectedAssignees((prev) => prev.filter((id) => members.some((m) => m.user_id === id)));
+        const members = (fetched || []) as ProjectMemberRow[];
+
+        setData((prev) => ({
+          ...prev,
+          projectMembers: members,
+          allProjectMembers: [
+            ...prev.allProjectMembers.filter(
+              (m) => m.project_id !== form.projectId
+            ),
+            ...members,
+          ],
+        }));
+
+        setForm((prev) => ({
+          ...prev,
+          selectedAssignees: prev.selectedAssignees.filter((id) =>
+            members.some((m) => m.user_id === id)
+          ),
+        }));
       } catch (err) {
-        if (!mounted || !membersRequestTracker.current.isLatest(requestId)) return;
+        if (!mounted || !membersTracker.current.isLatest(requestId)) return;
         console.error("Load members error:", err);
       } finally {
-        if (!mounted || !membersRequestTracker.current.isLatest(requestId)) return;
-        setIsMembersLoading(false);
+        if (!mounted || !membersTracker.current.isLatest(requestId)) return;
+        setMeta((prev) => ({ ...prev, isMembersLoading: false }));
       }
     };
 
     void loadMembers();
-    return () => { mounted = false; };
-  }, [projectId, allProjectMembers]);
 
-  const toggleAssignee = (userId: string) => {
-    setSelectedAssignees((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
-    );
-  };
+    return () => {
+      mounted = false;
+    };
+  }, [form.projectId, data.allProjectMembers]);
+
+  // =========================
+  // ACTIONS
+  // =========================
+
+  const toggleAssignee = useCallback((userId: string) => {
+    setForm((prev) => ({
+      ...prev,
+      selectedAssignees: prev.selectedAssignees.includes(userId)
+        ? prev.selectedAssignees.filter((id) => id !== userId)
+        : [...prev.selectedAssignees, userId],
+    }));
+  }, []);
+
+  // =========================
+  // RETURN
+  // =========================
 
   return {
-    // Form values
-    title,
-    setTitle,
-    description,
-    setDescription,
-    projectId,
-    setProjectId,
-    priority,
-    setPriority,
-    status,
-    setStatus,
-    startDate,
-    setStartDate,
-    dueDate,
-    setDueDate,
-    selectedAssignees,
-    setSelectedAssignees,
+    // form
+    ...form,
+    setForm,
+
+    // granular setters (UI-friendly)
+    setTitle: (v: string) => setForm((p) => ({ ...p, title: v })),
+    setDescription: (v: string) => setForm((p) => ({ ...p, description: v })),
+    setProjectId: (v: string) => setForm((p) => ({ ...p, projectId: v })),
+    setPriority: (v: TaskPriority) => setForm((p) => ({ ...p, priority: v })),
+    setStatus: (v: TaskStatus) => setForm((p) => ({ ...p, status: v })),
+    setStartDate: (v: string) => setForm((p) => ({ ...p, startDate: v })),
+    setDueDate: (v: string) => setForm((p) => ({ ...p, dueDate: v })),
+    setSelectedAssignees: (v: string[]) =>
+      setForm((p) => ({ ...p, selectedAssignees: v })),
     toggleAssignee,
-    
-    // Data
-    projects,
-    projectMembers,
-    profiles,
-    currentUserId,
-    currentUserRole,
-    
-    // States
-    isBootstrapping,
-    isMembersLoading,
-    
-    // Utils
-    pageRequestTracker,
+
+    // data
+    ...data,
+
+    // meta
+    ...meta,
+
+    // infra
+    pageTracker,
   };
 }

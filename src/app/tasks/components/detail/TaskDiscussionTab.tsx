@@ -224,7 +224,10 @@ export function TaskDiscussionTab({
                         <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                           <Clock3 className="h-3 w-3" />
                           <span>
-                            {format(clock.shiftDate(comment.created_at), "MMM d, yyyy • h:mm a")}
+                            {format(
+                              clock.shiftDate(comment.created_at),
+                              "MMM d, yyyy • h:mm a",
+                            )}
                           </span>
                         </div>
                       </div>

@@ -13,7 +13,7 @@ import { canEditTaskEntity } from "@/lib/permissions";
 import { createNotification } from "@/lib/notifications";
 import { useLanguage } from "@/lib/i18n";
 
-import { TaskForm } from "@/features/tasks/components/form/TaskForm";
+import { TaskForm } from "../../components/form/TaskForm";
 
 import type {
   ProjectMemberRow,
@@ -24,7 +24,7 @@ import type {
   TaskPriority,
   TaskRow,
   TaskStatus,
-} from "@/features/tasks/lib/task.types";
+} from "../../lib/task.types";
 
 export default function TaskEditPage() {
   const navigate = useNavigate();
@@ -399,11 +399,7 @@ export default function TaskEditPage() {
               actorUserId: currentUserId || undefined,
               type: "TASK_ASSIGNED",
               title: t("taskEdit.notifications.assignedTitle"),
-              message: t(
-                "taskEdit.notifications.assignedMessage",
-                undefined,
-                { title: title.trim() },
-              ),
+              message: title.trim(),
               link: `/tasks/${id}`,
               entityType: "task",
               entityId: id,
@@ -434,11 +430,7 @@ export default function TaskEditPage() {
               actorUserId: currentUserId || undefined,
               type: "TASK_UPDATED",
               title: t("taskEdit.notifications.removedTitle"),
-              message: t(
-                "taskEdit.notifications.removedMessage",
-                undefined,
-                { title: title.trim() },
-              ),
+              message: title.trim(),
               link: `/tasks/${id}`,
               entityType: "task",
               entityId: id,

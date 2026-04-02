@@ -1,14 +1,14 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, MessageSquare, Clock3, Edit, Trash2, Save, X } from "lucide-react";
 import { format } from "date-fns";
-import { TaskCommentRow, ProfileRow } from "../../lib/task.types";
+import type { TaskCommentRow, ProfileRow, TranslatedComment } from "../../lib/task.types";
 import { getProfileName, getProfileRole, getInitials } from "../../lib/task.utils";
 import { useAppClock } from "@/lib/clock/provider";
 import { useLanguage } from "@/lib/i18n";
-import { TranslatedComment } from "../../lib/task.types";
 
 interface TaskDiscussionTabProps {
   comments: TaskCommentRow[];
@@ -23,7 +23,6 @@ interface TaskDiscussionTabProps {
   translatedComments: Record<string, TranslatedComment>;
   showMentionDropdown: boolean;
   mentionCandidates: ProfileRow[];
-  mentionQuery: string;
   canManageComment: (comment: TaskCommentRow) => boolean;
   onNewCommentChange: (value: string) => void;
   onAddComment: () => void;
@@ -48,7 +47,6 @@ export function TaskDiscussionTab({
   translatedComments,
   showMentionDropdown,
   mentionCandidates,
-  mentionQuery,
   canManageComment,
   onNewCommentChange,
   onAddComment,
@@ -61,6 +59,7 @@ export function TaskDiscussionTab({
 }: TaskDiscussionTabProps) {
   const { t } = useLanguage();
   const clock = useAppClock();
+  const [editText, setEditText] = useState(editingCommentText);
 
   const visibleComments = [...comments].slice(-50).reverse();
 
@@ -84,11 +83,6 @@ export function TaskDiscussionTab({
             placeholder={t("taskDetail.discussion.placeholder")}
             value={newComment}
             onChange={(e) => onNewCommentChange(e.target.value)}
-            onBlur={() => {
-              window.setTimeout(() => {
-                // Handled by parent
-              }, 150);
-            }}
             rows={4}
             className="bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 resize-none"
           />
@@ -191,7 +185,10 @@ export function TaskDiscussionTab({
                           variant="outline"
                           size="sm"
                           className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                          onClick={() => onStartEdit(comment)}
+                          onClick={() => {
+                            onStartEdit(comment);
+                            setEditText(comment.content);
+                          }}
                           disabled={commentActionLoading === comment.id}
                         >
                           <Edit className="w-3 h-3 mr-1" />
@@ -217,8 +214,8 @@ export function TaskDiscussionTab({
                     {isEditing ? (
                       <div className="space-y-3">
                         <Textarea
-                          value={editingCommentText}
-                          onChange={(e) => onNewCommentChange(e.target.value)}
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
                           rows={4}
                           className="bg-slate-900 border-slate-800 text-white resize-none"
                         />
@@ -228,8 +225,11 @@ export function TaskDiscussionTab({
                             type="button"
                             size="sm"
                             className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                            onClick={() => onSaveEdit(comment)}
-                            disabled={commentActionLoading === comment.id || !editingCommentText.trim()}
+                            onClick={() => {
+                              onSaveEdit(comment);
+                              setEditText("");
+                            }}
+                            disabled={commentActionLoading === comment.id || !editText.trim()}
                           >
                             <Save className="w-3 h-3 mr-1" />
                             {t("taskDetail.actions.save")}
@@ -240,7 +240,10 @@ export function TaskDiscussionTab({
                             size="sm"
                             variant="outline"
                             className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                            onClick={onCancelEdit}
+                            onClick={() => {
+                              onCancelEdit();
+                              setEditText("");
+                            }}
                             disabled={commentActionLoading === comment.id}
                           >
                             <X className="w-3 h-3 mr-1" />

@@ -117,7 +117,7 @@ function PanelSkeleton({
   icon?: ReactNode;
 }) {
   return (
-    <Card className="flex flex-col overflow-hidden">
+    <Card className="flex flex-col overflow-hidden min-h-0 h-full">
       <CardHeader className="shrink-0 pb-4">
         <CardTitle className="text-foreground flex items-center gap-2">
           {icon}
@@ -452,7 +452,7 @@ export default function DashboardPage() {
       : Math.round((completedTasks / totalRelevantTasks) * 100);
 
   return (
-    <div className="h-[calc(100vh-126px)] flex flex-col gap-6 overflow-y-auto pb-6">
+    <div className="h-[calc(100vh-126px)] flex flex-col gap-6 overflow-hidden pb-6">
       <div className="flex flex-wrap items-start justify-between gap-4 shrink-0">
         <div>
           <h1 className="text-3xl font-semibold tracking-[-0.02em] text-foreground">
@@ -580,8 +580,8 @@ export default function DashboardPage() {
   </PageLoader>
 </div>
 
-      <div className="grid xl:grid-cols-2 gap-6">
-        <div className="grid gap-6 content-start">
+      <div className="grid xl:grid-cols-2 gap-6 flex-1 min-h-0">
+        <div className="grid gap-6 min-h-0 h-full xl:grid-rows-2">
                     {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
             <>
               <PanelSkeleton
@@ -592,7 +592,7 @@ export default function DashboardPage() {
             </>
           ) : (
             <>
-              <Card className="flex flex-col overflow-hidden">
+              <Card className="flex flex-col overflow-hidden min-h-0 h-full">
                 <CardHeader className="flex flex-row items-center justify-between shrink-0 pb-4">
                   <CardTitle className="text-foreground flex items-center gap-2">
                     <AlertCircle className="w-5 h-5 text-primary" />
@@ -617,7 +617,7 @@ export default function DashboardPage() {
                       )}
                     </div>
                   ) : (
-                    <ScrollArea className="h-full pr-3">
+                    <ScrollArea className="h-full pr-3 pb-4">
                       <div className="space-y-3">
                         {upcomingItems.map((item) => (
                           <button
@@ -652,7 +652,7 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card className="flex flex-col overflow-hidden">
+              <Card className="flex flex-col overflow-hidden min-h-0 h-full">
                 <CardHeader className="shrink-0 pb-4">
                   <CardTitle className="text-foreground">
                     {t("dashboard.projectProgress", "Project Progress")}
@@ -665,7 +665,7 @@ export default function DashboardPage() {
                       {t("dashboard.noActiveProjectsAvailable", "No active projects available.")}
                     </div>
                   ) : (
-                    <ScrollArea className="h-full pr-3">
+                    <ScrollArea className="h-full pr-3 pb-4">
                       <div className="space-y-4">
                         {activeProjectsForProgress.map((project) => (
                           <div key={project.id} className="space-y-2">
@@ -692,7 +692,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="grid gap-6 content-start">
+        <div className="grid gap-6 min-h-0 h-full xl:grid-rows-2">
                     {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
             <>
               <PanelSkeleton
@@ -703,7 +703,7 @@ export default function DashboardPage() {
             </>
           ) : (
             <>
-              <Card className="flex flex-col overflow-hidden">
+              <Card className="flex flex-col overflow-hidden min-h-0 h-full">
                 <CardHeader className="shrink-0 pb-4">
                   <CardTitle className="text-foreground flex items-center gap-2">
                     <Activity className="w-5 h-5 text-primary" />
@@ -717,7 +717,7 @@ export default function DashboardPage() {
                       {t("dashboard.noRecentActivityYet", "No recent activity yet.")}
                     </div>
                   ) : (
-                    <ScrollArea className="h-full pr-3">
+                    <ScrollArea className="h-full pr-3 pb-4">
                       <div className="space-y-3">
                         {visibleActivity.map((log) => (
                           <div
@@ -736,7 +736,7 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card className="flex flex-col overflow-hidden">
+              <Card className="flex flex-col overflow-hidden min-h-0 h-full">
                 <CardHeader className="shrink-0 pb-3">
                   <CardTitle className="text-foreground">
                     {t("dashboard.taskCompletion", "Task Completion")}
@@ -767,7 +767,7 @@ export default function DashboardPage() {
 
                   <div className="flex-1 overflow-hidden">
                     {activeTasksForCompletion.length > 0 ? (
-                      <ScrollArea className="h-full pr-3">
+                      <ScrollArea className="h-full pr-3 pb-4">
                         <div className="space-y-3">
                           {activeTasksForCompletion.map((task) => (
                             <button

@@ -1,24 +1,24 @@
-import { useMemo, useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/lib/i18n";
 import {
-  canEditTaskEntity,
   canDeleteTaskEntity,
+  canEditTaskEntity,
 } from "@/lib/permissions";
 
 import { TaskCard } from "./TaskCard";
 import { STATUS_COLUMNS } from "../../lib/task.constants";
 import {
-  getTaskMemberProfiles,
   getProjectName,
+  getTaskMemberProfiles,
 } from "../../lib/task.utils";
 
 import type {
-  TaskRow,
-  ProjectRow,
   ProfileRow,
-  TaskMemberRow,
+  ProjectRow,
   Role,
+  TaskMemberRow,
+  TaskRow,
 } from "../../lib/task.types";
 
 interface TaskBoardViewProps {
@@ -29,28 +29,24 @@ interface TaskBoardViewProps {
   currentUserId: string | null;
   currentUserRole: Role | null;
   onDelete: (taskId: string) => void;
+  onDragStart: (taskId: string) => void;
   onDragOver: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent, status: string) => void;
 }
 
-export function TaskBoardView(props: TaskBoardViewProps) {
-  const {
-    tasks,
-    projects,
-    profiles,
-    taskMembers,
-    currentUserId,
-    currentUserRole,
-    onDelete,
-    onDragOver,
-    onDrop,
-  } = props;
-
+export function TaskBoardView({
+  tasks,
+  projects,
+  profiles,
+  taskMembers,
+  currentUserId,
+  currentUserRole,
+  onDelete,
+  onDragStart,
+  onDragOver,
+  onDrop,
+}: TaskBoardViewProps) {
   const { t } = useLanguage();
-
-  // =========================
-  // PRE-COMPUTE TASKS BY STATUS
-  // =========================
 
   const tasksByStatus = useMemo(() => {
     const map: Record<string, TaskRow[]> = {};
@@ -69,15 +65,11 @@ export function TaskBoardView(props: TaskBoardViewProps) {
     return map;
   }, [tasks]);
 
-  // =========================
-  // HELPERS
-  // =========================
-
   const handleDropColumn = useCallback(
     (status: string) => (e: React.DragEvent) => {
       onDrop(e, status);
     },
-    [onDrop]
+    [onDrop],
   );
 
   const renderTaskCard = useCallback(
@@ -85,7 +77,7 @@ export function TaskBoardView(props: TaskBoardViewProps) {
       const assigneeProfiles = getTaskMemberProfiles(
         task.id,
         taskMembers,
-        profiles
+        profiles,
       );
 
       const canEdit = currentUserRole
@@ -99,7 +91,7 @@ export function TaskBoardView(props: TaskBoardViewProps) {
       const projectName = getProjectName(
         task.project_id,
         projects,
-        t("tasks.fallbacks.noProject")
+        t("tasks.fallbacks.noProject"),
       );
 
       return (
@@ -111,6 +103,7 @@ export function TaskBoardView(props: TaskBoardViewProps) {
           canEdit={canEdit}
           canDelete={canDelete}
           onDelete={onDelete}
+          onDragStart={onDragStart}
         />
       );
     },
@@ -121,13 +114,10 @@ export function TaskBoardView(props: TaskBoardViewProps) {
       currentUserId,
       currentUserRole,
       onDelete,
+      onDragStart,
       t,
-    ]
+    ],
   );
-
-  // =========================
-  // RENDER
-  // =========================
 
   return (
     <div className="h-[calc(100vh-260px)] min-h-0">
@@ -142,12 +132,9 @@ export function TaskBoardView(props: TaskBoardViewProps) {
               onDragOver={onDragOver}
               onDrop={handleDropColumn(column.id)}
             >
-              {/* HEADER */}
               <div className="shrink-0 border-b border-slate-800 p-3">
                 <div className="flex items-center gap-2">
-                  <div
-                    className={`w-3 h-3 rounded-full ${column.color}`}
-                  />
+                  <div className={`h-3 w-3 rounded-full ${column.color}`} />
                   <h3 className="font-medium text-white">
                     {t(column.label)}
                   </h3>
@@ -157,7 +144,6 @@ export function TaskBoardView(props: TaskBoardViewProps) {
                 </div>
               </div>
 
-              {/* LIST */}
               <div className="flex-1 min-h-0 overflow-y-auto p-3">
                 <div className="flex flex-col gap-3">
                   {columnTasks.map(renderTaskCard)}

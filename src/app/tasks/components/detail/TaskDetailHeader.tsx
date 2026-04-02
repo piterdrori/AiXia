@@ -1,7 +1,6 @@
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Edit, Trash2 } from "lucide-react";
-import { TaskRow } from "../../lib/task.types";
+import type { TaskRow } from "../../lib/task.types";
 import { useLanguage } from "@/lib/i18n";
 
 interface TaskDetailHeaderProps {
@@ -25,7 +24,6 @@ export function TaskDetailHeader({
   onRefresh,
   onDelete,
 }: TaskDetailHeaderProps) {
-  const navigate = useNavigate();
   const { t } = useLanguage();
 
   return (
@@ -33,7 +31,7 @@ export function TaskDetailHeader({
       <Button
         variant="ghost"
         size="icon"
-        onClick={() => navigate("/tasks")}
+        onClick={() => window.history.back()}
         className="text-slate-400 hover:text-white"
       >
         <ArrowLeft className="w-5 h-5" />
@@ -42,9 +40,7 @@ export function TaskDetailHeader({
       <div className="flex-1">
         <h1 className="text-2xl font-bold text-white">{task.title}</h1>
         <p className="text-slate-400">
-          {projectName
-            ? t("taskDetail.header.projectLabel", { name: projectName })
-            : t("taskDetail.header.taskDetails")}
+          {projectName || t("taskDetail.header.taskDetails")}
         </p>
       </div>
 
@@ -61,7 +57,7 @@ export function TaskDetailHeader({
         {canEdit && (
           <Button
             variant="outline"
-            onClick={() => navigate(`/tasks/${task.id}/edit`)}
+            onClick={() => window.location.href = `/tasks/${task.id}/edit`}
             className="border-slate-700 text-slate-300 hover:bg-slate-800"
           >
             <Edit className="w-4 h-4 mr-2" />

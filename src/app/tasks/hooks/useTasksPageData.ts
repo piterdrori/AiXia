@@ -1,119 +1,153 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useRequest } from "@/lib/useRequest";
 import { getVisibleProjectIds, canViewTask } from "@/lib/permissions";
-import type { Role, TaskRow, ProjectRow, ProfileRow, TaskMemberRow, ProjectMemberRow } from "../lib/task.types";
+
+import type {
+  Role,
+  TaskRow,
+  ProjectRow,
+  ProfileRow,
+  TaskMemberRow,
+  ProjectMemberRow,
+} from "../lib/task.types";
+
+interface TasksPageState {
+  currentUserId: string | null;
+  currentUserRole: Role | null;
+  tasks: TaskRow[];
+  projects: ProjectRow[];
+  profiles: ProfileRow[];
+  taskMembers: TaskMemberRow[];
+  hasLoadedOnce: boolean;
+}
+
+const INITIAL_STATE: TasksPageState = {
+  currentUserId: null,
+  currentUserRole: null,
+  tasks: [],
+  projects: [],
+  profiles: [],
+  taskMembers: [],
+  hasLoadedOnce: false,
+};
 
 export function useTasksPageData() {
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
   const tasksPageRequest = useRequest<boolean>();
-  
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
-  const [tasks, setTasks] = useState<TaskRow[]>([]);
-  const [projects, setProjects] = useState<ProjectRow[]>([]);
-  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
-  const [taskMembers, setTaskMembers] = useState<TaskMemberRow[]>([]);
 
-  const loadTasksPage = async () => {
+  const [state, setState] = useState<TasksPageState>(INITIAL_STATE);
+
+  const loadTasksPage = useCallback(async () => {
     const requestId = requestTracker.current.next();
 
     try {
       await tasksPageRequest.run(async () => {
-        const session = await supabase.auth.getSession();
-        const user = session.data.session?.user;
+        // AUTH
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
         if (!requestTracker.current.isLatest(requestId)) return true;
+
+        const user = session?.user;
 
         if (!user) {
           navigate("/login");
           return true;
         }
 
-        setCurrentUserId(user.id);
-
+        // FETCH ALL IN PARALLEL
         const [
           { data: myProfile, error: myProfileError },
-          { data: visibleTasksData },
-          { data: allProjects },
-          { data: allProfiles },
-          { data: allProjectMembers },
-          { data: allTaskMembers },
+          { data: tasksData, error: tasksError },
+          { data: projectsData, error: projectsError },
+          { data: profilesData, error: profilesError },
+          { data: projectMembersData, error: projectMembersError },
+          { data: taskMembersData, error: taskMembersError },
         ] = await Promise.all([
           supabase.from("profiles").select("role").eq("user_id", user.id).single(),
           supabase.from("tasks").select("*").order("created_at", { ascending: false }),
           supabase.from("projects").select("id, name, created_by").order("created_at", { ascending: false }),
-          supabase.from("profiles").select("user_id, full_name").eq("status", "active"),
+          supabase.from("profiles").select("user_id, full_name, role, status").eq("status", "active"),
           supabase.from("project_members").select("id, project_id, user_id, role, created_at"),
           supabase.from("task_members").select("id, task_id, user_id, role, created_at"),
         ]);
 
         if (!requestTracker.current.isLatest(requestId)) return true;
 
+        // HARD FAILS
         if (myProfileError || !myProfile) {
           navigate("/login");
           return true;
         }
 
+        if (tasksError || projectsError || profilesError || projectMembersError || taskMembersError) {
+          throw new Error("Failed loading tasks page data");
+        }
+
         const role = myProfile.role as Role;
-        setCurrentUserRole(role);
 
-        const tasksData = (visibleTasksData || []) as TaskRow[];
-        const projectsData = (allProjects || []) as ProjectRow[];
-        const profilesData = (allProfiles || []) as ProfileRow[];
-        const projectMembersData = (allProjectMembers || []) as ProjectMemberRow[];
-        const taskMembersData = (allTaskMembers || []) as TaskMemberRow[];
+        const safeTasks = (tasksData || []) as TaskRow[];
+        const safeProjects = (projectsData || []) as ProjectRow[];
+        const safeProfiles = (profilesData || []) as ProfileRow[];
+        const safeProjectMembers = (projectMembersData || []) as ProjectMemberRow[];
+        const safeTaskMembers = (taskMembersData || []) as TaskMemberRow[];
 
+        // PERMISSION FILTERING
         const visibleProjectIds = getVisibleProjectIds(
           user.id,
           role,
-          projectsData,
-          projectMembersData
+          safeProjects,
+          safeProjectMembers
         );
 
         const visibleProjects =
           role === "admin"
-            ? projectsData
-            : projectsData.filter((project) => visibleProjectIds.has(project.id));
+            ? safeProjects
+            : safeProjects.filter((p) => visibleProjectIds.has(p.id));
 
-        const visibleTasks = tasksData.filter((task) =>
-          canViewTask(task, user.id, role, taskMembersData, visibleProjectIds)
+        const visibleTasks = safeTasks.filter((task) =>
+          canViewTask(task, user.id, role, safeTaskMembers, visibleProjectIds)
         );
 
-        setTasks(visibleTasks);
-        setProjects(visibleProjects);
-        setProfiles(profilesData);
-        setTaskMembers(taskMembersData);
-        setHasLoadedOnce(true);
+        // ATOMIC STATE UPDATE
+        setState({
+          currentUserId: user.id,
+          currentUserRole: role,
+          tasks: visibleTasks,
+          projects: visibleProjects,
+          profiles: safeProfiles,
+          taskMembers: safeTaskMembers,
+          hasLoadedOnce: true,
+        });
 
         return true;
       });
     } catch (err) {
       if (!requestTracker.current.isLatest(requestId)) return;
-      console.error("Load tasks page error:", err);
-      setTasks([]);
-      setProjects([]);
-      setProfiles([]);
-      setTaskMembers([]);
+
+      console.error("useTasksPageData error:", err);
+
+      setState((prev) => ({
+        ...prev,
+        tasks: [],
+        projects: [],
+        profiles: [],
+        taskMembers: [],
+      }));
     }
-  };
+  }, [navigate, tasksPageRequest]);
 
   useEffect(() => {
     void loadTasksPage();
-  }, []);
+  }, [loadTasksPage]);
 
   return {
-    currentUserId,
-    currentUserRole,
-    tasks,
-    projects,
-    profiles,
-    taskMembers,
-    hasLoadedOnce,
+    ...state,
     isLoading: tasksPageRequest.status === "loading",
     error: tasksPageRequest.error,
     refresh: loadTasksPage,

@@ -1,0 +1,1139 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
+import { createRequestTracker } from "@/lib/safeAsync";
+import { useRequest } from "@/lib/useRequest";
+import { useLanguage } from "@/lib/i18n";
+import { useUserPreferences } from "@/lib/useUserPreferences";
+import { formatDateInTimezone } from "@/lib/datetime";
+import { useAppClock } from "@/lib/clock/provider";
+import {
+  canCreateTask,
+  canDeleteTaskEntity,
+  canEditTaskEntity,
+  canMoveTask,
+  canViewTask,
+  getVisibleProjectIds,
+} from "@/lib/permissions";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { PageError } from "@/components/ui/PageError";
+import { PageLoader } from "@/components/ui/PageLoader";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  CheckSquare,
+  Plus,
+  Search,
+  Grid3X3,
+  List,
+  MoreVertical,
+  Edit,
+  Trash2,
+  Calendar,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+type Role = "admin" | "manager" | "employee" | "guest";
+type TaskStatus = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
+
+type TaskRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string | null;
+  priority: string | null;
+  start_date: string | null;
+  due_date: string | null;
+  project_id: string | null;
+  assignee_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  last_status_update_at: string | null;
+};
+
+type ProjectRow = {
+  id: string;
+  name: string;
+  created_by: string | null;
+};
+
+type ProjectMemberRow = {
+  id: string;
+  project_id: string;
+  user_id: string;
+  role: string;
+  created_at: string;
+};
+
+type TaskMemberRow = {
+  id: string;
+  task_id: string;
+  user_id: string;
+  role: string;
+  created_at: string;
+};
+
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  role: Role;
+  status: "active" | "pending" | "inactive" | "denied";
+};
+
+const CHINA_TIMEZONE = "Asia/Shanghai";
+
+function MemberStack({
+  profiles,
+  size = "small",
+}: {
+  profiles: ProfileRow[];
+  size?: "small" | "medium";
+}) {
+  const { t } = useLanguage();
+
+  const avatarClass =
+    size === "medium"
+      ? "w-7 h-7 border-2 border-slate-900"
+      : "w-6 h-6 border-2 border-slate-900";
+  const textClass = size === "medium" ? "text-xs" : "text-[10px]";
+
+  return (
+    <div className="flex -space-x-2">
+      {profiles.slice(0, 3).map((profile) => (
+        <Avatar key={profile.user_id} className={avatarClass}>
+          <AvatarFallback className={`bg-indigo-600 text-white ${textClass}`}>
+            {(profile.full_name || t("tasks.fallbacks.userInitial"))
+              .split(" ")
+              .map((n) => n[0])
+              .join("")
+              .toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+      ))}
+
+      {profiles.length > 3 && (
+        <div
+          className={`${
+            size === "medium"
+              ? "w-7 h-7 text-xs"
+              : "w-6 h-6 text-[10px]"
+          } rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-slate-400`}
+        >
+          +{profiles.length - 3}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function TasksPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestTracker = useRef(createRequestTracker());
+  const { t, language } = useLanguage();
+  const { timezone } = useUserPreferences();
+  const clock = useAppClock();
+
+  const tasksPageRequest = useRequest<boolean>();
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [actionError, setActionError] = useState("");
+
+ 
+  const getTaskDateStatus = (dueDate: string | null) => {
+    if (!dueDate) return "none";
+
+    const today = clock.todayKey;
+
+    if (dueDate < today) return "overdue";
+    if (dueDate === today) return "today";
+    return "upcoming";
+  };
+
+  const getCheckpointState = (task: TaskRow) => {
+    const status = (task.status || "").toUpperCase();
+    const startDate = task.start_date;
+    const dueDate = task.due_date;
+    const lastStatusUpdateAt = task.last_status_update_at;
+
+    if (!startDate || !dueDate || status === "DONE") {
+      return {
+        behindSchedule: false,
+        updateRequired: false,
+      };
+    }
+
+    const totalMs =
+      new Date(`${dueDate}T00:00:00`).getTime() -
+      new Date(`${startDate}T00:00:00`).getTime();
+
+    if (totalMs <= 0) {
+      return {
+        behindSchedule: false,
+        updateRequired: false,
+      };
+    }
+
+    const elapsedMs =
+      new Date(`${clock.todayKey}T00:00:00`).getTime() -
+      new Date(`${startDate}T00:00:00`).getTime();
+
+    const progressRatio = Math.min(Math.max(elapsedMs / totalMs, 0), 1);
+
+    let expectedStatus: "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE" = "TODO";
+
+    if (progressRatio >= 1) {
+      expectedStatus = "DONE";
+    } else if (progressRatio >= 0.66) {
+      expectedStatus = "IN_REVIEW";
+    } else if (progressRatio >= 0.33) {
+      expectedStatus = "IN_PROGRESS";
+    }
+
+    const statusRank: Record<string, number> = {
+      TODO: 0,
+      IN_PROGRESS: 1,
+      IN_REVIEW: 2,
+      DONE: 3,
+    };
+
+    const behindSchedule =
+      (statusRank[status] ?? 0) < (statusRank[expectedStatus] ?? 0);
+
+    const updateRequired = lastStatusUpdateAt
+      ? Date.now() - new Date(lastStatusUpdateAt).getTime() >
+        1000 * 60 * 60 * 24 * 2
+      : true;
+
+    return {
+      behindSchedule,
+      updateRequired,
+    };
+  };
+
+  const initialProjectId = searchParams.get("projectId") || "ALL";
+
+  const [viewMode, setViewMode] = useState<"board" | "list">("board");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [priorityFilter, setPriorityFilter] = useState<string>("ALL");
+  const [projectFilter, setProjectFilter] = useState<string>(initialProjectId);
+
+  const [draggedTask, setDraggedTask] = useState<string | null>(null);
+
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+
+  const [tasks, setTasks] = useState<TaskRow[]>([]);
+  const [projects, setProjects] = useState<ProjectRow[]>([]);
+  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [taskMembers, setTaskMembers] = useState<TaskMemberRow[]>([]);
+
+  const columns: { id: TaskStatus; label: string; color: string }[] = [
+    { id: "TODO", label: t("tasks.columns.todo"), color: "bg-slate-500" },
+    {
+      id: "IN_PROGRESS",
+      label: t("tasks.columns.inProgress"),
+      color: "bg-blue-500",
+    },
+    {
+      id: "IN_REVIEW",
+      label: t("tasks.columns.inReview"),
+      color: "bg-purple-500",
+    },
+    { id: "DONE", label: t("tasks.columns.done"), color: "bg-green-500" },
+  ];
+
+  const loadTasksPage = async () => {
+    const requestId = requestTracker.current.next();
+    setActionError("");
+
+    try {
+      await tasksPageRequest.run(async () => {
+        const session = await supabase.auth.getSession();
+const user = session.data.session?.user;
+
+        if (!requestTracker.current.isLatest(requestId)) return true;
+
+        if (!user) {
+          navigate("/login");
+          return true;
+        }
+
+        setCurrentUserId(user.id);
+
+        const [
+          { data: myProfile, error: myProfileError },
+          { data: visibleTasksData, error: tasksError },
+          { data: allProjects, error: projectsError },
+          { data: allProfiles, error: profilesError },
+          { data: allProjectMembers, error: projectMembersError },
+          { data: allTaskMembers, error: taskMembersError },
+        ] = await Promise.all([
+          supabase.from("profiles").select("role").eq("user_id", user.id).single(),
+                    supabase
+            .from("tasks")
+            .select("*")
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("projects")
+            .select("id, name, created_by")
+            .order("created_at", { ascending: false }),
+          supabase
+  .from("profiles")
+  .select("user_id, full_name")
+  .eq("status", "active"),
+                    supabase
+            .from("project_members")
+            .select("id, project_id, user_id, role, created_at"),
+                    supabase
+            .from("task_members")
+            .select("id, task_id, user_id, role, created_at"),
+        ]);
+
+        if (!requestTracker.current.isLatest(requestId)) return true;
+
+        if (myProfileError || !myProfile) {
+          navigate("/login");
+          return true;
+        }
+
+        const role = myProfile.role as Role;
+        setCurrentUserRole(role);
+
+        if (tasksError) throw tasksError;
+        if (projectsError) throw projectsError;
+        if (profilesError) throw profilesError;
+        if (projectMembersError) throw projectMembersError;
+        if (taskMembersError) throw taskMembersError;
+
+        const tasksData = (visibleTasksData || []) as TaskRow[];
+        const projectsData = (allProjects || []) as ProjectRow[];
+        const profilesData = (allProfiles || []) as ProfileRow[];
+        const projectMembersData = (allProjectMembers || []) as ProjectMemberRow[];
+        const taskMembersData = (allTaskMembers || []) as TaskMemberRow[];
+
+        const visibleProjectIds = getVisibleProjectIds(
+          user.id,
+          role,
+          projectsData,
+          projectMembersData
+        );
+
+        const visibleProjects =
+          role === "admin"
+            ? projectsData
+            : projectsData.filter((project) => visibleProjectIds.has(project.id));
+
+        const visibleTasks = tasksData.filter((task) =>
+          canViewTask(task, user.id, role, taskMembersData, visibleProjectIds)
+        );
+
+        setTasks(visibleTasks);
+        setProjects(visibleProjects);
+        setProfiles(profilesData);
+        setTaskMembers(taskMembersData);
+        setHasLoadedOnce(true);
+
+        if (
+          initialProjectId !== "ALL" &&
+          !visibleProjects.some((project) => project.id === initialProjectId)
+        ) {
+          setProjectFilter("ALL");
+        }
+
+        return true;
+      });
+    } catch (err) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("Load tasks page error:", err);
+      setTasks([]);
+      setProjects([]);
+      setProfiles([]);
+      setTaskMembers([]);
+    }
+  };
+
+    useEffect(() => {
+    void loadTasksPage();
+  }, []);
+
+  const filteredTasks = useMemo(() => {
+    const result = tasks.filter((task) => {
+      const title = (task.title || "").toLowerCase();
+      const description = (task.description || "").toLowerCase();
+      const query = searchQuery.toLowerCase();
+
+      const matchesSearch = title.includes(query) || description.includes(query);
+      const matchesStatus =
+        statusFilter === "ALL" ||
+        (task.status || "").toUpperCase() === statusFilter;
+      const matchesPriority =
+        priorityFilter === "ALL" ||
+        (task.priority || "").toUpperCase() === priorityFilter;
+      const matchesProject =
+        projectFilter === "ALL" || task.project_id === projectFilter;
+
+      return (
+        matchesSearch && matchesStatus && matchesPriority && matchesProject
+      );
+    });
+
+    return result.sort((a, b) => {
+      const getDatePriority = (task: TaskRow) => {
+        const status = getTaskDateStatus(task.due_date);
+        if (status === "overdue") return 0;
+        if (status === "today") return 1;
+        return 2;
+      };
+
+      const priorityDiff = getDatePriority(a) - getDatePriority(b);
+      if (priorityDiff !== 0) return priorityDiff;
+
+      if (!a.due_date && !b.due_date) return 0;
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
+
+      return a.due_date.localeCompare(b.due_date);
+    });
+  }, [
+    tasks,
+    searchQuery,
+    statusFilter,
+    priorityFilter,
+    projectFilter,
+    clock.todayKey,
+  ]);
+
+  const getProjectName = (projectId: string | null) => {
+    if (!projectId) return t("tasks.fallbacks.noProject");
+    return (
+      projects.find((project) => project.id === projectId)?.name ||
+      t("tasks.fallbacks.unknownProject")
+    );
+  };
+
+  const getPriorityColor = (priority: string | null) => {
+    switch ((priority || "").toUpperCase()) {
+      case "URGENT":
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+      case "HIGH":
+        return "bg-orange-500/20 text-orange-400 border-orange-500/30";
+      case "MEDIUM":
+        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+      default:
+        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
+    }
+  };
+
+  const getTaskMemberProfiles = (taskId: string) => {
+    const memberUserIds = taskMembers
+      .filter((member) => member.task_id === taskId)
+      .map((member) => member.user_id);
+
+    return profiles.filter((profile) =>
+      memberUserIds.includes(profile.user_id)
+    );
+  };
+
+  const canEditTask = (task: TaskRow) => {
+    return canEditTaskEntity(task, currentUserId, currentUserRole as Role);
+  };
+
+  const canDeleteTask = (task: TaskRow) => {
+    return canDeleteTaskEntity(task, currentUserId, currentUserRole as Role);
+  };
+
+  const canCreateTasks = currentUserRole
+    ? canCreateTask(currentUserRole)
+    : false;
+
+  const handleDragStart = (taskId: string) => {
+    setDraggedTask(taskId);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = async (e: React.DragEvent, nextStatus: TaskStatus) => {
+    e.preventDefault();
+
+    if (!draggedTask) return;
+    if (!currentUserId || !currentUserRole) {
+      setDraggedTask(null);
+      return;
+    }
+
+    const task = tasks.find((item) => item.id === draggedTask);
+    if (!task) {
+      setDraggedTask(null);
+      return;
+    }
+
+    const canMove = canMoveTask(
+      task,
+      currentUserId,
+      currentUserRole,
+      taskMembers
+    );
+
+    if (!canMove) {
+      setDraggedTask(null);
+      return;
+    }
+
+    setActionError("");
+
+    const previousTasks = tasks;
+    setTasks((prev) =>
+      prev.map((item) =>
+        item.id === draggedTask ? { ...item, status: nextStatus } : item
+      )
+    );
+
+    const { error: updateError } = await supabase
+      .from("tasks")
+      .update({
+        status: nextStatus,
+        updated_at: clock.nowIso,
+      })
+      .eq("id", draggedTask);
+
+    if (updateError) {
+      console.error("Move task error:", updateError);
+      setTasks(previousTasks);
+      setActionError(updateError.message || t("tasks.errors.updateTaskStatus"));
+    }
+
+    setDraggedTask(null);
+  };
+
+  const handleDelete = async (taskId: string) => {
+    const confirmed = window.confirm(t("tasks.confirmations.deleteTask"));
+    if (!confirmed) return;
+
+    setActionError("");
+
+    const previousTasks = tasks;
+    const previousMembers = taskMembers;
+
+    setTasks((prev) => prev.filter((task) => task.id !== taskId));
+    setTaskMembers((prev) => prev.filter((member) => member.task_id !== taskId));
+
+    const { error: deleteError } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("id", taskId);
+
+    if (deleteError) {
+      console.error("Delete task error:", deleteError);
+      setTasks(previousTasks);
+      setTaskMembers(previousMembers);
+      setActionError(deleteError.message || t("tasks.errors.deleteTask"));
+    }
+  };
+
+  const renderBoardSkeleton = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {columns.map((column) => (
+        <div
+          key={column.id}
+          className="bg-slate-900/30 rounded-lg border border-slate-800"
+        >
+          <div className="p-3 border-b border-slate-800">
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded-full ${column.color}`} />
+              <div className="h-4 w-24 rounded bg-slate-800 animate-pulse" />
+            </div>
+          </div>
+
+          <div className="p-3 space-y-3 min-h-[220px]">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <Card key={index} className="bg-slate-900 border-slate-800">
+                <CardContent className="p-4">
+                  <div className="animate-pulse space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="h-6 w-16 rounded bg-slate-800" />
+                      <div className="h-6 w-6 rounded bg-slate-800" />
+                    </div>
+                    <div className="h-4 w-3/4 rounded bg-slate-800" />
+                    <div className="h-4 w-full rounded bg-slate-800" />
+                    <div className="h-4 w-2/3 rounded bg-slate-800" />
+                    <div className="h-4 w-24 rounded bg-slate-800" />
+                    <div className="flex justify-between items-center">
+                      <div className="flex -space-x-2">
+                        <div className="w-6 h-6 rounded-full bg-slate-800" />
+                        <div className="w-6 h-6 rounded-full bg-slate-800" />
+                      </div>
+                      <div className="h-4 w-14 rounded bg-slate-800" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderListSkeleton = () => (
+    <Card className="bg-slate-900/50 border-slate-800">
+      <CardContent className="p-0">
+        <div className="divide-y divide-slate-800">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="p-4">
+              <div className="animate-pulse flex items-center gap-4">
+                <div className="w-5 h-5 rounded bg-slate-800" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-48 rounded bg-slate-800" />
+                  <div className="h-4 w-72 rounded bg-slate-800" />
+                </div>
+                <div className="hidden sm:block h-6 w-20 rounded bg-slate-800" />
+                <div className="hidden sm:block h-4 w-24 rounded bg-slate-800" />
+                <div className="hidden sm:flex gap-1">
+                  <div className="w-7 h-7 rounded-full bg-slate-800" />
+                  <div className="w-7 h-7 rounded-full bg-slate-800" />
+                </div>
+                <div className="hidden sm:block h-4 w-14 rounded bg-slate-800" />
+                <div className="h-8 w-8 rounded bg-slate-800" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white">
+            {t("tasks.header.title")}
+          </h1>
+          <p className="text-slate-400">{t("tasks.header.subtitle")}</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+                    <Button
+            variant="outline"
+            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            onClick={() => void loadTasksPage()}
+            disabled={tasksPageRequest.status === "loading"}
+          >
+            {tasksPageRequest.status === "loading"
+              ? t("tasks.actions.refreshing")
+              : t("tasks.actions.refresh")}
+          </Button>
+
+          {canCreateTasks && (
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() =>
+                navigate(
+                  `/tasks/new${
+                    projectFilter !== "ALL" ? `?projectId=${projectFilter}` : ""
+                  }`
+                )
+              }
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              {t("tasks.actions.newTask")}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <PageError message={actionError || tasksPageRequest.error || ""} />
+
+      <div className="flex flex-col lg:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <Input
+            placeholder={t("tasks.filters.searchPlaceholder")}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 bg-slate-900 border-slate-800 text-white placeholder:text-slate-600"
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-36 bg-slate-900 border-slate-800 text-white">
+              <SelectValue placeholder={t("tasks.filters.status")} />
+            </SelectTrigger>
+                        <SelectContent
+              position="popper"
+              side="bottom"
+              align="start"
+              sideOffset={6}
+              avoidCollisions={false}
+              className="bg-slate-900 border-slate-800"
+            >
+              <SelectItem value="ALL">{t("tasks.filters.allStatus")}</SelectItem>
+              <SelectItem value="TODO">{t("tasks.status.todo")}</SelectItem>
+              <SelectItem value="IN_PROGRESS">
+                {t("tasks.status.inProgress")}
+              </SelectItem>
+              <SelectItem value="IN_REVIEW">
+                {t("tasks.status.inReview")}
+              </SelectItem>
+              <SelectItem value="DONE">{t("tasks.status.done")}</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+            <SelectTrigger className="w-36 bg-slate-900 border-slate-800 text-white">
+              <SelectValue placeholder={t("tasks.filters.priority")} />
+            </SelectTrigger>
+                        <SelectContent
+              position="popper"
+              side="bottom"
+              align="start"
+              sideOffset={6}
+              avoidCollisions={false}
+              className="bg-slate-900 border-slate-800"
+            >
+              <SelectItem value="ALL">
+                {t("tasks.filters.allPriorities")}
+              </SelectItem>
+              <SelectItem value="URGENT">{t("tasks.priority.urgent")}</SelectItem>
+              <SelectItem value="HIGH">{t("tasks.priority.high")}</SelectItem>
+              <SelectItem value="MEDIUM">{t("tasks.priority.medium")}</SelectItem>
+              <SelectItem value="LOW">{t("tasks.priority.low")}</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={projectFilter} onValueChange={setProjectFilter}>
+            <SelectTrigger className="w-44 bg-slate-900 border-slate-800 text-white">
+              <SelectValue placeholder={t("tasks.filters.project")} />
+            </SelectTrigger>
+                        <SelectContent
+              position="popper"
+              side="bottom"
+              align="start"
+              sideOffset={6}
+              avoidCollisions={false}
+              className="bg-slate-900 border-slate-800"
+            >
+              <SelectItem value="ALL">
+                {t("tasks.filters.allProjects")}
+              </SelectItem>
+              {projects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <ToggleGroup
+            type="single"
+            value={viewMode}
+            onValueChange={(value) =>
+              value && setViewMode(value as "board" | "list")
+            }
+          >
+            <ToggleGroupItem
+              value="board"
+              className="data-[state=on]:bg-slate-800"
+            >
+              <Grid3X3 className="w-4 h-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="list"
+              className="data-[state=on]:bg-slate-800"
+            >
+              <List className="w-4 h-4" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+      </div>
+
+     <PageLoader
+  loading={tasksPageRequest.status === "loading" && !hasLoadedOnce}
+  fallback={viewMode === "board" ? renderBoardSkeleton() : renderListSkeleton()}
+>
+  {viewMode === "board" ? (
+  <div className="h-[calc(100vh-260px)] min-h-0">
+    <div className="grid h-full min-h-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {columns.map((column) => {
+        const columnTasks = filteredTasks.filter(
+          (task) => (task.status || "").toUpperCase() === column.id
+        );
+
+        return (
+          <div
+  key={column.id}
+  className="flex h-full min-h-0 flex-col rounded-lg border border-slate-800 bg-slate-900/30"
+  onDragOver={handleDragOver}
+  onDrop={(e) => void handleDrop(e, column.id)}
+>
+            <div className="shrink-0 border-b border-slate-800 p-3">
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${column.color}`} />
+                <h3 className="font-medium text-white">{column.label}</h3>
+                <Badge className="bg-slate-800 text-slate-400">
+                  {columnTasks.length}
+                </Badge>
+              </div>
+            </div>
+
+           <div className="flex-1 min-h-0 overflow-y-auto p-3">
+  <div className="flex flex-col gap-3">
+              {columnTasks.map((task) => {
+                const assigneeProfiles = getTaskMemberProfiles(task.id);
+
+                return (
+                  <Card
+                    key={task.id}
+                    draggable
+                    onDragStart={() => handleDragStart(task.id)}
+                    className="group cursor-pointer border-slate-800 bg-slate-900 transition-all hover:border-indigo-500/30"
+                    onClick={() => navigate(`/tasks/${task.id}`)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="mb-2 flex items-start justify-between">
+                        <Badge className={getPriorityColor(task.priority)}>
+                          {task.priority || t("tasks.priority.low")}
+                        </Badge>
+
+                        {(canEditTask(task) || canDeleteTask(task)) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              asChild
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                              >
+                                <MoreVertical className="w-3 h-3 text-slate-400" />
+                              </Button>
+                            </DropdownMenuTrigger>
+
+                            <DropdownMenuContent
+                              align="end"
+                              className="bg-slate-900 border-slate-800"
+                            >
+                              {canEditTask(task) && (
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/tasks/${task.id}/edit`);
+                                  }}
+                                >
+                                  <Edit className="w-4 h-4 mr-2" />
+                                  {t("tasks.actions.edit")}
+                                </DropdownMenuItem>
+                              )}
+
+                              {canDeleteTask(task) && (
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleDelete(task.id);
+                                  }}
+                                  className="text-red-400"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  {t("tasks.actions.delete")}
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+
+                      <h4 className="mb-2 font-medium text-white">
+                        {task.title}
+                      </h4>
+
+                      <p className="mb-3 line-clamp-2 text-sm text-slate-500">
+                        {task.description || t("tasks.fallbacks.noDescription")}
+                      </p>
+
+                      <div className="mb-3 text-xs text-slate-500">
+                        {getProjectName(task.project_id)}
+                      </div>
+
+                      <div className="mb-3 flex flex-wrap gap-2">
+                        {(() => {
+                          const checkpoint = getCheckpointState(task);
+
+                          return (
+                            <>
+                              {checkpoint.behindSchedule && (
+                                <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+                                  Behind Schedule
+                                </Badge>
+                              )}
+
+                              {checkpoint.updateRequired && (
+                                <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                                  Update Required
+                                </Badge>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <MemberStack profiles={assigneeProfiles} />
+
+                        {task.due_date &&
+                          (() => {
+                            const status = getTaskDateStatus(task.due_date);
+
+                            const color =
+                              status === "overdue"
+                                ? "text-red-400"
+                                : status === "today"
+                                  ? "text-yellow-400"
+                                  : "text-slate-500";
+
+                            return (
+                              <div className={`text-sm ${color}`}>
+                                <div>
+                                  {formatDateInTimezone(
+                                    clock.shiftDate(task.due_date),
+                                    language,
+                                    timezone
+                                  )}
+                                  {status === "overdue" && " • Overdue"}
+                                  {status === "today" && " • Today"}
+                                </div>
+                               <div className="text-[10px] text-slate-500">
+  {t("timezone.chinaTimeLabel", "China")}:{" "}
+  {formatDateInTimezone(
+    clock.shiftDate(task.due_date),
+    language,
+    CHINA_TIMEZONE
+  )}
+</div>
+                              </div>
+                            );
+                          })()}
+                                            </div>
+                    </CardContent>
+                  </Card>
+                               );
+              })}
+            </div>
+          </div>
+        </div>
+        );
+      })}
+    </div>
+  </div>
+) : (
+    <Card className="bg-slate-900/50 border-slate-800">
+      <CardContent className="p-0">
+        <div className="divide-y divide-slate-800">
+          {filteredTasks.map((task) => {
+            const assigneeProfiles = getTaskMemberProfiles(task.id);
+
+            return (
+              <div
+                key={task.id}
+                onClick={() => navigate(`/tasks/${task.id}`)}
+                className="flex items-center gap-4 p-4 hover:bg-slate-800/50 cursor-pointer transition-colors"
+              >
+                <CheckSquare
+                  className={`w-5 h-5 ${
+                    (task.status || "").toUpperCase() === "DONE"
+                      ? "text-green-400"
+                      : "text-slate-500"
+                  }`}
+                />
+
+                <div className="flex-1 min-w-0">
+                  <h4
+                    className={`font-medium truncate ${
+                      (task.status || "").toUpperCase() === "DONE"
+                        ? "text-slate-500 line-through"
+                        : "text-white"
+                    }`}
+                  >
+                    {task.title}
+                  </h4>
+                  <p className="text-slate-500 text-sm truncate">
+                    {task.description || t("tasks.fallbacks.noDescription")}
+                  </p>
+                </div>
+
+                <div className="hidden sm:flex items-center gap-4">
+                  <div className="flex flex-col gap-2">
+                    <Badge className={getPriorityColor(task.priority)}>
+                      {task.priority || t("tasks.priority.low")}
+                    </Badge>
+
+                    {(() => {
+                      const checkpoint = getCheckpointState(task);
+
+                      return (
+                        <div className="flex flex-wrap gap-2">
+                          {checkpoint.behindSchedule && (
+                            <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+                              Behind Schedule
+                            </Badge>
+                          )}
+
+                          {checkpoint.updateRequired && (
+                            <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                              Update Required
+                            </Badge>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  <span className="text-sm text-slate-500">
+                    {getProjectName(task.project_id)}
+                  </span>
+
+                  <MemberStack profiles={assigneeProfiles} size="medium" />
+
+                  {task.due_date &&
+                    (() => {
+                      const status = getTaskDateStatus(task.due_date);
+
+                      const color =
+                        status === "overdue"
+                          ? "text-red-400"
+                          : status === "today"
+                            ? "text-yellow-400"
+                            : "text-slate-500";
+
+                      return (
+                        <div className={`text-xs ${color}`}>
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            <span>
+                              {formatDateInTimezone(
+                                clock.shiftDate(task.due_date),
+                                language,
+                                timezone
+                              )}
+                              {status === "overdue" && " • Overdue"}
+                              {status === "today" && " • Today"}
+                            </span>
+                          </div>
+                          <div className="pl-4 text-[10px] text-slate-500">
+                            {t("timezone.chinaTimeLabel", "China")}:{" "}
+                            {formatDateInTimezone(
+                              clock.shiftDate(task.due_date),
+                              language,
+                              CHINA_TIMEZONE
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                </div>
+
+                {(canEditTask(task) || canDeleteTask(task)) && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      asChild
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical className="w-4 h-4 text-slate-400" />
+                      </Button>
+                    </DropdownMenuTrigger>
+
+                    <DropdownMenuContent
+                      align="end"
+                      className="bg-slate-900 border-slate-800"
+                    >
+                      {canEditTask(task) && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/tasks/${task.id}/edit`);
+                          }}
+                        >
+                          <Edit className="w-4 h-4 mr-2" />
+                          {t("tasks.actions.edit")}
+                        </DropdownMenuItem>
+                      )}
+
+                      {canDeleteTask(task) && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleDelete(task.id);
+                          }}
+                          className="text-red-400"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          {t("tasks.actions.delete")}
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  )}
+</PageLoader>
+
+      {filteredTasks.length === 0 && (
+        <div className="text-center py-12">
+          <CheckSquare className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-white mb-2">
+            {t("tasks.empty.title")}
+          </h3>
+          <p className="text-slate-500 mb-4">
+            {searchQuery ||
+            statusFilter !== "ALL" ||
+            priorityFilter !== "ALL" ||
+            projectFilter !== "ALL"
+              ? t("tasks.empty.adjustFilters")
+              : t("tasks.empty.noVisibleTasks")}
+          </p>
+
+          {!searchQuery &&
+            statusFilter === "ALL" &&
+            priorityFilter === "ALL" &&
+            projectFilter === "ALL" &&
+            canCreateTasks && (
+              <Button
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={() => navigate("/tasks/new")}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                {t("tasks.actions.createTask")}
+              </Button>
+            )}
+        </div>
+      )}
+    </div>
+  );
+}

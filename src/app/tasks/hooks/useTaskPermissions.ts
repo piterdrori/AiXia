@@ -1,12 +1,11 @@
 import { useMemo } from "react";
 import {
-  canCreateTask,
   canViewTask,
   canEditTaskEntity,
   canDeleteTaskEntity,
   canMoveTask,
 } from "@/lib/permissions";
-import {
+import type {
   TaskRow,
   Role,
   TaskMemberRow,
@@ -30,7 +29,7 @@ export function useTaskPermissions({
   visibleProjectIds = new Set(),
 }: UseTaskPermissionsProps) {
   const canCreate = useMemo(() => {
-    return currentUserRole ? canCreateTask(currentUserRole) : false;
+    return currentUserRole === "admin" || currentUserRole === "manager";
   }, [currentUserRole]);
 
   const canView = useMemo(() => {

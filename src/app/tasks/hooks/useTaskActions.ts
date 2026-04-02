@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { TaskStatus, TaskRow } from "../lib/task.types";
+import type { TaskStatus, TaskRow } from "../lib/task.types";
 
 export function useTaskActions() {
   const [actionError, setActionError] = useState("");

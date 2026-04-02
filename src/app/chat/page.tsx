@@ -858,20 +858,31 @@ const user = session.data.session?.user;
 
   setError("");
 
-const existingLocal = groups.find((group) => {
-  if (group.type !== "DIRECT") return false;
+// canonical direct key (must match backend logic)
+const sortedIds = [currentUserId, targetUserId].sort();
+const directKey = sortedIds.join("_");
 
-  const members = getMembers(group.id).map((member) => member.user_id);
-  return (
-    members.includes(currentUserId) &&
-    members.includes(targetUserId) &&
-    members.length === 2
-  );
-});
+// FIRST: try local (fast path)
+const existingLocal = groups.find(
+  (g) => g.type === "DIRECT" && g.direct_key === directKey
+);
 
 if (existingLocal) {
   openConversation(existingLocal.id);
-  await reloadChatShell(existingLocal.id);
+  return;
+}
+
+// SECOND: verify on server (authoritative)
+const { data: existingServer } = await supabase
+  .from("chat_groups")
+  .select("id")
+  .eq("type", "DIRECT")
+  .eq("direct_key", directKey)
+  .maybeSingle();
+
+if (existingServer?.id) {
+  openConversation(existingServer.id);
+  await reloadChatShell(existingServer.id);
   return;
 }
 

@@ -1,8 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { TaskRow, CheckpointState } from "../../lib/task.types";
-import { getStatusColor, getPriorityColor, getProgressValue } from "../../lib/task.utils";
+import type { TaskRow, CheckpointState } from "../../lib/task.types";
+import { getStatusColor, getPriorityColor } from "../../lib/task.utils";
 import { useLanguage } from "@/lib/i18n";
 
 interface TaskOverviewTabProps {

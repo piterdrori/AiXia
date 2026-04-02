@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreVertical, Edit, Trash2, CheckSquare, Calendar } from "lucide-react";
-import { TaskRow, ProfileRow } from "../../lib/task.types";
+import type { TaskRow, ProfileRow } from "../../lib/task.types";
 import { getPriorityColor, getCheckpointState, getTaskDateDisplay } from "../../lib/task.utils";
 import { MemberStack } from "./MemberStack";
 import { useLanguage } from "@/lib/i18n";
@@ -86,13 +86,13 @@ export function TaskListRow({
             <div className="flex items-center gap-1">
               <Calendar className="w-3 h-3" />
               <span>
-                {formatDateInTimezone(clock.shiftDate(task.due_date), language, clock.timezone)}
+                {formatDateInTimezone(new Date(task.due_date), language)}
                 {dueDateInfo.label && ` • ${dueDateInfo.label}`}
               </span>
             </div>
             <div className="pl-4 text-[10px] text-slate-500">
               {t("timezone.chinaTimeLabel", "China")}:{" "}
-              {formatDateInTimezone(clock.shiftDate(task.due_date), language, CHINA_TIMEZONE)}
+              {formatDateInTimezone(new Date(task.due_date), language, CHINA_TIMEZONE)}
             </div>
           </div>
         )}

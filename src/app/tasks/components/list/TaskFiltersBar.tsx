@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Search, Grid3X3, List } from "lucide-react";
-import { ProjectRow } from "../../lib/task.types";
+import type { ProjectRow } from "../../lib/task.types";
 import { useLanguage } from "@/lib/i18n";
 
 interface TaskFiltersBarProps {

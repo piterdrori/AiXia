@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { TaskRow, ProjectRow, ProfileRow, TaskMemberRow, Role } from "../../lib/task.types";
+import type { TaskRow, ProjectRow, ProfileRow, TaskMemberRow, Role } from "../../lib/task.types";
 import { TaskListRow } from "./TaskListRow";
 import { getTaskMemberProfiles, getProjectName } from "../../lib/task.utils";
 import { canEditTaskEntity, canDeleteTaskEntity } from "@/lib/permissions";

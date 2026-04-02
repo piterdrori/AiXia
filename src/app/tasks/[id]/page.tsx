@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type React from "react";
 import { format } from "date-fns";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -32,8 +31,6 @@ import type {
   TaskRow,
   TranslatedComment,
 } from "../lib/task.types";
-
-type TranslateOptions = Record<string, string | number>;
 
 export default function TaskDetailPage() {
   const { t } = useLanguage();
@@ -80,9 +77,9 @@ export default function TaskDetailPage() {
   useEffect(() => setActivity(activityFromHook), [activityFromHook]);
   useEffect(() => setLocalError(error || ""), [error]);
 
-  const translateWithOptions = useCallback(
+  const translateObject = useCallback(
     (key: string, options?: object) =>
-      t(key, undefined, options as TranslateOptions | undefined),
+      t(key, undefined, options as Record<string, string | number> | undefined),
     [t],
   );
 
@@ -116,7 +113,7 @@ export default function TaskDetailPage() {
   const actions = useTaskDetailActions(
     task,
     currentUserId,
-    translateWithOptions,
+    translateObject,
     requestTracker,
     setLocalError,
     setTaskMembers,
@@ -128,10 +125,10 @@ export default function TaskDetailPage() {
   useTaskDetailRealtime({
     taskId: id,
     onTaskUpdate: (updatedTask: Partial<TaskRow>) => {
-      setTask((prev: TaskRow | null) => (prev ? { ...prev, ...updatedTask } : prev));
+      setTask((prev) => (prev ? { ...prev, ...updatedTask } : prev));
     },
     onCommentInsert: (newComment: TaskCommentRow) => {
-      setComments((prev: TaskCommentRow[]) => {
+      setComments((prev) => {
         if (prev.some((comment) => comment.id === newComment.id)) {
           return prev;
         }
@@ -139,7 +136,7 @@ export default function TaskDetailPage() {
       });
     },
     onActivityInsert: (newActivity: TaskActivityRow) => {
-      setActivity((prev: TaskActivityRow[]) => {
+      setActivity((prev) => {
         if (prev.some((item) => item.id === newActivity.id)) {
           return prev;
         }
@@ -188,6 +185,7 @@ export default function TaskDetailPage() {
     return profiles.filter((profile) => {
       const allowedRole =
         profile.role === "employee" || profile.role === "manager";
+
       return (
         allowedRole &&
         profile.status === "active" &&
@@ -440,7 +438,7 @@ export default function TaskDetailPage() {
             project={project}
             dueDateDisplay={dueDateDisplay}
             dueDateColorClass={dueDateInfo.color}
-            t={translateWithOptions}
+            t={translateObject}
           />
 
           <TaskMembersSidebar

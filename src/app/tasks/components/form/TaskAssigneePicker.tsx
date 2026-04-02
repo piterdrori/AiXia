@@ -1,7 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { Label } from "@/components/ui/label";
-import type { ProfileRow, ProjectMemberRow } from "../../lib/task.types";
 import { useLanguage } from "@/lib/i18n";
+
+import type {
+  ProfileRow,
+  ProjectMemberRow,
+} from "../../lib/task.types";
 
 interface TaskAssigneePickerProps {
   projectId: string;
@@ -11,6 +15,7 @@ interface TaskAssigneePickerProps {
   toggleAssignee: (userId: string) => void;
   isLoading: boolean;
   disabled?: boolean;
+
   label?: string;
   helperText?: string;
   selectProjectFirstText?: string;
@@ -34,59 +39,144 @@ export function TaskAssigneePicker({
 }: TaskAssigneePickerProps) {
   const { t } = useLanguage();
 
+  // =========================
+  // MAP FOR PERFORMANCE (O(1) lookup)
+  // =========================
+
+  const profileMap = useMemo(() => {
+    const map = new Map<string, ProfileRow>();
+    for (const p of profiles) {
+      map.set(p.user_id, p);
+    }
+    return map;
+  }, [profiles]);
+
+  // =========================
+  // DERIVED ASSIGNEES (O(n))
+  // =========================
+
   const availableAssignees = useMemo(() => {
     return projectMembers
-      .map((member) => profiles.find((profile) => profile.user_id === member.user_id))
-      .filter((profile): profile is ProfileRow => Boolean(profile));
-  }, [projectMembers, profiles]);
+      .map((member) => profileMap.get(member.user_id))
+      .filter((p): p is ProfileRow => Boolean(p));
+  }, [projectMembers, profileMap]);
 
-  const defaultLabel = label || t("taskNew.form.assignMembers");
-  const defaultHelper = helperText || t("taskNew.form.visibilityNote");
-  const defaultSelectFirst = selectProjectFirstText || t("taskNew.assignees.selectProjectFirst");
-  const defaultLoading = loadingText || t("taskNew.assignees.loadingProjectMembers");
-  const defaultNoAvailable = noAvailableText || t("taskNew.assignees.noAvailableMembers");
+  // =========================
+  // TEXT CONFIG (CENTRALIZED)
+  // =========================
+
+  const text = useMemo(() => {
+    return {
+      label: label || t("taskNew.form.assignMembers"),
+      helper:
+        helperText || t("taskNew.form.visibilityNote"),
+      selectFirst:
+        selectProjectFirstText ||
+        t("taskNew.assignees.selectProjectFirst"),
+      loading:
+        loadingText ||
+        t("taskNew.assignees.loadingProjectMembers"),
+      noAvailable:
+        noAvailableText ||
+        t("taskNew.assignees.noAvailableMembers"),
+      unnamed:
+        t("taskNew.assignees.unnamedUser"),
+    };
+  }, [
+    t,
+    label,
+    helperText,
+    selectProjectFirstText,
+    loadingText,
+    noAvailableText,
+  ]);
+
+  // =========================
+  // HANDLERS
+  // =========================
+
+  const handleToggle = useCallback(
+    (userId: string) => {
+      if (disabled) return;
+      toggleAssignee(userId);
+    },
+    [toggleAssignee, disabled]
+  );
+
+  // =========================
+  // EMPTY STATES
+  // =========================
+
+  const renderEmptyState = () => {
+    if (!projectId) return text.selectFirst;
+    if (isLoading) return text.loading;
+    if (availableAssignees.length === 0)
+      return text.noAvailable;
+    return null;
+  };
+
+  const emptyState = renderEmptyState();
+
+  // =========================
+  // RENDER
+  // =========================
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <Label className="shrink-0 text-slate-300">{defaultLabel}</Label>
+      {/* LABEL */}
+      <Label className="shrink-0 text-slate-300">
+        {text.label}
+      </Label>
 
+      {/* BODY */}
       <div className="mt-3 flex-1 min-h-0">
-        {!projectId ? (
-          <div className="text-slate-500 text-sm">{defaultSelectFirst}</div>
-        ) : isLoading ? (
-          <div className="text-slate-500 text-sm">{defaultLoading}</div>
-        ) : availableAssignees.length === 0 ? (
-          <div className="text-slate-500 text-sm">{defaultNoAvailable}</div>
+        {emptyState ? (
+          <div className="text-slate-500 text-sm">
+            {emptyState}
+          </div>
         ) : (
-          <div className="h-full min-h-0 rounded-lg border border-slate-800 bg-slate-950 p-2 overflow-y-auto">
+          <div className="h-full min-h-0 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-2">
             <div className="space-y-2">
-              {availableAssignees.map((member) => (
-                <label
-                  key={member.user_id}
-                  className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-900 cursor-pointer"
-                >
-                  <div>
-                    <div className="text-white text-sm font-medium">
-                      {member.full_name || t("taskNew.assignees.unnamedUser")}
-                    </div>
-                    <div className="text-slate-500 text-xs">{member.role.toUpperCase()}</div>
-                  </div>
+              {availableAssignees.map((member) => {
+                const isChecked =
+                  selectedAssignees.includes(member.user_id);
 
-                  <input
-                    type="checkbox"
-                    checked={selectedAssignees.includes(member.user_id)}
-                    onChange={() => toggleAssignee(member.user_id)}
-                    disabled={disabled}
-                    className="h-4 w-4"
-                  />
-                </label>
-              ))}
+                return (
+                  <label
+                    key={member.user_id}
+                    className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-900 cursor-pointer"
+                  >
+                    <div>
+                      <div className="text-white text-sm font-medium">
+                        {member.full_name || text.unnamed}
+                      </div>
+
+                      <div className="text-slate-500 text-xs">
+                        {member.role.toUpperCase()}
+                      </div>
+                    </div>
+
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() =>
+                        handleToggle(member.user_id)
+                      }
+                      disabled={disabled}
+                      className="h-4 w-4"
+                    />
+                  </label>
+                );
+              })}
             </div>
           </div>
         )}
       </div>
 
-      <p className="mt-3 shrink-0 text-slate-500 text-xs">{defaultHelper}</p>
+      {/* FOOTER */}
+      <p className="mt-3 shrink-0 text-slate-500 text-xs">
+        {text.helper}
+      </p>
     </div>
   );
 }

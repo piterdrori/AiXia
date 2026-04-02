@@ -1,36 +1,35 @@
-import { useMemo, useState, useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
+import type React from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import { PageError } from "@/components/ui/PageError";
-import { PageLoader } from "@/components/ui/PageLoader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PageError } from "@/components/ui/PageError";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 import { CheckSquare, Plus } from "lucide-react";
 
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
+import { canEditTaskEntity } from "@/lib/permissions";
 
-import { useTasksPageData } from "@/features/tasks/hooks/useTasksPageData";
-import { useTaskActions } from "@/features/tasks/hooks/useTaskActions";
-import { useTaskPermissions } from "@/features/tasks/hooks/useTaskPermissions";
+import { useTasksPageData } from "./hooks/useTasksPageData";
+import { useTaskActions } from "./hooks/useTaskActions";
+import { useTaskPermissions } from "./hooks/useTaskPermissions";
 
-import { TaskPageHeader } from "@/features/tasks/components/list/TaskPageHeader";
-import { TaskFiltersBar } from "@/features/tasks/components/list/TaskFiltersBar";
-import { TaskBoardView } from "@/features/tasks/components/list/TaskBoardView";
-import { TaskListView } from "@/features/tasks/components/list/TaskListView";
+import { TaskPageHeader } from "./components/list/TaskPageHeader";
+import { TaskFiltersBar } from "./components/list/TaskFiltersBar";
+import { TaskBoardView } from "./components/list/TaskBoardView";
+import { TaskListView } from "./components/list/TaskListView";
 
-import { sortTasksByPriority } from "@/features/tasks/lib/task.utils";
+import { sortTasksByPriority } from "./lib/task.utils";
+import type { TaskMemberRow, TaskRow, TaskStatus } from "./lib/task.types";
 
 export default function TasksPage() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const clock = useAppClock();
   const [searchParams] = useSearchParams();
-
-  // =========================
-  // DATA
-  // =========================
 
   const {
     currentUserId,
@@ -51,51 +50,38 @@ export default function TasksPage() {
     currentUserRole,
   });
 
-  const {
-    actionError,
-    setActionError,
-    draggedTask,
-    handleDragStart,
-    handleDrop,
-    handleDelete,
-  } = useTaskActions();
-
-  // =========================
-  // UI STATE
-  // =========================
+  const { actionError, draggedTask, handleDragStart, handleDrop, handleDelete } =
+    useTaskActions();
 
   const [viewMode, setViewMode] = useState<"board" | "list">("board");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [priorityFilter, setPriorityFilter] = useState("ALL");
   const [projectFilter, setProjectFilter] = useState(
-    searchParams.get("projectId") || "ALL"
+    searchParams.get("projectId") || "ALL",
   );
 
-  // =========================
-  // FILTERING (VIEW MODEL)
-  // =========================
-
   const filteredTasks = useMemo(() => {
-    const query = searchQuery.toLowerCase();
+    const query = searchQuery.trim().toLowerCase();
 
-    return sortTasksByPriority(
-      tasks.filter((task) => {
-        const title = (task.title || "").toLowerCase();
-        const description = (task.description || "").toLowerCase();
+    const nextTasks = tasks.filter((task: TaskRow) => {
+      const title = (task.title || "").toLowerCase();
+      const description = (task.description || "").toLowerCase();
 
-        return (
-          (title.includes(query) || description.includes(query)) &&
-          (statusFilter === "ALL" ||
-            (task.status || "").toUpperCase() === statusFilter) &&
-          (priorityFilter === "ALL" ||
-            (task.priority || "").toUpperCase() === priorityFilter) &&
-          (projectFilter === "ALL" ||
-            task.project_id === projectFilter)
-        );
-      }),
-      clock.todayKey
-    );
+      const matchesSearch =
+        query.length === 0 || title.includes(query) || description.includes(query);
+      const matchesStatus =
+        statusFilter === "ALL" || (task.status || "").toUpperCase() === statusFilter;
+      const matchesPriority =
+        priorityFilter === "ALL" ||
+        (task.priority || "").toUpperCase() === priorityFilter;
+      const matchesProject =
+        projectFilter === "ALL" || task.project_id === projectFilter;
+
+      return matchesSearch && matchesStatus && matchesPriority && matchesProject;
+    });
+
+    return sortTasksByPriority(nextTasks, clock.todayKey);
   }, [
     tasks,
     searchQuery,
@@ -105,55 +91,114 @@ export default function TasksPage() {
     clock.todayKey,
   ]);
 
-  // =========================
-  // ACTION WRAPPERS (IMPORTANT)
-  // =========================
+  const noopSetTasks: React.Dispatch<React.SetStateAction<TaskRow[]>> = () => {};
+  const noopSetTaskMembers: React.Dispatch<
+    React.SetStateAction<{ task_id: string }[]>
+  > = () => {};
 
   const handleDeleteTask = useCallback(
     async (taskId: string) => {
       await handleDelete(taskId, {
         tasks,
-        taskMembers,
-        setTasks: () => {},
-        setTaskMembers: () => {},
-        confirmText: t("tasks.confirm.delete"),
-        errorText: t("tasks.errors.delete"),
+        taskMembers: taskMembers as { task_id: string }[],
+        setTasks: noopSetTasks,
+        setTaskMembers: noopSetTaskMembers,
+        confirmText: t("tasks.confirmations.deleteTask"),
+        errorText: t("tasks.errors.deleteTask"),
       });
 
-      await refresh(); // server-first sync
+      await refresh();
     },
-    [handleDelete, tasks, taskMembers, t, refresh]
+    [handleDelete, tasks, taskMembers, t, refresh],
   );
 
   const handleDropTask = useCallback(
-    async (e: React.DragEvent, status: string) => {
-      await handleDrop(e, status, {
+    async (e: React.DragEvent, nextStatus: string) => {
+      const draggedTaskItem = tasks.find((task) => task.id === draggedTask) || null;
+
+      const canMoveDraggedTask =
+        !!draggedTaskItem &&
+        !!currentUserId &&
+        !!currentUserRole &&
+        canEditTaskEntity(draggedTaskItem, currentUserId, currentUserRole);
+
+      await handleDrop(e, nextStatus as TaskStatus, {
         draggedTaskId: draggedTask,
-        canMove: true,
+        canMove: canMoveDraggedTask,
         tasks,
-        setTasks: () => {},
+        setTasks: noopSetTasks,
         nowIso: new Date().toISOString(),
       });
 
       await refresh();
     },
-    [handleDrop, draggedTask, tasks, refresh]
+    [
+      handleDrop,
+      draggedTask,
+      tasks,
+      currentUserId,
+      currentUserRole,
+      refresh,
+    ],
   );
 
-  // =========================
-  // EMPTY STATE
-  // =========================
+  const renderBoardSkeleton = () => (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"].map((column) => (
+        <div
+          key={column}
+          className="rounded-lg border border-slate-800 bg-slate-900/30"
+        >
+          <div className="border-b border-slate-800 p-3">
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 rounded-full bg-slate-500" />
+              <div className="h-4 w-24 animate-pulse rounded bg-slate-800" />
+            </div>
+          </div>
+
+          <div className="min-h-[220px] space-y-3 p-3">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div
+                key={index}
+                className="rounded-lg border border-slate-800 bg-slate-900 p-4 animate-pulse"
+              >
+                <div className="mb-2 h-6 w-16 rounded bg-slate-800" />
+                <div className="mb-2 h-4 w-3/4 rounded bg-slate-800" />
+                <div className="h-4 w-full rounded bg-slate-800" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderListSkeleton = () => (
+    <Card className="border-slate-800 bg-slate-900/50">
+      <CardContent className="p-0">
+        <div className="divide-y divide-slate-800">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="animate-pulse p-4">
+              <div className="flex items-center gap-4">
+                <div className="h-5 w-5 rounded bg-slate-800" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-48 rounded bg-slate-800" />
+                  <div className="h-4 w-72 rounded bg-slate-800" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   const isEmpty = filteredTasks.length === 0;
   const isFiltered =
-    searchQuery ||
+    !!searchQuery ||
     statusFilter !== "ALL" ||
     priorityFilter !== "ALL" ||
     projectFilter !== "ALL";
-
-  // =========================
-  // RENDER
-  // =========================
 
   return (
     <div className="space-y-6">
@@ -179,18 +224,21 @@ export default function TasksPage() {
         projects={projects}
       />
 
-      <PageLoader loading={isLoading && !hasLoadedOnce}>
+      <PageLoader
+        loading={isLoading && !hasLoadedOnce}
+        fallback={viewMode === "board" ? renderBoardSkeleton() : renderListSkeleton()}
+      >
         {viewMode === "board" ? (
           <TaskBoardView
             tasks={filteredTasks}
             projects={projects}
             profiles={profiles}
-            taskMembers={taskMembers}
+            taskMembers={taskMembers as TaskMemberRow[]}
             currentUserId={currentUserId}
             currentUserRole={currentUserRole}
             onDelete={handleDeleteTask}
             onDragStart={handleDragStart}
-            onDragOver={(e) => e.preventDefault()}
+            onDragOver={(e: React.DragEvent) => e.preventDefault()}
             onDrop={handleDropTask}
           />
         ) : (
@@ -198,7 +246,7 @@ export default function TasksPage() {
             tasks={filteredTasks}
             projects={projects}
             profiles={profiles}
-            taskMembers={taskMembers}
+            taskMembers={taskMembers as TaskMemberRow[]}
             currentUserId={currentUserId}
             currentUserRole={currentUserRole}
             onDelete={handleDeleteTask}
@@ -207,22 +255,23 @@ export default function TasksPage() {
       </PageLoader>
 
       {isEmpty && (
-        <div className="text-center py-12">
-          <CheckSquare className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-
-          <h3 className="text-lg font-medium text-white mb-2">
+        <div className="py-12 text-center">
+          <CheckSquare className="mx-auto mb-4 h-12 w-12 text-slate-600" />
+          <h3 className="mb-2 text-lg font-medium text-white">
             {t("tasks.empty.title")}
           </h3>
-
-          <p className="text-slate-500 mb-4">
+          <p className="mb-4 text-slate-500">
             {isFiltered
               ? t("tasks.empty.adjustFilters")
               : t("tasks.empty.noVisibleTasks")}
           </p>
 
           {!isFiltered && canCreate && (
-            <Button onClick={() => navigate("/tasks/new")}>
-              <Plus className="w-4 h-4 mr-2" />
+            <Button
+              className="bg-indigo-600 text-white hover:bg-indigo-700"
+              onClick={() => navigate("/tasks/new")}
+            >
+              <Plus className="mr-2 h-4 w-4" />
               {t("tasks.actions.createTask")}
             </Button>
           )}

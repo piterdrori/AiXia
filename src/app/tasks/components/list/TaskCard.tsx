@@ -8,9 +8,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Edit, Trash2, CheckSquare } from "lucide-react";
-import { TaskRow, ProfileRow } from "../../lib/task.types";
-import { getPriorityColor, getCheckpointState, getTaskDateDisplay, getProgressValue, getInitials } from "../../lib/task.utils";
+import { MoreVertical, Edit, Trash2 } from "lucide-react";
+import type { TaskRow, ProfileRow } from "../../lib/task.types";
+import { getPriorityColor, getCheckpointState, getTaskDateDisplay } from "../../lib/task.utils";
 import { MemberStack } from "./MemberStack";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
@@ -40,7 +40,6 @@ export function TaskCard({
   
   const checkpoint = getCheckpointState(task, clock.todayKey);
   const dueDateInfo = getTaskDateDisplay(task.due_date, clock.todayKey);
-  const progressValue = getProgressValue(task.status);
 
   return (
     <Card
@@ -108,12 +107,12 @@ export function TaskCard({
           {task.due_date && (
             <div className={`text-sm ${dueDateInfo.color}`}>
               <div>
-                {formatDateInTimezone(clock.shiftDate(task.due_date), language, clock.timezone)}
+                {formatDateInTimezone(new Date(task.due_date), language)}
                 {dueDateInfo.label && ` • ${dueDateInfo.label}`}
               </div>
               <div className="text-[10px] text-slate-500">
                 {t("timezone.chinaTimeLabel", "China")}:{" "}
-                {formatDateInTimezone(clock.shiftDate(task.due_date), language, CHINA_TIMEZONE)}
+                {formatDateInTimezone(new Date(task.due_date), language, CHINA_TIMEZONE)}
               </div>
             </div>
           )}

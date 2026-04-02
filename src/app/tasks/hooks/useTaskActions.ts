@@ -1,105 +1,179 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { createRequestTracker } from "@/lib/safeAsync";
+
 import type { TaskStatus, TaskRow } from "../lib/task.types";
+
+interface MoveTaskOptions {
+  draggedTaskId: string | null;
+  canMove: boolean;
+  tasks: TaskRow[];
+  setTasks: React.Dispatch<React.SetStateAction<TaskRow[]>>;
+  nowIso: string;
+}
+
+interface DeleteTaskOptions {
+  tasks: TaskRow[];
+  taskMembers: { task_id: string }[];
+  setTasks: React.Dispatch<React.SetStateAction<TaskRow[]>>;
+  setTaskMembers: React.Dispatch<
+    React.SetStateAction<{ task_id: string }[]>
+  >;
+  confirmText: string;
+  errorText: string;
+}
 
 export function useTaskActions() {
   const [actionError, setActionError] = useState("");
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
 
-  const handleDragStart = (taskId: string) => {
+  const requestTracker = useRef(createRequestTracker());
+
+  // =========================
+  // DRAG START
+  // =========================
+
+  const handleDragStart = useCallback((taskId: string) => {
     setDraggedTask(taskId);
-  };
+  }, []);
 
-  const handleDrop = async (
-    e: React.DragEvent,
-    nextStatus: TaskStatus,
-    options: {
-      draggedTaskId: string | null;
-      currentUserId: string | null;
-      currentUserRole: string | null;
-      canMove: boolean;
-      tasks: TaskRow[];
-      setTasks: React.Dispatch<React.SetStateAction<TaskRow[]>>;
-      nowIso: string;
-    }
-  ) => {
-    e.preventDefault();
-    const { draggedTaskId, canMove, tasks, setTasks, nowIso } = options;
+  // =========================
+  // MOVE TASK (DRAG & DROP)
+  // =========================
 
-    if (!draggedTaskId || !canMove) {
-      setDraggedTask(null);
-      return;
-    }
+  const handleDrop = useCallback(
+    async (
+      e: React.DragEvent,
+      nextStatus: TaskStatus,
+      options: MoveTaskOptions
+    ) => {
+      e.preventDefault();
 
-    const task = tasks.find((item) => item.id === draggedTaskId);
-    if (!task) {
-      setDraggedTask(null);
-      return;
-    }
+      const requestId = requestTracker.current.next();
 
-    setActionError("");
-    const previousTasks = tasks;
+      const { draggedTaskId, canMove, tasks, setTasks, nowIso } = options;
 
-    setTasks((prev) =>
-      prev.map((item) =>
-        item.id === draggedTaskId ? { ...item, status: nextStatus, updated_at: nowIso } : item
-      )
-    );
+      if (!draggedTaskId || !canMove) {
+        setDraggedTask(null);
+        return;
+      }
 
-    const { error: updateError } = await supabase
-      .from("tasks")
-      .update({ status: nextStatus, updated_at: nowIso })
-      .eq("id", draggedTaskId);
+      const task = tasks.find((t) => t.id === draggedTaskId);
+      if (!task) {
+        setDraggedTask(null);
+        return;
+      }
 
-    if (updateError) {
-      console.error("Move task error:", updateError);
-      setTasks(previousTasks);
-      setActionError(updateError.message || "Failed to update task status");
-    }
+      setActionError("");
 
-    setDraggedTask(null);
-  };
+      const previousTasks = tasks;
 
-  const handleDelete = async (
-    taskId: string,
-    options: {
-      tasks: TaskRow[];
-      taskMembers: { task_id: string }[];
-      setTasks: React.Dispatch<React.SetStateAction<TaskRow[]>>;
-      setTaskMembers: React.Dispatch<React.SetStateAction<{ task_id: string }[]>>;
-      t: (key: string) => string;
-    }
-  ) => {
-    const { tasks, taskMembers, setTasks, setTaskMembers, t } = options;
-    
-    const confirmed = window.confirm(t("tasks.confirmations.deleteTask"));
-    if (!confirmed) return;
+      // OPTIMISTIC UPDATE
+      setTasks((prev) =>
+        prev.map((item) =>
+          item.id === draggedTaskId
+            ? {
+                ...item,
+                status: nextStatus,
+                updated_at: nowIso,
+              }
+            : item
+        )
+      );
 
-    setActionError("");
-    const previousTasks = tasks;
-    const previousMembers = taskMembers;
+      try {
+        const { error } = await supabase
+          .from("tasks")
+          .update({
+            status: nextStatus,
+            updated_at: nowIso,
+          })
+          .eq("id", draggedTaskId);
 
-    setTasks((prev) => prev.filter((task) => task.id !== taskId));
-    setTaskMembers((prev) => prev.filter((member) => member.task_id !== taskId));
+        if (!requestTracker.current.isLatest(requestId)) return;
 
-    const { error: deleteError } = await supabase
-      .from("tasks")
-      .delete()
-      .eq("id", taskId);
+        if (error) throw error;
+      } catch (err: any) {
+        if (!requestTracker.current.isLatest(requestId)) return;
 
-    if (deleteError) {
-      console.error("Delete task error:", deleteError);
-      setTasks(previousTasks);
-      setTaskMembers(previousMembers);
-      setActionError(deleteError.message || t("tasks.errors.deleteTask"));
-    }
-  };
+        console.error("Move task error:", err);
+
+        // ROLLBACK
+        setTasks(previousTasks);
+
+        setActionError(
+          err?.message || "Failed to update task status"
+        );
+      } finally {
+        if (!requestTracker.current.isLatest(requestId)) return;
+        setDraggedTask(null);
+      }
+    },
+    []
+  );
+
+  // =========================
+  // DELETE TASK
+  // =========================
+
+  const handleDelete = useCallback(
+    async (taskId: string, options: DeleteTaskOptions) => {
+      const requestId = requestTracker.current.next();
+
+      const {
+        tasks,
+        taskMembers,
+        setTasks,
+        setTaskMembers,
+        confirmText,
+        errorText,
+      } = options;
+
+      const confirmed = window.confirm(confirmText);
+      if (!confirmed) return;
+
+      setActionError("");
+
+      const previousTasks = tasks;
+      const previousMembers = taskMembers;
+
+      // OPTIMISTIC REMOVE
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      setTaskMembers((prev) =>
+        prev.filter((m) => m.task_id !== taskId)
+      );
+
+      try {
+        const { error } = await supabase
+          .from("tasks")
+          .delete()
+          .eq("id", taskId);
+
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        if (error) throw error;
+      } catch (err: any) {
+        if (!requestTracker.current.isLatest(requestId)) return;
+
+        console.error("Delete task error:", err);
+
+        // ROLLBACK
+        setTasks(previousTasks);
+        setTaskMembers(previousMembers);
+
+        setActionError(err?.message || errorText);
+      }
+    },
+    []
+  );
 
   return {
     actionError,
     setActionError,
+
     draggedTask,
     setDraggedTask,
+
     handleDragStart,
     handleDrop,
     handleDelete,

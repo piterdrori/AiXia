@@ -849,42 +849,67 @@ const handleUploadFile = async (file: File) => {
   };
 
 const startDirectMessage = async (targetUserId: string) => {
- const session = await supabase.auth.getSession();
-const user = session.data.session?.user;
+  const session = await supabase.auth.getSession();
+  const user = session.data.session?.user;
 
   if (!user) return;
 
   const currentUserId = user.id;
-
   setError("");
 
-// canonical direct key (must match backend logic)
-const sortedIds = [currentUserId, targetUserId].sort();
-const directKey = sortedIds.join("_");
+  const directKey = [currentUserId, targetUserId].sort().join("__");
 
-// FIRST: try local (fast path)
-const existingLocal = groups.find(
-  (g) => g.type === "DIRECT" && g.direct_key === directKey
-);
+  const existingLocal = groups.find(
+    (group) => group.type === "DIRECT" && group.direct_key === directKey
+  );
 
-if (existingLocal) {
-  openConversation(existingLocal.id);
-  return;
-}
+  if (existingLocal) {
+    openConversation(existingLocal.id);
+    await reloadChatShell(existingLocal.id);
+    return;
+  }
 
-// SECOND: verify on server (authoritative)
-const { data: existingServer } = await supabase
-  .from("chat_groups")
-  .select("id")
-  .eq("type", "DIRECT")
-  .eq("direct_key", directKey)
-  .maybeSingle();
+  const { data: existingServer, error: existingServerError } = await supabase
+    .from("chat_groups")
+    .select(
+      "id, name, type, project_id, task_id, created_by, created_at, direct_key"
+    )
+    .eq("type", "DIRECT")
+    .eq("direct_key", directKey)
+    .maybeSingle();
 
-if (existingServer?.id) {
-  openConversation(existingServer.id);
-  await reloadChatShell(existingServer.id);
-  return;
-}
+  if (existingServerError) {
+    setError(existingServerError.message || t("chat.errors.createDirectChat"));
+    return;
+  }
+
+  if (existingServer?.id) {
+    const serverGroup = existingServer as ChatGroupRow;
+
+    const optimisticMembers: ChatGroupMemberRow[] = [
+      {
+        id: `local-${serverGroup.id}-${currentUserId}`,
+        group_id: serverGroup.id,
+        user_id: currentUserId,
+        role: "member",
+        invited_by: currentUserId,
+        created_at: clock.nowIso,
+      },
+      {
+        id: `local-${serverGroup.id}-${targetUserId}`,
+        group_id: serverGroup.id,
+        user_id: targetUserId,
+        role: "member",
+        invited_by: currentUserId,
+        created_at: clock.nowIso,
+      },
+    ];
+
+    upsertGroupLocally(serverGroup, optimisticMembers);
+    openConversation(serverGroup.id);
+    await reloadChatShell(serverGroup.id);
+    return;
+  }
 
   const { data, error: functionError } = await supabase.functions.invoke(
     "chat-create",

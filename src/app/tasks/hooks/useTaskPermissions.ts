@@ -5,6 +5,7 @@ import {
   canDeleteTaskEntity,
   canMoveTask,
 } from "@/lib/permissions";
+
 import type {
   TaskRow,
   Role,
@@ -28,54 +29,67 @@ export function useTaskPermissions({
   taskMembers = [],
   visibleProjectIds = new Set(),
 }: UseTaskPermissionsProps) {
+  const isReady = Boolean(task && currentUserId && currentUserRole);
+
   const canCreate = useMemo(() => {
+    if (!currentUserRole) return false;
     return currentUserRole === "admin" || currentUserRole === "manager";
   }, [currentUserRole]);
 
   const canView = useMemo(() => {
-    if (!task || !currentUserId || !currentUserRole) return false;
+    if (!isReady) return false;
+
     return canViewTask(
-      task,
-      currentUserId,
-      currentUserRole,
+      task!,
+      currentUserId!,
+      currentUserRole!,
       taskMembers,
       visibleProjectIds
     );
-  }, [task, currentUserId, currentUserRole, taskMembers, visibleProjectIds]);
+  }, [isReady, task, currentUserId, currentUserRole, taskMembers, visibleProjectIds]);
 
   const canEdit = useMemo(() => {
-    if (!task || !currentUserId || !currentUserRole) return false;
-    return canEditTaskEntity(task, currentUserId, currentUserRole);
-  }, [task, currentUserId, currentUserRole]);
+    if (!isReady) return false;
+
+    return canEditTaskEntity(task!, currentUserId!, currentUserRole!);
+  }, [isReady, task, currentUserId, currentUserRole]);
 
   const canDelete = useMemo(() => {
-    if (!task || !currentUserId || !currentUserRole) return false;
-    return canDeleteTaskEntity(task, currentUserId, currentUserRole);
-  }, [task, currentUserId, currentUserRole]);
+    if (!isReady) return false;
+
+    return canDeleteTaskEntity(task!, currentUserId!, currentUserRole!);
+  }, [isReady, task, currentUserId, currentUserRole]);
 
   const canMove = useMemo(() => {
-    if (!task || !currentUserId || !currentUserRole) return false;
+    if (!isReady) return false;
+
     return canMoveTask(
-      task,
-      currentUserId,
-      currentUserRole,
+      task!,
+      currentUserId!,
+      currentUserRole!,
       taskMembers,
       visibleProjectIds
     );
-  }, [task, currentUserId, currentUserRole, taskMembers, visibleProjectIds]);
+  }, [isReady, task, currentUserId, currentUserRole, taskMembers, visibleProjectIds]);
 
+  // derived
   const canManageMembers = canEdit;
 
   const canManageComment = useMemo(() => {
     return (comment: TaskCommentRow): boolean => {
-      if (!currentUserId) return false;
-      return currentUserRole === "admin" || comment.user_id === currentUserId;
+      if (!currentUserId || !currentUserRole) return false;
+
+      return (
+        currentUserRole === "admin" ||
+        comment.user_id === currentUserId
+      );
     };
   }, [currentUserId, currentUserRole]);
 
   const canDeleteFile = useMemo(() => {
     return (file: FileUploadRow): boolean => {
-      if (!currentUserId) return false;
+      if (!currentUserId || !currentUserRole) return false;
+
       return (
         currentUserRole === "admin" ||
         task?.created_by === currentUserId ||
@@ -85,11 +99,14 @@ export function useTaskPermissions({
   }, [currentUserId, currentUserRole, task]);
 
   return {
+    // core
     canCreate,
     canView,
     canEdit,
     canDelete,
     canMove,
+
+    // derived
     canManageMembers,
     canManageComment,
     canDeleteFile,

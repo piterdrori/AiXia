@@ -1,4 +1,4 @@
-import { ColumnDef, TaskPriority, TaskStatus } from "./task.types";
+import type { ColumnDef, TaskPriority, TaskStatus } from "./task.types";
 
 export const CHINA_TIMEZONE = "Asia/Shanghai";
 

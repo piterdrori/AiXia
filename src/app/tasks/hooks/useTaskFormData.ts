@@ -3,9 +3,10 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { canPerform } from "@/lib/permissions";
-import { Role, ProjectRow, ProjectMemberRow, ProfileRow, TaskPriority, TaskStatus, DEFAULT_TASK_STATUS, DEFAULT_TASK_PRIORITY } from "../lib/task.types";
+import type { Role, ProjectRow, ProjectMemberRow, ProfileRow, TaskPriority, TaskStatus } from "../lib/task.types";
+import { DEFAULT_TASK_STATUS, DEFAULT_TASK_PRIORITY } from "../lib/task.types";
 
-export function useTaskFormData(mode: "create" | "edit" = "create") {
+export function useTaskFormData() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const pageRequestTracker = useRef(createRequestTracker());
@@ -52,9 +53,9 @@ export function useTaskFormData(mode: "create" | "edit" = "create") {
 
         const [
           { data: myProfile, error: myProfileError },
-          { data: allProjects, error: projectsError },
-          { data: allProjectMembers, error: projectMembersError },
-          { data: allProfiles, error: profilesError },
+          { data: allProjects },
+          { data: allProjectMembers },
+          { data: allProfiles },
         ] = await Promise.all([
           supabase.from("profiles").select("role").eq("user_id", user.id).single(),
           supabase.from("projects").select("id, name, created_by").order("created_at", { ascending: false }),

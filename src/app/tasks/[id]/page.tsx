@@ -104,9 +104,10 @@ export default function TaskDetailPage() {
   });
 
   const actions = useTaskDetailActions(
-    task,
-    currentUserId,
-    t,
+  task,
+  currentUserId,
+  (key: string, _fallback?: string, params?: Record<string, string | number>) =>
+    t(key, params),
     requestTracker,
     setLocalError,
     setTaskMembers,
@@ -415,7 +416,7 @@ export default function TaskDetailPage() {
             project={project}
             dueDateDisplay={dueDateDisplay}
             dueDateColorClass={dueDateInfo.color}
-            t={t}
+            t={(key: string, params?: Record<string, string | number>) => t(key, params)}
           />
 
           <TaskMembersSidebar

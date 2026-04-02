@@ -1,13 +1,37 @@
-import { useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { FileText, Upload, ExternalLink, Download, Trash2 } from "lucide-react";
+import { useRef, useMemo, useCallback } from "react";
 import { format } from "date-fns";
-import type { FileUploadRow, ProfileRow } from "../../lib/task.types";
-import { getProfileName } from "../../lib/task.utils";
-import { useAppClock } from "@/lib/clock/provider";
+
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+import {
+  FileText,
+  Upload,
+  ExternalLink,
+  Download,
+  Trash2,
+} from "lucide-react";
+
 import { useLanguage } from "@/lib/i18n";
+import { useAppClock } from "@/lib/clock/provider";
+
+import { getProfileName } from "../../lib/task.utils";
+
+import type {
+  FileUploadRow,
+  ProfileRow,
+} from "../../lib/task.types";
 
 interface TaskFilesTabProps {
   files: FileUploadRow[];
@@ -26,31 +50,179 @@ interface TaskFilesTabProps {
   onDeleteFile: (file: FileUploadRow) => void;
 }
 
-export function TaskFilesTab({
-  files,
-  profiles,
-  isUploading,
-  isUploadDialogOpen,
-  isDragOverUploadZone,
-  fileActionLoading,
-  canDeleteFile,
-  onUploadDialogOpenChange,
-  onFileSelect,
-  onFileDrop,
-  onDragStateChange,
-  onOpenFile,
-  onDownloadFile,
-  onDeleteFile,
-}: TaskFilesTabProps) {
+export function TaskFilesTab(props: TaskFilesTabProps) {
+  const {
+    files,
+    profiles,
+    isUploading,
+    isUploadDialogOpen,
+    isDragOverUploadZone,
+    fileActionLoading,
+    canDeleteFile,
+    onUploadDialogOpenChange,
+    onFileSelect,
+    onFileDrop,
+    onDragStateChange,
+    onOpenFile,
+    onDownloadFile,
+    onDeleteFile,
+  } = props;
+
   const { t } = useLanguage();
   const clock = useAppClock();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // =========================
+  // TEXT
+  // =========================
+
+  const text = useMemo(() => ({
+    title: t("taskDetail.files.title"),
+    upload: t("taskDetail.files.uploadFile"),
+    uploading: t("taskDetail.files.uploading"),
+    empty: t("taskDetail.files.empty"),
+    open: t("taskDetail.files.open"),
+    download: t("taskDetail.files.download"),
+    delete: t("taskDetail.actions.delete"),
+    unknownUser: t("taskDetail.fallbacks.unknown"),
+    dragTitle: t("taskDetail.files.dragTitle", "Drag files here to upload"),
+    dragSubtitle: t(
+      "taskDetail.files.dragSubtitle",
+      "Or click to choose a file"
+    ),
+    choose: t("taskDetail.files.chooseFile", "Choose File"),
+  }), [t]);
+
+  // =========================
+  // HANDLERS
+  // =========================
+
+  const handleDialogChange = useCallback(
+    (open: boolean) => {
+      if (isUploading) return;
+      onUploadDialogOpenChange(open);
+      if (!open) onDragStateChange(false);
+    },
+    [isUploading, onUploadDialogOpenChange, onDragStateChange]
+  );
+
+  const openFilePicker = useCallback(() => {
+    if (!isUploading) fileInputRef.current?.click();
+  }, [isUploading]);
+
+  const handleDrag = useCallback(
+    (e: React.DragEvent, state: boolean) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!isUploading) onDragStateChange(state);
+    },
+    [isUploading, onDragStateChange]
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onDragStateChange(false);
+      if (!isUploading) onFileDrop(e);
+    },
+    [isUploading, onFileDrop, onDragStateChange]
+  );
+
+  // =========================
+  // FILE ROW RENDER
+  // =========================
+
+  const renderFileRow = useCallback(
+    (file: FileUploadRow) => {
+      const isLoading = fileActionLoading === file.id;
+
+      return (
+        <div
+          key={file.id}
+          className="flex items-center gap-4 rounded-lg border border-slate-800 bg-slate-950/50 p-3"
+        >
+          <div className="flex flex-1 items-center gap-3 min-w-0">
+            <FileText className="h-5 w-5 text-indigo-400 shrink-0" />
+
+            <div className="min-w-0">
+              <p className="truncate text-sm text-white">
+                {file.file_name}
+              </p>
+
+              <p className="text-xs text-slate-500">
+                {getProfileName(
+                  file.user_id,
+                  profiles,
+                  text.unknownUser
+                )}{" "}
+                •{" "}
+                {format(
+                  clock.shiftDate(file.created_at),
+                  "MMM d, yyyy h:mm a"
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-2 shrink-0">
+            <Button
+              variant="outline"
+              onClick={() => onOpenFile(file)}
+              disabled={isLoading}
+            >
+              <ExternalLink className="mr-2 h-4 w-4" />
+              {text.open}
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={() => onDownloadFile(file)}
+              disabled={isLoading}
+              className="text-green-400"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {text.download}
+            </Button>
+
+            {canDeleteFile(file) && (
+              <Button
+                variant="outline"
+                onClick={() => onDeleteFile(file)}
+                disabled={isLoading}
+                className="text-red-400"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {text.delete}
+              </Button>
+            )}
+          </div>
+        </div>
+      );
+    },
+    [
+      fileActionLoading,
+      profiles,
+      text,
+      clock,
+      onOpenFile,
+      onDownloadFile,
+      onDeleteFile,
+      canDeleteFile,
+    ]
+  );
+
+  // =========================
+  // RENDER
+  // =========================
+
   return (
     <Card className="bg-slate-900/50 border-slate-800">
       <CardHeader>
-        <div className="flex items-center justify-between gap-4">
-          <CardTitle className="text-white">{t("taskDetail.files.title")}</CardTitle>
+        <div className="flex justify-between items-center">
+          <CardTitle className="text-white">
+            {text.title}
+          </CardTitle>
 
           <>
             <input
@@ -58,98 +230,49 @@ export function TaskFilesTab({
               type="file"
               className="hidden"
               onChange={onFileSelect}
-              disabled={isUploading}
             />
 
-            <Button
-              type="button"
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              disabled={isUploading}
-              onClick={() => onUploadDialogOpenChange(true)}
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              {isUploading ? t("taskDetail.files.uploading") : t("taskDetail.files.uploadFile")}
+            <Button onClick={() => onUploadDialogOpenChange(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              {isUploading ? text.uploading : text.upload}
             </Button>
 
             <Dialog
               open={isUploadDialogOpen}
-              onOpenChange={(open) => {
-                if (isUploading) return;
-                onUploadDialogOpenChange(open);
-                if (!open) onDragStateChange(false);
-              }}
+              onOpenChange={handleDialogChange}
             >
-              <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-2xl">
+              <DialogContent className="bg-slate-950 border-slate-800">
                 <DialogHeader>
-                  <DialogTitle>{t("taskDetail.files.uploadFile")}</DialogTitle>
+                  <DialogTitle>{text.upload}</DialogTitle>
                 </DialogHeader>
 
                 <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => !isUploading && fileInputRef.current?.click()}
-                  onKeyDown={(e) => {
-                    if (!isUploading && (e.key === "Enter" || e.key === " ")) {
-                      e.preventDefault();
-                      fileInputRef.current?.click();
-                    }
-                  }}
-                  onDragEnter={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    !isUploading && onDragStateChange(true);
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    !isUploading && onDragStateChange(true);
-                  }}
-                  onDragLeave={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const relatedTarget = e.relatedTarget as Node | null;
-                    if (!e.currentTarget.contains(relatedTarget)) {
-                      onDragStateChange(false);
-                    }
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onDragStateChange(false);
-                    if (!isUploading) onFileDrop(e);
-                  }}
-                  className={`rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${
+                  onClick={openFilePicker}
+                  onDragEnter={(e) => handleDrag(e, true)}
+                  onDragOver={(e) => handleDrag(e, true)}
+                  onDragLeave={(e) => handleDrag(e, false)}
+                  onDrop={handleDrop}
+                  className={`p-10 border-2 border-dashed rounded-2xl text-center ${
                     isDragOverUploadZone
                       ? "border-indigo-500 bg-indigo-500/10"
-                      : "border-slate-700 bg-slate-900/60 hover:border-slate-500 hover:bg-slate-900"
-                  } ${isUploading ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
+                      : "border-slate-700"
+                  }`}
                 >
-                  <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-800">
-                    <Upload className="h-7 w-7 text-indigo-400" />
-                  </div>
+                  <Upload className="mx-auto mb-4" />
 
-                  <h4 className="text-xl font-semibold text-white">Drag files here to upload</h4>
-                  <p className="mt-2 text-sm text-slate-400">Or click to choose a file from your computer</p>
+                  <h4 className="text-white">{text.dragTitle}</h4>
+                  <p className="text-slate-400">
+                    {text.dragSubtitle}
+                  </p>
 
-                  <div className="mt-6">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                      disabled={isUploading}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        fileInputRef.current?.click();
-                      }}
-                    >
-                      <Upload className="w-4 h-4 mr-2" />
-                      Choose File
-                    </Button>
-                  </div>
-
-                  {isUploading && (
-                    <p className="mt-4 text-sm text-indigo-300">{t("taskDetail.files.uploading")}</p>
-                  )}
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openFilePicker();
+                    }}
+                  >
+                    {text.choose}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -159,63 +282,10 @@ export function TaskFilesTab({
 
       <CardContent>
         {files.length === 0 ? (
-          <p className="text-slate-500">{t("taskDetail.files.empty")}</p>
+          <p className="text-slate-500">{text.empty}</p>
         ) : (
           <div className="space-y-3">
-            {files.map((file) => (
-              <div
-                key={file.id}
-                className="flex items-center gap-4 rounded-lg border border-slate-800 bg-slate-950/50 p-3"
-              >
-                <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <FileText className="h-5 w-5 shrink-0 text-indigo-400" />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm text-white">{file.file_name}</p>
-                    <p className="text-xs text-slate-500">
-                      {getProfileName(file.user_id, profiles, t("taskDetail.fallbacks.unknown"))} •{" "}
-                      {format(clock.shiftDate(file.created_at), "MMM d, yyyy h:mm a")}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="ml-auto flex shrink-0 items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                    onClick={() => onOpenFile(file)}
-                    disabled={fileActionLoading === file.id}
-                  >
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    {t("taskDetail.files.open")}
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-slate-700 text-green-400 hover:bg-slate-800"
-                    onClick={() => onDownloadFile(file)}
-                    disabled={fileActionLoading === file.id}
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    {t("taskDetail.files.download")}
-                  </Button>
-
-                  {canDeleteFile(file) && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="border-red-800 text-red-400 hover:bg-red-900/20"
-                      onClick={() => onDeleteFile(file)}
-                      disabled={fileActionLoading === file.id}
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      {t("taskDetail.actions.delete")}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))}
+            {files.map(renderFileRow)}
           </div>
         )}
       </CardContent>

@@ -57,13 +57,9 @@ export function TaskDiscussionTab({
   currentUserId,
   newComment,
   editingCommentId,
-  editingCommentText,
   commentSaving,
-  commentActionLoading,
   translatingCommentId,
   translatedComments,
-  showMentionDropdown,
-  mentionCandidates,
   canManageComment,
   onNewCommentChange,
   onAddComment,
@@ -72,7 +68,6 @@ export function TaskDiscussionTab({
   onSaveEdit,
   onDeleteComment,
   onTranslateComment,
-  onInsertMention,
 }: TaskDiscussionTabProps) {
   const { t } = useLanguage();
   const clock = useAppClock();

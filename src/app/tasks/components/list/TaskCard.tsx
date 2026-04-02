@@ -1,4 +1,5 @@
-import { useMemo, useCallback } from "react";
+import { useCallback, useMemo } from "react";
+import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,22 +13,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { MoreVertical, Edit, Trash2 } from "lucide-react";
+import { Edit, MoreVertical, Trash2 } from "lucide-react";
 
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
-import { formatDateInTimezone } from "@/lib/datetime";
 
 import {
-  getPriorityColor,
   getCheckpointState,
+  getPriorityColor,
   getTaskDateDisplay,
 } from "../../lib/task.utils";
 
-import { CHINA_TIMEZONE } from "../../lib/task.constants";
 import { MemberStack } from "./MemberStack";
 
-import type { TaskRow, ProfileRow } from "../../lib/task.types";
+import type { ProfileRow, TaskRow } from "../../lib/task.types";
 
 interface TaskCardProps {
   task: TaskRow;
@@ -39,43 +38,33 @@ interface TaskCardProps {
   onDragStart?: (taskId: string) => void;
 }
 
-export function TaskCard(props: TaskCardProps) {
-  const {
-    task,
-    assigneeProfiles,
-    projectName,
-    canEdit,
-    canDelete,
-    onDelete,
-    onDragStart,
-  } = props;
-
+export function TaskCard({
+  task,
+  assigneeProfiles,
+  projectName,
+  canEdit,
+  canDelete,
+  onDelete,
+  onDragStart,
+}: TaskCardProps) {
   const navigate = useNavigate();
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const clock = useAppClock();
-
-  // =========================
-  // DERIVED STATE
-  // =========================
 
   const checkpoint = useMemo(
     () => getCheckpointState(task, clock.todayKey),
-    [task, clock.todayKey]
+    [task, clock.todayKey],
   );
 
   const dueDateInfo = useMemo(
     () => getTaskDateDisplay(task.due_date, clock.todayKey),
-    [task.due_date, clock.todayKey]
+    [task.due_date, clock.todayKey],
   );
 
   const priorityColor = useMemo(
     () => getPriorityColor(task.priority),
-    [task.priority]
+    [task.priority],
   );
-
-  // =========================
-  // ACTIONS
-  // =========================
 
   const handleNavigate = useCallback(() => {
     navigate(`/tasks/${task.id}`);
@@ -86,7 +75,7 @@ export function TaskCard(props: TaskCardProps) {
       e.stopPropagation();
       navigate(`/tasks/${task.id}/edit`);
     },
-    [navigate, task.id]
+    [navigate, task.id],
   );
 
   const handleDelete = useCallback(
@@ -94,16 +83,12 @@ export function TaskCard(props: TaskCardProps) {
       e.stopPropagation();
       onDelete(task.id);
     },
-    [onDelete, task.id]
+    [onDelete, task.id],
   );
 
   const handleDragStart = useCallback(() => {
     onDragStart?.(task.id);
   }, [onDragStart, task.id]);
-
-  // =========================
-  // RENDER
-  // =========================
 
   return (
     <Card
@@ -113,7 +98,6 @@ export function TaskCard(props: TaskCardProps) {
       onClick={handleNavigate}
     >
       <CardContent className="p-4">
-        {/* HEADER */}
         <div className="mb-2 flex items-start justify-between">
           <Badge className={priorityColor}>
             {task.priority || t("tasks.priority.low")}
@@ -121,36 +105,29 @@ export function TaskCard(props: TaskCardProps) {
 
           {(canEdit || canDelete) && (
             <DropdownMenu>
-              <DropdownMenuTrigger
-                asChild
-                onClick={(e) => e.stopPropagation()}
-              >
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 opacity-0 group-hover:opacity-100"
                 >
-                  <MoreVertical className="w-3 h-3 text-slate-400" />
+                  <MoreVertical className="h-3 w-3 text-slate-400" />
                 </Button>
               </DropdownMenuTrigger>
 
               <DropdownMenuContent
                 align="end"
-                className="bg-slate-900 border-slate-800"
+                className="border-slate-800 bg-slate-900"
               >
                 {canEdit && (
                   <DropdownMenuItem onClick={handleEdit}>
-                    <Edit className="w-4 h-4 mr-2" />
+                    <Edit className="mr-2 h-4 w-4" />
                     {t("tasks.actions.edit")}
                   </DropdownMenuItem>
                 )}
-
                 {canDelete && (
-                  <DropdownMenuItem
-                    onClick={handleDelete}
-                    className="text-red-400"
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
+                  <DropdownMenuItem onClick={handleDelete} className="text-red-400">
+                    <Trash2 className="mr-2 h-4 w-4" />
                     {t("tasks.actions.delete")}
                   </DropdownMenuItem>
                 )}
@@ -159,57 +136,35 @@ export function TaskCard(props: TaskCardProps) {
           )}
         </div>
 
-        {/* TITLE */}
-        <h4 className="mb-2 font-medium text-white">
-          {task.title}
-        </h4>
+        <h4 className="mb-2 font-medium text-white">{task.title}</h4>
 
-        {/* DESCRIPTION */}
         <p className="mb-3 line-clamp-2 text-sm text-slate-500">
           {task.description || t("tasks.fallbacks.noDescription")}
         </p>
 
-        {/* PROJECT */}
-        <div className="mb-3 text-xs text-slate-500">
-          {projectName}
-        </div>
+        <div className="mb-3 text-xs text-slate-500">{projectName}</div>
 
-        {/* STATUS BADGES */}
         <div className="mb-3 flex flex-wrap gap-2">
           {checkpoint.behindSchedule && (
-            <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
-              {t("tasks.labels.behindSchedule", "Behind Schedule")}
+            <Badge className="border-red-500/30 bg-red-500/20 text-red-400">
+              {t("tasks.labels.behindSchedule")}
             </Badge>
           )}
-
           {checkpoint.updateRequired && (
-            <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-              {t("tasks.labels.updateRequired", "Update Required")}
+            <Badge className="border-amber-500/30 bg-amber-500/20 text-amber-400">
+              {t("tasks.labels.updateRequired")}
             </Badge>
           )}
         </div>
 
-        {/* FOOTER */}
         <div className="flex items-center justify-between">
           <MemberStack profiles={assigneeProfiles} />
 
           {task.due_date && (
             <div className={`text-sm ${dueDateInfo.color}`}>
               <div>
-                {formatDateInTimezone(
-                  new Date(task.due_date),
-                  language
-                )}
+                {format(clock.shiftDate(task.due_date), "MMM d, yyyy")}
                 {dueDateInfo.label && ` • ${dueDateInfo.label}`}
-              </div>
-
-              <div className="text-[10px] text-slate-500">
-                {t("timezone.chinaTimeLabel", "China")}:{" "}
-                {formatDateInTimezone(
-                  new Date(task.due_date),
-                  language,
-                  CHINA_TIMEZONE
-                )}
               </div>
             </div>
           )}

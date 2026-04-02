@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notifications";
 import { uploadProjectOrTaskFile, deleteUploadedFile } from "@/lib/file-upload";
 import { openFile, downloadFile } from "@/lib/file-actions";
 import { smartTranslate } from "@/lib/smartTranslate";
-import { TaskRow, TaskMemberRow, TaskCommentRow, FileUploadRow, Role, TranslatedComment } from "../lib/task.types";
+import type { TaskRow, TaskMemberRow, TaskCommentRow, FileUploadRow, TranslatedComment } from "../lib/task.types";
 
 export function useTaskDetailActions(
   task: TaskRow | null,
@@ -59,7 +59,7 @@ export function useTaskDetailActions(
       setStatusModalOpen(false);
       setStatusRemark("");
       setPendingStatus(null);
-    } catch (err) {
+    } catch {
       if (!requestTracker.current.isLatest(requestId)) return;
       setError(t("taskDetail.errors.updateStatus"));
     } finally {
@@ -90,7 +90,7 @@ export function useTaskDetailActions(
     navigate("/tasks");
   };
 
-  const handleAddMember = async (selectedEmployeeId: string, canManageMembers: boolean, profiles: { user_id: string; full_name: string | null }[]) => {
+  const handleAddMember = async (selectedEmployeeId: string, canManageMembers: boolean) => {
     if (!task || !selectedEmployeeId || !canManageMembers) return;
 
     const requestId = requestTracker.current.next();
@@ -107,7 +107,6 @@ export function useTaskDetailActions(
       if (!requestTracker.current.isLatest(requestId)) return;
       if (error) throw error;
 
-      const profile = profiles.find((p) => p.user_id === selectedEmployeeId);
       await createNotification({
         userId: selectedEmployeeId,
         actorUserId: currentUserId || undefined,
@@ -120,7 +119,7 @@ export function useTaskDetailActions(
       });
 
       setTaskMembers((prev) => [...prev, data as TaskMemberRow]);
-    } catch (err) {
+    } catch {
       if (!requestTracker.current.isLatest(requestId)) return;
       setError(t("taskDetail.members.errors.addFailed"));
     } finally {
@@ -156,7 +155,7 @@ export function useTaskDetailActions(
       });
 
       setTaskMembers((prev) => prev.filter((item) => item.id !== member.id));
-    } catch (err) {
+    } catch {
       if (!requestTracker.current.isLatest(requestId)) return;
       setError(t("taskDetail.members.errors.removeFailed"));
     } finally {
@@ -187,7 +186,7 @@ export function useTaskDetailActions(
       const recipientIds = Array.from(
         new Set([
           ...(task.created_by ? [task.created_by] : []),
-          ...(task.task_members?.map((m: { user_id: string }) => m.user_id) || []),
+          ...taskMembers.map((m) => m.user_id),
         ])
       ).filter((id): id is string => id !== currentUserId);
 
@@ -245,7 +244,7 @@ export function useTaskDetailActions(
     setFileActionLoading(file.id);
     try {
       await openFile("project-files", file.file_path, file.id);
-    } catch (err) {
+    } catch {
       setError(t("taskDetail.errors.openFile"));
     } finally {
       setFileActionLoading(null);
@@ -256,7 +255,7 @@ export function useTaskDetailActions(
     setFileActionLoading(file.id);
     try {
       await downloadFile("project-files", file.file_path, file.file_name);
-    } catch (err) {
+    } catch {
       setError(t("taskDetail.errors.downloadFile"));
     } finally {
       setFileActionLoading(null);
@@ -282,7 +281,7 @@ export function useTaskDetailActions(
       setNewComment("");
       setMentionQuery("");
       setShowMentionDropdown(false);
-    } catch (err) {
+    } catch {
       if (!requestTracker.current.isLatest(requestId)) return;
       setError(t("taskDetail.errors.addComment"));
     } finally {
@@ -315,7 +314,7 @@ export function useTaskDetailActions(
       );
       setEditingCommentId(null);
       setEditingCommentText("");
-    } catch (err) {
+    } catch {
       if (!requestTracker.current.isLatest(requestId)) return;
       setError(t("taskDetail.errors.updateComment"));
     } finally {
@@ -346,7 +345,7 @@ export function useTaskDetailActions(
         setEditingCommentId(null);
         setEditingCommentText("");
       }
-    } catch (err) {
+    } catch {
       if (!requestTracker.current.isLatest(requestId)) return;
       setError(t("taskDetail.errors.deleteComment"));
     } finally {
@@ -377,14 +376,14 @@ export function useTaskDetailActions(
         ...prev,
         [comment.id]: { text: result.translatedText, source: result.source },
       }));
-    } catch (err) {
+    } catch {
       setError(t("taskDetail.errors.translateComment"));
     } finally {
       setTranslatingCommentId(null);
     }
   };
 
-  const handleCommentInputChange = (value: string, mentionCandidates: { full_name: string | null }[]) => {
+  const handleCommentInputChange = (value: string) => {
     setNewComment(value);
     const matches = value.match(/@([a-zA-Z0-9 _-]*)$/);
     if (matches) {

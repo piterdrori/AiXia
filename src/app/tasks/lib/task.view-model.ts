@@ -1,4 +1,4 @@
-import { TaskRow, ProfileRow, TaskMemberRow } from "./task.types";
+import type { TaskRow, ProfileRow, TaskMemberRow } from "./task.types";
 import { getProgressValue, getCheckpointState, getTaskDateDisplay } from "./task.utils";
 
 export interface TaskViewModel {

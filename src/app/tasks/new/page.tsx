@@ -13,14 +13,8 @@ import { canPerform } from "@/lib/permissions";
 import { taskSchema } from "@/lib/validation";
 import { useLanguage } from "@/lib/i18n";
 
-import { TaskForm } from "@/features/tasks/components/form/TaskForm";
-import { useTaskFormData } from "@/features/tasks/hooks/useTaskFormData";
-
-import type {
-  Role,
-  TaskPriority,
-  TaskStatus,
-} from "@/features/tasks/lib/task.types";
+import { TaskForm } from "../components/form/TaskForm";
+import { useTaskFormData } from "../hooks/useTaskFormData";
 
 export default function TaskNewPage() {
   const navigate = useNavigate();
@@ -60,7 +54,7 @@ export default function TaskNewPage() {
     setError("");
 
     if (!currentUserRole || !canPerform(currentUserRole, "createTasks")) {
-      setError(t("taskNew.errors.notAuthorized", "Not authorized"));
+      setError(t("taskNew.errors.notAuthorized"));
       return;
     }
 
@@ -81,16 +75,6 @@ export default function TaskNewPage() {
 
       if (firstIssue?.path[0] === "projectId") {
         setError(t("taskNew.errors.projectRequired"));
-        return;
-      }
-
-      if (firstIssue?.path[0] === "startDate") {
-        setError(t("taskNew.errors.invalidStartDate"));
-        return;
-      }
-
-      if (firstIssue?.path[0] === "dueDate") {
-        setError(t("taskNew.errors.invalidDueDate"));
         return;
       }
 
@@ -115,7 +99,7 @@ export default function TaskNewPage() {
             dueDate: dueDate || null,
             assigneeIds: selectedAssignees,
           },
-        }
+        },
       );
 
       if (!pageRequestTracker.current.isLatest(requestId)) return;
@@ -175,10 +159,10 @@ export default function TaskNewPage() {
             setDescription={setDescription}
             projectId={projectId}
             setProjectId={setProjectId}
-            priority={priority as TaskPriority}
-            setPriority={setPriority as (value: TaskPriority) => void}
-            status={status as TaskStatus}
-            setStatus={setStatus as (value: TaskStatus) => void}
+            priority={priority}
+            setPriority={setPriority}
+            status={status}
+            setStatus={setStatus}
             startDate={startDate}
             setStartDate={setStartDate}
             dueDate={dueDate}
@@ -188,7 +172,7 @@ export default function TaskNewPage() {
             projects={projects}
             projectMembers={projectMembers}
             profiles={profiles}
-            currentUserRole={currentUserRole as Role | null}
+            currentUserRole={currentUserRole}
             isBootstrapping={isBootstrapping}
             isMembersLoading={isMembersLoading}
             isSaving={isSaving}

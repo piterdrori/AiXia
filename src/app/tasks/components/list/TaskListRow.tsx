@@ -1,4 +1,5 @@
-import { useMemo, useCallback } from "react";
+import { useCallback, useMemo } from "react";
+import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
@@ -12,27 +13,25 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import {
-  MoreVertical,
-  Edit,
-  Trash2,
-  CheckSquare,
   Calendar,
+  CheckSquare,
+  Edit,
+  MoreVertical,
+  Trash2,
 } from "lucide-react";
 
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
-import { formatDateInTimezone } from "@/lib/datetime";
 
 import {
-  getPriorityColor,
   getCheckpointState,
+  getPriorityColor,
   getTaskDateDisplay,
 } from "../../lib/task.utils";
 
-import { CHINA_TIMEZONE } from "../../lib/task.constants";
 import { MemberStack } from "./MemberStack";
 
-import type { TaskRow, ProfileRow } from "../../lib/task.types";
+import type { ProfileRow, TaskRow } from "../../lib/task.types";
 
 interface TaskListRowProps {
   task: TaskRow;
@@ -43,47 +42,37 @@ interface TaskListRowProps {
   onDelete: (taskId: string) => void;
 }
 
-export function TaskListRow(props: TaskListRowProps) {
-  const {
-    task,
-    assigneeProfiles,
-    projectName,
-    canEdit,
-    canDelete,
-    onDelete,
-  } = props;
-
+export function TaskListRow({
+  task,
+  assigneeProfiles,
+  projectName,
+  canEdit,
+  canDelete,
+  onDelete,
+}: TaskListRowProps) {
   const navigate = useNavigate();
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const clock = useAppClock();
-
-  // =========================
-  // DERIVED STATE
-  // =========================
 
   const isDone = useMemo(
     () => (task.status || "").toUpperCase() === "DONE",
-    [task.status]
+    [task.status],
   );
 
   const checkpoint = useMemo(
     () => getCheckpointState(task, clock.todayKey),
-    [task, clock.todayKey]
+    [task, clock.todayKey],
   );
 
   const dueDateInfo = useMemo(
     () => getTaskDateDisplay(task.due_date, clock.todayKey),
-    [task.due_date, clock.todayKey]
+    [task.due_date, clock.todayKey],
   );
 
   const priorityColor = useMemo(
     () => getPriorityColor(task.priority),
-    [task.priority]
+    [task.priority],
   );
-
-  // =========================
-  // ACTIONS
-  // =========================
 
   const handleNavigate = useCallback(() => {
     navigate(`/tasks/${task.id}`);
@@ -94,7 +83,7 @@ export function TaskListRow(props: TaskListRowProps) {
       e.stopPropagation();
       navigate(`/tasks/${task.id}/edit`);
     },
-    [navigate, task.id]
+    [navigate, task.id],
   );
 
   const handleDelete = useCallback(
@@ -102,46 +91,32 @@ export function TaskListRow(props: TaskListRowProps) {
       e.stopPropagation();
       onDelete(task.id);
     },
-    [onDelete, task.id]
+    [onDelete, task.id],
   );
-
-  // =========================
-  // RENDER
-  // =========================
 
   return (
     <div
       onClick={handleNavigate}
-      className="flex items-center gap-4 p-4 hover:bg-slate-800/50 cursor-pointer transition-colors"
+      className="flex cursor-pointer items-center gap-4 p-4 transition-colors hover:bg-slate-800/50"
     >
-      {/* STATUS ICON */}
       <CheckSquare
-        className={`w-5 h-5 ${
-          isDone ? "text-green-400" : "text-slate-500"
-        }`}
+        className={`h-5 w-5 ${isDone ? "text-green-400" : "text-slate-500"}`}
       />
 
-      {/* TITLE + DESCRIPTION */}
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <h4
-          className={`font-medium truncate ${
-            isDone
-              ? "text-slate-500 line-through"
-              : "text-white"
+          className={`truncate font-medium ${
+            isDone ? "line-through text-slate-500" : "text-white"
           }`}
         >
           {task.title}
         </h4>
-
-        <p className="text-slate-500 text-sm truncate">
-          {task.description ||
-            t("tasks.fallbacks.noDescription")}
+        <p className="truncate text-sm text-slate-500">
+          {task.description || t("tasks.fallbacks.noDescription")}
         </p>
       </div>
 
-      {/* DESKTOP INFO */}
-      <div className="hidden sm:flex items-center gap-4">
-        {/* PRIORITY + FLAGS */}
+      <div className="hidden items-center gap-4 sm:flex">
         <div className="flex flex-col gap-2">
           <Badge className={priorityColor}>
             {task.priority || t("tasks.priority.low")}
@@ -149,83 +124,56 @@ export function TaskListRow(props: TaskListRowProps) {
 
           <div className="flex flex-wrap gap-2">
             {checkpoint.behindSchedule && (
-              <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-xs">
-                {t("tasks.labels.behindSchedule", "Behind Schedule")}
+              <Badge className="border-red-500/30 bg-red-500/20 text-xs text-red-400">
+                {t("tasks.labels.behindSchedule")}
               </Badge>
             )}
-
             {checkpoint.updateRequired && (
-              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs">
-                {t("tasks.labels.updateRequired", "Update Required")}
+              <Badge className="border-amber-500/30 bg-amber-500/20 text-xs text-amber-400">
+                {t("tasks.labels.updateRequired")}
               </Badge>
             )}
           </div>
         </div>
 
-        {/* PROJECT */}
-        <span className="text-sm text-slate-500">
-          {projectName}
-        </span>
+        <span className="text-sm text-slate-500">{projectName}</span>
 
-        {/* MEMBERS */}
         <MemberStack profiles={assigneeProfiles} size="medium" />
 
-        {/* DUE DATE */}
         {task.due_date && (
           <div className={`text-xs ${dueDateInfo.color}`}>
             <div className="flex items-center gap-1">
-              <Calendar className="w-3 h-3" />
+              <Calendar className="h-3 w-3" />
               <span>
-                {formatDateInTimezone(
-                  new Date(task.due_date),
-                  language
-                )}
-                {dueDateInfo.label &&
-                  ` • ${dueDateInfo.label}`}
+                {format(clock.shiftDate(task.due_date), "MMM d, yyyy")}
+                {dueDateInfo.label && ` • ${dueDateInfo.label}`}
               </span>
-            </div>
-
-            <div className="pl-4 text-[10px] text-slate-500">
-              {t("timezone.chinaTimeLabel", "China")}:{" "}
-              {formatDateInTimezone(
-                new Date(task.due_date),
-                language,
-                CHINA_TIMEZONE
-              )}
             </div>
           </div>
         )}
       </div>
 
-      {/* ACTIONS */}
       {(canEdit || canDelete) && (
         <DropdownMenu>
-          <DropdownMenuTrigger
-            asChild
-            onClick={(e) => e.stopPropagation()}
-          >
+          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
             <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MoreVertical className="w-4 h-4 text-slate-400" />
+              <MoreVertical className="h-4 w-4 text-slate-400" />
             </Button>
           </DropdownMenuTrigger>
 
           <DropdownMenuContent
             align="end"
-            className="bg-slate-900 border-slate-800"
+            className="border-slate-800 bg-slate-900"
           >
             {canEdit && (
               <DropdownMenuItem onClick={handleEdit}>
-                <Edit className="w-4 h-4 mr-2" />
+                <Edit className="mr-2 h-4 w-4" />
                 {t("tasks.actions.edit")}
               </DropdownMenuItem>
             )}
-
             {canDelete && (
-              <DropdownMenuItem
-                onClick={handleDelete}
-                className="text-red-400"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
+              <DropdownMenuItem onClick={handleDelete} className="text-red-400">
+                <Trash2 className="mr-2 h-4 w-4" />
                 {t("tasks.actions.delete")}
               </DropdownMenuItem>
             )}

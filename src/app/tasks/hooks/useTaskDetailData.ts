@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { canViewTask } from "@/lib/permissions";
-import { Role, TaskRow, ProjectRow, ProfileRow, TaskMemberRow, TaskCommentRow, FileUploadRow, TaskActivityRow, ProjectMemberRow } from "../lib/task.types";
+import type { Role, TaskRow, ProjectRow, ProfileRow, TaskMemberRow, TaskCommentRow, FileUploadRow, TaskActivityRow, ProjectMemberRow } from "../lib/task.types";
 
 export function useTaskDetailData() {
   const navigate = useNavigate();

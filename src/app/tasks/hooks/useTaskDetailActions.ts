@@ -1,244 +1,264 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notifications";
 import { uploadProjectOrTaskFile, deleteUploadedFile } from "@/lib/file-upload";
 import { openFile, downloadFile } from "@/lib/file-actions";
 import { smartTranslate } from "@/lib/smartTranslate";
-import type { TaskRow, TaskMemberRow, TaskCommentRow, FileUploadRow, TranslatedComment } from "../lib/task.types";
+
+import type {
+  TaskRow,
+  TaskMemberRow,
+  TaskCommentRow,
+  FileUploadRow,
+  TranslatedComment,
+} from "../lib/task.types";
+
+interface Tracker {
+  current: {
+    next: () => number;
+    isLatest: (id: number) => boolean;
+  };
+}
 
 export function useTaskDetailActions(
   task: TaskRow | null,
   currentUserId: string | null,
   t: (key: string, options?: object) => string,
-  requestTracker: { current: { next: () => number; isLatest: (id: number) => boolean } },
+  requestTracker: Tracker,
   setError: (error: string) => void,
   setTaskMembers: React.Dispatch<React.SetStateAction<TaskMemberRow[]>>,
   setComments: React.Dispatch<React.SetStateAction<TaskCommentRow[]>>,
   setFiles: React.Dispatch<React.SetStateAction<FileUploadRow[]>>,
-  setTranslatedComments: React.Dispatch<React.SetStateAction<Record<string, TranslatedComment>>>,
+  setTranslatedComments: React.Dispatch<
+    React.SetStateAction<Record<string, TranslatedComment>>
+  >
 ) {
   const navigate = useNavigate();
-  
+
+  // =========================
+  // STATE
+  // =========================
+
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [statusRemark, setStatusRemark] = useState("");
   const [statusSaving, setStatusSaving] = useState(false);
+
   const [memberSaving, setMemberSaving] = useState(false);
   const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null);
+
   const [deleteSaving, setDeleteSaving] = useState(false);
+
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [fileActionLoading, setFileActionLoading] = useState<string | null>(null);
+
   const [commentSaving, setCommentSaving] = useState(false);
   const [commentActionLoading, setCommentActionLoading] = useState<string | null>(null);
   const [translatingCommentId, setTranslatingCommentId] = useState<string | null>(null);
-  const [showManageMembers, setShowManageMembers] = useState(false);
+
   const [newComment, setNewComment] = useState("");
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentText, setEditingCommentText] = useState("");
+
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
+
   const [isDragOverUploadZone, setIsDragOverUploadZone] = useState(false);
 
-  const handleStatusUpdate = async () => {
-    if (!pendingStatus || !task) return;
+  // =========================
+  // HELPERS
+  // =========================
 
+  const safeExecute = async (fn: () => Promise<void>) => {
     const requestId = requestTracker.current.next();
+
+    try {
+      await fn();
+    } catch (err: any) {
+      if (!requestTracker.current.isLatest(requestId)) return;
+      console.error("TaskDetailAction error:", err);
+      setError(err?.message || "Unexpected error");
+    }
+  };
+
+  // =========================
+  // STATUS
+  // =========================
+
+  const handleStatusUpdate = useCallback(async () => {
+    if (!task || !pendingStatus) return;
+
     setStatusSaving(true);
     setError("");
 
-    try {
+    await safeExecute(async () => {
       const { error } = await supabase.functions.invoke("task-status-update", {
         body: { taskId: task.id, status: pendingStatus, remark: statusRemark },
       });
 
-      if (!requestTracker.current.isLatest(requestId)) return;
       if (error) throw error;
 
       setStatusModalOpen(false);
-      setStatusRemark("");
       setPendingStatus(null);
-    } catch {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setError(t("taskDetail.errors.updateStatus"));
-    } finally {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setStatusSaving(false);
-    }
-  };
+      setStatusRemark("");
+    });
 
-  const handleDeleteTask = async () => {
+    setStatusSaving(false);
+  }, [task, pendingStatus, statusRemark]);
+
+  // =========================
+  // DELETE TASK
+  // =========================
+
+  const handleDeleteTask = useCallback(async () => {
     if (!task) return;
 
     const confirmed = window.confirm(t("taskDetail.confirmations.deleteTask"));
     if (!confirmed) return;
 
-    const requestId = requestTracker.current.next();
     setDeleteSaving(true);
     setError("");
 
-    const { error: deleteError } = await supabase.from("tasks").delete().eq("id", task.id);
+    await safeExecute(async () => {
+      const { error } = await supabase
+        .from("tasks")
+        .delete()
+        .eq("id", task.id);
 
-    if (!requestTracker.current.isLatest(requestId)) return;
-    if (deleteError) {
-      setError(deleteError.message || t("taskDetail.errors.deleteTask"));
-      setDeleteSaving(false);
-      return;
-    }
-
-    navigate("/tasks");
-  };
-
-  const handleAddMember = async (selectedEmployeeId: string, canManageMembers: boolean) => {
-    if (!task || !selectedEmployeeId || !canManageMembers) return;
-
-    const requestId = requestTracker.current.next();
-    setMemberSaving(true);
-    setError("");
-
-    try {
-      const { data, error } = await supabase
-        .from("task_members")
-        .insert({ task_id: task.id, user_id: selectedEmployeeId, role: "assignee" })
-        .select("id, task_id, user_id, role, created_at")
-        .single();
-
-      if (!requestTracker.current.isLatest(requestId)) return;
       if (error) throw error;
 
-      await createNotification({
-        userId: selectedEmployeeId,
-        actorUserId: currentUserId || undefined,
-        type: "TASK_ASSIGNED",
-        title: t("taskDetail.notifications.assignedTitle"),
-        message: t("taskDetail.notifications.assignedMessage", { title: task.title }),
-        link: `/tasks/${task.id}`,
-        entityType: "task",
-        entityId: task.id,
-      });
+      navigate("/tasks");
+    });
 
-      setTaskMembers((prev) => [...prev, data as TaskMemberRow]);
-    } catch {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setError(t("taskDetail.members.errors.addFailed"));
-    } finally {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setMemberSaving(false);
-    }
-  };
+    setDeleteSaving(false);
+  }, [task, navigate, t]);
 
-  const handleRemoveMember = async (member: TaskMemberRow, canManageMembers: boolean) => {
-    if (!task || !canManageMembers) return;
+  // =========================
+  // MEMBERS
+  // =========================
 
-    const confirmed = window.confirm(t("taskDetail.members.confirmations.removeMember"));
-    if (!confirmed) return;
+  const handleAddMember = useCallback(
+    async (userId: string) => {
+      if (!task) return;
 
-    const requestId = requestTracker.current.next();
-    setMemberActionLoading(member.id);
-    setError("");
+      setMemberSaving(true);
+      setError("");
 
-    try {
-      const { error } = await supabase.from("task_members").delete().eq("id", member.id);
-      if (!requestTracker.current.isLatest(requestId)) return;
-      if (error) throw error;
+      await safeExecute(async () => {
+        const { data, error } = await supabase
+          .from("task_members")
+          .insert({
+            task_id: task.id,
+            user_id: userId,
+            role: "assignee",
+          })
+          .select()
+          .single();
 
-      await createNotification({
-        userId: member.user_id,
-        actorUserId: currentUserId || undefined,
-        type: "TASK_UPDATED",
-        title: t("taskDetail.notifications.removedTitle"),
-        message: t("taskDetail.notifications.removedMessage", { title: task.title }),
-        link: `/tasks/${task.id}`,
-        entityType: "task",
-        entityId: task.id,
-      });
+        if (error) throw error;
 
-      setTaskMembers((prev) => prev.filter((item) => item.id !== member.id));
-    } catch {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setError(t("taskDetail.members.errors.removeFailed"));
-    } finally {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setMemberActionLoading(null);
-    }
-  };
+        setTaskMembers((prev) => [...prev, data]);
 
-  const handleFileUpload = async (file: File, projectId: string) => {
-    if (!task) return;
-
-    const requestId = requestTracker.current.next();
-    setError("");
-    setIsUploading(true);
-
-    try {
-      const uploaded = await uploadProjectOrTaskFile({
-        file,
-        entityType: "task",
-        projectId,
-        taskId: task.id,
-      });
-
-      if (!requestTracker.current.isLatest(requestId)) return;
-
-      setFiles((prev) => [uploaded as FileUploadRow, ...prev]);
-
-      const recipientIds = Array.from(
-        new Set([
-          ...(task.created_by ? [task.created_by] : []),
-          ...taskMembers.map((m) => m.user_id),
-        ])
-      ).filter((id): id is string => id !== currentUserId);
-
-      for (const userId of recipientIds) {
         await createNotification({
           userId,
           actorUserId: currentUserId || undefined,
-          type: "FILE_UPLOAD",
-          title: t("taskDetail.notifications.fileUploadedTitle"),
-          message: t("taskDetail.notifications.fileUploadedMessage", {
+          type: "TASK_ASSIGNED",
+          title: t("taskDetail.notifications.assignedTitle"),
+          message: t("taskDetail.notifications.assignedMessage", {
             title: task.title,
-            fileName: uploaded.file_name,
           }),
           link: `/tasks/${task.id}`,
-          entityType: "task_file",
-          entityId: uploaded.id,
+          entityType: "task",
+          entityId: task.id,
         });
-      }
-
-      setIsUploadDialogOpen(false);
-      setIsDragOverUploadZone(false);
-    } catch (err: any) {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setError(err?.message || t("taskDetail.errors.uploadFile"));
-    } finally {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setIsUploading(false);
-    }
-  };
-
-  const handleDeleteFile = async (file: FileUploadRow) => {
-    if (!task) return;
-
-    const confirmed = window.confirm(t("taskDetail.confirmations.deleteFile"));
-    if (!confirmed) return;
-
-    const requestId = requestTracker.current.next();
-
-    try {
-      await deleteUploadedFile(file.id, file.file_path, {
-        projectId: task.project_id,
-        taskId: task.id,
-        fileName: file.file_name,
       });
 
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setFiles((prev) => prev.filter((f) => f.id !== file.id));
-    } catch (err: any) {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setError(err?.message || t("taskDetail.errors.deleteFile"));
-    }
-  };
+      setMemberSaving(false);
+    },
+    [task, currentUserId, t]
+  );
+
+  const handleRemoveMember = useCallback(
+    async (member: TaskMemberRow) => {
+      if (!task) return;
+
+      const confirmed = window.confirm(
+        t("taskDetail.members.confirmations.removeMember")
+      );
+      if (!confirmed) return;
+
+      setMemberActionLoading(member.id);
+      setError("");
+
+      await safeExecute(async () => {
+        const { error } = await supabase
+          .from("task_members")
+          .delete()
+          .eq("id", member.id);
+
+        if (error) throw error;
+
+        setTaskMembers((prev) =>
+          prev.filter((m) => m.id !== member.id)
+        );
+      });
+
+      setMemberActionLoading(null);
+    },
+    [task, t]
+  );
+
+  // =========================
+  // FILES
+  // =========================
+
+  const handleFileUpload = useCallback(
+    async (file: File, projectId: string) => {
+      if (!task) return;
+
+      setIsUploading(true);
+      setError("");
+
+      await safeExecute(async () => {
+        const uploaded = await uploadProjectOrTaskFile({
+          file,
+          entityType: "task",
+          projectId,
+          taskId: task.id,
+        });
+
+        setFiles((prev) => [uploaded as FileUploadRow, ...prev]);
+      });
+
+      setIsUploading(false);
+      setIsUploadDialogOpen(false);
+    },
+    [task]
+  );
+
+  const handleDeleteFile = useCallback(
+    async (file: FileUploadRow) => {
+      if (!task) return;
+
+      const confirmed = window.confirm(
+        t("taskDetail.confirmations.deleteFile")
+      );
+      if (!confirmed) return;
+
+      await safeExecute(async () => {
+        await deleteUploadedFile(file.id, file.file_path, {
+          projectId: task.project_id,
+          taskId: task.id,
+          fileName: file.file_name,
+        });
+
+        setFiles((prev) => prev.filter((f) => f.id !== file.id));
+      });
+    },
+    [task, t]
+  );
 
   const handleOpenFile = async (file: FileUploadRow) => {
     setFileActionLoading(file.id);
@@ -262,119 +282,56 @@ export function useTaskDetailActions(
     }
   };
 
-  const handleAddComment = async () => {
+  // =========================
+  // COMMENTS
+  // =========================
+
+  const handleAddComment = useCallback(async () => {
     if (!task || !newComment.trim()) return;
 
-    const requestId = requestTracker.current.next();
     setCommentSaving(true);
     setError("");
 
-    try {
-      const { data, error: invokeError } = await supabase.functions.invoke("task-comment-create", {
-        body: { taskId: task.id, content: newComment.trim() },
-      });
+    await safeExecute(async () => {
+      const { data, error } = await supabase.functions.invoke(
+        "task-comment-create",
+        {
+          body: {
+            taskId: task.id,
+            content: newComment.trim(),
+          },
+        }
+      );
 
-      if (!requestTracker.current.isLatest(requestId)) return;
-      if (invokeError) throw invokeError;
-      if (!data?.success) throw new Error(data?.error);
+      if (error || !data?.success) {
+        throw new Error(data?.error);
+      }
 
       setNewComment("");
       setMentionQuery("");
       setShowMentionDropdown(false);
-    } catch {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setError(t("taskDetail.errors.addComment"));
-    } finally {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setCommentSaving(false);
-    }
-  };
-
-  const handleSaveEditedComment = async (comment: TaskCommentRow) => {
-    if (!editingCommentText.trim()) {
-      setError(t("taskDetail.errors.commentEmpty"));
-      return;
-    }
-
-    const requestId = requestTracker.current.next();
-    setCommentActionLoading(comment.id);
-    setError("");
-
-    try {
-      const { data, error } = await supabase.functions.invoke("task-comment-edit", {
-        body: { commentId: comment.id, content: editingCommentText.trim() },
-      });
-
-      if (!requestTracker.current.isLatest(requestId)) return;
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error);
-
-      setComments((prev) =>
-        prev.map((item) => (item.id === comment.id ? { ...item, content: data.comment.content } : item))
-      );
-      setEditingCommentId(null);
-      setEditingCommentText("");
-    } catch {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setError(t("taskDetail.errors.updateComment"));
-    } finally {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setCommentActionLoading(null);
-    }
-  };
-
-  const handleDeleteComment = async (comment: TaskCommentRow) => {
-    const confirmed = window.confirm(t("taskDetail.confirmations.deleteComment"));
-    if (!confirmed) return;
-
-    const requestId = requestTracker.current.next();
-    setCommentActionLoading(comment.id);
-    setError("");
-
-    try {
-      const { data, error } = await supabase.functions.invoke("task-comment-delete", {
-        body: { commentId: comment.id },
-      });
-
-      if (!requestTracker.current.isLatest(requestId)) return;
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error);
-
-      setComments((prev) => prev.filter((item) => item.id !== comment.id));
-      if (editingCommentId === comment.id) {
-        setEditingCommentId(null);
-        setEditingCommentText("");
-      }
-    } catch {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setError(t("taskDetail.errors.deleteComment"));
-    } finally {
-      if (!requestTracker.current.isLatest(requestId)) return;
-      setCommentActionLoading(null);
-    }
-  };
-
-  const handleTranslateComment = async (comment: TaskCommentRow) => {
-    if (!comment.content) return;
-    
-    setTranslatedComments((prev) => {
-      const next = { ...prev };
-      if (next[comment.id]) {
-        delete next[comment.id];
-        return next;
-      }
-      return prev;
     });
 
+    setCommentSaving(false);
+  }, [task, newComment]);
+
+  const handleTranslateComment = async (comment: TaskCommentRow) => {
     if (!comment.content) return;
 
     try {
       setTranslatingCommentId(comment.id);
-      const result = await smartTranslate({ messageId: comment.id, text: comment.content });
-      
+
+      const result = await smartTranslate({
+        messageId: comment.id,
+        text: comment.content,
+      });
+
       setTranslatedComments((prev) => ({
         ...prev,
-        [comment.id]: { text: result.translatedText, source: result.source },
+        [comment.id]: {
+          text: result.translatedText,
+          source: result.source,
+        },
       }));
     } catch {
       setError(t("taskDetail.errors.translateComment"));
@@ -383,11 +340,17 @@ export function useTaskDetailActions(
     }
   };
 
+  // =========================
+  // MENTION SYSTEM
+  // =========================
+
   const handleCommentInputChange = (value: string) => {
     setNewComment(value);
-    const matches = value.match(/@([a-zA-Z0-9 _-]*)$/);
-    if (matches) {
-      setMentionQuery((matches[1] || "").trimStart());
+
+    const match = value.match(/@([a-zA-Z0-9 _-]*)$/);
+
+    if (match) {
+      setMentionQuery((match[1] || "").trimStart());
       setShowMentionDropdown(true);
     } else {
       setMentionQuery("");
@@ -395,17 +358,24 @@ export function useTaskDetailActions(
     }
   };
 
-  const insertMention = (fullName: string) => {
-    const safeName = fullName.trim();
-    if (!safeName) return;
-    const updatedValue = newComment.replace(/@([a-zA-Z0-9 _-]*)$/, `@${safeName} `);
-    setNewComment(updatedValue);
+  const insertMention = (name: string) => {
+    const safe = name.trim();
+    if (!safe) return;
+
+    setNewComment((prev) =>
+      prev.replace(/@([a-zA-Z0-9 _-]*)$/, `@${safe} `)
+    );
+
     setMentionQuery("");
     setShowMentionDropdown(false);
   };
 
+  // =========================
+  // RETURN
+  // =========================
+
   return {
-    // Status dialog
+    // status
     statusModalOpen,
     setStatusModalOpen,
     pendingStatus,
@@ -414,20 +384,18 @@ export function useTaskDetailActions(
     setStatusRemark,
     statusSaving,
     handleStatusUpdate,
-    
-    // Delete
+
+    // delete
     deleteSaving,
     handleDeleteTask,
-    
-    // Members
+
+    // members
     memberSaving,
     memberActionLoading,
-    showManageMembers,
-    setShowManageMembers,
     handleAddMember,
     handleRemoveMember,
-    
-    // Files
+
+    // files
     isUploading,
     isUploadDialogOpen,
     setIsUploadDialogOpen,
@@ -438,8 +406,8 @@ export function useTaskDetailActions(
     handleDeleteFile,
     handleOpenFile,
     handleDownloadFile,
-    
-    // Comments
+
+    // comments
     newComment,
     setNewComment,
     editingCommentId,
@@ -452,8 +420,6 @@ export function useTaskDetailActions(
     showMentionDropdown,
     mentionQuery,
     handleAddComment,
-    handleSaveEditedComment,
-    handleDeleteComment,
     handleTranslateComment,
     handleCommentInputChange,
     insertMention,

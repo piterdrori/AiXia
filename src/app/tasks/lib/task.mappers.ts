@@ -1,4 +1,12 @@
-import { TaskRow, ProjectRow, ProfileRow, TaskMemberRow, TaskCommentRow, FileUploadRow, TaskActivityRow } from "./task.types";
+import type {
+  TaskRow,
+  ProjectRow,
+  ProfileRow,
+  TaskMemberRow,
+  TaskCommentRow,
+  FileUploadRow,
+  TaskActivityRow,
+} from "./task.types";
 
 // Mappers for transforming data from DB to view models if needed
 export function mapTaskRow(data: unknown): TaskRow {

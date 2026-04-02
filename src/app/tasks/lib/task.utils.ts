@@ -1,15 +1,14 @@
 import { format } from "date-fns";
-import {
+import type {
   TaskRow,
   ProfileRow,
   TaskMemberRow,
-  TaskActivityRow,
   TaskStatus,
   CheckpointState,
   TaskDateStatus,
+  ProjectRow,
 } from "./task.types";
 import {
-  CHINA_TIMEZONE,
   STATUS_RANK,
   CHECKPOINT_THRESHOLDS,
   UPDATE_REQUIRED_THRESHOLD_MS,

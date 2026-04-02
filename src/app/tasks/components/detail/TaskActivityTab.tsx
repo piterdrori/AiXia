@@ -1,8 +1,8 @@
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Clock3 } from "lucide-react";
 import { format } from "date-fns";
-import { TaskActivityRow, ProfileRow } from "../../lib/task.types";
+import type { TaskActivityRow, ProfileRow } from "../../lib/task.types";
 import { getProfileName, getInitials, getActivityActionLabel, getActivityActionColor } from "../../lib/task.utils";
 import { useAppClock } from "@/lib/clock/provider";
 import { useLanguage } from "@/lib/i18n";

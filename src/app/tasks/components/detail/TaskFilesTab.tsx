@@ -1,10 +1,10 @@
 import { useRef } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FileText, Upload, ExternalLink, Download, Trash2 } from "lucide-react";
 import { format } from "date-fns";
-import { FileUploadRow, ProfileRow } from "../../lib/task.types";
+import type { FileUploadRow, ProfileRow } from "../../lib/task.types";
 import { getProfileName } from "../../lib/task.utils";
 import { useAppClock } from "@/lib/clock/provider";
 import { useLanguage } from "@/lib/i18n";
@@ -24,7 +24,6 @@ interface TaskFilesTabProps {
   onOpenFile: (file: FileUploadRow) => void;
   onDownloadFile: (file: FileUploadRow) => void;
   onDeleteFile: (file: FileUploadRow) => void;
-  onTriggerFileInput: () => void;
 }
 
 export function TaskFilesTab({
@@ -42,7 +41,6 @@ export function TaskFilesTab({
   onOpenFile,
   onDownloadFile,
   onDeleteFile,
-  onTriggerFileInput,
 }: TaskFilesTabProps) {
   const { t } = useLanguage();
   const clock = useAppClock();

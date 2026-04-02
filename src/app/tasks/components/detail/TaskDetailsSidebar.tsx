@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FolderKanban, Flag, CheckSquare, Calendar } from "lucide-react";
-import { TaskRow, ProjectRow } from "../../lib/task.types";
+import type { TaskRow, ProjectRow } from "../../lib/task.types";
 
 interface InfoRowProps {
   icon: React.ReactNode;

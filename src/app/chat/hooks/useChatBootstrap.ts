@@ -155,61 +155,60 @@ export function useChatBootstrap(preferredId: string | null) {
 
         let loadedGroups: ChatGroupRow[] = [];
 
-        if (role === "admin") {
-  const [
-    { data: myMemberships, error: membershipsError },
-    { data: createdGroups, error: createdGroupsError },
-  ] = await Promise.all([
-    supabase
-      .from("chat_group_members")
-      .select("group_id")
-      .eq("user_id", user.id),
-    supabase
-      .from("chat_groups")
-      .select(
-        "id, name, type, project_id, task_id, created_by, created_at, direct_key"
-      )
-      .eq("created_by", user.id)
-      .order("created_at", { ascending: false }),
-  ]);
+               if (role === "admin") {
+          const [
+            { data: myMemberships, error: membershipsError },
+            { data: createdGroups, error: createdGroupsError },
+          ] = await Promise.all([
+            supabase
+              .from("chat_group_members")
+              .select("group_id")
+              .eq("user_id", user.id),
+            supabase
+              .from("chat_groups")
+              .select(
+                "id, name, type, project_id, task_id, created_by, created_at, direct_key"
+              )
+              .eq("created_by", user.id)
+              .order("created_at", { ascending: false }),
+          ]);
 
-  if (membershipsError || createdGroupsError) {
-    setError(
-      membershipsError?.message ||
-        createdGroupsError?.message ||
-        t("chat.errors.loadChatGroups")
-    );
-    return;
-  }
+          if (membershipsError || createdGroupsError) {
+            setError(
+              membershipsError?.message ||
+                createdGroupsError?.message ||
+                t("chat.errors.loadChatGroups")
+            );
+            return;
+          }
 
-  const membershipGroupIds = Array.from(
-    new Set((myMemberships || []).map((item) => item.group_id))
-  );
+          const membershipGroupIds = Array.from(
+            new Set((myMemberships || []).map((item) => item.group_id))
+          );
 
-  let memberGroups: ChatGroupRow[] = [];
+          let memberGroups: ChatGroupRow[] = [];
 
-  if (membershipGroupIds.length > 0) {
-    const { data: groupsData, error: groupsError } = await supabase
-      .from("chat_groups")
-      .select(
-        "id, name, type, project_id, task_id, created_by, created_at, direct_key"
-      )
-      .in("id", membershipGroupIds)
-      .order("created_at", { ascending: false });
+          if (membershipGroupIds.length > 0) {
+            const { data: groupsData, error: groupsError } = await supabase
+              .from("chat_groups")
+              .select(
+                "id, name, type, project_id, task_id, created_by, created_at, direct_key"
+              )
+              .in("id", membershipGroupIds)
+              .order("created_at", { ascending: false });
 
-    if (groupsError) {
-      setError(groupsError.message || t("chat.errors.loadChatGroups"));
-      return;
-    }
+            if (groupsError) {
+              setError(groupsError.message || t("chat.errors.loadChatGroups"));
+              return;
+            }
 
-    memberGroups = (groupsData || []) as ChatGroupRow[];
-  }
+            memberGroups = (groupsData || []) as ChatGroupRow[];
+          }
 
-  loadedGroups = dedupeGroups([
-    ...memberGroups,
-    ...((createdGroups || []) as ChatGroupRow[]),
-  ]);
-}
+          loadedGroups = dedupeGroups([
+            ...memberGroups,
+            ...((createdGroups || []) as ChatGroupRow[]),
+          ]);
         } else {
           const [
             { data: myMemberships, error: membershipsError },

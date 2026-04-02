@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { TaskRow, ProjectRow, ProfileRow, TaskMemberRow, ColumnDef, Role } from "../../lib/task.types";
+import type { TaskRow, ProjectRow, ProfileRow, TaskMemberRow, Role } from "../../lib/task.types";
 import { TaskCard } from "./TaskCard";
 import { STATUS_COLUMNS } from "../../lib/task.constants";
 import { getTaskMemberProfiles, getProjectName } from "../../lib/task.utils";
@@ -14,7 +14,6 @@ interface TaskBoardViewProps {
   currentUserId: string | null;
   currentUserRole: Role | null;
   onDelete: (taskId: string) => void;
-  onDragStart: (taskId: string) => void;
   onDragOver: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent, status: string) => void;
 }
@@ -27,7 +26,6 @@ export function TaskBoardView({
   currentUserId,
   currentUserRole,
   onDelete,
-  onDragStart,
   onDragOver,
   onDrop,
 }: TaskBoardViewProps) {

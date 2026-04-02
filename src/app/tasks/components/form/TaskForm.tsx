@@ -1,5 +1,4 @@
-import { FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import type { FormEvent } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { TaskAssigneePicker } from "./TaskAssigneePicker";
-import { ProjectRow, ProfileRow, ProjectMemberRow, TaskPriority, TaskStatus, Role } from "../../lib/task.types";
+import type { ProjectRow, ProfileRow, ProjectMemberRow, TaskPriority, TaskStatus, Role } from "../../lib/task.types";
 import { canPerform } from "@/lib/permissions";
 import { useLanguage } from "@/lib/i18n";
 
@@ -85,7 +84,6 @@ export function TaskForm({
   onCancel,
 }: TaskFormProps) {
   const { t } = useLanguage();
-  const navigate = useNavigate();
 
   const isCreate = mode === "create";
 

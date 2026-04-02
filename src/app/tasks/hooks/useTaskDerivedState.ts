@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { TaskRow, ProfileRow, TaskMemberRow, CheckpointState, TaskDateStatus } from "../lib/task.types";
+import type { TaskRow, ProfileRow, TaskMemberRow, CheckpointState, TaskDateStatus } from "../lib/task.types";
 import { getCheckpointState, getTaskDateDisplay, getProgressValue, getTaskMemberProfiles } from "../lib/task.utils";
 
 interface UseTaskDerivedStateProps {

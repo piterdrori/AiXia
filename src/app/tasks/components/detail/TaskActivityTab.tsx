@@ -40,7 +40,7 @@ export function TaskActivityTab({ activity, profiles }: TaskActivityTabProps) {
   const renderActivityItem = useCallback(
     (item: TaskActivityRow) => {
       const actorName =
-        profileMap.get(item.user_id || "")?.full_name ||
+        profileMap.get(item.user_id ?? "")?.full_name ||
         t("taskDetail.fallbacks.unknown");
 
       return (

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Label } from "@/components/ui/label";
-import { ProfileRow, ProjectMemberRow } from "../../lib/task.types";
+import type { ProfileRow, ProjectMemberRow } from "../../lib/task.types";
 import { useLanguage } from "@/lib/i18n";
 
 interface TaskAssigneePickerProps {

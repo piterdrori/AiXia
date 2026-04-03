@@ -1451,11 +1451,10 @@ disabled={employeesRequest.status === "loading"}
       </Button>
     )}
 
-    <Badge className="bg-slate-800 text-slate-200 border-slate-700">
+        <Badge className="bg-slate-800 text-slate-200 border-slate-700">
       {accessRequests.length}
     </Badge>
   </div>
-</div>
         </div>
 
         <div className="mt-4 flex-1 min-h-0 overflow-y-auto">
@@ -1586,11 +1585,10 @@ disabled={employeesRequest.status === "loading"}
     </Button>
   )}
 
-  <Badge className="bg-slate-800 text-slate-200 border-slate-700">
+    <Badge className="bg-slate-800 text-slate-200 border-slate-700">
     {visibleInvitations.length}
   </Badge>
 </div>
-          </div>
         </div>
 
         <div className="mt-4 flex-1 min-h-0 overflow-y-auto">

@@ -1438,11 +1438,25 @@ disabled={employeesRequest.status === "loading"}
         size="sm"
         variant="outline"
         className="border-red-800 text-red-400 hover:bg-red-900/20"
-       onClick={async () => {
-  await supabase
+      onClick={async () => {
+  setError("");
+
+  const { error } = await supabase
     .from("employee_access_requests")
     .delete()
     .in("status", ["approved", "rejected"]);
+
+  if (error) {
+    console.error("Clear access request history error:", error);
+    setError(error.message);
+    return;
+  }
+
+  setAccessRequests((prev) =>
+    prev.filter(
+      (req) => req.status !== "approved" && req.status !== "rejected"
+    )
+  );
 
   void loadProfiles();
 }}
@@ -1574,12 +1588,25 @@ disabled={employeesRequest.status === "loading"}
       variant="outline"
       className="border-red-800 text-red-400 hover:bg-red-900/20"
       onClick={async () => {
-        await supabase
-          .from("member_invitations")
-          .delete()
-          .neq("id", ""); // delete all
-        void loadProfiles();
-      }}
+  setInviteError("");
+  setInviteSuccess("");
+
+  const { error } = await supabase
+    .from("member_invitations")
+    .delete()
+    .neq("id", "");
+
+  if (error) {
+    console.error("Clear invitation history error:", error);
+    setInviteError(error.message);
+    return;
+  }
+
+  setInvitations([]);
+  setInviteSuccess("Invitation history cleared.");
+
+  void loadProfiles();
+}}
     >
       Clear
     </Button>

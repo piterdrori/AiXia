@@ -1587,14 +1587,14 @@ disabled={employeesRequest.status === "loading"}
       size="sm"
       variant="outline"
       className="border-red-800 text-red-400 hover:bg-red-900/20"
-      onClick={async () => {
+    onClick={async () => {
   setInviteError("");
   setInviteSuccess("");
 
   const { error } = await supabase
     .from("member_invitations")
     .delete()
-    .neq("id", "");
+    .in("status", ["accepted", "expired", "cancelled", "failed"]);
 
   if (error) {
     console.error("Clear invitation history error:", error);
@@ -1602,7 +1602,16 @@ disabled={employeesRequest.status === "loading"}
     return;
   }
 
-  setInvitations([]);
+  setInvitations((prev) =>
+    prev.filter(
+      (invitation) =>
+        invitation.status !== "accepted" &&
+        invitation.status !== "expired" &&
+        invitation.status !== "cancelled" &&
+        invitation.status !== "failed"
+    )
+  );
+
   setInviteSuccess("Invitation history cleared.");
 
   void loadProfiles();

@@ -875,7 +875,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
     }
   };
 
-  const SidebarContent = () => (
+  const renderSidebarContent = () => (
     <div className="flex h-full flex-col">
       <div className="relative flex items-center justify-center border-b border-border px-4 py-5">
         <img
@@ -1027,7 +1027,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
           }`}
         >
           {sidebarOpen ? (
-            <SidebarContent />
+            renderSidebarContent()
           ) : (
             <div className="flex h-full flex-col">
               <div className="flex justify-center border-b border-border p-4">
@@ -1123,8 +1123,8 @@ const handleNotificationClick = async (notification: NotificationRow) => {
             onClick={() => setMobileMenuOpen(false)}
           />
           <aside className="fixed left-0 top-0 z-50 h-full w-64 border-r border-border bg-background/70 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
-            <SidebarContent />
-          </aside>
+  {renderSidebarContent()}
+</aside>
         </>
       )}
 

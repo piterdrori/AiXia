@@ -580,8 +580,7 @@ export default function DashboardPage() {
   </PageLoader>
 </div>
 
-      <div className="grid xl:grid-cols-2 gap-6 flex-1 min-h-0 overflow-y-auto pr-2 pb-6">
-        <div className="grid xl:grid-cols-2 gap-6 flex-1 min-h-0 overflow-y-auto pr-2 pb-6">
+      <div className="grid xl:grid-cols-2 gap-6 flex-1 min-h-0 overflow-y-auto pb-6">
                     {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
             <>
               <PanelSkeleton
@@ -692,7 +691,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="grid xl:grid-cols-2 gap-6 flex-1 min-h-0 overflow-y-auto pr-2 pb-6">
+        <div className="grid gap-6 min-h-0 content-start xl:auto-rows-[520px]">
                     {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
             <>
               <PanelSkeleton

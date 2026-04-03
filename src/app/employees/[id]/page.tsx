@@ -1193,8 +1193,8 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+    <div className="h-[calc(100vh-126px)] max-w-7xl mx-auto flex flex-col gap-6 overflow-hidden">
+      <div className="flex items-center justify-between gap-4 flex-wrap shrink-0">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -1268,20 +1268,20 @@ disabled={
       </div>
 
       {saved && (
-        <Alert className="bg-green-900/20 border-green-800 text-green-400">
+        <Alert className="bg-green-900/20 border-green-800 text-green-400 shrink-0">
           <AlertDescription>{t("employeeDetail.success.saved")}</AlertDescription>
         </Alert>
       )}
 
       {saveError && user && (
-        <Alert className="bg-red-900/20 border-red-800 text-red-400">
+        <Alert className="bg-red-900/20 border-red-800 text-red-400 shrink-0">
           <AlertDescription>{saveError}</AlertDescription>
         </Alert>
       )}
 
-      <div className="grid xl:grid-cols-[320px,1fr] gap-6">
-        <Card className="bg-slate-900/50 border-slate-800 overflow-hidden">
-          <CardContent className="p-6">
+      <div className="grid xl:grid-cols-[320px,1fr] gap-6 flex-1 min-h-0">
+        <Card className="bg-slate-900/50 border-slate-800 overflow-hidden min-h-0 h-full flex flex-col">
+          <CardContent className="p-6 h-full min-h-0 overflow-y-auto pb-6">
             {employeeRequest.status === "loading" && !hasLoadedOnce ? (
               <div className="animate-pulse space-y-4">
                 <div className="w-24 h-24 rounded-full bg-slate-800 mx-auto" />
@@ -1512,14 +1512,14 @@ disabled={
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardHeader className="border-b border-slate-800">
+        <Card className="bg-slate-900/50 border-slate-800 min-h-0 h-full overflow-hidden flex flex-col">
+          <CardHeader className="border-b border-slate-800 shrink-0">
             <CardTitle className="text-white">
               {isEditing ? t("employeeDetail.sections.editProfileDetails") : t("employeeDetail.sections.profileDetails")}
             </CardTitle>
           </CardHeader>
 
-          <CardContent className="p-6 space-y-6">
+          <CardContent className="p-6 space-y-6 flex-1 min-h-0 overflow-y-auto pb-6">
             {employeeRequest.status === "loading" && !hasLoadedOnce ? (
               <div className="space-y-6 animate-pulse">
                 <div className="grid md:grid-cols-2 gap-4">

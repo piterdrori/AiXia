@@ -580,8 +580,8 @@ export default function DashboardPage() {
   </PageLoader>
 </div>
 
-      <div className="grid xl:grid-cols-2 gap-6 flex-1 min-h-0">
-        <div className="grid gap-6 min-h-0 h-full xl:grid-rows-2">
+      <div className="grid xl:grid-cols-2 gap-6 flex-1 min-h-0 overflow-y-auto pr-2 pb-6">
+        <div className="grid xl:grid-cols-2 gap-6 flex-1 min-h-0 overflow-y-auto pr-2 pb-6">
                     {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
             <>
               <PanelSkeleton
@@ -592,7 +592,7 @@ export default function DashboardPage() {
             </>
           ) : (
             <>
-              <Card className="flex flex-col overflow-hidden min-h-0 h-full">
+              <Card className="flex flex-col overflow-hidden min-h-0 h-full xl:h-[520px]">
                 <CardHeader className="flex flex-row items-center justify-between shrink-0 pb-4">
                   <CardTitle className="text-foreground flex items-center gap-2">
                     <AlertCircle className="w-5 h-5 text-primary" />
@@ -652,7 +652,7 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card className="flex flex-col overflow-hidden min-h-0 h-full">
+              <Card className="flex flex-col overflow-hidden min-h-0 h-full xl:h-[520px]">
                 <CardHeader className="shrink-0 pb-4">
                   <CardTitle className="text-foreground">
                     {t("dashboard.projectProgress", "Project Progress")}
@@ -692,7 +692,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="grid gap-6 min-h-0 h-full xl:grid-rows-2">
+        <div className="grid xl:grid-cols-2 gap-6 flex-1 min-h-0 overflow-y-auto pr-2 pb-6">
                     {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
             <>
               <PanelSkeleton
@@ -703,7 +703,7 @@ export default function DashboardPage() {
             </>
           ) : (
             <>
-              <Card className="flex flex-col overflow-hidden min-h-0 h-full">
+              <Card className="flex flex-col overflow-hidden min-h-0 h-full xl:h-[520px]">
                 <CardHeader className="shrink-0 pb-4">
                   <CardTitle className="text-foreground flex items-center gap-2">
                     <Activity className="w-5 h-5 text-primary" />
@@ -736,7 +736,7 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card className="flex flex-col overflow-hidden min-h-0 h-full">
+              <Card className="flex flex-col overflow-hidden min-h-0 h-full xl:h-[520px]">
                 <CardHeader className="shrink-0 pb-3">
                   <CardTitle className="text-foreground">
                     {t("dashboard.taskCompletion", "Task Completion")}

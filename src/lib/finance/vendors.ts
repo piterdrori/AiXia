@@ -20,11 +20,28 @@ export async function getVendors(): Promise<FinanceVendor[]> {
 /* =========================
    CREATE VENDOR
 ========================= */
-export async function createVendor(input: Partial<FinanceVendor>) {
+export async function createVendor(input: {
+  name: string;
+  email?: string | null;
+  contact_person?: string | null;
+  status?: "active" | "inactive" | "archived";
+}) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data, error } = await supabase
     .from(TABLE)
     .insert({
-      ...input,
+      name: input.name,
+      email: input.email ?? null,
+      contact_person: input.contact_person ?? null,
+      status: input.status ?? "active",
+      notes: null,
+      metadata: {},
+      created_by: user?.id ?? null,
+      updated_by: user?.id ?? null,
+      payment_terms_days: 30,
     })
     .select()
     .single();
@@ -48,10 +65,15 @@ export async function updateVendor(
   id: string,
   updates: Partial<FinanceVendor>
 ) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data, error } = await supabase
     .from(TABLE)
     .update({
       ...updates,
+      updated_by: user?.id ?? null,
     })
     .eq("id", id)
     .select()
@@ -73,10 +95,15 @@ export async function updateVendor(
    ARCHIVE VENDOR
 ========================= */
 export async function archiveVendor(id: string) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data, error } = await supabase
     .from(TABLE)
     .update({
       status: "archived",
+      updated_by: user?.id ?? null,
     })
     .eq("id", id)
     .select()

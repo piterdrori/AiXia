@@ -20,11 +20,28 @@ export async function getClients(): Promise<FinanceClient[]> {
 /* =========================
    CREATE CLIENT
 ========================= */
-export async function createClient(input: Partial<FinanceClient>) {
+export async function createClient(input: {
+  name: string;
+  email?: string | null;
+  contact_person?: string | null;
+  status?: "active" | "inactive" | "archived";
+}) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data, error } = await supabase
     .from(TABLE)
     .insert({
-      ...input,
+      name: input.name,
+      email: input.email ?? null,
+      contact_person: input.contact_person ?? null,
+      status: input.status ?? "active",
+      notes: null,
+      metadata: {},
+      created_by: user?.id ?? null,
+      updated_by: user?.id ?? null,
+      payment_terms_days: 30,
     })
     .select()
     .single();
@@ -48,10 +65,15 @@ export async function updateClient(
   id: string,
   updates: Partial<FinanceClient>
 ) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data, error } = await supabase
     .from(TABLE)
     .update({
       ...updates,
+      updated_by: user?.id ?? null,
     })
     .eq("id", id)
     .select()
@@ -73,10 +95,15 @@ export async function updateClient(
    ARCHIVE CLIENT
 ========================= */
 export async function archiveClient(id: string) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data, error } = await supabase
     .from(TABLE)
     .update({
       status: "archived",
+      updated_by: user?.id ?? null,
     })
     .eq("id", id)
     .select()

@@ -785,11 +785,21 @@ const navItems: NavItem[] = useMemo(
       },
     ]
   : []),
+      ...(effectivePermissions?.accessFinance
+  ? [
       {
-        label: t("common.settings", "Settings"),
-        icon: Settings,
-        href: "/settings",
+        label: t("common.finance", "Finance"),
+        icon: FolderKanban,
+        href: "/finance",
       },
+    ]
+  : []),
+
+{
+  label: t("common.settings", "Settings"),
+  icon: Settings,
+  href: "/settings",
+},
     ],
             [
       calendarTodayCount,

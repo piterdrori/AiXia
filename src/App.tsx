@@ -51,6 +51,7 @@ import EmployeesPage from "@/app/employees/page";
 import EmployeeDetailPage from "@/app/employees/[id]/page";
 import EmployeePermissionsPage from "@/app/employees/[id]/permissions/page";
 import SettingsPage from "@/app/settings/page";
+import FinancePage from "@/app/finance/page";
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 
@@ -703,12 +704,23 @@ function AppRoutes() {
   }
 />
 
-      <Route
+            <Route
         path="/settings"
         element={
           <ProtectedRoute>
             <DashboardLayout>
               <SettingsPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/finance"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <FinancePage />
             </DashboardLayout>
           </ProtectedRoute>
         }

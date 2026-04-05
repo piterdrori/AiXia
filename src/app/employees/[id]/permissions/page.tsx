@@ -99,19 +99,27 @@ const permissionLabels: Record<
   // ===== FINANCE =====
   accessFinance: {
     label: "Access Finance",
-    description: "Can access finance module",
+    description: "Can access the finance module",
   },
   manageFinanceMasterData: {
-    label: "Manage Finance Data",
-    description: "Can manage finance master data",
+    label: "Manage Finance Master Data",
+    description: "Can manage finance settings and master records",
   },
   viewFinance: {
     label: "View Finance",
-    description: "Can view finance data",
+    description: "Can open and view finance pages",
   },
   createFinanceRecords: {
     label: "Create Finance Records",
     description: "Can create finance records",
+  },
+  editFinanceRecords: {
+    label: "Edit Finance Records",
+    description: "Can edit finance records",
+  },
+  archiveFinanceRecords: {
+    label: "Archive Finance Records",
+    description: "Can archive finance records",
   },
   approveFinanceRecords: {
     label: "Approve Finance Records",

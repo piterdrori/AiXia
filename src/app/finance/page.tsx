@@ -13,36 +13,38 @@ export default function FinancePage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <button
-          type="button"
-          onClick={() => navigate("/finance/clients")}
-          className="text-left"
-        >
-          <Card className="border-border bg-background/40 hover:bg-background/60 transition-colors">
-            <CardContent className="p-5">
-              <div className="text-white text-lg font-medium">Clients</div>
-              <div className="text-sm text-muted-foreground mt-2">
-                Manage finance clients and billing entities.
-              </div>
-            </CardContent>
-          </Card>
-        </button>
+      <div className="flex-1 overflow-y-auto pb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <button
+            type="button"
+            onClick={() => navigate("/finance/clients")}
+            className="text-left"
+          >
+            <Card className="border-border bg-background/40 hover:bg-background/60 transition-colors">
+              <CardContent className="p-5">
+                <div className="text-white text-lg font-medium">Clients</div>
+                <div className="text-sm text-muted-foreground mt-2">
+                  Manage finance clients and billing entities.
+                </div>
+              </CardContent>
+            </Card>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => navigate("/finance/vendors")}
-          className="text-left"
-        >
-          <Card className="border-border bg-background/40 hover:bg-background/60 transition-colors">
-            <CardContent className="p-5">
-              <div className="text-white text-lg font-medium">Vendors</div>
-              <div className="text-sm text-muted-foreground mt-2">
-                Manage vendors and payable counterparties.
-              </div>
-            </CardContent>
-          </Card>
-        </button>
+          <button
+            type="button"
+            onClick={() => navigate("/finance/vendors")}
+            className="text-left"
+          >
+            <Card className="border-border bg-background/40 hover:bg-background/60 transition-colors">
+              <CardContent className="p-5">
+                <div className="text-white text-lg font-medium">Vendors</div>
+                <div className="text-sm text-muted-foreground mt-2">
+                  Manage vendors and payable counterparties.
+                </div>
+              </CardContent>
+            </Card>
+          </button>
+        </div>
       </div>
     </div>
   );

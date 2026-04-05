@@ -22,6 +22,8 @@ export type Permission =
   | "manageFinanceMasterData"
   | "viewFinance"
   | "createFinanceRecords"
+  | "editFinanceRecords"
+  | "archiveFinanceRecords"
   | "approveFinanceRecords";
 
 type PermissionMap = Record<Permission, boolean>;
@@ -77,6 +79,8 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     viewFinance: true,
     createFinanceRecords: true,
     approveFinanceRecords: true,
+    editFinanceRecords: true,
+    archiveFinanceRecords: true,
   },
 
   manager: {
@@ -97,10 +101,12 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     changeSettings: true,
     visibility: true,
 
-    accessFinance: true,
+    accessFinance: false,
     manageFinanceMasterData: false,
-    viewFinance: true,
+    viewFinance: false,
     createFinanceRecords: false,
+    editFinanceRecords: false,
+    archiveFinanceRecords: false,
     approveFinanceRecords: false,
   },
 
@@ -123,10 +129,12 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     visibility: false,
 
     accessFinance: false,
-    manageFinanceMasterData: false,
-    viewFinance: false,
-    createFinanceRecords: false,
-    approveFinanceRecords: false,
+manageFinanceMasterData: false,
+viewFinance: false,
+createFinanceRecords: false,
+editFinanceRecords: false,
+archiveFinanceRecords: false,
+approveFinanceRecords: false,
   },
 
   guest: {
@@ -151,6 +159,8 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     manageFinanceMasterData: false,
     viewFinance: false,
     createFinanceRecords: false,
+    editFinanceRecords: false,
+    archiveFinanceRecords: false,
     approveFinanceRecords: false,
   },
 };

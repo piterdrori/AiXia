@@ -379,6 +379,7 @@ useEffect(() => {
   const [isSendingInvite, setIsSendingInvite] = useState(false);
   const [invitations, setInvitations] = useState<InvitationRow[]>([]);
   const [accessRequests, setAccessRequests] = useState<any[]>([]);
+  const [showAccessRequestHistory, setShowAccessRequestHistory] = useState(false);
   const [invitationActionId, setInvitationActionId] = useState<string | null>(null);
   const [showInviteHistory, setShowInviteHistory] = useState(false);
   const [directMessageLoadingUserId, setDirectMessageLoadingUserId] = useState<string | null>(null);
@@ -628,19 +629,24 @@ if (effective.manageUsers) {
       let accessRequestsData: any[] = [];
 
 if (effective.manageUsers) {
-  const { data, error } = await supabase
-  .from("employee_access_requests")
-  .select(`
-    id,
-    status,
-    created_at,
-    requester_user_id,
-    target_user_id,
-    requester:profiles!employee_access_requests_requester_user_id_fkey(full_name, email),
-    target:profiles!employee_access_requests_target_user_id_fkey(full_name, email)
-  `)
-  .eq("status", "pending")
-  .order("created_at", { ascending: false });
+  let accessRequestsQuery = supabase
+    .from("employee_access_requests")
+    .select(`
+      id,
+      status,
+      created_at,
+      requester_user_id,
+      target_user_id,
+      requester:profiles!employee_access_requests_requester_user_id_fkey(full_name, email),
+      target:profiles!employee_access_requests_target_user_id_fkey(full_name, email)
+    `)
+    .order("created_at", { ascending: false });
+
+  if (!showAccessRequestHistory) {
+    accessRequestsQuery = accessRequestsQuery.eq("status", "pending");
+  }
+
+  const { data, error } = await accessRequestsQuery;
 
   if (!requestTracker.current.isLatest(requestId)) return true;
 
@@ -688,7 +694,7 @@ if (effective.manageUsers) {
   setInvitations([]);
   setAccessRequests([]);
 }
-}, [navigate]);
+}, [navigate, showAccessRequestHistory]);
 
  useEffect(() => {
   void loadProfiles();
@@ -1408,15 +1414,61 @@ disabled={employeesRequest.status === "loading"}
 
 {canManageUsers && (
   <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-    <Card className="bg-slate-900/50 border-slate-800 h-[170px] min-h-0">
+    <Card className="bg-slate-900/50 border-slate-800 h-[280px] min-h-0">
       <CardContent className="p-4 h-full min-h-0 flex flex-col">
         <div className="flex items-center justify-between shrink-0">
-          <h3 className="text-lg font-medium text-white">
-            Access Requests
-          </h3>
-          <Badge className="bg-slate-800 text-slate-200 border-slate-700">
-            {accessRequests.length}
-          </Badge>
+  <h3 className="text-lg font-medium text-white">
+    Access Requests
+  </h3>
+
+  <div className="flex items-center gap-2">
+    <Button
+      size="sm"
+      variant="outline"
+      className="border-slate-700 text-slate-300 hover:bg-slate-800"
+      onClick={() =>
+        setShowAccessRequestHistory((prev) => !prev)
+      }
+    >
+      {showAccessRequestHistory ? "Hide History" : "Show History"}
+    </Button>
+
+    {showAccessRequestHistory && (
+      <Button
+        size="sm"
+        variant="outline"
+        className="border-red-800 text-red-400 hover:bg-red-900/20"
+      onClick={async () => {
+  setError("");
+
+  const { error } = await supabase
+    .from("employee_access_requests")
+    .delete()
+    .in("status", ["approved", "rejected"]);
+
+  if (error) {
+    console.error("Clear access request history error:", error);
+    setError(error.message);
+    return;
+  }
+
+  setAccessRequests((prev) =>
+    prev.filter(
+      (req) => req.status !== "approved" && req.status !== "rejected"
+    )
+  );
+
+  void loadProfiles();
+}}
+      >
+        Clear
+      </Button>
+    )}
+
+        <Badge className="bg-slate-800 text-slate-200 border-slate-700">
+      {accessRequests.length}
+    </Badge>
+  </div>
         </div>
 
         <div className="mt-4 flex-1 min-h-0 overflow-y-auto">
@@ -1504,7 +1556,7 @@ disabled={employeesRequest.status === "loading"}
       </CardContent>
     </Card>
 
-    <Card className="bg-slate-900/50 border-slate-800 h-[170px] min-h-0">
+    <Card className="bg-slate-900/50 border-slate-800 h-[280px] min-h-0">
       <CardContent className="p-4 h-full min-h-0 flex flex-col">
         <div className="flex items-center justify-between gap-4 shrink-0">
           <div>
@@ -1519,21 +1571,60 @@ disabled={employeesRequest.status === "loading"}
           </div>
 
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
-              onClick={() => setShowInviteHistory((prev) => !prev)}
-            >
-              {showInviteHistory
-                ? t("employees.actions.hideHistory")
-                : t("employees.actions.showHistory")}
-            </Button>
+  <Button
+    size="sm"
+    variant="outline"
+    className="border-slate-700 text-slate-300 hover:bg-slate-800"
+    onClick={() => setShowInviteHistory((prev) => !prev)}
+  >
+    {showInviteHistory
+      ? t("employees.actions.hideHistory")
+      : t("employees.actions.showHistory")}
+  </Button>
 
-            <Badge className="bg-slate-800 text-slate-200 border-slate-700">
-              {visibleInvitations.length}
-            </Badge>
-          </div>
+  {showInviteHistory && (
+    <Button
+      size="sm"
+      variant="outline"
+      className="border-red-800 text-red-400 hover:bg-red-900/20"
+    onClick={async () => {
+  setInviteError("");
+  setInviteSuccess("");
+
+  const { error } = await supabase
+    .from("member_invitations")
+    .delete()
+    .in("status", ["accepted", "expired", "cancelled", "failed"]);
+
+  if (error) {
+    console.error("Clear invitation history error:", error);
+    setInviteError(error.message);
+    return;
+  }
+
+  setInvitations((prev) =>
+    prev.filter(
+      (invitation) =>
+        invitation.status !== "accepted" &&
+        invitation.status !== "expired" &&
+        invitation.status !== "cancelled" &&
+        invitation.status !== "failed"
+    )
+  );
+
+  setInviteSuccess("Invitation history cleared.");
+
+  void loadProfiles();
+}}
+    >
+      Clear
+    </Button>
+  )}
+
+    <Badge className="bg-slate-800 text-slate-200 border-slate-700">
+    {visibleInvitations.length}
+  </Badge>
+</div>
         </div>
 
         <div className="mt-4 flex-1 min-h-0 overflow-y-auto">

@@ -110,7 +110,7 @@ type AppWindow = Window & {
 };
 
 const LAYOUT_CACHE_KEY = "taskflow.dashboardLayout.cache";
-const CACHE_TTL_MS = 60 * 1000;
+const CACHE_TTL_MS = 0;
 
 function readLayoutCache(): CachedLayoutState | null {
   try {

@@ -1,13 +1,19 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getVendors } from "@/lib/finance/vendors";
+import { getVendors, createVendor } from "@/lib/finance/vendors";
 import type { FinanceVendor } from "@/lib/finance/types";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function FinanceVendorsPage() {
   const navigate = useNavigate();
   const [vendors, setVendors] = useState<FinanceVendor[]>([]);
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [contactPerson, setContactPerson] = useState("");
+  const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
     void load();
@@ -21,6 +27,39 @@ export default function FinanceVendorsPage() {
       console.error("Failed to load vendors:", error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleCreateVendor() {
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedContactPerson = contactPerson.trim();
+
+    if (!trimmedName) {
+      setSaveError("Vendor name is required");
+      return;
+    }
+
+    try {
+      setCreating(true);
+      setSaveError("");
+
+      const created = await createVendor({
+        name: trimmedName,
+        email: trimmedEmail || null,
+        contact_person: trimmedContactPerson || null,
+        status: "active",
+      });
+
+      setVendors((prev) => [created, ...prev]);
+      setName("");
+      setEmail("");
+      setContactPerson("");
+    } catch (error) {
+      console.error("Failed to create vendor:", error);
+      setSaveError(error instanceof Error ? error.message : "Failed to create vendor");
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -54,6 +93,47 @@ export default function FinanceVendorsPage() {
         </div>
       </div>
 
+      <div className="border border-border rounded-xl p-4 bg-background/40">
+        <div className="flex flex-col gap-3">
+          <div className="text-white font-medium">Create Vendor</div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Vendor name"
+              className="border-border bg-background/60 text-white"
+            />
+            <Input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Vendor email"
+              className="border-border bg-background/60 text-white"
+            />
+            <Input
+              value={contactPerson}
+              onChange={(e) => setContactPerson(e.target.value)}
+              placeholder="Contact person"
+              className="border-border bg-background/60 text-white"
+            />
+          </div>
+
+          {saveError ? (
+            <div className="text-sm text-red-400">{saveError}</div>
+          ) : null}
+
+          <div className="flex justify-start">
+            <Button
+              onClick={() => void handleCreateVendor()}
+              disabled={creating}
+              className="text-white"
+            >
+              {creating ? "Creating..." : "Create Vendor"}
+            </Button>
+          </div>
+        </div>
+      </div>
+
       <div className="flex-1 overflow-y-auto pb-4 border border-border rounded-xl p-4">
         {loading ? (
           <div className="text-muted-foreground">Loading...</div>
@@ -69,6 +149,9 @@ export default function FinanceVendorsPage() {
                 <div className="text-white font-medium">{vendor.name}</div>
                 <div className="text-xs text-muted-foreground">
                   {vendor.email || "No email"}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {vendor.contact_person || "No contact person"}
                 </div>
               </div>
             ))}

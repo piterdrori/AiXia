@@ -1,9 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getVendors, createVendor } from "@/lib/finance/vendors";
 import type { FinanceVendor } from "@/lib/finance/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getEffectivePermissions, type Permission, type Role } from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
+
+type ProfilePermissionRow = {
+  role: Role;
+  permissions?: Partial<Record<Permission, boolean>> | null;
+};
 
 export default function FinanceVendorsPage() {
   const navigate = useNavigate();
@@ -14,13 +21,35 @@ export default function FinanceVendorsPage() {
   const [email, setEmail] = useState("");
   const [contactPerson, setContactPerson] = useState("");
   const [saveError, setSaveError] = useState("");
+  const [role, setRole] = useState<Role | null>(null);
+  const [permissionOverrides, setPermissionOverrides] = useState<
+    Partial<Record<Permission, boolean>> | null
+  >(null);
 
   useEffect(() => {
-    void load();
+    void loadPage();
   }, []);
 
-  async function load() {
+  async function loadPage() {
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role, permissions")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (profile) {
+          const typedProfile = profile as ProfilePermissionRow;
+          setRole(typedProfile.role);
+          setPermissionOverrides(typedProfile.permissions || null);
+        }
+      }
+
       const data = await getVendors();
       setVendors(data);
     } catch (error) {
@@ -30,7 +59,19 @@ export default function FinanceVendorsPage() {
     }
   }
 
+  const effectivePermissions = useMemo(() => {
+    if (!role) return null;
+    return getEffectivePermissions(role, permissionOverrides);
+  }, [role, permissionOverrides]);
+
+  const canCreateVendors = !!effectivePermissions?.createFinanceRecords;
+
   async function handleCreateVendor() {
+    if (!canCreateVendors) {
+      setSaveError("You do not have permission to create finance records");
+      return;
+    }
+
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
     const trimmedContactPerson = contactPerson.trim();
@@ -93,46 +134,52 @@ export default function FinanceVendorsPage() {
         </div>
       </div>
 
-      <div className="border border-border rounded-xl p-4 bg-background/40">
-        <div className="flex flex-col gap-3">
-          <div className="text-white font-medium">Create Vendor</div>
+      {canCreateVendors ? (
+        <div className="border border-border rounded-xl p-4 bg-background/40">
+          <div className="flex flex-col gap-3">
+            <div className="text-white font-medium">Create Vendor</div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Vendor name"
-              className="border-border bg-background/60 text-white"
-            />
-            <Input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Vendor email"
-              className="border-border bg-background/60 text-white"
-            />
-            <Input
-              value={contactPerson}
-              onChange={(e) => setContactPerson(e.target.value)}
-              placeholder="Contact person"
-              className="border-border bg-background/60 text-white"
-            />
-          </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Vendor name"
+                className="border-border bg-background/60 text-white"
+              />
+              <Input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Vendor email"
+                className="border-border bg-background/60 text-white"
+              />
+              <Input
+                value={contactPerson}
+                onChange={(e) => setContactPerson(e.target.value)}
+                placeholder="Contact person"
+                className="border-border bg-background/60 text-white"
+              />
+            </div>
 
-          {saveError ? (
-            <div className="text-sm text-red-400">{saveError}</div>
-          ) : null}
+            {saveError ? (
+              <div className="text-sm text-red-400">{saveError}</div>
+            ) : null}
 
-          <div className="flex justify-start">
-            <Button
-              onClick={() => void handleCreateVendor()}
-              disabled={creating}
-              className="text-white"
-            >
-              {creating ? "Creating..." : "Create Vendor"}
-            </Button>
+            <div className="flex justify-start">
+              <Button
+                onClick={() => void handleCreateVendor()}
+                disabled={creating}
+                className="text-white"
+              >
+                {creating ? "Creating..." : "Create Vendor"}
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="border border-border rounded-xl p-4 bg-background/40 text-sm text-muted-foreground">
+          You can view vendors, but you do not have permission to create finance records.
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto pb-4 border border-border rounded-xl p-4">
         {loading ? (

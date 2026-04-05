@@ -580,119 +580,117 @@ export default function DashboardPage() {
   </PageLoader>
 </div>
 
-      <div className="grid xl:grid-cols-2 gap-6 flex-1 min-h-0">
-        <div className="grid gap-6 min-h-0 h-full xl:grid-rows-2">
-                    {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
-            <>
-              <PanelSkeleton
-                title={t("dashboard.upcomingDeadlines", "Upcoming Deadlines")}
-                icon={<AlertCircle className="w-5 h-5 text-primary" />}
-              />
-              <PanelSkeleton title={t("dashboard.projectProgress", "Project Progress")} />
-            </>
-          ) : (
-            <>
-              <Card className="flex flex-col overflow-hidden min-h-0 h-full">
-                <CardHeader className="flex flex-row items-center justify-between shrink-0 pb-4">
-                  <CardTitle className="text-foreground flex items-center gap-2">
-                    <AlertCircle className="w-5 h-5 text-primary" />
-                    {t("dashboard.upcomingDeadlines", "Upcoming Deadlines")}
-                  </CardTitle>
-                  <Button
-                    variant="ghost"
-                    className="text-muted-foreground hover:text-foreground"
-                    onClick={() => navigate("/calendar")}
-                  >
-                    {t("dashboard.viewCalendar", "View Calendar")}
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </CardHeader>
+     <div className="grid xl:grid-cols-2 gap-6 flex-1 min-h-0 overflow-y-auto pb-6">
+  <div className="grid gap-6 min-h-0 content-start xl:auto-rows-[520px]">
+    {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
+      <>
+        <PanelSkeleton
+          title={t("dashboard.upcomingDeadlines", "Upcoming Deadlines")}
+          icon={<AlertCircle className="w-5 h-5 text-primary" />}
+        />
+        <PanelSkeleton title={t("dashboard.projectProgress", "Project Progress")} />
+      </>
+    ) : (
+      <>
+        <Card className="flex flex-col overflow-hidden min-h-0 h-full xl:h-[520px]">
+          <CardHeader className="flex flex-row items-center justify-between shrink-0 pb-4">
+            <CardTitle className="text-foreground flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-primary" />
+              {t("dashboard.upcomingDeadlines", "Upcoming Deadlines")}
+            </CardTitle>
+            <Button
+              variant="ghost"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => navigate("/calendar")}
+            >
+              {t("dashboard.viewCalendar", "View Calendar")}
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </CardHeader>
 
-                <CardContent className="flex-1 overflow-hidden">
-                  {upcomingItems.length === 0 ? (
-                    <div className="text-muted-foreground">
-                      {t(
-                        "dashboard.noUpcomingDeadlinesOrEvents",
-                        "No upcoming deadlines or events."
-                      )}
-                    </div>
-                  ) : (
-                    <ScrollArea className="h-full pr-3 pb-4">
-                      <div className="space-y-3">
-                        {upcomingItems.map((item) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => navigate(item.link)}
-                            className="w-full text-left p-4 rounded-xl border border-border bg-background/60 backdrop-blur-md hover:border-primary/30 transition"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="text-foreground font-medium truncate">
-                                  {item.title}
-                                </div>
-                                <div className="text-sm text-muted-foreground">
-                                  {format(parseISO(item.date), "MMM d, yyyy")}
-                                </div>
-                              </div>
-
-                              <div className="shrink-0">
-                                <Badge
-                                                                    className="bg-primary/10 text-primary"
-                                >
-                                  {item.meta || item.type}
-                                </Badge>
-                              </div>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="flex flex-col overflow-hidden min-h-0 h-full">
-                <CardHeader className="shrink-0 pb-4">
-                  <CardTitle className="text-foreground">
-                    {t("dashboard.projectProgress", "Project Progress")}
-                  </CardTitle>
-                </CardHeader>
-
-                <CardContent className="flex-1 overflow-hidden">
-                  {activeProjectsForProgress.length === 0 ? (
-                    <div className="text-muted-foreground">
-                      {t("dashboard.noActiveProjectsAvailable", "No active projects available.")}
-                    </div>
-                  ) : (
-                    <ScrollArea className="h-full pr-3 pb-4">
-                      <div className="space-y-4">
-                        {activeProjectsForProgress.map((project) => (
-                          <div key={project.id} className="space-y-2">
-                            <div className="flex items-center justify-between gap-3">
-                              <button
-                                className="text-foreground hover:text-primary truncate"
-                                onClick={() => navigate(`/projects/${project.id}`)}
-                              >
-                                {project.name}
-                              </button>
-                              <span className="text-sm text-muted-foreground">
-                                {project.progress || 0}%
-                              </span>
-                            </div>
-                            <Progress value={project.progress || 0} />
+          <CardContent className="flex-1 overflow-hidden">
+            {upcomingItems.length === 0 ? (
+              <div className="text-muted-foreground">
+                {t(
+                  "dashboard.noUpcomingDeadlinesOrEvents",
+                  "No upcoming deadlines or events."
+                )}
+              </div>
+            ) : (
+              <ScrollArea className="h-full pr-3 pb-4">
+                <div className="space-y-3">
+                  {upcomingItems.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => navigate(item.link)}
+                      className="w-full text-left p-4 rounded-xl border border-border bg-background/60 backdrop-blur-md hover:border-primary/30 transition"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-foreground font-medium truncate">
+                            {item.title}
                           </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  )}
-                </CardContent>
-              </Card>
-            </>
-          )}
-        </div>
+                          <div className="text-sm text-muted-foreground">
+                            {format(parseISO(item.date), "MMM d, yyyy")}
+                          </div>
+                        </div>
 
-        <div className="grid gap-6 min-h-0 h-full xl:grid-rows-2">
+                        <div className="shrink-0">
+                          <Badge className="bg-primary/10 text-primary">
+                            {item.meta || item.type}
+                          </Badge>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="flex flex-col overflow-hidden min-h-0 h-full xl:h-[520px]">
+          <CardHeader className="shrink-0 pb-4">
+            <CardTitle className="text-foreground">
+              {t("dashboard.projectProgress", "Project Progress")}
+            </CardTitle>
+          </CardHeader>
+
+          <CardContent className="flex-1 overflow-hidden">
+            {activeProjectsForProgress.length === 0 ? (
+              <div className="text-muted-foreground">
+                {t("dashboard.noActiveProjectsAvailable", "No active projects available.")}
+              </div>
+            ) : (
+              <ScrollArea className="h-full pr-3 pb-4">
+                <div className="space-y-4">
+                  {activeProjectsForProgress.map((project) => (
+                    <div key={project.id} className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <button
+                          className="text-foreground hover:text-primary truncate"
+                          onClick={() => navigate(`/projects/${project.id}`)}
+                        >
+                          {project.name}
+                        </button>
+                        <span className="text-sm text-muted-foreground">
+                          {project.progress || 0}%
+                        </span>
+                      </div>
+                      <Progress value={project.progress || 0} />
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
+      </>
+    )}
+  </div>
+
+  <div className="grid gap-6 min-h-0 content-start xl:auto-rows-[520px]">
                     {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
             <>
               <PanelSkeleton
@@ -703,7 +701,7 @@ export default function DashboardPage() {
             </>
           ) : (
             <>
-              <Card className="flex flex-col overflow-hidden min-h-0 h-full">
+              <Card className="flex flex-col overflow-hidden min-h-0 h-full xl:h-[520px]">
                 <CardHeader className="shrink-0 pb-4">
                   <CardTitle className="text-foreground flex items-center gap-2">
                     <Activity className="w-5 h-5 text-primary" />
@@ -736,7 +734,7 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card className="flex flex-col overflow-hidden min-h-0 h-full">
+              <Card className="flex flex-col overflow-hidden min-h-0 h-full xl:h-[520px]">
                 <CardHeader className="shrink-0 pb-3">
                   <CardTitle className="text-foreground">
                     {t("dashboard.taskCompletion", "Task Completion")}

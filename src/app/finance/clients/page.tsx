@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getClients } from "@/lib/finance/clients";
 import type { FinanceClient } from "@/lib/finance/types";
+import { Button } from "@/components/ui/button";
 
 export default function FinanceClientsPage() {
+  const navigate = useNavigate();
   const [clients, setClients] = useState<FinanceClient[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    load();
+    void load();
   }, []);
 
   async function load() {
@@ -23,10 +26,32 @@ export default function FinanceClientsPage() {
 
   return (
     <div className="h-full flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-white">
-          Finance — Clients
-        </h1>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-white">
+            Finance — Clients
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Manage finance clients and billing entities.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={() => navigate("/finance")}
+            className="border-border bg-background/40 text-white hover:bg-background/60"
+          >
+            Finance Home
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate("/finance/vendors")}
+            className="border-border bg-background/40 text-white hover:bg-background/60"
+          >
+            Vendors
+          </Button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto pb-4 border border-border rounded-xl p-4">
@@ -41,9 +66,7 @@ export default function FinanceClientsPage() {
                 key={client.id}
                 className="border border-border rounded-lg p-3 bg-background/40"
               >
-                <div className="text-white font-medium">
-                  {client.name}
-                </div>
+                <div className="text-white font-medium">{client.name}</div>
                 <div className="text-xs text-muted-foreground">
                   {client.email || "No email"}
                 </div>

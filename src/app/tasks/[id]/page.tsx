@@ -1201,8 +1201,8 @@ if (isBootstrapping) {
     if (!task) return null;
   return (
     <>
-      <div className="space-y-6">
-      <div className="flex items-center gap-4">
+      <div className="h-[calc(100vh-126px)] flex flex-col gap-6 overflow-hidden">
+      <div className="flex items-center gap-4 shrink-0">
         <Button
           variant="ghost"
           size="icon"
@@ -1268,10 +1268,10 @@ if (isBootstrapping) {
         </Alert>
       )}
 
-            <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-                       <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto">
+            <div className="grid lg:grid-cols-3 gap-6 flex-1 min-h-0">
+        <div className="lg:col-span-2 min-h-0 flex flex-col">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full min-h-0 flex-col">
+                       <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto shrink-0">
               <TabsTrigger value="overview" className="data-[state=active]:bg-slate-800">
                 Overview
               </TabsTrigger>
@@ -1286,8 +1286,8 @@ if (isBootstrapping) {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="mt-4">
-              <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+            <TabsContent value="overview" className="mt-4 flex-1 min-h-0">
+              <div className="h-full min-h-0 overflow-y-auto pr-2 pb-6 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                 <div className="space-y-6">
 
                                     <Card className="bg-slate-900/50 border-slate-800">
@@ -1388,8 +1388,8 @@ if (isBootstrapping) {
               </div>
             </TabsContent>
 
-            <TabsContent value="files" className="mt-4">
-              <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+            <TabsContent value="files" className="mt-4 flex-1 min-h-0">
+              <div className="h-full min-h-0 overflow-y-auto pr-2 pb-6 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                 <div className="space-y-6">
                   <Card className="bg-slate-900/50 border-slate-800">
                     <CardHeader>
@@ -1618,8 +1618,8 @@ if (isBootstrapping) {
               </div>
             </TabsContent>
 
-                        <TabsContent value="discussion" className="mt-4">
-              <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+                        <TabsContent value="discussion" className="mt-4 flex-1 min-h-0">
+              <div className="h-full min-h-0 overflow-y-auto pr-2 pb-6 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                 <div className="space-y-6">
                   <Card className="bg-slate-900/50 border-slate-800">
                     <CardHeader>
@@ -1859,8 +1859,8 @@ if (isBootstrapping) {
               </div>
             </TabsContent>
 
-            <TabsContent value="activity" className="mt-4">
-              <div className="max-h-[calc(100vh-420px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+            <TabsContent value="activity" className="mt-4 flex-1 min-h-0">
+              <div className="h-full min-h-0 overflow-y-auto pr-2 pb-6 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                 <div className="space-y-6">
                   <Card className="bg-slate-900/50 border-slate-800">
                     <CardHeader>
@@ -1950,8 +1950,8 @@ if (isBootstrapping) {
           </Tabs>
         </div>
 
-        <div className="space-y-6">
-          <Card className="bg-slate-900/50 border-slate-800">
+        <div className="flex h-full min-h-0 flex-col gap-6">
+         <Card className="bg-slate-900/50 border-slate-800 shrink-0">
             <CardHeader>
               <CardTitle className="text-white">{t("taskDetail.details.title")}</CardTitle>
             </CardHeader>
@@ -1987,7 +1987,7 @@ if (isBootstrapping) {
             </CardContent>
           </Card>
 
-                    <Card className="bg-slate-900/50 border-slate-800">
+                   <Card className="bg-slate-900/50 border-slate-800 flex-1 min-h-0 overflow-hidden">
             <CardHeader>
               <div className="flex items-center justify-between gap-4">
                 <CardTitle className="text-white">{t("taskDetail.members.title")}</CardTitle>
@@ -2009,9 +2009,9 @@ if (isBootstrapping) {
               </div>
             </CardHeader>
 
-                                   <CardContent className="space-y-3">
+                                   <CardContent className="flex flex-1 min-h-0 flex-col gap-3">
               {canManageMembers && showManageMembers && (
-                <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-3 space-y-3">
+                <div className="shrink-0 rounded-lg border border-slate-800 bg-slate-950/50 p-3 space-y-3">
                   <div className="space-y-2">
                     <div className="text-sm font-medium text-slate-300">
                       {t("taskDetail.members.actions.addMember")}
@@ -2059,10 +2059,11 @@ if (isBootstrapping) {
                 </div>
               )}
 
-              {taskMembers.length === 0 ? (
-                <p className="text-slate-500">{t("taskDetail.members.empty")}</p>
-              ) : (
-                taskMembers.map((member) => (
+              <div className="flex-1 min-h-0 overflow-y-auto pr-2 pb-4 space-y-3 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
+  {taskMembers.length === 0 ? (
+    <p className="text-slate-500">{t("taskDetail.members.empty")}</p>
+  ) : (
+    taskMembers.map((member) => (
                   <div key={member.id} className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <span className="text-white">{getProfileName(member.user_id)}</span>
@@ -2087,7 +2088,8 @@ if (isBootstrapping) {
                     </div>
                   </div>
                 ))
-              )}
+)}
+</div>
             </CardContent>
           </Card>
         </div>

@@ -715,12 +715,23 @@ function AppRoutes() {
         }
       />
 
-      <Route
+           <Route
         path="/finance"
         element={
           <ProtectedRoute>
             <DashboardLayout>
               <FinancePage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/finance/clients"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <div className="text-white">Finance Clients Page</div>
             </DashboardLayout>
           </ProtectedRoute>
         }

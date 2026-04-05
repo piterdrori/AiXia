@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { FinancePaymentMethod } from "./types";
+import type { FinanceBankAccount } from "./types";
 import { logActivity } from "@/lib/activity";
 
 const TABLE = "finance_payment_methods";

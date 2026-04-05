@@ -790,7 +790,7 @@ const navItems: NavItem[] = useMemo(
             {
               label: t("common.finance", "Finance"),
               icon: FolderKanban,
-              href: "/finance/clients",
+              href: "/finance",
             },
           ]
         : []),

@@ -59,7 +59,7 @@ const permissionLabels: Record<
     label: "Edit Tasks",
     description: "Can edit tasks",
   },
-    deleteTasks: {
+  deleteTasks: {
     label: "Delete Tasks",
     description: "Can delete tasks",
   },
@@ -91,9 +91,31 @@ const permissionLabels: Record<
     label: "Visibility",
     description: "Can view sensitive information",
   },
-    generateProjectReports: {
+  generateProjectReports: {
     label: "Generate Project Reports",
     description: "Can generate and download project reports",
+  },
+
+  // ===== FINANCE =====
+  accessFinance: {
+    label: "Access Finance",
+    description: "Can access finance module",
+  },
+  manageFinanceMasterData: {
+    label: "Manage Finance Data",
+    description: "Can manage finance master data",
+  },
+  viewFinance: {
+    label: "View Finance",
+    description: "Can view finance data",
+  },
+  createFinanceRecords: {
+    label: "Create Finance Records",
+    description: "Can create finance records",
+  },
+  approveFinanceRecords: {
+    label: "Approve Finance Records",
+    description: "Can approve finance actions",
   },
 };
 

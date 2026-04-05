@@ -65,6 +65,8 @@ export default function FinanceClientsPage() {
   }, [role, permissionOverrides]);
 
   const canCreateClients = !!effectivePermissions?.createFinanceRecords;
+  const canEditClients = !!effectivePermissions?.editFinanceRecords;
+  const canArchiveClients = !!effectivePermissions?.archiveFinanceRecords;
 
   async function handleCreateClient() {
     if (!canCreateClients) {
@@ -134,6 +136,10 @@ export default function FinanceClientsPage() {
         </div>
       </div>
 
+      <div className="text-xs text-muted-foreground">
+  Permissions → Create: {String(canCreateClients)} | Edit: {String(canEditClients)} | Archive: {String(canArchiveClients)}
+</div>
+      
       {canCreateClients ? (
         <div className="border border-border rounded-xl p-4 bg-background/40">
           <div className="flex flex-col gap-3">

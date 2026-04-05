@@ -16,7 +16,13 @@ export type Permission =
   | "generateProjectReports"
   | "accessChat"
   | "changeSettings"
-  | "visibility";
+  | "visibility"
+
+  | "accessFinance"
+  | "manageFinanceMasterData"
+  | "viewFinance"
+  | "createFinanceRecords"
+  | "approveFinanceRecords";
 
 type PermissionMap = Record<Permission, boolean>;
 
@@ -49,80 +55,104 @@ export type CalendarEventRow = {
 
 const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
   admin: {
-  createProjects: true,
-  editAllProjects: true,
-  deleteProjects: true,
-  createTasks: true,
-  editTasks: true,
-  deleteTasks: true,
+    createProjects: true,
+    editAllProjects: true,
+    deleteProjects: true,
+    createTasks: true,
+    editTasks: true,
+    deleteTasks: true,
 
-  viewEmployeeDirectory: true,
-  viewEmployeeDetail: true,
-  manageUsers: true,
+    viewEmployeeDirectory: true,
+    viewEmployeeDetail: true,
+    manageUsers: true,
 
-  viewReports: true,
-  generateProjectReports: true,
-  accessChat: true,
-  changeSettings: true,
-  visibility: true,
-},
+    viewReports: true,
+    generateProjectReports: true,
+    accessChat: true,
+    changeSettings: true,
+    visibility: true,
 
- manager: {
-  createProjects: true,
-  editAllProjects: true,
-  deleteProjects: false,
-  createTasks: true,
-  editTasks: true,
-  deleteTasks: false,
+    accessFinance: true,
+    manageFinanceMasterData: true,
+    viewFinance: true,
+    createFinanceRecords: true,
+    approveFinanceRecords: true,
+  },
 
-  viewEmployeeDirectory: true,
-  viewEmployeeDetail: true,
-  manageUsers: false,
+  manager: {
+    createProjects: true,
+    editAllProjects: true,
+    deleteProjects: false,
+    createTasks: true,
+    editTasks: true,
+    deleteTasks: false,
 
-   viewReports: true,
-  generateProjectReports: false,
-  accessChat: true,
-  changeSettings: true,
-  visibility: true,
-},
+    viewEmployeeDirectory: true,
+    viewEmployeeDetail: true,
+    manageUsers: false,
+
+    viewReports: true,
+    generateProjectReports: false,
+    accessChat: true,
+    changeSettings: true,
+    visibility: true,
+
+    accessFinance: true,
+    manageFinanceMasterData: false,
+    viewFinance: true,
+    createFinanceRecords: false,
+    approveFinanceRecords: false,
+  },
 
   employee: {
-  createProjects: false,
-  editAllProjects: false,
-  deleteProjects: false,
-  createTasks: true,
-  editTasks: true,
-  deleteTasks: false,
+    createProjects: false,
+    editAllProjects: false,
+    deleteProjects: false,
+    createTasks: true,
+    editTasks: true,
+    deleteTasks: false,
 
-  viewEmployeeDirectory: true,
-  viewEmployeeDetail: false,
-  manageUsers: false,
+    viewEmployeeDirectory: true,
+    viewEmployeeDetail: false,
+    manageUsers: false,
 
-  viewReports: false,
-  generateProjectReports: false,
-  accessChat: true,
-  changeSettings: true,
-  visibility: false,
-},
+    viewReports: false,
+    generateProjectReports: false,
+    accessChat: true,
+    changeSettings: true,
+    visibility: false,
 
- guest: {
-  createProjects: false,
-  editAllProjects: false,
-  deleteProjects: false,
-  createTasks: true,
-  editTasks: false,
-  deleteTasks: false,
+    accessFinance: false,
+    manageFinanceMasterData: false,
+    viewFinance: false,
+    createFinanceRecords: false,
+    approveFinanceRecords: false,
+  },
 
-  viewEmployeeDirectory: true,
-  viewEmployeeDetail: false,
-  manageUsers: false,
+  guest: {
+    createProjects: false,
+    editAllProjects: false,
+    deleteProjects: false,
+    createTasks: true,
+    editTasks: false,
+    deleteTasks: false,
 
-  viewReports: false,
-  generateProjectReports: false,
-  accessChat: true,
-  changeSettings: false,
-  visibility: false,
-},
+    viewEmployeeDirectory: true,
+    viewEmployeeDetail: false,
+    manageUsers: false,
+
+    viewReports: false,
+    generateProjectReports: false,
+    accessChat: true,
+    changeSettings: false,
+    visibility: false,
+
+    accessFinance: false,
+    manageFinanceMasterData: false,
+    viewFinance: false,
+    createFinanceRecords: false,
+    approveFinanceRecords: false,
+  },
 };
 
 /* =========================================================
@@ -156,11 +186,18 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/chat/:id": { permission: "accessChat" },
   "/inbox": { permission: "accessChat" },
 
-"/employees": { permission: "viewEmployeeDirectory" },
+  "/employees": { permission: "viewEmployeeDirectory" },
+  "/employees/:id": { permission: "viewEmployeeDetail" },
+  "/employees/:id/permissions": { permission: "manageUsers" },
 
-"/employees/:id": { permission: "viewEmployeeDetail" },
-
-"/employees/:id/permissions": { permission: "manageUsers" },
+  "/finance": { permission: "accessFinance" },
+  "/finance/clients": { permission: "viewFinance" },
+  "/finance/vendors": { permission: "viewFinance" },
+  "/finance/bank-accounts": { permission: "viewFinance" },
+  "/finance/payment-methods": { permission: "viewFinance" },
+  "/finance/expense-categories": { permission: "viewFinance" },
+  "/finance/revenue-categories": { permission: "viewFinance" },
+  "/finance/settings": { permission: "manageFinanceMasterData" },
 
   "/settings": { permission: "changeSettings" },
 };

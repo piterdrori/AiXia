@@ -1,4 +1,5 @@
-import { Role, canPerform } from "@/lib/permissions";
+import type { Role } from "@/lib/permissions";
+import { canPerform } from "@/lib/permissions";
 
 /**
  * Finance access guard

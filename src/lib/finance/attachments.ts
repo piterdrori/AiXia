@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { FinanceRecordAttachment } from "./types";
+import type { FinanceRecordAttachment } from "./types";
 import { logActivity } from "@/lib/activity";
 
 const TABLE = "finance_record_attachments";

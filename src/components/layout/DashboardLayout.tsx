@@ -785,15 +785,15 @@ const navItems: NavItem[] = useMemo(
       },
     ]
   : []),
-      ...(effectivePermissions?.accessFinance
-  ? [
-      {
-        label: t("common.finance", "Finance"),
-        icon: FolderKanban,
-        href: "/finance",
-      },
-    ]
-  : []),
+            ...(effectivePermissions?.accessFinance
+        ? [
+            {
+              label: t("common.finance", "Finance"),
+              icon: FolderKanban,
+              href: "/finance/clients",
+            },
+          ]
+        : []),
 
 {
   label: t("common.settings", "Settings"),

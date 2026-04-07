@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useParams } from "next/navigation";
+import { useParams } from "react-router-dom";
 
 export default function InvoiceDetail() {
-  const { id } = useParams();
+  const params = useParams();
+const id = params.id as string;
   const [invoice, setInvoice] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
 

@@ -65,8 +65,7 @@ export default function FinanceClientsPage() {
   }, [role, permissionOverrides]);
 
   const canCreateClients = !!effectivePermissions?.createFinanceRecords;
-  const _canEditClients = !!effectivePermissions?.editFinanceRecords;
-  const _canArchiveClients = !!effectivePermissions?.archiveFinanceRecords;
+
 
   async function handleCreateClient() {
     if (!canCreateClients) {

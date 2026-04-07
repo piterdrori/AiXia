@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { useEffect, useState } from "react";
 
 type InvoiceRow = {
   id: string;
@@ -24,8 +25,33 @@ export default function FinanceInvoicesPage() {
   }
 
   useEffect(() => {
-    void loadInvoices();
-  }, []);
+  let channel: any;
+
+  async function setup() {
+    await loadInvoices();
+
+    channel = supabase
+      .channel("finance-invoices-list")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_invoices_issued",
+        },
+        () => {
+          loadInvoices();
+        }
+      )
+      .subscribe();
+  }
+
+  void setup();
+
+  return () => {
+    if (channel) supabase.removeChannel(channel);
+  };
+}, []);
 
   return (
     <div className="h-full flex flex-col gap-6">

@@ -66,8 +66,42 @@ const id = params.id as string;
   }
 
   useEffect(() => {
-    load();
-  }, []);
+  let channel: any;
+
+  async function setup() {
+    await load();
+
+    channel = supabase
+      .channel(`invoice-${id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_invoices_issued",
+          filter: `id=eq.${id}`,
+        },
+        () => load()
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_invoice_issued_line_items",
+          filter: `invoice_id=eq.${id}`,
+        },
+        () => load()
+      )
+      .subscribe();
+  }
+
+  void setup();
+
+  return () => {
+    if (channel) supabase.removeChannel(channel);
+  };
+}, [id]);
 
   if (!invoice) return null;
 

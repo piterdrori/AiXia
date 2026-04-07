@@ -58,6 +58,7 @@ import FinanceBankAccountsPage from "@/app/finance/bank-accounts/page";
 import FinancePaymentMethodsPage from "@/app/finance/payment-methods/page";
 import FinanceExpenseCategoriesPage from "@/app/finance/expense-categories/page";
 import FinanceRevenueCategoriesPage from "@/app/finance/revenue-categories/page";
+import FinanceInvoicesPage from "@/app/finance/invoices/page";
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 
@@ -793,6 +794,17 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceRevenueCategoriesPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+      <Route
+  path="/finance/invoices"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceInvoicesPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

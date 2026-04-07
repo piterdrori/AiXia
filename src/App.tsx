@@ -54,6 +54,10 @@ import SettingsPage from "@/app/settings/page";
 import FinancePage from "@/app/finance/page";
 import FinanceClientsPage from "@/app/finance/clients/page";
 import FinanceVendorsPage from "@/app/finance/vendors/page";
+import FinanceBankAccountsPage from "@/app/finance/bank-accounts/page";
+import FinancePaymentMethodsPage from "@/app/finance/payment-methods/page";
+import FinanceExpenseCategoriesPage from "@/app/finance/expense-categories/page";
+import FinanceRevenueCategoriesPage from "@/app/finance/revenue-categories/page";
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 
@@ -749,6 +753,50 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      <Route
+  path="/finance/bank-accounts"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceBankAccountsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/payment-methods"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinancePaymentMethodsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/expense-categories"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceExpenseCategoriesPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/revenue-categories"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceRevenueCategoriesPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

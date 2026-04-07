@@ -1,10 +1,31 @@
 export type FinanceRecordStatus = "active" | "inactive" | "archived";
 
-export interface FinanceBaseRecord {
+export type FinanceInvoiceIssuedStatus =
+  | "draft"
+  | "pending_approval_ready"
+  | "approved_ready"
+  | "sent"
+  | "partially_paid"
+  | "paid"
+  | "overdue"
+  | "void"
+  | "canceled";
+
+export type FinancePaymentReceivedStatus =
+  | "pending"
+  | "confirmed"
+  | "failed"
+  | "reversed";
+
+export interface FinanceBaseRecord<TStatus extends string = FinanceRecordStatus> {
   id: string;
-  status: FinanceRecordStatus;
+  status: TStatus;
   notes: string | null;
   metadata: Record<string, unknown>;
+  project_id: string | null;
+  task_id: string | null;
+  reference_number: string | null;
+  posted_to_ledger: boolean;
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -58,6 +79,40 @@ export interface FinanceRevenueCategory extends FinanceBaseRecord {
   code: string | null;
   name: string;
   description: string | null;
+}
+
+export interface FinanceInvoiceIssued
+  extends FinanceBaseRecord<FinanceInvoiceIssuedStatus> {
+  invoice_number: string;
+  client_id: string;
+  issue_date: string;
+  due_date: string;
+  approval_status: string | null;
+  subtotal: number;
+  total_amount: number;
+  paid_amount: number;
+  balance_due: number;
+  paid_at: string | null;
+}
+
+export interface FinanceInvoiceIssuedLineItem extends FinanceBaseRecord {
+  invoice_id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+  sort_order: number;
+  revenue_category_id: string | null;
+}
+
+export interface FinancePaymentReceived
+  extends FinanceBaseRecord<FinancePaymentReceivedStatus> {
+  amount: number;
+  payment_date: string;
+  payment_method_id: string | null;
+  client_id: string;
+  invoice_id: string | null;
+  bank_account_id: string | null;
 }
 
 export interface FinanceComment {

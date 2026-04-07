@@ -59,6 +59,8 @@ import FinancePaymentMethodsPage from "@/app/finance/payment-methods/page";
 import FinanceExpenseCategoriesPage from "@/app/finance/expense-categories/page";
 import FinanceRevenueCategoriesPage from "@/app/finance/revenue-categories/page";
 import FinanceInvoicesPage from "@/app/finance/invoices/page";
+import FinanceNewInvoicePage from "@/app/finance/invoices/new/page";
+import FinanceInvoiceDetailPage from "@/app/finance/invoices/[id]/page";
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 
@@ -799,12 +801,34 @@ function AppRoutes() {
   }
 />
 
-      <Route
+   <Route
   path="/finance/invoices"
   element={
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceInvoicesPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/invoices/new"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceNewInvoicePage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/invoices/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceInvoiceDetailPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

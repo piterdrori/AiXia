@@ -1,49 +1,81 @@
-"use client";
-
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 
-export default function InvoicesPage() {
-  const [invoices, setInvoices] = useState<any[]>([]);
+type InvoiceRow = {
+  id: string;
+  invoice_number: string;
+  status: string;
+  total_amount: number | string;
+  balance_due: number | string;
+};
 
-  async function load() {
+export default function FinanceInvoicesPage() {
+  const navigate = useNavigate();
+  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
+
+  async function loadInvoices() {
     const { data } = await supabase
       .from("finance_invoices_issued")
-      .select("*")
+      .select("id, invoice_number, status, total_amount, balance_due")
       .order("created_at", { ascending: false });
 
-    setInvoices(data || []);
+    setInvoices((data as InvoiceRow[]) || []);
   }
 
   useEffect(() => {
-    load();
+    void loadInvoices();
   }, []);
 
   return (
-    <div className="p-6">
-      <h1 className="text-xl font-semibold mb-4">Invoices</h1>
+    <div className="h-full flex flex-col gap-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-white">Invoices</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            View and manage issued invoices.
+          </p>
+        </div>
 
-      <table className="w-full text-sm">
-        <thead>
-          <tr>
-            <th>Number</th>
-            <th>Status</th>
-            <th>Total</th>
-            <th>Balance</th>
-          </tr>
-        </thead>
+        <button
+          type="button"
+          onClick={() => navigate("/finance/invoices/new")}
+          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
+        >
+          New Invoice
+        </button>
+      </div>
 
-        <tbody>
-          {invoices.map((i) => (
-            <tr key={i.id}>
-              <td>{i.invoice_number}</td>
-              <td>{i.status}</td>
-              <td>{i.total_amount}</td>
-              <td>{i.balance_due}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="flex-1 overflow-y-auto pb-4">
+        <div className="border border-border rounded-xl bg-background/40 overflow-hidden">
+          <div className="grid grid-cols-4 gap-4 px-5 py-4 text-sm font-medium text-muted-foreground border-b border-border">
+            <div>Number</div>
+            <div>Status</div>
+            <div>Total</div>
+            <div>Balance</div>
+          </div>
+
+          {invoices.length === 0 ? (
+            <div className="px-5 py-6 text-sm text-muted-foreground">
+              No invoices found.
+            </div>
+          ) : (
+            invoices.map((invoice) => (
+              <button
+                key={invoice.id}
+                type="button"
+                onClick={() => navigate(`/finance/invoices/${invoice.id}`)}
+                className="w-full grid grid-cols-4 gap-4 px-5 py-4 text-left border-b border-border last:border-b-0 hover:bg-background/60 transition-colors"
+              >
+                <div className="text-white">{invoice.invoice_number}</div>
+                <div className="text-white">{invoice.status}</div>
+                <div className="text-white">{invoice.total_amount}</div>
+                <div className="text-white">{invoice.balance_due}</div>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }

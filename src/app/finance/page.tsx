@@ -20,6 +20,51 @@ type FinanceModule = {
   requiredPermission: Permission;
 };
 
+const FINANCE_MODULES: FinanceModule[] = [
+  {
+    title: "Clients",
+    description: "Manage finance clients and billing entities.",
+    route: "/finance/clients",
+    requiredPermission: "viewFinance",
+  },
+  {
+    title: "Vendors",
+    description: "Manage vendors and payable counterparties.",
+    route: "/finance/vendors",
+    requiredPermission: "viewFinance",
+  },
+  {
+    title: "Bank Accounts",
+    description: "Manage company bank accounts and balances.",
+    route: "/finance/bank-accounts",
+    requiredPermission: "viewFinance",
+  },
+  {
+    title: "Payment Methods",
+    description: "Manage available payment methods.",
+    route: "/finance/payment-methods",
+    requiredPermission: "viewFinance",
+  },
+  {
+    title: "Expense Categories",
+    description: "Define and manage expense classifications.",
+    route: "/finance/expense-categories",
+    requiredPermission: "viewFinance",
+  },
+  {
+    title: "Revenue Categories",
+    description: "Define and manage revenue classifications.",
+    route: "/finance/revenue-categories",
+    requiredPermission: "viewFinance",
+  },
+  {
+    title: "Invoices",
+    description: "Manage issued invoices, line items, balances, and status.",
+    route: "/finance/invoices",
+    requiredPermission: "viewFinance",
+  },
+];
+
 export default function FinancePage() {
   const navigate = useNavigate();
 
@@ -27,17 +72,25 @@ export default function FinancePage() {
   const [permissionOverrides, setPermissionOverrides] = useState<
     Partial<Record<Permission, boolean>> | null
   >(null);
+  const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
 
   useEffect(() => {
     void loadPermissions();
   }, []);
 
   async function loadPermissions() {
+    setIsLoadingPermissions(true);
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user?.id) return;
+    if (!user?.id) {
+      setRole(null);
+      setPermissionOverrides(null);
+      setIsLoadingPermissions(false);
+      return;
+    }
 
     const { data: profile } = await supabase
       .from("profiles")
@@ -46,10 +99,15 @@ export default function FinancePage() {
       .maybeSingle();
 
     if (profile) {
-      const typed = profile as ProfilePermissionRow;
-      setRole(typed.role);
-      setPermissionOverrides(typed.permissions || null);
+      const typedProfile = profile as ProfilePermissionRow;
+      setRole(typedProfile.role);
+      setPermissionOverrides(typedProfile.permissions ?? null);
+    } else {
+      setRole(null);
+      setPermissionOverrides(null);
     }
+
+    setIsLoadingPermissions(false);
   }
 
   const permissions = useMemo(() => {
@@ -57,48 +115,11 @@ export default function FinancePage() {
     return getEffectivePermissions(role, permissionOverrides);
   }, [role, permissionOverrides]);
 
-  const modules: FinanceModule[] = [
-    {
-      title: "Clients",
-      description: "Manage finance clients and billing entities.",
-      route: "/finance/clients",
-      requiredPermission: "viewFinance",
-    },
-    {
-      title: "Vendors",
-      description: "Manage vendors and payable counterparties.",
-      route: "/finance/vendors",
-      requiredPermission: "viewFinance",
-    },
-    {
-      title: "Bank Accounts",
-      description: "Manage company bank accounts and balances.",
-      route: "/finance/bank-accounts",
-      requiredPermission: "viewFinance",
-    },
-    {
-      title: "Payment Methods",
-      description: "Manage available payment methods.",
-      route: "/finance/payment-methods",
-      requiredPermission: "viewFinance",
-    },
-    {
-      title: "Expense Categories",
-      description: "Define and manage expense classifications.",
-      route: "/finance/expense-categories",
-      requiredPermission: "viewFinance",
-    },
-    {
-      title: "Revenue Categories",
-      description: "Define and manage revenue classifications.",
-      route: "/finance/revenue-categories",
-      requiredPermission: "viewFinance",
-    },
-  ];
-
   const visibleModules = useMemo(() => {
     if (!permissions) return [];
-    return modules.filter((m) => permissions[m.requiredPermission]);
+    return FINANCE_MODULES.filter(
+      (module) => permissions[module.requiredPermission]
+    );
   }, [permissions]);
 
   return (
@@ -111,7 +132,11 @@ export default function FinancePage() {
       </div>
 
       <div className="flex-1 overflow-y-auto pb-4">
-        {visibleModules.length === 0 ? (
+        {isLoadingPermissions ? (
+          <div className="border border-border rounded-xl p-4 bg-background/40 text-sm text-muted-foreground">
+            Loading finance modules...
+          </div>
+        ) : visibleModules.length === 0 ? (
           <div className="border border-border rounded-xl p-4 bg-background/40 text-sm text-muted-foreground">
             You do not have access to any finance modules.
           </div>

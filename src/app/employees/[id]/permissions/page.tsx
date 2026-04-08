@@ -174,7 +174,7 @@ const permissionLabels: Record<
   addFinanceAttachments: { label: "Add Attachments", description: "Upload attachments" },
   removeFinanceAttachments: { label: "Remove Attachments", description: "Delete attachments" },
 
-    // ===== PAYROLL =====
+  // ===== PAYROLL =====
   accessPayroll: { label: "Access Payroll", description: "Access payroll module" },
   viewPayroll: { label: "View Payroll", description: "View payroll pages and payroll runs" },
   viewOwnPaychecks: { label: "View Own Paychecks", description: "View own paycheck records" },
@@ -184,6 +184,24 @@ const permissionLabels: Record<
   approvePayroll: { label: "Approve Payroll", description: "Approve payroll runs" },
   processPayrollPayments: { label: "Process Payroll Payments", description: "Record and process payroll payments" },
   managePayProfiles: { label: "Manage Pay Profiles", description: "Create and update employee pay profiles" },
+
+  // ===== LEDGER =====
+  accessLedger: { label: "Access Ledger", description: "Access ledger and accounting module" },
+  viewLedger: { label: "View Ledger", description: "View ledger home and accounting overview" },
+  viewChartOfAccounts: { label: "View Chart Of Accounts", description: "View chart of accounts" },
+  viewAccountingPeriods: { label: "View Accounting Periods", description: "View accounting periods" },
+  viewJournalEntries: { label: "View Journal Entries", description: "View journal entries" },
+  manageChartOfAccounts: { label: "Manage Chart Of Accounts", description: "Create and update chart of accounts" },
+  manageAccountingPeriods: { label: "Manage Accounting Periods", description: "Create and update accounting periods" },
+  managePostingRules: { label: "Manage Posting Rules", description: "Create and update posting rules" },
+  createManualJournalEntries: { label: "Create Manual Journal Entries", description: "Create manual adjustment journal entries" },
+  postJournalEntries: { label: "Post Journal Entries", description: "Post source-backed and manual journal entries" },
+  reverseJournalEntries: { label: "Reverse Journal Entries", description: "Reverse posted journal entries" },
+  voidJournalEntries: { label: "Void Journal Entries", description: "Void eligible draft journal entries" },
+  viewJournalDrilldown: { label: "View Journal Drilldown", description: "Open journal and account drilldown pages" },
+  exportLedgerReports: { label: "Export Ledger Reports", description: "Export ledger reports" },
+  exportTrialBalance: { label: "Export Trial Balance", description: "Export trial balance" },
+  exportAccountingReports: { label: "Export Accounting Reports", description: "Export accounting reports" },
 
   // ===== EXPORTS =====
   exportExpenseReports: { label: "Export Expense Reports", description: "Export expense reports" },

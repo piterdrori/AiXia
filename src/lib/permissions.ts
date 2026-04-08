@@ -15,6 +15,8 @@ export type Permission =
   | "accessChat"
   | "changeSettings"
   | "visibility"
+
+  // FINANCE CORE
   | "accessFinance"
   | "manageFinanceMasterData"
   | "viewFinance"
@@ -22,6 +24,8 @@ export type Permission =
   | "editFinanceRecords"
   | "archiveFinanceRecords"
   | "approveFinanceRecords"
+
+  // RECEIVABLES
   | "accessReceivables"
   | "viewReceivables"
   | "createInvoices"
@@ -31,6 +35,8 @@ export type Permission =
   | "viewInvoices"
   | "recordPaymentsReceived"
   | "viewReceivedPayments"
+
+  // PAYABLES
   | "accessPayables"
   | "viewPayables"
   | "createBills"
@@ -40,6 +46,8 @@ export type Permission =
   | "viewBills"
   | "recordPaymentsMade"
   | "viewPaymentsMade"
+
+  // MASTER DATA
   | "viewClients"
   | "manageClients"
   | "viewVendors"
@@ -48,9 +56,45 @@ export type Permission =
   | "viewPaymentMethods"
   | "viewExpenseCategories"
   | "viewRevenueCategories"
+
+  // EXPORTS
   | "exportFinanceReports"
   | "exportReceivables"
-  | "exportPayables";
+  | "exportPayables"
+
+  // ===== WAVE 4 — EXPENSES =====
+  | "accessExpenses"
+  | "viewExpenses"
+  | "viewOwnExpenses"
+  | "viewTeamExpenses"
+  | "createExpenses"
+  | "editOwnDraftExpenses"
+  | "editAllDraftExpenses"
+  | "submitExpenses"
+  | "approveExpenses"
+  | "rejectExpenses"
+  | "cancelExpenses"
+
+  // ===== WAVE 4 — REIMBURSEMENTS =====
+  | "createReimbursements"
+  | "viewReimbursements"
+  | "issueReimbursements"
+  | "recordReimbursementPayments"
+
+  // ===== APPROVALS =====
+  | "accessApprovals"
+  | "viewApprovalQueue"
+  | "actOnFinanceApprovals"
+
+  // ===== COMMENTS + ATTACHMENTS =====
+  | "addFinanceComments"
+  | "viewFinanceComments"
+  | "addFinanceAttachments"
+  | "removeFinanceAttachments"
+
+  // ===== REPORTS =====
+  | "exportExpenseReports"
+  | "exportReimbursementReports";
 
 type PermissionMap = Record<Permission, boolean>;
 
@@ -139,6 +183,36 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     exportFinanceReports: true,
     exportReceivables: true,
     exportPayables: true,
+
+        // ===== WAVE 4 =====
+    accessExpenses: true,
+    viewExpenses: true,
+    viewOwnExpenses: true,
+    viewTeamExpenses: true,
+    createExpenses: true,
+    editOwnDraftExpenses: true,
+    editAllDraftExpenses: true,
+    submitExpenses: true,
+    approveExpenses: true,
+    rejectExpenses: true,
+    cancelExpenses: true,
+
+    createReimbursements: true,
+    viewReimbursements: true,
+    issueReimbursements: true,
+    recordReimbursementPayments: true,
+
+    accessApprovals: true,
+    viewApprovalQueue: true,
+    actOnFinanceApprovals: true,
+
+    addFinanceComments: true,
+    viewFinanceComments: true,
+    addFinanceAttachments: true,
+    removeFinanceAttachments: true,
+
+    exportExpenseReports: true,
+    exportReimbursementReports: true,
   },
 
   manager: {
@@ -198,6 +272,35 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     exportFinanceReports: false,
     exportReceivables: false,
     exportPayables: false,
+
+        accessExpenses: true,
+    viewExpenses: true,
+    viewOwnExpenses: true,
+    viewTeamExpenses: true,
+    createExpenses: true,
+    editOwnDraftExpenses: true,
+    editAllDraftExpenses: true,
+    submitExpenses: true,
+    approveExpenses: true,
+    rejectExpenses: true,
+    cancelExpenses: true,
+
+    createReimbursements: true,
+    viewReimbursements: true,
+    issueReimbursements: true,
+    recordReimbursementPayments: true,
+
+    accessApprovals: true,
+    viewApprovalQueue: true,
+    actOnFinanceApprovals: true,
+
+    addFinanceComments: true,
+    viewFinanceComments: true,
+    addFinanceAttachments: true,
+    removeFinanceAttachments: true,
+
+    exportExpenseReports: true,
+    exportReimbursementReports: true,
   },
 
   employee: {
@@ -257,6 +360,35 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     exportFinanceReports: false,
     exportReceivables: false,
     exportPayables: false,
+
+        accessExpenses: true,
+    viewExpenses: true,
+    viewOwnExpenses: true,
+    viewTeamExpenses: false,
+    createExpenses: true,
+    editOwnDraftExpenses: true,
+    editAllDraftExpenses: false,
+    submitExpenses: true,
+    approveExpenses: false,
+    rejectExpenses: false,
+    cancelExpenses: true,
+
+    createReimbursements: false,
+    viewReimbursements: true,
+    issueReimbursements: false,
+    recordReimbursementPayments: false,
+
+    accessApprovals: false,
+    viewApprovalQueue: false,
+    actOnFinanceApprovals: false,
+
+    addFinanceComments: true,
+    viewFinanceComments: true,
+    addFinanceAttachments: true,
+    removeFinanceAttachments: false,
+
+    exportExpenseReports: false,
+    exportReimbursementReports: false,
   },
 
   guest: {
@@ -316,6 +448,35 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     exportFinanceReports: false,
     exportReceivables: false,
     exportPayables: false,
+
+        accessExpenses: false,
+    viewExpenses: false,
+    viewOwnExpenses: false,
+    viewTeamExpenses: false,
+    createExpenses: false,
+    editOwnDraftExpenses: false,
+    editAllDraftExpenses: false,
+    submitExpenses: false,
+    approveExpenses: false,
+    rejectExpenses: false,
+    cancelExpenses: false,
+
+    createReimbursements: false,
+    viewReimbursements: false,
+    issueReimbursements: false,
+    recordReimbursementPayments: false,
+
+    accessApprovals: false,
+    viewApprovalQueue: false,
+    actOnFinanceApprovals: false,
+
+    addFinanceComments: false,
+    viewFinanceComments: false,
+    addFinanceAttachments: false,
+    removeFinanceAttachments: false,
+
+    exportExpenseReports: false,
+    exportReimbursementReports: false,
   },
 };
 
@@ -372,6 +533,15 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/finance/payments-made": { permission: "viewPaymentsMade" },
 
   "/settings": { permission: "changeSettings" },
+
+  "/finance/expenses": { permission: "viewExpenses" },
+  "/finance/expenses/new": { permission: "createExpenses" },
+  "/finance/expenses/:id": { permission: "viewExpenses" },
+
+  "/finance/reimbursements": { permission: "viewReimbursements" },
+  "/finance/reimbursements/:id": { permission: "viewReimbursements" },
+
+  "/finance/approvals": { permission: "viewApprovalQueue" },
 };
 
 export function getEffectivePermissions(
@@ -493,6 +663,29 @@ export function getEffectivePermissions(
 
   if (effective.manageVendors) {
     effective.viewVendors = true;
+  }
+
+    // ===== EXPENSES AUTO CASCADE =====
+  if (effective.accessExpenses) {
+    effective.viewExpenses = true;
+  }
+
+  if (effective.viewExpenses) {
+    effective.accessFinance = true;
+  }
+
+  if (effective.createExpenses) {
+    effective.accessExpenses = true;
+    effective.viewExpenses = true;
+  }
+
+  if (effective.approveExpenses) {
+    effective.accessApprovals = true;
+    effective.viewApprovalQueue = true;
+  }
+
+  if (effective.recordReimbursementPayments) {
+    effective.viewReimbursements = true;
   }
 
   return effective;

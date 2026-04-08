@@ -63,6 +63,7 @@ const permissionLabels: Record<
     label: "Delete Tasks",
     description: "Can delete tasks",
   },
+
   viewEmployeeDirectory: {
     label: "View Employee Directory",
     description: "Can open the employees directory page",
@@ -75,6 +76,7 @@ const permissionLabels: Record<
     label: "Manage Users",
     description: "Can manage user accounts and approvals",
   },
+
   viewReports: {
     label: "View Reports",
     description: "Can view reports and analytics",
@@ -93,156 +95,73 @@ const permissionLabels: Record<
   },
   generateProjectReports: {
     label: "Generate Project Reports",
-    description: "Can generate and download project reports",
+    description: "Can generate reports",
   },
 
-  accessFinance: {
-    label: "Access Finance",
-    description: "Can access the finance module",
-  },
-  manageFinanceMasterData: {
-    label: "Manage Finance Master Data",
-    description: "Can manage finance settings and master records",
-  },
-  viewFinance: {
-    label: "View Finance",
-    description: "Can open and view finance pages",
-  },
-  createFinanceRecords: {
-    label: "Create Finance Records",
-    description: "Can create finance records",
-  },
-  editFinanceRecords: {
-    label: "Edit Finance Records",
-    description: "Can edit finance records",
-  },
-  archiveFinanceRecords: {
-    label: "Archive Finance Records",
-    description: "Can archive finance records",
-  },
-  approveFinanceRecords: {
-    label: "Approve Finance Records",
-    description: "Can approve finance actions",
-  },
+  // ===== FINANCE CORE =====
+  accessFinance: { label: "Access Finance", description: "Access finance module" },
+  manageFinanceMasterData: { label: "Manage Finance Master Data", description: "Manage finance settings" },
+  viewFinance: { label: "View Finance", description: "View finance pages" },
+  createFinanceRecords: { label: "Create Finance Records", description: "Create finance data" },
+  editFinanceRecords: { label: "Edit Finance Records", description: "Edit finance data" },
+  archiveFinanceRecords: { label: "Archive Finance Records", description: "Archive finance records" },
+  approveFinanceRecords: { label: "Approve Finance Records", description: "Approve finance actions" },
 
-  accessReceivables: {
-    label: "Access Receivables",
-    description: "Can access the receivables area inside finance",
-  },
-  viewReceivables: {
-    label: "View Receivables",
-    description: "Can view receivables pages and receivable data",
-  },
-  createInvoices: {
-    label: "Create Invoices",
-    description: "Can create new invoices",
-  },
-  editDraftInvoices: {
-    label: "Edit Draft Invoices",
-    description: "Can edit draft invoices before sending",
-  },
-  sendInvoices: {
-    label: "Send Invoices",
-    description: "Can move invoices from draft to sent",
-  },
-  voidInvoices: {
-    label: "Void Invoices",
-    description: "Can void issued invoices",
-  },
-  viewInvoices: {
-    label: "View Invoices",
-    description: "Can open invoice list and invoice detail pages",
-  },
-  recordPaymentsReceived: {
-    label: "Record Payments Received",
-    description: "Can record incoming payments against invoices",
-  },
-  viewReceivedPayments: {
-    label: "View Received Payments",
-    description: "Can view incoming payment history",
-  },
+  // ===== RECEIVABLES =====
+  accessReceivables: { label: "Access Receivables", description: "Access receivables" },
+  viewReceivables: { label: "View Receivables", description: "View receivables" },
+  createInvoices: { label: "Create Invoices", description: "Create invoices" },
+  editDraftInvoices: { label: "Edit Draft Invoices", description: "Edit draft invoices" },
+  sendInvoices: { label: "Send Invoices", description: "Send invoices" },
+  voidInvoices: { label: "Void Invoices", description: "Void invoices" },
+  viewInvoices: { label: "View Invoices", description: "View invoices" },
+  recordPaymentsReceived: { label: "Record Payments Received", description: "Record incoming payments" },
+  viewReceivedPayments: { label: "View Received Payments", description: "View payments" },
 
-  accessPayables: {
-    label: "Access Payables",
-    description: "Can access the payables area inside finance",
-  },
-  viewPayables: {
-    label: "View Payables",
-    description: "Can view payables pages and payable data",
-  },
-  createBills: {
-    label: "Create Bills",
-    description: "Can create new vendor bills",
-  },
-  editDraftBills: {
-    label: "Edit Draft Bills",
-    description: "Can edit draft bills before opening",
-  },
-  openBills: {
-    label: "Open Bills",
-    description: "Can move bills from draft to open",
-  },
-  voidBills: {
-    label: "Void Bills",
-    description: "Can void vendor bills",
-  },
-  viewBills: {
-    label: "View Bills",
-    description: "Can open bills list and bill detail pages",
-  },
-  recordPaymentsMade: {
-    label: "Record Payments Made",
-    description: "Can record outgoing payments to vendors",
-  },
-  viewPaymentsMade: {
-    label: "View Payments Made",
-    description: "Can view outgoing payment history",
-  },
+  // ===== PAYABLES =====
+  accessPayables: { label: "Access Payables", description: "Access payables" },
+  viewPayables: { label: "View Payables", description: "View payables" },
+  createBills: { label: "Create Bills", description: "Create bills" },
+  editDraftBills: { label: "Edit Draft Bills", description: "Edit draft bills" },
+  openBills: { label: "Open Bills", description: "Open bills" },
+  voidBills: { label: "Void Bills", description: "Void bills" },
+  viewBills: { label: "View Bills", description: "View bills" },
+  recordPaymentsMade: { label: "Record Payments Made", description: "Record outgoing payments" },
+  viewPaymentsMade: { label: "View Payments Made", description: "View payments made" },
 
-  viewClients: {
-    label: "View Clients",
-    description: "Can view finance client records",
-  },
-  manageClients: {
-    label: "Manage Clients",
-    description: "Can create and update finance client records",
-  },
-  viewVendors: {
-    label: "View Vendors",
-    description: "Can view vendor records",
-  },
-  manageVendors: {
-    label: "Manage Vendors",
-    description: "Can create and update vendor records",
-  },
-  viewBankAccounts: {
-    label: "View Bank Accounts",
-    description: "Can view company bank accounts",
-  },
-  viewPaymentMethods: {
-    label: "View Payment Methods",
-    description: "Can view payment methods",
-  },
-  viewExpenseCategories: {
-    label: "View Expense Categories",
-    description: "Can view expense categories",
-  },
-  viewRevenueCategories: {
-    label: "View Revenue Categories",
-    description: "Can view revenue categories",
-  },
-  exportFinanceReports: {
-    label: "Export Finance Reports",
-    description: "Can export finance reports",
-  },
-  exportReceivables: {
-    label: "Export Receivables",
-    description: "Can export receivables data and reports",
-  },
-  exportPayables: {
-    label: "Export Payables",
-    description: "Can export payables data and reports",
-  },
+  // ===== WAVE 4 — EXPENSES =====
+  accessExpenses: { label: "Access Expenses", description: "Access expenses module" },
+  viewExpenses: { label: "View Expenses", description: "View all expenses" },
+  viewOwnExpenses: { label: "View Own Expenses", description: "View own expenses" },
+  viewTeamExpenses: { label: "View Team Expenses", description: "View team expenses" },
+  createExpenses: { label: "Create Expenses", description: "Create expenses" },
+  editOwnDraftExpenses: { label: "Edit Own Draft Expenses", description: "Edit own drafts" },
+  editAllDraftExpenses: { label: "Edit All Draft Expenses", description: "Edit all drafts" },
+  submitExpenses: { label: "Submit Expenses", description: "Submit expenses for approval" },
+  approveExpenses: { label: "Approve Expenses", description: "Approve expenses" },
+  rejectExpenses: { label: "Reject Expenses", description: "Reject expenses" },
+  cancelExpenses: { label: "Cancel Expenses", description: "Cancel expenses" },
+
+  // ===== REIMBURSEMENTS =====
+  createReimbursements: { label: "Create Reimbursements", description: "Create reimbursements" },
+  viewReimbursements: { label: "View Reimbursements", description: "View reimbursements" },
+  issueReimbursements: { label: "Issue Reimbursements", description: "Issue reimbursements" },
+  recordReimbursementPayments: { label: "Record Reimbursement Payments", description: "Mark reimbursements as paid" },
+
+  // ===== APPROVALS =====
+  accessApprovals: { label: "Access Approvals", description: "Access approvals module" },
+  viewApprovalQueue: { label: "View Approval Queue", description: "View approval queue" },
+  actOnFinanceApprovals: { label: "Act On Approvals", description: "Approve/reject requests" },
+
+  // ===== COMMENTS + ATTACHMENTS =====
+  addFinanceComments: { label: "Add Comments", description: "Add finance comments" },
+  viewFinanceComments: { label: "View Comments", description: "View finance comments" },
+  addFinanceAttachments: { label: "Add Attachments", description: "Upload attachments" },
+  removeFinanceAttachments: { label: "Remove Attachments", description: "Delete attachments" },
+
+  // ===== EXPORTS =====
+  exportExpenseReports: { label: "Export Expense Reports", description: "Export expense reports" },
+  exportReimbursementReports: { label: "Export Reimbursement Reports", description: "Export reimbursement reports" },
 };
 
 export default function EmployeePermissionsPage() {

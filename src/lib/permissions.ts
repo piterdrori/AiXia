@@ -103,6 +103,24 @@ export type Permission =
   | "processPayrollPayments"
   | "managePayProfiles"
 
+    // ===== LEDGER =====
+  | "accessLedger"
+  | "viewLedger"
+  | "viewChartOfAccounts"
+  | "viewAccountingPeriods"
+  | "viewJournalEntries"
+  | "manageChartOfAccounts"
+  | "manageAccountingPeriods"
+  | "managePostingRules"
+  | "createManualJournalEntries"
+  | "postJournalEntries"
+  | "reverseJournalEntries"
+  | "voidJournalEntries"
+  | "viewJournalDrilldown"
+  | "exportLedgerReports"
+  | "exportTrialBalance"
+  | "exportAccountingReports"
+
   // ===== REPORTS =====
   | "exportExpenseReports"
   | "exportReimbursementReports";
@@ -222,7 +240,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     addFinanceAttachments: true,
     removeFinanceAttachments: true,
 
-        accessPayroll: true,
+         accessPayroll: true,
     viewPayroll: true,
     viewOwnPaychecks: true,
     viewAllPaychecks: true,
@@ -231,6 +249,23 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     approvePayroll: true,
     processPayrollPayments: true,
     managePayProfiles: true,
+
+    accessLedger: true,
+    viewLedger: true,
+    viewChartOfAccounts: true,
+    viewAccountingPeriods: true,
+    viewJournalEntries: true,
+    manageChartOfAccounts: true,
+    manageAccountingPeriods: true,
+    managePostingRules: true,
+    createManualJournalEntries: true,
+    postJournalEntries: true,
+    reverseJournalEntries: true,
+    voidJournalEntries: true,
+    viewJournalDrilldown: true,
+    exportLedgerReports: true,
+    exportTrialBalance: true,
+    exportAccountingReports: true,
 
     exportExpenseReports: true,
     exportReimbursementReports: true,
@@ -320,7 +355,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     addFinanceAttachments: false,
     removeFinanceAttachments: false,
 
-        accessPayroll: false,
+          accessPayroll: false,
     viewPayroll: false,
     viewOwnPaychecks: false,
     viewAllPaychecks: false,
@@ -329,6 +364,23 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     approvePayroll: false,
     processPayrollPayments: false,
     managePayProfiles: false,
+
+    accessLedger: false,
+    viewLedger: false,
+    viewChartOfAccounts: false,
+    viewAccountingPeriods: false,
+    viewJournalEntries: false,
+    manageChartOfAccounts: false,
+    manageAccountingPeriods: false,
+    managePostingRules: false,
+    createManualJournalEntries: false,
+    postJournalEntries: false,
+    reverseJournalEntries: false,
+    voidJournalEntries: false,
+    viewJournalDrilldown: false,
+    exportLedgerReports: false,
+    exportTrialBalance: false,
+    exportAccountingReports: false,
 
     exportExpenseReports: false,
     exportReimbursementReports: false,
@@ -418,15 +470,32 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     addFinanceAttachments: false,
     removeFinanceAttachments: false,
 
-        accessPayroll: true,
-    viewPayroll: true,
-    viewOwnPaychecks: true,
+         accessPayroll: false,
+    viewPayroll: false,
+    viewOwnPaychecks: false,
     viewAllPaychecks: false,
     createPayrollRuns: false,
     editPayrollRuns: false,
     approvePayroll: false,
     processPayrollPayments: false,
     managePayProfiles: false,
+
+    accessLedger: false,
+    viewLedger: false,
+    viewChartOfAccounts: false,
+    viewAccountingPeriods: false,
+    viewJournalEntries: false,
+    manageChartOfAccounts: false,
+    manageAccountingPeriods: false,
+    managePostingRules: false,
+    createManualJournalEntries: false,
+    postJournalEntries: false,
+    reverseJournalEntries: false,
+    voidJournalEntries: false,
+    viewJournalDrilldown: false,
+    exportLedgerReports: false,
+    exportTrialBalance: false,
+    exportAccountingReports: false,
 
     exportExpenseReports: false,
     exportReimbursementReports: false,
@@ -526,6 +595,23 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     processPayrollPayments: false,
     managePayProfiles: false,
 
+    accessLedger: false,
+    viewLedger: false,
+    viewChartOfAccounts: false,
+    viewAccountingPeriods: false,
+    viewJournalEntries: false,
+    manageChartOfAccounts: false,
+    manageAccountingPeriods: false,
+    managePostingRules: false,
+    createManualJournalEntries: false,
+    postJournalEntries: false,
+    reverseJournalEntries: false,
+    voidJournalEntries: false,
+    viewJournalDrilldown: false,
+    exportLedgerReports: false,
+    exportTrialBalance: false,
+    exportAccountingReports: false,
+
     exportExpenseReports: false,
     exportReimbursementReports: false,
   },
@@ -594,11 +680,18 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
 
     "/finance/approvals": { permission: "viewApprovalQueue" },
 
-  "/finance/payroll": { permission: "viewPayroll" },
+    "/finance/payroll": { permission: "viewPayroll" },
   "/finance/payroll/profiles": { permission: "managePayProfiles" },
   "/finance/payroll/periods": { permission: "createPayrollRuns" },
   "/finance/payroll/runs": { permission: "viewPayroll" },
   "/finance/payroll/runs/:id": { permission: "viewPayroll" },
+
+  "/finance/ledger": { permission: "viewLedger" },
+  "/finance/ledger/accounts": { permission: "viewChartOfAccounts" },
+  "/finance/ledger/accounts/:id": { permission: "viewJournalDrilldown" },
+  "/finance/ledger/periods": { permission: "viewAccountingPeriods" },
+  "/finance/ledger/journals": { permission: "viewJournalEntries" },
+  "/finance/ledger/journals/:id": { permission: "viewJournalDrilldown" },
 };
 
 export function getEffectivePermissions(
@@ -792,7 +885,7 @@ export function getEffectivePermissions(
     effective.viewFinance = true;
   }
 
-  if (
+   if (
     effective.createPayrollRuns ||
     effective.editPayrollRuns ||
     effective.approvePayroll ||
@@ -802,6 +895,46 @@ export function getEffectivePermissions(
     effective.accessPayroll = true;
     effective.viewPayroll = true;
     effective.viewAllPaychecks = true;
+    effective.accessFinance = true;
+    effective.viewFinance = true;
+  }
+
+  if (effective.accessLedger) {
+    effective.viewLedger = true;
+  }
+
+  if (effective.viewLedger) {
+    effective.accessFinance = true;
+    effective.viewFinance = true;
+  }
+
+  if (
+    effective.viewChartOfAccounts ||
+    effective.viewAccountingPeriods ||
+    effective.viewJournalEntries ||
+    effective.viewJournalDrilldown
+  ) {
+    effective.accessLedger = true;
+    effective.viewLedger = true;
+    effective.accessFinance = true;
+    effective.viewFinance = true;
+  }
+
+  if (
+    effective.manageChartOfAccounts ||
+    effective.manageAccountingPeriods ||
+    effective.managePostingRules ||
+    effective.createManualJournalEntries ||
+    effective.postJournalEntries ||
+    effective.reverseJournalEntries ||
+    effective.voidJournalEntries
+  ) {
+    effective.accessLedger = true;
+    effective.viewLedger = true;
+    effective.viewChartOfAccounts = true;
+    effective.viewAccountingPeriods = true;
+    effective.viewJournalEntries = true;
+    effective.viewJournalDrilldown = true;
     effective.accessFinance = true;
     effective.viewFinance = true;
   }

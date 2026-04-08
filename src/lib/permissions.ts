@@ -92,6 +92,17 @@ export type Permission =
   | "addFinanceAttachments"
   | "removeFinanceAttachments"
 
+    // ===== PAYROLL =====
+  | "accessPayroll"
+  | "viewPayroll"
+  | "viewOwnPaychecks"
+  | "viewAllPaychecks"
+  | "createPayrollRuns"
+  | "editPayrollRuns"
+  | "approvePayroll"
+  | "processPayrollPayments"
+  | "managePayProfiles"
+
   // ===== REPORTS =====
   | "exportExpenseReports"
   | "exportReimbursementReports";
@@ -211,6 +222,16 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     addFinanceAttachments: true,
     removeFinanceAttachments: true,
 
+        accessPayroll: true,
+    viewPayroll: true,
+    viewOwnPaychecks: true,
+    viewAllPaychecks: true,
+    createPayrollRuns: true,
+    editPayrollRuns: true,
+    approvePayroll: true,
+    processPayrollPayments: true,
+    managePayProfiles: true,
+
     exportExpenseReports: true,
     exportReimbursementReports: true,
   },
@@ -298,6 +319,16 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     viewFinanceComments: false,
     addFinanceAttachments: false,
     removeFinanceAttachments: false,
+
+        accessPayroll: false,
+    viewPayroll: false,
+    viewOwnPaychecks: false,
+    viewAllPaychecks: false,
+    createPayrollRuns: false,
+    editPayrollRuns: false,
+    approvePayroll: false,
+    processPayrollPayments: false,
+    managePayProfiles: false,
 
     exportExpenseReports: false,
     exportReimbursementReports: false,
@@ -387,6 +418,16 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     addFinanceAttachments: false,
     removeFinanceAttachments: false,
 
+        accessPayroll: true,
+    viewPayroll: true,
+    viewOwnPaychecks: true,
+    viewAllPaychecks: false,
+    createPayrollRuns: false,
+    editPayrollRuns: false,
+    approvePayroll: false,
+    processPayrollPayments: false,
+    managePayProfiles: false,
+
     exportExpenseReports: false,
     exportReimbursementReports: false,
   },
@@ -475,6 +516,16 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     addFinanceAttachments: false,
     removeFinanceAttachments: false,
 
+        accessPayroll: false,
+    viewPayroll: false,
+    viewOwnPaychecks: false,
+    viewAllPaychecks: false,
+    createPayrollRuns: false,
+    editPayrollRuns: false,
+    approvePayroll: false,
+    processPayrollPayments: false,
+    managePayProfiles: false,
+
     exportExpenseReports: false,
     exportReimbursementReports: false,
   },
@@ -541,7 +592,13 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/finance/reimbursements": { permission: "viewReimbursements" },
   "/finance/reimbursements/:id": { permission: "viewReimbursements" },
 
-  "/finance/approvals": { permission: "viewApprovalQueue" },
+    "/finance/approvals": { permission: "viewApprovalQueue" },
+
+  "/finance/payroll": { permission: "viewPayroll" },
+  "/finance/payroll/profiles": { permission: "managePayProfiles" },
+  "/finance/payroll/periods": { permission: "createPayrollRuns" },
+  "/finance/payroll/runs": { permission: "viewPayroll" },
+  "/finance/payroll/runs/:id": { permission: "viewPayroll" },
 };
 
 export function getEffectivePermissions(
@@ -706,13 +763,45 @@ export function getEffectivePermissions(
   effective.viewFinance = true;
 }
 
-  if (effective.accessApprovals || effective.viewApprovalQueue) {
+   if (effective.accessApprovals || effective.viewApprovalQueue) {
     effective.accessFinance = true;
     effective.viewFinance = true;
   }
 
   if (effective.createReimbursements || effective.issueReimbursements) {
     effective.viewReimbursements = true;
+    effective.accessFinance = true;
+    effective.viewFinance = true;
+  }
+
+  // ===== PAYROLL CASCADE =====
+
+  if (effective.accessPayroll) {
+    effective.viewPayroll = true;
+  }
+
+  if (effective.viewPayroll) {
+    effective.accessFinance = true;
+    effective.viewFinance = true;
+  }
+
+  if (effective.viewOwnPaychecks || effective.viewAllPaychecks) {
+    effective.accessPayroll = true;
+    effective.viewPayroll = true;
+    effective.accessFinance = true;
+    effective.viewFinance = true;
+  }
+
+  if (
+    effective.createPayrollRuns ||
+    effective.editPayrollRuns ||
+    effective.approvePayroll ||
+    effective.processPayrollPayments ||
+    effective.managePayProfiles
+  ) {
+    effective.accessPayroll = true;
+    effective.viewPayroll = true;
+    effective.viewAllPaychecks = true;
     effective.accessFinance = true;
     effective.viewFinance = true;
   }

@@ -690,8 +690,9 @@ export function getEffectivePermissions(
   }
 
   if (effective.viewExpenses) {
-    effective.accessFinance = true;
-  }
+  effective.accessFinance = true;
+  effective.viewFinance = true;
+}
 
   if (effective.createExpenses) {
     effective.accessExpenses = true;
@@ -708,8 +709,9 @@ export function getEffectivePermissions(
   }
 
   if (effective.viewReimbursements) {
-    effective.accessFinance = true;
-  }
+  effective.accessFinance = true;
+  effective.viewFinance = true;
+}
 
   if (effective.accessApprovals || effective.viewApprovalQueue) {
     effective.accessFinance = true;

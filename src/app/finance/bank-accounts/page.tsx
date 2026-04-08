@@ -102,35 +102,37 @@ export default function FinanceBankAccountsPage() {
 
   async function loadAccounts() {
     try {
-      const { data, error } = await supabase
-        .from("finance_bank_accounts")
-        .select(`
-          id,
-          code,
-          name,
-          account_type,
-          institution_name,
-          bank_address,
-          masked_account_number,
-          iban,
-          swift_code,
-          currency_code,
-          status,
-          is_default,
-          ledger_account_id,
-          finance_chart_of_accounts:ledger_account_id (
-            id,
-            account_code,
-            name
-          )
-        `)
-        .order("created_at", { ascending: false });
+     const { data, error } = await supabase
+  .from("finance_bank_accounts")
+  .select(`
+    id,
+    code,
+    name,
+    account_type,
+    institution_name,
+    bank_address,
+    masked_account_number,
+    iban,
+    swift_code,
+    currency_code,
+    status,
+    is_default,
+    ledger_account_id,
+    finance_chart_of_accounts:ledger_account_id (
+      id,
+      account_code,
+      name
+    )
+  `)
+  .order("created_at", { ascending: false });
 
-      if (error) {
-        throw error;
-      }
+// map array to single object
+const mappedAccounts = (data || []).map((acc: any) => ({
+  ...acc,
+  finance_chart_of_accounts: acc.finance_chart_of_accounts?.[0] || null,
+}));
 
-      setAccounts((data || []) as FinanceBankAccount[]);
+setAccounts(mappedAccounts as FinanceBankAccount[]);
     } catch (e) {
       console.error("Failed to load bank accounts:", e);
       setAccounts([]);

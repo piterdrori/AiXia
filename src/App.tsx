@@ -78,6 +78,12 @@ import FinancePayrollProfilesPage from "@/app/finance/payroll/profiles/page";
 import FinancePayrollPeriodsPage from "@/app/finance/payroll/periods/page";
 import FinancePayrollRunsPage from "@/app/finance/payroll/runs/page";
 import FinancePayrollRunDetailPage from "@/app/finance/payroll/runs/[id]/page";
+import FinanceLedgerPage from "@/app/finance/ledger/page";
+import FinanceLedgerAccountsPage from "@/app/finance/ledger/accounts/page";
+import FinanceLedgerAccountDetailPage from "@/app/finance/ledger/accounts/[id]/page";
+import FinanceLedgerPeriodsPage from "@/app/finance/ledger/periods/page";
+import FinanceLedgerJournalsPage from "@/app/finance/ledger/journals/page";
+import FinanceLedgerJournalDetailPage from "@/app/finance/ledger/journals/[id]/page";
 
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -1001,6 +1007,72 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinancePayrollRunDetailPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/ledger"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceLedgerPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/ledger/accounts"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceLedgerAccountsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/ledger/accounts/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceLedgerAccountDetailPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/ledger/periods"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceLedgerPeriodsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/ledger/journals"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceLedgerJournalsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/ledger/journals/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceLedgerJournalDetailPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

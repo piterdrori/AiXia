@@ -7,24 +7,50 @@ export type Permission =
   | "createTasks"
   | "editTasks"
   | "deleteTasks"
-
   | "viewEmployeeDirectory"
   | "viewEmployeeDetail"
   | "manageUsers"
-
   | "viewReports"
   | "generateProjectReports"
   | "accessChat"
   | "changeSettings"
   | "visibility"
-
   | "accessFinance"
   | "manageFinanceMasterData"
   | "viewFinance"
   | "createFinanceRecords"
   | "editFinanceRecords"
   | "archiveFinanceRecords"
-  | "approveFinanceRecords";
+  | "approveFinanceRecords"
+  | "accessReceivables"
+  | "viewReceivables"
+  | "createInvoices"
+  | "editDraftInvoices"
+  | "sendInvoices"
+  | "voidInvoices"
+  | "viewInvoices"
+  | "recordPaymentsReceived"
+  | "viewReceivedPayments"
+  | "accessPayables"
+  | "viewPayables"
+  | "createBills"
+  | "editDraftBills"
+  | "openBills"
+  | "voidBills"
+  | "viewBills"
+  | "recordPaymentsMade"
+  | "viewPaymentsMade"
+  | "viewClients"
+  | "manageClients"
+  | "viewVendors"
+  | "manageVendors"
+  | "viewBankAccounts"
+  | "viewPaymentMethods"
+  | "viewExpenseCategories"
+  | "viewRevenueCategories"
+  | "exportFinanceReports"
+  | "exportReceivables"
+  | "exportPayables";
 
 type PermissionMap = Record<Permission, boolean>;
 
@@ -78,9 +104,41 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     manageFinanceMasterData: true,
     viewFinance: true,
     createFinanceRecords: true,
-    approveFinanceRecords: true,
     editFinanceRecords: true,
     archiveFinanceRecords: true,
+    approveFinanceRecords: true,
+
+    accessReceivables: true,
+    viewReceivables: true,
+    createInvoices: true,
+    editDraftInvoices: true,
+    sendInvoices: true,
+    voidInvoices: true,
+    viewInvoices: true,
+    recordPaymentsReceived: true,
+    viewReceivedPayments: true,
+
+    accessPayables: true,
+    viewPayables: true,
+    createBills: true,
+    editDraftBills: true,
+    openBills: true,
+    voidBills: true,
+    viewBills: true,
+    recordPaymentsMade: true,
+    viewPaymentsMade: true,
+
+    viewClients: true,
+    manageClients: true,
+    viewVendors: true,
+    manageVendors: true,
+    viewBankAccounts: true,
+    viewPaymentMethods: true,
+    viewExpenseCategories: true,
+    viewRevenueCategories: true,
+    exportFinanceReports: true,
+    exportReceivables: true,
+    exportPayables: true,
   },
 
   manager: {
@@ -108,6 +166,38 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     editFinanceRecords: false,
     archiveFinanceRecords: false,
     approveFinanceRecords: false,
+
+    accessReceivables: false,
+    viewReceivables: false,
+    createInvoices: false,
+    editDraftInvoices: false,
+    sendInvoices: false,
+    voidInvoices: false,
+    viewInvoices: false,
+    recordPaymentsReceived: false,
+    viewReceivedPayments: false,
+
+    accessPayables: false,
+    viewPayables: false,
+    createBills: false,
+    editDraftBills: false,
+    openBills: false,
+    voidBills: false,
+    viewBills: false,
+    recordPaymentsMade: false,
+    viewPaymentsMade: false,
+
+    viewClients: false,
+    manageClients: false,
+    viewVendors: false,
+    manageVendors: false,
+    viewBankAccounts: false,
+    viewPaymentMethods: false,
+    viewExpenseCategories: false,
+    viewRevenueCategories: false,
+    exportFinanceReports: false,
+    exportReceivables: false,
+    exportPayables: false,
   },
 
   employee: {
@@ -129,12 +219,44 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     visibility: false,
 
     accessFinance: false,
-manageFinanceMasterData: false,
-viewFinance: false,
-createFinanceRecords: false,
-editFinanceRecords: false,
-archiveFinanceRecords: false,
-approveFinanceRecords: false,
+    manageFinanceMasterData: false,
+    viewFinance: false,
+    createFinanceRecords: false,
+    editFinanceRecords: false,
+    archiveFinanceRecords: false,
+    approveFinanceRecords: false,
+
+    accessReceivables: false,
+    viewReceivables: false,
+    createInvoices: false,
+    editDraftInvoices: false,
+    sendInvoices: false,
+    voidInvoices: false,
+    viewInvoices: false,
+    recordPaymentsReceived: false,
+    viewReceivedPayments: false,
+
+    accessPayables: false,
+    viewPayables: false,
+    createBills: false,
+    editDraftBills: false,
+    openBills: false,
+    voidBills: false,
+    viewBills: false,
+    recordPaymentsMade: false,
+    viewPaymentsMade: false,
+
+    viewClients: false,
+    manageClients: false,
+    viewVendors: false,
+    manageVendors: false,
+    viewBankAccounts: false,
+    viewPaymentMethods: false,
+    viewExpenseCategories: false,
+    viewRevenueCategories: false,
+    exportFinanceReports: false,
+    exportReceivables: false,
+    exportPayables: false,
   },
 
   guest: {
@@ -162,6 +284,38 @@ approveFinanceRecords: false,
     editFinanceRecords: false,
     archiveFinanceRecords: false,
     approveFinanceRecords: false,
+
+    accessReceivables: false,
+    viewReceivables: false,
+    createInvoices: false,
+    editDraftInvoices: false,
+    sendInvoices: false,
+    voidInvoices: false,
+    viewInvoices: false,
+    recordPaymentsReceived: false,
+    viewReceivedPayments: false,
+
+    accessPayables: false,
+    viewPayables: false,
+    createBills: false,
+    editDraftBills: false,
+    openBills: false,
+    voidBills: false,
+    viewBills: false,
+    recordPaymentsMade: false,
+    viewPaymentsMade: false,
+
+    viewClients: false,
+    manageClients: false,
+    viewVendors: false,
+    manageVendors: false,
+    viewBankAccounts: false,
+    viewPaymentMethods: false,
+    viewExpenseCategories: false,
+    viewRevenueCategories: false,
+    exportFinanceReports: false,
+    exportReceivables: false,
+    exportPayables: false,
   },
 };
 
@@ -201,13 +355,21 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/employees/:id/permissions": { permission: "manageUsers" },
 
   "/finance": { permission: "accessFinance" },
-  "/finance/clients": { permission: "viewFinance" },
-  "/finance/vendors": { permission: "viewFinance" },
-  "/finance/bank-accounts": { permission: "viewFinance" },
-  "/finance/payment-methods": { permission: "viewFinance" },
-  "/finance/expense-categories": { permission: "viewFinance" },
-  "/finance/revenue-categories": { permission: "viewFinance" },
+  "/finance/clients": { permission: "viewClients" },
+  "/finance/vendors": { permission: "viewVendors" },
+  "/finance/bank-accounts": { permission: "viewBankAccounts" },
+  "/finance/payment-methods": { permission: "viewPaymentMethods" },
+  "/finance/expense-categories": { permission: "viewExpenseCategories" },
+  "/finance/revenue-categories": { permission: "viewRevenueCategories" },
   "/finance/settings": { permission: "manageFinanceMasterData" },
+
+  "/finance/invoices": { permission: "viewInvoices" },
+  "/finance/invoices/new": { permission: "createInvoices" },
+  "/finance/invoices/:id": { permission: "viewInvoices" },
+
+  "/finance/bills": { permission: "viewBills" },
+  "/finance/bills/:id": { permission: "viewBills" },
+  "/finance/payments-made": { permission: "viewPaymentsMade" },
 
   "/settings": { permission: "changeSettings" },
 };
@@ -224,6 +386,85 @@ export function getEffectivePermissions(
   if (effective.manageUsers) {
     effective.viewEmployeeDirectory = true;
     effective.viewEmployeeDetail = true;
+  }
+
+  if (effective.accessFinance) {
+    effective.viewFinance = true;
+  }
+
+  if (effective.viewFinance) {
+    effective.viewClients = true;
+    effective.viewVendors = true;
+    effective.viewBankAccounts = true;
+    effective.viewPaymentMethods = true;
+    effective.viewExpenseCategories = true;
+    effective.viewRevenueCategories = true;
+  }
+
+  if (effective.accessReceivables || effective.viewReceivables) {
+    effective.accessFinance = true;
+    effective.viewFinance = true;
+    effective.viewInvoices = true;
+    effective.viewReceivedPayments = true;
+    effective.viewClients = true;
+    effective.viewBankAccounts = true;
+    effective.viewPaymentMethods = true;
+  }
+
+  if (
+    effective.createInvoices ||
+    effective.editDraftInvoices ||
+    effective.sendInvoices ||
+    effective.voidInvoices ||
+    effective.recordPaymentsReceived
+  ) {
+    effective.accessReceivables = true;
+    effective.viewReceivables = true;
+    effective.accessFinance = true;
+    effective.viewFinance = true;
+    effective.viewInvoices = true;
+    effective.viewReceivedPayments = true;
+    effective.viewClients = true;
+    effective.viewBankAccounts = true;
+    effective.viewPaymentMethods = true;
+  }
+
+  if (effective.accessPayables || effective.viewPayables) {
+    effective.accessFinance = true;
+    effective.viewFinance = true;
+    effective.viewBills = true;
+    effective.viewPaymentsMade = true;
+    effective.viewVendors = true;
+    effective.viewBankAccounts = true;
+    effective.viewPaymentMethods = true;
+    effective.viewExpenseCategories = true;
+  }
+
+  if (
+    effective.createBills ||
+    effective.editDraftBills ||
+    effective.openBills ||
+    effective.voidBills ||
+    effective.recordPaymentsMade
+  ) {
+    effective.accessPayables = true;
+    effective.viewPayables = true;
+    effective.accessFinance = true;
+    effective.viewFinance = true;
+    effective.viewBills = true;
+    effective.viewPaymentsMade = true;
+    effective.viewVendors = true;
+    effective.viewBankAccounts = true;
+    effective.viewPaymentMethods = true;
+    effective.viewExpenseCategories = true;
+  }
+
+  if (effective.manageClients) {
+    effective.viewClients = true;
+  }
+
+  if (effective.manageVendors) {
+    effective.viewVendors = true;
   }
 
   return effective;

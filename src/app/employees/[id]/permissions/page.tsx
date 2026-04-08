@@ -381,121 +381,123 @@ if (!effective?.manageUsers && !isBootstrapping) {
 }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate(`/employees/${id}`)}
-          className="text-slate-400 hover:text-white"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">
-            {t("employeePermissions.header.title")}
-          </h1>
-          <p className="text-slate-400">
-            {t("employeePermissions.header.subtitle", undefined, {
-              name:
-                user?.full_name ||
-                t("employeePermissions.empty.unnamedUser"),
-            })}
-          </p>
-        </div>
-
-        <Button
-          variant="outline"
-          className="border-slate-700 text-slate-300 hover:bg-slate-800"
-          onClick={() => void loadData("refresh")}
-          disabled={isRefreshing}
-        >
-          {isRefreshing
-            ? t("employeePermissions.actions.refreshing")
-            : t("employeePermissions.actions.refresh")}
-        </Button>
-      </div>
-
-      {saveError && user && (
-        <Alert className="bg-red-900/20 border-red-800 text-red-400">
-          <AlertDescription>{saveError}</AlertDescription>
-        </Alert>
-      )}
-
-      <Card className="bg-slate-900/50 border-slate-800">
-  <CardHeader className="pb-4">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex items-center gap-3">
-        <Shield className="w-5 h-5 text-indigo-400" />
-        <div>
-          <CardTitle className="text-white">
-            {t("employeePermissions.sections.permissionOverrides")}
-          </CardTitle>
-          <p className="text-slate-400 text-sm mt-1">
-            {t("employeePermissions.sections.permissionOverridesDescription")}
-          </p>
-        </div>
-      </div>
-
-      <Badge className="h-6 px-2 text-xs">
-        {user?.role.toUpperCase()}
-      </Badge>
-    </div>
-  </CardHeader>
-
-  <CardContent className="space-y-4">
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      {effectivePermissionEntries.map(
-        ({ permission, label, enabled, overridden }) => (
-          <div
-            key={permission}
-            className="rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-3"
+    <div className="h-full min-h-0 flex flex-col">
+      <div className="max-w-2xl mx-auto w-full flex-1 min-h-0 flex flex-col space-y-6 overflow-y-auto pb-6 pr-1">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(`/employees/${id}`)}
+            className="text-slate-400 hover:text-white"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <Label
-                  htmlFor={permission}
-                  className="text-white font-medium cursor-pointer block truncate"
-                >
-                  {label}
-                </Label>
-                <p className="mt-1 text-xs text-slate-500 line-clamp-2">
-                  {permissionLabels[permission].description}
-                </p>
-                <p className="mt-2 text-[11px] text-slate-500">
-  {overridden
-    ? `Override applied (${permissions[permission] ? "On" : "Off"})`
-    : `Role default (${getEffectivePermissions(user!.role, null)[permission] ? "On" : "Off"})`}
-</p>
-              </div>
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
 
-              <div className="shrink-0 pt-0.5">
-                <Switch
-                  id={permission}
-                  checked={enabled}
-                  onCheckedChange={() => handleToggle(permission)}
-                />
-              </div>
-            </div>
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold text-white">
+              {t("employeePermissions.header.title")}
+            </h1>
+            <p className="text-slate-400">
+              {t("employeePermissions.header.subtitle", undefined, {
+                name:
+                  user?.full_name ||
+                  t("employeePermissions.empty.unnamedUser"),
+              })}
+            </p>
           </div>
-        )
-      )}
-    </div>
 
-    <Separator className="bg-slate-800" />
+          <Button
+            variant="outline"
+            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            onClick={() => void loadData("refresh")}
+            disabled={isRefreshing}
+          >
+            {isRefreshing
+              ? t("employeePermissions.actions.refreshing")
+              : t("employeePermissions.actions.refresh")}
+          </Button>
+        </div>
 
-    <div className="flex justify-start pt-2">
-      <Button
-        variant="outline"
-        onClick={() => navigate(`/employees/${id}`)}
-        className="border-slate-700 text-slate-300 hover:bg-slate-800"
-      >
-        {t("employeePermissions.actions.cancel")}
-      </Button>
-    </div>
-  </CardContent>
-</Card>
+        {saveError && user && (
+          <Alert className="bg-red-900/20 border-red-800 text-red-400">
+            <AlertDescription>{saveError}</AlertDescription>
+          </Alert>
+        )}
+
+        <Card className="bg-slate-900/50 border-slate-800">
+          <CardHeader className="pb-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Shield className="w-5 h-5 text-indigo-400" />
+                <div>
+                  <CardTitle className="text-white">
+                    {t("employeePermissions.sections.permissionOverrides")}
+                  </CardTitle>
+                  <p className="text-slate-400 text-sm mt-1">
+                    {t("employeePermissions.sections.permissionOverridesDescription")}
+                  </p>
+                </div>
+              </div>
+
+              <Badge className="h-6 px-2 text-xs">
+                {user?.role.toUpperCase()}
+              </Badge>
+            </div>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {effectivePermissionEntries.map(
+                ({ permission, label, enabled, overridden }) => (
+                  <div
+                    key={permission}
+                    className="rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <Label
+                          htmlFor={permission}
+                          className="text-white font-medium cursor-pointer block truncate"
+                        >
+                          {label}
+                        </Label>
+                        <p className="mt-1 text-xs text-slate-500 line-clamp-2">
+                          {permissionLabels[permission].description}
+                        </p>
+                        <p className="mt-2 text-[11px] text-slate-500">
+                          {overridden
+                            ? `Override applied (${permissions[permission] ? "On" : "Off"})`
+                            : `Role default (${getEffectivePermissions(user!.role, null)[permission] ? "On" : "Off"})`}
+                        </p>
+                      </div>
+
+                      <div className="shrink-0 pt-0.5">
+                        <Switch
+                          id={permission}
+                          checked={enabled}
+                          onCheckedChange={() => handleToggle(permission)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+
+            <Separator className="bg-slate-800" />
+
+            <div className="flex justify-start pt-2">
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/employees/${id}`)}
+                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              >
+                {t("employeePermissions.actions.cancel")}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

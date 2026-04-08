@@ -73,6 +73,11 @@ import FinanceReimbursementsPage from "@/app/finance/reimbursements/page";
 import FinanceReimbursementDetailPage from "@/app/finance/reimbursements/[id]/page";
 
 import FinanceApprovalsPage from "@/app/finance/approvals/page";
+import FinancePayrollPage from "@/app/finance/payroll/page";
+import FinancePayrollProfilesPage from "@/app/finance/payroll/profiles/page";
+import FinancePayrollPeriodsPage from "@/app/finance/payroll/periods/page";
+import FinancePayrollRunsPage from "@/app/finance/payroll/runs/page";
+import FinancePayrollRunDetailPage from "@/app/finance/payroll/runs/[id]/page";
 
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -941,6 +946,61 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceApprovalsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/payroll"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinancePayrollPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/payroll/profiles"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinancePayrollProfilesPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/payroll/periods"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinancePayrollPeriodsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/payroll/runs"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinancePayrollRunsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/payroll/runs/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinancePayrollRunDetailPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

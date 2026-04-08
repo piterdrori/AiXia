@@ -834,6 +834,39 @@ function AppRoutes() {
   }
 />
 
+      <Route
+  path="/finance/bills"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <div>Bills Page (placeholder)</div>
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/bills/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <div>Bill Detail Page (placeholder)</div>
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/payments-made"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <div>Payments Made Page (placeholder)</div>
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

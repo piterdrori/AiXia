@@ -96,7 +96,6 @@ const permissionLabels: Record<
     description: "Can generate and download project reports",
   },
 
-  // ===== FINANCE =====
   accessFinance: {
     label: "Access Finance",
     description: "Can access the finance module",
@@ -124,6 +123,125 @@ const permissionLabels: Record<
   approveFinanceRecords: {
     label: "Approve Finance Records",
     description: "Can approve finance actions",
+  },
+
+  accessReceivables: {
+    label: "Access Receivables",
+    description: "Can access the receivables area inside finance",
+  },
+  viewReceivables: {
+    label: "View Receivables",
+    description: "Can view receivables pages and receivable data",
+  },
+  createInvoices: {
+    label: "Create Invoices",
+    description: "Can create new invoices",
+  },
+  editDraftInvoices: {
+    label: "Edit Draft Invoices",
+    description: "Can edit draft invoices before sending",
+  },
+  sendInvoices: {
+    label: "Send Invoices",
+    description: "Can move invoices from draft to sent",
+  },
+  voidInvoices: {
+    label: "Void Invoices",
+    description: "Can void issued invoices",
+  },
+  viewInvoices: {
+    label: "View Invoices",
+    description: "Can open invoice list and invoice detail pages",
+  },
+  recordPaymentsReceived: {
+    label: "Record Payments Received",
+    description: "Can record incoming payments against invoices",
+  },
+  viewReceivedPayments: {
+    label: "View Received Payments",
+    description: "Can view incoming payment history",
+  },
+
+  accessPayables: {
+    label: "Access Payables",
+    description: "Can access the payables area inside finance",
+  },
+  viewPayables: {
+    label: "View Payables",
+    description: "Can view payables pages and payable data",
+  },
+  createBills: {
+    label: "Create Bills",
+    description: "Can create new vendor bills",
+  },
+  editDraftBills: {
+    label: "Edit Draft Bills",
+    description: "Can edit draft bills before opening",
+  },
+  openBills: {
+    label: "Open Bills",
+    description: "Can move bills from draft to open",
+  },
+  voidBills: {
+    label: "Void Bills",
+    description: "Can void vendor bills",
+  },
+  viewBills: {
+    label: "View Bills",
+    description: "Can open bills list and bill detail pages",
+  },
+  recordPaymentsMade: {
+    label: "Record Payments Made",
+    description: "Can record outgoing payments to vendors",
+  },
+  viewPaymentsMade: {
+    label: "View Payments Made",
+    description: "Can view outgoing payment history",
+  },
+
+  viewClients: {
+    label: "View Clients",
+    description: "Can view finance client records",
+  },
+  manageClients: {
+    label: "Manage Clients",
+    description: "Can create and update finance client records",
+  },
+  viewVendors: {
+    label: "View Vendors",
+    description: "Can view vendor records",
+  },
+  manageVendors: {
+    label: "Manage Vendors",
+    description: "Can create and update vendor records",
+  },
+  viewBankAccounts: {
+    label: "View Bank Accounts",
+    description: "Can view company bank accounts",
+  },
+  viewPaymentMethods: {
+    label: "View Payment Methods",
+    description: "Can view payment methods",
+  },
+  viewExpenseCategories: {
+    label: "View Expense Categories",
+    description: "Can view expense categories",
+  },
+  viewRevenueCategories: {
+    label: "View Revenue Categories",
+    description: "Can view revenue categories",
+  },
+  exportFinanceReports: {
+    label: "Export Finance Reports",
+    description: "Can export finance reports",
+  },
+  exportReceivables: {
+    label: "Export Receivables",
+    description: "Can export receivables data and reports",
+  },
+  exportPayables: {
+    label: "Export Payables",
+    description: "Can export payables data and reports",
   },
 };
 

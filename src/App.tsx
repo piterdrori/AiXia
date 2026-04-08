@@ -837,6 +837,39 @@ function AppRoutes() {
   }
 />
 
+<Route
+  path="/finance/bills"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceBillsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/bills/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <BillDetailPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/payments-made"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinancePaymentsMadePage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
       <Route
   path="/finance/bills"
   element={

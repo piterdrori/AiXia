@@ -61,6 +61,9 @@ import FinanceRevenueCategoriesPage from "@/app/finance/revenue-categories/page"
 import FinanceInvoicesPage from "@/app/finance/invoices/page";
 import FinanceNewInvoicePage from "@/app/finance/invoices/new/page";
 import FinanceInvoiceDetailPage from "@/app/finance/invoices/[id]/page";
+import FinanceBillsPage from "@/app/finance/bills/page";
+import BillDetailPage from "@/app/finance/bills/[id]/page";
+import FinancePaymentsMadePage from "@/app/finance/payments-made/page";
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 

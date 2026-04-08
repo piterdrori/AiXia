@@ -266,7 +266,7 @@ export default function FinanceBankAccountsPage() {
   }, [accountType]);
 
   return (
-    <div className="h-full flex flex-col gap-5">
+    <div className="flex flex-col gap-5 overflow-y-auto h-full">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-500">
@@ -493,7 +493,7 @@ export default function FinanceBankAccountsPage() {
         </div>
       ) : null}
 
-      <div className="flex-1 min-h-0 border border-border rounded-2xl bg-background/30 overflow-hidden">
+      <div className="border border-border rounded-2xl bg-background/30">
         <div className="border-b border-border px-5 py-4 flex items-center justify-between gap-3">
           <div>
             <div className="text-white font-medium">Existing Bank Accounts</div>
@@ -507,7 +507,7 @@ export default function FinanceBankAccountsPage() {
           </div>
         </div>
 
-        <div className="h-full overflow-y-auto p-4">
+        <div className="p-4">
           {loading ? (
             <div className="text-muted-foreground">Loading...</div>
           ) : accounts.length === 0 ? (

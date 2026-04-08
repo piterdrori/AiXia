@@ -174,6 +174,17 @@ const permissionLabels: Record<
   addFinanceAttachments: { label: "Add Attachments", description: "Upload attachments" },
   removeFinanceAttachments: { label: "Remove Attachments", description: "Delete attachments" },
 
+    // ===== PAYROLL =====
+  accessPayroll: { label: "Access Payroll", description: "Access payroll module" },
+  viewPayroll: { label: "View Payroll", description: "View payroll pages and payroll runs" },
+  viewOwnPaychecks: { label: "View Own Paychecks", description: "View own paycheck records" },
+  viewAllPaychecks: { label: "View All Paychecks", description: "View all employee paycheck records" },
+  createPayrollRuns: { label: "Create Payroll Runs", description: "Create payroll periods and generate payroll runs" },
+  editPayrollRuns: { label: "Edit Payroll Runs", description: "Edit payroll runs before approval" },
+  approvePayroll: { label: "Approve Payroll", description: "Approve payroll runs" },
+  processPayrollPayments: { label: "Process Payroll Payments", description: "Record and process payroll payments" },
+  managePayProfiles: { label: "Manage Pay Profiles", description: "Create and update employee pay profiles" },
+
   // ===== EXPORTS =====
   exportExpenseReports: { label: "Export Expense Reports", description: "Export expense reports" },
   exportReimbursementReports: { label: "Export Reimbursement Reports", description: "Export reimbursement reports" },

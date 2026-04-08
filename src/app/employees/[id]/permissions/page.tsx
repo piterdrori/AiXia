@@ -293,18 +293,23 @@ setPermissions(
 const handleToggle = async (permission: Permission) => {
   if (!user) return;
 
-  const currentStoredValue = permissions[permission];
-  const roleDefaultValue = getEffectivePermissions(user.role, null)[permission];
+  const roleDefaultPermissions = getEffectivePermissions(user.role, null);
+  const currentEffectivePermissions = getEffectivePermissions(
+    user.role,
+    permissions || null
+  );
 
-  const nextValue =
-    typeof currentStoredValue === "boolean"
-      ? !currentStoredValue
-      : !roleDefaultValue;
+  const nextValue = !currentEffectivePermissions[permission];
 
   const nextPermissions: Partial<Record<Permission, boolean>> = {
     ...(permissions || {}),
-    [permission]: nextValue,
   };
+
+  if (nextValue === roleDefaultPermissions[permission]) {
+    delete nextPermissions[permission];
+  } else {
+    nextPermissions[permission] = nextValue;
+  }
 
   setPermissions(nextPermissions);
   setSaveError("");

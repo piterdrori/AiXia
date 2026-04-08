@@ -64,6 +64,16 @@ import FinanceInvoiceDetailPage from "@/app/finance/invoices/[id]/page";
 import FinanceBillsPage from "@/app/finance/bills/page";
 import BillDetailPage from "@/app/finance/bills/[id]/page";
 import FinancePaymentsMadePage from "@/app/finance/payments-made/page";
+
+import FinanceExpensesPage from "@/app/finance/expenses/page";
+import FinanceNewExpensePage from "@/app/finance/expenses/new/page";
+import FinanceExpenseDetailPage from "@/app/finance/expenses/[id]/page";
+
+import FinanceReimbursementsPage from "@/app/finance/reimbursements/page";
+import FinanceReimbursementDetailPage from "@/app/finance/reimbursements/[id]/page";
+
+import FinanceApprovalsPage from "@/app/finance/approvals/page";
+
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 
@@ -871,33 +881,66 @@ function AppRoutes() {
 />
 
       <Route
-  path="/finance/bills"
+  path="/finance/expenses"
   element={
     <ProtectedRoute>
       <DashboardLayout>
-        <div>Bills Page (placeholder)</div>
+        <FinanceExpensesPage />
       </DashboardLayout>
     </ProtectedRoute>
   }
 />
 
 <Route
-  path="/finance/bills/:id"
+  path="/finance/expenses/new"
   element={
     <ProtectedRoute>
       <DashboardLayout>
-        <div>Bill Detail Page (placeholder)</div>
+        <FinanceNewExpensePage />
       </DashboardLayout>
     </ProtectedRoute>
   }
 />
 
 <Route
-  path="/finance/payments-made"
+  path="/finance/expenses/:id"
   element={
     <ProtectedRoute>
       <DashboardLayout>
-        <div>Payments Made Page (placeholder)</div>
+        <FinanceExpenseDetailPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/reimbursements"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceReimbursementsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/reimbursements/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceReimbursementDetailPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/approvals"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceApprovalsPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

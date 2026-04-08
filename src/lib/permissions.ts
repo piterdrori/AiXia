@@ -392,13 +392,41 @@ export function getEffectivePermissions(
     effective.viewFinance = true;
   }
 
-  if (effective.viewFinance) {
+   if (effective.viewFinance) {
     effective.viewClients = true;
     effective.viewVendors = true;
     effective.viewBankAccounts = true;
     effective.viewPaymentMethods = true;
     effective.viewExpenseCategories = true;
     effective.viewRevenueCategories = true;
+
+    // compatibility bridge for existing finance users
+    effective.viewInvoices = true;
+    effective.viewReceivedPayments = true;
+    effective.viewBills = true;
+    effective.viewPaymentsMade = true;
+  }
+
+  if (effective.createFinanceRecords) {
+    // compatibility bridge for existing generic finance create flows
+    effective.createInvoices = true;
+    effective.recordPaymentsReceived = true;
+    effective.createBills = true;
+    effective.recordPaymentsMade = true;
+  }
+
+  if (effective.editFinanceRecords) {
+    // compatibility bridge for existing generic finance edit flows
+    effective.editDraftInvoices = true;
+    effective.sendInvoices = true;
+    effective.editDraftBills = true;
+    effective.openBills = true;
+  }
+
+  if (effective.archiveFinanceRecords) {
+    // compatibility bridge for existing generic finance archive flows
+    effective.voidInvoices = true;
+    effective.voidBills = true;
   }
 
   if (effective.accessReceivables || effective.viewReceivables) {

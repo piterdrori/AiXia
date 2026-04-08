@@ -701,14 +701,21 @@ export function getEffectivePermissions(
     const basePermissions = ROLE_PERMISSIONS[role];
   const overridePermissions = overrides ?? {};
 
-  const effective: PermissionMap = {
+    const effective: PermissionMap = {
     ...basePermissions,
   };
 
-    (Object.keys(overridePermissions) as Permission[]).forEach((key) => {
+  (Object.keys(overridePermissions) as Permission[]).forEach((key) => {
     const overrideValue = overridePermissions[key];
 
     if (typeof overrideValue !== "boolean") {
+      return;
+    }
+
+    if (role === "admin") {
+      if (overrideValue === true) {
+        effective[key] = true;
+      }
       return;
     }
 

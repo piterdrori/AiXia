@@ -515,7 +515,7 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/employees/:id": { permission: "viewEmployeeDetail" },
   "/employees/:id/permissions": { permission: "manageUsers" },
 
-  "/finance": { permission: "accessFinance" },
+  "/finance": { permission: "viewFinance" },
   "/finance/clients": { permission: "viewClients" },
   "/finance/vendors": { permission: "viewVendors" },
   "/finance/bank-accounts": { permission: "viewBankAccounts" },

@@ -293,14 +293,15 @@ setPermissions(
 const handleToggle = async (permission: Permission) => {
   if (!user) return;
 
-  const currentEffectivePermissions = getEffectivePermissions(
-    user.role,
-    permissions || null
-  );
+  const currentStoredValue = permissions[permission];
+  const roleDefaultValue = getEffectivePermissions(user.role, null)[permission];
 
-  const nextValue = !currentEffectivePermissions[permission];
+  const nextValue =
+    typeof currentStoredValue === "boolean"
+      ? !currentStoredValue
+      : !roleDefaultValue;
 
-  const nextPermissions = {
+  const nextPermissions: Partial<Record<Permission, boolean>> = {
     ...(permissions || {}),
     [permission]: nextValue,
   };
@@ -327,6 +328,8 @@ const handleToggle = async (permission: Permission) => {
     setSaveError(
       err instanceof Error ? err.message : "Failed to update permission"
     );
+
+    await loadData("refresh");
   }
 };
 
@@ -456,8 +459,10 @@ if (!effective?.manageUsers && !isBootstrapping) {
                   {permissionLabels[permission].description}
                 </p>
                 <p className="mt-2 text-[11px] text-slate-500">
-                  {overridden ? "Override applied" : "Role default"}
-                </p>
+  {overridden
+    ? `Override applied (${permissions[permission] ? "On" : "Off"})`
+    : `Role default (${getEffectivePermissions(user!.role, null)[permission] ? "On" : "Off"})`}
+</p>
               </div>
 
               <div className="shrink-0 pt-0.5">

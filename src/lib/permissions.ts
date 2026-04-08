@@ -555,17 +555,10 @@ export function getEffectivePermissions(
     ...basePermissions,
   };
 
-  (Object.keys(overridePermissions) as Permission[]).forEach((key) => {
+    (Object.keys(overridePermissions) as Permission[]).forEach((key) => {
     const overrideValue = overridePermissions[key];
 
     if (typeof overrideValue !== "boolean") {
-      return;
-    }
-
-    if (role === "admin") {
-      if (overrideValue === true) {
-        effective[key] = true;
-      }
       return;
     }
 

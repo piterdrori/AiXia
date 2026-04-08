@@ -17,6 +17,23 @@ export type FinancePaymentReceivedStatus =
   | "failed"
   | "reversed";
 
+export type FinanceBillReceivedStatus =
+  | "draft"
+  | "pending_approval_ready"
+  | "approved_ready"
+  | "open"
+  | "partially_paid"
+  | "paid"
+  | "overdue"
+  | "void"
+  | "canceled";
+
+export type FinancePaymentMadeStatus =
+  | "pending"
+  | "confirmed"
+  | "failed"
+  | "reversed";
+
 export interface FinanceBaseRecord<TStatus extends string = FinanceRecordStatus> {
   id: string;
   status: TStatus;
@@ -112,6 +129,40 @@ export interface FinancePaymentReceived
   payment_method_id: string | null;
   client_id: string;
   invoice_id: string | null;
+  bank_account_id: string | null;
+}
+
+export interface FinanceBillReceived
+  extends FinanceBaseRecord<FinanceBillReceivedStatus> {
+  bill_number: string;
+  vendor_id: string;
+  issue_date: string;
+  due_date: string;
+  approval_status: string | null;
+  subtotal: number;
+  total_amount: number;
+  paid_amount: number;
+  balance_due: number;
+  paid_at: string | null;
+}
+
+export interface FinanceBillLineItem extends FinanceBaseRecord {
+  bill_id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+  sort_order: number;
+  expense_category_id: string | null;
+}
+
+export interface FinancePaymentMade
+  extends FinanceBaseRecord<FinancePaymentMadeStatus> {
+  amount: number;
+  payment_date: string;
+  payment_method_id: string | null;
+  vendor_id: string;
+  bill_id: string | null;
   bank_account_id: string | null;
 }
 

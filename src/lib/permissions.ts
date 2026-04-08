@@ -684,8 +684,23 @@ export function getEffectivePermissions(
     effective.viewApprovalQueue = true;
   }
 
-  if (effective.recordReimbursementPayments) {
+    if (effective.recordReimbursementPayments) {
     effective.viewReimbursements = true;
+  }
+
+  if (effective.viewReimbursements) {
+    effective.accessFinance = true;
+  }
+
+  if (effective.accessApprovals || effective.viewApprovalQueue) {
+    effective.accessFinance = true;
+    effective.viewFinance = true;
+  }
+
+  if (effective.createReimbursements || effective.issueReimbursements) {
+    effective.viewReimbursements = true;
+    effective.accessFinance = true;
+    effective.viewFinance = true;
   }
 
   return effective;

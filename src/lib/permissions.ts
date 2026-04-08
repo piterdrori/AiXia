@@ -548,10 +548,29 @@ export function getEffectivePermissions(
   role: Role,
   overrides?: Partial<PermissionMap> | null
 ): PermissionMap {
+    const basePermissions = ROLE_PERMISSIONS[role];
+  const overridePermissions = overrides ?? {};
+
   const effective: PermissionMap = {
-    ...ROLE_PERMISSIONS[role],
-    ...(overrides ?? {}),
+    ...basePermissions,
   };
+
+  (Object.keys(overridePermissions) as Permission[]).forEach((key) => {
+    const overrideValue = overridePermissions[key];
+
+    if (typeof overrideValue !== "boolean") {
+      return;
+    }
+
+    if (role === "admin") {
+      if (overrideValue === true) {
+        effective[key] = true;
+      }
+      return;
+    }
+
+    effective[key] = overrideValue;
+  });
 
   if (effective.manageUsers) {
     effective.viewEmployeeDirectory = true;

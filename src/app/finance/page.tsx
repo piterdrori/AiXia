@@ -87,11 +87,17 @@ const FINANCE_MODULES: FinanceModule[] = [
     route: "/finance/reimbursements",
     requiredPermission: "viewReimbursements",
   },
-  {
+    {
     title: "Approvals",
     description: "Review and act on finance approval requests.",
     route: "/finance/approvals",
     requiredPermission: "viewApprovalQueue",
+  },
+  {
+    title: "Payroll",
+    description: "Manage pay profiles, payroll periods, runs, paychecks, and payroll payments.",
+    route: "/finance/payroll",
+    requiredPermission: "viewPayroll",
   },
 ];
 

@@ -102,7 +102,7 @@ export default function FinanceBankAccountsPage() {
 
   async function loadAccounts() {
     try {
-     const { data, error } = await supabase
+     const { data } = await supabase
   .from("finance_bank_accounts")
   .select(`
     id,

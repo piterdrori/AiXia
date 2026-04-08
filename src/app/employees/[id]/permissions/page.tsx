@@ -127,7 +127,22 @@ const permissionLabels: Record<
   voidBills: { label: "Void Bills", description: "Void bills" },
   viewBills: { label: "View Bills", description: "View bills" },
   recordPaymentsMade: { label: "Record Payments Made", description: "Record outgoing payments" },
-  viewPaymentsMade: { label: "View Payments Made", description: "View payments made" },
+    viewPaymentsMade: { label: "View Payments Made", description: "View payments made" },
+
+  // ===== MASTER DATA =====
+  viewClients: { label: "View Clients", description: "View finance client records" },
+  manageClients: { label: "Manage Clients", description: "Create and update finance client records" },
+  viewVendors: { label: "View Vendors", description: "View vendor records" },
+  manageVendors: { label: "Manage Vendors", description: "Create and update vendor records" },
+  viewBankAccounts: { label: "View Bank Accounts", description: "View company bank accounts" },
+  viewPaymentMethods: { label: "View Payment Methods", description: "View payment methods" },
+  viewExpenseCategories: { label: "View Expense Categories", description: "View expense categories" },
+  viewRevenueCategories: { label: "View Revenue Categories", description: "View revenue categories" },
+
+  // ===== FINANCE EXPORTS =====
+  exportFinanceReports: { label: "Export Finance Reports", description: "Export finance reports" },
+  exportReceivables: { label: "Export Receivables", description: "Export receivables data and reports" },
+  exportPayables: { label: "Export Payables", description: "Export payables data and reports" },
 
   // ===== WAVE 4 — EXPENSES =====
   accessExpenses: { label: "Access Expenses", description: "Access expenses module" },

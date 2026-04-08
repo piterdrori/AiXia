@@ -63,6 +63,20 @@ const FINANCE_MODULES: FinanceModule[] = [
     route: "/finance/invoices",
     requiredPermission: "viewFinance",
   },
+
+  // ✅ NEW — WAVE 3
+  {
+    title: "Bills",
+    description: "Manage vendor bills, expenses, and payables.",
+    route: "/finance/bills",
+    requiredPermission: "viewFinance",
+  },
+  {
+    title: "Payments Made",
+    description: "Track outgoing payments to vendors.",
+    route: "/finance/payments-made",
+    requiredPermission: "viewFinance",
+  },
 ];
 
 export default function FinancePage() {

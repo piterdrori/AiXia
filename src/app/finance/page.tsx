@@ -1153,8 +1153,8 @@ export default function FinancePage() {
 
     switch (activeWorkspace) {
       case "master-data":
-        return (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                return (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {masterDataModules.map((module) => (
               <FinanceModuleButton
                 key={module.title}
@@ -1167,8 +1167,8 @@ export default function FinancePage() {
         );
 
       case "transactions":
-        return (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                return (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {transactionModules.map((module) => (
               <FinanceModuleButton
                 key={module.title}
@@ -1181,8 +1181,8 @@ export default function FinancePage() {
         );
 
       case "documents":
-        return (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                return (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {documentModules.map((module) => (
               <FinanceModuleButton
                 key={module.title}
@@ -1195,8 +1195,8 @@ export default function FinancePage() {
         );
 
       case "reports":
-        return (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                return (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {reportModules.map((module) => (
               <FinanceModuleButton
                 key={module.title}
@@ -1209,8 +1209,8 @@ export default function FinancePage() {
         );
 
       case "settings":
-        return (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                return (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {adminModules.map((module) => (
               <FinanceModuleButton
                 key={module.title}
@@ -1225,15 +1225,15 @@ export default function FinancePage() {
       case "dashboard":
       default:
         return (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-            <Card className="border-border bg-background/40 xl:col-span-2">
+          <div className="grid grid-cols-1 gap-4 2xl:grid-cols-3">
+            <Card className="border-border bg-background/40 2xl:col-span-2">
               <CardHeader>
                 <CardTitle className="text-white">Quick actions</CardTitle>
                 <CardDescription>
                   Fast entry points for the most common finance work.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
                 <Button
                   onClick={() => navigate("/finance/invoices/new")}
                   className="justify-between"
@@ -1319,7 +1319,7 @@ export default function FinancePage() {
               </CardContent>
             </Card>
 
-            <Card className="border-border bg-background/40 xl:col-span-2">
+            <Card className="border-border bg-background/40 2xl:col-span-2">
               <CardHeader>
                 <CardTitle className="text-white">Recent activity</CardTitle>
                 <CardDescription>
@@ -1421,9 +1421,10 @@ export default function FinancePage() {
     }
   };
 
-  return (
-    <div className="h-full flex flex-col gap-6">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+    return (
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-4 pb-6 pt-1 sm:px-6 xl:px-8">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
             <Badge variant="outline" className="border-border text-muted-foreground">
@@ -1462,7 +1463,7 @@ export default function FinancePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
         {dashboardMetricCards.map((metric) => {
           const Icon = metric.icon;
 
@@ -1491,7 +1492,7 @@ export default function FinancePage() {
         })}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+      <div className="grid grid-cols-1 gap-4 2xl:grid-cols-12">
         <Card className="border-border bg-background/40 xl:col-span-4">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-white">
@@ -1617,7 +1618,7 @@ export default function FinancePage() {
         </Card>
       </div>
 
-      <Card className="border-border bg-background/40">
+            <Card className="border-border bg-background/40">
         <CardHeader>
           <CardTitle className="text-white">Finance workspaces</CardTitle>
           <CardDescription>
@@ -1652,6 +1653,7 @@ export default function FinancePage() {
           {renderWorkspaceContent()}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

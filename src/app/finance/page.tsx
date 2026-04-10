@@ -5,20 +5,14 @@ import {
   ArrowLeft,
   ArrowRight,
   BadgeAlert,
-  Banknote,
   BookOpen,
   BriefcaseBusiness,
-  Building2,
   CalendarClock,
-  CreditCard,
   DollarSign,
   FileBarChart2,
   FileClock,
   FileSpreadsheet,
-  FolderCog,
   FolderKanban,
-  Landmark,
-  Layers3,
   Receipt,
   RefreshCw,
   Settings2,
@@ -31,11 +25,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
-import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+import { type Role } from "@/lib/permissions";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -907,27 +897,6 @@ export default function FinancePage() {
       supabase.removeChannel(channel);
     };
   }, [loadDashboard]);
-
-  const permissions = useMemo(() => {
-    if (!role) return null;
-    return getEffectivePermissions(role, permissionOverrides);
-  }, [role, permissionOverrides]);
-
-  const canAccess = useCallback(
-    (requiredPermission?: Permission) => {
-      if (!requiredPermission) return true;
-      if (!permissions) return false;
-      return Boolean(permissions[requiredPermission]);
-    },
-    [permissions]
-  );
-
-  const openModule = useCallback(
-    (route: string) => {
-      navigate(route);
-    },
-    [navigate]
-  );
 
    const dashboardMetricCards = useMemo<DashboardMetricCard[]>(() => {
     return [

@@ -882,9 +882,10 @@ export default function FinanceTransactionsPage() {
     [navigate]
   );
 
-  return (
+    return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="mx-auto flex h-full w-full max-w-[1680px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
+      <div className="mx-auto flex h-full w-full max-w-[1680px] min-h-0 flex-col px-4 pb-4 pt-2 sm:px-6 xl:px-8">
+        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1">
         <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6 xl:p-7">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_35%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_24%)]" />
           <div className="pointer-events-none absolute inset-y-0 right-0 w-[42%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.12),transparent_55%)] opacity-70" />
@@ -957,7 +958,7 @@ export default function FinanceTransactionsPage() {
           </div>
         </section>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
           <div className="flex min-h-0 flex-col gap-6">
             <section className="min-h-0">
               <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
@@ -986,7 +987,7 @@ export default function FinanceTransactionsPage() {
                 </CardHeader>
 
                 <CardContent className="p-4 sm:p-5 xl:p-6">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
                     {moduleCards.map((module) => (
                       <TransactionModuleButton
                         key={module.key}
@@ -1012,7 +1013,7 @@ export default function FinanceTransactionsPage() {
                 </CardHeader>
 
                 <CardContent className="p-5">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-5">
                     <SummaryBlock
                       title="Invoices"
                       value={isLoading ? "—" : formatCount(data.counts.invoices)}
@@ -1050,8 +1051,8 @@ export default function FinanceTransactionsPage() {
             </section>
           </div>
 
-          <div className="flex min-h-0 flex-col gap-6">
-            <Card className="flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                              <div className="flex flex-col gap-6">
+            <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <CardHeader className="border-b border-white/8 pb-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-1">

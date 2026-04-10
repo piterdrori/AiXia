@@ -1095,7 +1095,7 @@ export default function FinanceReportsPage() {
             </PreviewPanel>
           </section>
 
-          <section>
+                    <section className="order-last">
             <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <CardHeader className="border-b border-white/8 pb-4">
                 <CardTitle className="flex items-center gap-3 text-white">

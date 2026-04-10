@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Settings2,
   ShieldCheck,
+  Sparkles,
   TrendingDown,
   TrendingUp,
   Users,
@@ -52,34 +53,28 @@ type ProfilePermissionRow = {
 };
 
 type WorkspaceKey =
-  | "dashboard"
   | "master-data"
   | "transactions"
   | "documents"
+  | "editor"
   | "reports"
   | "settings";
 
 type DashboardMetricCard = {
+  key: string;
   title: string;
   value: string;
   subtitle: string;
   icon: typeof DollarSign;
+  tone: "emerald" | "blue" | "amber" | "violet" | "rose" | "cyan";
 };
 
 type WorkspaceTab = {
   key: WorkspaceKey;
   label: string;
-};
-
-type ModuleCard = {
-  title: string;
   description: string;
-  route?: string;
-  requiredPermission?: Permission;
-  icon: typeof Users;
-  count?: number;
-  status?: "ready" | "planned";
-  badge?: string;
+  icon: typeof FolderKanban;
+  route: string;
 };
 
 type FinanceInvoiceRow = {
@@ -170,6 +165,15 @@ type TrialBalanceRow = {
   balance: number | string | null;
 };
 
+type DashboardActivityItem = {
+  id: string;
+  type: string;
+  title: string;
+  subtitle: string;
+  createdAt: string;
+  route?: string;
+};
+
 type DashboardData = {
   counts: {
     clients: number;
@@ -216,24 +220,53 @@ type DashboardData = {
     billsAmount: number;
     reimbursementsPending: number;
   };
-  recentActivity: Array<{
-    id: string;
-    type: string;
-    title: string;
-    subtitle: string;
-    createdAt: string;
-    route?: string;
-  }>;
+  recentActivity: DashboardActivityItem[];
   ledgerPreview: TrialBalanceRow[];
 };
 
 const WORKSPACE_TABS: WorkspaceTab[] = [
-  { key: "dashboard", label: "Dashboard" },
-  { key: "master-data", label: "Master Data" },
-  { key: "transactions", label: "Transactions" },
-  { key: "documents", label: "Documents" },
-  { key: "reports", label: "Reports" },
-  { key: "settings", label: "Settings / Admin / Control" },
+  {
+    key: "master-data",
+    label: "Master Data",
+    description: "Clients, vendors, banks, methods, categories",
+    icon: Users,
+    route: "/finance/master-data",
+  },
+  {
+    key: "transactions",
+    label: "Transactions",
+    description: "Invoices, bills, payments, expenses, approvals",
+    icon: Receipt,
+    route: "/finance/transactions",
+  },
+  {
+    key: "documents",
+    label: "Documents",
+    description: "PI, PO, print center, templates, archives",
+    icon: FileSpreadsheet,
+    route: "/finance/documents",
+  },
+  {
+    key: "editor",
+    label: "Editor Workspace",
+    description: "Open detail, new, edit, and print flows",
+    icon: BookOpen,
+    route: "/finance/editor",
+  },
+  {
+    key: "reports",
+    label: "Reports",
+    description: "Ledger views, aging, summaries, analysis",
+    icon: FileBarChart2,
+    route: "/finance/reports",
+  },
+  {
+    key: "settings",
+    label: "Settings / Admin / Control",
+    description: "Periods, rules, controls, admin surfaces",
+    icon: Settings2,
+    route: "/finance/admin",
+  },
 ];
 
 const EMPTY_DASHBOARD_DATA: DashboardData = {
@@ -326,91 +359,150 @@ function isOverdue(dueDate: string | null, balanceDue: number) {
   return due < now;
 }
 
-function FinanceModuleButton({
-  module,
-  canAccess,
+function getMetricToneClasses(tone: DashboardMetricCard["tone"]) {
+  switch (tone) {
+    case "emerald":
+      return {
+        glow: "from-emerald-500/20 via-emerald-400/10 to-transparent",
+        iconWrap:
+          "border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_0_30px_rgba(16,185,129,0.18)]",
+        accent: "bg-emerald-400",
+      };
+    case "blue":
+      return {
+        glow: "from-sky-500/20 via-sky-400/10 to-transparent",
+        iconWrap:
+          "border-sky-400/20 bg-sky-500/10 text-sky-300 shadow-[0_0_30px_rgba(56,189,248,0.18)]",
+        accent: "bg-sky-400",
+      };
+    case "amber":
+      return {
+        glow: "from-amber-500/20 via-amber-400/10 to-transparent",
+        iconWrap:
+          "border-amber-400/20 bg-amber-500/10 text-amber-300 shadow-[0_0_30px_rgba(245,158,11,0.18)]",
+        accent: "bg-amber-400",
+      };
+    case "violet":
+      return {
+        glow: "from-violet-500/20 via-violet-400/10 to-transparent",
+        iconWrap:
+          "border-violet-400/20 bg-violet-500/10 text-violet-300 shadow-[0_0_30px_rgba(139,92,246,0.18)]",
+        accent: "bg-violet-400",
+      };
+    case "rose":
+      return {
+        glow: "from-rose-500/20 via-rose-400/10 to-transparent",
+        iconWrap:
+          "border-rose-400/20 bg-rose-500/10 text-rose-300 shadow-[0_0_30px_rgba(244,63,94,0.18)]",
+        accent: "bg-rose-400",
+      };
+    case "cyan":
+    default:
+      return {
+        glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
+        iconWrap:
+          "border-cyan-400/20 bg-cyan-500/10 text-cyan-300 shadow-[0_0_30px_rgba(34,211,238,0.18)]",
+        accent: "bg-cyan-400",
+      };
+  }
+}
+
+function FinanceMetricCard({ metric }: { metric: DashboardMetricCard }) {
+  const Icon = metric.icon;
+  const tone = getMetricToneClasses(metric.tone);
+
+  return (
+    <div className="group relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <div
+        className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`}
+      />
+      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-white/10" />
+      <div className="relative flex h-full flex-col gap-6 p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-2">
+            <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-white/45">
+              {metric.title}
+            </div>
+            <div className="text-3xl font-semibold tracking-tight text-white">
+              {metric.value}
+            </div>
+          </div>
+
+          <div
+            className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
+          >
+            <Icon className="h-5 w-5" />
+          </div>
+        </div>
+
+        <div className="mt-auto flex items-center justify-between gap-3">
+          <div className="text-sm text-white/55">{metric.subtitle}</div>
+          <div className={`h-2 w-2 rounded-full ${tone.accent}`} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FinanceTabButton({
+  tab,
   onOpen,
 }: {
-  module: ModuleCard;
-  canAccess: boolean;
-  onOpen: (route?: string) => void;
+  tab: WorkspaceTab;
+  onOpen: (route: string) => void;
 }) {
-  const Icon = module.icon;
-  const isPlanned = module.status === "planned";
-  const disabled = !canAccess || (!module.route && isPlanned);
+  const Icon = tab.icon;
 
   return (
     <button
       type="button"
-      onClick={() => {
-        if (disabled) return;
-        onOpen(module.route);
-      }}
-      disabled={disabled}
-      className="w-full text-left"
+      onClick={() => onOpen(tab.route)}
+      className="group relative overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] text-left backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.07]"
     >
-      <Card className="border-border bg-background/40 hover:bg-background/60">
-        <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background/70">
-                <Icon className="h-5 w-5 text-white" />
-              </div>
-
-              <div>
-                <CardTitle className="text-white">{module.title}</CardTitle>
-                <CardDescription className="mt-1">
-                  {module.description}
-                </CardDescription>
-              </div>
-            </div>
-
-            <div className="flex flex-col items-end gap-2">
-              {typeof module.count === "number" ? (
-                <Badge variant="secondary" className="bg-background/70 text-white">
-                  {formatCount(module.count)}
-                </Badge>
-              ) : null}
-
-              {module.badge ? (
-                <Badge
-                  variant={isPlanned ? "outline" : "secondary"}
-                  className={
-                    isPlanned
-                      ? "border-border text-muted-foreground"
-                      : "bg-primary/15 text-white"
-                  }
-                >
-                  {module.badge}
-                </Badge>
-              ) : null}
-            </div>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_45%)] opacity-80" />
+      <div className="relative flex h-full flex-col gap-4 p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/80">
+            <Icon className="h-5 w-5" />
           </div>
-        </CardHeader>
+          <ArrowRight className="h-4 w-4 text-white/35 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
+        </div>
 
-        <CardContent className="pt-0">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>
-              {!canAccess
-                ? "No permission"
-                : isPlanned
-                ? "Planned surface"
-                : "Open workspace"}
-            </span>
-
-            {!disabled ? <ArrowRight className="h-4 w-4 text-white" /> : null}
-          </div>
-        </CardContent>
-      </Card>
+        <div className="space-y-2">
+          <div className="text-base font-semibold text-white">{tab.label}</div>
+          <div className="text-sm leading-6 text-white/50">{tab.description}</div>
+        </div>
+      </div>
     </button>
+  );
+}
+
+function FinanceInsightCard({
+  title,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  icon: typeof AlertTriangle;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <CardHeader className="border-b border-white/8 pb-4">
+        <CardTitle className="flex items-center gap-3 text-white">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/80">
+            <Icon className="h-4 w-4" />
+          </div>
+          <span>{title}</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-5">{children}</CardContent>
+    </Card>
   );
 }
 
 export default function FinancePage() {
   const navigate = useNavigate();
-
-  const [activeWorkspace, setActiveWorkspace] =
-    useState<WorkspaceKey>("dashboard");
 
   const [role, setRole] = useState<Role | null>(null);
   const [permissionOverrides, setPermissionOverrides] = useState<
@@ -425,34 +517,41 @@ export default function FinancePage() {
   const loadPermissions = useCallback(async () => {
     setIsLoadingPermissions(true);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (!user?.id) {
+      if (!user?.id) {
+        setRole(null);
+        setPermissionOverrides(null);
+        setIsLoadingPermissions(false);
+        return;
+      }
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("role, permissions")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!data) {
+        setRole(null);
+        setPermissionOverrides(null);
+        setIsLoadingPermissions(false);
+        return;
+      }
+
+      const typed = data as ProfilePermissionRow;
+      setRole(typed.role);
+      setPermissionOverrides(typed.permissions ?? null);
+    } catch (error) {
+      console.error("Failed to load finance permissions:", error);
       setRole(null);
       setPermissionOverrides(null);
+    } finally {
       setIsLoadingPermissions(false);
-      return;
     }
-
-    const { data } = await supabase
-      .from("profiles")
-      .select("role, permissions")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (!data) {
-      setRole(null);
-      setPermissionOverrides(null);
-      setIsLoadingPermissions(false);
-      return;
-    }
-
-    const typed = data as ProfilePermissionRow;
-    setRole(typed.role);
-    setPermissionOverrides(typed.permissions ?? null);
-    setIsLoadingPermissions(false);
   }, []);
 
   const loadDashboard = useCallback(async () => {
@@ -481,21 +580,27 @@ export default function FinancePage() {
         supabase
           .from("finance_clients")
           .select("id", { count: "exact", head: true }),
+
         supabase
           .from("finance_vendors")
           .select("id", { count: "exact", head: true }),
+
         supabase
           .from("finance_bank_accounts")
           .select("id, name, currency_code, opening_balance, status, is_default"),
+
         supabase
           .from("finance_payment_methods")
           .select("id", { count: "exact", head: true }),
+
         supabase
           .from("finance_expense_categories")
           .select("id", { count: "exact", head: true }),
+
         supabase
           .from("finance_revenue_categories")
           .select("id", { count: "exact", head: true }),
+
         supabase
           .from("finance_invoices_issued")
           .select(
@@ -503,6 +608,7 @@ export default function FinancePage() {
           )
           .order("created_at", { ascending: false })
           .limit(12),
+
         supabase
           .from("finance_bills_received")
           .select(
@@ -510,12 +616,15 @@ export default function FinancePage() {
           )
           .order("created_at", { ascending: false })
           .limit(12),
+
         supabase
           .from("finance_payments_made")
           .select("id", { count: "exact", head: true }),
+
         supabase
           .from("finance_payments_received")
           .select("id", { count: "exact", head: true }),
+
         supabase
           .from("finance_expenses")
           .select(
@@ -523,9 +632,11 @@ export default function FinancePage() {
           )
           .order("created_at", { ascending: false })
           .limit(12),
+
         supabase
           .from("finance_reimbursements")
           .select("id", { count: "exact", head: true }),
+
         supabase
           .from("finance_approval_records")
           .select(
@@ -533,11 +644,13 @@ export default function FinancePage() {
           )
           .order("created_at", { ascending: false })
           .limit(12),
+
         supabase
           .from("finance_payroll_runs")
           .select("id, run_number, status, total_net, created_at")
           .order("created_at", { ascending: false })
           .limit(12),
+
         supabase
           .from("finance_journal_entries")
           .select(
@@ -546,11 +659,13 @@ export default function FinancePage() {
           .order("entry_date", { ascending: false })
           .order("created_at", { ascending: false })
           .limit(12),
+
         supabase
           .from("finance_accounting_periods")
           .select("id, period_name, status, start_date, end_date, locked_at")
           .order("start_date", { ascending: false })
           .limit(12),
+
         supabase.rpc("finance_trial_balance"),
       ]);
 
@@ -610,6 +725,7 @@ export default function FinancePage() {
       const draftJournals = journals.filter(
         (journal) => journal.status === "draft"
       ).length;
+
       const postedJournals = journals.filter(
         (journal) => journal.status === "posted"
       ).length;
@@ -620,7 +736,7 @@ export default function FinancePage() {
           expense.approval_status === "approved"
       ).length;
 
-      const recentActivity = [
+      const recentActivity: DashboardActivityItem[] = [
         ...invoices.slice(0, 4).map((invoice) => ({
           id: `invoice-${invoice.id}`,
           type: "Invoice",
@@ -806,335 +922,195 @@ export default function FinancePage() {
     [permissions]
   );
 
-  const dashboardMetricCards = useMemo<DashboardMetricCard[]>(() => {
+  const openModule = useCallback(
+    (route: string) => {
+      navigate(route);
+    },
+    [navigate]
+  );
+
+   const dashboardMetricCards = useMemo<DashboardMetricCard[]>(() => {
     return [
       {
+        key: "cash",
         title: "Cash Position",
-        value: formatMoney(dashboardData.totals.cashPosition),
-        subtitle: `${formatCount(dashboardData.counts.bankAccounts)} bank accounts`,
+        value: isLoadingDashboard
+          ? "—"
+          : `$${formatMoney(dashboardData.totals.cashPosition)}`,
+        subtitle: `${formatCount(
+          dashboardData.counts.bankAccounts
+        )} bank accounts connected`,
         icon: Wallet,
+        tone: "emerald",
       },
       {
-        title: "Open Receivables",
-        value: formatMoney(dashboardData.totals.receivablesOpen),
-        subtitle: `${formatCount(dashboardData.counts.invoicesIssued)} invoices in view`,
+        key: "receivables",
+        title: "Receivables",
+        value: isLoadingDashboard
+          ? "—"
+          : `$${formatMoney(dashboardData.totals.receivablesOpen)}`,
+        subtitle: `${formatCount(
+          dashboardData.counts.invoicesIssued
+        )} invoices currently tracked`,
         icon: TrendingUp,
+        tone: "blue",
       },
       {
-        title: "Open Payables",
-        value: formatMoney(dashboardData.totals.payablesOpen),
-        subtitle: `${formatCount(dashboardData.counts.billsReceived)} bills in view`,
+        key: "payables",
+        title: "Payables",
+        value: isLoadingDashboard
+          ? "—"
+          : `$${formatMoney(dashboardData.totals.payablesOpen)}`,
+        subtitle: `${formatCount(
+          dashboardData.counts.billsReceived
+        )} bills currently tracked`,
         icon: TrendingDown,
+        tone: "amber",
       },
       {
-        title: "Expenses Logged",
-        value: formatMoney(dashboardData.totals.expensesTotal),
-        subtitle: `${formatCount(dashboardData.counts.expenses)} recent expense records`,
+        key: "expenses",
+        title: "Expenses",
+        value: isLoadingDashboard
+          ? "—"
+          : `$${formatMoney(dashboardData.totals.expensesTotal)}`,
+        subtitle: `${formatCount(
+          dashboardData.counts.expenses
+        )} recent expense records`,
+        icon: Receipt,
+        tone: "rose",
+      },
+      {
+        key: "payroll",
+        title: "Payroll",
+        value: isLoadingDashboard
+          ? "—"
+          : `$${formatMoney(dashboardData.totals.payrollTotal)}`,
+        subtitle: `${formatCount(
+          dashboardData.counts.payrollRuns
+        )} payroll runs in view`,
+        icon: BriefcaseBusiness,
+        tone: "violet",
+      },
+      {
+        key: "approvals",
+        title: "Approvals",
+        value: isLoadingDashboard
+          ? "—"
+          : formatCount(dashboardData.alerts.pendingApprovals),
+        subtitle: "Pending approval actions",
+        icon: ShieldCheck,
+        tone: "cyan",
+      },
+    ];
+  }, [dashboardData, isLoadingDashboard]);
+
+  const quickActions = useMemo(() => {
+    return [
+      {
+        label: "New Invoice",
+        route: "/finance/invoices/new",
+        icon: FileSpreadsheet,
+      },
+      {
+        label: "New Expense",
+        route: "/finance/expenses/new",
         icon: Receipt,
       },
       {
-        title: "Payroll Net",
-        value: formatMoney(dashboardData.totals.payrollTotal),
-        subtitle: `${formatCount(dashboardData.counts.payrollRuns)} payroll runs`,
+        label: "Open Bills",
+        route: "/finance/bills",
+        icon: FileClock,
+      },
+      {
+        label: "Open Approvals",
+        route: "/finance/approvals",
+        icon: ShieldCheck,
+      },
+      {
+        label: "Open Payroll",
+        route: "/finance/payroll",
         icon: BriefcaseBusiness,
       },
       {
-        title: "Pending Approvals",
-        value: formatCount(dashboardData.alerts.pendingApprovals),
-        subtitle: "Finance queue requiring action",
-        icon: ShieldCheck,
-      },
-    ];
-  }, [dashboardData]);
-
-  const masterDataModules = useMemo<ModuleCard[]>(() => {
-    return [
-      {
-        title: "Clients",
-        description: "Manage finance clients and billing entities.",
-        route: "/finance/clients",
-        requiredPermission: "viewClients",
-        icon: Users,
-        count: dashboardData.counts.clients,
-        status: "ready",
-      },
-      {
-        title: "Vendors",
-        description: "Manage vendor counterparties and supplier records.",
-        route: "/finance/vendors",
-        requiredPermission: "viewVendors",
-        icon: Building2,
-        count: dashboardData.counts.vendors,
-        status: "ready",
-      },
-      {
-        title: "Bank Accounts",
-        description: "Control cash accounts, defaults, and ledger linkage.",
-        route: "/finance/bank-accounts",
-        requiredPermission: "viewBankAccounts",
-        icon: Landmark,
-        count: dashboardData.counts.bankAccounts,
-        status: "ready",
-      },
-      {
-        title: "Payment Methods",
-        description: "Maintain available outbound and inbound payment methods.",
-        route: "/finance/payment-methods",
-        requiredPermission: "viewPaymentMethods",
-        icon: CreditCard,
-        count: dashboardData.counts.paymentMethods,
-        status: "ready",
-      },
-      {
-        title: "Expense Categories",
-        description: "Maintain operational spending classifications.",
-        route: "/finance/expense-categories",
-        requiredPermission: "viewExpenseCategories",
-        icon: FolderKanban,
-        count: dashboardData.counts.expenseCategories,
-        status: "ready",
-      },
-      {
-        title: "Revenue Categories",
-        description: "Maintain revenue grouping and reporting categories.",
-        route: "/finance/revenue-categories",
-        requiredPermission: "viewRevenueCategories",
-        icon: FileBarChart2,
-        count: dashboardData.counts.revenueCategories,
-        status: "ready",
-      },
-    ];
-  }, [dashboardData]);
-
-  const transactionModules = useMemo<ModuleCard[]>(() => {
-    return [
-      {
-        title: "Invoices Issued",
-        description: "Track issued invoices, balances, and collections.",
-        route: "/finance/invoices",
-        requiredPermission: "viewInvoices",
-        icon: FileSpreadsheet,
-        count: dashboardData.counts.invoicesIssued,
-        status: "ready",
-      },
-      {
-        title: "Bills Received",
-        description: "Track vendor bills, due dates, and open balances.",
-        route: "/finance/bills",
-        requiredPermission: "viewBills",
-        icon: FileClock,
-        count: dashboardData.counts.billsReceived,
-        status: "ready",
-      },
-      {
-        title: "Payments Made",
-        description: "Review outgoing payment history and payout activity.",
-        route: "/finance/payments-made",
-        requiredPermission: "viewPaymentsMade",
-        icon: Banknote,
-        count: dashboardData.counts.paymentsMade,
-        status: "ready",
-      },
-      {
-        title: "Payments Received",
-        description: "Track inbound collections and settlement history.",
-        icon: DollarSign,
-        count: dashboardData.counts.paymentsReceived,
-        status: "planned",
-        badge: "Backend ready • UI next",
-      },
-      {
-        title: "Expenses",
-        description: "Track company expenses, claims, and spend requests.",
-        route: "/finance/expenses",
-        requiredPermission: "viewExpenses",
-        icon: Receipt,
-        count: dashboardData.counts.expenses,
-        status: "ready",
-      },
-      {
-        title: "Reimbursements",
-        description: "Track employee reimbursement records and payout status.",
-        route: "/finance/reimbursements",
-        requiredPermission: "viewReimbursements",
-        icon: RefreshCw,
-        count: dashboardData.counts.reimbursements,
-        status: "ready",
-      },
-      {
-        title: "Approvals",
-        description: "Review and act on finance approval requests.",
-        route: "/finance/approvals",
-        requiredPermission: "viewApprovalQueue",
-        icon: ShieldCheck,
-        count: dashboardData.counts.approvals,
-        status: "ready",
-      },
-    ];
-  }, [dashboardData]);
-
-  const documentModules = useMemo<ModuleCard[]>(() => {
-    return [
-      {
-        title: "Proforma Invoices",
-        description: "Store and manage printable PI records for clients.",
-        icon: FileSpreadsheet,
-        status: "planned",
-        badge: "Planned",
-      },
-      {
-        title: "Purchase Orders",
-        description: "Store and manage printable PO records and history.",
-        icon: FileClock,
-        status: "planned",
-        badge: "Planned",
-      },
-      {
-        title: "Print Center",
-        description: "Central print-preview surface for PI, PO, invoice, bill, and expense output.",
+        label: "Open Ledger",
+        route: "/finance/ledger",
         icon: BookOpen,
-        status: "planned",
-        badge: "Planned",
-      },
-      {
-        title: "Archived Outputs",
-        description: "View archived generated outputs and document history.",
-        icon: Layers3,
-        status: "planned",
-        badge: "Planned",
-      },
-      {
-        title: "Templates",
-        description: "Maintain future print layout templates and document styling.",
-        icon: FolderCog,
-        status: "planned",
-        badge: "Planned",
       },
     ];
   }, []);
 
-  const reportModules = useMemo<ModuleCard[]>(() => {
+  const insightAlerts = useMemo(() => {
     return [
       {
-        title: "Trial Balance",
-        description: "Open the ledger reporting area and trial balance controls.",
-        route: "/finance/ledger",
-        requiredPermission: "viewLedger",
-        icon: FileBarChart2,
-        status: "ready",
+        label: "Overdue invoices",
+        value: formatCount(dashboardData.alerts.overdueInvoices),
+        tone: dashboardData.alerts.overdueInvoices > 0 ? "text-rose-300" : "text-white",
       },
       {
-        title: "Ledger Views",
-        description: "Drill into journals, account balances, and source-linked entries.",
-        route: "/finance/ledger/journals",
-        requiredPermission: "viewLedger",
-        icon: BookOpen,
-        count: dashboardData.counts.journals,
-        status: "ready",
+        label: "Overdue bills",
+        value: formatCount(dashboardData.alerts.overdueBills),
+        tone: dashboardData.alerts.overdueBills > 0 ? "text-amber-300" : "text-white",
       },
       {
-        title: "AR Aging",
-        description: "Receivables aging analysis surface.",
-        icon: TrendingUp,
-        status: "planned",
-        badge: "Planned",
+        label: "Pending approvals",
+        value: formatCount(dashboardData.alerts.pendingApprovals),
+        tone:
+          dashboardData.alerts.pendingApprovals > 0
+            ? "text-cyan-300"
+            : "text-white",
       },
       {
-        title: "AP Aging",
-        description: "Payables aging analysis surface.",
-        icon: TrendingDown,
-        status: "planned",
-        badge: "Planned",
-      },
-      {
-        title: "Project / Time Views",
-        description: "Financial record views by project and time horizon.",
-        icon: CalendarClock,
-        status: "planned",
-        badge: "Planned",
-      },
-      {
-        title: "Payroll Summaries",
-        description: "Payroll reporting and run-level financial summaries.",
-        route: "/finance/payroll",
-        requiredPermission: "viewPayroll",
-        icon: BriefcaseBusiness,
-        count: dashboardData.counts.payrollRuns,
-        status: "ready",
-      },
-      {
-        title: "Category Reports",
-        description: "Expense and revenue rollups by category.",
-        icon: FolderKanban,
-        status: "planned",
-        badge: "Planned",
+        label: "Draft journal blockers",
+        value: formatCount(dashboardData.alerts.periodCloseBlockers),
+        tone:
+          dashboardData.alerts.periodCloseBlockers > 0
+            ? "text-violet-300"
+            : "text-white",
       },
     ];
   }, [dashboardData]);
 
-  const adminModules = useMemo<ModuleCard[]>(() => {
+  const openBalances = useMemo(() => {
     return [
       {
-        title: "Ledger",
-        description: "Chart of accounts, periods, journals, and posting drilldown.",
-        route: "/finance/ledger",
-        requiredPermission: "viewLedger",
-        icon: BookOpen,
-        count: dashboardData.counts.journals,
-        status: "ready",
+        label: "Invoices outstanding",
+        value: `$${formatMoney(dashboardData.openBalances.invoicesAmount)}`,
       },
       {
-        title: "Posting Rules",
-        description: "Control posting automation and source-to-ledger mappings.",
-        icon: Settings2,
-        status: "planned",
-        badge: "Planned",
+        label: "Bills outstanding",
+        value: `$${formatMoney(dashboardData.openBalances.billsAmount)}`,
       },
       {
-        title: "Accounting Periods",
-        description: "Manage open, closed, and locked accounting periods.",
-        route: "/finance/ledger/periods",
-        requiredPermission: "viewLedger",
-        icon: CalendarClock,
-        count: dashboardData.counts.periods,
-        status: "ready",
-      },
-      {
-        title: "Finance Settings",
-        description: "System-level finance configuration surface.",
-        icon: FolderCog,
-        status: "planned",
-        badge: "Planned",
-      },
-      {
-        title: "Payroll Admin",
-        description: "Manage pay profiles, periods, runs, paychecks, and payments.",
-        route: "/finance/payroll",
-        requiredPermission: "viewPayroll",
-        icon: BriefcaseBusiness,
-        count: dashboardData.counts.payrollRuns,
-        status: "ready",
-      },
-      {
-        title: "Finance Controls",
-        description: "Surface financial control checks, posting gaps, and blockers.",
-        icon: ShieldCheck,
-        status: "planned",
-        badge: "Planned",
-      },
-      {
-        title: "Time / Project Financial Views",
-        description: "Issue and check financial records by time and project.",
-        icon: CalendarClock,
-        status: "planned",
-        badge: "Planned",
+        label: "Approved expenses waiting",
+        value: formatCount(dashboardData.openBalances.reimbursementsPending),
       },
     ];
   }, [dashboardData]);
 
-  const openModule = useCallback(
-    (route?: string) => {
-      if (!route) return;
+  const periodHealth = useMemo(() => {
+    return [
+      {
+        label: "Open periods",
+        value: formatCount(dashboardData.periods.open),
+        subtitle:
+          dashboardData.periods.currentOpenPeriodName || "No open period",
+      },
+      {
+        label: "Locked periods",
+        value: formatCount(dashboardData.periods.locked),
+        subtitle: `${formatCount(
+          dashboardData.alerts.periodCloseBlockers
+        )} journal blockers`,
+      },
+    ];
+  }, [dashboardData]);
+
+  const ledgerSummaryRows = useMemo(() => {
+    return dashboardData.ledgerPreview.slice(0, 5);
+  }, [dashboardData]);
+
+  const handleTabOpen = useCallback(
+    (route: string) => {
       navigate(route);
     },
     [navigate]
@@ -1143,516 +1119,345 @@ export default function FinancePage() {
   const renderWorkspaceContent = () => {
     if (isLoadingPermissions) {
       return (
-        <Card className="border-border bg-background/40">
-          <CardContent className="pt-6 text-sm text-muted-foreground">
+        <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+          <CardContent className="p-6 text-sm text-white/55">
             Loading workspace permissions...
           </CardContent>
         </Card>
       );
     }
 
-    switch (activeWorkspace) {
-      case "master-data":
-                return (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {masterDataModules.map((module) => (
-              <FinanceModuleButton
-                key={module.title}
-                module={module}
-                canAccess={canAccess(module.requiredPermission)}
-                onOpen={openModule}
-              />
-            ))}
-          </div>
-        );
+    return (
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {WORKSPACE_TABS.map((tab) => (
+          <FinanceTabButton key={tab.key} tab={tab} onOpen={handleTabOpen} />
+        ))}
+      </div>
+    );
+  };
 
-      case "transactions":
-                return (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {transactionModules.map((module) => (
-              <FinanceModuleButton
-                key={module.title}
-                module={module}
-                canAccess={canAccess(module.requiredPermission)}
-                onOpen={openModule}
-              />
-            ))}
-          </div>
-        );
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
+      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
+        <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6 xl:p-7">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_35%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_24%)]" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-[42%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.12),transparent_55%)] opacity-70" />
 
-      case "documents":
-                return (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {documentModules.map((module) => (
-              <FinanceModuleButton
-                key={module.title}
-                module={module}
-                canAccess
-                onOpen={openModule}
-              />
-            ))}
-          </div>
-        );
+          <div className="relative flex flex-col gap-6">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+              <div className="max-w-3xl space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.24em] text-white/70 shadow-none">
+                    Finance Hub
+                  </Badge>
 
-      case "reports":
-                return (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {reportModules.map((module) => (
-              <FinanceModuleButton
-                key={module.title}
-                module={module}
-                canAccess={canAccess(module.requiredPermission)}
-                onOpen={openModule}
-              />
-            ))}
-          </div>
-        );
-
-      case "settings":
-                return (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {adminModules.map((module) => (
-              <FinanceModuleButton
-                key={module.title}
-                module={module}
-                canAccess={canAccess(module.requiredPermission)}
-                onOpen={openModule}
-              />
-            ))}
-          </div>
-        );
-
-      case "dashboard":
-      default:
-        return (
-          <div className="grid grid-cols-1 gap-4 2xl:grid-cols-3">
-            <Card className="border-border bg-background/40 2xl:col-span-2">
-              <CardHeader>
-                <CardTitle className="text-white">Quick actions</CardTitle>
-                <CardDescription>
-                  Fast entry points for the most common finance work.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
-                <Button
-                  onClick={() => navigate("/finance/invoices/new")}
-                  className="justify-between"
-                >
-                  New Invoice
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={() => navigate("/finance/expenses/new")}
-                  className="justify-between border-border bg-background/60 text-white hover:bg-background/80"
-                >
-                  New Expense
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={() => navigate("/finance/bills")}
-                  className="justify-between border-border bg-background/60 text-white hover:bg-background/80"
-                >
-                  Open Bills
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={() => navigate("/finance/approvals")}
-                  className="justify-between border-border bg-background/60 text-white hover:bg-background/80"
-                >
-                  Open Approvals
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={() => navigate("/finance/payroll")}
-                  className="justify-between border-border bg-background/60 text-white hover:bg-background/80"
-                >
-                  Open Payroll
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={() => navigate("/finance/ledger")}
-                  className="justify-between border-border bg-background/60 text-white hover:bg-background/80"
-                >
-                  Open Ledger
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border bg-background/40">
-              <CardHeader>
-                <CardTitle className="text-white">Period health</CardTitle>
-                <CardDescription>
-                  Visibility into accounting period readiness.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="rounded-xl border border-border bg-background/60 p-4">
-                  <div className="text-xs text-muted-foreground">Open periods</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {formatCount(dashboardData.periods.open)}
-                  </div>
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    Current: {dashboardData.periods.currentOpenPeriodName || "No open period"}
-                  </div>
+                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                    Live backend
+                  </Badge>
                 </div>
 
-                <div className="rounded-xl border border-border bg-background/60 p-4">
-                  <div className="text-xs text-muted-foreground">Locked periods</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {formatCount(dashboardData.periods.locked)}
-                  </div>
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    Journal blockers: {formatCount(dashboardData.alerts.periodCloseBlockers)}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/10 bg-black/20 text-white shadow-[0_0_30px_rgba(255,255,255,0.08)]">
+                      <Sparkles className="h-5 w-5" />
+                    </div>
 
-            <Card className="border-border bg-background/40 2xl:col-span-2">
-              <CardHeader>
-                <CardTitle className="text-white">Recent activity</CardTitle>
-                <CardDescription>
-                  Latest finance records, approvals, and payroll movement.
-                </CardDescription>
+                    <div>
+                      <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                        Finance Command Center
+                      </h1>
+                      <div className="mt-1 text-sm text-white/45">
+                        A modern overview of your live financial position,
+                        approvals, balances, activity, and ledger health.
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="max-w-2xl text-sm leading-7 text-white/55 sm:text-[15px]">
+                    Built on your real finance backend structure, keeping your
+                    permissions, ledger logic, accounting periods, approvals,
+                    payroll, and operational flow intact — now with a stronger,
+                    more modern, more premium dashboard layer.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3 xl:justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(-1)}
+                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={() => void loadDashboard()}
+                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Refresh
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-6">
+              {dashboardMetricCards.map((metric) => (
+                <FinanceMetricCard key={metric.key} metric={metric} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+                <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_420px]">
+          <div className="space-y-6">
+            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <CardHeader className="border-b border-white/8 pb-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <CardTitle className="text-white">Recent Activity</CardTitle>
+                    <CardDescription className="text-white/45">
+                      Latest finance records, approvals, and payroll movement.
+                    </CardDescription>
+                  </div>
+
+                  <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs text-white/70 shadow-none">
+                    Live feed
+                  </Badge>
+                </div>
               </CardHeader>
-              <CardContent className="space-y-3">
+
+              <CardContent className="p-4 sm:p-5">
                 {dashboardData.recentActivity.length === 0 ? (
-                  <div className="rounded-xl border border-border bg-background/60 p-4 text-sm text-muted-foreground">
+                  <div className="rounded-[22px] border border-white/10 bg-black/15 p-6 text-sm text-white/50">
                     No finance activity found yet.
                   </div>
                 ) : (
-                  dashboardData.recentActivity.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        if (!item.route) return;
-                        navigate(item.route);
-                      }}
-                      className="flex w-full items-center justify-between rounded-xl border border-border bg-background/60 p-4 text-left transition-colors hover:bg-background/80"
-                    >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="secondary"
-                            className="bg-primary/15 text-white"
-                          >
-                            {item.type}
-                          </Badge>
-                          <div className="font-medium text-white">{item.title}</div>
-                        </div>
-                        <div className="mt-2 text-sm text-muted-foreground">
-                          {item.subtitle}
-                        </div>
-                      </div>
+                  <div className="space-y-3">
+                    {dashboardData.recentActivity.map((item, index) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          if (!item.route) return;
+                          navigate(item.route);
+                        }}
+                        className="group flex w-full items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
+                      >
+                        <div className="flex min-w-0 items-start gap-4">
+                          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/75">
+                            <span className="text-xs font-semibold text-white/70">
+                              {String(index + 1).padStart(2, "0")}
+                            </span>
+                          </div>
 
-                      <div className="text-xs text-muted-foreground">
-                        {formatDateLabel(item.createdAt)}
-                      </div>
-                    </button>
-                  ))
+                          <div className="min-w-0 space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge className="rounded-full border border-cyan-400/15 bg-cyan-500/10 px-2.5 py-1 text-[11px] text-cyan-200 shadow-none">
+                                {item.type}
+                              </Badge>
+                              <div className="truncate text-sm font-medium text-white sm:text-[15px]">
+                                {item.title}
+                              </div>
+                            </div>
+
+                            <div className="text-sm leading-6 text-white/48">
+                              {item.subtitle}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-3 pl-2">
+                          <div className="hidden text-xs text-white/35 sm:block">
+                            {formatDateLabel(item.createdAt)}
+                          </div>
+                          <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="border-border bg-background/40">
-              <CardHeader>
-                <CardTitle className="text-white">Selected ledger summaries</CardTitle>
-                <CardDescription>
-                  Trial balance preview from current live ledger data.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {dashboardData.ledgerPreview.length === 0 ? (
-                  <div className="rounded-xl border border-border bg-background/60 p-4 text-sm text-muted-foreground">
-                    No trial balance preview available.
+            <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.04] backdrop-blur-xl">
+              <CardHeader className="border-b border-white/8 pb-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <CardTitle className="text-white">Quick Actions</CardTitle>
+                    <CardDescription className="text-white/45">
+                      Fast entry points for the most common finance work.
+                    </CardDescription>
                   </div>
-                ) : (
-                  dashboardData.ledgerPreview.map((row) => (
+
+                  <div className="hidden h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/70 sm:flex">
+                    <Sparkles className="h-4 w-4" />
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-4 sm:p-5">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {quickActions.map((action) => {
+                    const Icon = action.icon;
+
+                    return (
+                      <Button
+                        key={action.label}
+                        variant="outline"
+                        onClick={() => navigate(action.route)}
+                        className="group h-auto justify-between rounded-[20px] border-white/10 bg-black/15 px-4 py-4 text-left text-white hover:bg-white/10"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/75">
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <span className="text-sm font-medium">{action.label}</span>
+                        </div>
+
+                        <ArrowRight className="h-4 w-4 text-white/35 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
+                      </Button>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <FinanceInsightCard title="Alerts" icon={BadgeAlert}>
+              <div className="space-y-3">
+                {insightAlerts.map((item) => (
+                  <div
+                    key={item.label}
+                    className="flex items-center justify-between gap-3 rounded-[20px] border border-white/8 bg-black/15 px-4 py-3"
+                  >
+                    <div className="text-sm text-white/60">{item.label}</div>
+                    <div className={`text-sm font-semibold ${item.tone}`}>
+                      {item.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </FinanceInsightCard>
+
+            <FinanceInsightCard title="Open Balances" icon={AlertTriangle}>
+              <div className="space-y-3">
+                {openBalances.map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3"
+                  >
+                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      {item.label}
+                    </div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {item.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </FinanceInsightCard>
+
+            <FinanceInsightCard title="Period Health" icon={CalendarClock}>
+              <div className="space-y-3">
+                {periodHealth.map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm text-white/60">{item.label}</div>
+                      <div className="text-base font-semibold text-white">
+                        {item.value}
+                      </div>
+                    </div>
+                    <div className="mt-2 text-xs text-white/40">
+                      {item.subtitle}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </FinanceInsightCard>
+
+            <FinanceInsightCard title="Selected Ledger Summaries" icon={BookOpen}>
+              {ledgerSummaryRows.length === 0 ? (
+                <div className="rounded-[20px] border border-white/8 bg-black/15 p-4 text-sm text-white/45">
+                  No trial balance preview available.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {ledgerSummaryRows.map((row) => (
                     <div
                       key={row.account_id}
-                      className="rounded-xl border border-border bg-background/60 p-4"
+                      className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3"
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <div className="font-medium text-white">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium text-white">
                             {row.account_code} — {row.account_name}
                           </div>
-                          <div className="mt-1 text-xs text-muted-foreground">
+                          <div className="mt-1 text-xs uppercase tracking-[0.16em] text-white/35">
                             {row.account_type}
                           </div>
                         </div>
 
-                        <div className="text-right">
-                          <div className="text-sm font-medium text-white">
-                            {formatMoney(toNumber(row.balance))}
+                        <div className="shrink-0 text-right">
+                          <div className="text-sm font-semibold text-white">
+                            ${formatMoney(toNumber(row.balance))}
                           </div>
-                          <div className="mt-1 text-xs text-muted-foreground">
+                          <div className="mt-1 text-[11px] text-white/35">
                             Balance
                           </div>
                         </div>
                       </div>
                     </div>
-                  ))
-                )}
+                  ))}
 
-                <Button
-                  variant="outline"
-                  onClick={() => navigate("/finance/ledger")}
-                  className="w-full border-border bg-background/60 text-white hover:bg-background/80"
-                >
-                  Open Ledger
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        );
-    }
-  };
-
-    return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-4 pb-6 pt-1 sm:px-6 xl:px-8">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-            <Badge variant="outline" className="border-border text-muted-foreground">
-              Finance Hub
-            </Badge>
-            <span>Live backend dashboard</span>
-          </div>
-
-          <div>
-            <h1 className="text-2xl font-semibold text-white">Finance</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              A modern finance command center built on your real backend tables,
-              workflows, permissions, and ledger structure.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            onClick={() => navigate(-1)}
-            className="border-border bg-background/40 text-white hover:bg-background/60"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Button>
-
-          <Button
-            variant="outline"
-            onClick={() => void loadDashboard()}
-            className="border-border bg-background/40 text-white hover:bg-background/60"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
-        {dashboardMetricCards.map((metric) => {
-          const Icon = metric.icon;
-
-          return (
-            <Card key={metric.title} className="border-border bg-background/40">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <CardDescription>{metric.title}</CardDescription>
-                    <CardTitle className="mt-2 text-white">
-                      {isLoadingDashboard ? "—" : metric.value}
-                    </CardTitle>
-                  </div>
-
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background/70">
-                    <Icon className="h-5 w-5 text-white" />
-                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate("/finance/ledger")}
+                    className="mt-1 h-11 w-full rounded-[18px] border-white/10 bg-black/15 text-white hover:bg-white/10"
+                  >
+                    Open Ledger
+                  </Button>
                 </div>
-              </CardHeader>
-
-              <CardContent className="pt-0 text-xs text-muted-foreground">
-                {metric.subtitle}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 2xl:grid-cols-12">
-        <Card className="border-border bg-background/40 xl:col-span-4">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
-              <BadgeAlert className="h-4 w-4" />
-              Alerts
-            </CardTitle>
-            <CardDescription>
-              What needs attention right now.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="rounded-xl border border-border bg-background/60 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm text-white">Overdue invoices</div>
-                <Badge variant="secondary" className="bg-background/70 text-white">
-                  {formatCount(dashboardData.alerts.overdueInvoices)}
-                </Badge>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-border bg-background/60 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm text-white">Overdue bills</div>
-                <Badge variant="secondary" className="bg-background/70 text-white">
-                  {formatCount(dashboardData.alerts.overdueBills)}
-                </Badge>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-border bg-background/60 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm text-white">Pending approvals</div>
-                <Badge variant="secondary" className="bg-background/70 text-white">
-                  {formatCount(dashboardData.alerts.pendingApprovals)}
-                </Badge>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-border bg-background/60 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm text-white">Draft journal blockers</div>
-                <Badge variant="secondary" className="bg-background/70 text-white">
-                  {formatCount(dashboardData.alerts.periodCloseBlockers)}
-                </Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border bg-background/40 xl:col-span-4">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
-              <AlertTriangle className="h-4 w-4" />
-              Open balances
-            </CardTitle>
-            <CardDescription>
-              Live balance exposure across finance records.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="rounded-xl border border-border bg-background/60 p-4">
-              <div className="text-xs text-muted-foreground">Invoices outstanding</div>
-              <div className="mt-2 text-xl font-semibold text-white">
-                {formatMoney(dashboardData.openBalances.invoicesAmount)}
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-border bg-background/60 p-4">
-              <div className="text-xs text-muted-foreground">Bills outstanding</div>
-              <div className="mt-2 text-xl font-semibold text-white">
-                {formatMoney(dashboardData.openBalances.billsAmount)}
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-border bg-background/60 p-4">
-              <div className="text-xs text-muted-foreground">
-                Approved expenses pending reimbursement/payment
-              </div>
-              <div className="mt-2 text-xl font-semibold text-white">
-                {formatCount(dashboardData.openBalances.reimbursementsPending)}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border bg-background/40 xl:col-span-4">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
-              <BookOpen className="h-4 w-4" />
-              Ledger health
-            </CardTitle>
-            <CardDescription>
-              Quick posting status and journal readiness.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="rounded-xl border border-border bg-background/60 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm text-white">Posted journals</div>
-                <Badge variant="secondary" className="bg-background/70 text-white">
-                  {formatCount(dashboardData.journals.posted)}
-                </Badge>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-border bg-background/60 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm text-white">Draft journals</div>
-                <Badge variant="secondary" className="bg-background/70 text-white">
-                  {formatCount(dashboardData.journals.draft)}
-                </Badge>
-              </div>
-            </div>
-
-            <Button
-              variant="outline"
-              onClick={() => navigate("/finance/ledger/journals")}
-              className="w-full border-border bg-background/60 text-white hover:bg-background/80"
-            >
-              Open journal entries
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-            <Card className="border-border bg-background/40">
-        <CardHeader>
-          <CardTitle className="text-white">Finance workspaces</CardTitle>
-          <CardDescription>
-            The dashboard stays visual at the top, and these tabs open each
-            finance area independently inside the finance hub.
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-5">
-          <div className="flex flex-wrap gap-2">
-            {WORKSPACE_TABS.map((tab) => {
-              const active = tab.key === activeWorkspace;
-
-              return (
-                <Button
-                  key={tab.key}
-                  type="button"
-                  variant={active ? "default" : "outline"}
-                  onClick={() => setActiveWorkspace(tab.key)}
-                  className={
-                    active
-                      ? ""
-                      : "border-border bg-background/60 text-white hover:bg-background/80"
-                  }
-                >
-                  {tab.label}
-                </Button>
-              );
-            })}
+              )}
+            </FinanceInsightCard>
           </div>
+        </section>
 
-          {renderWorkspaceContent()}
-        </CardContent>
-      </Card>
+                <section>
+          <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+            <CardHeader className="border-b border-white/8 pb-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-white/65 shadow-none">
+                      Finance Navigation
+                    </Badge>
+                  </div>
+                  <CardTitle className="text-white">Open a Finance Workspace</CardTitle>
+                  <CardDescription className="max-w-2xl text-white/45">
+                    The dashboard stays focused on live financial status. These tabs
+                    open the dedicated finance pages for master data, transactions,
+                    documents, editor flows, reporting, and admin control.
+                  </CardDescription>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/40">
+                  Click any tab to open its full page
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-4 sm:p-5 xl:p-6">
+              {renderWorkspaceContent()}
+            </CardContent>
+          </Card>
+        </section>
       </div>
     </div>
   );

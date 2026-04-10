@@ -983,15 +983,21 @@ export default function FinancePage() {
 
   const insightAlerts = useMemo(() => {
     return [
-      {
+            {
         label: "Overdue invoices",
         value: formatCount(dashboardData.alerts.overdueInvoices),
-        tone: dashboardData.alerts.overdueInvoices > 0 ? "text-rose-300" : "text-white",
+        tone:
+          dashboardData.alerts.overdueInvoices > 0
+            ? "text-rose-300"
+            : "text-white/75",
       },
       {
         label: "Overdue bills",
         value: formatCount(dashboardData.alerts.overdueBills),
-        tone: dashboardData.alerts.overdueBills > 0 ? "text-amber-300" : "text-white",
+        tone:
+          dashboardData.alerts.overdueBills > 0
+            ? "text-amber-300"
+            : "text-white/75",
       },
       {
         label: "Pending approvals",
@@ -999,7 +1005,7 @@ export default function FinancePage() {
         tone:
           dashboardData.alerts.pendingApprovals > 0
             ? "text-cyan-300"
-            : "text-white",
+            : "text-white/75",
       },
       {
         label: "Draft journal blockers",
@@ -1007,7 +1013,7 @@ export default function FinancePage() {
         tone:
           dashboardData.alerts.periodCloseBlockers > 0
             ? "text-violet-300"
-            : "text-white",
+            : "text-white/75",
       },
     ];
   }, [dashboardData]);
@@ -1153,7 +1159,7 @@ export default function FinancePage() {
                 <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_420px]">
           <div className="space-y-6">
             <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardHeader className="border-b border-white/8 pb-4">
+              <CardHeader className="sticky top-0 z-10 border-b border-white/8 bg-[rgba(15,23,42,0.72)] pb-4 backdrop-blur-xl">
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-1">
                     <CardTitle className="text-white">Recent Activity</CardTitle>
@@ -1184,10 +1190,10 @@ export default function FinancePage() {
                             if (!item.route) return;
                             navigate(item.route);
                           }}
-                          className="group flex w-full items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
+                          className="group flex w-full items-start justify-between gap-4 rounded-[20px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
                         >
                           <div className="flex min-w-0 items-start gap-4">
-                            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/75">
+                            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/75">
                               <span className="text-xs font-semibold text-white/70">
                                 {String(index + 1).padStart(2, "0")}
                               </span>
@@ -1210,7 +1216,7 @@ export default function FinancePage() {
                           </div>
 
                           <div className="flex shrink-0 items-center gap-3 pl-2">
-                            <div className="hidden text-xs text-white/35 sm:block">
+                            <div className="hidden text-xs text-white/30 transition-colors duration-200 group-hover:text-white/55 sm:block">
                               {formatDateLabel(item.createdAt)}
                             </div>
                             <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
@@ -1273,7 +1279,7 @@ export default function FinancePage() {
                 {insightAlerts.map((item) => (
                   <div
                     key={item.label}
-                    className="flex items-center justify-between gap-3 rounded-[20px] border border-white/8 bg-black/15 px-4 py-3"
+                    className="flex items-center justify-between gap-3 rounded-[18px] border border-white/8 bg-black/15 px-4 py-3 transition-colors duration-200 hover:bg-white/[0.05]"
                   >
                     <div className="text-sm text-white/60">{item.label}</div>
                     <div className={`text-sm font-semibold ${item.tone}`}>

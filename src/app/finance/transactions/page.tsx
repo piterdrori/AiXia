@@ -934,7 +934,7 @@ export default function FinanceTransactionsPage() {
                 className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
+                BACK-TEST
               </Button>
 
               <Button
@@ -943,7 +943,7 @@ export default function FinanceTransactionsPage() {
                 className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
               >
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Refresh
+                REFRESH-TEST
               </Button>
             </div>
           </div>

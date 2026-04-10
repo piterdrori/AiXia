@@ -713,11 +713,11 @@ export default function FinanceTransactionsPage() {
     };
   }, [loadTransactionsData]);
 
-  const metricCards = useMemo<TransactionMetricCard[]>(() => {
+   const metricCards = useMemo<TransactionMetricCard[]>(() => {
     return [
       {
         key: "receivables",
-        title: "Receivables",
+        title: "Total Receivables",
         value: isLoading ? "—" : `$${formatMoney(data.totals.receivables)}`,
         subtitle: `${formatCount(data.counts.invoices)} invoice records`,
         icon: Wallet,
@@ -725,11 +725,43 @@ export default function FinanceTransactionsPage() {
       },
       {
         key: "payables",
-        title: "Payables",
+        title: "Total Payables",
         value: isLoading ? "—" : `$${formatMoney(data.totals.payables)}`,
         subtitle: `${formatCount(data.counts.bills)} bill records`,
         icon: Receipt,
         tone: "amber",
+      },
+      {
+        key: "overdue-invoices",
+        title: "Overdue Invoices",
+        value: isLoading ? "—" : formatCount(data.alerts.overdueInvoices),
+        subtitle: "Receivables needing collection",
+        icon: BadgeAlert,
+        tone: "rose",
+      },
+      {
+        key: "overdue-bills",
+        title: "Overdue Bills",
+        value: isLoading ? "—" : formatCount(data.alerts.overdueBills),
+        subtitle: "Payables needing payment",
+        icon: BadgeAlert,
+        tone: "amber",
+      },
+      {
+        key: "pending-expenses",
+        title: "Pending Expenses",
+        value: isLoading ? "—" : formatCount(data.alerts.pendingExpenses),
+        subtitle: `${formatCount(data.counts.expenses)} total expense records`,
+        icon: Receipt,
+        tone: "violet",
+      },
+      {
+        key: "pending-reimbursements",
+        title: "Pending Reimbursements",
+        value: isLoading ? "—" : formatCount(data.alerts.pendingReimbursements),
+        subtitle: `${formatCount(data.counts.reimbursements)} reimbursement records`,
+        icon: Wallet,
+        tone: "blue",
       },
       {
         key: "payments-in",
@@ -751,17 +783,9 @@ export default function FinanceTransactionsPage() {
         key: "approvals-pending",
         title: "Approvals Pending",
         value: isLoading ? "—" : formatCount(data.alerts.pendingApprovals),
-        subtitle: "Operational approval pressure",
+        subtitle: "Cross-object approvals waiting",
         icon: ShieldCheck,
         tone: "cyan",
-      },
-      {
-        key: "payroll",
-        title: "Payroll Overview",
-        value: isLoading ? "—" : formatCount(data.counts.payrollRuns),
-        subtitle: "Runs currently visible",
-        icon: BriefcaseBusiness,
-        tone: "violet",
       },
     ];
   }, [data, isLoading]);
@@ -950,7 +974,7 @@ export default function FinanceTransactionsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
               {metricCards.map((metric) => (
                 <TransactionMetric key={metric.key} metric={metric} />
               ))}
@@ -1000,7 +1024,7 @@ export default function FinanceTransactionsPage() {
               </Card>
             </section>
 
-            <section>
+                       <section>
               <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
                 <CardHeader className="border-b border-white/8 pb-4">
                   <CardTitle className="text-white">
@@ -1013,31 +1037,31 @@ export default function FinanceTransactionsPage() {
                 </CardHeader>
 
                 <CardContent className="p-5">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-5">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                     <SummaryBlock
-                      title="Invoices"
+                      title="Invoices Summary"
                       value={isLoading ? "—" : formatCount(data.counts.invoices)}
                       subtitle={`$${formatMoney(data.totals.receivables)} open receivables`}
                     />
                     <SummaryBlock
-                      title="Bills"
+                      title="Bills Summary"
                       value={isLoading ? "—" : formatCount(data.counts.bills)}
                       subtitle={`$${formatMoney(data.totals.payables)} open payables`}
                     />
                     <SummaryBlock
-                      title="Proforma"
+                      title="Proforma Summary"
                       value={
                         isLoading ? "—" : formatCount(data.counts.proformaInvoices)
                       }
                       subtitle="Pre-invoice workflow reserved"
                     />
                     <SummaryBlock
-                      title="Expenses"
+                      title="Expenses Summary"
                       value={isLoading ? "—" : formatCount(data.counts.expenses)}
                       subtitle={`${formatCount(data.alerts.pendingExpenses)} pending expense items`}
                     />
                     <SummaryBlock
-                      title="Reimbursements"
+                      title="Reimbursements Summary"
                       value={
                         isLoading ? "—" : formatCount(data.counts.reimbursements)
                       }
@@ -1045,14 +1069,38 @@ export default function FinanceTransactionsPage() {
                         data.alerts.pendingReimbursements
                       )} pending reimbursements`}
                     />
+                    <SummaryBlock
+                      title="Payments Made Summary"
+                      value={isLoading ? "—" : formatCount(data.counts.paymentsMade)}
+                      subtitle={`$${formatMoney(data.totals.paymentsOut)} total payments out`}
+                    />
+                    <SummaryBlock
+                      title="Payments Received Summary"
+                      value={
+                        isLoading ? "—" : formatCount(data.counts.paymentsReceived)
+                      }
+                      subtitle={`$${formatMoney(data.totals.paymentsIn)} total payments in`}
+                    />
+                    <SummaryBlock
+                      title="Payroll Summary"
+                      value={isLoading ? "—" : formatCount(data.counts.payrollRuns)}
+                      subtitle="Payroll runs currently visible"
+                    />
+                    <SummaryBlock
+                      title="Purchase Orders Summary"
+                      value={
+                        isLoading ? "—" : formatCount(data.counts.purchaseOrders)
+                      }
+                      subtitle="PO workflow reserved for later stage"
+                    />
                   </div>
                 </CardContent>
               </Card>
             </section>
           </div>
 
-                              <div className="flex flex-col gap-6">
-            <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                                       <div className="flex flex-col gap-6">
+            <Card className="h-[620px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <CardHeader className="border-b border-white/8 pb-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-1">
@@ -1068,13 +1116,13 @@ export default function FinanceTransactionsPage() {
                 </div>
               </CardHeader>
 
-              <CardContent className="min-h-0 flex-1 p-0">
+              <CardContent className="flex min-h-0 flex-1 flex-col p-0">
                 {recentActivity.length === 0 ? (
                   <div className="p-6 text-sm text-white/50">
                     No transaction activity found yet.
                   </div>
                 ) : (
-                  <div className="h-full overflow-y-auto px-4 py-4 sm:px-5">
+                  <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
                     <div className="space-y-3">
                       {recentActivity.map((item, index) => (
                         <button

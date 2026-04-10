@@ -37,11 +37,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-type ProfilePermissionRow = {
-  role: Role;
-  permissions?: Record<string, boolean> | null;
-};
-
 type WorkspaceKey =
   | "master-data"
   | "transactions"

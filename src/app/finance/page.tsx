@@ -39,7 +39,7 @@ import {
 
 type ProfilePermissionRow = {
   role: Role;
-  permissions?: Partial<Record<Permission, boolean>> | null;
+  permissions?: Record<string, boolean> | null;
 };
 
 type WorkspaceKey =
@@ -493,11 +493,6 @@ function FinanceInsightCard({
 
 export default function FinancePage() {
   const navigate = useNavigate();
-
-  const [role, setRole] = useState<Role | null>(null);
-  const [permissionOverrides, setPermissionOverrides] = useState<
-    Partial<Record<Permission, boolean>> | null
-  >(null);
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
 
   const [dashboardData, setDashboardData] =
@@ -513,32 +508,17 @@ export default function FinancePage() {
       } = await supabase.auth.getUser();
 
       if (!user?.id) {
-        setRole(null);
-        setPermissionOverrides(null);
         setIsLoadingPermissions(false);
         return;
       }
 
-      const { data } = await supabase
+      await supabase
         .from("profiles")
         .select("role, permissions")
         .eq("user_id", user.id)
         .maybeSingle();
-
-      if (!data) {
-        setRole(null);
-        setPermissionOverrides(null);
-        setIsLoadingPermissions(false);
-        return;
-      }
-
-      const typed = data as ProfilePermissionRow;
-      setRole(typed.role);
-      setPermissionOverrides(typed.permissions ?? null);
     } catch (error) {
       console.error("Failed to load finance permissions:", error);
-      setRole(null);
-      setPermissionOverrides(null);
     } finally {
       setIsLoadingPermissions(false);
     }

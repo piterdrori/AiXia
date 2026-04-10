@@ -909,20 +909,20 @@ export default function FinanceTransactionsPage() {
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="mx-auto flex h-full w-full max-w-[1680px] min-h-0 flex-col px-4 pb-4 pt-2 sm:px-6 xl:px-8">
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1">
-                                   <section className="rounded-[24px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-          <div className="flex items-center justify-between gap-4 px-5 py-4 sm:px-6">
+                                          <section className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.10),transparent_32%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.10),transparent_24%)]" />
+
+          <div className="relative flex items-center justify-between gap-4 px-5 py-5 sm:px-6 xl:px-7">
             <div className="min-w-0">
-              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-white/35">
-                <span>Finance</span>
-                <span className="text-white/20">/</span>
-                <span className="text-cyan-200">Transactions</span>
+              <div className="inline-flex items-center rounded-full border border-cyan-400/15 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200">
+                Operations Hub
               </div>
 
-              <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+              <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
                 Transactions Hub
               </h1>
 
-              <div className="mt-1 text-sm text-white/45">
+              <div className="mt-2 text-sm text-white/45">
                 Cross-object finance operations across invoices, bills, expenses, reimbursements, payments, approvals, and payroll.
               </div>
             </div>

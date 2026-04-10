@@ -470,9 +470,11 @@ export default function FinancePage() {
   const navigate = useNavigate();
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
 
-  const [dashboardData, setDashboardData] =
+    const [dashboardData, setDashboardData] =
     useState<DashboardData>(EMPTY_DASHBOARD_DATA);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
+  const [activityPanelHeight, setActivityPanelHeight] = useState(640);
+  const [isResizingActivity, setIsResizingActivity] = useState(false);
 
   const loadPermissions = useCallback(async () => {
     setIsLoadingPermissions(true);
@@ -982,12 +984,38 @@ export default function FinancePage() {
     ];
   }, [dashboardData]);
 
-  const handleTabOpen = useCallback(
+    const handleTabOpen = useCallback(
     (route: string) => {
       navigate(route);
     },
     [navigate]
   );
+
+  const handleActivityResizeStart = useCallback(() => {
+    setIsResizingActivity(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isResizingActivity) return;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const nextHeight = event.clientY - 220;
+      const clampedHeight = Math.max(420, Math.min(nextHeight, 1100));
+      setActivityPanelHeight(clampedHeight);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingActivity(false);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizingActivity]);
 
   const renderWorkspaceContent = () => {
     if (isLoadingPermissions) {
@@ -1106,7 +1134,10 @@ export default function FinancePage() {
 
                 <section className="grid grid-cols-1 items-stretch gap-6 xl:grid-cols-[minmax(0,1.35fr)_420px]">
           <div className="flex h-full flex-col">
-            <Card className="flex h-[640px] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl xl:h-[640px]">
+            <Card
+  className="flex flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl"
+  style={{ height: `${activityPanelHeight}px` }}
+>
               <CardHeader className="sticky top-0 z-10 border-b border-white/8 bg-[rgba(15,23,42,0.72)] pb-4 backdrop-blur-xl">
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-1">
@@ -1122,13 +1153,13 @@ export default function FinancePage() {
                 </div>
               </CardHeader>
 
-                            <CardContent className="flex-1 p-0 min-h-0">
+                                          <CardContent className="flex min-h-0 flex-1 flex-col p-0">
                 {dashboardData.recentActivity.length === 0 ? (
-                  <div className="p-6 text-sm text-white/50">
+                  <div className="flex-1 p-6 text-sm text-white/50">
                     No finance activity found yet.
                   </div>
                 ) : (
-                  <div className="h-full overflow-y-auto px-4 py-4 sm:px-5">
+                  <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
                     <div className="space-y-3">
                       {dashboardData.recentActivity.map((item, index) => (
                         <button
@@ -1174,6 +1205,15 @@ export default function FinancePage() {
                     </div>
                   </div>
                 )}
+
+                <button
+                  type="button"
+                  onMouseDown={handleActivityResizeStart}
+                  className="group flex h-6 w-full cursor-row-resize items-center justify-center border-t border-white/8 bg-white/[0.02] hover:bg-white/[0.05]"
+                  aria-label="Resize recent activity panel"
+                >
+                  <div className="h-1.5 w-24 rounded-full bg-white/15 transition-colors duration-200 group-hover:bg-cyan-300/60" />
+                </button>
               </CardContent>
             </Card>
           </div>

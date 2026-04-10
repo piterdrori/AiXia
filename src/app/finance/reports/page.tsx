@@ -1095,51 +1095,53 @@ export default function FinanceReportsPage() {
             </PreviewPanel>
           </section>
 
-                    <section className="order-last">
-            <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardHeader className="border-b border-white/8 pb-4">
-                <CardTitle className="flex items-center gap-3 text-white">
-                  <FileSpreadsheet className="h-4 w-4 text-cyan-300" />
-                  Reports Hub Rules
-                </CardTitle>
-                <CardDescription className="text-white/45">
-                  This page is locked as a read-only analysis layer.
-                </CardDescription>
-              </CardHeader>
+                             <div className="mt-2">
+            <section>
+              <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                <CardHeader className="border-b border-white/8 pb-4">
+                  <CardTitle className="flex items-center gap-3 text-white">
+                    <FileSpreadsheet className="h-4 w-4 text-cyan-300" />
+                    Reports Hub Rules
+                  </CardTitle>
+                  <CardDescription className="text-white/45">
+                    This page is locked as a read-only analysis layer.
+                  </CardDescription>
+                </CardHeader>
 
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Allowed Here
+                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      Allowed Here
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-white/55">
+                      Analyze, filter, inspect previews, and move into report
+                      workspaces.
+                    </div>
                   </div>
-                  <div className="mt-2 text-sm leading-6 text-white/55">
-                    Analyze, filter, inspect previews, and move into report
-                    workspaces.
-                  </div>
-                </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Not Allowed Here
+                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      Not Allowed Here
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-white/55">
+                      No creation, no editing, no posting, no approval action, and
+                      no money movement.
+                    </div>
                   </div>
-                  <div className="mt-2 text-sm leading-6 text-white/55">
-                    No creation, no editing, no posting, no approval action, and
-                    no money movement.
-                  </div>
-                </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Export Direction
+                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      Export Direction
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-white/55">
+                      The sub-pages will handle export-ready views for PDF, Excel,
+                      CSV, and structured report output.
+                    </div>
                   </div>
-                  <div className="mt-2 text-sm leading-6 text-white/55">
-                    The sub-pages will handle export-ready views for PDF, Excel,
-                    CSV, and structured report output.
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </section>
+                </CardContent>
+              </Card>
+            </section>
+          </div>
         </div>
       </div>
     </div>

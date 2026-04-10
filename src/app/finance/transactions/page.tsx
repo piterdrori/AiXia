@@ -910,20 +910,21 @@ export default function FinanceTransactionsPage() {
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="mx-auto flex h-full w-full max-w-[1680px] min-h-0 flex-col px-4 pb-4 pt-2 sm:px-6 xl:px-8">
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1">
-                       <section className="relative overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.10),transparent_32%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.10),transparent_26%)]" />
+                <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6 xl:p-7">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_35%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_24%)]" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-[42%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.12),transparent_55%)] opacity-70" />
 
-          <div className="relative flex flex-col gap-6 p-5 sm:p-6 xl:p-7">
-            <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+          <div className="relative flex flex-col gap-5">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
               <div className="max-w-3xl space-y-4">
-                <div className="flex flex-wrap items-center gap-3 text-sm text-white/45">
-                  <span className="uppercase tracking-[0.24em] text-white/35">
-                    Finance
-                  </span>
-                  <span className="text-white/20">/</span>
-                  <span className="uppercase tracking-[0.24em] text-cyan-200">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.24em] text-white/70 shadow-none">
                     Transactions
-                  </span>
+                  </Badge>
+
+                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                    Operations dashboard
+                  </Badge>
                 </div>
 
                 <div className="space-y-3">
@@ -937,13 +938,17 @@ export default function FinanceTransactionsPage() {
                         Transactions Hub
                       </h1>
                       <div className="mt-1 text-sm text-white/45">
-                        Cross-object finance operations across invoices, bills, expenses, reimbursements, payments, approvals, and payroll.
+                        Cross-object finance operations across invoices, bills,
+                        expenses, reimbursements, payments, approvals, and payroll.
                       </div>
                     </div>
                   </div>
 
                   <p className="max-w-2xl text-sm leading-7 text-white/55 sm:text-[15px]">
-                    This page is the operational bridge between your finance overview and your object workspaces. It combines analytics across transaction objects, summarizes each module, and opens the dedicated page for actual day-to-day work.
+                    This page is the operational bridge between your finance
+                    overview and your object workspaces. It combines analytics
+                    across transaction objects, summarizes each module, and opens
+                    the dedicated page for actual day-to-day work.
                   </p>
                 </div>
               </div>

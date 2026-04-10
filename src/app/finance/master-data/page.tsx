@@ -11,7 +11,6 @@ import {
   Landmark,
   Package2,
   RefreshCw,
-  Settings2,
   Sparkles,
   TrendingUp,
   Users,
@@ -332,10 +331,17 @@ export default function FinanceMasterDataPage() {
           .select("id", { count: "exact", head: true }),
 
         // ITEMS (might not exist yet → safe fallback)
-        supabase
-          .from("finance_items")
-          .select("id", { count: "exact", head: true })
-          .catch(() => ({ count: 0 })),
+                (async () => {
+          try {
+            const result = await supabase
+              .from("finance_items")
+              .select("id", { count: "exact", head: true });
+
+            return result;
+          } catch {
+            return { count: 0 };
+          }
+        })(),
 
         // PROJECTS (existing system)
         supabase

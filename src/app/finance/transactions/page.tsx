@@ -1154,6 +1154,7 @@ export default function FinanceTransactionsPage() {
             </Card>
           </div>
         </div>
+        </div>
       </div>
     </div>
   );

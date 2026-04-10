@@ -1000,7 +1000,7 @@ export default function FinancePage() {
 
     const handleMouseMove = (event: MouseEvent) => {
       const nextHeight = event.clientY - 220;
-      const clampedHeight = Math.max(420, Math.min(nextHeight, 1100));
+      const clampedHeight = Math.max(250, Math.min(nextHeight, 1500));
       setActivityPanelHeight(clampedHeight);
     };
 

@@ -7,7 +7,6 @@ import {
   BadgeAlert,
   BookOpen,
   BriefcaseBusiness,
-  CalendarClock,
   DollarSign,
   FileBarChart2,
   FileClock,
@@ -471,10 +470,10 @@ function FinanceInsightCard({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+    <Card className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
       <CardHeader className="border-b border-white/8 pb-4">
         <CardTitle className="flex items-center gap-3 text-white">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/80">
+          <div className="flex h-8 w-8 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/80">
             <Icon className="h-4 w-4" />
           </div>
           <span>{title}</span>
@@ -1030,28 +1029,6 @@ export default function FinancePage() {
     ];
   }, [dashboardData]);
 
-  const periodHealth = useMemo(() => {
-    return [
-      {
-        label: "Open periods",
-        value: formatCount(dashboardData.periods.open),
-        subtitle:
-          dashboardData.periods.currentOpenPeriodName || "No open period",
-      },
-      {
-        label: "Locked periods",
-        value: formatCount(dashboardData.periods.locked),
-        subtitle: `${formatCount(
-          dashboardData.alerts.periodCloseBlockers
-        )} journal blockers`,
-      },
-    ];
-  }, [dashboardData]);
-
-  const ledgerSummaryRows = useMemo(() => {
-    return dashboardData.ledgerPreview.slice(0, 5);
-  }, [dashboardData]);
-
   const handleTabOpen = useCallback(
     (route: string) => {
       navigate(route);
@@ -1062,7 +1039,7 @@ export default function FinancePage() {
   const renderWorkspaceContent = () => {
     if (isLoadingPermissions) {
       return (
-        <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+        <Card className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
           <CardContent className="p-6 text-sm text-white/55">
             Loading workspace permissions...
           </CardContent>
@@ -1070,8 +1047,8 @@ export default function FinancePage() {
       );
     }
 
-    return (
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        return (
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {WORKSPACE_TABS.map((tab) => (
           <FinanceTabButton key={tab.key} tab={tab} onOpen={handleTabOpen} />
         ))}
@@ -1146,10 +1123,29 @@ export default function FinancePage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-6">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-6">
               {dashboardMetricCards.map((metric) => (
                 <FinanceMetricCard key={metric.key} metric={metric} />
               ))}
+            </div>
+
+            <div className="rounded-[26px] border border-white/10 bg-black/15 p-4 backdrop-blur-xl">
+              <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-white/40">
+                    Finance Navigation
+                  </div>
+                  <div className="mt-1 text-lg font-semibold text-white">
+                    Open a Finance Workspace
+                  </div>
+                </div>
+
+                <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                  Click any tab to open its full page
+                </div>
+              </div>
+
+              {renderWorkspaceContent()}
             </div>
           </div>
         </section>
@@ -1172,60 +1168,62 @@ export default function FinancePage() {
                 </div>
               </CardHeader>
 
-              <CardContent className="p-4 sm:p-5">
+                            <CardContent className="p-0">
                 {dashboardData.recentActivity.length === 0 ? (
-                  <div className="rounded-[22px] border border-white/10 bg-black/15 p-6 text-sm text-white/50">
+                  <div className="p-6 text-sm text-white/50">
                     No finance activity found yet.
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {dashboardData.recentActivity.map((item, index) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => {
-                          if (!item.route) return;
-                          navigate(item.route);
-                        }}
-                        className="group flex w-full items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
-                      >
-                        <div className="flex min-w-0 items-start gap-4">
-                          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/75">
-                            <span className="text-xs font-semibold text-white/70">
-                              {String(index + 1).padStart(2, "0")}
-                            </span>
-                          </div>
+                  <div className="max-h-[420px] overflow-y-auto px-4 py-4 sm:px-5">
+                    <div className="space-y-3">
+                      {dashboardData.recentActivity.map((item, index) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            if (!item.route) return;
+                            navigate(item.route);
+                          }}
+                          className="group flex w-full items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
+                        >
+                          <div className="flex min-w-0 items-start gap-4">
+                            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/75">
+                              <span className="text-xs font-semibold text-white/70">
+                                {String(index + 1).padStart(2, "0")}
+                              </span>
+                            </div>
 
-                          <div className="min-w-0 space-y-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge className="rounded-full border border-cyan-400/15 bg-cyan-500/10 px-2.5 py-1 text-[11px] text-cyan-200 shadow-none">
-                                {item.type}
-                              </Badge>
-                              <div className="truncate text-sm font-medium text-white sm:text-[15px]">
-                                {item.title}
+                            <div className="min-w-0 space-y-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge className="rounded-full border border-cyan-400/15 bg-cyan-500/10 px-2.5 py-1 text-[11px] text-cyan-200 shadow-none">
+                                  {item.type}
+                                </Badge>
+                                <div className="truncate text-sm font-medium text-white sm:text-[15px]">
+                                  {item.title}
+                                </div>
+                              </div>
+
+                              <div className="text-sm leading-6 text-white/48">
+                                {item.subtitle}
                               </div>
                             </div>
+                          </div>
 
-                            <div className="text-sm leading-6 text-white/48">
-                              {item.subtitle}
+                          <div className="flex shrink-0 items-center gap-3 pl-2">
+                            <div className="hidden text-xs text-white/35 sm:block">
+                              {formatDateLabel(item.createdAt)}
                             </div>
+                            <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
                           </div>
-                        </div>
-
-                        <div className="flex shrink-0 items-center gap-3 pl-2">
-                          <div className="hidden text-xs text-white/35 sm:block">
-                            {formatDateLabel(item.createdAt)}
-                          </div>
-                          <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
-                        </div>
-                      </button>
-                    ))}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.04] backdrop-blur-xl">
+            <Card className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] backdrop-blur-xl">
               <CardHeader className="border-b border-white/8 pb-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-1">
@@ -1241,7 +1239,7 @@ export default function FinancePage() {
                 </div>
               </CardHeader>
 
-              <CardContent className="p-4 sm:p-5">
+              <CardContent className="p-3 sm:p-4">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {quickActions.map((action) => {
                     const Icon = action.icon;
@@ -1251,10 +1249,10 @@ export default function FinancePage() {
                         key={action.label}
                         variant="outline"
                         onClick={() => navigate(action.route)}
-                        className="group h-auto justify-between rounded-[20px] border-white/10 bg-black/15 px-4 py-4 text-left text-white hover:bg-white/10"
+                        className="group h-[64px] justify-between rounded-[16px] border-white/10 bg-black/15 px-4 py-4 text-left text-white hover:bg-white/10"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/75">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/75">
                             <Icon className="h-4 w-4" />
                           </div>
                           <span className="text-sm font-medium">{action.label}</span>
@@ -1303,103 +1301,7 @@ export default function FinancePage() {
                 ))}
               </div>
             </FinanceInsightCard>
-
-            <FinanceInsightCard title="Period Health" icon={CalendarClock}>
-              <div className="space-y-3">
-                {periodHealth.map((item) => (
-                  <div
-                    key={item.label}
-                    className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm text-white/60">{item.label}</div>
-                      <div className="text-base font-semibold text-white">
-                        {item.value}
-                      </div>
-                    </div>
-                    <div className="mt-2 text-xs text-white/40">
-                      {item.subtitle}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </FinanceInsightCard>
-
-            <FinanceInsightCard title="Selected Ledger Summaries" icon={BookOpen}>
-              {ledgerSummaryRows.length === 0 ? (
-                <div className="rounded-[20px] border border-white/8 bg-black/15 p-4 text-sm text-white/45">
-                  No trial balance preview available.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {ledgerSummaryRows.map((row) => (
-                    <div
-                      key={row.account_id}
-                      className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-medium text-white">
-                            {row.account_code} — {row.account_name}
-                          </div>
-                          <div className="mt-1 text-xs uppercase tracking-[0.16em] text-white/35">
-                            {row.account_type}
-                          </div>
-                        </div>
-
-                        <div className="shrink-0 text-right">
-                          <div className="text-sm font-semibold text-white">
-                            ${formatMoney(toNumber(row.balance))}
-                          </div>
-                          <div className="mt-1 text-[11px] text-white/35">
-                            Balance
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                  <Button
-                    variant="outline"
-                    onClick={() => navigate("/finance/ledger")}
-                    className="mt-1 h-11 w-full rounded-[18px] border-white/10 bg-black/15 text-white hover:bg-white/10"
-                  >
-                    Open Ledger
-                  </Button>
-                </div>
-              )}
-            </FinanceInsightCard>
           </div>
-        </section>
-
-                <section>
-          <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-            <CardHeader className="border-b border-white/8 pb-4">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-white/65 shadow-none">
-                      Finance Navigation
-                    </Badge>
-                  </div>
-                  <CardTitle className="text-white">Open a Finance Workspace</CardTitle>
-                  <CardDescription className="max-w-2xl text-white/45">
-                    The dashboard stays focused on live financial status. These tabs
-                    open the dedicated finance pages for master data, transactions,
-                    documents, editor flows, reporting, and admin control.
-                  </CardDescription>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/40">
-                  Click any tab to open its full page
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="p-4 sm:p-5 xl:p-6">
-              {renderWorkspaceContent()}
-            </CardContent>
-          </Card>
         </section>
       </div>
     </div>

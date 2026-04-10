@@ -1066,7 +1066,7 @@ export default function FinanceReportsPage() {
                     <div className="text-sm text-white/50">
                       No expense category rows found.
                     </div>
-                  ) : (
+                                    ) : (
                     <div className="space-y-3">
                       {data.expenseCategoryPreview.map((row, index) => (
                         <div
@@ -1089,7 +1089,7 @@ export default function FinanceReportsPage() {
                           </div>
                         </div>
                       ))}
-                  </div>       
+                    </div>
                   )}
                 </div>
               </div>
@@ -1140,9 +1140,10 @@ export default function FinanceReportsPage() {
                     </div>
                   </div>
                 </CardContent>
-              </Card>
-             </section>
+               </Card>
+              </section>
             </div>
+          </div>
         </div>
       </div>
     </div>

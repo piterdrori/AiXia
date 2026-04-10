@@ -795,7 +795,8 @@ export default function FinanceReportsPage() {
             </Card>
           </section>
 
-                    <section className="grid min-h-0 grid-cols-1 gap-6 xl:grid-cols-2 2xl:grid-cols-3">
+                      <div className="flex flex-col gap-6">
+            <section className="grid min-h-0 grid-cols-1 gap-6 xl:grid-cols-2 2xl:grid-cols-3">
             <PreviewPanel
               title="Trial Balance Preview"
               badge="Core Accounting"
@@ -1088,15 +1089,15 @@ export default function FinanceReportsPage() {
                           </div>
                         </div>
                       ))}
-                    </div>
+                  </div>       
                   )}
                 </div>
               </div>
             </PreviewPanel>
-          </section>
+           </section>
 
-                             <div className="mt-2">
-            <section>
+            <div>
+             <section>
               <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
                 <CardHeader className="border-b border-white/8 pb-4">
                   <CardTitle className="flex items-center gap-3 text-white">
@@ -1140,8 +1141,8 @@ export default function FinanceReportsPage() {
                   </div>
                 </CardContent>
               </Card>
-            </section>
-          </div>
+             </section>
+            </div>
         </div>
       </div>
     </div>

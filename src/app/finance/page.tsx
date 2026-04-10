@@ -1104,9 +1104,9 @@ export default function FinancePage() {
           </div>
         </section>
 
-                <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_420px]">
-          <div className="space-y-6">
-            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                <section className="grid grid-cols-1 items-stretch gap-6 xl:grid-cols-[minmax(0,1.35fr)_420px]">
+          <div className="flex h-full flex-col">
+            <Card className="flex h-full min-h-[640px] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl xl:min-h-0">
               <CardHeader className="sticky top-0 z-10 border-b border-white/8 bg-[rgba(15,23,42,0.72)] pb-4 backdrop-blur-xl">
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-1">
@@ -1122,13 +1122,13 @@ export default function FinancePage() {
                 </div>
               </CardHeader>
 
-                            <CardContent className="p-0">
+                            <CardContent className="flex-1 p-0 min-h-0">
                 {dashboardData.recentActivity.length === 0 ? (
                   <div className="p-6 text-sm text-white/50">
                     No finance activity found yet.
                   </div>
                 ) : (
-                  <div className="max-h-[420px] overflow-y-auto px-4 py-4 sm:px-5">
+                  <div className="h-full overflow-y-auto px-4 py-4 sm:px-5">
                     <div className="space-y-3">
                       {dashboardData.recentActivity.map((item, index) => (
                         <button

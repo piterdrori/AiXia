@@ -11,7 +11,6 @@ import {
   Layers3,
   ReceiptText,
   RefreshCw,
-  Sparkles,
   TrendingDown,
   TrendingUp,
   Wallet,

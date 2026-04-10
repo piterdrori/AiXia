@@ -5,12 +5,9 @@ import {
   ArrowLeft,
   ArrowRight,
   BadgeAlert,
-  BookOpen,
   BriefcaseBusiness,
   DollarSign,
   FileBarChart2,
-  FileClock,
-  FileSpreadsheet,
   FolderKanban,
   Receipt,
   RefreshCw,
@@ -38,8 +35,6 @@ import {
 type WorkspaceKey =
   | "master-data"
   | "transactions"
-  | "documents"
-  | "editor"
   | "reports"
   | "settings";
 
@@ -211,44 +206,31 @@ const WORKSPACE_TABS: WorkspaceTab[] = [
   {
     key: "master-data",
     label: "Master Data",
-    description: "Clients, vendors, banks, methods, categories",
+    description: "Clients, vendors, banks, terms, tax codes, units, items",
     icon: Users,
     route: "/finance/master-data",
   },
   {
     key: "transactions",
     label: "Transactions",
-    description: "Invoices, bills, payments, expenses, approvals",
+    description:
+      "Invoices, bills, proforma invoices, expenses, payments, approvals, payroll",
     icon: Receipt,
     route: "/finance/transactions",
   },
   {
-    key: "documents",
-    label: "Documents",
-    description: "PI, PO, print center, templates, archives",
-    icon: FileSpreadsheet,
-    route: "/finance/documents",
-  },
-  {
-    key: "editor",
-    label: "Editor Workspace",
-    description: "Open detail, new, edit, and print flows",
-    icon: BookOpen,
-    route: "/finance/editor",
-  },
-  {
     key: "reports",
     label: "Reports",
-    description: "Ledger views, aging, summaries, analysis",
+    description: "Time-based and project-based analytics with export support",
     icon: FileBarChart2,
     route: "/finance/reports",
   },
   {
     key: "settings",
-    label: "Settings / Admin / Control",
-    description: "Periods, rules, controls, admin surfaces",
+    label: "Settings",
+    description: "Chart of accounts, periods, posting rules, controls, config",
     icon: Settings2,
-    route: "/finance/admin",
+    route: "/finance/settings",
   },
 ];
 
@@ -708,7 +690,7 @@ export default function FinancePage() {
             toNumber(invoice.balance_due)
           )}`,
           createdAt: invoice.created_at,
-          route: `/finance/invoices/${invoice.id}`,
+          route: `/finance/transactions/invoices/${invoice.id}`,
         })),
         ...bills.slice(0, 4).map((bill) => ({
           id: `bill-${bill.id}`,
@@ -718,7 +700,7 @@ export default function FinancePage() {
             toNumber(bill.balance_due)
           )}`,
           createdAt: bill.created_at,
-          route: `/finance/bills/${bill.id}`,
+          route: `/finance/transactions/bills/${bill.id}`,
         })),
         ...expenses.slice(0, 4).map((expense) => ({
           id: `expense-${expense.id}`,
@@ -726,7 +708,7 @@ export default function FinancePage() {
           title: expense.expense_number,
           subtitle: `${expense.status} • ${expense.title}`,
           createdAt: expense.created_at,
-          route: `/finance/expenses/${expense.id}`,
+          route: `/finance/transactions/expenses/${expense.id}`,
         })),
         ...approvals.slice(0, 4).map((approval) => ({
           id: `approval-${approval.id}`,
@@ -736,8 +718,8 @@ export default function FinancePage() {
           createdAt: approval.created_at,
           route:
             approval.entity_type === "finance_expense"
-              ? `/finance/expenses/${approval.entity_id}`
-              : "/finance/approvals",
+           ? `/finance/transactions/expenses/${approval.entity_id}`
+            : "/finance/transactions/approvals",
         })),
         ...payrollRuns.slice(0, 3).map((run) => ({
           id: `payroll-${run.id}`,
@@ -745,7 +727,7 @@ export default function FinancePage() {
           title: run.run_number || "Payroll run",
           subtitle: `${run.status} • Net ${formatMoney(toNumber(run.total_net))}`,
           createdAt: run.created_at,
-          route: `/finance/payroll/runs/${run.id}`,
+          route: `/finance/transactions/payroll/${run.id}`,
         })),
       ]
         .sort(
@@ -946,37 +928,27 @@ export default function FinancePage() {
     ];
   }, [dashboardData, isLoadingDashboard]);
 
-  const quickActions = useMemo(() => {
+    const quickActions = useMemo(() => {
     return [
       {
-        label: "New Invoice",
-        route: "/finance/invoices/new",
-        icon: FileSpreadsheet,
+        label: "Open Master Data",
+        route: "/finance/master-data",
+        icon: Users,
       },
       {
-        label: "New Expense",
-        route: "/finance/expenses/new",
+        label: "Open Transactions",
+        route: "/finance/transactions",
         icon: Receipt,
       },
       {
-        label: "Open Bills",
-        route: "/finance/bills",
-        icon: FileClock,
+        label: "Open Reports",
+        route: "/finance/reports",
+        icon: FileBarChart2,
       },
       {
-        label: "Open Approvals",
-        route: "/finance/approvals",
-        icon: ShieldCheck,
-      },
-      {
-        label: "Open Payroll",
-        route: "/finance/payroll",
-        icon: BriefcaseBusiness,
-      },
-      {
-        label: "Open Ledger",
-        route: "/finance/ledger",
-        icon: BookOpen,
+        label: "Open Settings",
+        route: "/finance/settings",
+        icon: Settings2,
       },
     ];
   }, []);
@@ -1099,11 +1071,12 @@ export default function FinancePage() {
                     </div>
                   </div>
 
-                  <p className="max-w-2xl text-sm leading-7 text-white/55 sm:text-[15px]">
-                    Built on your real finance backend structure, keeping your
-                    permissions, ledger logic, accounting periods, approvals,
-                    payroll, and operational flow intact — now with a stronger,
-                    more modern, more premium dashboard layer.
+                 <p className="max-w-2xl text-sm leading-7 text-white/55 sm:text-[15px]">
+                    Built on your real finance backend structure, this command
+                    center now routes into four clear layers: master data,
+                    transactions, reports, and settings. The goal is simple:
+                    cleaner navigation, less duplication, and a stronger
+                    enterprise finance workflow.
                   </p>
                 </div>
               </div>
@@ -1141,13 +1114,13 @@ export default function FinancePage() {
                   <div className="text-[11px] uppercase tracking-[0.22em] text-white/40">
                     Finance Navigation
                   </div>
-                  <div className="mt-1 text-lg font-semibold text-white">
-                    Open a Finance Workspace
+                 <div className="mt-1 text-lg font-semibold text-white">
+                    Open a Finance Module
                   </div>
                 </div>
 
-                <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                  Click any tab to open its full page
+               <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                  Dashboard, setup, operations, analytics, and control
                 </div>
               </div>
 
@@ -1234,8 +1207,8 @@ export default function FinancePage() {
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-1">
                     <CardTitle className="text-white">Quick Actions</CardTitle>
-                    <CardDescription className="text-white/45">
-                      Fast entry points for the most common finance work.
+                     <CardDescription className="text-white/45">
+                      Fast entry points into the four main finance layers.
                     </CardDescription>
                   </div>
 

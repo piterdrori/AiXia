@@ -1106,7 +1106,7 @@ export default function FinancePage() {
 
                 <section className="grid grid-cols-1 items-stretch gap-6 xl:grid-cols-[minmax(0,1.35fr)_420px]">
           <div className="flex h-full flex-col">
-            <Card className="flex h-[600px] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl xl:h-[600px]">
+            <Card className="flex h-[640px] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl xl:h-[640px]">
               <CardHeader className="sticky top-0 z-10 border-b border-white/8 bg-[rgba(15,23,42,0.72)] pb-4 backdrop-blur-xl">
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-1">

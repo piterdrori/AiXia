@@ -59,6 +59,7 @@ import FinancePaymentMethodsPage from "@/app/finance/payment-methods/page";
 import FinanceExpenseCategoriesPage from "@/app/finance/expense-categories/page";
 import FinanceRevenueCategoriesPage from "@/app/finance/revenue-categories/page";
 import FinanceMasterDataPage from "@/app/finance/master-data/page";
+import FinanceTransactionsPage from "@/app/finance/transactions/page";
 import FinanceInvoicesPage from "@/app/finance/invoices/page";
 import FinanceNewInvoicePage from "@/app/finance/invoices/new/page";
 import FinanceInvoiceDetailPage from "@/app/finance/invoices/[id]/page";
@@ -837,8 +838,8 @@ function AppRoutes() {
   }
 />
 
-   <Route
-  path="/finance/invoices"
+<Route
+  path="/finance/transactions/invoices"
   element={
     <ProtectedRoute>
       <DashboardLayout>
@@ -849,7 +850,7 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/invoices/new"
+  path="/finance/transactions/invoices/new"
   element={
     <ProtectedRoute>
       <DashboardLayout>
@@ -860,7 +861,7 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/invoices/:id"
+  path="/finance/transactions/invoices/:id"
   element={
     <ProtectedRoute>
       <DashboardLayout>
@@ -871,7 +872,7 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/bills"
+  path="/finance/transactions/bills"
   element={
     <ProtectedRoute>
       <DashboardLayout>
@@ -882,7 +883,7 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/bills/:id"
+  path="/finance/transactions/bills/:id"
   element={
     <ProtectedRoute>
       <DashboardLayout>
@@ -893,7 +894,7 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/payments-made"
+  path="/finance/transactions/payments-made"
   element={
     <ProtectedRoute>
       <DashboardLayout>
@@ -903,8 +904,8 @@ function AppRoutes() {
   }
 />
 
-      <Route
-  path="/finance/expenses"
+<Route
+  path="/finance/transactions/expenses"
   element={
     <ProtectedRoute>
       <DashboardLayout>
@@ -915,7 +916,7 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/expenses/new"
+  path="/finance/transactions/expenses/new"
   element={
     <ProtectedRoute>
       <DashboardLayout>
@@ -926,7 +927,7 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/expenses/:id"
+  path="/finance/transactions/expenses/:id"
   element={
     <ProtectedRoute>
       <DashboardLayout>
@@ -937,7 +938,7 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/reimbursements"
+  path="/finance/transactions/reimbursements"
   element={
     <ProtectedRoute>
       <DashboardLayout>
@@ -948,7 +949,7 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/reimbursements/:id"
+  path="/finance/transactions/reimbursements/:id"
   element={
     <ProtectedRoute>
       <DashboardLayout>
@@ -959,7 +960,7 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/approvals"
+  path="/finance/transactions/approvals"
   element={
     <ProtectedRoute>
       <DashboardLayout>
@@ -970,7 +971,7 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/payroll"
+  path="/finance/transactions/payroll"
   element={
     <ProtectedRoute>
       <DashboardLayout>

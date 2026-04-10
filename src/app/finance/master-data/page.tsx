@@ -41,10 +41,15 @@ type MasterDataOverviewCard = {
 type MasterDataModuleKey =
   | "clients"
   | "vendors"
+  | "vendor-bank-accounts"
   | "bank-accounts"
   | "payment-methods"
+  | "payment-terms"
+  | "shipping-terms"
+  | "tax-codes"
   | "expense-categories"
   | "revenue-categories"
+  | "units-of-measure"
   | "items"
   | "projects"
   | "employees"
@@ -74,10 +79,15 @@ type MasterDataPageData = {
   counts: {
     clients: number;
     vendors: number;
+    vendorBankAccounts: number;
     bankAccounts: number;
     paymentMethods: number;
+    paymentTerms: number;
+    shippingTerms: number;
+    taxCodes: number;
     expenseCategories: number;
     revenueCategories: number;
+    unitsOfMeasure: number;
     items: number;
     projects: number;
     employees: number;
@@ -91,13 +101,18 @@ type MasterDataPageData = {
 };
 
 const EMPTY_MASTER_DATA: MasterDataPageData = {
-  counts: {
+    counts: {
     clients: 0,
     vendors: 0,
+    vendorBankAccounts: 0,
     bankAccounts: 0,
     paymentMethods: 0,
+    paymentTerms: 0,
+    shippingTerms: 0,
+    taxCodes: 0,
     expenseCategories: 0,
     revenueCategories: 0,
+    unitsOfMeasure: 0,
     items: 0,
     projects: 0,
     employees: 0,
@@ -295,17 +310,23 @@ export default function FinanceMasterDataPage() {
     setIsLoading(true);
 
     try {
-      const [
+            const [
         clients,
         vendors,
+        vendorBankAccounts,
         bankAccounts,
         paymentMethods,
+        paymentTerms,
+        shippingTerms,
+        taxCodes,
         expenseCategories,
         revenueCategories,
+        unitsOfMeasure,
         items,
         projects,
         employees,
       ] = await Promise.all([
+       
         supabase
           .from("finance_clients")
           .select("id", { count: "exact", head: true }),
@@ -313,6 +334,18 @@ export default function FinanceMasterDataPage() {
         supabase
           .from("finance_vendors")
           .select("id", { count: "exact", head: true }),
+
+        (async () => {
+          try {
+            const result = await supabase
+              .from("finance_vendor_bank_accounts")
+              .select("id", { count: "exact", head: true });
+
+            return result;
+          } catch {
+            return { count: 0 };
+          }
+        })(),
 
         supabase
           .from("finance_bank_accounts")
@@ -322,6 +355,42 @@ export default function FinanceMasterDataPage() {
           .from("finance_payment_methods")
           .select("id", { count: "exact", head: true }),
 
+        (async () => {
+          try {
+            const result = await supabase
+              .from("finance_payment_terms")
+              .select("id", { count: "exact", head: true });
+
+            return result;
+          } catch {
+            return { count: 0 };
+          }
+        })(),
+
+        (async () => {
+          try {
+            const result = await supabase
+              .from("finance_shipping_terms")
+              .select("id", { count: "exact", head: true });
+
+            return result;
+          } catch {
+            return { count: 0 };
+          }
+        })(),
+
+        (async () => {
+          try {
+            const result = await supabase
+              .from("finance_tax_codes")
+              .select("id", { count: "exact", head: true });
+
+            return result;
+          } catch {
+            return { count: 0 };
+          }
+        })(),
+
         supabase
           .from("finance_expense_categories")
           .select("id", { count: "exact", head: true }),
@@ -330,8 +399,20 @@ export default function FinanceMasterDataPage() {
           .from("finance_revenue_categories")
           .select("id", { count: "exact", head: true }),
 
+        (async () => {
+          try {
+            const result = await supabase
+              .from("finance_units_of_measure")
+              .select("id", { count: "exact", head: true });
+
+            return result;
+          } catch {
+            return { count: 0 };
+          }
+        })(),
+
         // ITEMS (might not exist yet → safe fallback)
-                (async () => {
+        (async () => {
           try {
             const result = await supabase
               .from("finance_items")
@@ -382,13 +463,18 @@ export default function FinanceMasterDataPage() {
       }
 
       setData({
-        counts: {
+                counts: {
           clients: clients.count ?? 0,
           vendors: vendors.count ?? 0,
+          vendorBankAccounts: (vendorBankAccounts as any)?.count ?? 0,
           bankAccounts: bankAccounts.count ?? 0,
           paymentMethods: paymentMethods.count ?? 0,
+          paymentTerms: (paymentTerms as any)?.count ?? 0,
+          shippingTerms: (shippingTerms as any)?.count ?? 0,
+          taxCodes: (taxCodes as any)?.count ?? 0,
           expenseCategories: expenseCategories.count ?? 0,
           revenueCategories: revenueCategories.count ?? 0,
+          unitsOfMeasure: (unitsOfMeasure as any)?.count ?? 0,
           items: (items as any)?.count ?? 0,
           projects: projects.count ?? 0,
           employees: employees.count ?? 0,
@@ -474,7 +560,7 @@ export default function FinanceMasterDataPage() {
   }, [data, isLoading]);
 
   const moduleCards = useMemo<MasterDataModuleCard[]>(() => {
-    return [
+        return [
       {
         key: "clients",
         title: "Clients",
@@ -494,6 +580,16 @@ export default function FinanceMasterDataPage() {
         count: data.counts.vendors,
         statusLabel: "Active",
         lastUpdatedLabel: "Live",
+      },
+      {
+        key: "vendor-bank-accounts",
+        title: "Vendor Bank Accounts",
+        description: "Store vendor payout accounts for AP and payment flows.",
+        route: "/finance/vendor-bank-accounts",
+        icon: Landmark,
+        count: data.counts.vendorBankAccounts,
+        statusLabel: data.counts.vendorBankAccounts > 0 ? "Configured" : "New",
+        lastUpdatedLabel: "Pending",
       },
       {
         key: "bank-accounts",
@@ -516,6 +612,36 @@ export default function FinanceMasterDataPage() {
         lastUpdatedLabel: "Live",
       },
       {
+        key: "payment-terms",
+        title: "Payment Terms",
+        description: "Define due terms like Net 7, Net 15, Net 30 and more.",
+        route: "/finance/payment-terms",
+        icon: WalletCards,
+        count: data.counts.paymentTerms,
+        statusLabel: data.counts.paymentTerms > 0 ? "Configured" : "New",
+        lastUpdatedLabel: "Pending",
+      },
+      {
+        key: "shipping-terms",
+        title: "Shipping Terms",
+        description: "Define delivery and shipment terms for future documents.",
+        route: "/finance/shipping-terms",
+        icon: FolderKanban,
+        count: data.counts.shippingTerms,
+        statusLabel: data.counts.shippingTerms > 0 ? "Configured" : "New",
+        lastUpdatedLabel: "Pending",
+      },
+      {
+        key: "tax-codes",
+        title: "Tax Codes",
+        description: "Maintain tax rates and tax treatment reference codes.",
+        route: "/finance/tax-codes",
+        icon: WalletCards,
+        count: data.counts.taxCodes,
+        statusLabel: data.counts.taxCodes > 0 ? "Configured" : "New",
+        lastUpdatedLabel: "Pending",
+      },
+      {
         key: "expense-categories",
         title: "Expense Categories",
         description: "Control spending categories used across finance flows.",
@@ -534,6 +660,16 @@ export default function FinanceMasterDataPage() {
         count: data.counts.revenueCategories,
         statusLabel: "Active",
         lastUpdatedLabel: "Live",
+      },
+      {
+        key: "units-of-measure",
+        title: "Units of Measure",
+        description: "Define units like pcs, set, kg, hour, month, and more.",
+        route: "/finance/units-of-measure",
+        icon: Package2,
+        count: data.counts.unitsOfMeasure,
+        statusLabel: data.counts.unitsOfMeasure > 0 ? "Configured" : "New",
+        lastUpdatedLabel: "Pending",
       },
       {
         key: "items",
@@ -689,7 +825,7 @@ export default function FinanceMasterDataPage() {
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/40">
-                  10 finance master data domains
+                  15 finance master data domains
                 </div>
               </div>
             </CardHeader>

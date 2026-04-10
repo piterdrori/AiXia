@@ -928,31 +928,6 @@ export default function FinancePage() {
     ];
   }, [dashboardData, isLoadingDashboard]);
 
-    const quickActions = useMemo(() => {
-    return [
-      {
-        label: "Open Master Data",
-        route: "/finance/master-data",
-        icon: Users,
-      },
-      {
-        label: "Open Transactions",
-        route: "/finance/transactions",
-        icon: Receipt,
-      },
-      {
-        label: "Open Reports",
-        route: "/finance/reports",
-        icon: FileBarChart2,
-      },
-      {
-        label: "Open Settings",
-        route: "/finance/settings",
-        icon: Settings2,
-      },
-    ];
-  }, []);
-
   const insightAlerts = useMemo(() => {
     return [
             {
@@ -1199,49 +1174,6 @@ export default function FinancePage() {
                     </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-
-            <Card className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] backdrop-blur-xl">
-              <CardHeader className="border-b border-white/8 pb-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <CardTitle className="text-white">Quick Actions</CardTitle>
-                     <CardDescription className="text-white/45">
-                      Fast entry points into the four main finance layers.
-                    </CardDescription>
-                  </div>
-
-                  <div className="hidden h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/70 sm:flex">
-                    <Sparkles className="h-4 w-4" />
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="p-3 sm:p-4">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {quickActions.map((action) => {
-                    const Icon = action.icon;
-
-                    return (
-                      <Button
-                        key={action.label}
-                        variant="outline"
-                        onClick={() => navigate(action.route)}
-                        className="group h-[64px] justify-between rounded-[16px] border-white/10 bg-black/15 px-4 py-4 text-left text-white hover:bg-white/10"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/75">
-                            <Icon className="h-4 w-4" />
-                          </div>
-                          <span className="text-sm font-medium">{action.label}</span>
-                        </div>
-
-                        <ArrowRight className="h-4 w-4 text-white/35 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
-                      </Button>
-                    );
-                  })}
-                </div>
               </CardContent>
             </Card>
           </div>

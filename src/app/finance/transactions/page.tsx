@@ -908,14 +908,14 @@ export default function FinanceTransactionsPage() {
     return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="mx-auto flex h-full w-full max-w-[1680px] min-h-0 flex-col px-4 pb-4 pt-2 sm:px-6 xl:px-8">
-        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1">
-      <section className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
+        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
+      <section className="sticky top-0 z-20 relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.10),transparent_32%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.10),transparent_24%)]" />
 
           <div className="relative flex items-center justify-between gap-4 px-5 py-5 sm:px-6 xl:px-7">
             <div className="min-w-0">
               <div className="inline-flex items-center rounded-full border border-cyan-400/15 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200">
-                Operations Hub
+                Operations Center
               </div>
 
               <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">

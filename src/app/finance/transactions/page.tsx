@@ -10,7 +10,6 @@ import {
   Receipt,
   RefreshCw,
   ShieldCheck,
-  Sparkles,
   Wallet,
 } from "lucide-react";
 

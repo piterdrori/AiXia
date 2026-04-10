@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -340,33 +340,33 @@ function PreviewPanel({
 }: {
   title: string;
   badge: string;
-  children: React.ReactNode;
+  children: ReactNode;
   actionLabel: string;
   onAction: () => void;
 }) {
   return (
-    <Card className="flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <CardHeader className="border-b border-white/8 pb-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="space-y-1">
-            <CardTitle className="text-white">{title}</CardTitle>
+    <Card className="flex h-[320px] min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <CardHeader className="border-b border-white/8 pb-3 pt-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="space-y-1 min-w-0">
+            <CardTitle className="truncate text-white">{title}</CardTitle>
             <CardDescription className="text-white/45">
               Read-only analytics preview.
             </CardDescription>
           </div>
 
-          <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs text-white/70 shadow-none">
+          <Badge className="shrink-0 rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs text-white/70 shadow-none">
             {badge}
           </Badge>
         </div>
       </CardHeader>
 
       <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-        <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+        <div className="flex-1 overflow-y-auto px-4 py-3 sm:px-4">
           {children}
         </div>
 
-        <div className="border-t border-white/8 p-4">
+        <div className="border-t border-white/8 p-3">
           <Button
             variant="outline"
             onClick={onAction}
@@ -685,7 +685,7 @@ export default function FinanceReportsPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="mx-auto flex h-full w-full max-w-[1680px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
+      <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
         <section className="relative z-10 rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.10),transparent_32%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.10),transparent_24%)]" />
 
@@ -795,316 +795,304 @@ export default function FinanceReportsPage() {
             </Card>
           </section>
 
-          <section className="grid min-h-0 grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-            <div className="grid min-h-0 grid-cols-1 gap-6">
-              <div className="grid min-h-0 grid-cols-1 gap-6 2xl:grid-cols-2">
-                <PreviewPanel
-                  title="Trial Balance Preview"
-                  badge="Core Accounting"
-                  actionLabel="Open Trial Balance"
-                  onAction={() => navigate("/finance/reports/trial-balance")}
-                >
-                  {data.trialBalancePreview.length === 0 ? (
-                    <div className="text-sm text-white/50">
-                      No non-zero trial balance rows found yet.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {data.trialBalancePreview.map((row) => (
-                        <div
-                          key={row.account_id}
-                          className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <div className="text-sm font-medium text-white">
-                                {row.account_code} • {row.account_name}
-                              </div>
-                              <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
-                                {row.account_type}
-                              </div>
-                            </div>
-
-                            <div className="text-right text-sm font-semibold text-white">
-                              {formatSignedMoney(toNumber(row.balance))}
-                            </div>
+                    <section className="grid min-h-0 grid-cols-1 gap-6 xl:grid-cols-2 2xl:grid-cols-3">
+            <PreviewPanel
+              title="Trial Balance Preview"
+              badge="Core Accounting"
+              actionLabel="Open Trial Balance"
+              onAction={() => navigate("/finance/reports/trial-balance")}
+            >
+              {data.trialBalancePreview.length === 0 ? (
+                <div className="text-sm text-white/50">
+                  No non-zero trial balance rows found yet.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {data.trialBalancePreview.map((row) => (
+                    <div
+                      key={row.account_id}
+                      className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="text-sm font-medium text-white">
+                            {row.account_code} • {row.account_name}
+                          </div>
+                          <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
+                            {row.account_type}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </PreviewPanel>
 
-                <PreviewPanel
-                  title="Ledger Preview"
-                  badge="Ledger Views"
-                  actionLabel="Open Ledger Views"
-                  onAction={() => navigate("/finance/reports/ledger")}
-                >
-                  <div className="space-y-3">
-                    <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                        Ledger Function Status
-                      </div>
-                      <div className="mt-2 text-base font-semibold text-white">
-                        Connected and ready
-                      </div>
-                      <div className="mt-2 text-sm text-white/50">
-                        Your ledger view is active. If this preview remains
-                        empty, it means no journal line records are posted yet.
-                      </div>
-                    </div>
-
-                    <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                        Read-Only Scope
-                      </div>
-                      <div className="mt-2 text-sm leading-6 text-white/55">
-                        Journal entries, journal lines, accounts, dates, posted
-                        state, and project-linked ledger filtering.
-                      </div>
-                    </div>
-                  </div>
-                </PreviewPanel>
-              </div>
-
-              <div className="grid min-h-0 grid-cols-1 gap-6 2xl:grid-cols-2">
-                <PreviewPanel
-                  title="AR Aging Preview"
-                  badge="Receivables"
-                  actionLabel="Open AR Aging"
-                  onAction={() => navigate("/finance/reports/ar-aging")}
-                >
-                  {data.arAgingPreview.length === 0 ? (
-                    <div className="text-sm text-white/50">
-                      No open receivables found.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {data.arAgingPreview.map((row) => (
-                        <div
-                          key={row.invoice_id}
-                          className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <div className="text-sm font-medium text-white">
-                                {row.invoice_number}
-                              </div>
-                              <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
-                                {row.aging_bucket} • {formatCount(row.days_overdue ?? 0)} days
-                              </div>
-                            </div>
-
-                            <div className="text-right text-sm font-semibold text-white">
-                              ${formatMoney(toNumber(row.balance_due))}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </PreviewPanel>
-
-                <PreviewPanel
-                  title="AP Aging Preview"
-                  badge="Payables"
-                  actionLabel="Open AP Aging"
-                  onAction={() => navigate("/finance/reports/ap-aging")}
-                >
-                  {data.apAgingPreview.length === 0 ? (
-                    <div className="text-sm text-white/50">
-                      No open payables found.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {data.apAgingPreview.map((row) => (
-                        <div
-                          key={row.bill_id}
-                          className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <div className="text-sm font-medium text-white">
-                                {row.bill_number}
-                              </div>
-                              <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
-                                {row.aging_bucket} • {formatCount(row.days_overdue ?? 0)} days
-                              </div>
-                            </div>
-
-                            <div className="text-right text-sm font-semibold text-white">
-                              ${formatMoney(toNumber(row.balance_due))}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </PreviewPanel>
-              </div>
-            </div>
-
-            <div className="grid min-h-0 grid-cols-1 gap-6">
-              <PreviewPanel
-                title="Project Financial View"
-                badge="Operational"
-                actionLabel="Open Project Financial View"
-                onAction={() => navigate("/finance/reports/project")}
-              >
-                {data.projectPreview.length === 0 ? (
-                  <div className="text-sm text-white/50">
-                    No project finance rows found yet.
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {data.projectPreview.map((row) => (
-                      <div
-                        key={row.project_id}
-                        className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3"
-                      >
-                        <div className="text-sm font-medium text-white">
-                          {row.project_name}
-                        </div>
-                        <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-white/55">
-                          <div>
-                            Revenue
-                            <div className="mt-1 text-sm font-semibold text-white">
-                              ${formatMoney(toNumber(row.invoice_revenue))}
-                            </div>
-                          </div>
-                          <div>
-                            Net
-                            <div className="mt-1 text-sm font-semibold text-white">
-                              {formatSignedMoney(
-                                toNumber(row.net_operating_position)
-                              )}
-                            </div>
-                          </div>
+                        <div className="text-right text-sm font-semibold text-white">
+                          {formatSignedMoney(toNumber(row.balance))}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </PreviewPanel>
-
-              <PreviewPanel
-                title="Payroll Summary Preview"
-                badge="Workforce"
-                actionLabel="Open Payroll Summary"
-                onAction={() => navigate("/finance/reports/payroll")}
-              >
-                {data.payrollPreview.length === 0 ? (
-                  <div className="text-sm text-white/50">
-                    No payroll runs found yet.
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {data.payrollPreview.map((row) => (
-                      <div
-                        key={row.payroll_run_id}
-                        className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3"
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <div className="text-sm font-medium text-white">
-                              {row.run_number || "Payroll run"}
-                            </div>
-                            <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
-                              {row.status} • {formatCount(toNumber(row.paid_payroll_payment_count))}/
-                              {formatCount(toNumber(row.payroll_payment_count))} payments paid
-                            </div>
-                          </div>
-
-                          <div className="text-right text-sm font-semibold text-white">
-                            ${formatMoney(toNumber(row.total_net))}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </PreviewPanel>
-
-              <PreviewPanel
-                title="Category Analytics Preview"
-                badge="Categories"
-                actionLabel="Open Categories Reports"
-                onAction={() => navigate("/finance/reports/categories")}
-              >
-                <div className="space-y-4">
-                  <div>
-                    <div className="mb-3 text-xs uppercase tracking-[0.18em] text-white/35">
-                      Revenue by Category
                     </div>
-                    {data.revenueCategoryPreview.length === 0 ? (
-                      <div className="text-sm text-white/50">
-                        No revenue category rows found.
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {data.revenueCategoryPreview.map((row, index) => (
-                          <div
-                            key={`${row.revenue_category_id ?? "revenue-null"}-${index}`}
-                            className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
-                          >
-                            <div className="flex items-start justify-between gap-4">
-                              <div>
-                                <div className="text-sm font-medium text-white">
-                                  {row.category_name || "Unmapped Revenue Category"}
-                                </div>
-                                <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
-                                  {row.category_code || "No code"}
-                                </div>
-                              </div>
+                  ))}
+                </div>
+              )}
+            </PreviewPanel>
 
-                              <div className="text-right text-sm font-semibold text-white">
-                                ${formatMoney(toNumber(row.total_revenue))}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+            <PreviewPanel
+              title="Ledger Preview"
+              badge="Ledger Views"
+              actionLabel="Open Ledger Views"
+              onAction={() => navigate("/finance/reports/ledger")}
+            >
+              <div className="space-y-3">
+                <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Ledger Function Status
                   </div>
-
-                  <div>
-                    <div className="mb-3 text-xs uppercase tracking-[0.18em] text-white/35">
-                      Expense by Category
-                    </div>
-                    {data.expenseCategoryPreview.length === 0 ? (
-                      <div className="text-sm text-white/50">
-                        No expense category rows found.
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {data.expenseCategoryPreview.map((row, index) => (
-                          <div
-                            key={`${row.expense_category_id ?? "expense-null"}-${row.source_type}-${index}`}
-                            className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
-                          >
-                            <div className="flex items-start justify-between gap-4">
-                              <div>
-                                <div className="text-sm font-medium text-white">
-                                  {row.category_name || "Unmapped Expense Category"}
-                                </div>
-                                <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
-                                  {row.source_type} • {row.category_code || "No code"}
-                                </div>
-                              </div>
-
-                              <div className="text-right text-sm font-semibold text-white">
-                                ${formatMoney(toNumber(row.total_amount))}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                  <div className="mt-2 text-base font-semibold text-white">
+                    Connected and ready
+                  </div>
+                  <div className="mt-2 text-sm text-white/50">
+                    If this preview is empty, it means no journal line records are posted yet.
                   </div>
                 </div>
-              </PreviewPanel>
-            </div>
+
+                <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Read-Only Scope
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-white/55">
+                    Journal entries, journal lines, accounts, dates, posted state, and project filters.
+                  </div>
+                </div>
+              </div>
+            </PreviewPanel>
+
+            <PreviewPanel
+              title="AR Aging Preview"
+              badge="Receivables"
+              actionLabel="Open AR Aging"
+              onAction={() => navigate("/finance/reports/ar-aging")}
+            >
+              {data.arAgingPreview.length === 0 ? (
+                <div className="text-sm text-white/50">
+                  No open receivables found.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {data.arAgingPreview.map((row) => (
+                    <div
+                      key={row.invoice_id}
+                      className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="text-sm font-medium text-white">
+                            {row.invoice_number}
+                          </div>
+                          <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
+                            {row.aging_bucket} • {formatCount(row.days_overdue ?? 0)} days
+                          </div>
+                        </div>
+
+                        <div className="text-right text-sm font-semibold text-white">
+                          ${formatMoney(toNumber(row.balance_due))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </PreviewPanel>
+
+            <PreviewPanel
+              title="AP Aging Preview"
+              badge="Payables"
+              actionLabel="Open AP Aging"
+              onAction={() => navigate("/finance/reports/ap-aging")}
+            >
+              {data.apAgingPreview.length === 0 ? (
+                <div className="text-sm text-white/50">
+                  No open payables found.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {data.apAgingPreview.map((row) => (
+                    <div
+                      key={row.bill_id}
+                      className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="text-sm font-medium text-white">
+                            {row.bill_number}
+                          </div>
+                          <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
+                            {row.aging_bucket} • {formatCount(row.days_overdue ?? 0)} days
+                          </div>
+                        </div>
+
+                        <div className="text-right text-sm font-semibold text-white">
+                          ${formatMoney(toNumber(row.balance_due))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </PreviewPanel>
+
+            <PreviewPanel
+              title="Project Financial View"
+              badge="Operational"
+              actionLabel="Open Project Financial View"
+              onAction={() => navigate("/finance/reports/project")}
+            >
+              {data.projectPreview.length === 0 ? (
+                <div className="text-sm text-white/50">
+                  No project finance rows found yet.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {data.projectPreview.map((row) => (
+                    <div
+                      key={row.project_id}
+                      className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                    >
+                      <div className="text-sm font-medium text-white">
+                        {row.project_name}
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-white/55">
+                        <div>
+                          Revenue
+                          <div className="mt-1 text-sm font-semibold text-white">
+                            ${formatMoney(toNumber(row.invoice_revenue))}
+                          </div>
+                        </div>
+                        <div>
+                          Net
+                          <div className="mt-1 text-sm font-semibold text-white">
+                            {formatSignedMoney(toNumber(row.net_operating_position))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </PreviewPanel>
+
+            <PreviewPanel
+              title="Payroll Summary Preview"
+              badge="Workforce"
+              actionLabel="Open Payroll Summary"
+              onAction={() => navigate("/finance/reports/payroll")}
+            >
+              {data.payrollPreview.length === 0 ? (
+                <div className="text-sm text-white/50">
+                  No payroll runs found yet.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {data.payrollPreview.map((row) => (
+                    <div
+                      key={row.payroll_run_id}
+                      className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="text-sm font-medium text-white">
+                            {row.run_number || "Payroll run"}
+                          </div>
+                          <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
+                            {row.status} • {formatCount(toNumber(row.paid_payroll_payment_count))}/
+                            {formatCount(toNumber(row.payroll_payment_count))} payments paid
+                          </div>
+                        </div>
+
+                        <div className="text-right text-sm font-semibold text-white">
+                          ${formatMoney(toNumber(row.total_net))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </PreviewPanel>
+
+            <PreviewPanel
+              title="Category Analytics Preview"
+              badge="Categories"
+              actionLabel="Open Categories Reports"
+              onAction={() => navigate("/finance/reports/categories")}
+            >
+              <div className="space-y-4">
+                <div>
+                  <div className="mb-3 text-xs uppercase tracking-[0.18em] text-white/35">
+                    Revenue by Category
+                  </div>
+                  {data.revenueCategoryPreview.length === 0 ? (
+                    <div className="text-sm text-white/50">
+                      No revenue category rows found.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {data.revenueCategoryPreview.map((row, index) => (
+                        <div
+                          key={`${row.revenue_category_id ?? "revenue-null"}-${index}`}
+                          className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <div className="text-sm font-medium text-white">
+                                {row.category_name || "Unmapped Revenue Category"}
+                              </div>
+                              <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
+                                {row.category_code || "No code"}
+                              </div>
+                            </div>
+
+                            <div className="text-right text-sm font-semibold text-white">
+                              ${formatMoney(toNumber(row.total_revenue))}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div className="mb-3 text-xs uppercase tracking-[0.18em] text-white/35">
+                    Expense by Category
+                  </div>
+                  {data.expenseCategoryPreview.length === 0 ? (
+                    <div className="text-sm text-white/50">
+                      No expense category rows found.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {data.expenseCategoryPreview.map((row, index) => (
+                        <div
+                          key={`${row.expense_category_id ?? "expense-null"}-${row.source_type}-${index}`}
+                          className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <div className="text-sm font-medium text-white">
+                                {row.category_name || "Unmapped Expense Category"}
+                              </div>
+                              <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
+                                {row.source_type} • {row.category_code || "No code"}
+                              </div>
+                            </div>
+
+                            <div className="text-right text-sm font-semibold text-white">
+                              ${formatMoney(toNumber(row.total_amount))}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </PreviewPanel>
           </section>
 
           <section>

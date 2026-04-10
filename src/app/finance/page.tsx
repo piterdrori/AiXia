@@ -25,7 +25,6 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
-import { type Role } from "@/lib/permissions";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

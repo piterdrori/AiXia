@@ -52,7 +52,8 @@ type ReportModuleKey =
   | "ap-aging"
   | "project"
   | "payroll"
-  | "categories";
+  | "categories"
+  | "export";
 
 type ReportModuleCard = {
   key: ReportModuleKey;
@@ -640,6 +641,16 @@ export default function FinanceReportsPage() {
           data.revenueCategoryPreview.length + data.expenseCategoryPreview.length
         )} category rows in preview`,
       },
+      {
+  key: "export",
+  title: "Financial Reports Export",
+  description:
+    "Generate and download full financial reports across dates, projects, and accounting structures.",
+  route: "/finance/reports/export",
+  icon: FileSpreadsheet,
+  statusLabel: "Planned",
+  footerLabel: "Full report export center (coming soon)",
+},
     ];
   }, [data]);
 
@@ -666,6 +677,8 @@ export default function FinanceReportsPage() {
         return "Open Payroll Summary";
       case "categories":
         return "Open Categories Reports";
+     case "export":
+        return "Open Export Center";
       default:
         return "Open Report";
     }
@@ -934,6 +947,36 @@ export default function FinanceReportsPage() {
             </div>
           );
 
+          case "export":
+  return (
+    <div className="space-y-3">
+      <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
+        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+          Full Report Engine
+        </div>
+        <div className="mt-2 text-base font-semibold text-white">
+          Coming Soon
+        </div>
+        <div className="mt-2 text-sm text-white/50">
+          Generate full financial reports with date range, project filters,
+          and export to PDF, Excel, CSV, and structured packages.
+        </div>
+      </div>
+
+      <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
+        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+          Planned Features
+        </div>
+        <div className="mt-2 text-sm leading-6 text-white/55">
+          • Global date filtering  
+          • Project-level reporting  
+          • Multi-report bundle export  
+          • Audit-ready structured output  
+        </div>
+      </div>
+    </div>
+  );
+
         default:
           return null;
       }
@@ -1033,8 +1076,8 @@ export default function FinanceReportsPage() {
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/40">
-                    7 locked report workspaces
-                  </div>
+                    {moduleCards.length} locked report workspaces
+                 </div>
                 </div>
               </CardHeader>
 

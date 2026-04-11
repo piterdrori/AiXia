@@ -6,7 +6,6 @@ import { supabase } from "@/lib/supabase";
 import { createClient } from "@/lib/finance/clients";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,

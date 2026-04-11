@@ -1106,5 +1106,6 @@ export default function FinanceReportsPage() {
         </div>
       </div>
     </div>
+    )
   );
 }

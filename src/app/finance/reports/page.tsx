@@ -298,7 +298,7 @@ function ReportWorkspaceCard({
   const Icon = module.icon;
 
   return (
-    <Card className="group relative flex h-[360px] min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] backdrop-blur-xl transition-all duration-200 hover:border-white/20 hover:bg-white/[0.055]">
+    <Card className="group relative flex h-[420px] xl:h-[480px] 2xl:h-[540px] min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] backdrop-blur-xl transition-all duration-200 hover:border-white/20 hover:bg-white/[0.055]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_45%)] opacity-80" />
 
       <CardHeader className="relative flex-shrink-0 border-b border-white/8 pb-3 pt-4">

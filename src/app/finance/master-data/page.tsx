@@ -458,7 +458,7 @@ export default function FinanceMasterDataPage() {
           title: "Vendors updated",
           subtitle: `${vendors.count} total vendors`,
           createdAt: now,
-          route: "/finance/vendors",
+          route: "/finance/master-data/vendors",
         });
       }
 

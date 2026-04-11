@@ -53,7 +53,7 @@ import EmployeePermissionsPage from "@/app/employees/[id]/permissions/page";
 import SettingsPage from "@/app/settings/page";
 import FinancePage from "@/app/finance/page";
 import FinanceMasterDataClientsPage from "@/app/finance/master-data/clients/page";
-import FinanceVendorsPage from "@/app/finance/vendors/page";
+import FinanceMasterDataVendorsPage from "@/app/finance/master-data/vendors/page";
 import FinanceBankAccountsPage from "@/app/finance/bank-accounts/page";
 import FinancePaymentMethodsPage from "@/app/finance/payment-methods/page";
 import FinanceExpenseCategoriesPage from "@/app/finance/expense-categories/page";
@@ -843,12 +843,12 @@ function AppRoutes() {
         }
       />
 
-            <Route
-        path="/finance/vendors"
+              <Route
+        path="/finance/master-data/vendors"
         element={
           <ProtectedRoute>
             <DashboardLayout>
-              <FinanceVendorsPage />
+              <FinanceMasterDataVendorsPage />
             </DashboardLayout>
           </ProtectedRoute>
         }

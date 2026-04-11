@@ -97,7 +97,7 @@ export async function createClient(input: {
     delivery_term: input.delivery_term?.trim() || null,
     currency_code: input.currency_code?.trim() || null,
     notes: input.notes?.trim() || null,
-    metadata: {},
+    metadata: input.metadata ?? {},
     created_by: user?.id ?? null,
     updated_by: user?.id ?? null,
     payment_terms_days: 30,

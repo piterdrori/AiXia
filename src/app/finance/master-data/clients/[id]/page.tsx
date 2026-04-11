@@ -6,7 +6,6 @@ import {
   Mail,
   MapPin,
   Pencil,
-  Phone,
   RefreshCw,
   ShieldCheck,
   Truck,

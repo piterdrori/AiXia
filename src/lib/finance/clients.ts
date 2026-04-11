@@ -69,6 +69,7 @@ export async function createClient(input: {
   delivery_term?: string | null;
   currency_code?: string | null;
   notes?: string | null;
+  metadata?: Record<string, unknown>;
 }) {
   const {
     data: { user },

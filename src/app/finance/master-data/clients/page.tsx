@@ -188,7 +188,7 @@ export default function FinanceMasterDataClientsPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="flex h-[calc(100vh-140px)] min-h-0 flex-col overflow-hidden">
       <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
         <section className="relative z-10 flex-shrink-0 rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.10),transparent_32%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.10),transparent_24%)]" />
@@ -288,8 +288,8 @@ export default function FinanceMasterDataClientsPage() {
             </div>
           </section>
 
-          <section className="min-h-0 flex-1">
-            <Card className="flex h-full min-h-0 flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+          <section className="min-h-0 flex-1 h-full">
+            <Card className="flex h-full min-h-[700px] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <CardHeader className="flex-shrink-0 border-b border-white/8 pb-4">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                   <div className="space-y-2">
@@ -364,7 +364,7 @@ export default function FinanceMasterDataClientsPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+                  <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5 min-h-[500px]">
                     <div className="space-y-3">
                       {filteredClients.map((client) => {
                         const displayLegalName = client.legal_name || client.name;

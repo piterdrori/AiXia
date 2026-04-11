@@ -52,7 +52,7 @@ import EmployeeDetailPage from "@/app/employees/[id]/page";
 import EmployeePermissionsPage from "@/app/employees/[id]/permissions/page";
 import SettingsPage from "@/app/settings/page";
 import FinancePage from "@/app/finance/page";
-import FinanceClientsPage from "@/app/finance/clients/page";
+import FinanceMasterDataClientsPage from "@/app/finance/master-data/clients/page";
 import FinanceVendorsPage from "@/app/finance/vendors/page";
 import FinanceBankAccountsPage from "@/app/finance/bank-accounts/page";
 import FinancePaymentMethodsPage from "@/app/finance/payment-methods/page";
@@ -807,12 +807,12 @@ function AppRoutes() {
   }
 />
 
-            <Route
-        path="/finance/clients"
+              <Route
+        path="/finance/master-data/clients"
         element={
           <ProtectedRoute>
             <DashboardLayout>
-              <FinanceClientsPage />
+              <FinanceMasterDataClientsPage />
             </DashboardLayout>
           </ProtectedRoute>
         }

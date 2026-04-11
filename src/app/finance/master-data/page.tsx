@@ -447,7 +447,7 @@ export default function FinanceMasterDataPage() {
           title: "Clients updated",
           subtitle: `${clients.count} total clients`,
           createdAt: now,
-          route: "/finance/clients",
+          route: "/finance/master-data/clients",
         });
       }
 
@@ -565,7 +565,7 @@ export default function FinanceMasterDataPage() {
         key: "clients",
         title: "Clients",
         description: "Manage finance clients and billing entities.",
-        route: "/finance/clients",
+        route: "/finance/master-data/clients",
         icon: Users,
         count: data.counts.clients,
         statusLabel: "Active",

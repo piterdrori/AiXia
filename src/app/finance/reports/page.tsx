@@ -1100,7 +1100,6 @@ export default function FinanceReportsPage() {
                 </CardContent>
                </Card>
               </section>
-          </div>
         </div>
       </div>
     </div>

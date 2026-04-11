@@ -58,6 +58,19 @@ export interface FinanceClient extends FinanceBaseRecord {
   contact_person: string | null;
   billing_address: string | null;
   payment_terms_days: number;
+  company_email: string | null;
+  personnel_email: string | null;
+  company_phone: string | null;
+  personnel_phone: string | null;
+  company_related_personnel: string | null;
+  country: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
+  shipping_address_line_1: string | null;
+  shipping_address_line_2: string | null;
+  payment_terms_id: string | null;
+  delivery_term: string | null;
+  currency_code: string | null;
 }
 
 export interface FinanceVendor extends FinanceBaseRecord {

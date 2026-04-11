@@ -284,23 +284,24 @@ function ReportsMetricCard({ metric }: { metric: ReportMetricCard }) {
   );
 }
 
-function ReportModuleButton({
+function ReportWorkspaceCard({
   module,
+  children,
+  actionLabel,
   onOpen,
 }: {
   module: ReportModuleCard;
+  children: ReactNode;
+  actionLabel: string;
   onOpen: (route: string) => void;
 }) {
   const Icon = module.icon;
 
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(module.route)}
-      className="group relative overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] text-left backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.07]"
-    >
+    <Card className="group relative flex h-[360px] min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] backdrop-blur-xl transition-all duration-200 hover:border-white/20 hover:bg-white/[0.055]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_45%)] opacity-80" />
-      <div className="relative flex h-full flex-col gap-4 p-5">
+
+      <CardHeader className="relative flex-shrink-0 border-b border-white/8 pb-3 pt-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/80">
             <Icon className="h-5 w-5" />
@@ -314,54 +315,20 @@ function ReportModuleButton({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <div className="text-base font-semibold text-white">
+        <div className="mt-4 space-y-2">
+          <CardTitle className="text-base font-semibold text-white">
             {module.title}
-          </div>
-          <div className="text-sm leading-6 text-white/50">
+          </CardTitle>
+          <CardDescription className="text-sm leading-6 text-white/50">
             {module.description}
+          </CardDescription>
+          <div className="pt-1 text-[11px] uppercase tracking-[0.18em] text-white/35">
+            {module.footerLabel}
           </div>
-        </div>
-
-        <div className="mt-auto pt-2 text-xs uppercase tracking-[0.18em] text-white/35">
-          {module.footerLabel}
-        </div>
-      </div>
-    </button>
-  );
-}
-
-function PreviewPanel({
-  title,
-  badge,
-  children,
-  actionLabel,
-  onAction,
-}: {
-  title: string;
-  badge: string;
-  children: ReactNode;
-  actionLabel: string;
-  onAction: () => void;
-}) {
-  return (
-    <Card className="flex h-[320px] min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <CardHeader className="border-b border-white/8 pb-3 pt-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="space-y-1 min-w-0">
-            <CardTitle className="truncate text-white">{title}</CardTitle>
-            <CardDescription className="text-white/45">
-              Read-only analytics preview.
-            </CardDescription>
-          </div>
-
-          <Badge className="shrink-0 rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs text-white/70 shadow-none">
-            {badge}
-          </Badge>
         </div>
       </CardHeader>
 
-      <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+      <CardContent className="relative flex min-h-0 flex-1 flex-col p-0">
         <div className="flex-1 overflow-y-auto px-4 py-3 sm:px-4">
           {children}
         </div>
@@ -369,7 +336,7 @@ function PreviewPanel({
         <div className="border-t border-white/8 p-3">
           <Button
             variant="outline"
-            onClick={onAction}
+            onClick={() => onOpen(module.route)}
             className="h-11 w-full rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
           >
             {actionLabel}
@@ -676,11 +643,302 @@ export default function FinanceReportsPage() {
     ];
   }, [data]);
 
-  const openRoute = useCallback(
+    const openRoute = useCallback(
     (route: string) => {
       navigate(route);
     },
     [navigate]
+  );
+
+  const getActionLabel = useCallback((key: ReportModuleKey) => {
+    switch (key) {
+      case "trial-balance":
+        return "Open Trial Balance";
+      case "ledger":
+        return "Open Ledger Views";
+      case "ar-aging":
+        return "Open AR Aging";
+      case "ap-aging":
+        return "Open AP Aging";
+      case "project":
+        return "Open Project Financial View";
+      case "payroll":
+        return "Open Payroll Summary";
+      case "categories":
+        return "Open Categories Reports";
+      default:
+        return "Open Report";
+    }
+  }, []);
+
+  const renderReportPreview = useCallback(
+    (key: ReportModuleKey) => {
+      switch (key) {
+        case "trial-balance":
+          return data.trialBalancePreview.length === 0 ? (
+            <div className="text-sm text-white/50">
+              No non-zero trial balance rows found yet.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {data.trialBalancePreview.map((row) => (
+                <div
+                  key={row.account_id}
+                  className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-medium text-white">
+                        {row.account_code} • {row.account_name}
+                      </div>
+                      <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
+                        {row.account_type}
+                      </div>
+                    </div>
+
+                    <div className="text-right text-sm font-semibold text-white">
+                      {formatSignedMoney(toNumber(row.balance))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+
+        case "ledger":
+          return (
+            <div className="space-y-3">
+              <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                  Ledger Function Status
+                </div>
+                <div className="mt-2 text-base font-semibold text-white">
+                  Connected and ready
+                </div>
+                <div className="mt-2 text-sm text-white/50">
+                  If this preview is empty, it means no journal line records are posted yet.
+                </div>
+              </div>
+
+              <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                  Read-Only Scope
+                </div>
+                <div className="mt-2 text-sm leading-6 text-white/55">
+                  Journal entries, journal lines, accounts, dates, posted state, and project filters.
+                </div>
+              </div>
+            </div>
+          );
+
+        case "ar-aging":
+          return data.arAgingPreview.length === 0 ? (
+            <div className="text-sm text-white/50">
+              No open receivables found.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {data.arAgingPreview.map((row) => (
+                <div
+                  key={row.invoice_id}
+                  className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-medium text-white">
+                        {row.invoice_number}
+                      </div>
+                      <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
+                        {row.aging_bucket} • {formatCount(row.days_overdue ?? 0)} days
+                      </div>
+                    </div>
+
+                    <div className="text-right text-sm font-semibold text-white">
+                      ${formatMoney(toNumber(row.balance_due))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+
+        case "ap-aging":
+          return data.apAgingPreview.length === 0 ? (
+            <div className="text-sm text-white/50">
+              No open payables found.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {data.apAgingPreview.map((row) => (
+                <div
+                  key={row.bill_id}
+                  className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-medium text-white">
+                        {row.bill_number}
+                      </div>
+                      <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
+                        {row.aging_bucket} • {formatCount(row.days_overdue ?? 0)} days
+                      </div>
+                    </div>
+
+                    <div className="text-right text-sm font-semibold text-white">
+                      ${formatMoney(toNumber(row.balance_due))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+
+        case "project":
+          return data.projectPreview.length === 0 ? (
+            <div className="text-sm text-white/50">
+              No project finance rows found yet.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {data.projectPreview.map((row) => (
+                <div
+                  key={row.project_id}
+                  className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                >
+                  <div className="text-sm font-medium text-white">
+                    {row.project_name}
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-white/55">
+                    <div>
+                      Revenue
+                      <div className="mt-1 text-sm font-semibold text-white">
+                        ${formatMoney(toNumber(row.invoice_revenue))}
+                      </div>
+                    </div>
+                    <div>
+                      Net
+                      <div className="mt-1 text-sm font-semibold text-white">
+                        {formatSignedMoney(toNumber(row.net_operating_position))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+
+        case "payroll":
+          return data.payrollPreview.length === 0 ? (
+            <div className="text-sm text-white/50">
+              No payroll runs found yet.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {data.payrollPreview.map((row) => (
+                <div
+                  key={row.payroll_run_id}
+                  className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-medium text-white">
+                        {row.run_number || "Payroll run"}
+                      </div>
+                      <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
+                        {row.status} • {formatCount(toNumber(row.paid_payroll_payment_count))}/
+                        {formatCount(toNumber(row.payroll_payment_count))} payments paid
+                      </div>
+                    </div>
+
+                    <div className="text-right text-sm font-semibold text-white">
+                      ${formatMoney(toNumber(row.total_net))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+
+        case "categories":
+          return (
+            <div className="space-y-4">
+              <div>
+                <div className="mb-3 text-xs uppercase tracking-[0.18em] text-white/35">
+                  Revenue by Category
+                </div>
+                {data.revenueCategoryPreview.length === 0 ? (
+                  <div className="text-sm text-white/50">
+                    No revenue category rows found.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {data.revenueCategoryPreview.map((row, index) => (
+                      <div
+                        key={`${row.revenue_category_id ?? "revenue-null"}-${index}`}
+                        className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <div className="text-sm font-medium text-white">
+                              {row.category_name || "Unmapped Revenue Category"}
+                            </div>
+                            <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
+                              {row.category_code || "No code"}
+                            </div>
+                          </div>
+
+                          <div className="text-right text-sm font-semibold text-white">
+                            ${formatMoney(toNumber(row.total_revenue))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="mb-3 text-xs uppercase tracking-[0.18em] text-white/35">
+                  Expense by Category
+                </div>
+                {data.expenseCategoryPreview.length === 0 ? (
+                  <div className="text-sm text-white/50">
+                    No expense category rows found.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {data.expenseCategoryPreview.map((row, index) => (
+                      <div
+                        key={`${row.expense_category_id ?? "expense-null"}-${row.source_type}-${index}`}
+                        className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <div className="text-sm font-medium text-white">
+                              {row.category_name || "Unmapped Expense Category"}
+                            </div>
+                            <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
+                              {row.source_type} • {row.category_code || "No code"}
+                            </div>
+                          </div>
+
+                          <div className="text-right text-sm font-semibold text-white">
+                            ${formatMoney(toNumber(row.total_amount))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+
+        default:
+          return null;
+      }
+    },
+    [data]
   );
 
   return (
@@ -756,13 +1014,13 @@ export default function FinanceReportsPage() {
             </Card>
           </section>
 
-          <section>
+                    <section>
             <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <CardHeader className="border-b border-white/8 pb-4">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                   <div className="space-y-2">
                     <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-white/65 shadow-none">
-                      Report Modules
+                      Report Workspaces
                     </Badge>
 
                     <CardTitle className="text-white">
@@ -770,13 +1028,12 @@ export default function FinanceReportsPage() {
                     </CardTitle>
 
                     <CardDescription className="max-w-2xl text-white/45">
-                      These modules are read-only analysis workspaces for
-                      filtering, inspecting, and exporting financial reports.
+                      Each workspace combines live preview data, report context, and direct access in one unified card.
                     </CardDescription>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/40">
-                    7 locked report modules
+                    7 locked report workspaces
                   </div>
                 </div>
               </CardHeader>
@@ -784,317 +1041,19 @@ export default function FinanceReportsPage() {
               <CardContent className="p-4 sm:p-5 xl:p-6">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {moduleCards.map((module) => (
-                    <ReportModuleButton
+                    <ReportWorkspaceCard
                       key={module.key}
                       module={module}
+                      actionLabel={getActionLabel(module.key)}
                       onOpen={openRoute}
-                    />
+                    >
+                      {renderReportPreview(module.key)}
+                    </ReportWorkspaceCard>
                   ))}
                 </div>
               </CardContent>
             </Card>
           </section>
-
-                      <div className="flex flex-col gap-6">
-            <section className="grid min-h-0 grid-cols-1 gap-6 xl:grid-cols-2 2xl:grid-cols-3">
-            <PreviewPanel
-              title="Trial Balance Preview"
-              badge="Core Accounting"
-              actionLabel="Open Trial Balance"
-              onAction={() => navigate("/finance/reports/trial-balance")}
-            >
-              {data.trialBalancePreview.length === 0 ? (
-                <div className="text-sm text-white/50">
-                  No non-zero trial balance rows found yet.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {data.trialBalancePreview.map((row) => (
-                    <div
-                      key={row.account_id}
-                      className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="text-sm font-medium text-white">
-                            {row.account_code} • {row.account_name}
-                          </div>
-                          <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
-                            {row.account_type}
-                          </div>
-                        </div>
-
-                        <div className="text-right text-sm font-semibold text-white">
-                          {formatSignedMoney(toNumber(row.balance))}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </PreviewPanel>
-
-            <PreviewPanel
-              title="Ledger Preview"
-              badge="Ledger Views"
-              actionLabel="Open Ledger Views"
-              onAction={() => navigate("/finance/reports/ledger")}
-            >
-              <div className="space-y-3">
-                <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Ledger Function Status
-                  </div>
-                  <div className="mt-2 text-base font-semibold text-white">
-                    Connected and ready
-                  </div>
-                  <div className="mt-2 text-sm text-white/50">
-                    If this preview is empty, it means no journal line records are posted yet.
-                  </div>
-                </div>
-
-                <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Read-Only Scope
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-white/55">
-                    Journal entries, journal lines, accounts, dates, posted state, and project filters.
-                  </div>
-                </div>
-              </div>
-            </PreviewPanel>
-
-            <PreviewPanel
-              title="AR Aging Preview"
-              badge="Receivables"
-              actionLabel="Open AR Aging"
-              onAction={() => navigate("/finance/reports/ar-aging")}
-            >
-              {data.arAgingPreview.length === 0 ? (
-                <div className="text-sm text-white/50">
-                  No open receivables found.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {data.arAgingPreview.map((row) => (
-                    <div
-                      key={row.invoice_id}
-                      className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="text-sm font-medium text-white">
-                            {row.invoice_number}
-                          </div>
-                          <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
-                            {row.aging_bucket} • {formatCount(row.days_overdue ?? 0)} days
-                          </div>
-                        </div>
-
-                        <div className="text-right text-sm font-semibold text-white">
-                          ${formatMoney(toNumber(row.balance_due))}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </PreviewPanel>
-
-            <PreviewPanel
-              title="AP Aging Preview"
-              badge="Payables"
-              actionLabel="Open AP Aging"
-              onAction={() => navigate("/finance/reports/ap-aging")}
-            >
-              {data.apAgingPreview.length === 0 ? (
-                <div className="text-sm text-white/50">
-                  No open payables found.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {data.apAgingPreview.map((row) => (
-                    <div
-                      key={row.bill_id}
-                      className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="text-sm font-medium text-white">
-                            {row.bill_number}
-                          </div>
-                          <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
-                            {row.aging_bucket} • {formatCount(row.days_overdue ?? 0)} days
-                          </div>
-                        </div>
-
-                        <div className="text-right text-sm font-semibold text-white">
-                          ${formatMoney(toNumber(row.balance_due))}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </PreviewPanel>
-
-            <PreviewPanel
-              title="Project Financial View"
-              badge="Operational"
-              actionLabel="Open Project Financial View"
-              onAction={() => navigate("/finance/reports/project")}
-            >
-              {data.projectPreview.length === 0 ? (
-                <div className="text-sm text-white/50">
-                  No project finance rows found yet.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {data.projectPreview.map((row) => (
-                    <div
-                      key={row.project_id}
-                      className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
-                    >
-                      <div className="text-sm font-medium text-white">
-                        {row.project_name}
-                      </div>
-                      <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-white/55">
-                        <div>
-                          Revenue
-                          <div className="mt-1 text-sm font-semibold text-white">
-                            ${formatMoney(toNumber(row.invoice_revenue))}
-                          </div>
-                        </div>
-                        <div>
-                          Net
-                          <div className="mt-1 text-sm font-semibold text-white">
-                            {formatSignedMoney(toNumber(row.net_operating_position))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </PreviewPanel>
-
-            <PreviewPanel
-              title="Payroll Summary Preview"
-              badge="Workforce"
-              actionLabel="Open Payroll Summary"
-              onAction={() => navigate("/finance/reports/payroll")}
-            >
-              {data.payrollPreview.length === 0 ? (
-                <div className="text-sm text-white/50">
-                  No payroll runs found yet.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {data.payrollPreview.map((row) => (
-                    <div
-                      key={row.payroll_run_id}
-                      className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="text-sm font-medium text-white">
-                            {row.run_number || "Payroll run"}
-                          </div>
-                          <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
-                            {row.status} • {formatCount(toNumber(row.paid_payroll_payment_count))}/
-                            {formatCount(toNumber(row.payroll_payment_count))} payments paid
-                          </div>
-                        </div>
-
-                        <div className="text-right text-sm font-semibold text-white">
-                          ${formatMoney(toNumber(row.total_net))}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </PreviewPanel>
-
-            <PreviewPanel
-              title="Category Analytics Preview"
-              badge="Categories"
-              actionLabel="Open Categories Reports"
-              onAction={() => navigate("/finance/reports/categories")}
-            >
-              <div className="space-y-4">
-                <div>
-                  <div className="mb-3 text-xs uppercase tracking-[0.18em] text-white/35">
-                    Revenue by Category
-                  </div>
-                  {data.revenueCategoryPreview.length === 0 ? (
-                    <div className="text-sm text-white/50">
-                      No revenue category rows found.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {data.revenueCategoryPreview.map((row, index) => (
-                        <div
-                          key={`${row.revenue_category_id ?? "revenue-null"}-${index}`}
-                          className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <div className="text-sm font-medium text-white">
-                                {row.category_name || "Unmapped Revenue Category"}
-                              </div>
-                              <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
-                                {row.category_code || "No code"}
-                              </div>
-                            </div>
-
-                            <div className="text-right text-sm font-semibold text-white">
-                              ${formatMoney(toNumber(row.total_revenue))}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <div className="mb-3 text-xs uppercase tracking-[0.18em] text-white/35">
-                    Expense by Category
-                  </div>
-                  {data.expenseCategoryPreview.length === 0 ? (
-                    <div className="text-sm text-white/50">
-                      No expense category rows found.
-                    </div>
-                                    ) : (
-                    <div className="space-y-3">
-                      {data.expenseCategoryPreview.map((row, index) => (
-                        <div
-                          key={`${row.expense_category_id ?? "expense-null"}-${row.source_type}-${index}`}
-                          className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <div className="text-sm font-medium text-white">
-                                {row.category_name || "Unmapped Expense Category"}
-                              </div>
-                              <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/35">
-                                {row.source_type} • {row.category_code || "No code"}
-                              </div>
-                            </div>
-
-                            <div className="text-right text-sm font-semibold text-white">
-                              ${formatMoney(toNumber(row.total_amount))}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </PreviewPanel>
-           </section>
 
             <div>
              <section>

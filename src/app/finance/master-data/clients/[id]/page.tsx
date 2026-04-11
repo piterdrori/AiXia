@@ -427,7 +427,7 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+    <Card className="flex flex-col overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
       <CardHeader className="border-b border-white/8 pb-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-4">
@@ -456,7 +456,7 @@ function SectionCard({
           ) : null}
         </div>
       </CardHeader>
-      <CardContent className="p-5">{children}</CardContent>
+      <CardContent className="flex min-h-0 flex-col p-5">{children}</CardContent>
     </Card>
   );
 }
@@ -474,7 +474,7 @@ function SummaryMetric({
 }) {
   return (
     <Card className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <CardContent className="p-5">
+      <CardContent className="flex min-h-0 flex-col p-5">
         <div className={`mb-4 h-1.5 w-16 rounded-full ${accentClass}`} />
         <div className="text-xs uppercase tracking-[0.18em] text-white/35">
           {label}
@@ -1283,37 +1283,38 @@ export default function FinanceMasterDataClientDetailPage() {
             </div>
           </section>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
-            <section>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <SummaryMetric
-                  label="Payment Terms"
-                  value={paymentTermLabel}
-                  subtitle="Settlement behavior"
-                  accentClass="bg-violet-400"
-                />
-                <SummaryMetric
-                  label="Currency"
-                  value={currencyLabel}
-                  subtitle="Operational default"
-                  accentClass="bg-emerald-400"
-                />
-                <SummaryMetric
-                  label="Delivery Term"
-                  value={deliveryTermLabel}
-                  subtitle="Logistics default"
-                  accentClass="bg-cyan-400"
-                />
-                <SummaryMetric
-                  label="Created"
-                  value={formatDateLabel(client.created_at)}
-                  subtitle={`Updated ${formatDateTimeLabel(client.updated_at)}`}
-                  accentClass="bg-amber-400"
-                />
-              </div>
-            </section>
+                    <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
+            <div className="flex flex-col gap-6">
+              <section>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <SummaryMetric
+                    label="Payment Terms"
+                    value={paymentTermLabel}
+                    subtitle="Settlement behavior"
+                    accentClass="bg-violet-400"
+                  />
+                  <SummaryMetric
+                    label="Currency"
+                    value={currencyLabel}
+                    subtitle="Operational default"
+                    accentClass="bg-emerald-400"
+                  />
+                  <SummaryMetric
+                    label="Delivery Term"
+                    value={deliveryTermLabel}
+                    subtitle="Logistics default"
+                    accentClass="bg-cyan-400"
+                  />
+                  <SummaryMetric
+                    label="Created"
+                    value={formatDateLabel(client.created_at)}
+                    subtitle={`Updated ${formatDateTimeLabel(client.updated_at)}`}
+                    accentClass="bg-amber-400"
+                  />
+                </div>
+              </section>
 
-            <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
               <SectionCard
                 title="Core Client Data"
                 description="Main identity and finance-facing profile fields."
@@ -1381,7 +1382,7 @@ export default function FinanceMasterDataClientDetailPage() {
               {personnel.length === 0 ? (
                 <div className="text-sm text-white/50">No personnel records found.</div>
               ) : (
-                <div className="space-y-4">
+                <div className="flex min-h-0 flex-col gap-4">
                   {personnel.map((person, index) => (
                     <div
                       key={person.id || `${person.name || "person"}-${index}`}
@@ -1434,7 +1435,7 @@ export default function FinanceMasterDataClientDetailPage() {
                   No communication records found.
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="flex min-h-0 flex-col gap-4">
                   {communications.map((item, index) => (
                     <div
                       key={item.id || `${item.label || "communication"}-${index}`}
@@ -1585,6 +1586,7 @@ export default function FinanceMasterDataClientDetailPage() {
           </div>
         </div>
       </div>
+    </div>
 
       {editingSection === "core" ? (
         <ModalShell
@@ -2126,7 +2128,7 @@ export default function FinanceMasterDataClientDetailPage() {
         </ModalShell>
       ) : null}
 
-      {editingSection === "shipping" ? (
+            {editingSection === "shipping" ? (
         <ModalShell
           title="Edit Shipping Address"
           description="Manage shipping and delivery addresses."

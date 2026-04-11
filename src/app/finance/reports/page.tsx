@@ -1055,7 +1055,6 @@ export default function FinanceReportsPage() {
             </Card>
           </section>
 
-            <div>
              <section>
               <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
                 <CardHeader className="border-b border-white/8 pb-4">
@@ -1101,11 +1100,9 @@ export default function FinanceReportsPage() {
                 </CardContent>
                </Card>
               </section>
-            </div>
           </div>
         </div>
       </div>
     </div>
-    )
   );
 }

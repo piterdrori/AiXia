@@ -45,12 +45,6 @@ type CurrencyOption = {
   is_base_currency?: boolean;
 };
 
-type DeliveryTermOption = {
-  id: string;
-  code: string;
-  name: string;
-};
-
 type EmployeeOption = {
   id: string;
   label: string;
@@ -166,14 +160,6 @@ const FALLBACK_PAYMENT_TERMS: PaymentTermOption[] = [
   { id: "fallback-net60", name: "Net 60", code: "NET60", due_days: 60 },
 ];
 
-const FALLBACK_DELIVERY_TERMS: DeliveryTermOption[] = [
-  { id: "fallback-exw", code: "EXW", name: "Ex Works" },
-  { id: "fallback-fob", code: "FOB", name: "Free On Board" },
-  { id: "fallback-cif", code: "CIF", name: "Cost, Insurance and Freight" },
-  { id: "fallback-ddp", code: "DDP", name: "Delivered Duty Paid" },
-  { id: "fallback-dap", code: "DAP", name: "Delivered At Place" },
-];
-
 const FALLBACK_CURRENCIES: CurrencyOption[] = [
   {
     id: "fallback-usd",
@@ -256,15 +242,6 @@ function mergeUniquePaymentTerms(items: PaymentTermOption[]) {
   const map = new Map<string, PaymentTermOption>();
   [...items, ...FALLBACK_PAYMENT_TERMS].forEach((item) => {
     const key = `${item.code}-${item.name}-${item.due_days}`;
-    if (!map.has(key)) map.set(key, item);
-  });
-  return Array.from(map.values());
-}
-
-function mergeUniqueDeliveryTerms(items: DeliveryTermOption[]) {
-  const map = new Map<string, DeliveryTermOption>();
-  [...items, ...FALLBACK_DELIVERY_TERMS].forEach((item) => {
-    const key = `${item.code}-${item.name}`;
     if (!map.has(key)) map.set(key, item);
   });
   return Array.from(map.values());
@@ -569,10 +546,9 @@ export default function FinanceMasterDataVendorDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
 
-  const [client, setClient] = useState<VendorDetailRecord | null>(null);
+  const [vendor, setVendor] = useState<VendorDetailRecord | null>(null);
   const [paymentTerms, setPaymentTerms] = useState<PaymentTermOption[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
-  const [deliveryTerms, setDeliveryTerms] = useState<DeliveryTermOption[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isMutating, setIsMutating] = useState(false);
@@ -605,17 +581,16 @@ export default function FinanceMasterDataVendorDetailPage() {
   const [notesForm, setNotesForm] = useState("");
   const [modalError, setModalError] = useState<string | null>(null);
 
-  const loadClient = useCallback(async () => {
+  const loadvendor = useCallback(async () => {
     if (!id) return;
 
     setIsLoading(true);
 
     try {
       const [
-        clientResult,
+        vendorResult,
         paymentTermsResult,
         currenciesResult,
-        deliveryTermsResult,
         employeesResult,
       ] = await Promise.all([
         supabase
@@ -656,26 +631,17 @@ export default function FinanceMasterDataVendorDetailPage() {
           .from("finance_currencies")
           .select("id, currency_code, currency_name, is_base_currency")
           .order("currency_code", { ascending: true }),
-        (async () => {
-          try {
-            return await supabase
-              .from("finance_shipping_terms")
-              .select("id, code, name")
-              .order("code", { ascending: true });
-          } catch {
-            return { data: [], error: null };
-          }
-        })(),
+       
         supabase.from("profiles").select("*").order("created_at", {
           ascending: false,
         }),
       ]);
 
-      if (clientResult.error) throw clientResult.error;
+      if (vendorResult.error) throw vendorResult.error;
       if (paymentTermsResult.error) throw paymentTermsResult.error;
       if (currenciesResult.error) throw currenciesResult.error;
 
-      setClient(clientResult.data as VendorDetailRecord);
+      setvendor(vendorResult.data as VendorDetailRecord);
       setPaymentTerms(
         mergeUniquePaymentTerms(
           (paymentTermsResult.data ?? []) as PaymentTermOption[]
@@ -683,11 +649,6 @@ export default function FinanceMasterDataVendorDetailPage() {
       );
       setCurrencies(
         mergeUniqueCurrencies((currenciesResult.data ?? []) as CurrencyOption[])
-      );
-      setDeliveryTerms(
-        mergeUniqueDeliveryTerms(
-          (deliveryTermsResult.data ?? []) as DeliveryTermOption[]
-        )
       );
 
       const nextEmployees = ((employeesResult.data ?? []) as RawProfileRow[]).map(
@@ -703,30 +664,30 @@ export default function FinanceMasterDataVendorDetailPage() {
       setEmployees(nextEmployees);
     } catch (error) {
       console.error("Failed to load finance vendor details:", error);
-      setClient(null);
+      setvendor(null);
     } finally {
       setIsLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
-    void loadClient();
-  }, [loadClient]);
+    void loadvendor();
+  }, [loadvendor]);
 
-  const metadata = useMemo<VendorMetadata>(() => client?.metadata ?? {}, [client]);
+  const metadata = useMemo<VendorMetadata>(() => vendor?.metadata ?? {}, [vendor]);
 
   const personnel = useMemo<VendorPersonnelRow[]>(() => {
     const rows = cleanPersonnelRows(metadata.personnel ?? []);
     if (rows.length > 0) return rows;
 
-    if (!client) return [];
+    if (!vendor) return [];
 
     return [
       {
-        name: client.company_related_personnel ?? "",
+        name: vendor.company_related_personnel ?? "",
         role: "",
-        email: client.personnel_email ?? "",
-        phone: client.personnel_phone ?? "",
+        email: vendor.personnel_email ?? "",
+        phone: vendor.personnel_phone ?? "",
       },
     ].filter(
       (row) =>
@@ -734,44 +695,44 @@ export default function FinanceMasterDataVendorDetailPage() {
         Boolean(row.email?.trim()) ||
         Boolean(row.phone?.trim())
     );
-  }, [client, metadata.personnel]);
+  }, [vendor, metadata.personnel]);
 
   const communications = useMemo<VendorCommunicationRow[]>(() => {
     const rows = cleanCommunicationRows(metadata.communications ?? []);
     if (rows.length > 0) return rows;
 
-    if (!client) return [];
+    if (!vendor) return [];
 
     return [
       {
         label: "Company",
         type: "company",
-        email: client.company_email ?? "",
-        phone: client.company_phone ?? "",
+        email: vendor.company_email ?? "",
+        phone: vendor.company_phone ?? "",
       },
       {
         label: "Personnel",
         type: "personnel",
-        email: client.personnel_email ?? "",
-        phone: client.personnel_phone ?? "",
+        email: vendor.personnel_email ?? "",
+        phone: vendor.personnel_phone ?? "",
       },
     ].filter(
       (row) => Boolean(row.email?.trim()) || Boolean(row.phone?.trim())
     );
-  }, [client, metadata.communications]);
+  }, [vendor, metadata.communications]);
 
   const addresses = useMemo<VendorAddressRow[]>(() => {
     const rows = cleanAddressRows(metadata.addresses ?? []);
     if (rows.length > 0) return rows;
 
-    if (!client) return [];
+    if (!vendor) return [];
 
     return [
       {
         label: "Primary",
-        country: client.country ?? "",
-        line1: client.address_line_1 ?? "",
-        line2: client.address_line_2 ?? "",
+        country: vendor.country ?? "",
+        line1: vendor.address_line_1 ?? "",
+        line2: vendor.address_line_2 ?? "",
       },
     ].filter(
       (row) =>
@@ -779,20 +740,20 @@ export default function FinanceMasterDataVendorDetailPage() {
         Boolean(row.line1?.trim()) ||
         Boolean(row.line2?.trim())
     );
-  }, [client, metadata.addresses]);
+  }, [vendor, metadata.addresses]);
 
   const shippingAddresses = useMemo<VendorAddressRow[]>(() => {
     const rows = cleanAddressRows(metadata.shipping_addresses ?? []);
     if (rows.length > 0) return rows;
 
-    if (!client) return [];
+    if (!vendor) return [];
 
     return [
       {
         label: "Shipping",
-        country: client.country ?? "",
-        line1: client.shipping_address_line_1 ?? "",
-        line2: client.shipping_address_line_2 ?? "",
+        country: vendor.country ?? "",
+        line1: vendor.shipping_address_line_1 ?? "",
+        line2: vendor.shipping_address_line_2 ?? "",
       },
     ].filter(
       (row) =>
@@ -800,41 +761,41 @@ export default function FinanceMasterDataVendorDetailPage() {
         Boolean(row.line1?.trim()) ||
         Boolean(row.line2?.trim())
     );
-  }, [client, metadata.shipping_addresses]);
+  }, [vendor, metadata.shipping_addresses]);
 
   const paymentTermLabel = useMemo(() => {
-    if (!client) return "—";
+    if (!vendor) return "—";
 
     if (metadata.custom_payment_term) return metadata.custom_payment_term;
 
-    const match = paymentTerms.find((item) => item.id === client.payment_terms_id);
-    if (!match) return client.payment_terms_id || "—";
+    const match = paymentTerms.find((item) => item.id === vendor.payment_terms_id);
+    if (!match) return vendor.payment_terms_id || "—";
 
     return `${match.code} • ${match.name}`;
-  }, [client, metadata.custom_payment_term, paymentTerms]);
+  }, [vendor, metadata.custom_payment_term, paymentTerms]);
 
   const deliveryTermLabel = useMemo(() => {
-    if (!client) return "—";
-    return metadata.custom_delivery_term || client.delivery_term || "—";
-  }, [client, metadata.custom_delivery_term]);
+    if (!vendor) return "—";
+    return metadata.custom_delivery_term || vendor.delivery_term || "—";
+  }, [vendor, metadata.custom_delivery_term]);
 
   const currencyLabel = useMemo(() => {
-    if (!client) return "—";
-    return metadata.custom_currency || client.currency_code || "—";
-  }, [client, metadata.custom_currency]);
+    if (!vendor) return "—";
+    return metadata.custom_currency || vendor.currency_code || "—";
+  }, [vendor, metadata.custom_currency]);
 
   function openCoreEditor() {
-    if (!client) return;
+    if (!vendor) return;
     setModalError(null);
     setCoreForm({
-      legal_name: client.legal_name || client.name || "",
-      status: (client.status as CoreForm["status"]) || "active",
-      company_related_personnel: client.company_related_personnel || "",
-      company_email: client.company_email || "",
-      personnel_email: client.personnel_email || "",
-      company_phone: client.company_phone || "",
-      personnel_phone: client.personnel_phone || "",
-      country: client.country || "",
+      legal_name: vendor.legal_name || vendor.name || "",
+      status: (vendor.status as CoreForm["status"]) || "active",
+      company_related_personnel: vendor.company_related_personnel || "",
+      company_email: vendor.company_email || "",
+      personnel_email: vendor.personnel_email || "",
+      company_phone: vendor.company_phone || "",
+      personnel_phone: vendor.personnel_phone || "",
+      country: vendor.country || "",
     });
     setEditingSection("core");
   }
@@ -892,36 +853,36 @@ export default function FinanceMasterDataVendorDetailPage() {
   }
 
   function openFinanceEditor() {
-    if (!client) return;
+    if (!vendor) return;
     setModalError(null);
     setFinanceForm({
             payment_terms_id: metadata.custom_payment_term
         ? CUSTOM_OPTION_VALUE
-        : client.payment_terms_id && !client.payment_terms_id.startsWith("fallback-")
-        ? client.payment_terms_id
+        : vendor.payment_terms_id && !vendor.payment_terms_id.startsWith("fallback-")
+        ? vendor.payment_terms_id
         : "",
       payment_terms_custom: metadata.custom_payment_term || "",
       delivery_term: metadata.custom_delivery_term
         ? CUSTOM_OPTION_VALUE
-        : client.delivery_term || "",
+        : vendor.delivery_term || "",
       delivery_term_custom: metadata.custom_delivery_term || "",
       currency_code: metadata.custom_currency
         ? CUSTOM_OPTION_VALUE
-        : client.currency_code || "",
+        : vendor.currency_code || "",
       currency_custom: metadata.custom_currency || "",
     });
     setEditingSection("finance");
   }
 
   function openNotesEditor() {
-    if (!client) return;
+    if (!vendor) return;
     setModalError(null);
-    setNotesForm(client.notes || "");
+    setNotesForm(vendor.notes || "");
     setEditingSection("notes");
   }
 
   async function saveCoreSection() {
-    if (!client) return;
+    if (!vendor) return;
     const legalName = coreForm.legal_name.trim();
     if (!legalName) {
       setModalError("Legal name is required.");
@@ -931,7 +892,7 @@ export default function FinanceMasterDataVendorDetailPage() {
     try {
       setIsMutating(true);
       setModalError(null);
-      await updateVendor(client.id, {
+      await updateVendor(vendor.id, {
         legal_name: legalName,
         contact_person: coreForm.company_related_personnel || null,
         status: coreForm.status,
@@ -943,7 +904,7 @@ export default function FinanceMasterDataVendorDetailPage() {
         country: coreForm.country.trim() || null,
       });
       setEditingSection(null);
-      await loadClient();
+      await loadvendor();
     } catch (error) {
       console.error("Failed to save core section:", error);
       setModalError(error instanceof Error ? error.message : "Failed to save.");
@@ -953,7 +914,7 @@ export default function FinanceMasterDataVendorDetailPage() {
   }
 
   async function savePersonnelSection() {
-    if (!client) return;
+    if (!vendor) return;
 
     const cleaned = cleanPersonnelRows(personnelForm);
 
@@ -969,7 +930,7 @@ export default function FinanceMasterDataVendorDetailPage() {
             Boolean(row.email?.trim())
         ) || null;
 
-      await updateVendor(client.id, {
+      await updateVendor(vendor.id, {
         company_related_personnel:
           primary?.role?.trim() ||
           primary?.name?.trim() ||
@@ -984,7 +945,7 @@ export default function FinanceMasterDataVendorDetailPage() {
       });
 
       setEditingSection(null);
-      await loadClient();
+      await loadvendor();
     } catch (error) {
       console.error("Failed to save personnel section:", error);
       setModalError(error instanceof Error ? error.message : "Failed to save.");
@@ -994,7 +955,7 @@ export default function FinanceMasterDataVendorDetailPage() {
   }
 
   async function saveCommunicationSection() {
-    if (!client) return;
+    if (!vendor) return;
 
     const cleaned = cleanCommunicationRows(communicationForm);
 
@@ -1006,11 +967,11 @@ export default function FinanceMasterDataVendorDetailPage() {
         cleaned.find((row) => row.type === "company") || cleaned[0] || null;
       const person = cleaned.find((row) => row.type === "personnel") || null;
 
-      await updateVendor(client.id, {
+      await updateVendor(vendor.id, {
         company_email: company?.email?.trim() || null,
         company_phone: company?.phone?.trim() || null,
-        personnel_email: person?.email?.trim() || client.personnel_email || null,
-        personnel_phone: person?.phone?.trim() || client.personnel_phone || null,
+        personnel_email: person?.email?.trim() || vendor.personnel_email || null,
+        personnel_phone: person?.phone?.trim() || vendor.personnel_phone || null,
         metadata: {
           ...metadata,
           communications: cleaned,
@@ -1018,7 +979,7 @@ export default function FinanceMasterDataVendorDetailPage() {
       });
 
       setEditingSection(null);
-      await loadClient();
+      await loadvendor();
     } catch (error) {
       console.error("Failed to save communication section:", error);
       setModalError(error instanceof Error ? error.message : "Failed to save.");
@@ -1028,7 +989,7 @@ export default function FinanceMasterDataVendorDetailPage() {
   }
 
   async function saveAddressesSection() {
-    if (!client) return;
+    if (!vendor) return;
 
     const cleaned = cleanAddressRows(addressesForm);
     const primary = cleaned[0] || null;
@@ -1036,7 +997,7 @@ export default function FinanceMasterDataVendorDetailPage() {
     try {
       setIsMutating(true);
       setModalError(null);
-      await updateVendor(client.id, {
+      await updateVendor(vendor.id, {
         country: primary?.country?.trim() || null,
         address_line_1: primary?.line1?.trim() || null,
         address_line_2: primary?.line2?.trim() || null,
@@ -1046,7 +1007,7 @@ export default function FinanceMasterDataVendorDetailPage() {
         },
       });
       setEditingSection(null);
-      await loadClient();
+      await loadvendor();
     } catch (error) {
       console.error("Failed to save address section:", error);
       setModalError(error instanceof Error ? error.message : "Failed to save.");
@@ -1056,7 +1017,7 @@ export default function FinanceMasterDataVendorDetailPage() {
   }
 
   async function saveShippingSection() {
-    if (!client) return;
+    if (!vendor) return;
 
     const cleaned = cleanAddressRows(shippingForm);
     const primary = cleaned[0] || null;
@@ -1064,7 +1025,7 @@ export default function FinanceMasterDataVendorDetailPage() {
     try {
       setIsMutating(true);
       setModalError(null);
-      await updateVendor(client.id, {
+      await updateVendor(vendor.id, {
         shipping_address_line_1: primary?.line1?.trim() || null,
         shipping_address_line_2: primary?.line2?.trim() || null,
         metadata: {
@@ -1073,7 +1034,7 @@ export default function FinanceMasterDataVendorDetailPage() {
         },
       });
       setEditingSection(null);
-      await loadClient();
+      await loadvendor();
     } catch (error) {
       console.error("Failed to save shipping section:", error);
       setModalError(error instanceof Error ? error.message : "Failed to save.");
@@ -1083,12 +1044,12 @@ export default function FinanceMasterDataVendorDetailPage() {
   }
 
   async function saveFinanceSection() {
-    if (!client) return;
+    if (!vendor) return;
 
     try {
       setIsMutating(true);
       setModalError(null);
-      await updateVendor(client.id, {
+      await updateVendor(vendor.id, {
                 payment_terms_id:
           financeForm.payment_terms_id &&
           financeForm.payment_terms_id !== CUSTOM_OPTION_VALUE &&
@@ -1120,7 +1081,7 @@ export default function FinanceMasterDataVendorDetailPage() {
         },
       });
       setEditingSection(null);
-      await loadClient();
+      await loadvendor();
     } catch (error) {
       console.error("Failed to save finance section:", error);
       setModalError(error instanceof Error ? error.message : "Failed to save.");
@@ -1130,16 +1091,16 @@ export default function FinanceMasterDataVendorDetailPage() {
   }
 
   async function saveNotesSection() {
-    if (!client) return;
+    if (!vendor) return;
 
     try {
       setIsMutating(true);
       setModalError(null);
-      await updateVendor(client.id, {
+      await updateVendor(vendor.id, {
         notes: notesForm.trim() || null,
       });
       setEditingSection(null);
-      await loadClient();
+      await loadvendor();
     } catch (error) {
       console.error("Failed to save notes section:", error);
       setModalError(error instanceof Error ? error.message : "Failed to save.");
@@ -1149,18 +1110,18 @@ export default function FinanceMasterDataVendorDetailPage() {
   }
 
   async function handleArchiveToggle() {
-    if (!client) return;
+    if (!vendor) return;
 
     try {
       setIsMutating(true);
 
-      if (client.status === "archived") {
-        await updateVendor(client.id, { status: "active" });
+      if (vendor.status === "archived") {
+        await updateVendor(vendor.id, { status: "active" });
       } else {
-        await archiveVendor(client.id);
+        await archiveVendor(vendor.id);
       }
 
-      await loadClient();
+      await loadvendor();
     } catch (error) {
       console.error("Failed to update vendor status:", error);
     } finally {
@@ -1180,7 +1141,7 @@ export default function FinanceMasterDataVendorDetailPage() {
     );
   }
 
-  if (!client) {
+  if (!vendor) {
     return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
         <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
@@ -1214,7 +1175,7 @@ export default function FinanceMasterDataVendorDetailPage() {
     );
   }
 
-  const displayName = client.legal_name || client.name;
+  const displayName = vendor.legal_name || vendor.name;
 
   return (
     <>
@@ -1230,14 +1191,14 @@ export default function FinanceMasterDataVendorDetailPage() {
                     Master Data
                   </Badge>
                   <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] text-white/70 shadow-none">
-                    {client.code || "No code"}
+                    {vendor.code || "No code"}
                   </Badge>
                   <Badge
                     className={`rounded-full px-3 py-1 text-[11px] shadow-none ${getStatusTone(
-                      client.status
+                      vendor.status
                     )}`}
                   >
-                    {client.status}
+                    {vendor.status}
                   </Badge>
                 </div>
 
@@ -1270,14 +1231,14 @@ export default function FinanceMasterDataVendorDetailPage() {
                   <ShieldCheck className="mr-2 h-4 w-4" />
                   {isMutating
                     ? "Updating..."
-                    : client.status === "archived"
+                    : vendor.status === "archived"
                     ? "Activate"
                     : "Archive"}
                 </Button>
 
                 <Button
                   variant="outline"
-                  onClick={() => void loadClient()}
+                  onClick={() => void loadvendor()}
                   className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
@@ -1311,8 +1272,8 @@ export default function FinanceMasterDataVendorDetailPage() {
                   />
                   <SummaryMetric
                     label="Created"
-                    value={formatDateLabel(client.created_at)}
-                    subtitle={`Updated ${formatDateTimeLabel(client.updated_at)}`}
+                    value={formatDateLabel(vendor.created_at)}
+                    subtitle={`Updated ${formatDateTimeLabel(vendor.updated_at)}`}
                     accentClass="bg-amber-400"
                   />
                 </div>
@@ -1326,31 +1287,31 @@ export default function FinanceMasterDataVendorDetailPage() {
                 onEdit={openCoreEditor}
               >
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <DisplayRow label="Vendor Code" value={client.code || "—"} />
-                  <DisplayRow label="Status" value={client.status || "—"} />
+                  <DisplayRow label="Vendor Code" value={vendor.code || "—"} />
+                  <DisplayRow label="Status" value={vendor.status || "—"} />
                   <DisplayRow label="Legal Name" value={displayName} />
                   <DisplayRow
                     label="Related Personnel"
-                    value={client.company_related_personnel || "—"}
+                    value={vendor.company_related_personnel || "—"}
                   />
                   <DisplayRow
                     label="Company Email"
-                    value={client.company_email || "—"}
+                    value={vendor.company_email || "—"}
                   />
                   <DisplayRow
                     label="Personnel Email"
-                    value={client.personnel_email || "—"}
+                    value={vendor.personnel_email || "—"}
                   />
                   <DisplayRow
                     label="Company Phone"
-                    value={client.company_phone || "—"}
+                    value={vendor.company_phone || "—"}
                   />
                   <DisplayRow
                     label="Personnel Phone"
-                    value={client.personnel_phone || "—"}
+                    value={vendor.personnel_phone || "—"}
                   />
-                  <DisplayRow label="Country" value={client.country || "—"} />
-                  <DisplayRow label="Notes" value={client.notes || "—"} />
+                  <DisplayRow label="Country" value={vendor.country || "—"} />
+                  <DisplayRow label="Notes" value={vendor.notes || "—"} />
                 </div>
               </SectionCard>
 
@@ -1363,16 +1324,16 @@ export default function FinanceMasterDataVendorDetailPage() {
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <DisplayRow
                     label="Created At"
-                    value={formatDateTimeLabel(client.created_at)}
+                    value={formatDateTimeLabel(vendor.created_at)}
                   />
                   <DisplayRow
                     label="Updated At"
-                    value={formatDateTimeLabel(client.updated_at)}
+                    value={formatDateTimeLabel(vendor.updated_at)}
                   />
                   <DisplayRow label="Payment Terms" value={paymentTermLabel} />
                   <DisplayRow label="Delivery Term" value={deliveryTermLabel} />
                   <DisplayRow label="Currency" value={currencyLabel} />
-                  <DisplayRow label="Primary Country" value={client.country || "—"} />
+                  <DisplayRow label="Primary Country" value={vendor.country || "—"} />
                 </div>
               </SectionCard>
             </section>
@@ -1584,7 +1545,7 @@ export default function FinanceMasterDataVendorDetailPage() {
               onEdit={openNotesEditor}
             >
               <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-4 text-sm leading-7 text-white/70">
-                {client.notes || "No notes added yet."}
+                {vendor.notes || "No notes added yet."}
               </div>
             </SectionCard>
           </div>
@@ -2300,48 +2261,23 @@ export default function FinanceMasterDataVendorDetailPage() {
               ) : null}
             </div>
 
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
+                        <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
               <FieldLabel label="Delivery Term" />
-              <SelectField
-                value={financeForm.delivery_term}
+              <InputField
+                value={
+                  financeForm.delivery_term === CUSTOM_OPTION_VALUE
+                    ? financeForm.delivery_term_custom
+                    : financeForm.delivery_term
+                }
                 onChange={(event) =>
                   setFinanceForm((prev) => ({
                     ...prev,
-                    delivery_term: event.target.value,
+                    delivery_term: CUSTOM_OPTION_VALUE,
+                    delivery_term_custom: event.target.value,
                   }))
                 }
-              >
-                <option value="" className="bg-slate-900">
-                  Select delivery term
-                </option>
-                {deliveryTerms.map((item) => (
-                  <option
-                    key={item.id}
-                    value={item.name}
-                    className="bg-slate-900"
-                  >
-                    {item.code} • {item.name}
-                  </option>
-                ))}
-                <option value={CUSTOM_OPTION_VALUE} className="bg-slate-900">
-                  Custom delivery term
-                </option>
-              </SelectField>
-
-              {financeForm.delivery_term === CUSTOM_OPTION_VALUE ? (
-                <div className="mt-3">
-                  <InputField
-                    value={financeForm.delivery_term_custom}
-                    onChange={(event) =>
-                      setFinanceForm((prev) => ({
-                        ...prev,
-                        delivery_term_custom: event.target.value,
-                      }))
-                    }
-                    placeholder="Write custom delivery term"
-                  />
-                </div>
-              ) : null}
+                placeholder="Enter delivery term"
+              />
             </div>
 
             <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">

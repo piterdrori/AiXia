@@ -983,7 +983,7 @@ export function canAccessRoute(
       });
     }
 
-    return route === pattern;
+    return route.replace(/\/+$/, "") === pattern.replace(/\/+$/, "");
   });
 
   if (!entry) return true;

@@ -479,10 +479,14 @@ export default function FinanceMasterDataVendorCreatePage() {
 
       setForm((prev) => ({
         ...prev,
-        payment_terms_id:
+                payment_terms_id:
           prev.payment_terms_id ||
-          nextPaymentTerms.find((item) => item.is_default)?.id ||
-          nextPaymentTerms[0]?.id ||
+          nextPaymentTerms.find(
+            (item) => item.is_default && !item.id.startsWith("fallback-")
+          )?.id ||
+          nextPaymentTerms.find(
+            (item) => !item.id.startsWith("fallback-")
+          )?.id ||
           "",
         currency_code:
           prev.currency_code ||
@@ -652,8 +656,10 @@ export default function FinanceMasterDataVendorCreatePage() {
         address_line_2: primaryAddress?.line2.trim() || null,
         shipping_address_line_1: primaryShippingAddress?.line1.trim() || null,
         shipping_address_line_2: primaryShippingAddress?.line2.trim() || null,
-        payment_terms_id:
-          form.payment_terms_id && form.payment_terms_id !== CUSTOM_OPTION_VALUE
+                payment_terms_id:
+          form.payment_terms_id &&
+          form.payment_terms_id !== CUSTOM_OPTION_VALUE &&
+          !form.payment_terms_id.startsWith("fallback-")
             ? form.payment_terms_id
             : null,
         delivery_term:

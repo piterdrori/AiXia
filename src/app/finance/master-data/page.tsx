@@ -575,7 +575,7 @@ export default function FinanceMasterDataPage() {
         key: "vendors",
         title: "Vendors",
         description: "Manage suppliers and vendor counterparties.",
-        route: "/finance/vendors",
+        route: "/finance/master-data/vendors",
         icon: Building2,
         count: data.counts.vendors,
         statusLabel: "Active",

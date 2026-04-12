@@ -98,6 +98,10 @@ type RawProfileRow = Record<string, unknown>;
 
 const CUSTOM_OPTION_VALUE = "__custom__";
 
+const FALLBACK_PAYMENT_TERMS: PaymentTermOption[] = [
+  { id: "fallback-net30", name: "Net 30", code: "NET30", due_days: 30, is_default: false }
+];
+
 const FALLBACK_CURRENCIES = [
   {
     id: "fallback-usd",
@@ -196,7 +200,7 @@ const EMPTY_FORM: FormState = {
 };
 
 function mergeUniquePaymentTerms(items: PaymentTermOption[]) {
-  return items;
+  return [...items, ...FALLBACK_PAYMENT_TERMS];
 }
 
 function mergeUniqueCurrencies(items: CurrencyOption[]) {

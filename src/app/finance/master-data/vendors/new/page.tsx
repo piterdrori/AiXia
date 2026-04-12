@@ -38,12 +38,6 @@ type CurrencyOption = {
   is_base_currency: boolean;
 };
 
-type DeliveryTermOption = {
-  id: string;
-  code: string;
-  name: string;
-};
-
 type EmployeeOption = {
   id: string;
   label: string;
@@ -104,28 +98,7 @@ type RawProfileRow = Record<string, unknown>;
 
 const CUSTOM_OPTION_VALUE = "__custom__";
 
-const FALLBACK_PAYMENT_TERMS = [
-  {
-    id: "fallback-immediate",
-    name: "Due Immediately",
-    code: "IMMEDIATE",
-    due_days: 0,
-    is_default: false,
-  },
-  { id: "fallback-net7", name: "Net 7", code: "NET7", due_days: 7, is_default: false },
-  { id: "fallback-net15", name: "Net 15", code: "NET15", due_days: 15, is_default: false },
-  { id: "fallback-net30", name: "Net 30", code: "NET30", due_days: 30, is_default: false },
-  { id: "fallback-net45", name: "Net 45", code: "NET45", due_days: 45, is_default: false },
-  { id: "fallback-net60", name: "Net 60", code: "NET60", due_days: 60, is_default: false },
-];
-
-const FALLBACK_DELIVERY_TERMS = [
-  { id: "fallback-exw", code: "EXW", name: "Ex Works" },
-  { id: "fallback-fob", code: "FOB", name: "Free On Board" },
-  { id: "fallback-cif", code: "CIF", name: "Cost, Insurance and Freight" },
-  { id: "fallback-ddp", code: "DDP", name: "Delivered Duty Paid" },
-  { id: "fallback-dap", code: "DAP", name: "Delivered At Place" },
-];
+const FALLBACK_PAYMENT_TERMS: PaymentTermOption[] = [];
 
 const FALLBACK_CURRENCIES = [
   {
@@ -225,21 +198,7 @@ const EMPTY_FORM: FormState = {
 };
 
 function mergeUniquePaymentTerms(items: PaymentTermOption[]) {
-  const map = new Map<string, PaymentTermOption>();
-  [...items, ...FALLBACK_PAYMENT_TERMS].forEach((item) => {
-    const key = `${item.code}-${item.name}-${item.due_days}`;
-    if (!map.has(key)) map.set(key, item);
-  });
-  return Array.from(map.values());
-}
-
-function mergeUniqueDeliveryTerms(items: DeliveryTermOption[]) {
-  const map = new Map<string, DeliveryTermOption>();
-  [...items, ...FALLBACK_DELIVERY_TERMS].forEach((item) => {
-    const key = `${item.code}-${item.name}`;
-    if (!map.has(key)) map.set(key, item);
-  });
-  return Array.from(map.values());
+  return items;
 }
 
 function mergeUniqueCurrencies(items: CurrencyOption[]) {
@@ -406,7 +365,6 @@ export default function FinanceMasterDataVendorCreatePage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [paymentTerms, setPaymentTerms] = useState<PaymentTermOption[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
-  const [deliveryTerms, setDeliveryTerms] = useState<DeliveryTermOption[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [isLoadingOptions, setIsLoadingOptions] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -419,7 +377,6 @@ export default function FinanceMasterDataVendorCreatePage() {
       const [
         paymentTermsResult,
         currenciesResult,
-        deliveryTermsResult,
         employeesResult,
       ] = await Promise.all([
         supabase
@@ -434,16 +391,7 @@ export default function FinanceMasterDataVendorCreatePage() {
           .eq("status", "active")
           .order("is_base_currency", { ascending: false })
           .order("currency_code", { ascending: true }),
-        (async () => {
-          try {
-            return await supabase
-              .from("finance_shipping_terms")
-              .select("id, code, name")
-              .order("code", { ascending: true });
-          } catch {
-            return { data: [], error: null };
-          }
-        })(),
+        
         supabase
           .from("profiles")
           .select("*")
@@ -456,9 +404,6 @@ export default function FinanceMasterDataVendorCreatePage() {
       );
       const nextCurrencies = mergeUniqueCurrencies(
         (currenciesResult.data ?? []) as CurrencyOption[]
-      );
-      const nextDeliveryTerms = mergeUniqueDeliveryTerms(
-        (deliveryTermsResult.data ?? []) as DeliveryTermOption[]
       );
 
       const nextEmployees = ((employeesResult.data ?? []) as RawProfileRow[]).map(
@@ -474,7 +419,6 @@ export default function FinanceMasterDataVendorCreatePage() {
 
       setPaymentTerms(nextPaymentTerms);
       setCurrencies(nextCurrencies);
-      setDeliveryTerms(nextDeliveryTerms);
       setEmployees(nextEmployees);
 
       setForm((prev) => ({
@@ -493,8 +437,7 @@ export default function FinanceMasterDataVendorCreatePage() {
           nextCurrencies.find((item) => item.is_base_currency)?.currency_code ||
           nextCurrencies[0]?.currency_code ||
           "",
-        delivery_term:
-          prev.delivery_term || nextDeliveryTerms[0]?.name || "",
+        delivery_term: prev.delivery_term || "",
       }));
     } catch (error) {
       console.error("Failed to load create-vendor options:", error);
@@ -531,12 +474,12 @@ export default function FinanceMasterDataVendorCreatePage() {
   }, [currencies, form.currency_code, form.currency_custom]);
 
   const selectedDeliveryTermLabel = useMemo(() => {
-    if (form.delivery_term === CUSTOM_OPTION_VALUE) {
-      return form.delivery_term_custom || "Custom delivery term";
-    }
+  if (form.delivery_term === CUSTOM_OPTION_VALUE) {
+    return form.delivery_term_custom || "Custom delivery term";
+  }
 
-    return form.delivery_term || "—";
-  }, [form.delivery_term, form.delivery_term_custom]);
+  return form.delivery_term || "—";
+}, [form.delivery_term, form.delivery_term_custom]);
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({
@@ -656,12 +599,12 @@ export default function FinanceMasterDataVendorCreatePage() {
         address_line_2: primaryAddress?.line2.trim() || null,
         shipping_address_line_1: primaryShippingAddress?.line1.trim() || null,
         shipping_address_line_2: primaryShippingAddress?.line2.trim() || null,
-                payment_terms_id:
-          form.payment_terms_id &&
-          form.payment_terms_id !== CUSTOM_OPTION_VALUE &&
-          !form.payment_terms_id.startsWith("fallback-")
-            ? form.payment_terms_id
-            : null,
+               payment_terms_id:
+  form.payment_terms_id &&
+  form.payment_terms_id !== CUSTOM_OPTION_VALUE &&
+  !form.payment_terms_id.startsWith("fallback-")
+    ? form.payment_terms_id
+    : null,
         delivery_term:
           form.delivery_term === CUSTOM_OPTION_VALUE
             ? form.delivery_term_custom.trim() || null
@@ -1347,43 +1290,16 @@ export default function FinanceMasterDataVendorCreatePage() {
                 </div>
 
                 <div className="rounded-[22px] border border-white/10 bg-[linear-gradient(135deg,rgba(34,211,238,0.08),rgba(255,255,255,0.03))] p-4">
-                  <FieldLabel label="Delivery Term" />
-                  <SelectField
-                    value={form.delivery_term}
-                    onChange={(event) =>
-                      updateForm("delivery_term", event.target.value)
-                    }
-                    disabled={isLoadingOptions}
-                  >
-                    <option value="" className="bg-slate-900">
-                      Select delivery term
-                    </option>
-                    {deliveryTerms.map((item) => (
-                      <option
-                        key={item.id}
-                        value={item.name}
-                        className="bg-slate-900"
-                      >
-                        {item.code} • {item.name}
-                      </option>
-                    ))}
-                    <option value={CUSTOM_OPTION_VALUE} className="bg-slate-900">
-                      Custom delivery term
-                    </option>
-                  </SelectField>
-
-                  {form.delivery_term === CUSTOM_OPTION_VALUE ? (
-                    <div className="mt-3">
-                      <InputField
-                        value={form.delivery_term_custom}
-                        onChange={(event) =>
-                          updateForm("delivery_term_custom", event.target.value)
-                        }
-                        placeholder="Write custom delivery term"
-                      />
-                    </div>
-                  ) : null}
-                </div>
+  <FieldLabel label="Delivery Term" />
+  <InputField
+    value={form.delivery_term === CUSTOM_OPTION_VALUE ? form.delivery_term_custom : form.delivery_term}
+    onChange={(event) => {
+      updateForm("delivery_term", CUSTOM_OPTION_VALUE);
+      updateForm("delivery_term_custom", event.target.value);
+    }}
+    placeholder="Enter delivery term"
+  />
+</div>
 
                 <div className="rounded-[22px] border border-white/10 bg-[linear-gradient(135deg,rgba(16,185,129,0.08),rgba(255,255,255,0.03))] p-4">
                   <FieldLabel label="Currency" />

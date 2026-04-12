@@ -98,8 +98,6 @@ type RawProfileRow = Record<string, unknown>;
 
 const CUSTOM_OPTION_VALUE = "__custom__";
 
-const FALLBACK_PAYMENT_TERMS: PaymentTermOption[] = [];
-
 const FALLBACK_CURRENCIES = [
   {
     id: "fallback-usd",

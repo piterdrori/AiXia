@@ -641,7 +641,7 @@ export default function FinanceMasterDataVendorDetailPage() {
       if (paymentTermsResult.error) throw paymentTermsResult.error;
       if (currenciesResult.error) throw currenciesResult.error;
 
-      setvendor(vendorResult.data as VendorDetailRecord);
+      setVendor(vendorResult.data as VendorDetailRecord);
       setPaymentTerms(
         mergeUniquePaymentTerms(
           (paymentTermsResult.data ?? []) as PaymentTermOption[]
@@ -664,7 +664,7 @@ export default function FinanceMasterDataVendorDetailPage() {
       setEmployees(nextEmployees);
     } catch (error) {
       console.error("Failed to load finance vendor details:", error);
-      setvendor(null);
+      setVendor(null);
     } finally {
       setIsLoading(false);
     }

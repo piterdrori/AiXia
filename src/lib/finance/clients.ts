@@ -21,11 +21,19 @@ export type FinanceClientListRow = Pick<
   | "updated_at"
 >;
 
+async function getCurrentUserId() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  return user?.id ?? null;
+}
+
 export async function getClients(): Promise<FinanceClientListRow[]> {
   const { data, error } = await supabase
     .from(TABLE)
     .select(
-          `
+      `
         id,
         code,
         name,
@@ -42,6 +50,33 @@ export async function getClients(): Promise<FinanceClientListRow[]> {
       `
     )
     .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as FinanceClientListRow[];
+}
+
+export async function getArchivedClients(): Promise<FinanceClientListRow[]> {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select(
+      `
+        id,
+        code,
+        name,
+        legal_name,
+        status,
+        company_email,
+        personnel_email,
+        company_phone,
+        personnel_phone,
+        company_related_personnel,
+        country,
+        created_at,
+        updated_at
+      `
+    )
+    .eq("status", "archived")
+    .order("updated_at", { ascending: false });
 
   if (error) throw error;
   return (data ?? []) as FinanceClientListRow[];
@@ -64,9 +99,7 @@ export async function createClient(input: {
   notes?: string | null;
   metadata?: Record<string, unknown>;
 }) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
   const normalizedLegalName = input.legal_name.trim();
   const normalizedContactName = input.contact_name?.trim() || null;
@@ -88,15 +121,11 @@ export async function createClient(input: {
     shipping_address_line_2: input.shipping_address_line_2?.trim() || null,
     notes: input.notes?.trim() || null,
     metadata: input.metadata ?? {},
-    created_by: user?.id ?? null,
-    updated_by: user?.id ?? null,
+    created_by: userId,
+    updated_by: userId,
   };
 
-  const { data, error } = await supabase
-    .from(TABLE)
-    .insert(payload)
-    .select()
-    .single();
+  const { data, error } = await supabase.from(TABLE).insert(payload).select().single();
 
   if (error) throw error;
 
@@ -114,13 +143,11 @@ export async function updateClient(
   id: string,
   updates: Partial<FinanceClient>
 ): Promise<FinanceClient> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
   const nextUpdates: Partial<FinanceClient> = {
     ...updates,
-    updated_by: user?.id ?? null,
+    updated_by: userId,
   };
 
   if (typeof nextUpdates.legal_name === "string") {
@@ -196,15 +223,13 @@ export async function updateClient(
 }
 
 export async function archiveClient(id: string): Promise<FinanceClient> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
   const { data, error } = await supabase
     .from(TABLE)
     .update({
       status: "archived",
-      updated_by: user?.id ?? null,
+      updated_by: userId,
     })
     .eq("id", id)
     .select()
@@ -220,4 +245,42 @@ export async function archiveClient(id: string): Promise<FinanceClient> {
   });
 
   return data as FinanceClient;
+}
+
+export async function restoreClient(id: string): Promise<FinanceClient> {
+  const userId = await getCurrentUserId();
+
+  const { data, error } = await supabase
+    .from(TABLE)
+    .update({
+      status: "active",
+      updated_by: userId,
+    })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  await logActivity({
+    actionType: "finance.client.restored",
+    entityType: "finance_client",
+    entityId: id,
+    message: "Client restored from archive",
+  });
+
+  return data as FinanceClient;
+}
+
+export async function permanentlyDeleteClient(id: string): Promise<void> {
+  const { error } = await supabase.from(TABLE).delete().eq("id", id);
+
+  if (error) throw error;
+
+  await logActivity({
+    actionType: "finance.client.deleted",
+    entityType: "finance_client",
+    entityId: id,
+    message: "Client permanently deleted",
+  });
 }

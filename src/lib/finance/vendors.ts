@@ -17,8 +17,6 @@ export type FinanceVendorListRow = Pick<
   | "personnel_phone"
   | "company_related_personnel"
   | "country"
-  | "payment_terms_id"
-  | "currency_code"
   | "created_at"
   | "updated_at"
 >;
@@ -39,8 +37,6 @@ export async function getVendors(): Promise<FinanceVendorListRow[]> {
         personnel_phone,
         company_related_personnel,
         country,
-        payment_terms_id,
-        currency_code,
         created_at,
         updated_at
       `

@@ -1154,11 +1154,8 @@ export default function FinanceMasterDataCompanyDetailPage() {
                   <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200 shadow-none">
                     Master Data
                   </Badge>
-                  <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] text-white/70 shadow-none">
+                    <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] text-white/70 shadow-none">
                     {company.code || "No code"}
-                  </Badge>
-                  <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] text-white/70 shadow-none">
-                    {company.company_code || "No company code"}
                   </Badge>
                   <Badge
                     className={`rounded-full px-3 py-1 text-[11px] shadow-none ${getStatusTone(

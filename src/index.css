@@ -365,3 +365,19 @@ html.compact .px-4 {
   --tw-gradient-from: hsl(var(--primary)) var(--tw-gradient-from-position) !important;
   --tw-gradient-to: hsl(var(--primary)) / 0 var(--tw-gradient-to-position) !important;
 }
+
+/* 🔥 FORCE DARK DROPDOWN (CRITICAL FIX) */
+select {
+  background-color: #0b0f1a !important;
+  color: #ffffff !important;
+}
+
+select option {
+  background-color: #0b0f1a !important;
+  color: #ffffff !important;
+}
+
+/* Fix dropdown panel (Chrome/Edge) */
+select:focus {
+  background-color: #0b0f1a !important;
+}

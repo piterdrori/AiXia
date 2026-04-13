@@ -41,6 +41,7 @@ type MasterDataOverviewCard = {
 type MasterDataModuleKey =
   | "clients"
   | "vendors"
+  | "companies"
   | "vendor-bank-accounts"
   | "bank-accounts"
   | "payment-methods"
@@ -79,6 +80,7 @@ type MasterDataPageData = {
   counts: {
     clients: number;
     vendors: number;
+    companies: number;
     vendorBankAccounts: number;
     bankAccounts: number;
     paymentMethods: number;
@@ -104,6 +106,7 @@ const EMPTY_MASTER_DATA: MasterDataPageData = {
     counts: {
     clients: 0,
     vendors: 0,
+    companies: 0,
     vendorBankAccounts: 0,
     bankAccounts: 0,
     paymentMethods: 0,
@@ -313,6 +316,7 @@ export default function FinanceMasterDataPage() {
             const [
         clients,
         vendors,
+        companies,
         vendorBankAccounts,
         bankAccounts,
         paymentMethods,
@@ -333,6 +337,10 @@ export default function FinanceMasterDataPage() {
 
         supabase
           .from("finance_vendors")
+          .select("id", { count: "exact", head: true }),
+
+        supabase
+          .from("finance_companies")
           .select("id", { count: "exact", head: true }),
 
         (async () => {
@@ -466,6 +474,7 @@ export default function FinanceMasterDataPage() {
                 counts: {
           clients: clients.count ?? 0,
           vendors: vendors.count ?? 0,
+          companies: companies.count ?? 0,
           vendorBankAccounts: (vendorBankAccounts as any)?.count ?? 0,
           bankAccounts: bankAccounts.count ?? 0,
           paymentMethods: paymentMethods.count ?? 0,
@@ -515,6 +524,14 @@ export default function FinanceMasterDataPage() {
         subtitle: "Supplier records",
         icon: Building2,
         tone: "amber",
+      },
+      {
+        key: "companies",
+        title: "Companies",
+        value: isLoading ? "—" : formatCount(data.counts.companies),
+        subtitle: "Internal legal entities",
+        icon: Building2,
+        tone: "cyan",
       },
       {
         key: "bank-accounts",
@@ -579,6 +596,16 @@ export default function FinanceMasterDataPage() {
         icon: Building2,
         count: data.counts.vendors,
         statusLabel: "Active",
+        lastUpdatedLabel: "Live",
+      },
+      {
+         key: "companies",
+         title: "Companies",
+         description: "Manage internal legal entities and finance ownership structure.",
+         route: "/finance/master-data/companies",
+         icon: Building2,
+         count: data.counts.companies,
+         statusLabel: data.counts.companies > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
       },
       {

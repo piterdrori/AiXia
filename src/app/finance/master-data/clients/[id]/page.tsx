@@ -30,26 +30,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-type PaymentTermOption = {
-  id: string;
-  name: string;
-  code: string;
-  due_days: number;
-  is_default?: boolean;
-};
-
-type CurrencyOption = {
-  id: string;
-  currency_code: string;
-  currency_name: string;
-  is_base_currency?: boolean;
-};
-
-type DeliveryTermOption = {
-  id: string;
-  code: string;
-  name: string;
-};
 
 type EmployeeOption = {
   id: string;
@@ -88,9 +68,6 @@ type ClientMetadata = {
   communications?: ClientCommunicationRow[];
   addresses?: ClientAddressRow[];
   shipping_addresses?: ClientAddressRow[];
-  custom_payment_term?: string | null;
-  custom_delivery_term?: string | null;
-  custom_currency?: string | null;
 };
 
 type ClientDetailRecord = {
@@ -109,9 +86,6 @@ type ClientDetailRecord = {
   address_line_2: string | null;
   shipping_address_line_1: string | null;
   shipping_address_line_2: string | null;
-  payment_terms_id: string | null;
-  delivery_term: string | null;
-  currency_code: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -125,7 +99,6 @@ type EditSection =
   | "communication"
   | "addresses"
   | "shipping"
-  | "finance"
   | "notes";
 
 type CoreForm = {
@@ -139,73 +112,7 @@ type CoreForm = {
   country: string;
 };
 
-type FinanceForm = {
-  payment_terms_id: string;
-  payment_terms_custom: string;
-  delivery_term: string;
-  delivery_term_custom: string;
-  currency_code: string;
-  currency_custom: string;
-};
-
 type RawProfileRow = Record<string, unknown>;
-
-const CUSTOM_OPTION_VALUE = "__custom__";
-
-const FALLBACK_PAYMENT_TERMS: PaymentTermOption[] = [
-  {
-    id: "fallback-immediate",
-    name: "Due Immediately",
-    code: "IMMEDIATE",
-    due_days: 0,
-  },
-  { id: "fallback-net7", name: "Net 7", code: "NET7", due_days: 7 },
-  { id: "fallback-net15", name: "Net 15", code: "NET15", due_days: 15 },
-  { id: "fallback-net30", name: "Net 30", code: "NET30", due_days: 30 },
-  { id: "fallback-net45", name: "Net 45", code: "NET45", due_days: 45 },
-  { id: "fallback-net60", name: "Net 60", code: "NET60", due_days: 60 },
-];
-
-const FALLBACK_DELIVERY_TERMS: DeliveryTermOption[] = [
-  { id: "fallback-exw", code: "EXW", name: "Ex Works" },
-  { id: "fallback-fob", code: "FOB", name: "Free On Board" },
-  { id: "fallback-cif", code: "CIF", name: "Cost, Insurance and Freight" },
-  { id: "fallback-ddp", code: "DDP", name: "Delivered Duty Paid" },
-  { id: "fallback-dap", code: "DAP", name: "Delivered At Place" },
-];
-
-const FALLBACK_CURRENCIES: CurrencyOption[] = [
-  {
-    id: "fallback-usd",
-    currency_code: "USD",
-    currency_name: "US Dollar",
-    is_base_currency: true,
-  },
-  {
-    id: "fallback-eur",
-    currency_code: "EUR",
-    currency_name: "Euro",
-    is_base_currency: false,
-  },
-  {
-    id: "fallback-cny",
-    currency_code: "CNY",
-    currency_name: "Chinese Yuan",
-    is_base_currency: false,
-  },
-  {
-    id: "fallback-gbp",
-    currency_code: "GBP",
-    currency_name: "British Pound",
-    is_base_currency: false,
-  },
-  {
-    id: "fallback-ils",
-    currency_code: "ILS",
-    currency_name: "Israeli Shekel",
-    is_base_currency: false,
-  },
-];
 
 function uid(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -250,32 +157,6 @@ function getStatusTone(status: string) {
     default:
       return "border-white/10 bg-white/8 text-white/70";
   }
-}
-
-function mergeUniquePaymentTerms(items: PaymentTermOption[]) {
-  const map = new Map<string, PaymentTermOption>();
-  [...items, ...FALLBACK_PAYMENT_TERMS].forEach((item) => {
-    const key = `${item.code}-${item.name}-${item.due_days}`;
-    if (!map.has(key)) map.set(key, item);
-  });
-  return Array.from(map.values());
-}
-
-function mergeUniqueDeliveryTerms(items: DeliveryTermOption[]) {
-  const map = new Map<string, DeliveryTermOption>();
-  [...items, ...FALLBACK_DELIVERY_TERMS].forEach((item) => {
-    const key = `${item.code}-${item.name}`;
-    if (!map.has(key)) map.set(key, item);
-  });
-  return Array.from(map.values());
-}
-
-function mergeUniqueCurrencies(items: CurrencyOption[]) {
-  const map = new Map<string, CurrencyOption>();
-  [...items, ...FALLBACK_CURRENCIES].forEach((item) => {
-    if (!map.has(item.currency_code)) map.set(item.currency_code, item);
-  });
-  return Array.from(map.values());
 }
 
 function getProfileLabel(profile: RawProfileRow) {
@@ -568,11 +449,7 @@ function ModalShell({
 export default function FinanceMasterDataClientDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-
   const [client, setClient] = useState<ClientDetailRecord | null>(null);
-  const [paymentTerms, setPaymentTerms] = useState<PaymentTermOption[]>([]);
-  const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
-  const [deliveryTerms, setDeliveryTerms] = useState<DeliveryTermOption[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isMutating, setIsMutating] = useState(false);
@@ -593,15 +470,7 @@ export default function FinanceMasterDataClientDetailPage() {
     ClientCommunicationRow[]
   >([]);
   const [addressesForm, setAddressesForm] = useState<ClientAddressRow[]>([]);
-  const [shippingForm, setShippingForm] = useState<ClientAddressRow[]>([]);
-  const [financeForm, setFinanceForm] = useState<FinanceForm>({
-    payment_terms_id: "",
-    payment_terms_custom: "",
-    delivery_term: "",
-    delivery_term_custom: "",
-    currency_code: "",
-    currency_custom: "",
-  });
+  const [shippingForm, setShippingForm] = useState<ClientAddressRow[]>([])
   const [notesForm, setNotesForm] = useState("");
   const [modalError, setModalError] = useState<string | null>(null);
 
@@ -613,9 +482,6 @@ export default function FinanceMasterDataClientDetailPage() {
     try {
       const [
         clientResult,
-        paymentTermsResult,
-        currenciesResult,
-        deliveryTermsResult,
         employeesResult,
       ] = await Promise.all([
         supabase
@@ -637,9 +503,6 @@ export default function FinanceMasterDataClientDetailPage() {
               address_line_2,
               shipping_address_line_1,
               shipping_address_line_2,
-              payment_terms_id,
-              delivery_term,
-              currency_code,
               notes,
               created_at,
               updated_at,
@@ -802,27 +665,6 @@ export default function FinanceMasterDataClientDetailPage() {
     );
   }, [client, metadata.shipping_addresses]);
 
-  const paymentTermLabel = useMemo(() => {
-    if (!client) return "—";
-
-    if (metadata.custom_payment_term) return metadata.custom_payment_term;
-
-    const match = paymentTerms.find((item) => item.id === client.payment_terms_id);
-    if (!match) return client.payment_terms_id || "—";
-
-    return `${match.code} • ${match.name}`;
-  }, [client, metadata.custom_payment_term, paymentTerms]);
-
-  const deliveryTermLabel = useMemo(() => {
-    if (!client) return "—";
-    return metadata.custom_delivery_term || client.delivery_term || "—";
-  }, [client, metadata.custom_delivery_term]);
-
-  const currencyLabel = useMemo(() => {
-    if (!client) return "—";
-    return metadata.custom_currency || client.currency_code || "—";
-  }, [client, metadata.custom_currency]);
-
   function openCoreEditor() {
     if (!client) return;
     setModalError(null);
@@ -889,64 +731,6 @@ export default function FinanceMasterDataClientDetailPage() {
         : [emptyAddressRow("shipping")]
     );
     setEditingSection("shipping");
-  }
-
-  function openFinanceEditor() {
-    if (!client) return;
-    setModalError(null);
-    setFinanceForm({
-      payment_terms_id: metadata.custom_payment_term
-        ? CUSTOM_OPTION_VALUE
-        : client.payment_terms_id || "",
-      payment_terms_custom: metadata.custom_payment_term || "",
-      delivery_term: metadata.custom_delivery_term
-        ? CUSTOM_OPTION_VALUE
-        : client.delivery_term || "",
-      delivery_term_custom: metadata.custom_delivery_term || "",
-      currency_code: metadata.custom_currency
-        ? CUSTOM_OPTION_VALUE
-        : client.currency_code || "",
-      currency_custom: metadata.custom_currency || "",
-    });
-    setEditingSection("finance");
-  }
-
-  function openNotesEditor() {
-    if (!client) return;
-    setModalError(null);
-    setNotesForm(client.notes || "");
-    setEditingSection("notes");
-  }
-
-  async function saveCoreSection() {
-    if (!client) return;
-    const legalName = coreForm.legal_name.trim();
-    if (!legalName) {
-      setModalError("Legal name is required.");
-      return;
-    }
-
-    try {
-      setIsMutating(true);
-      setModalError(null);
-      await updateClient(client.id, {
-        legal_name: legalName,
-        status: coreForm.status,
-        company_related_personnel: coreForm.company_related_personnel.trim() || null,
-        company_email: coreForm.company_email.trim() || null,
-        personnel_email: coreForm.personnel_email.trim() || null,
-        company_phone: coreForm.company_phone.trim() || null,
-        personnel_phone: coreForm.personnel_phone.trim() || null,
-        country: coreForm.country.trim() || null,
-      });
-      setEditingSection(null);
-      await loadClient();
-    } catch (error) {
-      console.error("Failed to save core section:", error);
-      setModalError(error instanceof Error ? error.message : "Failed to save.");
-    } finally {
-      setIsMutating(false);
-    }
   }
 
   async function savePersonnelSection() {
@@ -1285,35 +1069,7 @@ export default function FinanceMasterDataClientDetailPage() {
 
                     <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
             <div className="flex flex-col gap-6">
-              <section>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <SummaryMetric
-                    label="Payment Terms"
-                    value={paymentTermLabel}
-                    subtitle="Settlement behavior"
-                    accentClass="bg-violet-400"
-                  />
-                  <SummaryMetric
-                    label="Currency"
-                    value={currencyLabel}
-                    subtitle="Operational default"
-                    accentClass="bg-emerald-400"
-                  />
-                  <SummaryMetric
-                    label="Delivery Term"
-                    value={deliveryTermLabel}
-                    subtitle="Logistics default"
-                    accentClass="bg-cyan-400"
-                  />
-                  <SummaryMetric
-                    label="Created"
-                    value={formatDateLabel(client.created_at)}
-                    subtitle={`Updated ${formatDateTimeLabel(client.updated_at)}`}
-                    accentClass="bg-amber-400"
-                  />
-                </div>
-              </section>
-
+                
               <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
               <SectionCard
                 title="Core Client Data"
@@ -1349,29 +1105,6 @@ export default function FinanceMasterDataClientDetailPage() {
                   <DisplayRow label="Notes" value={client.notes || "—"} />
                 </div>
               </SectionCard>
-
-              <SectionCard
-                title="System Timestamps"
-                description="Audit-facing system timestamps for the client record."
-                accentClass="bg-[linear-gradient(135deg,rgba(139,92,246,0.18),rgba(34,211,238,0.10))]"
-                onEdit={openFinanceEditor}
-              >
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <DisplayRow
-                    label="Created At"
-                    value={formatDateTimeLabel(client.created_at)}
-                  />
-                  <DisplayRow
-                    label="Updated At"
-                    value={formatDateTimeLabel(client.updated_at)}
-                  />
-                  <DisplayRow label="Payment Terms" value={paymentTermLabel} />
-                  <DisplayRow label="Delivery Term" value={deliveryTermLabel} />
-                  <DisplayRow label="Currency" value={currencyLabel} />
-                  <DisplayRow label="Primary Country" value={client.country || "—"} />
-                </div>
-              </SectionCard>
-            </section>
 
             <SectionCard
               title="Personnel"
@@ -2246,54 +1979,6 @@ export default function FinanceMasterDataClientDetailPage() {
           </div>
         </ModalShell>
       ) : null}
-
-      {editingSection === "finance" ? (
-        <ModalShell
-          title="Edit Finance Defaults"
-          description="Update payment terms, delivery terms, and currency."
-          onClose={() => setEditingSection(null)}
-          onSave={() => void saveFinanceSection()}
-          isSaving={isMutating}
-        >
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
-              <FieldLabel label="Payment Terms" />
-              <SelectField
-                value={financeForm.payment_terms_id}
-                onChange={(event) =>
-                  setFinanceForm((prev) => ({
-                    ...prev,
-                    payment_terms_id: event.target.value,
-                  }))
-                }
-              >
-                <option value="" className="bg-slate-900">
-                  Select payment term
-                </option>
-                {paymentTerms.map((item) => (
-                  <option key={item.id} value={item.id} className="bg-slate-900">
-                    {item.code} • {item.name} ({item.due_days} days)
-                  </option>
-                ))}
-                <option value={CUSTOM_OPTION_VALUE} className="bg-slate-900">
-                  Custom payment term
-                </option>
-              </SelectField>
-
-              {financeForm.payment_terms_id === CUSTOM_OPTION_VALUE ? (
-                <div className="mt-3">
-                  <InputField
-                    value={financeForm.payment_terms_custom}
-                    onChange={(event) =>
-                      setFinanceForm((prev) => ({
-                        ...prev,
-                        payment_terms_custom: event.target.value,
-                      }))
-                    }
-                    placeholder="Write custom payment term"
-                  />
-                </div>
-              ) : null}
             </div>
 
             <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">

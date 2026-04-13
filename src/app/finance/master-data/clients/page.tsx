@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
-  Mail,
   Building2,
+  Mail,
   Phone,
   Plus,
   RefreshCw,
@@ -237,7 +237,8 @@ async function handleDelete(id: string) {
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-[1920px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
+      <div className="flex h-[calc(100vh-140px)] min-h-0 flex-col overflow-hidden">
+      <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
         <section className="relative z-10 flex-shrink-0 rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.10),transparent_32%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.10),transparent_24%)]" />
 
@@ -302,7 +303,7 @@ async function handleDelete(id: string) {
           </div>
         </section>
 
-        <div className="flex flex-col gap-4 pb-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
           <section>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <Card className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
@@ -349,8 +350,8 @@ async function handleDelete(id: string) {
             </div>
           </section>
 
-                    <section className="flex flex-col">
-            <Card className="flex flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+          <section className="min-h-0 flex-1 h-full">
+  <Card className="flex h-full min-h-[860px] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <CardHeader className="flex-shrink-0 border-b border-white/8 pb-4">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                   <div className="space-y-2">
@@ -379,7 +380,7 @@ async function handleDelete(id: string) {
                 </div>
               </CardHeader>
 
-              <CardContent className="flex flex-col p-0">
+              <CardContent className="flex min-h-0 flex-1 flex-col p-0">
                 {isLoading ? (
                   <div className="p-6 text-sm text-white/50">Loading clients...</div>
                 ) : filteredClients.length === 0 ? (
@@ -398,7 +399,7 @@ async function handleDelete(id: string) {
                     </div>
                   </div>
                 ) : (
-                  <div className="px-4 py-4 sm:px-5">
+                  <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5 min-h-[700px]">
                     <div className="space-y-3">
                       {filteredClients.map((client) => {
                         const displayLegalName = client.legal_name || client.name;
@@ -410,7 +411,7 @@ async function handleDelete(id: string) {
                         return (
                           <div
                             key={client.id}
-                            className="rounded-[24px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-6"
+                            className="rounded-[24px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-5"
                           >
                             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                               <div className="min-w-0 flex-1">
@@ -505,6 +506,7 @@ async function handleDelete(id: string) {
           </section>
         </div>
       </div>
+     </div>
 
       {showArchive && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">

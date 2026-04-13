@@ -61,9 +61,6 @@ export async function createClient(input: {
   address_line_2?: string | null;
   shipping_address_line_1?: string | null;
   shipping_address_line_2?: string | null;
-  payment_terms_id?: string | null;
-  delivery_term?: string | null;
-  currency_code?: string | null;
   notes?: string | null;
   metadata?: Record<string, unknown>;
 }) {
@@ -89,14 +86,10 @@ export async function createClient(input: {
     address_line_2: input.address_line_2?.trim() || null,
     shipping_address_line_1: input.shipping_address_line_1?.trim() || null,
     shipping_address_line_2: input.shipping_address_line_2?.trim() || null,
-    payment_terms_id: input.payment_terms_id ?? null,
-    delivery_term: input.delivery_term?.trim() || null,
-    currency_code: input.currency_code?.trim() || null,
     notes: input.notes?.trim() || null,
     metadata: input.metadata ?? {},
     created_by: user?.id ?? null,
     updated_by: user?.id ?? null,
-    payment_terms_days: 30,
   };
 
   const { data, error } = await supabase
@@ -181,14 +174,6 @@ export async function updateClient(
   if (typeof nextUpdates.shipping_address_line_2 === "string") {
     nextUpdates.shipping_address_line_2 =
       nextUpdates.shipping_address_line_2.trim();
-  }
-
-  if (typeof nextUpdates.delivery_term === "string") {
-    nextUpdates.delivery_term = nextUpdates.delivery_term.trim();
-  }
-
-  if (typeof nextUpdates.currency_code === "string") {
-    nextUpdates.currency_code = nextUpdates.currency_code.trim();
   }
 
   const { data, error } = await supabase

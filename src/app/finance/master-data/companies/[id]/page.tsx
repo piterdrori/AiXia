@@ -226,7 +226,10 @@ function SelectField(
   return (
     <select
       {...props}
-      className={`h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none ${props.className ?? ""}`}
+      className={`h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:bg-white/10 ${props.className ?? ""}`}
+      style={{
+        colorScheme: "dark",
+      }}
     >
       {props.children}
     </select>

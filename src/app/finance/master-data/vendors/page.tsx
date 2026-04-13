@@ -23,7 +23,10 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabase";
 import {
   getVendors,
+  getArchivedVendors,
   archiveVendor,
+  restoreVendor,
+  permanentlyDeleteVendor,
   type FinanceVendorListRow,
 } from "@/lib/finance/vendors";
 import {
@@ -70,6 +73,10 @@ export default function FinanceMasterDataVendorsPage() {
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [archivingVendorId, setArchivingVendorId] = useState<string | null>(null);
+  const [showArchive, setShowArchive] = useState(false);
+  const [archivedVendors, setArchivedVendors] = useState<FinanceVendorListRow[]>([]);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveSearch, setArchiveSearch] = useState("");
 
   const [role, setRole] = useState<Role | null>(null);
   const [permissionOverrides, setPermissionOverrides] = useState<
@@ -147,6 +154,20 @@ export default function FinanceMasterDataVendorsPage() {
     });
   }, [vendors, search]);
 
+    const filteredArchived = useMemo(() => {
+    const q = archiveSearch.toLowerCase().trim();
+
+    return archivedVendors.filter((v) => {
+      if (!q) return true;
+
+      return (
+        v.legal_name?.toLowerCase().includes(q) ||
+        v.name?.toLowerCase().includes(q) ||
+        v.code?.toLowerCase().includes(q)
+      );
+    });
+  }, [archivedVendors, archiveSearch]);
+
   const counts = useMemo(() => {
     return {
       total: vendors.length,
@@ -154,6 +175,32 @@ export default function FinanceMasterDataVendorsPage() {
       archived: vendors.filter((vendor) => vendor.status === "archived").length,
     };
   }, [vendors]);
+
+  async function loadArchived() {
+    try {
+      setArchiveLoading(true);
+      const rows = await getArchivedVendors();
+      setArchivedVendors(rows);
+    } catch (error) {
+      console.error("Failed to load archived finance vendors:", error);
+      setArchivedVendors([]);
+    } finally {
+      setArchiveLoading(false);
+    }
+  }
+
+  async function handleRestore(id: string) {
+    await restoreVendor(id);
+    await loadArchived();
+    await loadVendors();
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Permanently delete this vendor?")) return;
+
+    await permanentlyDeleteVendor(id);
+    await loadArchived();
+  }
 
   async function handleArchiveVendor(vendorId: string) {
     if (!canArchiveVendors) return;
@@ -179,8 +226,9 @@ export default function FinanceMasterDataVendorsPage() {
     }
   }
 
-  return (
-    <div className="flex h-[calc(100vh-140px)] min-h-0 flex-col overflow-hidden">
+    return (
+    <>
+      <div className="flex h-[calc(100vh-140px)] min-h-0 flex-col overflow-hidden">
       <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
         <section className="relative z-10 flex-shrink-0 rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.10),transparent_32%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.10),transparent_24%)]" />
@@ -224,7 +272,10 @@ export default function FinanceMasterDataVendorsPage() {
               {canArchiveVendors ? (
                 <Button
                   variant="outline"
-                  onClick={() => navigate("/finance/master-data/vendors/archive")}
+                                    onClick={async () => {
+                    setShowArchive(true);
+                    await loadArchived();
+                  }}
                   className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
                 >
                   Archive
@@ -447,5 +498,87 @@ export default function FinanceMasterDataVendorsPage() {
         </div>
       </div>
     </div>
+
+      {showArchive && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-black/90">
+            <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+              <div className="text-lg font-semibold text-white">
+                Archived Vendors
+              </div>
+
+              <Button
+                variant="outline"
+                onClick={() => setShowArchive(false)}
+                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
+              >
+                Close
+              </Button>
+            </div>
+
+            <div className="border-b border-white/10 p-4">
+              <Input
+                value={archiveSearch}
+                onChange={(e) => setArchiveSearch(e.target.value)}
+                placeholder="Search archived..."
+                className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
+              />
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {archiveLoading ? (
+                <div className="text-sm text-white/50">Loading...</div>
+              ) : filteredArchived.length === 0 ? (
+                <div className="text-sm text-white/50">No archived vendors</div>
+              ) : (
+                filteredArchived.map((v) => (
+                  <div
+                    key={v.id}
+                    className="flex items-center justify-between rounded-[20px] border border-white/10 p-4"
+                  >
+                    <div>
+                      <div className="font-medium text-white">
+                        {v.legal_name || v.name}
+                      </div>
+                      <div className="text-sm text-white/40">
+                        {v.code || "No code"}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          navigate(`/finance/master-data/vendors/${v.id}`)
+                        }
+                        className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
+                      >
+                        Open
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        onClick={() => void handleRestore(v.id)}
+                        className="h-11 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-4 text-emerald-100"
+                      >
+                        Restore
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        onClick={() => void handleDelete(v.id)}
+                        className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-100"
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

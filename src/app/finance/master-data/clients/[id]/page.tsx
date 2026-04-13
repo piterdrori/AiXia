@@ -1137,7 +1137,9 @@ export default function FinanceMasterDataClientDetailPage() {
               )}
             </SectionCard>
 
-            <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+           </section>
+
+             <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
               <SectionCard
                 title="Main Address"
                 description="Primary billing and registered addresses."

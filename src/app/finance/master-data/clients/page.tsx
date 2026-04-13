@@ -303,7 +303,7 @@ async function handleDelete(id: string) {
           </div>
         </section>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden pr-1 pb-2">
           <section>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <Card className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
@@ -350,8 +350,8 @@ async function handleDelete(id: string) {
             </div>
           </section>
 
-          <section className="min-h-0 flex-1">
-            <Card className="flex h-full min-h-0 flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+          <section className="min-h-0 flex-1 flex flex-col">
+            <Card className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <CardHeader className="flex-shrink-0 border-b border-white/8 pb-4">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                   <div className="space-y-2">
@@ -399,7 +399,7 @@ async function handleDelete(id: string) {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5 min-h-0">
+                  <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
                     <div className="space-y-3">
                       {filteredClients.map((client) => {
                         const displayLegalName = client.legal_name || client.name;
@@ -411,7 +411,7 @@ async function handleDelete(id: string) {
                         return (
                           <div
                             key={client.id}
-                            className="rounded-[24px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-4"
+                            className="rounded-[24px] border border-white/8 p-6 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-4"
                           >
                             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                               <div className="min-w-0 flex-1">

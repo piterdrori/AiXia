@@ -121,7 +121,6 @@ export default function FinanceMasterDataVendorsPage() {
   }, [role, permissionOverrides]);
 
   const canCreateVendors = !!effectivePermissions?.createFinanceRecords;
-  const canEditVendors = !!effectivePermissions?.editFinanceRecords;
   const canArchiveVendors = !!effectivePermissions?.archiveFinanceRecords;
 
   const filteredVendors = useMemo(() => {
@@ -145,7 +144,6 @@ export default function FinanceMasterDataVendorsPage() {
         vendor.company_phone,
         vendor.personnel_phone,
         vendor.country,
-        vendor.currency_code,
       ]
         .filter(Boolean)
         .join(" ")
@@ -299,8 +297,8 @@ export default function FinanceMasterDataVendorsPage() {
                     <CardTitle className="text-white">
                       Finance Vendor Records
                     </CardTitle>
-                    <CardDescription className="text-white/45">
-                      Legal identity, contact, finance defaults, and lifecycle status.
+                     <CardDescription className="text-white/45">
+                      Legal identity, communication, location, and lifecycle status.
                     </CardDescription>
                   </div>
 
@@ -414,31 +412,13 @@ export default function FinanceMasterDataVendorsPage() {
                                   </div>
                                 </div>
 
-                                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-2">
                                   <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
                                     <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                                       Country
                                     </div>
                                     <div className="mt-2 text-sm font-medium text-white">
                                       {vendor.country || "—"}
-                                    </div>
-                                  </div>
-
-                                  <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
-                                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                                      Currency
-                                    </div>
-                                    <div className="mt-2 text-sm font-medium text-white">
-                                      {vendor.currency_code || "—"}
-                                    </div>
-                                  </div>
-
-                                  <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
-                                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                                      Payment Terms
-                                    </div>
-                                    <div className="mt-2 text-sm font-medium text-white">
-                                      {vendor.payment_terms_id || "—"}
                                     </div>
                                   </div>
 
@@ -461,22 +441,8 @@ export default function FinanceMasterDataVendorsPage() {
                                   }
                                   className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
                                 >
-                                  Open
+                                  Open / Edit
                                 </Button>
-
-                                {canEditVendors ? (
-                                  <Button
-                                    variant="outline"
-                                    onClick={() =>
-                                      navigate(
-                                        `/finance/master-data/vendors/${vendor.id}/edit`
-                                      )
-                                    }
-                                    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                                  >
-                                    Edit
-                                  </Button>
-                                ) : null}
 
                                 {canArchiveVendors && vendor.status !== "archived" ? (
                                   <Button
@@ -486,8 +452,8 @@ export default function FinanceMasterDataVendorsPage() {
                                     className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
                                   >
                                     {archivingVendorId === vendor.id
-                                      ? "Archiving..."
-                                      : "Archive"}
+                                      ? "Removing..."
+                                      : "Remove"}
                                   </Button>
                                 ) : null}
                               </div>

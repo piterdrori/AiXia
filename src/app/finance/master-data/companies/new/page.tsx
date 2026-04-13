@@ -52,7 +52,6 @@ type FormState = {
   email: string;
   phone: string;
   status: "active" | "inactive" | "archived";
-  company_code: string;
   registration_number: string;
   tax_number: string;
   website: string;
@@ -110,11 +109,10 @@ const EMPTY_FORM: FormState = {
   email: "",
   phone: "",
   status: "active",
-  company_code: "",
   registration_number: "",
   tax_number: "",
   website: "",
-  currency_code: "",
+  currency_code: "USD",
   personnel: [createEmptyPersonnelRow()],
   addresses: [createEmptyAddressRow()],
   shipping_addresses: [createEmptyShippingRow()],
@@ -494,11 +492,10 @@ export default function FinanceMasterDataCompanyCreatePage() {
         status: form.status,
         email: form.email.trim() || null,
         phone: form.phone.trim() || null,
-        company_code: form.company_code.trim() || null,
         registration_number: form.registration_number.trim() || null,
         tax_number: form.tax_number.trim() || null,
         website: form.website.trim() || null,
-        currency_code: form.currency_code.trim() || null,
+        currency_code: form.currency_code || null,
         country: form.addresses[0]?.country.trim() || null,
         city: form.addresses[0]?.city.trim() || null,
         state_province: form.addresses[0]?.state_province.trim() || null,
@@ -788,31 +785,35 @@ export default function FinanceMasterDataCompanyCreatePage() {
                 </div>
               </FormSection>
 
-              <FormSection
+                            <FormSection
                 title="Section 2 — Company Identity"
-                description="Internal legal and finance identity fields."
+                description="System code, currency, and legal registration fields."
               >
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div>
                     <FieldLabel label="Company Code" />
-                    <InputField
-                      value={form.company_code}
-                      onChange={(e) =>
-                        updateForm("company_code", e.target.value)
-                      }
-                      placeholder="AIXIA-US"
-                    />
+                    <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white/55">
+                      Auto-generated after company creation
+                    </div>
                   </div>
 
                   <div>
                     <FieldLabel label="Currency Code" />
-                    <InputField
+                    <SelectField
                       value={form.currency_code}
                       onChange={(e) =>
                         updateForm("currency_code", e.target.value)
                       }
-                      placeholder="USD"
-                    />
+                    >
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                      <option value="GBP">GBP</option>
+                      <option value="CNY">CNY</option>
+                      <option value="ILS">ILS</option>
+                      <option value="JPY">JPY</option>
+                      <option value="CAD">CAD</option>
+                      <option value="AUD">AUD</option>
+                    </SelectField>
                   </div>
 
                   <div>

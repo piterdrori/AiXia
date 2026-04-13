@@ -17,8 +17,6 @@ export type FinanceClientListRow = Pick<
   | "personnel_phone"
   | "company_related_personnel"
   | "country"
-  | "payment_terms_id"
-  | "currency_code"
   | "created_at"
   | "updated_at"
 >;
@@ -27,7 +25,7 @@ export async function getClients(): Promise<FinanceClientListRow[]> {
   const { data, error } = await supabase
     .from(TABLE)
     .select(
-      `
+          `
         id,
         code,
         name,
@@ -39,8 +37,6 @@ export async function getClients(): Promise<FinanceClientListRow[]> {
         personnel_phone,
         company_related_personnel,
         country,
-        payment_terms_id,
-        currency_code,
         created_at,
         updated_at
       `

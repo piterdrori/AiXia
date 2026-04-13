@@ -1032,22 +1032,6 @@ export default function FinanceMasterDataVendorCreatePage() {
               </div>
             </FormSection>
 
-            <FormSection
-              title="Notes"
-              description="Internal notes and finance-side references."
-              icon={<ChevronDown className="h-5 w-5" />}
-              accentClass="bg-[linear-gradient(135deg,rgba(99,102,241,0.18),rgba(34,211,238,0.10))] text-indigo-100"
-            >
-              <div>
-                <FieldLabel label="Notes" />
-                <TextareaField
-                  value={form.notes}
-                  onChange={(event) => updateForm("notes", event.target.value)}
-                  placeholder="Add internal finance notes"
-                />
-              </div>
-            </FormSection>
-
             <section>
               <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(34,211,238,0.08),rgba(139,92,246,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
                 <CardContent className="p-5">

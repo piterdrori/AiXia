@@ -131,7 +131,6 @@ export async function createCompany(input: {
   address_line_1?: string | null;
   address_line_2?: string | null;
   currency_code?: string | null;
-  company_code?: string | null;
   registration_number?: string | null;
   tax_number?: string | null;
   website?: string | null;
@@ -143,7 +142,7 @@ export async function createCompany(input: {
   const normalizedLegalName = input.legal_name.trim();
   const normalizedName = input.name?.trim() || normalizedLegalName;
 
-  const payload = {
+   const payload = {
     name: normalizedName,
     legal_name: normalizedLegalName,
     contact_person: input.contact_person?.trim() || null,
@@ -156,8 +155,7 @@ export async function createCompany(input: {
     postal_code: input.postal_code?.trim() || null,
     address_line_1: input.address_line_1?.trim() || null,
     address_line_2: input.address_line_2?.trim() || null,
-    currency_code: input.currency_code?.trim() || null,
-    company_code: input.company_code?.trim() || null,
+    currency_code: input.currency_code?.trim().toUpperCase() || null,
     registration_number: input.registration_number?.trim() || null,
     tax_number: input.tax_number?.trim() || null,
     website: input.website?.trim() || null,
@@ -244,8 +242,8 @@ export async function updateCompany(
     nextUpdates.address_line_2 = nextUpdates.address_line_2.trim();
   }
 
-  if (typeof nextUpdates.currency_code === "string") {
-    nextUpdates.currency_code = nextUpdates.currency_code.trim();
+    if (typeof nextUpdates.currency_code === "string") {
+    nextUpdates.currency_code = nextUpdates.currency_code.trim().toUpperCase();
   }
 
   if (typeof nextUpdates.company_code === "string") {

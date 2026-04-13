@@ -851,8 +851,8 @@ export default function FinanceMasterDataPage() {
                   </CardDescription>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/40">
-                  15 finance master data domains
+                 <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/40">
+                  16 finance master data domains
                 </div>
               </div>
             </CardHeader>

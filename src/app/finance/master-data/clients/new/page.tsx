@@ -228,179 +228,181 @@ export default function FinanceMasterDataClientCreatePage() {
           </div>
         </section>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <FormSection
-              title="Section 1 — Basic"
-              description="Legal identity, contact, related personnel, and status."
-            >
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <div className="md:col-span-2">
-                  <FieldLabel label="Legal Name" required />
-                  <InputField
-                    value={form.legal_name}
-                    onChange={(event) => updateForm("legal_name", event.target.value)}
-                    placeholder="Enter legal company name"
-                  />
-                </div>
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden pr-1 pb-2">
+          <form className="flex min-h-0 flex-col gap-6" onSubmit={handleSubmit}>
+            <div className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
+              <FormSection
+                title="Section 1 — Basic"
+                description="Legal identity, contact, related personnel, and status."
+              >
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Legal Name" required />
+                    <InputField
+                      value={form.legal_name}
+                      onChange={(event) => updateForm("legal_name", event.target.value)}
+                      placeholder="Enter legal company name"
+                    />
+                  </div>
 
-                <div>
-                  <FieldLabel label="Contact Name" />
-                  <InputField
-                    value={form.contact_name}
-                    onChange={(event) => updateForm("contact_name", event.target.value)}
-                    placeholder="Contact person name"
-                  />
-                </div>
+                  <div>
+                    <FieldLabel label="Contact Name" />
+                    <InputField
+                      value={form.contact_name}
+                      onChange={(event) => updateForm("contact_name", event.target.value)}
+                      placeholder="Contact person name"
+                    />
+                  </div>
 
-                <div>
-                  <FieldLabel label="Company Related Personnel" />
-                  <InputField
-                    value={form.company_related_personnel}
-                    onChange={(event) =>
-                      updateForm("company_related_personnel", event.target.value)
-                    }
-                    placeholder="Related personnel"
-                  />
-                </div>
+                  <div>
+                    <FieldLabel label="Company Related Personnel" />
+                    <InputField
+                      value={form.company_related_personnel}
+                      onChange={(event) =>
+                        updateForm("company_related_personnel", event.target.value)
+                      }
+                      placeholder="Related personnel"
+                    />
+                  </div>
 
-                <div>
-                  <FieldLabel label="Status" />
-                  <SelectField
-                    value={form.status}
-                    onChange={(event) =>
-                      updateForm("status", event.target.value as FormState["status"])
-                    }
-                  >
-                    <option value="active" className="bg-slate-900">
-                      Active
-                    </option>
-                    <option value="inactive" className="bg-slate-900">
-                      Inactive
-                    </option>
-                    <option value="archived" className="bg-slate-900">
-                      Archived
-                    </option>
-                  </SelectField>
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Status" />
+                    <SelectField
+                      value={form.status}
+                      onChange={(event) =>
+                        updateForm("status", event.target.value as FormState["status"])
+                      }
+                    >
+                      <option value="active" className="bg-slate-900">
+                        Active
+                      </option>
+                      <option value="inactive" className="bg-slate-900">
+                        Inactive
+                      </option>
+                      <option value="archived" className="bg-slate-900">
+                        Archived
+                      </option>
+                    </SelectField>
+                  </div>
                 </div>
-              </div>
-            </FormSection>
+              </FormSection>
 
-            <FormSection
-              title="Section 2 — Communication"
-              description="Company and personnel communication details."
-            >
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <div>
-                  <FieldLabel label="Company Email" />
-                  <InputField
-                    type="email"
-                    value={form.company_email}
-                    onChange={(event) => updateForm("company_email", event.target.value)}
-                    placeholder="company@email.com"
-                  />
-                </div>
+              <FormSection
+                title="Section 2 — Communication"
+                description="Company and personnel communication details."
+              >
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <FieldLabel label="Company Email" />
+                    <InputField
+                      type="email"
+                      value={form.company_email}
+                      onChange={(event) => updateForm("company_email", event.target.value)}
+                      placeholder="company@email.com"
+                    />
+                  </div>
 
-                <div>
-                  <FieldLabel label="Personnel Email" />
-                  <InputField
-                    type="email"
-                    value={form.personnel_email}
-                    onChange={(event) =>
-                      updateForm("personnel_email", event.target.value)
-                    }
-                    placeholder="person@email.com"
-                  />
-                </div>
+                  <div>
+                    <FieldLabel label="Personnel Email" />
+                    <InputField
+                      type="email"
+                      value={form.personnel_email}
+                      onChange={(event) =>
+                        updateForm("personnel_email", event.target.value)
+                      }
+                      placeholder="person@email.com"
+                    />
+                  </div>
 
-                <div>
-                  <FieldLabel label="Company Phone" />
-                  <InputField
-                    value={form.company_phone}
-                    onChange={(event) => updateForm("company_phone", event.target.value)}
-                    placeholder="Company phone"
-                  />
-                </div>
+                  <div>
+                    <FieldLabel label="Company Phone" />
+                    <InputField
+                      value={form.company_phone}
+                      onChange={(event) => updateForm("company_phone", event.target.value)}
+                      placeholder="Company phone"
+                    />
+                  </div>
 
-                <div>
-                  <FieldLabel label="Personnel Phone" />
-                  <InputField
-                    value={form.personnel_phone}
-                    onChange={(event) =>
-                      updateForm("personnel_phone", event.target.value)
-                    }
-                    placeholder="Personnel phone"
-                  />
+                  <div>
+                    <FieldLabel label="Personnel Phone" />
+                    <InputField
+                      value={form.personnel_phone}
+                      onChange={(event) =>
+                        updateForm("personnel_phone", event.target.value)
+                      }
+                      placeholder="Personnel phone"
+                    />
+                  </div>
                 </div>
-              </div>
-            </FormSection>
+              </FormSection>
 
-            <FormSection
-              title="Section 3 — Address"
-              description="Primary address details."
-            >
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <div>
-                  <FieldLabel label="Country" />
-                  <InputField
-                    value={form.country}
-                    onChange={(event) => updateForm("country", event.target.value)}
-                    placeholder="Country"
-                  />
-                </div>
+              <FormSection
+                title="Section 3 — Address"
+                description="Primary address details."
+              >
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Country" />
+                    <InputField
+                      value={form.country}
+                      onChange={(event) => updateForm("country", event.target.value)}
+                      placeholder="Country"
+                    />
+                  </div>
 
-                <div>
-                  <FieldLabel label="Address Line 1" />
-                  <InputField
-                    value={form.address_line_1}
-                    onChange={(event) =>
-                      updateForm("address_line_1", event.target.value)
-                    }
-                    placeholder="Address line 1"
-                  />
-                </div>
+                  <div>
+                    <FieldLabel label="Address Line 1" />
+                    <InputField
+                      value={form.address_line_1}
+                      onChange={(event) =>
+                        updateForm("address_line_1", event.target.value)
+                      }
+                      placeholder="Address line 1"
+                    />
+                  </div>
 
-                <div>
-                  <FieldLabel label="Address Line 2" />
-                  <InputField
-                    value={form.address_line_2}
-                    onChange={(event) =>
-                      updateForm("address_line_2", event.target.value)
-                    }
-                    placeholder="Address line 2"
-                  />
+                  <div>
+                    <FieldLabel label="Address Line 2" />
+                    <InputField
+                      value={form.address_line_2}
+                      onChange={(event) =>
+                        updateForm("address_line_2", event.target.value)
+                      }
+                      placeholder="Address line 2"
+                    />
+                  </div>
                 </div>
-              </div>
-            </FormSection>
+              </FormSection>
 
-            <FormSection
-              title="Section 4 — Shipping"
-              description="Shipping address details."
-            >
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <FieldLabel label="Shipping Address Line 1" />
-                  <InputField
-                    value={form.shipping_address_line_1}
-                    onChange={(event) =>
-                      updateForm("shipping_address_line_1", event.target.value)
-                    }
-                    placeholder="Shipping address line 1"
-                  />
-                </div>
+              <FormSection
+                title="Section 4 — Shipping"
+                description="Shipping address details."
+              >
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <FieldLabel label="Shipping Address Line 1" />
+                    <InputField
+                      value={form.shipping_address_line_1}
+                      onChange={(event) =>
+                        updateForm("shipping_address_line_1", event.target.value)
+                      }
+                      placeholder="Shipping address line 1"
+                    />
+                  </div>
 
-                <div>
-                  <FieldLabel label="Shipping Address Line 2" />
-                  <InputField
-                    value={form.shipping_address_line_2}
-                    onChange={(event) =>
-                      updateForm("shipping_address_line_2", event.target.value)
-                    }
-                    placeholder="Shipping address line 2"
-                  />
+                  <div>
+                    <FieldLabel label="Shipping Address Line 2" />
+                    <InputField
+                      value={form.shipping_address_line_2}
+                      onChange={(event) =>
+                        updateForm("shipping_address_line_2", event.target.value)
+                      }
+                      placeholder="Shipping address line 2"
+                    />
+                  </div>
                 </div>
-              </div>
-            </FormSection>
+              </FormSection>
+            </div>
 
             <FormSection
               title="Section 5 — Notes"
@@ -422,7 +424,7 @@ export default function FinanceMasterDataClientCreatePage() {
               </div>
             ) : null}
 
-            <div className="flex justify-end">
+            <div className="flex justify-end pb-1">
               <Button
                 type="submit"
                 variant="outline"

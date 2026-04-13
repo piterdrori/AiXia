@@ -68,9 +68,6 @@ export default function FinanceMasterDataClientsPage() {
 
   const [clients, setClients] = useState<FinanceClientListRow[]>([]);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<
-    "all" | "active" | "inactive" | "archived"
-  >("all");
   const [isLoading, setIsLoading] = useState(true);
   const [archivingClientId, setArchivingClientId] = useState<string | null>(null);
 
@@ -123,14 +120,11 @@ export default function FinanceMasterDataClientsPage() {
   const canCreateClients = !!effectivePermissions?.createFinanceRecords;
   const canArchiveClients = !!effectivePermissions?.archiveFinanceRecords;
 
-  const filteredClients = useMemo(() => {
+   const filteredClients = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     return clients.filter((client) => {
-      const matchesStatus =
-        statusFilter === "all" ? true : client.status === statusFilter;
-
-      if (!matchesStatus) return false;
+      if (client.status === "archived") return false;
 
       if (!query) return true;
 
@@ -151,7 +145,7 @@ export default function FinanceMasterDataClientsPage() {
 
       return haystack.includes(query);
     });
-  }, [clients, search, statusFilter]);
+  }, [clients, search]);
 
   const counts = useMemo(() => {
     return {
@@ -206,7 +200,7 @@ export default function FinanceMasterDataClientsPage() {
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-3">
+                        <div className="flex shrink-0 items-center gap-3">
               <Button
                 variant="outline"
                 onClick={() => navigate("/finance/master-data")}
@@ -224,6 +218,16 @@ export default function FinanceMasterDataClientsPage() {
                 >
                   <Plus className="mr-2 h-4 w-4" />
                   Create Client
+                </Button>
+              ) : null}
+
+              {canArchiveClients ? (
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/finance/master-data/clients/archive")}
+                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+                >
+                  Archive
                 </Button>
               ) : null}
 
@@ -302,43 +306,16 @@ export default function FinanceMasterDataClientsPage() {
                     </CardDescription>
                   </div>
 
-                  <div className="flex flex-col gap-3 sm:flex-row">
+                                    <div className="flex flex-col gap-3 sm:flex-row">
                     <div className="relative min-w-[260px]">
                       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
                       <Input
                         value={search}
                         onChange={(event) => setSearch(event.target.value)}
-                        placeholder="Search clients"
+                        placeholder="Search active clients"
                         className="h-11 rounded-2xl border-white/10 bg-white/5 pl-10 text-white placeholder:text-white/30"
                       />
                     </div>
-
-                    <select
-                      value={statusFilter}
-                      onChange={(event) =>
-                        setStatusFilter(
-                          event.target.value as
-                            | "all"
-                            | "active"
-                            | "inactive"
-                            | "archived"
-                        )
-                      }
-                      className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none"
-                    >
-                      <option value="all" className="bg-slate-900">
-                        All statuses
-                      </option>
-                      <option value="active" className="bg-slate-900">
-                        Active
-                      </option>
-                      <option value="inactive" className="bg-slate-900">
-                        Inactive
-                      </option>
-                      <option value="archived" className="bg-slate-900">
-                        Archived
-                      </option>
-                    </select>
                   </div>
                 </div>
               </CardHeader>
@@ -444,7 +421,7 @@ export default function FinanceMasterDataClientsPage() {
                                   Open / Edit
                                 </Button>
 
-                                {canArchiveClients && client.status !== "archived" ? (
+                                                                {canArchiveClients ? (
                                   <Button
                                     variant="outline"
                                     onClick={() => void handleArchiveClient(client.id)}
@@ -452,8 +429,8 @@ export default function FinanceMasterDataClientsPage() {
                                     className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
                                   >
                                     {archivingClientId === client.id
-                                      ? "Removing..."
-                                      : "Remove"}
+                                      ? "Archiving..."
+                                      : "Remove / Delete"}
                                   </Button>
                                 ) : null}
                               </div>

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Mail,
+  Building2
   Phone,
   Plus,
   RefreshCw,
@@ -188,17 +189,26 @@ async function loadArchived() {
   }
 }
   
-  async function handleRestore(id: string) {
-  await restoreClient(id);
-  await loadArchived();
-  await loadClients();
+ async function handleRestore(id: string) {
+  try {
+    await restoreClient(id);
+    await loadArchived();
+    await loadClients();
+  } catch (error) {
+    console.error("Failed to restore finance client:", error);
+  }
 }
 
 async function handleDelete(id: string) {
   if (!confirm("Permanently delete this client?")) return;
 
-  await permanentlyDeleteClient(id);
-  await loadArchived();
+  try {
+    await permanentlyDeleteClient(id);
+    await loadArchived();
+    await loadClients();
+  } catch (error) {
+    console.error("Failed to permanently delete finance client:", error);
+  }
 }
   
   async function handleArchiveClient(clientId: string) {

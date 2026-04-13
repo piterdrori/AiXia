@@ -189,18 +189,27 @@ export default function FinanceMasterDataVendorsPage() {
     }
   }
 
-  async function handleRestore(id: string) {
+async function handleRestore(id: string) {
+  try {
     await restoreVendor(id);
     await loadArchived();
     await loadVendors();
+  } catch (error) {
+    console.error("Failed to restore finance vendor:", error);
   }
+}
 
-  async function handleDelete(id: string) {
-    if (!confirm("Permanently delete this vendor?")) return;
+async function handleDelete(id: string) {
+  if (!confirm("Permanently delete this vendor?")) return;
 
+  try {
     await permanentlyDeleteVendor(id);
     await loadArchived();
+    await loadVendors();
+  } catch (error) {
+    console.error("Failed to permanently delete finance vendor:", error);
   }
+}
 
   async function handleArchiveVendor(vendorId: string) {
     if (!canArchiveVendors) return;
@@ -342,7 +351,7 @@ export default function FinanceMasterDataVendorsPage() {
           </section>
 
           <section className="min-h-0 flex-1 h-full">
-            <Card className="flex h-full min-h-[700px] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+            <Card className="flex h-full min-h-[860px] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <CardHeader className="flex-shrink-0 border-b border-white/8 pb-4">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                   <div className="space-y-2">
@@ -390,7 +399,7 @@ export default function FinanceMasterDataVendorsPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5 min-h-[500px]">
+                  <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5 min-h-[700px]">
                     <div className="space-y-3">
                       {filteredVendors.map((vendor) => {
                         const displayLegalName = vendor.legal_name || vendor.name;
@@ -402,7 +411,7 @@ export default function FinanceMasterDataVendorsPage() {
                         return (
                           <div
                             key={vendor.id}
-                            className="rounded-[24px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-4"
+                            className="rounded-[24px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-5"
                           >
                             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                               <div className="min-w-0 flex-1">

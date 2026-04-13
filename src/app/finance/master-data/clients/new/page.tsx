@@ -93,7 +93,7 @@ function TextareaField(
   return (
     <textarea
       {...props}
-      className={`min-h-[140px] w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 ${props.className ?? ""}`}
+      className={`min-h-[96px] w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 ${props.className ?? ""}`}
     />
   );
 }
@@ -108,8 +108,8 @@ function FormSection({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.24)]">
-      <CardHeader className="border-b border-white/8 pb-4">
+    <Card className="overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.24)]">
+      <CardHeader className="border-b border-white/8 px-5 py-4">
         <div>
           <CardTitle className="text-white">{title}</CardTitle>
           <CardDescription className="mt-1 text-white/45">
@@ -118,7 +118,7 @@ function FormSection({
         </div>
       </CardHeader>
 
-      <CardContent className="p-5">{children}</CardContent>
+      <CardContent className="p-4">{children}</CardContent>
     </Card>
   );
 }
@@ -228,14 +228,14 @@ export default function FinanceMasterDataClientCreatePage() {
           </div>
         </section>
 
-                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden pr-1 pb-2">
-          <form className="flex min-h-0 flex-col gap-6" onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
+                   <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden pr-1 pb-2">
+          <form className="flex min-h-0 flex-col gap-4" onSubmit={handleSubmit}>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <FormSection
                 title="Section 1 — Basic"
                 description="Legal identity, contact, related personnel, and status."
               >
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="md:col-span-2">
                     <FieldLabel label="Legal Name" required />
                     <InputField
@@ -291,7 +291,7 @@ export default function FinanceMasterDataClientCreatePage() {
                 title="Section 2 — Communication"
                 description="Company and personnel communication details."
               >
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div>
                     <FieldLabel label="Company Email" />
                     <InputField
@@ -340,7 +340,7 @@ export default function FinanceMasterDataClientCreatePage() {
                 title="Section 3 — Address"
                 description="Primary address details."
               >
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="md:col-span-2">
                     <FieldLabel label="Country" />
                     <InputField
@@ -378,7 +378,7 @@ export default function FinanceMasterDataClientCreatePage() {
                 title="Section 4 — Shipping"
                 description="Shipping address details."
               >
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div>
                     <FieldLabel label="Shipping Address Line 1" />
                     <InputField
@@ -404,36 +404,38 @@ export default function FinanceMasterDataClientCreatePage() {
               </FormSection>
             </div>
 
-            <FormSection
-              title="Section 5 — Notes"
-              description="Internal notes for this client record."
-            >
-              <div>
-                <FieldLabel label="Notes" />
-                <TextareaField
-                  value={form.notes}
-                  onChange={(event) => updateForm("notes", event.target.value)}
-                  placeholder="Add notes"
-                />
-              </div>
-            </FormSection>
-
-            {formError ? (
-              <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-                {formError}
-              </div>
-            ) : null}
-
-            <div className="flex justify-end pb-1">
-              <Button
-                type="submit"
-                variant="outline"
-                disabled={isSaving}
-                className="h-11 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-5 text-emerald-100 hover:bg-emerald-500/20"
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+              <FormSection
+                title="Section 5 — Notes"
+                description="Internal notes for this client record."
               >
-                <Save className="mr-2 h-4 w-4" />
-                {isSaving ? "Saving..." : "Create Client"}
-              </Button>
+                <div>
+                  <FieldLabel label="Notes" />
+                  <TextareaField
+                    value={form.notes}
+                    onChange={(event) => updateForm("notes", event.target.value)}
+                    placeholder="Add notes"
+                  />
+                </div>
+              </FormSection>
+
+              <div className="flex flex-col gap-3 lg:min-w-[220px]">
+                {formError ? (
+                  <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+                    {formError}
+                  </div>
+                ) : null}
+
+                <Button
+                  type="submit"
+                  variant="outline"
+                  disabled={isSaving}
+                  className="h-11 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-5 text-emerald-100 hover:bg-emerald-500/20"
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {isSaving ? "Saving..." : "Create Client"}
+                </Button>
+              </div>
             </div>
           </form>
         </div>

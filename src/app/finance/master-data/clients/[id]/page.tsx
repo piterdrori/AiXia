@@ -342,31 +342,6 @@ function SectionCard({
   );
 }
 
-function SummaryMetric({
-  label,
-  value,
-  subtitle,
-  accentClass,
-}: {
-  label: string;
-  value: string;
-  subtitle: string;
-  accentClass: string;
-}) {
-  return (
-    <Card className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <CardContent className="flex min-h-0 flex-col p-5">
-        <div className={`mb-4 h-1.5 w-16 rounded-full ${accentClass}`} />
-        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-          {label}
-        </div>
-        <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
-        <div className="mt-2 text-sm text-white/50">{subtitle}</div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function DisplayRow({
   label,
   value,
@@ -470,7 +445,7 @@ export default function FinanceMasterDataClientDetailPage() {
     ClientCommunicationRow[]
   >([]);
   const [addressesForm, setAddressesForm] = useState<ClientAddressRow[]>([]);
-  const [shippingForm, setShippingForm] = useState<ClientAddressRow[]>([])
+  const [shippingForm, setShippingForm] = useState<ClientAddressRow[]>([]);
   const [notesForm, setNotesForm] = useState("");
   const [modalError, setModalError] = useState<string | null>(null);
 
@@ -480,10 +455,7 @@ export default function FinanceMasterDataClientDetailPage() {
     setIsLoading(true);
 
     try {
-      const [
-        clientResult,
-        employeesResult,
-      ] = await Promise.all([
+      const [clientResult, employeesResult] = await Promise.all([
         supabase
           .from("finance_clients")
           .select(
@@ -511,47 +483,15 @@ export default function FinanceMasterDataClientDetailPage() {
           )
           .eq("id", id)
           .single(),
-        supabase
-          .from("finance_payment_terms")
-          .select("id, name, code, due_days, is_default")
-          .order("due_days", { ascending: true }),
-        supabase
-          .from("finance_currencies")
-          .select("id, currency_code, currency_name, is_base_currency")
-          .order("currency_code", { ascending: true }),
-        (async () => {
-          try {
-            return await supabase
-              .from("finance_shipping_terms")
-              .select("id, code, name")
-              .order("code", { ascending: true });
-          } catch {
-            return { data: [], error: null };
-          }
-        })(),
+
         supabase.from("profiles").select("*").order("created_at", {
           ascending: false,
         }),
       ]);
 
-      if (clientResult.error) throw clientResult.error;
-      if (paymentTermsResult.error) throw paymentTermsResult.error;
-      if (currenciesResult.error) throw currenciesResult.error;
+           if (clientResult.error) throw clientResult.error;
 
       setClient(clientResult.data as ClientDetailRecord);
-      setPaymentTerms(
-        mergeUniquePaymentTerms(
-          (paymentTermsResult.data ?? []) as PaymentTermOption[]
-        )
-      );
-      setCurrencies(
-        mergeUniqueCurrencies((currenciesResult.data ?? []) as CurrencyOption[])
-      );
-      setDeliveryTerms(
-        mergeUniqueDeliveryTerms(
-          (deliveryTermsResult.data ?? []) as DeliveryTermOption[]
-        )
-      );
 
       const nextEmployees = ((employeesResult.data ?? []) as RawProfileRow[]).map(
         (profile) => ({
@@ -733,6 +673,49 @@ export default function FinanceMasterDataClientDetailPage() {
     setEditingSection("shipping");
   }
 
+    function openNotesEditor() {
+    if (!client) return;
+    setModalError(null);
+    setNotesForm(client.notes || "");
+    setEditingSection("notes");
+  }
+
+  
+    async function saveCoreSection() {
+    if (!client) return;
+
+    const legalName = coreForm.legal_name.trim();
+    if (!legalName) {
+      setModalError("Legal name is required.");
+      return;
+    }
+
+    try {
+      setIsMutating(true);
+      setModalError(null);
+
+      await updateClient(client.id, {
+        legal_name: legalName,
+        status: coreForm.status,
+        company_related_personnel:
+          coreForm.company_related_personnel.trim() || null,
+        company_email: coreForm.company_email.trim() || null,
+        personnel_email: coreForm.personnel_email.trim() || null,
+        company_phone: coreForm.company_phone.trim() || null,
+        personnel_phone: coreForm.personnel_phone.trim() || null,
+        country: coreForm.country.trim() || null,
+      });
+
+      setEditingSection(null);
+      await loadClient();
+    } catch (error) {
+      console.error("Failed to save core section:", error);
+      setModalError(error instanceof Error ? error.message : "Failed to save.");
+    } finally {
+      setIsMutating(false);
+    }
+  }
+  
   async function savePersonnelSection() {
     if (!client) return;
 
@@ -857,52 +840,6 @@ export default function FinanceMasterDataClientDetailPage() {
       await loadClient();
     } catch (error) {
       console.error("Failed to save shipping section:", error);
-      setModalError(error instanceof Error ? error.message : "Failed to save.");
-    } finally {
-      setIsMutating(false);
-    }
-  }
-
-  async function saveFinanceSection() {
-    if (!client) return;
-
-    try {
-      setIsMutating(true);
-      setModalError(null);
-      await updateClient(client.id, {
-        payment_terms_id:
-          financeForm.payment_terms_id &&
-          financeForm.payment_terms_id !== CUSTOM_OPTION_VALUE
-            ? financeForm.payment_terms_id
-            : null,
-        delivery_term:
-          financeForm.delivery_term === CUSTOM_OPTION_VALUE
-            ? financeForm.delivery_term_custom.trim() || null
-            : financeForm.delivery_term || null,
-        currency_code:
-          financeForm.currency_code === CUSTOM_OPTION_VALUE
-            ? financeForm.currency_custom.trim() || null
-            : financeForm.currency_code || null,
-        metadata: {
-          ...metadata,
-          custom_payment_term:
-            financeForm.payment_terms_id === CUSTOM_OPTION_VALUE
-              ? financeForm.payment_terms_custom.trim() || null
-              : null,
-          custom_delivery_term:
-            financeForm.delivery_term === CUSTOM_OPTION_VALUE
-              ? financeForm.delivery_term_custom.trim() || null
-              : null,
-          custom_currency:
-            financeForm.currency_code === CUSTOM_OPTION_VALUE
-              ? financeForm.currency_custom.trim() || null
-              : null,
-        },
-      });
-      setEditingSection(null);
-      await loadClient();
-    } catch (error) {
-      console.error("Failed to save finance section:", error);
       setModalError(error instanceof Error ? error.message : "Failed to save.");
     } finally {
       setIsMutating(false);
@@ -1861,243 +1798,148 @@ export default function FinanceMasterDataClientDetailPage() {
         </ModalShell>
       ) : null}
 
-            {editingSection === "shipping" ? (
-        <ModalShell
-          title="Edit Shipping Address"
-          description="Manage shipping and delivery addresses."
-          onClose={() => setEditingSection(null)}
-          onSave={() => void saveShippingSection()}
-          isSaving={isMutating}
+ {editingSection === "shipping" ? (
+  <ModalShell
+    title="Edit Shipping Address"
+    description="Manage shipping and delivery addresses."
+    onClose={() => setEditingSection(null)}
+    onSave={() => void saveShippingSection()}
+    isSaving={isMutating}
+  >
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          onClick={() =>
+            setShippingForm((prev) => [...prev, emptyAddressRow("shipping")])
+          }
+          className="h-11 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-4 text-cyan-100 hover:bg-cyan-500/20"
         >
-          <div className="space-y-4">
-            <div className="flex justify-end">
+          <Plus className="mr-2 h-4 w-4" />
+          Add Shipping Address
+        </Button>
+      </div>
+
+      {shippingForm.map((row) => (
+        <div
+          key={row.id}
+          className="rounded-[24px] border border-white/10 bg-white/[0.04] p-4"
+        >
+          <div className="mb-4 flex justify-end">
+            {shippingForm.length > 1 ? (
               <Button
                 variant="outline"
                 onClick={() =>
-                  setShippingForm((prev) => [...prev, emptyAddressRow("shipping")])
+                  setShippingForm((prev) =>
+                    prev.filter((item) => item.id !== row.id)
+                  )
                 }
-                className="h-11 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-4 text-cyan-100 hover:bg-cyan-500/20"
+                className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-100 hover:bg-rose-500/20"
               >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Shipping Address
+                <Trash2 className="mr-2 h-4 w-4" />
+                Remove
               </Button>
-            </div>
-
-            {shippingForm.map((row) => (
-              <div
-                key={row.id}
-                className="rounded-[24px] border border-white/10 bg-white/[0.04] p-4"
-              >
-                <div className="mb-4 flex justify-end">
-                  {shippingForm.length > 1 ? (
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        setShippingForm((prev) =>
-                          prev.filter((item) => item.id !== row.id)
-                        )
-                      }
-                      className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-100 hover:bg-rose-500/20"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Remove
-                    </Button>
-                  ) : null}
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <div>
-                    <FieldLabel label="Label" />
-                    <InputField
-                      value={row.label || ""}
-                      onChange={(event) =>
-                        setShippingForm((prev) =>
-                          prev.map((item) =>
-                            item.id === row.id
-                              ? { ...item, label: event.target.value }
-                              : item
-                          )
-                        )
-                      }
-                    />
-                  </div>
-
-                  <div>
-                    <FieldLabel label="Country" />
-                    <InputField
-                      value={row.country || ""}
-                      onChange={(event) =>
-                        setShippingForm((prev) =>
-                          prev.map((item) =>
-                            item.id === row.id
-                              ? { ...item, country: event.target.value }
-                              : item
-                          )
-                        )
-                      }
-                    />
-                  </div>
-
-                  <div className="xl:col-span-2">
-                    <FieldLabel label="Address Line 1" />
-                    <InputField
-                      value={row.line1 || ""}
-                      onChange={(event) =>
-                        setShippingForm((prev) =>
-                          prev.map((item) =>
-                            item.id === row.id
-                              ? { ...item, line1: event.target.value }
-                              : item
-                          )
-                        )
-                      }
-                    />
-                  </div>
-
-                  <div className="xl:col-span-2">
-                    <FieldLabel label="Address Line 2" />
-                    <InputField
-                      value={row.line2 || ""}
-                      onChange={(event) =>
-                        setShippingForm((prev) =>
-                          prev.map((item) =>
-                            item.id === row.id
-                              ? { ...item, line2: event.target.value }
-                              : item
-                          )
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {modalError ? (
-              <div className="text-sm text-rose-300">{modalError}</div>
             ) : null}
           </div>
-        </ModalShell>
-      ) : null}
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <FieldLabel label="Label" />
+              <InputField
+                value={row.label || ""}
+                onChange={(event) =>
+                  setShippingForm((prev) =>
+                    prev.map((item) =>
+                      item.id === row.id
+                        ? { ...item, label: event.target.value }
+                        : item
+                    )
+                  )
+                }
+              />
             </div>
 
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
-              <FieldLabel label="Delivery Term" />
-              <SelectField
-                value={financeForm.delivery_term}
+            <div>
+              <FieldLabel label="Country" />
+              <InputField
+                value={row.country || ""}
                 onChange={(event) =>
-                  setFinanceForm((prev) => ({
-                    ...prev,
-                    delivery_term: event.target.value,
-                  }))
+                  setShippingForm((prev) =>
+                    prev.map((item) =>
+                      item.id === row.id
+                        ? { ...item, country: event.target.value }
+                        : item
+                    )
+                  )
                 }
-              >
-                <option value="" className="bg-slate-900">
-                  Select delivery term
-                </option>
-                {deliveryTerms.map((item) => (
-                  <option
-                    key={item.id}
-                    value={item.name}
-                    className="bg-slate-900"
-                  >
-                    {item.code} • {item.name}
-                  </option>
-                ))}
-                <option value={CUSTOM_OPTION_VALUE} className="bg-slate-900">
-                  Custom delivery term
-                </option>
-              </SelectField>
-
-              {financeForm.delivery_term === CUSTOM_OPTION_VALUE ? (
-                <div className="mt-3">
-                  <InputField
-                    value={financeForm.delivery_term_custom}
-                    onChange={(event) =>
-                      setFinanceForm((prev) => ({
-                        ...prev,
-                        delivery_term_custom: event.target.value,
-                      }))
-                    }
-                    placeholder="Write custom delivery term"
-                  />
-                </div>
-              ) : null}
+              />
             </div>
 
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
-              <FieldLabel label="Currency" />
-              <SelectField
-                value={financeForm.currency_code}
+            <div className="xl:col-span-2">
+              <FieldLabel label="Address Line 1" />
+              <InputField
+                value={row.line1 || ""}
                 onChange={(event) =>
-                  setFinanceForm((prev) => ({
-                    ...prev,
-                    currency_code: event.target.value,
-                  }))
+                  setShippingForm((prev) =>
+                    prev.map((item) =>
+                      item.id === row.id
+                        ? { ...item, line1: event.target.value }
+                        : item
+                    )
+                  )
                 }
-              >
-                <option value="" className="bg-slate-900">
-                  Select currency
-                </option>
-                {currencies.map((item) => (
-                  <option
-                    key={item.id}
-                    value={item.currency_code}
-                    className="bg-slate-900"
-                  >
-                    {item.currency_code} • {item.currency_name}
-                  </option>
-                ))}
-                <option value={CUSTOM_OPTION_VALUE} className="bg-slate-900">
-                  Custom currency
-                </option>
-              </SelectField>
+              />
+            </div>
 
-              {financeForm.currency_code === CUSTOM_OPTION_VALUE ? (
-                <div className="mt-3">
-                  <InputField
-                    value={financeForm.currency_custom}
-                    onChange={(event) =>
-                      setFinanceForm((prev) => ({
-                        ...prev,
-                        currency_custom: event.target.value,
-                      }))
-                    }
-                    placeholder="Write custom currency"
-                  />
-                </div>
-              ) : null}
+            <div className="xl:col-span-2">
+              <FieldLabel label="Address Line 2" />
+              <InputField
+                value={row.line2 || ""}
+                onChange={(event) =>
+                  setShippingForm((prev) =>
+                    prev.map((item) =>
+                      item.id === row.id
+                        ? { ...item, line2: event.target.value }
+                        : item
+                    )
+                  )
+                }
+              />
             </div>
           </div>
+        </div>
+      ))}
 
-          {modalError ? (
-            <div className="mt-4 text-sm text-rose-300">{modalError}</div>
-          ) : null}
-        </ModalShell>
+      {modalError ? (
+        <div className="text-sm text-rose-300">{modalError}</div>
       ) : null}
+    </div>
+  </ModalShell>
+) : null}
 
-      {editingSection === "notes" ? (
-        <ModalShell
-          title="Edit Notes"
-          description="Update internal notes and finance-side references."
-          onClose={() => setEditingSection(null)}
-          onSave={() => void saveNotesSection()}
-          isSaving={isMutating}
-        >
-          <div>
-            <FieldLabel label="Notes" />
-            <TextareaField
-              value={notesForm}
-              onChange={(event) => setNotesForm(event.target.value)}
-              placeholder="Add internal notes"
-            />
-          </div>
+{editingSection === "notes" ? (
+  <ModalShell
+    title="Edit Notes"
+    description="Update internal notes."
+    onClose={() => setEditingSection(null)}
+    onSave={() => void saveNotesSection()}
+    isSaving={isMutating}
+  >
+    <div>
+      <FieldLabel label="Notes" />
+      <TextareaField
+        value={notesForm}
+        onChange={(event) => setNotesForm(event.target.value)}
+        placeholder="Add internal notes"
+      />
+    </div>
 
-          {modalError ? (
-            <div className="mt-4 text-sm text-rose-300">{modalError}</div>
-          ) : null}
-        </ModalShell>
-      ) : null}
-    </>
+    {modalError ? (
+      <div className="mt-4 text-sm text-rose-300">{modalError}</div>
+    ) : null}
+  </ModalShell>
+) : null}
+
+</>
   );
 }

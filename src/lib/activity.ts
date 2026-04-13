@@ -13,6 +13,7 @@ type LogActivityInput = {
   | "system"
   | "finance_client"
   | "finance_vendor"
+  | "finance_company"
   | "finance_bank_account"
   | "finance_payment_method"
   | "finance_expense_category"

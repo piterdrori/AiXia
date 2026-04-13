@@ -68,9 +68,6 @@ export interface FinanceClient extends FinanceBaseRecord {
   address_line_2: string | null;
   shipping_address_line_1: string | null;
   shipping_address_line_2: string | null;
-  payment_terms_id: string | null;
-  delivery_term: string | null;
-  currency_code: string | null;
 }
 
 export interface FinanceVendor extends FinanceBaseRecord {
@@ -92,9 +89,6 @@ export interface FinanceVendor extends FinanceBaseRecord {
   address_line_2: string | null;
   shipping_address_line_1: string | null;
   shipping_address_line_2: string | null;
-  payment_terms_id: string | null;
-  delivery_term: string | null;
-  currency_code: string | null;
 }
 
 export interface FinanceBankAccount extends FinanceBaseRecord {

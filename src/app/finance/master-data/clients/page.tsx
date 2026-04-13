@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Mail,
-  Building2
+  Building2,
   Phone,
   Plus,
   RefreshCw,

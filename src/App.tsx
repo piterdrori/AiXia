@@ -63,6 +63,9 @@ import FinanceMasterDataClientCreatePage from "@/app/finance/master-data/clients
 import FinanceMasterDataClientDetailPage from "@/app/finance/master-data/clients/[id]/page";
 import FinanceMasterDataVendorCreatePage from "@/app/finance/master-data/vendors/new/page";
 import FinanceMasterDataVendorDetailPage from "@/app/finance/master-data/vendors/[id]/page";
+import FinanceMasterDataCompaniesPage from "@/app/finance/master-data/companies/page";
+import FinanceMasterDataCompanyCreatePage from "@/app/finance/master-data/companies/new/page";
+import FinanceMasterDataCompanyDetailPage from "@/app/finance/master-data/companies/[id]/page";
 import FinanceTransactionsPage from "@/app/finance/transactions/page";
 import FinanceReportsPage from "@/app/finance/reports/page";
 import FinanceSettingsPage from "@/app/finance/settings/page";
@@ -857,11 +860,33 @@ function AppRoutes() {
       />
 
             <Route
+        path="/finance/master-data/companies"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <FinanceMasterDataCompaniesPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+            <Route
         path="/finance/master-data/vendors/new"
         element={
           <ProtectedRoute>
             <DashboardLayout>
               <FinanceMasterDataVendorCreatePage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+            <Route
+        path="/finance/master-data/companies/new"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <FinanceMasterDataCompanyCreatePage />
             </DashboardLayout>
           </ProtectedRoute>
         }
@@ -873,6 +898,17 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceMasterDataVendorDetailPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+      <Route
+  path="/finance/master-data/companies/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceMasterDataCompanyDetailPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

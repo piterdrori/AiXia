@@ -47,6 +47,33 @@ export async function getVendors(): Promise<FinanceVendorListRow[]> {
   return (data ?? []) as FinanceVendorListRow[];
 }
 
+export async function getArchivedVendors(): Promise<FinanceVendorListRow[]> {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select(
+      `
+        id,
+        code,
+        name,
+        legal_name,
+        status,
+        company_email,
+        personnel_email,
+        company_phone,
+        personnel_phone,
+        company_related_personnel,
+        country,
+        created_at,
+        updated_at
+      `
+    )
+    .eq("status", "archived")
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as FinanceVendorListRow[];
+}
+
 export async function createVendor(input: {
   legal_name: string;
   contact_name?: string | null;
@@ -221,4 +248,44 @@ export async function archiveVendor(id: string): Promise<FinanceVendor> {
   });
 
   return data as FinanceVendor;
+}
+
+export async function restoreVendor(id: string): Promise<FinanceVendor> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data, error } = await supabase
+    .from(TABLE)
+    .update({
+      status: "active",
+      updated_by: user?.id ?? null,
+    })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  await logActivity({
+    actionType: "finance.vendor.restored",
+    entityType: "finance_vendor",
+    entityId: id,
+    message: "Vendor restored from archive",
+  });
+
+  return data as FinanceVendor;
+}
+
+export async function permanentlyDeleteVendor(id: string): Promise<void> {
+  const { error } = await supabase.from(TABLE).delete().eq("id", id);
+
+  if (error) throw error;
+
+  await logActivity({
+    actionType: "finance.vendor.deleted",
+    entityType: "finance_vendor",
+    entityId: id,
+    message: "Vendor permanently deleted",
+  });
 }

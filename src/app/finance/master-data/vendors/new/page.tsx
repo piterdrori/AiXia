@@ -23,21 +23,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-type PaymentTermOption = {
-  id: string;
-  name: string;
-  code: string;
-  due_days: number;
-  is_default: boolean;
-};
-
-type CurrencyOption = {
-  id: string;
-  currency_code: string;
-  currency_name: string;
-  is_base_currency: boolean;
-};
-
 type EmployeeOption = {
   id: string;
   label: string;
@@ -82,12 +67,6 @@ type FormState = {
   legal_name: string;
   status: "active" | "inactive" | "archived";
   notes: string;
-  payment_terms_id: string;
-  payment_terms_custom: string;
-  delivery_term: string;
-  delivery_term_custom: string;
-  currency_code: string;
-  currency_custom: string;
   personnel: PersonnelRow[];
   communications: CommunicationRow[];
   addresses: AddressRow[];
@@ -95,45 +74,6 @@ type FormState = {
 };
 
 type RawProfileRow = Record<string, unknown>;
-
-const CUSTOM_OPTION_VALUE = "__custom__";
-
-const FALLBACK_PAYMENT_TERMS: PaymentTermOption[] = [
-  { id: "fallback-net30", name: "Net 30", code: "NET30", due_days: 30, is_default: false }
-];
-
-const FALLBACK_CURRENCIES = [
-  {
-    id: "fallback-usd",
-    currency_code: "USD",
-    currency_name: "US Dollar",
-    is_base_currency: true,
-  },
-  {
-    id: "fallback-eur",
-    currency_code: "EUR",
-    currency_name: "Euro",
-    is_base_currency: false,
-  },
-  {
-    id: "fallback-cny",
-    currency_code: "CNY",
-    currency_name: "Chinese Yuan",
-    is_base_currency: false,
-  },
-  {
-    id: "fallback-gbp",
-    currency_code: "GBP",
-    currency_name: "British Pound",
-    is_base_currency: false,
-  },
-  {
-    id: "fallback-ils",
-    currency_code: "ILS",
-    currency_name: "Israeli Shekel",
-    is_base_currency: false,
-  },
-];
 
 function uid(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -187,29 +127,11 @@ const EMPTY_FORM: FormState = {
   legal_name: "",
   status: "active",
   notes: "",
-  payment_terms_id: "",
-  payment_terms_custom: "",
-  delivery_term: "",
-  delivery_term_custom: "",
-  currency_code: "",
-  currency_custom: "",
   personnel: [emptyPersonnelRow()],
   communications: [emptyCommunicationRow("company")],
   addresses: [emptyAddressRow()],
   shipping_addresses: [emptyShippingAddressRow()],
 };
-
-function mergeUniquePaymentTerms(items: PaymentTermOption[]) {
-  return [...items, ...FALLBACK_PAYMENT_TERMS];
-}
-
-function mergeUniqueCurrencies(items: CurrencyOption[]) {
-  const map = new Map<string, CurrencyOption>();
-  [...items, ...FALLBACK_CURRENCIES].forEach((item) => {
-    if (!map.has(item.currency_code)) map.set(item.currency_code, item);
-  });
-  return Array.from(map.values());
-}
 
 function getProfileLabel(profile: RawProfileRow) {
   const labelCandidates = [
@@ -365,8 +287,6 @@ export default function FinanceMasterDataVendorCreatePage() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [paymentTerms, setPaymentTerms] = useState<PaymentTermOption[]>([]);
-  const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [isLoadingOptions, setIsLoadingOptions] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -376,39 +296,13 @@ export default function FinanceMasterDataVendorCreatePage() {
     setIsLoadingOptions(true);
 
     try {
-      const [
-        paymentTermsResult,
-        currenciesResult,
-        employeesResult,
-      ] = await Promise.all([
-        supabase
-          .from("finance_payment_terms")
-          .select("id, name, code, due_days, is_default")
-          .eq("status", "active")
-          .order("is_default", { ascending: false })
-          .order("due_days", { ascending: true }),
-        supabase
-          .from("finance_currencies")
-          .select("id, currency_code, currency_name, is_base_currency")
-          .eq("status", "active")
-          .order("is_base_currency", { ascending: false })
-          .order("currency_code", { ascending: true }),
-        
-        supabase
-          .from("profiles")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(200),
-      ]);
+      const { data: employeesResult } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200);
 
-      const nextPaymentTerms = mergeUniquePaymentTerms(
-        (paymentTermsResult.data ?? []) as PaymentTermOption[]
-      );
-      const nextCurrencies = mergeUniqueCurrencies(
-        (currenciesResult.data ?? []) as CurrencyOption[]
-      );
-
-      const nextEmployees = ((employeesResult.data ?? []) as RawProfileRow[]).map(
+      const nextEmployees = ((employeesResult ?? []) as RawProfileRow[]).map(
         (profile) => ({
           id:
             typeof profile.user_id === "string"
@@ -419,28 +313,7 @@ export default function FinanceMasterDataVendorCreatePage() {
         })
       );
 
-      setPaymentTerms(nextPaymentTerms);
-      setCurrencies(nextCurrencies);
       setEmployees(nextEmployees);
-
-      setForm((prev) => ({
-        ...prev,
-                payment_terms_id:
-          prev.payment_terms_id ||
-          nextPaymentTerms.find(
-            (item) => item.is_default && !item.id.startsWith("fallback-")
-          )?.id ||
-          nextPaymentTerms.find(
-            (item) => !item.id.startsWith("fallback-")
-          )?.id ||
-          "",
-        currency_code:
-          prev.currency_code ||
-          nextCurrencies.find((item) => item.is_base_currency)?.currency_code ||
-          nextCurrencies[0]?.currency_code ||
-          "",
-        delivery_term: prev.delivery_term || "",
-      }));
     } catch (error) {
       console.error("Failed to load create-vendor options:", error);
     } finally {
@@ -451,37 +324,6 @@ export default function FinanceMasterDataVendorCreatePage() {
   useEffect(() => {
     void loadOptions();
   }, [loadOptions]);
-
-  const selectedPaymentTermLabel = useMemo(() => {
-    if (form.payment_terms_id === CUSTOM_OPTION_VALUE) {
-      return form.payment_terms_custom || "Custom payment term";
-    }
-
-    return (
-      paymentTerms.find((item) => item.id === form.payment_terms_id)?.name || "—"
-    );
-  }, [form.payment_terms_custom, form.payment_terms_id, paymentTerms]);
-
-  const selectedCurrencyLabel = useMemo(() => {
-    if (form.currency_code === CUSTOM_OPTION_VALUE) {
-      return form.currency_custom || "Custom currency";
-    }
-
-    const selected = currencies.find(
-      (item) => item.currency_code === form.currency_code
-    );
-    return selected
-      ? `${selected.currency_code} • ${selected.currency_name}`
-      : "—";
-  }, [currencies, form.currency_code, form.currency_custom]);
-
-  const selectedDeliveryTermLabel = useMemo(() => {
-  if (form.delivery_term === CUSTOM_OPTION_VALUE) {
-    return form.delivery_term_custom || "Custom delivery term";
-  }
-
-  return form.delivery_term || "—";
-}, [form.delivery_term, form.delivery_term_custom]);
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({
@@ -601,38 +443,12 @@ export default function FinanceMasterDataVendorCreatePage() {
         address_line_2: primaryAddress?.line2.trim() || null,
         shipping_address_line_1: primaryShippingAddress?.line1.trim() || null,
         shipping_address_line_2: primaryShippingAddress?.line2.trim() || null,
-               payment_terms_id:
-  form.payment_terms_id &&
-  form.payment_terms_id !== CUSTOM_OPTION_VALUE &&
-  !form.payment_terms_id.startsWith("fallback-")
-    ? form.payment_terms_id
-    : null,
-        delivery_term:
-          form.delivery_term === CUSTOM_OPTION_VALUE
-            ? form.delivery_term_custom.trim() || null
-            : form.delivery_term || null,
-        currency_code:
-          form.currency_code === CUSTOM_OPTION_VALUE
-            ? form.currency_custom.trim() || null
-            : form.currency_code || null,
         notes: form.notes || null,
         metadata: {
           personnel: form.personnel,
           communications: form.communications,
           addresses: form.addresses,
           shipping_addresses: form.shipping_addresses,
-          custom_payment_term:
-            form.payment_terms_id === CUSTOM_OPTION_VALUE
-              ? form.payment_terms_custom.trim() || null
-              : null,
-          custom_delivery_term:
-            form.delivery_term === CUSTOM_OPTION_VALUE
-              ? form.delivery_term_custom.trim() || null
-              : null,
-          custom_currency:
-            form.currency_code === CUSTOM_OPTION_VALUE
-              ? form.currency_custom.trim() || null
-              : null,
         },
       });
 
@@ -664,8 +480,8 @@ export default function FinanceMasterDataVendorCreatePage() {
               </h1>
 
               <div className="mt-2 text-sm text-white/50">
-                Repeatable enterprise form with linked personnel, multi-contact,
-                multi-address, and flexible finance defaults.
+                Counterparty identity form with linked personnel, communication,
+                address, shipping, and notes.
               </div>
             </div>
 
@@ -693,51 +509,6 @@ export default function FinanceMasterDataVendorCreatePage() {
 
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
           <form className="space-y-6" onSubmit={handleSubmit}>
-            <section>
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-                <Card className="overflow-hidden rounded-[26px] border border-cyan-400/15 bg-[linear-gradient(135deg,rgba(34,211,238,0.12),rgba(255,255,255,0.04))] backdrop-blur-xl">
-                  <CardContent className="p-5">
-                    <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">
-                      Vendor Code
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      Auto Generated
-                    </div>
-                    <div className="mt-2 text-sm text-white/55">
-                      Assigned automatically when the vendor is created
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="overflow-hidden rounded-[26px] border border-violet-400/15 bg-[linear-gradient(135deg,rgba(139,92,246,0.12),rgba(255,255,255,0.04))] backdrop-blur-xl">
-                  <CardContent className="p-5">
-                    <div className="text-xs uppercase tracking-[0.18em] text-violet-100/70">
-                      Payment Terms
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {selectedPaymentTermLabel}
-                    </div>
-                    <div className="mt-2 text-sm text-white/55">
-                      Default vendor settlement behavior
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="overflow-hidden rounded-[26px] border border-emerald-400/15 bg-[linear-gradient(135deg,rgba(16,185,129,0.12),rgba(255,255,255,0.04))] backdrop-blur-xl">
-                  <CardContent className="p-5">
-                    <div className="text-xs uppercase tracking-[0.18em] text-emerald-100/70">
-                      Currency / Delivery
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {selectedCurrencyLabel}
-                    </div>
-                    <div className="mt-2 text-sm text-white/55">
-                      {selectedDeliveryTermLabel}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </section>
 
             <FormSection
               title="Basic Identity"
@@ -1246,101 +1017,18 @@ export default function FinanceMasterDataVendorCreatePage() {
             </FormSection>
 
             <FormSection
-              title="Finance Defaults"
-              description="Choose from system options or switch to custom values."
+              title="Notes"
+              description="Internal notes for this vendor record."
               icon={<ChevronDown className="h-5 w-5" />}
-              accentClass="bg-[linear-gradient(135deg,rgba(244,63,94,0.18),rgba(139,92,246,0.10))] text-rose-100"
+              accentClass="bg-[linear-gradient(135deg,rgba(99,102,241,0.18),rgba(34,211,238,0.10))] text-indigo-100"
             >
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <div className="rounded-[22px] border border-white/10 bg-[linear-gradient(135deg,rgba(139,92,246,0.08),rgba(255,255,255,0.03))] p-4">
-                  <FieldLabel label="Payment Terms" />
-                  <SelectField
-                    value={form.payment_terms_id}
-                    onChange={(event) =>
-                      updateForm("payment_terms_id", event.target.value)
-                    }
-                    disabled={isLoadingOptions}
-                  >
-                    <option value="" className="bg-slate-900">
-                      Select payment term
-                    </option>
-                    {paymentTerms.map((item) => (
-                      <option
-                        key={item.id}
-                        value={item.id}
-                        className="bg-slate-900"
-                      >
-                        {item.code} • {item.name} ({item.due_days} days)
-                      </option>
-                    ))}
-                    <option value={CUSTOM_OPTION_VALUE} className="bg-slate-900">
-                      Custom payment term
-                    </option>
-                  </SelectField>
-
-                  {form.payment_terms_id === CUSTOM_OPTION_VALUE ? (
-                    <div className="mt-3">
-                      <InputField
-                        value={form.payment_terms_custom}
-                        onChange={(event) =>
-                          updateForm("payment_terms_custom", event.target.value)
-                        }
-                        placeholder="Write custom payment term"
-                      />
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="rounded-[22px] border border-white/10 bg-[linear-gradient(135deg,rgba(34,211,238,0.08),rgba(255,255,255,0.03))] p-4">
-  <FieldLabel label="Delivery Term" />
-  <InputField
-    value={form.delivery_term === CUSTOM_OPTION_VALUE ? form.delivery_term_custom : form.delivery_term}
-    onChange={(event) => {
-      updateForm("delivery_term", CUSTOM_OPTION_VALUE);
-      updateForm("delivery_term_custom", event.target.value);
-    }}
-    placeholder="Enter delivery term"
-  />
-</div>
-
-                <div className="rounded-[22px] border border-white/10 bg-[linear-gradient(135deg,rgba(16,185,129,0.08),rgba(255,255,255,0.03))] p-4">
-                  <FieldLabel label="Currency" />
-                  <SelectField
-                    value={form.currency_code}
-                    onChange={(event) =>
-                      updateForm("currency_code", event.target.value)
-                    }
-                    disabled={isLoadingOptions}
-                  >
-                    <option value="" className="bg-slate-900">
-                      Select currency
-                    </option>
-                    {currencies.map((item) => (
-                      <option
-                        key={item.id}
-                        value={item.currency_code}
-                        className="bg-slate-900"
-                      >
-                        {item.currency_code} • {item.currency_name}
-                      </option>
-                    ))}
-                    <option value={CUSTOM_OPTION_VALUE} className="bg-slate-900">
-                      Custom currency
-                    </option>
-                  </SelectField>
-
-                  {form.currency_code === CUSTOM_OPTION_VALUE ? (
-                    <div className="mt-3">
-                      <InputField
-                        value={form.currency_custom}
-                        onChange={(event) =>
-                          updateForm("currency_custom", event.target.value)
-                        }
-                        placeholder="Write custom currency"
-                      />
-                    </div>
-                  ) : null}
-                </div>
+              <div>
+                <FieldLabel label="Notes" />
+                <TextareaField
+                  value={form.notes}
+                  onChange={(event) => updateForm("notes", event.target.value)}
+                  placeholder="Add internal notes"
+                />
               </div>
             </FormSection>
 

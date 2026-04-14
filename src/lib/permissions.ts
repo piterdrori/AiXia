@@ -54,6 +54,7 @@ export type Permission =
   | "manageVendors"
   | "viewBankAccounts"
   | "viewPaymentMethods"
+  | "viewPaymentTerms"
   | "viewExpenseCategories"
   | "viewRevenueCategories"
 
@@ -207,6 +208,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     manageVendors: true,
     viewBankAccounts: true,
     viewPaymentMethods: true,
+    viewPaymentTerms: true,
     viewExpenseCategories: true,
     viewRevenueCategories: true,
     exportFinanceReports: true,
@@ -323,6 +325,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     manageVendors: false,
     viewBankAccounts: false,
     viewPaymentMethods: false,
+    viewPaymentTerms: false,
     viewExpenseCategories: false,
     viewRevenueCategories: false,
     exportFinanceReports: false,
@@ -438,6 +441,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     manageVendors: false,
     viewBankAccounts: false,
     viewPaymentMethods: false,
+    viewPaymentTerms: false,
     viewExpenseCategories: false,
     viewRevenueCategories: false,
     exportFinanceReports: false,
@@ -553,6 +557,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     manageVendors: false,
     viewBankAccounts: false,
     viewPaymentMethods: false,
+    viewPaymentTerms: false,
     viewExpenseCategories: false,
     viewRevenueCategories: false,
     exportFinanceReports: false,
@@ -749,6 +754,7 @@ export function getEffectivePermissions(
     effective.viewVendors = true;
     effective.viewBankAccounts = true;
     effective.viewPaymentMethods = true;
+    effective.viewPaymentTerms = true;
     effective.viewExpenseCategories = true;
     effective.viewRevenueCategories = true;
 

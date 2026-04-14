@@ -167,3 +167,27 @@ export async function restorePaymentMethod(id: string) {
 
   return data as FinancePaymentMethod;
 }
+
+export async function permanentlyDeletePaymentMethod(id: string) {
+  const { data: existing, error: readError } = await supabase
+    .from(TABLE)
+    .select("id, name")
+    .eq("id", id)
+    .single();
+
+  if (readError) throw readError;
+
+  const { error } = await supabase
+    .from(TABLE)
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+
+  await logActivity({
+    actionType: "finance.payment_method.deleted",
+    entityType: "finance_payment_method",
+    entityId: id,
+    message: `Payment method permanently deleted: ${existing.name}`,
+  });
+}

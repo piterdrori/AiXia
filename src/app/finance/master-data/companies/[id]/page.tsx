@@ -1348,14 +1348,10 @@ setBankAccounts(companyAccounts || []);
                     </div>
                   ) : (
                     addresses.map((row, index) => (
-                      <div
-                        key={row.id}
-                        className={`rounded-[18px] border p-4 ${
-  acc.is_default
-    ? "border-emerald-400/30 bg-emerald-500/5"
-    : "border-white/8 bg-black/15"
-}`}
-                      >
+  <div
+    key={row.id}
+    className="rounded-[18px] border border-white/8 bg-black/15 p-4"
+  >
                         <div className="mb-3 text-sm font-medium text-white/80">
                           Address {index + 1}
                         </div>

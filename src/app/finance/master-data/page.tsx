@@ -683,7 +683,7 @@ export default function FinanceMasterDataPage() {
         key: "revenue-categories",
         title: "Revenue Categories",
         description: "Control revenue classifications for finance records.",
-        route: "/finance/revenue-categories",
+        route: "/finance/master-data/revenue-categories",
         icon: WalletCards,
         count: data.counts.revenueCategories,
         statusLabel: "Active",

@@ -74,6 +74,7 @@ import FinanceMasterDataBankAccountDetailPage from "@/app/finance/master-data/ba
 import FinancePaymentTermsPage from "@/app/finance/master-data/payment-terms/page";
 import FinanceShippingTermsPage from "@/app/finance/master-data/shipping-terms/page";
 import FinanceUnitsOfMeasurePage from "@/app/finance/master-data/units-of-measure/page";
+import FinanceTaxCodesPage from "@/app/finance/master-data/tax-codes/page";
 import FinanceTransactionsPage from "@/app/finance/transactions/page";
 import FinanceReportsPage from "@/app/finance/reports/page";
 import FinanceSettingsPage from "@/app/finance/settings/page";
@@ -1301,6 +1302,17 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceUnitsOfMeasurePage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+      <Route
+  path="/finance/master-data/tax-codes"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceTaxCodesPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

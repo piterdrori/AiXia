@@ -137,6 +137,7 @@ const permissionLabels: Record<
   viewBankAccounts: { label: "View Bank Accounts", description: "View company bank accounts" },
   viewPaymentMethods: { label: "View Payment Methods", description: "View payment methods" },
   viewPaymentTerms: { label: "View Payment Terms", description: "View payment terms" },
+  viewShippingTerms: { label: "View Shipping Terms", description: "View shipping terms" },
   viewExpenseCategories: { label: "View Expense Categories", description: "View expense categories" },
   viewRevenueCategories: { label: "View Revenue Categories", description: "View revenue categories" },
 

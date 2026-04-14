@@ -303,6 +303,7 @@ return {
     (row.masked_account_number as string | null | undefined) ??
     null,
 } as FinanceBankAccount;
+}
 
 /* ========================= UPDATE ========================= */
 
@@ -424,6 +425,7 @@ return {
     (row.masked_account_number as string | null | undefined) ??
     null,
 } as FinanceBankAccount;
+}
 
 /* ========================= ARCHIVE ========================= */
 

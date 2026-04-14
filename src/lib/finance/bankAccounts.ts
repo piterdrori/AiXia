@@ -205,7 +205,8 @@ export async function createBankAccount(input: {
       input.account_identifier_type
     ),
     account_identifier_value: normalizeNullable(input.account_identifier_value),
-    currency_code: normalizeNullable(input.currency_code)?.toUpperCase() ?? null,
+    currency_code:
+      normalizeNullable(input.currency_code)?.toUpperCase() ?? null,
     is_default: Boolean(input.is_default),
     status: normalizeStatus(input.status),
     notes: normalizeNullable(input.notes),
@@ -239,6 +240,7 @@ export async function updateBankAccount(
 ): Promise<FinanceBankAccount> {
   const userId = await getCurrentUserId();
 
+  // ensure only one default per company
   if (updates.is_default === true && updates.company_id) {
     const { error: resetError } = await supabase
       .from(TABLE)
@@ -252,6 +254,72 @@ export async function updateBankAccount(
     ...updates,
     updated_by: userId,
   };
+
+  // normalization (critical parity with vendor system)
+  if (typeof nextUpdates.beneficiary_name === "string") {
+    nextUpdates.beneficiary_name = normalizeNullable(
+      nextUpdates.beneficiary_name
+    );
+  }
+
+  if (typeof nextUpdates.bank_name === "string") {
+    nextUpdates.bank_name = normalizeNullable(nextUpdates.bank_name);
+  }
+
+  if (typeof nextUpdates.country === "string") {
+    nextUpdates.country = normalizeNullable(nextUpdates.country);
+  }
+
+  if (typeof nextUpdates.city === "string") {
+    nextUpdates.city = normalizeNullable(nextUpdates.city);
+  }
+
+  if (typeof nextUpdates.postal_code === "string") {
+    nextUpdates.postal_code = normalizeNullable(nextUpdates.postal_code);
+  }
+
+  if (typeof nextUpdates.address_line_1 === "string") {
+    nextUpdates.address_line_1 = normalizeNullable(
+      nextUpdates.address_line_1
+    );
+  }
+
+  if (typeof nextUpdates.address_line_2 === "string") {
+    nextUpdates.address_line_2 = normalizeNullable(
+      nextUpdates.address_line_2
+    );
+  }
+
+  if (typeof nextUpdates.account_number === "string") {
+    nextUpdates.account_number = normalizeNullable(
+      nextUpdates.account_number
+    );
+  }
+
+  if (typeof nextUpdates.account_identifier_type === "string") {
+    nextUpdates.account_identifier_type = normalizeIdentifierType(
+      nextUpdates.account_identifier_type
+    );
+  }
+
+  if (typeof nextUpdates.account_identifier_value === "string") {
+    nextUpdates.account_identifier_value = normalizeNullable(
+      nextUpdates.account_identifier_value
+    );
+  }
+
+  if (typeof nextUpdates.currency_code === "string") {
+    nextUpdates.currency_code =
+      normalizeNullable(nextUpdates.currency_code)?.toUpperCase() ?? null;
+  }
+
+  if (typeof nextUpdates.status === "string") {
+    nextUpdates.status = normalizeStatus(nextUpdates.status);
+  }
+
+  if (typeof nextUpdates.notes === "string") {
+    nextUpdates.notes = normalizeNullable(nextUpdates.notes);
+  }
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -271,6 +339,7 @@ export async function updateBankAccount(
 
   return data as FinanceBankAccount;
 }
+
 /* ========================= ARCHIVE ========================= */
 
 export async function archiveBankAccount(
@@ -298,4 +367,52 @@ export async function archiveBankAccount(
   });
 
   return data as FinanceBankAccount;
+}
+
+/* ========================= RESTORE ========================= */
+
+export async function restoreBankAccount(
+  id: string
+): Promise<FinanceBankAccount> {
+  const userId = await getCurrentUserId();
+
+  const { data, error } = await supabase
+    .from(TABLE)
+    .update({
+      status: "active",
+      updated_by: userId,
+    })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  await logActivity({
+    actionType: "finance.bank_account.restored",
+    entityType: "finance_bank_account",
+    entityId: id,
+    message: `Bank account restored: ${data.bank_id}`,
+  });
+
+  return data as FinanceBankAccount;
+}
+
+/* ========================= DELETE ========================= */
+
+export async function permanentlyDeleteBankAccount(
+  id: string
+): Promise<void> {
+  const existing = await getBankAccountById(id);
+
+  const { error } = await supabase.from(TABLE).delete().eq("id", id);
+
+  if (error) throw error;
+
+  await logActivity({
+    actionType: "finance.bank_account.deleted",
+    entityType: "finance_bank_account",
+    entityId: id,
+    message: `Bank account permanently deleted: ${existing.bank_id}`,
+  });
 }

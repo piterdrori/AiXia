@@ -54,7 +54,7 @@ import SettingsPage from "@/app/settings/page";
 import FinancePage from "@/app/finance/page";
 import FinanceMasterDataClientsPage from "@/app/finance/master-data/clients/page";
 import FinanceMasterDataVendorsPage from "@/app/finance/master-data/vendors/page";
-import FinancePaymentMethodsPage from "@/app/finance/payment-methods/page";
+import FinancePaymentMethodsPage from "@/app/finance/master-data/payment-methods/page";
 import FinanceExpenseCategoriesPage from "@/app/finance/expense-categories/page";
 import FinanceRevenueCategoriesPage from "@/app/finance/revenue-categories/page";
 import FinanceMasterDataPage from "@/app/finance/master-data/page";

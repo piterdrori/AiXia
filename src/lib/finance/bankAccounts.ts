@@ -239,8 +239,7 @@ export async function updateBankAccount(
 ): Promise<FinanceBankAccount> {
   const userId = await getCurrentUserId();
 
-  // 👉 HANDLE DEFAULT SWITCH (CRITICAL FIX)
-  if (updates.is_default === true) {
+  if (updates.is_default === true && updates.company_id) {
     const { error: resetError } = await supabase
       .from(TABLE)
       .update({ is_default: false })
@@ -272,7 +271,6 @@ export async function updateBankAccount(
 
   return data as FinanceBankAccount;
 }
-
 /* ========================= ARCHIVE ========================= */
 
 export async function archiveBankAccount(

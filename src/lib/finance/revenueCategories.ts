@@ -65,6 +65,20 @@ export async function getRevenueCategories(): Promise<FinanceRevenueCategoryRow[
   return (data ?? []) as FinanceRevenueCategoryRow[];
 }
 
+export async function getArchivedRevenueCategories(): Promise<
+  FinanceRevenueCategoryRow[]
+> {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select("*")
+    .eq("status", "archived")
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data ?? []) as FinanceRevenueCategoryRow[];
+}
+
 export async function getRevenueCategoryById(
   id: string
 ): Promise<FinanceRevenueCategoryRow> {

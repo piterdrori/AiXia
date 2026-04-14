@@ -179,3 +179,29 @@ export async function restoreShippingTerm(
 
   return data as FinanceShippingTermRow;
 }
+
+export async function permanentlyDeleteShippingTerm(
+  id: string
+): Promise<void> {
+  const { data: existing, error: readError } = await supabase
+    .from(TABLE)
+    .select("id, name")
+    .eq("id", id)
+    .single();
+
+  if (readError) throw readError;
+
+  const { error } = await supabase
+    .from(TABLE)
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+
+  await logActivity({
+    actionType: "finance.shipping_term.deleted",
+    entityType: "finance_setting",
+    entityId: id,
+    message: `Shipping term permanently deleted: ${existing.name}`,
+  });
+}

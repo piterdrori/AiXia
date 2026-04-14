@@ -180,3 +180,29 @@ export async function restorePaymentTerm(
 
   return data as FinancePaymentTermRow;
 }
+
+export async function permanentlyDeletePaymentTerm(
+  id: string
+): Promise<void> {
+  const { data: existing, error: readError } = await supabase
+    .from(TABLE)
+    .select("id, name")
+    .eq("id", id)
+    .single();
+
+  if (readError) throw readError;
+
+  const { error } = await supabase
+    .from(TABLE)
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+
+  await logActivity({
+    actionType: "finance.payment_term.deleted",
+    entityType: "finance_setting",
+    entityId: id,
+    message: `Payment term permanently deleted: ${existing.name}`,
+  });
+}

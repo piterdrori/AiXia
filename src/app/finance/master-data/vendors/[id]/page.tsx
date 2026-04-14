@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   Pencil,
@@ -397,7 +397,8 @@ function ModalShell({
 
 export default function FinanceMasterDataVendorDetailPage() {
   const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
+const location = useLocation();
+const { id } = useParams<{ id: string }>();
 
   const [vendor, setVendor] = useState<VendorDetailRecord | null>(null);
   const [personnel, setPersonnel] = useState<PersonnelRow[]>([]);
@@ -543,9 +544,22 @@ export default function FinanceMasterDataVendorDetailPage() {
     }
   }, [id]);
 
-  useEffect(() => {
+    useEffect(() => {
     void loadVendor();
   }, [loadVendor]);
+
+  useEffect(() => {
+    const shouldRefresh = Boolean(
+      (location.state as { refreshVendorBankAccounts?: boolean } | null)
+        ?.refreshVendorBankAccounts
+    );
+
+    if (!shouldRefresh) return;
+
+    void loadVendor();
+
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, loadVendor, navigate]);
 
   function openBasicEditor() {
     if (!vendor) return;

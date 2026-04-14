@@ -136,6 +136,7 @@ const permissionLabels: Record<
   manageVendors: { label: "Manage Vendors", description: "Create and update vendor records" },
   viewBankAccounts: { label: "View Bank Accounts", description: "View company bank accounts" },
   viewPaymentMethods: { label: "View Payment Methods", description: "View payment methods" },
+  viewPaymentTerms: { label: "View Payment Terms", description: "View payment terms" },
   viewExpenseCategories: { label: "View Expense Categories", description: "View expense categories" },
   viewRevenueCategories: { label: "View Revenue Categories", description: "View revenue categories" },
 

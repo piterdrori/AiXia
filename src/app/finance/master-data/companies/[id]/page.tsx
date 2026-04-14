@@ -1471,7 +1471,9 @@ setBankAccounts(companyAccounts || []);
         No bank accounts yet.
       </div>
     ) : (
-      bankAccounts.map((acc, index) => (
+      [...bankAccounts]
+  .sort((a, b) => Number(b.is_default) - Number(a.is_default))
+  .map((acc, index) => (
         <div
           key={acc.id}
           className="rounded-[18px] border border-white/8 bg-black/15 p-4"
@@ -1481,39 +1483,57 @@ setBankAccounts(companyAccounts || []);
           </div>
 
           <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-white">
-                {acc.bank_name || "—"}
-              </div>
+  <div>
+    <div className="text-white">
+      {acc.bank_name || "—"}
+    </div>
 
-              <div className="text-white/50 text-sm">
-                {acc.currency_code} • {acc.city} • {acc.country}
-              </div>
+    <div className="text-white/50 text-sm">
+      {acc.currency_code} • {acc.city} • {acc.country}
+    </div>
 
-              <div className="flex gap-2 mt-2">
-                <Badge>{acc.bank_id}</Badge>
+    <div className="flex gap-2 mt-2">
+      <Badge>{acc.bank_id}</Badge>
 
-                {acc.is_default && (
-                  <Badge className="bg-green-500/20 text-green-200">
-                    Default
-                  </Badge>
-                )}
-              </div>
-            </div>
+      {acc.is_default && (
+        <Badge className="bg-emerald-500/20 text-emerald-200">
+          Default
+        </Badge>
+      )}
+    </div>
+  </div>
 
-            <Button
-              variant="outline"
-              onClick={() =>
-                navigate(
-                  `/finance/master-data/bank-accounts/${acc.id}`
-                )
-              }
-              className="h-10 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-            >
-              Open
-            </Button>
-          </div>
-        </div>
+  <div className="flex gap-2">
+    {!acc.is_default && (
+      <Button
+        variant="outline"
+        onClick={async () => {
+          await supabase
+            .from("finance_bank_accounts")
+            .update({ is_default: true })
+            .eq("id", acc.id);
+
+          await loadCompany();
+        }}
+        className="h-10 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+      >
+        Set Default
+      </Button>
+    )}
+
+    <Button
+      variant="outline"
+      onClick={() =>
+        navigate(
+          `/finance/master-data/bank-accounts/${acc.id}`
+        )
+      }
+      className="h-10 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+    >
+      Open
+    </Button>
+  </div>
+</div>
       ))
     )}
   </div>

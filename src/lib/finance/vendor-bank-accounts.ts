@@ -308,6 +308,21 @@ export async function updateVendorBankAccount(
 ): Promise<FinanceVendorBankAccount> {
   const userId = await getCurrentUserId();
 
+  if (updates.is_default === true) {
+    const targetVendorId =
+      updates.vendor_id ??
+      (await getVendorBankAccountById(id)).vendor_id;
+
+    if (targetVendorId) {
+      const { error: resetError } = await supabase
+        .from(TABLE)
+        .update({ is_default: false })
+        .eq("vendor_id", targetVendorId);
+
+      if (resetError) throw resetError;
+    }
+  }
+
   const nextUpdates: Partial<FinanceVendorBankAccount> = {
     ...updates,
     updated_by: userId,

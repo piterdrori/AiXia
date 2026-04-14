@@ -132,7 +132,7 @@ export default function FinanceMasterDataVendorBankAccountsPage() {
   const canCreate = !!effectivePermissions?.createFinanceRecords;
   const canArchive = !!effectivePermissions?.archiveFinanceRecords;
 
-  const filtered = useMemo(() => {
+    const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
 
     return rows.filter((r) => {
@@ -156,6 +156,22 @@ export default function FinanceMasterDataVendorBankAccountsPage() {
       return haystack.includes(q);
     });
   }, [rows, search]);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, FinanceVendorBankAccountListRow[]>();
+
+    filtered.forEach((row) => {
+      const key = row.vendor_id || "unknown";
+
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+
+      map.get(key)!.push(row);
+    });
+
+    return Array.from(map.entries());
+  }, [filtered]);
 
   const counts = useMemo(() => {
     return {
@@ -413,124 +429,132 @@ export default function FinanceMasterDataVendorBankAccountsPage() {
                     <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5 min-h-[700px]">
                       <div className="space-y-3">
 
-                                                {filtered.map((row) => {
-                          const vendorDisplayName =
-                            row.vendor_legal_name || row.vendor_name || "—";
+             {grouped.map(([vendorId, vendorAccounts]) => {
+  const first = vendorAccounts[0];
 
-                          return (
-                            <div
-                              key={row.id}
-                              className="rounded-[24px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-5"
-                            >
-                              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] text-white/70 shadow-none">
-                                      {row.bank_id || "No bank ID"}
-                                    </Badge>
+  const vendorDisplayName =
+    first.vendor_legal_name || first.vendor_name || "—";
 
-                                    <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] text-white/70 shadow-none">
-                                      {row.vendor_code || "No vendor code"}
-                                    </Badge>
+  return (
+    <div key={vendorId} className="space-y-3">
+      
+      {/* 🔹 Vendor Header */}
+      <div className="flex items-center justify-between px-2">
+        <div className="text-sm font-semibold text-white">
+          {vendorDisplayName}
+        </div>
 
-                                    {row.is_default ? (
-                                      <Badge className="rounded-full border border-emerald-400/15 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-200 shadow-none">
-                                        Default
-                                      </Badge>
-                                    ) : null}
+        <Badge className="border-white/10 bg-white/5 text-white">
+          {vendorAccounts.length} Account
+          {vendorAccounts.length === 1 ? "" : "s"}
+        </Badge>
+      </div>
 
-                                    <Badge
-                                      className={`rounded-full px-2.5 py-1 text-[11px] shadow-none ${getStatusTone(
-                                        row.status
-                                      )}`}
-                                    >
-                                      {row.status}
-                                    </Badge>
-                                  </div>
+      {/* 🔹 Accounts */}
+      {vendorAccounts.map((row) => (
+        <div
+          key={row.id}
+          className="rounded-[24px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-5"
+        >
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            
+            <div className="min-w-0 flex-1">
+              
+              {/* badges */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] text-white/70">
+                  {row.bank_id || "No bank ID"}
+                </Badge>
 
-                                  <div className="mt-3 flex flex-wrap items-start gap-x-6 gap-y-3">
-                                    <div className="min-w-[240px]">
-                                      <div className="text-lg font-semibold text-white">
-                                        {vendorDisplayName}
-                                      </div>
-                                      <div className="mt-1 text-sm text-white/50">
-                                        Beneficiary: {row.beneficiary_name || "—"}
-                                      </div>
-                                    </div>
+                <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] text-white/70">
+                  {row.vendor_code || "No vendor code"}
+                </Badge>
 
-                                    <div className="min-w-[220px] text-sm text-white/55">
-                                      <div className="text-white/35">Bank</div>
-                                      <div className="mt-1">{row.bank_name || "—"}</div>
-                                    </div>
+                {row.is_default && (
+                  <Badge className="rounded-full border border-emerald-400/15 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-200">
+                    Default
+                  </Badge>
+                )}
 
-                                    <div className="min-w-[180px] text-sm text-white/55">
-                                      <div className="text-white/35">Currency</div>
-                                      <div className="mt-1">
-                                        {row.currency_code || "—"}
-                                      </div>
-                                    </div>
-                                  </div>
+                <Badge
+                  className={`rounded-full px-2.5 py-1 text-[11px] ${getStatusTone(
+                    row.status
+                  )}`}
+                >
+                  {row.status}
+                </Badge>
+              </div>
 
-                                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                                    <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
-                                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                                        Country
-                                      </div>
-                                      <div className="mt-2 text-sm font-medium text-white">
-                                        {row.country || "—"}
-                                      </div>
-                                    </div>
+              {/* content */}
+              <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3">
+                <div className="min-w-[220px] text-sm text-white/55">
+                  <div className="text-white/35">Bank</div>
+                  <div className="mt-1">{row.bank_name || "—"}</div>
+                </div>
 
-                                    <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
-                                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                                        City
-                                      </div>
-                                      <div className="mt-2 text-sm font-medium text-white">
-                                        {row.city || "—"}
-                                      </div>
-                                    </div>
+                <div className="min-w-[160px] text-sm text-white/55">
+                  <div className="text-white/35">Currency</div>
+                  <div className="mt-1">{row.currency_code || "—"}</div>
+                </div>
+              </div>
 
-                                    <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
-                                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                                        Created
-                                      </div>
-                                      <div className="mt-2 text-sm font-medium text-white">
-                                        {formatDateLabel(row.created_at)}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs text-white/35">Country</div>
+                  <div className="mt-2 text-sm text-white">
+                    {row.country || "—"}
+                  </div>
+                </div>
 
-                                <div className="flex shrink-0 flex-wrap gap-3 xl:pl-4">
-                                  <Button
-                                    variant="outline"
-                                    onClick={() =>
-                                      navigate(
-                                        `/finance/master-data/vendor-bank-accounts/${row.id}`
-                                      )
-                                    }
-                                    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                                  >
-                                    Open / Edit
-                                  </Button>
+                <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs text-white/35">City</div>
+                  <div className="mt-2 text-sm text-white">
+                    {row.city || "—"}
+                  </div>
+                </div>
 
-                                  {canArchive ? (
-                                    <Button
-                                      variant="outline"
-                                      onClick={() => void handleArchive(row.id)}
-                                      disabled={archivingId === row.id}
-                                      className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                                    >
-                                      {archivingId === row.id
-                                        ? "Archiving..."
-                                        : "Remove / Delete"}
-                                    </Button>
-                                  ) : null}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs text-white/35">Created</div>
+                  <div className="mt-2 text-sm text-white">
+                    {formatDateLabel(row.created_at)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* actions */}
+            <div className="flex shrink-0 gap-3">
+              <Button
+                variant="outline"
+                onClick={() =>
+                  navigate(
+                    `/finance/master-data/vendor-bank-accounts/${row.id}`
+                  )
+                }
+                className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
+              >
+                Open / Edit
+              </Button>
+
+              {canArchive && (
+                <Button
+                  variant="outline"
+                  onClick={() => void handleArchive(row.id)}
+                  disabled={archivingId === row.id}
+                  className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
+                >
+                  {archivingId === row.id
+                    ? "Archiving..."
+                    : "Remove / Delete"}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+})}
                       </div>
                     </div>
                   )}
@@ -539,7 +563,7 @@ export default function FinanceMasterDataVendorBankAccountsPage() {
             </section>
           </div>
         </div>
-      </div>
+      </div>                        
 
       {showArchive && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">

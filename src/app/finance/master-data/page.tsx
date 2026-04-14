@@ -648,15 +648,15 @@ export default function FinanceMasterDataPage() {
         statusLabel: data.counts.paymentTerms > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
       },
-      {
+            {
         key: "shipping-terms",
         title: "Shipping Terms",
         description: "Define delivery and shipment terms for future documents.",
-        route: "/finance/shipping-terms",
+        route: "/finance/master-data/shipping-terms",
         icon: FolderKanban,
         count: data.counts.shippingTerms,
         statusLabel: data.counts.shippingTerms > 0 ? "Configured" : "New",
-        lastUpdatedLabel: "Pending",
+        lastUpdatedLabel: "Live",
       },
       {
         key: "tax-codes",

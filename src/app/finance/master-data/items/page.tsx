@@ -50,6 +50,10 @@ type OptionRow = {
   name: string;
 };
 
+type CurrencyOption = {
+  code: string;
+};
+
 type FormState = {
   code: string;
   name: string;
@@ -112,6 +116,28 @@ function formatMoneyLabel(value: string) {
   return numeric.toFixed(2);
 }
 
+function generateItemCode(name: string, itemType: FinanceItemType) {
+  const normalizedName = name
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 24);
+
+  const typePrefixMap: Record<FinanceItemType, string> = {
+    product: "PRD",
+    service: "SRV",
+    component: "CMP",
+    assembly: "ASM",
+  };
+
+  if (!normalizedName) {
+    return typePrefixMap[itemType];
+  }
+
+  return `${typePrefixMap[itemType]}_${normalizedName}`;
+}
+
 export default function FinanceItemsPage() {
   const navigate = useNavigate();
 
@@ -133,7 +159,7 @@ export default function FinanceItemsPage() {
   const [taxCodes, setTaxCodes] = useState<OptionRow[]>([]);
   const [units, setUnits] = useState<OptionRow[]>([]);
   const [vendors, setVendors] = useState<OptionRow[]>([]);
-
+  const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
   const loadPage = useCallback(async () => {
     setLoading(true);
 
@@ -163,6 +189,7 @@ export default function FinanceItemsPage() {
         taxResult,
         unitsResult,
         vendorResult,
+        currenciesResult,
       ] = await Promise.all([
         getItems(),
         supabase.from("finance_revenue_categories").select("id, code, name").eq("status", "active").order("name"),
@@ -170,6 +197,11 @@ export default function FinanceItemsPage() {
         supabase.from("finance_tax_codes").select("id, code, name").eq("status", "active").order("name"),
         supabase.from("finance_units_of_measure").select("id, code, name").eq("status", "active").order("name"),
         supabase.from("finance_vendors").select("id, code, name").eq("status", "active").order("name"),
+        supabase
+          .from("finance_exchange_rates")
+          .select("from_currency_code")
+          .eq("status", "active")
+          .order("from_currency_code"),
       ]);
 
       setRows(items);
@@ -177,7 +209,17 @@ export default function FinanceItemsPage() {
       setExpenseCategories((expenseResult.data ?? []) as OptionRow[]);
       setTaxCodes((taxResult.data ?? []) as OptionRow[]);
       setUnits((unitsResult.data ?? []) as OptionRow[]);
-      setVendors((vendorResult.data ?? []) as OptionRow[]);
+            setVendors((vendorResult.data ?? []) as OptionRow[]);
+
+      const distinctCurrencies = Array.from(
+        new Set(
+          ((currenciesResult.data ?? []) as Array<{ from_currency_code: string }>)
+            .map((row) => row.from_currency_code)
+            .filter(Boolean)
+        )
+      ).map((code) => ({ code }));
+
+      setCurrencies(distinctCurrencies);
     } catch (loadError) {
       console.error("Failed to load items:", loadError);
       setRows([]);
@@ -263,7 +305,7 @@ export default function FinanceItemsPage() {
       setError("");
 
       const payload: ItemUpsertInput = {
-        code: form.code,
+        code: generateItemCode(form.name, form.item_type),
         name: form.name,
         status: form.status,
         item_type: form.item_type,
@@ -471,37 +513,155 @@ export default function FinanceItemsPage() {
             <DialogDescription className="text-white/45">
               Build reusable item records for manufacturing, procurement, costing, invoicing, and future inventory workflows.
             </DialogDescription>
-          </DialogHeader>
+                    </DialogHeader>
 
           <div className="grid gap-4">
             <div className="grid gap-2 sm:grid-cols-3">
-              <Input value={form.code} onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))} placeholder="Code" className="h-11 rounded-2xl border-white/10 bg-black/15 text-white" />
-              <Input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="Name" className="h-11 rounded-2xl border-white/10 bg-black/15 text-white" />
-              <select value={form.item_type} onChange={(e) => setForm((p) => ({ ...p, item_type: e.target.value as FinanceItemType }))} className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none">
-                <option value="product">Product</option>
-                <option value="service">Service</option>
-                <option value="component">Component</option>
-                <option value="assembly">Assembly</option>
-              </select>
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Item Code
+                </div>
+                <Input
+                  value={generateItemCode(form.name, form.item_type)}
+                  readOnly
+                  placeholder="Auto generated"
+                  className="h-11 rounded-2xl border-white/10 bg-black/15 text-white/70"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Name
+                </div>
+                <Input
+                  value={form.name}
+                  onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="Name"
+                  className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Item Type
+                </div>
+                <select
+                  value={form.item_type}
+                  onChange={(e) => setForm((p) => ({ ...p, item_type: e.target.value as FinanceItemType }))}
+                  className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none"
+                >
+                  <option value="product">Product</option>
+                  <option value="service">Service</option>
+                  <option value="component">Component</option>
+                  <option value="assembly">Assembly</option>
+                </select>
+              </div>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-4">
-              <Input value={form.sales_price} onChange={(e) => setForm((p) => ({ ...p, sales_price: e.target.value }))} placeholder="Sales price" className="h-11 rounded-2xl border-white/10 bg-black/15 text-white" />
-              <Input value={form.purchase_price} onChange={(e) => setForm((p) => ({ ...p, purchase_price: e.target.value }))} placeholder="Purchase price" className="h-11 rounded-2xl border-white/10 bg-black/15 text-white" />
-              <Input value={form.standard_cost} onChange={(e) => setForm((p) => ({ ...p, standard_cost: e.target.value }))} placeholder="Standard cost" className="h-11 rounded-2xl border-white/10 bg-black/15 text-white" />
-              <Input value={form.last_purchase_cost} onChange={(e) => setForm((p) => ({ ...p, last_purchase_cost: e.target.value }))} placeholder="Last purchase cost" className="h-11 rounded-2xl border-white/10 bg-black/15 text-white" />
+                        <div className="grid gap-2 sm:grid-cols-4">
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Sales Price
+                </div>
+                <Input
+                  value={form.sales_price}
+                  onChange={(e) => setForm((p) => ({ ...p, sales_price: e.target.value }))}
+                  placeholder="0"
+                  className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Purchase Price
+                </div>
+                <Input
+                  value={form.purchase_price}
+                  onChange={(e) => setForm((p) => ({ ...p, purchase_price: e.target.value }))}
+                  placeholder="0"
+                  className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Standard Cost
+                </div>
+                <Input
+                  value={form.standard_cost}
+                  onChange={(e) => setForm((p) => ({ ...p, standard_cost: e.target.value }))}
+                  placeholder="0"
+                  className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Last Purchase Cost
+                </div>
+                <Input
+                  value={form.last_purchase_cost}
+                  onChange={(e) => setForm((p) => ({ ...p, last_purchase_cost: e.target.value }))}
+                  placeholder="0"
+                  className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
+                />
+              </div>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-3">
-              <Input value={form.currency_code} onChange={(e) => setForm((p) => ({ ...p, currency_code: e.target.value }))} placeholder="Currency code" className="h-11 rounded-2xl border-white/10 bg-black/15 text-white" />
-              <select value={form.revenue_category_id} onChange={(e) => setForm((p) => ({ ...p, revenue_category_id: e.target.value }))} className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none">
-                <option value="">Revenue category</option>
-                {revenueCategories.map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} · ` : ""}{item.name}</option>)}
-              </select>
-              <select value={form.expense_category_id} onChange={(e) => setForm((p) => ({ ...p, expense_category_id: e.target.value }))} className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none">
-                <option value="">Expense category</option>
-                {expenseCategories.map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} · ` : ""}{item.name}</option>)}
-              </select>
+             <div className="grid gap-2 sm:grid-cols-3">
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Currency
+                </div>
+                <select
+                  value={form.currency_code}
+                  onChange={(e) => setForm((p) => ({ ...p, currency_code: e.target.value }))}
+                  className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none"
+                >
+                  <option value="">Select currency</option>
+                  {currencies.map((currency) => (
+                    <option key={currency.code} value={currency.code}>
+                      {currency.code}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Revenue Category
+                </div>
+                <select
+                  value={form.revenue_category_id}
+                  onChange={(e) => setForm((p) => ({ ...p, revenue_category_id: e.target.value }))}
+                  className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none"
+                >
+                  <option value="">Revenue category</option>
+                  {revenueCategories.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.code ? `${item.code} · ` : ""}{item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Expense Category
+                </div>
+                <select
+                  value={form.expense_category_id}
+                  onChange={(e) => setForm((p) => ({ ...p, expense_category_id: e.target.value }))}
+                  className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none"
+                >
+                  <option value="">Expense category</option>
+                  {expenseCategories.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.code ? `${item.code} · ` : ""}{item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="grid gap-2 sm:grid-cols-3">

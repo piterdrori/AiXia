@@ -54,7 +54,6 @@ import SettingsPage from "@/app/settings/page";
 import FinancePage from "@/app/finance/page";
 import FinanceMasterDataClientsPage from "@/app/finance/master-data/clients/page";
 import FinanceMasterDataVendorsPage from "@/app/finance/master-data/vendors/page";
-import FinanceBankAccountsPage from "@/app/finance/bank-accounts/page";
 import FinancePaymentMethodsPage from "@/app/finance/payment-methods/page";
 import FinanceExpenseCategoriesPage from "@/app/finance/expense-categories/page";
 import FinanceRevenueCategoriesPage from "@/app/finance/revenue-categories/page";
@@ -69,6 +68,9 @@ import FinanceMasterDataCompanyDetailPage from "@/app/finance/master-data/compan
 import FinanceMasterDataVendorBankAccountsPage from "@/app/finance/master-data/vendor-bank-accounts/page";
 import FinanceMasterDataVendorBankAccountCreatePage from "@/app/finance/master-data/vendor-bank-accounts/new/page";
 import FinanceMasterDataVendorBankAccountDetailPage from "@/app/finance/master-data/vendor-bank-accounts/[id]/page";
+import FinanceMasterDataBankAccountsPage from "@/app/finance/master-data/bank-accounts/page";
+import FinanceMasterDataBankAccountCreatePage from "@/app/finance/master-data/bank-accounts/new/page";
+import FinanceMasterDataBankAccountDetailPage from "@/app/finance/master-data/bank-accounts/[id]/page";
 import FinanceTransactionsPage from "@/app/finance/transactions/page";
 import FinanceReportsPage from "@/app/finance/reports/page";
 import FinanceSettingsPage from "@/app/finance/settings/page";
@@ -917,17 +919,6 @@ function AppRoutes() {
   }
 />
 
-      <Route
-  path="/finance/bank-accounts"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinanceBankAccountsPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
-/>
-
 <Route
   path="/finance/payment-methods"
   element={
@@ -1241,6 +1232,39 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceMasterDataVendorBankAccountDetailPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+      <Route
+  path="/finance/master-data/bank-accounts"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceMasterDataBankAccountsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/master-data/bank-accounts/new"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceMasterDataBankAccountCreatePage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/master-data/bank-accounts/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceMasterDataBankAccountDetailPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

@@ -256,28 +256,35 @@ export async function createBankAccount(input: {
 }) {
   const userId = await getCurrentUserId();
 
-  const payload = {
-    company_id: input.company_id,
-    beneficiary_name: normalizeNullable(input.beneficiary_name),
-    bank_name: normalizeNullable(input.bank_name),
-    country: normalizeNullable(input.country),
-    city: normalizeNullable(input.city),
-    postal_code: normalizeNullable(input.postal_code),
-    address_line_1: normalizeNullable(input.address_line_1),
-    address_line_2: normalizeNullable(input.address_line_2),
-    masked_account_number: normalizeNullable(input.account_number),
-    account_identifier_type: normalizeIdentifierType(
-      input.account_identifier_type
-    ),
-    account_identifier_value: normalizeNullable(input.account_identifier_value),
-    currency_code:
-      normalizeNullable(input.currency_code)?.toUpperCase() ?? null,
-    is_default: Boolean(input.is_default),
-    status: normalizeStatus(input.status),
-    notes: normalizeNullable(input.notes),
-    created_by: userId,
-    updated_by: userId,
-  };
+const normalizedBankName = normalizeNullable(input.bank_name);
+const normalizedBeneficiaryName = normalizeNullable(input.beneficiary_name);
+
+const payload = {
+  company_id: input.company_id,
+  name: normalizedBankName ?? normalizedBeneficiaryName ?? "Bank Account",
+  account_type: "bank",
+  institution_name: normalizedBankName,
+  beneficiary_name: normalizedBeneficiaryName,
+  bank_name: normalizedBankName,
+  country: normalizeNullable(input.country),
+  city: normalizeNullable(input.city),
+  postal_code: normalizeNullable(input.postal_code),
+  address_line_1: normalizeNullable(input.address_line_1),
+  address_line_2: normalizeNullable(input.address_line_2),
+  masked_account_number: normalizeNullable(input.account_number),
+  account_number: normalizeNullable(input.account_number),
+  account_identifier_type: normalizeIdentifierType(
+    input.account_identifier_type
+  ),
+  account_identifier_value: normalizeNullable(input.account_identifier_value),
+  currency_code:
+    normalizeNullable(input.currency_code)?.toUpperCase() ?? null,
+  is_default: Boolean(input.is_default),
+  status: normalizeStatus(input.status),
+  notes: normalizeNullable(input.notes),
+  created_by: userId,
+  updated_by: userId,
+};
 
   const { data, error } = await supabase
     .from(TABLE)

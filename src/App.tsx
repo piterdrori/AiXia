@@ -931,11 +931,6 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/payment-methods"
-  element={<Navigate to="/finance/master-data/payment-methods" replace />}
-/>
-
-<Route
   path="/finance/expense-categories"
   element={
     <ProtectedRoute>

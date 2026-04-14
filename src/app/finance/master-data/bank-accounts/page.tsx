@@ -225,44 +225,50 @@ export default function FinanceMasterDataBankAccountsPage() {
 
         {/* HEADER */}
         <section className="relative z-10 flex-shrink-0 rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
-          <div className="relative flex items-center justify-between gap-4 px-5 py-5">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.10),transparent_32%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.10),transparent_24%)]" />
 
-            <div>
-              <h1 className="text-2xl font-semibold text-white">
+          <div className="relative flex items-center justify-between gap-4 px-5 py-5 sm:px-6 xl:px-7">
+            <div className="min-w-0">
+              <div className="inline-flex items-center rounded-full border border-cyan-400/15 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200">
+                Master Data
+              </div>
+
+              <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
                 Company Bank Accounts
               </h1>
-              <div className="text-sm text-white/45">
-                Manage company bank accounts for payments and treasury.
+
+              <div className="mt-2 text-sm text-white/45">
+                Manage company-linked bank accounts for treasury and payment operations.
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex shrink-0 items-center gap-3">
               <Button
                 variant="outline"
                 onClick={() => navigate("/finance/master-data")}
-                className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
+                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back
               </Button>
 
-              {canCreate && (
+              {canCreate ? (
                 <Button
                   variant="outline"
                   onClick={() =>
                     navigate("/finance/master-data/bank-accounts/new")
                   }
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
+                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
                 >
                   <Plus className="mr-2 h-4 w-4" />
                   Create Bank Account
                 </Button>
-              )}
+              ) : null}
 
               <Button
                 variant="outline"
                 onClick={() => void loadRows()}
-                className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
+                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
               >
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Refresh
@@ -272,161 +278,265 @@ export default function FinanceMasterDataBankAccountsPage() {
         </section>
 
         {/* CONTENT */}
-        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto">
+        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
 
           {/* STATS */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <Card className="rounded-[26px] border border-white/10 bg-white/[0.045]">
-              <CardContent className="p-5">
-                <div className="text-xs text-white/35">Total</div>
-                <div className="text-3xl text-white">{counts.total}</div>
-              </CardContent>
-            </Card>
+          <section>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <Card className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                <CardContent className="p-5">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Total Accounts
+                  </div>
+                  <div className="mt-2 text-3xl font-semibold text-white">
+                    {counts.total.toLocaleString()}
+                  </div>
+                  <div className="mt-2 text-sm text-white/50">
+                    Full company bank account registry
+                  </div>
+                </CardContent>
+              </Card>
 
-            <Card className="rounded-[26px] border border-white/10 bg-white/[0.045]">
-              <CardContent className="p-5">
-                <div className="text-xs text-white/35">Active</div>
-                <div className="text-3xl text-white">{counts.active}</div>
-              </CardContent>
-            </Card>
+              <Card className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                <CardContent className="p-5">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Active
+                  </div>
+                  <div className="mt-2 text-3xl font-semibold text-white">
+                    {counts.active.toLocaleString()}
+                  </div>
+                  <div className="mt-2 text-sm text-white/50">
+                    Available for finance operations
+                  </div>
+                </CardContent>
+              </Card>
 
-            <Card className="rounded-[26px] border border-white/10 bg-white/[0.045]">
-              <CardContent className="p-5">
-                <div className="text-xs text-white/35">Archived</div>
-                <div className="text-3xl text-white">{counts.archived}</div>
-              </CardContent>
-            </Card>
-          </div>
+              <Card className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                <CardContent className="p-5">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Archived
+                  </div>
+                  <div className="mt-2 text-3xl font-semibold text-white">
+                    {counts.archived.toLocaleString()}
+                  </div>
+                  <div className="mt-2 text-sm text-white/50">
+                    Hidden from new operational use
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </section>
 
                     {/* MAIN LIST */}
-          <Card className="flex flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045]">
-            <CardHeader className="border-b border-white/8">
-              <div className="flex flex-col gap-4 xl:flex-row xl:justify-between">
-                <div>
-                  <CardTitle className="text-white">
-                    Company Bank Accounts
-                  </CardTitle>
-                  <CardDescription className="text-white/45">
-                    Grouped by company
-                  </CardDescription>
+          <section className="min-h-0 flex-1 h-full">
+            <Card className="flex h-full min-h-[860px] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <CardHeader className="flex-shrink-0 border-b border-white/8 pb-4">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                  <div className="space-y-2">
+                    <Badge className="w-fit rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-white/65 shadow-none">
+                      Bank Account Registry
+                    </Badge>
+
+                    <CardTitle className="text-white">
+                      Company Bank Account Records
+                    </CardTitle>
+
+                    <CardDescription className="text-white/45">
+                      Company linkage, banking details, currency, and lifecycle
+                      status.
+                    </CardDescription>
+                  </div>
+
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <div className="relative min-w-[260px]">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+                      <Input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Search active bank accounts"
+                        className="h-11 rounded-2xl border-white/10 bg-white/5 pl-10 text-white placeholder:text-white/30"
+                      />
+                    </div>
+                  </div>
                 </div>
+              </CardHeader>
 
-                <div className="relative min-w-[260px]">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-                  <Input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search..."
-                    className="h-11 rounded-2xl border-white/10 bg-white/5 pl-10 text-white"
-                  />
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="flex-1 overflow-y-auto p-4">
-              {isLoading ? (
-                <div className="text-white/50">Loading...</div>
-              ) : filtered.length === 0 ? (
-                <div className="text-white/50">
-                  No bank accounts found
-                </div>
-              ) : (
-                <div className="space-y-4">
-
-                  {grouped.map(([companyId, companyAccounts]) => {
-                    const first = companyAccounts[0];
-
-                    const companyDisplayName =
-                      first.company_legal_name ||
-                      first.company_name ||
-                      "—";
-
-                    return (
-                      <div key={companyId} className="space-y-3">
-
-                        {/* COMPANY HEADER */}
-                        <div
-                          className="flex cursor-pointer items-center justify-between"
-                          onClick={() => toggleCompany(companyId)}
-                        >
-                          <div className="flex items-center gap-2 text-white font-semibold">
-                            {expandedCompanies[companyId] ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                            {companyDisplayName}
-                          </div>
-
-                          <Badge>
-                            {companyAccounts.length} Account
-                            {companyAccounts.length === 1 ? "" : "s"}
-                          </Badge>
-                        </div>
-
-                        {/* ACCOUNTS */}
-                        {expandedCompanies[companyId] &&
-                          companyAccounts.map((row) => (
-                            <div
-                              key={row.id}
-                              className="rounded-[24px] border border-white/8 p-5"
-                            >
-                              <div className="flex justify-between">
-
-                                <div>
-                                  <div className="flex gap-2 mb-2">
-                                    <Badge>{row.bank_id}</Badge>
-                                    {row.is_default && (
-                                      <Badge className="bg-green-500/20 text-green-200">
-                                        Default
-                                      </Badge>
-                                    )}
-                                  </div>
-
-                                  <div className="text-white">
-                                    {row.bank_name || "—"}
-                                  </div>
-
-                                  <div className="text-white/50 text-sm">
-                                    {row.currency_code} • {row.city} • {row.country}
-                                  </div>
-                                </div>
-
-                                <div className="flex gap-2">
-                                  <Button
-                                    variant="outline"
-                                    onClick={() =>
-                                      navigate(
-                                        `/finance/master-data/bank-accounts/${row.id}`
-                                      )
-                                    }
-                                    className="text-white"
-                                  >
-                                    Open
-                                  </Button>
-
-                                  {canArchive && (
-                                    <Button
-                                      variant="outline"
-                                      onClick={() => handleArchive(row.id)}
-                                      className="text-white"
-                                    >
-                                      Archive
-                                    </Button>
-                                  )}
-                                </div>
-
-                              </div>
-                            </div>
-                          ))}
+              <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+                {isLoading ? (
+                  <div className="p-6 text-sm text-white/50">
+                    Loading bank accounts...
+                  </div>
+                ) : filtered.length === 0 ? (
+                  <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+                    <div className="max-w-md text-center">
+                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/70">
+                        <CreditCard className="h-6 w-6" />
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-         </div>
+                      <div className="mt-4 text-lg font-semibold text-white">
+                        No bank accounts found
+                      </div>
+                      <div className="mt-2 text-sm leading-6 text-white/50">
+                        Create your first bank account to start building the
+                        finance banking structure.
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5 min-h-[700px]">
+                    <div className="space-y-3">
+
+                      {grouped.map(([companyId, companyAccounts]) => {
+                        const first = companyAccounts[0];
+
+                        const companyDisplayName =
+                          first.company_legal_name ||
+                          first.company_name ||
+                          "—";
+
+                        return (
+                          <div key={companyId} className="space-y-3">
+
+                            {/* COMPANY HEADER */}
+                            <div
+                              className="flex items-center justify-between px-2 cursor-pointer"
+                              onClick={() => toggleCompany(companyId)}
+                            >
+                              <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                                {expandedCompanies[companyId] ? (
+                                  <ChevronDown className="h-4 w-4 text-white/40" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-white/40" />
+                                )}
+                                {companyDisplayName}
+                              </div>
+
+                              <Badge className="border-white/10 bg-white/5 text-white">
+                                {companyAccounts.length} Account
+                                {companyAccounts.length === 1 ? "" : "s"}
+                              </Badge>
+                            </div>
+
+                            {/* ACCOUNTS */}
+                            {expandedCompanies[companyId] &&
+                              companyAccounts.map((row) => (
+                                <div
+                                  key={row.id}
+                                  className="rounded-[24px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-5"
+                                >
+                                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+
+                                    <div className="min-w-0 flex-1">
+
+                                      {/* BADGES */}
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] text-white/70">
+                                          {row.bank_id || "No bank ID"}
+                                        </Badge>
+
+                                        {row.is_default && (
+                                          <Badge className="rounded-full border border-emerald-400/15 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-200">
+                                            Default
+                                          </Badge>
+                                        )}
+
+                                        <Badge
+                                          className={`rounded-full px-2.5 py-1 text-[11px] ${getStatusTone(
+                                            row.status
+                                          )}`}
+                                        >
+                                          {row.status}
+                                        </Badge>
+                                      </div>
+
+                                      {/* MAIN INFO */}
+                                      <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3">
+                                        <div className="min-w-[220px] text-sm text-white/55">
+                                          <div className="text-white/35">Bank</div>
+                                          <div className="mt-1">
+                                            {row.bank_name || "—"}
+                                          </div>
+                                        </div>
+
+                                        <div className="min-w-[160px] text-sm text-white/55">
+                                          <div className="text-white/35">Currency</div>
+                                          <div className="mt-1">
+                                            {row.currency_code || "—"}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                        <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
+                                          <div className="text-xs text-white/35">
+                                            Country
+                                          </div>
+                                          <div className="mt-2 text-sm text-white">
+                                            {row.country || "—"}
+                                          </div>
+                                        </div>
+
+                                        <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
+                                          <div className="text-xs text-white/35">
+                                            City
+                                          </div>
+                                          <div className="mt-2 text-sm text-white">
+                                            {row.city || "—"}
+                                          </div>
+                                        </div>
+
+                                        <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
+                                          <div className="text-xs text-white/35">
+                                            Created
+                                          </div>
+                                          <div className="mt-2 text-sm text-white">
+                                            {formatDateLabel(row.created_at)}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* ACTIONS */}
+                                    <div className="flex shrink-0 gap-3">
+                                      <Button
+                                        variant="outline"
+                                        onClick={() =>
+                                          navigate(
+                                            `/finance/master-data/bank-accounts/${row.id}`
+                                          )
+                                        }
+                                        className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
+                                      >
+                                        Open / Edit
+                                      </Button>
+
+                                      {canArchive && (
+                                        <Button
+                                          variant="outline"
+                                          onClick={() => handleArchive(row.id)}
+                                          disabled={archivingId === row.id}
+                                          className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
+                                        >
+                                          {archivingId === row.id
+                                            ? "Archiving..."
+                                            : "Remove / Delete"}
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        );
+                      })}
+
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+
+        </div>
       </div>
     </div>
   );

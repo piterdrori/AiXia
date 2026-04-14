@@ -451,145 +451,131 @@ export default function FinanceMasterDataBankAccountsPage() {
                     </div>
                   ) : (
                     <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5 min-h-[700px]">
-                      <div className="space-y-3">
-                        {grouped.map(([companyId, companyAccounts]) => {
-                          const first = companyAccounts[0];
+                    <div className="space-y-3">
+  {grouped.map(([companyId, companyAccounts]) => {
+    const first = companyAccounts[0];
 
-                          const companyDisplayName =
-                            first.company_legal_name || first.company_name || "—";
+    const companyDisplayName =
+      first.company_legal_name || first.company_name || "—";
 
-                          return (
-                            <div key={companyId} className="space-y-3">
-                              <div
-                                className="flex items-center justify-between px-2 cursor-pointer"
-                                onClick={() => toggleCompany(companyId)}
-                              >
-                                <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                                  {expandedCompanies[companyId] ? (
-                                    <ChevronDown className="h-4 w-4 text-white/40" />
-                                  ) : (
-                                    <ChevronRight className="h-4 w-4 text-white/40" />
-                                  )}
-                                  {companyDisplayName}
-                                </div>
+    return (
+      <div key={companyId} className="space-y-3">
+        <div
+          className="flex items-center justify-between px-2 cursor-pointer"
+          onClick={() => toggleCompany(companyId)}
+        >
+          <div className="flex items-center gap-2 text-sm font-semibold text-white">
+            {expandedCompanies[companyId] ? (
+              <ChevronDown className="h-4 w-4 text-white/40" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-white/40" />
+            )}
+            {companyDisplayName}
+          </div>
 
-                                <Badge className="border-white/10 bg-white/5 text-white">
-                                  {companyAccounts.length} Account
-                                  {companyAccounts.length === 1 ? "" : "s"}
-                                </Badge>
-                              </div>
+          <Badge className="border-white/10 bg-white/5 text-white">
+            {companyAccounts.length} Account
+            {companyAccounts.length === 1 ? "" : "s"}
+          </Badge>
+        </div>
 
-                              {expandedCompanies[companyId] &&
-                                companyAccounts.map((row) => (
-                                  <div
-                                    key={row.id}
-                                    className="rounded-[24px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-5"
-                                  >
-                                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                                      <div className="min-w-0 flex-1">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] text-white/70">
-                                            {row.bank_id || "No bank ID"}
-                                          </Badge>
+        {expandedCompanies[companyId] &&
+          companyAccounts.map((row) => (
+            <div
+              key={row.id}
+              className="rounded-[24px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-5"
+            >
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] text-white/70">
+                      {row.bank_id || "No bank ID"}
+                    </Badge>
 
-                                          <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] text-white/70">
-                                            {row.company_code || "No company code"}
-                                          </Badge>
+                    {row.is_default && (
+                      <Badge className="rounded-full border border-emerald-400/15 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-200">
+                        Default
+                      </Badge>
+                    )}
 
-                                          {row.is_default && (
-                                            <Badge className="rounded-full border border-emerald-400/15 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-200">
-                                              Default
-                                            </Badge>
-                                          )}
+                    <Badge
+                      className={`rounded-full px-2.5 py-1 text-[11px] ${getStatusTone(
+                        row.status
+                      )}`}
+                    >
+                      {row.status}
+                    </Badge>
+                  </div>
 
-                                          <Badge
-                                            className={`rounded-full px-2.5 py-1 text-[11px] ${getStatusTone(
-                                              row.status
-                                            )}`}
-                                          >
-                                            {row.status}
-                                          </Badge>
-                                        </div>
+                  <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3">
+                    <div className="min-w-[220px] text-sm text-white/55">
+                      <div className="text-white/35">Bank</div>
+                      <div className="mt-1">{row.bank_name || "—"}</div>
+                    </div>
 
-                                        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3">
-                                          <div className="min-w-[220px] text-sm text-white/55">
-                                            <div className="text-white/35">Bank</div>
-                                            <div className="mt-1">
-                                              {row.bank_name || "—"}
-                                            </div>
-                                          </div>
+                    <div className="min-w-[160px] text-sm text-white/55">
+                      <div className="text-white/35">Currency</div>
+                      <div className="mt-1">{row.currency_code || "—"}</div>
+                    </div>
+                  </div>
 
-                                          <div className="min-w-[160px] text-sm text-white/55">
-                                            <div className="text-white/35">Currency</div>
-                                            <div className="mt-1">
-                                              {row.currency_code || "—"}
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                                          <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
-                                            <div className="text-xs text-white/35">
-                                              Country
-                                            </div>
-                                            <div className="mt-2 text-sm text-white">
-                                              {row.country || "—"}
-                                            </div>
-                                          </div>
-
-                                          <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
-                                            <div className="text-xs text-white/35">
-                                              City
-                                            </div>
-                                            <div className="mt-2 text-sm text-white">
-                                              {row.city || "—"}
-                                            </div>
-                                          </div>
-
-                                          <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
-                                            <div className="text-xs text-white/35">
-                                              Created
-                                            </div>
-                                            <div className="mt-2 text-sm text-white">
-                                              {formatDateLabel(row.created_at)}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      <div className="flex shrink-0 gap-3">
-                                        <Button
-                                          variant="outline"
-                                          onClick={() =>
-                                            navigate(
-                                              `/finance/master-data/bank-accounts/${row.id}`
-                                            )
-                                          }
-                                          className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
-                                        >
-                                          Open / Edit
-                                        </Button>
-
-                                        {canArchive && (
-                                          <Button
-                                            variant="outline"
-                                            onClick={() => void handleArchive(row.id)}
-                                            disabled={archivingId === row.id}
-                                            className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
-                                          >
-                                            {archivingId === row.id
-                                              ? "Archiving..."
-                                              : "Remove / Delete"}
-                                          </Button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                            </div>
-                          );
-                        })}
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
+                      <div className="text-xs text-white/35">Country</div>
+                      <div className="mt-2 text-sm text-white">
+                        {row.country || "—"}
                       </div>
+                    </div>
+
+                    <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
+                      <div className="text-xs text-white/35">City</div>
+                      <div className="mt-2 text-sm text-white">
+                        {row.city || "—"}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
+                      <div className="text-xs text-white/35">Created</div>
+                      <div className="mt-2 text-sm text-white">
+                        {formatDateLabel(row.created_at)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex shrink-0 gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      navigate(
+                        `/finance/master-data/bank-accounts/${row.id}`
+                      )
+                    }
+                    className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
+                  >
+                    Open / Edit
+                  </Button>
+
+                  {canArchive && (
+                    <Button
+                      variant="outline"
+                      onClick={() => void handleArchive(row.id)}
+                      disabled={archivingId === row.id}
+                      className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
+                    >
+                      {archivingId === row.id
+                        ? "Archiving..."
+                        : "Remove / Delete"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+      </div>
+    );
+  })}
+</div>
                     </div>
                   )}
                 </CardContent>

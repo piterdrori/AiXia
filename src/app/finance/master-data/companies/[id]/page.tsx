@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
   Building2,
@@ -417,11 +417,13 @@ function ModalShell({
 export default function FinanceMasterDataCompanyDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
 
   const [company, setCompany] = useState<CompanyDetailRecord | null>(null);
   const [personnel, setPersonnel] = useState<PersonnelRow[]>([]);
   const [addresses, setAddresses] = useState<AddressRow[]>([]);
   const [shippingAddresses, setShippingAddresses] = useState<AddressRow[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isMutating, setIsMutating] = useState(false);
@@ -554,6 +556,17 @@ export default function FinanceMasterDataCompanyDetailPage() {
       setShippingAddresses(
         addressData.filter((row) => row.address_type === "shipping")
       );
+
+const { data: companyAccounts, error: bankError } = await supabase
+  .from("finance_bank_accounts")
+  .select("*")
+  .eq("company_id", id)
+  .order("created_at", { ascending: false });
+
+if (bankError) throw bankError;
+
+setBankAccounts(companyAccounts || []);
+      
     } catch (error) {
       console.error("Failed to load finance company details:", error);
       setCompany(null);
@@ -563,11 +576,17 @@ export default function FinanceMasterDataCompanyDetailPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [id]);
+  }, [id, supabase]);
 
   useEffect(() => {
     void loadCompany();
   }, [loadCompany]);
+
+  useEffect(() => {
+  if (location.state?.refreshCompanyBankAccounts) {
+    loadCompany();
+  }
+}, [location]);
 
   function openBasicEditor() {
     if (!company) return;
@@ -1406,10 +1425,84 @@ export default function FinanceMasterDataCompanyDetailPage() {
                 onEdit={openNotesEditor}
                 fullWidth
               >
+                
                 <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-4 text-sm leading-7 text-white/70">
                   {company.notes || "No notes added yet."}
                 </div>
-              </SectionCard>
+             </SectionCard>
+
+<SectionCard
+  title="Section 7 — Bank Accounts"
+  description="Company bank accounts"
+  fullWidth
+  actions={
+    <Button
+      variant="outline"
+      onClick={() =>
+        navigate(
+          `/finance/master-data/bank-accounts/new?company_id=${id}`
+        )
+      }
+      className="h-10 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+    >
+      <Plus className="mr-2 h-4 w-4" />
+      Add Bank Account
+    </Button>
+  }
+>
+  <div className="flex flex-col gap-3">
+    {bankAccounts.length === 0 ? (
+      <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3 text-sm text-white/60">
+        No bank accounts yet.
+      </div>
+    ) : (
+      bankAccounts.map((acc, index) => (
+        <div
+          key={acc.id}
+          className="rounded-[18px] border border-white/8 bg-black/15 p-4"
+        >
+          <div className="mb-2 text-sm font-medium text-white/80">
+            Account {index + 1}
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-white">
+                {acc.bank_name || "—"}
+              </div>
+
+              <div className="text-white/50 text-sm">
+                {acc.currency_code} • {acc.city} • {acc.country}
+              </div>
+
+              <div className="flex gap-2 mt-2">
+                <Badge>{acc.bank_id}</Badge>
+
+                {acc.is_default && (
+                  <Badge className="bg-green-500/20 text-green-200">
+                    Default
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            <Button
+              variant="outline"
+              onClick={() =>
+                navigate(
+                  `/finance/master-data/bank-accounts/${acc.id}`
+                )
+              }
+              className="h-10 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+            >
+              Open
+            </Button>
+          </div>
+        </div>
+      ))
+    )}
+  </div>
+</SectionCard>
             </div>
           </div>
         </div>
@@ -1986,3 +2079,5 @@ export default function FinanceMasterDataCompanyDetailPage() {
     </>
   );
 }
+
+    

@@ -453,9 +453,18 @@ export default function FinanceMasterDataVendorBankAccountDetailPage() {
       setIsMutating(true);
       setModalError(null);
 
+           const normalizedIdentifierType = (() => {
+        const value = controlForm.account_identifier_type.trim().toLowerCase();
+
+        if (value === "swift" || value === "iban") {
+          return value;
+        }
+
+        return null;
+      })();
+
       await updateVendorBankAccount(record.id, {
-        account_identifier_type:
-          controlForm.account_identifier_type.trim() || null,
+        account_identifier_type: normalizedIdentifierType,
         account_identifier_value:
           controlForm.account_identifier_value.trim() || null,
         currency_code: controlForm.currency_code.trim() || null,

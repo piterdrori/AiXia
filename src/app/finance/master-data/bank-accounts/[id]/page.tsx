@@ -25,6 +25,7 @@ import {
   archiveBankAccount,
   getBankAccountById,
   getCompanyOptions,
+  restoreBankAccount,
   updateBankAccount,
   type FinanceBankAccount,
   type CompanyOption,
@@ -287,13 +288,14 @@ export default function FinanceMasterDataBankAccountDetailPage() {
   const [notesForm, setNotesForm] = useState("");
 
   const selectedCompany = useMemo(() => {
-    return companies.find((c) => c.id === basicForm.company_id) ?? null;
+    return companies.find((company) => company.id === basicForm.company_id) ?? null;
   }, [companies, basicForm.company_id]);
 
   const identifierLabel = useMemo(() => {
-    return controlForm.account_identifier_type.toLowerCase() === "iban"
-      ? "IBAN Value"
-      : "SWIFT Value";
+    if (controlForm.account_identifier_type.trim().toLowerCase() === "iban") {
+      return "IBAN Value";
+    }
+    return "SWIFT Value";
   }, [controlForm.account_identifier_type]);
 
   const loadRecord = useCallback(async () => {
@@ -310,7 +312,7 @@ export default function FinanceMasterDataBankAccountDetailPage() {
       setRecord(detail);
       setCompanies(companyRows);
     } catch (error) {
-      console.error("Failed to load bank account:", error);
+      console.error("Failed to load bank account details:", error);
       setRecord(null);
       setCompanies([]);
     } finally {
@@ -327,12 +329,11 @@ export default function FinanceMasterDataBankAccountDetailPage() {
 
     setModalError(null);
     setBasicForm({
-      company_id: record.company_id,
+      company_id: record.company_id || "",
       beneficiary_name: record.beneficiary_name || "",
       bank_name: record.bank_name || "",
       account_number: record.account_number || "",
     });
-
     setEditingSection("basic");
   }
 
@@ -347,7 +348,6 @@ export default function FinanceMasterDataBankAccountDetailPage() {
       address_line_1: record.address_line_1 || "",
       address_line_2: record.address_line_2 || "",
     });
-
     setEditingSection("address");
   }
 
@@ -356,15 +356,12 @@ export default function FinanceMasterDataBankAccountDetailPage() {
 
     setModalError(null);
     setControlForm({
-      account_identifier_type:
-        record.account_identifier_type || "swift",
-      account_identifier_value:
-        record.account_identifier_value || "",
+      account_identifier_type: record.account_identifier_type || "swift",
+      account_identifier_value: record.account_identifier_value || "",
       currency_code: record.currency_code || "",
       is_default: record.is_default,
       status: record.status,
     });
-
     setEditingSection("control");
   }
 
@@ -376,14 +373,13 @@ export default function FinanceMasterDataBankAccountDetailPage() {
     setEditingSection("notes");
   }
 
-  function handleCompanyChange(companyId: string) {
-    const company = companies.find((c) => c.id === companyId) ?? null;
+  function handleBasicCompanyChange(companyId: string) {
+    const company = companies.find((item) => item.id === companyId) ?? null;
 
     setBasicForm((prev) => ({
       ...prev,
       company_id: companyId,
-      beneficiary_name:
-        company?.legal_name?.trim() || company?.name || "",
+      beneficiary_name: company?.legal_name?.trim() || company?.name || "",
     }));
 
     if (company?.currency_code) {
@@ -422,7 +418,7 @@ export default function FinanceMasterDataBankAccountDetailPage() {
       await loadRecord();
     } catch (error) {
       console.error("Failed to save basic section:", error);
-      setModalError("Failed to save.");
+      setModalError(error instanceof Error ? error.message : "Failed to save.");
     } finally {
       setIsMutating(false);
     }
@@ -445,8 +441,9 @@ export default function FinanceMasterDataBankAccountDetailPage() {
 
       setEditingSection(null);
       await loadRecord();
-    } catch {
-      setModalError("Failed to save.");
+    } catch (error) {
+      console.error("Failed to save address section:", error);
+      setModalError(error instanceof Error ? error.message : "Failed to save.");
     } finally {
       setIsMutating(false);
     }
@@ -459,9 +456,18 @@ export default function FinanceMasterDataBankAccountDetailPage() {
       setIsMutating(true);
       setModalError(null);
 
+      const normalizedIdentifierType = (() => {
+        const value = controlForm.account_identifier_type.trim().toLowerCase();
+
+        if (value === "swift" || value === "iban") {
+          return value;
+        }
+
+        return null;
+      })();
+
       await updateBankAccount(record.id, {
-        account_identifier_type:
-          controlForm.account_identifier_type.trim() || null,
+        account_identifier_type: normalizedIdentifierType,
         account_identifier_value:
           controlForm.account_identifier_value.trim() || null,
         currency_code: controlForm.currency_code.trim() || null,
@@ -471,8 +477,9 @@ export default function FinanceMasterDataBankAccountDetailPage() {
 
       setEditingSection(null);
       await loadRecord();
-    } catch {
-      setModalError("Failed to save.");
+    } catch (error) {
+      console.error("Failed to save control section:", error);
+      setModalError(error instanceof Error ? error.message : "Failed to save.");
     } finally {
       setIsMutating(false);
     }
@@ -491,8 +498,9 @@ export default function FinanceMasterDataBankAccountDetailPage() {
 
       setEditingSection(null);
       await loadRecord();
-    } catch {
-      setModalError("Failed to save.");
+    } catch (error) {
+      console.error("Failed to save notes section:", error);
+      setModalError(error instanceof Error ? error.message : "Failed to save.");
     } finally {
       setIsMutating(false);
     }
@@ -504,8 +512,15 @@ export default function FinanceMasterDataBankAccountDetailPage() {
     try {
       setIsMutating(true);
 
-      await archiveBankAccount(record.id);
+      if (record.status === "archived") {
+        await restoreBankAccount(record.id);
+      } else {
+        await archiveBankAccount(record.id);
+      }
+
       await loadRecord();
+    } catch (error) {
+      console.error("Failed to update bank account status:", error);
     } finally {
       setIsMutating(false);
     }
@@ -514,9 +529,11 @@ export default function FinanceMasterDataBankAccountDetailPage() {
   if (isLoading) {
     return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2">
-          <div className="flex flex-1 items-center justify-center text-white/50">
-            Loading bank account...
+        <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            <div className="text-sm text-white/50">
+              Loading bank account...
+            </div>
           </div>
         </div>
       </div>
@@ -526,16 +543,40 @@ export default function FinanceMasterDataBankAccountDetailPage() {
   if (!record) {
     return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2">
-          <div className="flex flex-1 items-center justify-center text-white/50">
-            Bank account not found
+        <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            <Card className="w-full max-w-xl overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <CardContent className="p-8 text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/70">
+                  <CreditCard className="h-6 w-6" />
+                </div>
+                <div className="mt-4 text-lg font-semibold text-white">
+                  Bank account not found
+                </div>
+                <div className="mt-2 text-sm text-white/50">
+                  The bank account record could not be loaded.
+                </div>
+                <div className="mt-6">
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      navigate("/finance/master-data/bank-accounts")
+                    }
+                    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to Company Bank Accounts
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
     );
   }
 
-  const companyDisplay =
+  const companyDisplayName =
     selectedCompany?.legal_name?.trim() ||
     selectedCompany?.name ||
     record.beneficiary_name ||
@@ -544,32 +585,54 @@ export default function FinanceMasterDataBankAccountDetailPage() {
   return (
     <>
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2">
+        <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
+          <section className="relative z-10 flex-shrink-0 overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(34,211,238,0.08),rgba(139,92,246,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_28%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.14),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.14),transparent_24%)]" />
 
-          {/* HEADER */}
-          <section className="relative z-10 flex-shrink-0 rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-            <div className="flex items-center justify-between px-6 py-5">
-              <div>
-                <div className="flex gap-2 mb-2">
-                  <Badge>{record.bank_id}</Badge>
-                  {record.is_default && <Badge>Default</Badge>}
-                  <Badge className={getStatusTone(record.status)}>
+            <div className="relative flex items-center justify-between gap-4 px-5 py-5 sm:px-6 xl:px-7">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                    Master Data
+                  </Badge>
+                  <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] text-white/70 shadow-none">
+                    {record.bank_id || "No bank ID"}
+                  </Badge>
+                  {record.company_code ? (
+                    <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] text-white/70 shadow-none">
+                      {record.company_code}
+                    </Badge>
+                  ) : null}
+                  {record.is_default ? (
+                    <Badge className="rounded-full border border-emerald-400/15 bg-emerald-500/10 px-3 py-1 text-[11px] text-emerald-200 shadow-none">
+                      Default
+                    </Badge>
+                  ) : null}
+                  <Badge
+                    className={`rounded-full px-3 py-1 text-[11px] shadow-none ${getStatusTone(
+                      record.status
+                    )}`}
+                  >
                     {record.status}
                   </Badge>
                 </div>
 
-                <h1 className="text-2xl font-semibold text-white">
-                  {record.bank_name || "Bank Account"}
+                <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                  {record.bank_name || "Company Bank Account"}
                 </h1>
+
+                <div className="mt-2 text-sm text-white/50">
+                  Company bank account record with structured section editing.
+                </div>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex shrink-0 flex-wrap items-center gap-3">
                 <Button
                   variant="outline"
                   onClick={() =>
                     navigate("/finance/master-data/bank-accounts")
                   }
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
+                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
                 >
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back
@@ -577,17 +640,22 @@ export default function FinanceMasterDataBankAccountDetailPage() {
 
                 <Button
                   variant="outline"
-                  onClick={handleArchiveToggle}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
+                  onClick={() => void handleArchiveToggle()}
+                  disabled={isMutating}
+                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
                 >
                   <ShieldCheck className="mr-2 h-4 w-4" />
-                  Archive
+                  {isMutating
+                    ? "Updating..."
+                    : record.status === "archived"
+                    ? "Activate"
+                    : "Archive"}
                 </Button>
 
                 <Button
                   variant="outline"
-                  onClick={() => loadRecord()}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
+                  onClick={() => void loadRecord()}
+                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
                   Refresh
@@ -596,68 +664,393 @@ export default function FinanceMasterDataBankAccountDetailPage() {
             </div>
           </section>
 
-          {/* CONTENT */}
-          <div className="flex flex-1 flex-col gap-6 overflow-y-auto">
+          <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-
               <SectionCard
                 title="Section 1 — Basic"
-                description="Company linkage and account identity"
+                description="Company linkage, beneficiary, bank name, and account number."
                 onEdit={openBasicEditor}
               >
-                <DisplayRow label="Company" value={companyDisplay} />
-                <DisplayRow label="Beneficiary" value={record.beneficiary_name || "—"} />
-                <DisplayRow label="Bank" value={record.bank_name || "—"} />
-                <DisplayRow label="Account" value={record.account_number || "—"} />
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <DisplayRow label="Company" value={companyDisplayName} />
+                  <DisplayRow label="Company Code" value={record.company_code || "—"} />
+                  <DisplayRow
+                    label="Beneficiary Name"
+                    value={record.beneficiary_name || "—"}
+                  />
+                  <DisplayRow label="Bank Name" value={record.bank_name || "—"} />
+                  <DisplayRow
+                    label="Account Number"
+                    value={record.account_number || "—"}
+                  />
+                </div>
               </SectionCard>
 
               <SectionCard
                 title="System Fields"
-                description="Audit fields"
+                description="Read-only audit and system fields."
               >
-                <DisplayRow label="Created" value={formatDateTimeLabel(record.created_at)} />
-                <DisplayRow label="Updated" value={formatDateTimeLabel(record.updated_at)} />
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <DisplayRow label="Bank ID" value={record.bank_id || "—"} />
+                  <DisplayRow
+                    label="Created At"
+                    value={formatDateTimeLabel(record.created_at)}
+                  />
+                  <DisplayRow
+                    label="Updated At"
+                    value={formatDateTimeLabel(record.updated_at)}
+                  />
+                  <DisplayRow
+                    label="Is Default"
+                    value={record.is_default ? "Yes" : "No"}
+                  />
+                </div>
               </SectionCard>
 
               <SectionCard
-                title="Section 2 — Address"
-                description="Bank location"
+                title="Section 2 — Bank Address"
+                description="Country, city, postal code, and address lines."
                 onEdit={openAddressEditor}
               >
-                <DisplayRow label="Country" value={record.country || "—"} />
-                <DisplayRow label="City" value={record.city || "—"} />
-                <DisplayRow label="ZIP" value={record.postal_code || "—"} />
-                <DisplayRow label="Address 1" value={record.address_line_1 || "—"} />
-                <DisplayRow label="Address 2" value={record.address_line_2 || "—"} />
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <DisplayRow label="Country" value={record.country || "—"} />
+                  <DisplayRow label="City" value={record.city || "—"} />
+                  <DisplayRow
+                    label="ZIP / Postal Code"
+                    value={record.postal_code || "—"}
+                  />
+                  <DisplayRow
+                    label="Address Line 1"
+                    value={record.address_line_1 || "—"}
+                  />
+                  <DisplayRow
+                    label="Address Line 2"
+                    value={record.address_line_2 || "—"}
+                  />
+                </div>
               </SectionCard>
 
               <SectionCard
-                title="Section 3 — Control"
-                description="Identifier and status"
+                title="Section 3 — Identifier / Currency / Control"
+                description="Identifier type, identifier value, currency, default, and status."
                 onEdit={openControlEditor}
               >
-                <DisplayRow label="Type" value={record.account_identifier_type || "—"} />
-                <DisplayRow label="Value" value={record.account_identifier_value || "—"} />
-                <DisplayRow label="Currency" value={record.currency_code || "—"} />
-                <DisplayRow label="Default" value={record.is_default ? "Yes" : "No"} />
-                <DisplayRow label="Status" value={record.status} />
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <DisplayRow
+                    label="Identifier Type"
+                    value={record.account_identifier_type || "—"}
+                  />
+                  <DisplayRow
+                    label="Identifier Value"
+                    value={record.account_identifier_value || "—"}
+                  />
+                  <DisplayRow
+                    label="Currency Code"
+                    value={record.currency_code || "—"}
+                  />
+                  <DisplayRow
+                    label="Is Default"
+                    value={record.is_default ? "Yes" : "No"}
+                  />
+                  <DisplayRow label="Status" value={record.status || "—"} />
+                </div>
               </SectionCard>
 
               <SectionCard
                 title="Section 4 — Notes"
-                description="Internal notes"
+                description="Internal notes for this company bank account."
                 onEdit={openNotesEditor}
                 fullWidth
               >
-                <div className="text-white/70">
-                  {record.notes || "No notes"}
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-4 text-sm leading-7 text-white/70">
+                  {record.notes || "No notes added yet."}
                 </div>
               </SectionCard>
-
             </div>
           </div>
         </div>
       </div>
+
+            {editingSection === "basic" && (
+        <ModalShell
+          title="Edit Section 1 — Basic"
+          description="Update company linkage, beneficiary, bank name, and account number."
+          onClose={() => setEditingSection(null)}
+          onSave={() => void saveBasicSection()}
+          isSaving={isMutating}
+        >
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <FieldLabel label="Company" required />
+              <select
+                value={basicForm.company_id}
+                onChange={(e) => handleBasicCompanyChange(e.target.value)}
+                className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none"
+              >
+                <option value="">Select company</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {(company.legal_name?.trim() || company.name) +
+                      (company.code ? ` • ${company.code}` : "")}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <FieldLabel label="Beneficiary Name" required />
+              <InputField
+                value={basicForm.beneficiary_name}
+                onChange={(e) =>
+                  setBasicForm((prev) => ({
+                    ...prev,
+                    beneficiary_name: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div>
+              <FieldLabel label="Bank Name" required />
+              <InputField
+                value={basicForm.bank_name}
+                onChange={(e) =>
+                  setBasicForm((prev) => ({
+                    ...prev,
+                    bank_name: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div>
+              <FieldLabel label="Account Number" />
+              <InputField
+                value={basicForm.account_number}
+                onChange={(e) =>
+                  setBasicForm((prev) => ({
+                    ...prev,
+                    account_number: e.target.value,
+                  }))
+                }
+              />
+            </div>
+          </div>
+
+          {modalError ? (
+            <div className="mt-4 text-sm text-rose-300">{modalError}</div>
+          ) : null}
+        </ModalShell>
+      )}
+
+      {editingSection === "address" && (
+        <ModalShell
+          title="Edit Section 2 — Bank Address"
+          description="Update country, city, postal code, and address lines."
+          onClose={() => setEditingSection(null)}
+          onSave={() => void saveAddressSection()}
+          isSaving={isMutating}
+        >
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <FieldLabel label="Country" />
+              <InputField
+                value={addressForm.country}
+                onChange={(e) =>
+                  setAddressForm((prev) => ({
+                    ...prev,
+                    country: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div>
+              <FieldLabel label="City" />
+              <InputField
+                value={addressForm.city}
+                onChange={(e) =>
+                  setAddressForm((prev) => ({
+                    ...prev,
+                    city: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div>
+              <FieldLabel label="ZIP / Postal Code" />
+              <InputField
+                value={addressForm.postal_code}
+                onChange={(e) =>
+                  setAddressForm((prev) => ({
+                    ...prev,
+                    postal_code: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <FieldLabel label="Address Line 1" />
+              <InputField
+                value={addressForm.address_line_1}
+                onChange={(e) =>
+                  setAddressForm((prev) => ({
+                    ...prev,
+                    address_line_1: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <FieldLabel label="Address Line 2" />
+              <InputField
+                value={addressForm.address_line_2}
+                onChange={(e) =>
+                  setAddressForm((prev) => ({
+                    ...prev,
+                    address_line_2: e.target.value,
+                  }))
+                }
+              />
+            </div>
+          </div>
+
+          {modalError ? (
+            <div className="mt-4 text-sm text-rose-300">{modalError}</div>
+          ) : null}
+        </ModalShell>
+      )}
+
+      {editingSection === "control" && (
+        <ModalShell
+          title="Edit Section 3 — Identifier / Currency / Control"
+          description="Update identifier, currency, default flag, and status."
+          onClose={() => setEditingSection(null)}
+          onSave={() => void saveControlSection()}
+          isSaving={isMutating}
+        >
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <FieldLabel label="Identifier Type" />
+              <InputField
+                list="edit-identifier-type-options"
+                value={controlForm.account_identifier_type}
+                onChange={(e) =>
+                  setControlForm((prev) => ({
+                    ...prev,
+                    account_identifier_type: e.target.value,
+                  }))
+                }
+                placeholder="swift or iban"
+              />
+              <datalist id="edit-identifier-type-options">
+                <option value="swift" />
+                <option value="iban" />
+              </datalist>
+            </div>
+
+            <div>
+              <FieldLabel label={identifierLabel} />
+              <InputField
+                value={controlForm.account_identifier_value}
+                onChange={(e) =>
+                  setControlForm((prev) => ({
+                    ...prev,
+                    account_identifier_value: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div>
+              <FieldLabel label="Currency Code" />
+              <InputField
+                list="edit-currency-code-options"
+                value={controlForm.currency_code}
+                onChange={(e) =>
+                  setControlForm((prev) => ({
+                    ...prev,
+                    currency_code: e.target.value.toUpperCase(),
+                  }))
+                }
+                placeholder="USD / EUR / CNY / ILS"
+              />
+              <datalist id="edit-currency-code-options">
+                <option value="USD" />
+                <option value="EUR" />
+                <option value="CNY" />
+                <option value="ILS" />
+              </datalist>
+            </div>
+
+            <div>
+              <FieldLabel label="Status" />
+              <InputField
+                list="edit-status-options"
+                value={controlForm.status}
+                onChange={(e) =>
+                  setControlForm((prev) => ({
+                    ...prev,
+                    status: e.target.value as ControlForm["status"],
+                  }))
+                }
+                placeholder="active / inactive / archived"
+              />
+              <datalist id="edit-status-options">
+                <option value="active" />
+                <option value="inactive" />
+                <option value="archived" />
+              </datalist>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="flex items-center gap-3 text-sm text-white/75">
+                <input
+                  type="checkbox"
+                  checked={controlForm.is_default}
+                  onChange={(e) =>
+                    setControlForm((prev) => ({
+                      ...prev,
+                      is_default: e.target.checked,
+                    }))
+                  }
+                />
+                Set as default bank account for this company
+              </label>
+            </div>
+          </div>
+
+          {modalError ? (
+            <div className="mt-4 text-sm text-rose-300">{modalError}</div>
+          ) : null}
+        </ModalShell>
+      )}
+
+      {editingSection === "notes" && (
+        <ModalShell
+          title="Edit Section 4 — Notes"
+          description="Update internal notes."
+          onClose={() => setEditingSection(null)}
+          onSave={() => void saveNotesSection()}
+          isSaving={isMutating}
+        >
+          <div>
+            <FieldLabel label="Notes" />
+            <TextareaField
+              value={notesForm}
+              onChange={(e) => setNotesForm(e.target.value)}
+              placeholder="Add internal notes"
+            />
+          </div>
+
+          {modalError ? (
+            <div className="mt-4 text-sm text-rose-300">{modalError}</div>
+          ) : null}
+        </ModalShell>
+      )}
     </>
   );
 }

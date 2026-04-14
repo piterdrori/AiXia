@@ -184,3 +184,29 @@ export async function restoreUnitOfMeasure(
 
   return data as FinanceUnitOfMeasureRow;
 }
+
+export async function permanentlyDeleteUnitOfMeasure(
+  id: string
+): Promise<void> {
+  const { data: existing, error: readError } = await supabase
+    .from(TABLE)
+    .select("id, name")
+    .eq("id", id)
+    .single();
+
+  if (readError) throw readError;
+
+  const { error } = await supabase
+    .from(TABLE)
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+
+  await logActivity({
+    actionType: "finance.unit_of_measure.deleted",
+    entityType: "finance_setting",
+    entityId: id,
+    message: `Unit of measure permanently deleted: ${existing.name}`,
+  });
+}

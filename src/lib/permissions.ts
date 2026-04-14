@@ -660,7 +660,12 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
 
   "/finance/master-data/vendors": { permission: "viewVendors" },
   "/finance/master-data/vendors/new": { permission: "createFinanceRecords" },
-  "/finance/bank-accounts": { permission: "viewBankAccounts" },
+  "/finance/master-data/bank-accounts": { permission: "viewBankAccounts" },
+  "/finance/master-data/bank-accounts/new": { permission: "createFinanceRecords" },
+  "/finance/master-data/bank-accounts/:id": { permission: "viewBankAccounts" },
+  "/finance/master-data/vendor-bank-accounts": { permission: "viewBankAccounts" },
+  "/finance/master-data/vendor-bank-accounts/new": { permission: "createFinanceRecords" },
+  "/finance/master-data/vendor-bank-accounts/:id": { permission: "viewBankAccounts" },
   "/finance/payment-methods": { permission: "viewPaymentMethods" },
   "/finance/expense-categories": { permission: "viewExpenseCategories" },
   "/finance/revenue-categories": { permission: "viewRevenueCategories" },

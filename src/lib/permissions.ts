@@ -55,6 +55,7 @@ export type Permission =
   | "viewBankAccounts"
   | "viewPaymentMethods"
   | "viewPaymentTerms"
+  | "viewShippingTerms"
   | "viewExpenseCategories"
   | "viewRevenueCategories"
 
@@ -209,6 +210,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     viewBankAccounts: true,
     viewPaymentMethods: true,
     viewPaymentTerms: true,
+    viewShippingTerms: true,
     viewExpenseCategories: true,
     viewRevenueCategories: true,
     exportFinanceReports: true,
@@ -326,6 +328,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     viewBankAccounts: false,
     viewPaymentMethods: false,
     viewPaymentTerms: false,
+    viewShippingTerms: false,
     viewExpenseCategories: false,
     viewRevenueCategories: false,
     exportFinanceReports: false,
@@ -442,6 +445,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     viewBankAccounts: false,
     viewPaymentMethods: false,
     viewPaymentTerms: false,
+    viewShippingTerms: false,
     viewExpenseCategories: false,
     viewRevenueCategories: false,
     exportFinanceReports: false,
@@ -558,6 +562,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     viewBankAccounts: false,
     viewPaymentMethods: false,
     viewPaymentTerms: false,
+    viewShippingTerms: false,
     viewExpenseCategories: false,
     viewRevenueCategories: false,
     exportFinanceReports: false,
@@ -678,6 +683,8 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/finance/settings": { permission: "manageFinanceMasterData" },
   "/finance/payment-terms": { permission: "viewPaymentTerms" },
   "/finance/master-data/payment-terms": { permission: "viewPaymentTerms" },
+  "/finance/shipping-terms": { permission: "viewShippingTerms" },
+  "/finance/master-data/shipping-terms": { permission: "viewShippingTerms" },
 
   "/finance/invoices": { permission: "viewInvoices" },
   "/finance/invoices/new": { permission: "createInvoices" },
@@ -755,6 +762,7 @@ export function getEffectivePermissions(
     effective.viewBankAccounts = true;
     effective.viewPaymentMethods = true;
     effective.viewPaymentTerms = true;
+    effective.viewShippingTerms = true;
     effective.viewExpenseCategories = true;
     effective.viewRevenueCategories = true;
 

@@ -176,3 +176,29 @@ export async function restoreTaxCode(
 
   return data as FinanceTaxCodeRow;
 }
+
+export async function permanentlyDeleteTaxCode(
+  id: string
+): Promise<void> {
+  const { data: existing, error: readError } = await supabase
+    .from(TABLE)
+    .select("id, name")
+    .eq("id", id)
+    .single();
+
+  if (readError) throw readError;
+
+  const { error } = await supabase
+    .from(TABLE)
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+
+  await logActivity({
+    actionType: "finance.tax_code.deleted",
+    entityType: "finance_setting",
+    entityId: id,
+    message: `Tax code permanently deleted: ${existing.name}`,
+  });
+}

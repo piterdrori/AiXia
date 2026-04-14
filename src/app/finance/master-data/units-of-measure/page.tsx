@@ -30,6 +30,7 @@ import {
   archiveUnitOfMeasure,
   createUnitOfMeasure,
   getUnitsOfMeasure,
+  permanentlyDeleteUnitOfMeasure,
   restoreUnitOfMeasure,
   updateUnitOfMeasure,
   type FinanceUnitOfMeasureCategory,
@@ -240,19 +241,32 @@ export default function FinanceUnitsOfMeasurePage() {
     }
   }
 
-  async function handleArchiveToggle(row: FinanceUnitOfMeasureRow) {
-    try {
-      if (row.status === "archived") {
-        await restoreUnitOfMeasure(row.id);
-      } else {
-        await archiveUnitOfMeasure(row.id);
-      }
-
-      await loadPage();
-    } catch (actionError) {
-      console.error("Failed to update unit of measure status:", actionError);
-    }
+ async function handleDelete(row: FinanceUnitOfMeasureRow) {
+  try {
+    await archiveUnitOfMeasure(row.id);
+    await loadPage();
+  } catch (actionError) {
+    console.error("Failed to archive unit of measure:", actionError);
   }
+}
+
+async function handleRestore(row: FinanceUnitOfMeasureRow) {
+  try {
+    await restoreUnitOfMeasure(row.id);
+    await loadPage();
+  } catch (actionError) {
+    console.error("Failed to restore unit of measure:", actionError);
+  }
+}
+
+async function handleHardDelete(row: FinanceUnitOfMeasureRow) {
+  try {
+    await permanentlyDeleteUnitOfMeasure(row.id);
+    await loadPage();
+  } catch (actionError) {
+    console.error("Failed to permanently delete unit of measure:", actionError);
+  }
+}
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
@@ -418,10 +432,25 @@ export default function FinanceUnitsOfMeasurePage() {
                             ) : null}
 
                             {canArchive ? (
-                              <DropdownMenuItem onClick={() => void handleArchiveToggle(row)}>
-                                {row.status === "archived" ? "Restore" : "Archive"}
-                              </DropdownMenuItem>
-                            ) : null}
+  row.status === "archived" ? (
+    <>
+      <DropdownMenuItem onClick={() => void handleRestore(row)}>
+        Restore
+      </DropdownMenuItem>
+
+      <DropdownMenuItem
+        onClick={() => void handleHardDelete(row)}
+        className="text-red-400 focus:text-red-400"
+      >
+        Hard Delete
+      </DropdownMenuItem>
+    </>
+  ) : (
+    <DropdownMenuItem onClick={() => void handleDelete(row)}>
+      Delete
+    </DropdownMenuItem>
+  )
+) : null}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>

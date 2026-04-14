@@ -223,7 +223,16 @@ export async function getBankAccountById(
     .single();
 
   if (error) throw error;
-  return data as FinanceBankAccount;
+
+  const row = data as Record<string, unknown>;
+
+  return {
+    ...(data as FinanceBankAccount),
+    account_number:
+      (row.account_number as string | null | undefined) ??
+      (row.masked_account_number as string | null | undefined) ??
+      null,
+  } as FinanceBankAccount;
 }
 
 /* ========================= CREATE ========================= */
@@ -256,7 +265,7 @@ export async function createBankAccount(input: {
     postal_code: normalizeNullable(input.postal_code),
     address_line_1: normalizeNullable(input.address_line_1),
     address_line_2: normalizeNullable(input.address_line_2),
-    account_number: normalizeNullable(input.account_number),
+    masked_account_number: normalizeNullable(input.account_number),
     account_identifier_type: normalizeIdentifierType(
       input.account_identifier_type
     ),
@@ -279,14 +288,21 @@ export async function createBankAccount(input: {
   if (error) throw error;
 
   await logActivity({
-    actionType: "finance.bank_account.created",
-    entityType: "finance_bank_account",
-    entityId: data.id,
-    message: `Bank account created: ${data.bank_id}`,
-  });
+  actionType: "finance.bank_account.created",
+  entityType: "finance_bank_account",
+  entityId: data.id,
+  message: `Bank account created: ${data.bank_id}`,
+});
 
-  return data as FinanceBankAccount;
-}
+const row = data as Record<string, unknown>;
+
+return {
+  ...(data as FinanceBankAccount),
+  account_number:
+    (row.account_number as string | null | undefined) ??
+    (row.masked_account_number as string | null | undefined) ??
+    null,
+} as FinanceBankAccount;
 
 /* ========================= UPDATE ========================= */
 
@@ -353,10 +369,10 @@ if (updates.is_default === true) {
   }
 
   if (typeof nextUpdates.account_number === "string") {
-    nextUpdates.account_number = normalizeNullable(
-      nextUpdates.account_number
-    );
-  }
+  (nextUpdates as Record<string, unknown>).masked_account_number =
+    normalizeNullable(nextUpdates.account_number);
+  delete (nextUpdates as Partial<FinanceBankAccount>).account_number;
+}
 
   if (typeof nextUpdates.account_identifier_type === "string") {
     nextUpdates.account_identifier_type = normalizeIdentifierType(
@@ -392,15 +408,22 @@ if (updates.is_default === true) {
 
   if (error) throw error;
 
-  await logActivity({
-    actionType: "finance.bank_account.updated",
-    entityType: "finance_bank_account",
-    entityId: id,
-    message: `Bank account updated: ${data.bank_id}`,
-  });
+await logActivity({
+  actionType: "finance.bank_account.updated",
+  entityType: "finance_bank_account",
+  entityId: id,
+  message: `Bank account updated: ${data.bank_id}`,
+});
 
-  return data as FinanceBankAccount;
-}
+const row = data as Record<string, unknown>;
+
+return {
+  ...(data as FinanceBankAccount),
+  account_number:
+    (row.account_number as string | null | undefined) ??
+    (row.masked_account_number as string | null | undefined) ??
+    null,
+} as FinanceBankAccount;
 
 /* ========================= ARCHIVE ========================= */
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, RefreshCw, Save } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -124,6 +124,7 @@ function FormSection({
 
 export default function FinanceMasterDataVendorBankAccountCreatePage() {
   const navigate = useNavigate();
+const [searchParams] = useSearchParams();
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [vendors, setVendors] = useState<VendorOption[]>([]);
@@ -131,12 +132,26 @@ export default function FinanceMasterDataVendorBankAccountCreatePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  useEffect(() => {
+    useEffect(() => {
     async function loadVendors() {
       try {
         setIsLoadingVendors(true);
         const rows = await getVendorOptions();
         setVendors(rows);
+
+        const vendorIdFromUrl = searchParams.get("vendor_id");
+        if (!vendorIdFromUrl) return;
+
+        const vendor = rows.find((item) => item.id === vendorIdFromUrl) ?? null;
+        if (!vendor) return;
+
+        setForm((prev) => ({
+          ...prev,
+          vendor_id: vendorIdFromUrl,
+          vendor_code: vendor.code ?? "",
+          beneficiary_name: vendor.legal_name?.trim() || vendor.name || "",
+          currency_code: prev.currency_code || vendor.currency_code || "",
+        }));
       } catch (error) {
         console.error("Failed to load vendors:", error);
         setVendors([]);
@@ -146,7 +161,7 @@ export default function FinanceMasterDataVendorBankAccountCreatePage() {
     }
 
     void loadVendors();
-  }, []);
+  }, [searchParams]);
 
   const selectedVendor = useMemo(() => {
     return vendors.find((vendor) => vendor.id === form.vendor_id) ?? null;
@@ -219,7 +234,12 @@ export default function FinanceMasterDataVendorBankAccountCreatePage() {
         notes: form.notes.trim() || null,
       });
 
-      navigate(`/finance/master-data/vendor-bank-accounts/${created.id}`);
+            navigate(`/finance/master-data/vendors/${form.vendor_id}`, {
+        state: {
+          refreshVendorBankAccounts: true,
+          createdVendorBankAccountId: created.id,
+        },
+      });
     } catch (error) {
       console.error("Failed to create vendor bank account:", error);
       setFormError(

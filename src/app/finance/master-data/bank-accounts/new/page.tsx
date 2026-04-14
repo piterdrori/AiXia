@@ -108,17 +108,20 @@ function FormSection({
 }) {
   return (
     <Card
-      className={`rounded-[24px] border border-white/10 bg-white/[0.045] ${
+      className={`overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.24)] ${
         fullWidth ? "lg:col-span-2" : ""
       }`}
     >
-      <CardHeader>
-        <CardTitle className="text-white">{title}</CardTitle>
-        <CardDescription className="text-white/45">
-          {description}
-        </CardDescription>
+      <CardHeader className="border-b border-white/8 px-5 py-4">
+        <div>
+          <CardTitle className="text-white">{title}</CardTitle>
+          <CardDescription className="mt-1 text-white/45">
+            {description}
+          </CardDescription>
+        </div>
       </CardHeader>
-      <CardContent>{children}</CardContent>
+
+      <CardContent className="p-4">{children}</CardContent>
     </Card>
   );
 }
@@ -172,11 +175,11 @@ export default function FinanceMasterDataBankAccountCreatePage() {
   }, [companies, form.company_id]);
 
   const identifierLabel = useMemo(() => {
-    if (form.account_identifier_type.trim().toLowerCase() === "iban") {
-      return "IBAN Value";
-    }
-    return "SWIFT Value";
+    return form.account_identifier_type.toLowerCase() === "iban"
+      ? "IBAN Value"
+      : "SWIFT Value";
   }, [form.account_identifier_type]);
+
 
   function updateForm<K extends keyof FormState>(
     key: K,
@@ -262,239 +265,337 @@ export default function FinanceMasterDataBankAccountCreatePage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="mx-auto w-full max-w-[1600px] p-6 space-y-6">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
 
         {/* HEADER */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl text-white font-semibold">
-              Create Company Bank Account
-            </h1>
-            <div className="text-white/50 text-sm">
-              Company linkage, bank details, identifier, and control settings.
+        <section className="relative z-10 flex-shrink-0 overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(34,211,238,0.10),rgba(139,92,246,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_28%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.16),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.14),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,0.10),transparent_24%)]" />
+
+          <div className="relative flex items-center justify-between gap-4 px-5 py-5 sm:px-6 xl:px-7">
+            <div className="min-w-0">
+              <div className="inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200">
+                Master Data
+              </div>
+
+              <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                Create Company Bank Account
+              </h1>
+
+              <div className="mt-2 text-sm text-white/50">
+                Company selection, bank details, identifier, currency, control,
+                and notes.
+              </div>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-3">
+              <Button
+                variant="outline"
+                onClick={() => navigate("/finance/master-data/bank-accounts")}
+                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleReset}
+                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Reset
+              </Button>
+
+              <Button
+                type="submit"
+                form="bank-account-create-form"
+                variant="outline"
+                disabled={isSaving}
+                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+              >
+                <Save className="mr-2 h-4 w-4" />
+                {isSaving ? "Saving..." : "Create Bank Account"}
+              </Button>
             </div>
           </div>
+        </section>
 
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => navigate("/finance/master-data/bank-accounts")}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back
-            </Button>
+                <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
+          <form
+            id="bank-account-create-form"
+            className="flex min-h-0 flex-col gap-6"
+            onSubmit={handleSubmit}
+          >
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
 
-            <Button variant="outline" onClick={handleReset}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Reset
-            </Button>
+              {/* COMPANY */}
+              <FormSection
+                title="Section 1 — Company Link"
+                description="Select the company and pull linked finance identity."
+              >
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Company" required />
+                    <select
+                      value={form.company_id}
+                      onChange={(e) => handleCompanyChange(e.target.value)}
+                      className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none"
+                    >
+                      <option value="">
+                        {isLoadingCompanies
+                          ? "Loading companies..."
+                          : "Select company"}
+                      </option>
+                      {companies.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {(c.legal_name?.trim() || c.name) +
+                            (c.code ? ` • ${c.code}` : "")}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-            <Button
-              type="submit"
-              form="bank-account-form"
-              disabled={isSaving}
-            >
-              <Save className="mr-2 h-4 w-4" />
-              {isSaving ? "Saving..." : "Create"}
-            </Button>
-          </div>
+                  <div>
+                    <FieldLabel label="Company Code" />
+                    <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white/70">
+                      {form.company_code || "Auto from company"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <FieldLabel label="Beneficiary Name" required />
+                    <InputField
+                      value={form.beneficiary_name}
+                      onChange={(e) =>
+                        updateForm("beneficiary_name", e.target.value)
+                      }
+                      placeholder="Auto from company, can edit"
+                    />
+                  </div>
+
+                  <div>
+                    <FieldLabel label="Company Currency" />
+                    <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white/70">
+                      {selectedCompany?.currency_code || "—"}
+                    </div>
+                  </div>
+                </div>
+              </FormSection>
+
+              {/* BANK */}
+              <FormSection
+                title="Section 2 — Bank Identity"
+                description="Bank name and main account number."
+              >
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Bank Name" required />
+                    <InputField
+                      value={form.bank_name}
+                      onChange={(e) =>
+                        updateForm("bank_name", e.target.value)
+                      }
+                      placeholder="Bank name"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Account Number" />
+                    <InputField
+                      value={form.account_number}
+                      onChange={(e) =>
+                        updateForm("account_number", e.target.value)
+                      }
+                      placeholder="Account number"
+                    />
+                  </div>
+                </div>
+              </FormSection>
+
+              {/* ADDRESS */}
+              <FormSection
+                title="Section 3 — Bank Address"
+                description="Address details for this bank account."
+              >
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <FieldLabel label="Country" />
+                    <InputField
+                      value={form.country}
+                      onChange={(e) =>
+                        updateForm("country", e.target.value)
+                      }
+                      placeholder="Country"
+                    />
+                  </div>
+
+                  <div>
+                    <FieldLabel label="City" />
+                    <InputField
+                      value={form.city}
+                      onChange={(e) =>
+                        updateForm("city", e.target.value)
+                      }
+                      placeholder="City"
+                    />
+                  </div>
+
+                  <div>
+                    <FieldLabel label="ZIP / Postal Code" />
+                    <InputField
+                      value={form.postal_code}
+                      onChange={(e) =>
+                        updateForm("postal_code", e.target.value)
+                      }
+                      placeholder="Postal code"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Address Line 1" />
+                    <InputField
+                      value={form.address_line_1}
+                      onChange={(e) =>
+                        updateForm("address_line_1", e.target.value)
+                      }
+                      placeholder="Address line 1"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Address Line 2" />
+                    <InputField
+                      value={form.address_line_2}
+                      onChange={(e) =>
+                        updateForm("address_line_2", e.target.value)
+                      }
+                      placeholder="Address line 2"
+                    />
+                  </div>
+                </div>
+              </FormSection>
+
+              {/* CONTROL */}
+              <FormSection
+                title="Section 4 — Identifier / Currency / Control"
+                description="Identifier type, currency, default flag, and lifecycle."
+              >
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <FieldLabel label="Identifier Type" />
+                    <InputField
+                      list="identifier-type-options"
+                      value={form.account_identifier_type}
+                      onChange={(e) =>
+                        updateForm(
+                          "account_identifier_type",
+                          e.target.value
+                        )
+                      }
+                      placeholder="swift or iban"
+                    />
+                    <datalist id="identifier-type-options">
+                      <option value="swift" />
+                      <option value="iban" />
+                    </datalist>
+                  </div>
+
+                  <div>
+                    <FieldLabel label={identifierLabel} />
+                    <InputField
+                      value={form.account_identifier_value}
+                      onChange={(e) =>
+                        updateForm(
+                          "account_identifier_value",
+                          e.target.value
+                        )
+                      }
+                      placeholder="Identifier value"
+                    />
+                  </div>
+
+                  <div>
+                    <FieldLabel label="Currency Code" />
+                    <InputField
+                      list="currency-code-options"
+                      value={form.currency_code}
+                      onChange={(e) =>
+                        updateForm(
+                          "currency_code",
+                          e.target.value.toUpperCase()
+                        )
+                      }
+                      placeholder="USD / EUR / CNY / ILS"
+                    />
+                    <datalist id="currency-code-options">
+                      <option value="USD" />
+                      <option value="EUR" />
+                      <option value="CNY" />
+                      <option value="ILS" />
+                    </datalist>
+                  </div>
+
+                  <div>
+                    <FieldLabel label="Status" />
+                    <InputField
+                      list="status-options"
+                      value={form.status}
+                      onChange={(e) =>
+                        updateForm(
+                          "status",
+                          e.target.value as FormState["status"]
+                        )
+                      }
+                      placeholder="active / inactive / archived"
+                    />
+                    <datalist id="status-options">
+                      <option value="active" />
+                      <option value="inactive" />
+                      <option value="archived" />
+                    </datalist>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="flex items-center gap-3 text-sm text-white/75">
+                      <input
+                        type="checkbox"
+                        checked={form.is_default}
+                        onChange={(e) =>
+                          updateForm("is_default", e.target.checked)
+                        }
+                      />
+                      Set as default bank account for this company
+                    </label>
+                  </div>
+                </div>
+              </FormSection>
+
+              {/* NOTES */}
+              <FormSection
+                title="Section 5 — Notes"
+                description="Internal notes."
+                fullWidth
+              >
+                <TextareaField
+                  value={form.notes}
+                  onChange={(e) =>
+                    updateForm("notes", e.target.value)
+                  }
+                  placeholder="Notes..."
+                />
+              </FormSection>
+            </div>
+
+            {formError ? (
+              <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+                {formError}
+              </div>
+            ) : null}
+          </form>
         </div>
-
-        {/* FORM */}
-        <form
-          id="bank-account-form"
-          onSubmit={handleSubmit}
-          className="grid grid-cols-1 lg:grid-cols-2 gap-6"
-        >
-
-          {/* COMPANY */}
-          <FormSection
-            title="Company Link"
-            description="Select company and auto-fill identity"
-          >
-            <div className="space-y-3">
-              <div>
-                <FieldLabel label="Company" required />
-                <select
-                  value={form.company_id}
-                  onChange={(e) => handleCompanyChange(e.target.value)}
-                  className="w-full h-11 rounded-2xl bg-white/5 border border-white/10 text-white px-4"
-                >
-                  <option value="">
-                    {isLoadingCompanies ? "Loading..." : "Select company"}
-                  </option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {(c.legal_name || c.name) +
-                        (c.code ? ` • ${c.code}` : "")}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <FieldLabel label="Company Code" />
-                <div className="h-11 flex items-center px-4 rounded-2xl bg-white/5 border border-white/10 text-white/70">
-                  {form.company_code || "Auto"}
-                </div>
-              </div>
-
-              <div>
-                <FieldLabel label="Beneficiary Name" required />
-                <InputField
-                  value={form.beneficiary_name}
-                  onChange={(e) =>
-                    updateForm("beneficiary_name", e.target.value)
-                  }
-                />
-              </div>
-
-              <div>
-                <FieldLabel label="Currency" />
-                <div className="h-11 flex items-center px-4 rounded-2xl bg-white/5 border border-white/10 text-white/70">
-                  {selectedCompany?.currency_code || "—"}
-                </div>
-              </div>
-            </div>
-          </FormSection>
-
-          {/* BANK */}
-          <FormSection
-            title="Bank Identity"
-            description="Main bank account details"
-          >
-            <div className="space-y-3">
-              <div>
-                <FieldLabel label="Bank Name" required />
-                <InputField
-                  value={form.bank_name}
-                  onChange={(e) =>
-                    updateForm("bank_name", e.target.value)
-                  }
-                />
-              </div>
-
-              <div>
-                <FieldLabel label="Account Number" />
-                <InputField
-                  value={form.account_number}
-                  onChange={(e) =>
-                    updateForm("account_number", e.target.value)
-                  }
-                />
-              </div>
-            </div>
-          </FormSection>
-
-          {/* ADDRESS */}
-          <FormSection
-            title="Bank Address"
-            description="Optional address"
-          >
-            <div className="grid grid-cols-2 gap-3">
-              <InputField
-                placeholder="Country"
-                value={form.country}
-                onChange={(e) => updateForm("country", e.target.value)}
-              />
-              <InputField
-                placeholder="City"
-                value={form.city}
-                onChange={(e) => updateForm("city", e.target.value)}
-              />
-              <InputField
-                placeholder="Postal"
-                value={form.postal_code}
-                onChange={(e) => updateForm("postal_code", e.target.value)}
-              />
-              <InputField
-                placeholder="Address 1"
-                value={form.address_line_1}
-                onChange={(e) =>
-                  updateForm("address_line_1", e.target.value)
-                }
-              />
-              <InputField
-                placeholder="Address 2"
-                value={form.address_line_2}
-                onChange={(e) =>
-                  updateForm("address_line_2", e.target.value)
-                }
-              />
-            </div>
-          </FormSection>
-
-          {/* CONTROL */}
-          <FormSection
-            title="Identifier / Control"
-            description="Identifier, default, and status"
-          >
-            <div className="space-y-3">
-              <InputField
-                placeholder="Identifier Type (swift / iban)"
-                value={form.account_identifier_type}
-                onChange={(e) =>
-                  updateForm("account_identifier_type", e.target.value)
-                }
-              />
-
-              <InputField
-                placeholder={identifierLabel}
-                value={form.account_identifier_value}
-                onChange={(e) =>
-                  updateForm("account_identifier_value", e.target.value)
-                }
-              />
-
-              <InputField
-                placeholder="Currency"
-                value={form.currency_code}
-                onChange={(e) =>
-                  updateForm("currency_code", e.target.value)
-                }
-              />
-
-              <InputField
-                placeholder="Status"
-                value={form.status}
-                onChange={(e) =>
-                  updateForm("status", e.target.value as any)
-                }
-              />
-
-              <label className="text-white/70 flex gap-2 items-center">
-                <input
-                  type="checkbox"
-                  checked={form.is_default}
-                  onChange={(e) =>
-                    updateForm("is_default", e.target.checked)
-                  }
-                />
-                Default account
-              </label>
-            </div>
-          </FormSection>
-
-          {/* NOTES */}
-          <FormSection
-            title="Notes"
-            description="Internal notes"
-            fullWidth
-          >
-            <TextareaField
-              value={form.notes}
-              onChange={(e) => updateForm("notes", e.target.value)}
-            />
-          </FormSection>
-
-        </form>
-
-        {formError && (
-          <div className="text-red-400">{formError}</div>
-        )}
       </div>
     </div>
   );
 }
-

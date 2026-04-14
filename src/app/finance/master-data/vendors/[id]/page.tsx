@@ -403,6 +403,7 @@ export default function FinanceMasterDataVendorDetailPage() {
   const [personnel, setPersonnel] = useState<PersonnelRow[]>([]);
   const [addresses, setAddresses] = useState<AddressRow[]>([]);
   const [shippingAddresses, setShippingAddresses] = useState<AddressRow[]>([]);
+  const [vendorBankAccountCount, setVendorBankAccountCount] = useState(0);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isMutating, setIsMutating] = useState(false);
@@ -449,7 +450,8 @@ export default function FinanceMasterDataVendorDetailPage() {
     setIsLoading(true);
 
     try {
-      const [vendorResult, personnelResult, addressResult] = await Promise.all([
+     const [vendorResult, personnelResult, addressResult, vendorBankAccountsResult] =
+  await Promise.all([
         supabase
           .from("finance_vendors")
           .select(
@@ -485,7 +487,7 @@ export default function FinanceMasterDataVendorDetailPage() {
           )
           .eq("vendor_id", id)
           .order("sort_order", { ascending: true }),
-        supabase
+                supabase
           .from("finance_vendor_addresses")
           .select(
             `
@@ -506,28 +508,36 @@ export default function FinanceMasterDataVendorDetailPage() {
           .eq("vendor_id", id)
           .order("address_type", { ascending: true })
           .order("sort_order", { ascending: true }),
+
+        supabase
+          .from("finance_vendor_bank_accounts")
+          .select("id", { count: "exact", head: true })
+          .eq("vendor_id", id),
       ]);
 
       if (vendorResult.error) throw vendorResult.error;
       if (personnelResult.error) throw personnelResult.error;
       if (addressResult.error) throw addressResult.error;
+      if (vendorBankAccountsResult.error) throw vendorBankAccountsResult.error;
 
       const vendorData = vendorResult.data as VendorDetailRecord;
       const personnelData = (personnelResult.data ?? []) as PersonnelRow[];
       const addressData = (addressResult.data ?? []) as AddressRow[];
 
-      setVendor(vendorData);
+           setVendor(vendorData);
       setPersonnel(personnelData);
       setAddresses(addressData.filter((row) => row.address_type === "primary"));
       setShippingAddresses(
         addressData.filter((row) => row.address_type === "shipping")
       );
+      setVendorBankAccountCount(vendorBankAccountsResult.count ?? 0);
     } catch (error) {
       console.error("Failed to load finance vendor details:", error);
       setVendor(null);
       setPersonnel([]);
       setAddresses([]);
       setShippingAddresses([]);
+      setVendorBankAccountCount(0);
     } finally {
       setIsLoading(false);
     }
@@ -1123,10 +1133,16 @@ export default function FinanceMasterDataVendorDetailPage() {
 
                     <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-              <SectionCard
+             <SectionCard
   title="Section 0 — Bank Accounts"
   description="Vendor bank accounts and default payment routing."
   fullWidth
+  actions={
+  <Badge className="border-white/10 bg-white/5 text-white">
+    {vendorBankAccountCount} Account
+    {vendorBankAccountCount === 1 ? "" : "s"}
+  </Badge>
+}
 >
   <VendorBankAccountsSection vendorId={vendor.id} />
 </SectionCard>
@@ -1784,10 +1800,15 @@ export default function FinanceMasterDataVendorDetailPage() {
   );
 }
 
-function VendorBankAccountsSection({ vendorId }: { vendorId: string }) {
+function VendorBankAccountsSection({
+  vendorId,
+}: {
+  vendorId: string;
+}) {
   const navigate = useNavigate();
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const count = accounts.length;
 
   const load = async () => {
     setLoading(true);
@@ -1822,7 +1843,10 @@ function VendorBankAccountsSection({ vendorId }: { vendorId: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-3">
+  <div className="flex flex-col gap-3">
+    <div className="text-xs text-white/40">
+      {count} account{count === 1 ? "" : "s"}
+    </div>
       {accounts.map((acc) => (
         <div
           key={acc.id}

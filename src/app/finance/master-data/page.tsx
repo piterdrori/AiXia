@@ -642,11 +642,11 @@ export default function FinanceMasterDataPage() {
         key: "payment-terms",
         title: "Payment Terms",
         description: "Define due terms like Net 7, Net 15, Net 30 and more.",
-        route: "/finance/payment-terms",
+        route: "/finance/master-data/payment-terms",
         icon: WalletCards,
         count: data.counts.paymentTerms,
         statusLabel: data.counts.paymentTerms > 0 ? "Configured" : "New",
-        lastUpdatedLabel: "Pending",
+        lastUpdatedLabel: "Live",
       },
       {
         key: "shipping-terms",

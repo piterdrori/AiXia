@@ -1081,6 +1081,18 @@ export default function FinanceMasterDataVendorDetailPage() {
               </div>
 
               <div className="flex gap-3">
+
+  <Button
+    onClick={() =>
+      navigate(
+        `/finance/master-data/vendor-bank-accounts/new?vendor_id=${vendor.id}`
+      )
+    }
+    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
+  >
+    <Plus className="mr-2 h-4 w-4" />
+    Add Bank Account
+  </Button>
                 <Button
                   onClick={() => navigate("/finance/master-data/vendors")}
                   className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
@@ -1111,6 +1123,13 @@ export default function FinanceMasterDataVendorDetailPage() {
 
                     <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <SectionCard
+  title="Section 0 — Bank Accounts"
+  description="Vendor bank accounts and default payment routing."
+  fullWidth
+>
+  <VendorBankAccountsSection vendorId={vendor.id} />
+</SectionCard>
               <SectionCard
                 title="Section 1 — Basic"
                 description="Legal identity and primary contact."
@@ -1739,7 +1758,7 @@ export default function FinanceMasterDataVendorDetailPage() {
         </ModalShell>
       )}
 
-      {editingSection === "notes" && (
+            {editingSection === "notes" && (
         <ModalShell
           title="Edit Section 5 — Notes"
           description="Update internal notes."
@@ -1762,5 +1781,95 @@ export default function FinanceMasterDataVendorDetailPage() {
         </ModalShell>
       )}
     </>
+  );
+}
+
+function VendorBankAccountsSection({ vendorId }: { vendorId: string }) {
+  const navigate = useNavigate();
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+
+    const { data, error } = await supabase
+      .from("finance_vendor_bank_accounts")
+      .select("*")
+      .eq("vendor_id", vendorId)
+      .order("created_at", { ascending: false });
+
+    if (!error) {
+      setAccounts(data || []);
+    }
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    void load();
+  }, [vendorId]);
+
+  if (loading) {
+    return <div className="text-sm text-white/50">Loading bank accounts...</div>;
+  }
+
+  if (accounts.length === 0) {
+    return (
+      <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3 text-sm text-white/60">
+        No bank accounts yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {accounts.map((acc) => (
+        <div
+          key={acc.id}
+          className="rounded-[18px] border border-white/8 bg-black/15 p-4"
+        >
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-sm font-medium text-white">
+              {acc.bank_name || "—"}
+            </div>
+
+            <div className="flex gap-2">
+              {acc.is_default && (
+                <Badge className="border border-emerald-400/20 bg-emerald-500/10 text-emerald-300">
+                  Default
+                </Badge>
+              )}
+
+              <Button
+                size="sm"
+                onClick={() =>
+                  navigate(`/finance/master-data/vendor-bank-accounts/${acc.id}`)
+                }
+                className="h-9 rounded-xl border-white/10 bg-white/5 text-white"
+              >
+                Open
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 text-sm text-white/70 md:grid-cols-3">
+            <div>
+              <div className="text-xs text-white/40">Account</div>
+              <div>{acc.account_number || "—"}</div>
+            </div>
+
+            <div>
+              <div className="text-xs text-white/40">Currency</div>
+              <div>{acc.currency_code || "—"}</div>
+            </div>
+
+            <div>
+              <div className="text-xs text-white/40">Status</div>
+              <div>{acc.status || "—"}</div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

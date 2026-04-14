@@ -662,11 +662,11 @@ export default function FinanceMasterDataPage() {
         key: "tax-codes",
         title: "Tax Codes",
         description: "Maintain tax rates and tax treatment reference codes.",
-        route: "/finance/tax-codes",
+        route: "/finance/master-data/tax-codes",
         icon: WalletCards,
         count: data.counts.taxCodes,
         statusLabel: data.counts.taxCodes > 0 ? "Configured" : "New",
-        lastUpdatedLabel: "Pending",
+        lastUpdatedLabel: "Live",
       },
       {
         key: "expense-categories",

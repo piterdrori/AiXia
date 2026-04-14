@@ -920,7 +920,7 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/payment-methods"
+  path="/finance/master-data/payment-methods"
   element={
     <ProtectedRoute>
       <DashboardLayout>
@@ -928,6 +928,11 @@ function AppRoutes() {
       </DashboardLayout>
     </ProtectedRoute>
   }
+/>
+
+<Route
+  path="/finance/payment-methods"
+  element={<Navigate to="/finance/master-data/payment-methods" replace />}
 />
 
 <Route

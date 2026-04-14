@@ -17,8 +17,13 @@ type LogActivityInput = {
   | "finance_bank_account"
   | "finance_vendor_bank_account"
   | "finance_payment_method"
+  | "finance_payment_term"
+  | "finance_shipping_term"
+  | "finance_tax_code"
+  | "finance_unit_of_measure"
   | "finance_expense_category"
   | "finance_revenue_category"
+  | "finance_item"
   | "finance_attachment"
   | "finance_comment"
   | "finance_setting";

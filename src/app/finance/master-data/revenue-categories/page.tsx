@@ -36,6 +36,7 @@ import {
   archiveRevenueCategory,
   createRevenueCategory,
   getRevenueCategories,
+  permanentlyDeleteRevenueCategory,
   restoreRevenueCategory,
   updateRevenueCategory,
   type FinanceRevenueCategoryRow,
@@ -248,20 +249,32 @@ export default function FinanceRevenueCategoriesPage() {
     }
   }
 
-  async function handleArchiveToggle(row: FinanceRevenueCategoryRow) {
-    try {
-      if (row.status === "archived") {
-        await restoreRevenueCategory(row.id);
-      } else {
-        await archiveRevenueCategory(row.id);
-      }
-
-      await loadPage();
-    } catch (actionError) {
-      console.error("Failed to update revenue category status:", actionError);
-    }
+async function handleDelete(row: FinanceRevenueCategoryRow) {
+  try {
+    await archiveRevenueCategory(row.id);
+    await loadPage();
+  } catch (actionError) {
+    console.error("Failed to archive revenue category:", actionError);
   }
+}
 
+async function handleRestore(row: FinanceRevenueCategoryRow) {
+  try {
+    await restoreRevenueCategory(row.id);
+    await loadPage();
+  } catch (actionError) {
+    console.error("Failed to restore revenue category:", actionError);
+  }
+}
+
+async function handleHardDelete(row: FinanceRevenueCategoryRow) {
+  try {
+    await permanentlyDeleteRevenueCategory(row.id);
+    await loadPage();
+  } catch (actionError) {
+    console.error("Failed to permanently delete revenue category:", actionError);
+  }
+}
   function getLedgerLabel(accountId: string | null) {
     if (!accountId) return "—";
 
@@ -480,14 +493,29 @@ export default function FinanceRevenueCategoriesPage() {
                             ) : null}
 
                             {canArchive ? (
-                              <DropdownMenuItem
-                                onClick={() => void handleArchiveToggle(row)}
-                              >
-                                {row.status === "archived"
-                                  ? "Restore"
-                                  : "Archive"}
-                              </DropdownMenuItem>
-                            ) : null}
+  row.status === "archived" ? (
+    <>
+      <DropdownMenuItem
+        onClick={() => void handleRestore(row)}
+      >
+        Restore
+      </DropdownMenuItem>
+
+      <DropdownMenuItem
+        onClick={() => void handleHardDelete(row)}
+        className="text-red-400 focus:text-red-400"
+      >
+        Hard Delete
+      </DropdownMenuItem>
+    </>
+  ) : (
+    <DropdownMenuItem
+      onClick={() => void handleDelete(row)}
+    >
+      Delete
+    </DropdownMenuItem>
+  )
+) : null}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>

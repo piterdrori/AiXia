@@ -56,6 +56,7 @@ export type Permission =
   | "viewPaymentMethods"
   | "viewPaymentTerms"
   | "viewShippingTerms"
+  | "viewUnitsOfMeasure"
   | "viewExpenseCategories"
   | "viewRevenueCategories"
 
@@ -211,6 +212,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     viewPaymentMethods: true,
     viewPaymentTerms: true,
     viewShippingTerms: true,
+    viewUnitsOfMeasure: true,
     viewExpenseCategories: true,
     viewRevenueCategories: true,
     exportFinanceReports: true,
@@ -329,6 +331,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     viewPaymentMethods: false,
     viewPaymentTerms: false,
     viewShippingTerms: false,
+    viewUnitsOfMeasure: false,
     viewExpenseCategories: false,
     viewRevenueCategories: false,
     exportFinanceReports: false,
@@ -444,8 +447,9 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     manageVendors: false,
     viewBankAccounts: false,
     viewPaymentMethods: false,
-    viewPaymentTerms: false,
+     viewPaymentTerms: false,
     viewShippingTerms: false,
+    viewUnitsOfMeasure: false,
     viewExpenseCategories: false,
     viewRevenueCategories: false,
     exportFinanceReports: false,
@@ -561,8 +565,9 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     manageVendors: false,
     viewBankAccounts: false,
     viewPaymentMethods: false,
-    viewPaymentTerms: false,
+     viewPaymentTerms: false,
     viewShippingTerms: false,
+    viewUnitsOfMeasure: false,
     viewExpenseCategories: false,
     viewRevenueCategories: false,
     exportFinanceReports: false,
@@ -683,8 +688,10 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/finance/settings": { permission: "manageFinanceMasterData" },
   "/finance/payment-terms": { permission: "viewPaymentTerms" },
   "/finance/master-data/payment-terms": { permission: "viewPaymentTerms" },
-  "/finance/shipping-terms": { permission: "viewShippingTerms" },
+    "/finance/shipping-terms": { permission: "viewShippingTerms" },
   "/finance/master-data/shipping-terms": { permission: "viewShippingTerms" },
+  "/finance/units-of-measure": { permission: "viewUnitsOfMeasure" },
+  "/finance/master-data/units-of-measure": { permission: "viewUnitsOfMeasure" },
 
   "/finance/invoices": { permission: "viewInvoices" },
   "/finance/invoices/new": { permission: "createInvoices" },
@@ -763,6 +770,7 @@ export function getEffectivePermissions(
     effective.viewPaymentMethods = true;
     effective.viewPaymentTerms = true;
     effective.viewShippingTerms = true;
+    effective.viewUnitsOfMeasure = true;
     effective.viewExpenseCategories = true;
     effective.viewRevenueCategories = true;
 

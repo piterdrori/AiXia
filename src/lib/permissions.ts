@@ -60,6 +60,7 @@ export type Permission =
   | "viewTaxCodes"
   | "viewExpenseCategories"
   | "viewRevenueCategories"
+  | "viewItems"
 
   // EXPORTS
   | "exportFinanceReports"
@@ -217,6 +218,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     viewTaxCodes: true,
     viewExpenseCategories: true,
     viewRevenueCategories: true,
+    viewItems: true,
     exportFinanceReports: true,
     exportReceivables: true,
     exportPayables: true,
@@ -393,6 +395,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     exportLedgerReports: false,
     exportTrialBalance: false,
     exportAccountingReports: false,
+    viewItems: false,
 
     exportExpenseReports: false,
     exportReimbursementReports: false,
@@ -512,6 +515,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     exportLedgerReports: false,
     exportTrialBalance: false,
     exportAccountingReports: false,
+    viewItems: false,
 
     exportExpenseReports: false,
     exportReimbursementReports: false,
@@ -631,6 +635,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     exportLedgerReports: false,
     exportTrialBalance: false,
     exportAccountingReports: false,
+    viewItems: false,
 
     exportExpenseReports: false,
     exportReimbursementReports: false,
@@ -692,6 +697,7 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/finance/master-data/expense-categories": { permission: "viewExpenseCategories" },
   "/finance/revenue-categories": { permission: "viewRevenueCategories" },
   "/finance/master-data/revenue-categories": { permission: "viewRevenueCategories" },
+  "/finance/master-data/items": { permission: "viewItems" },
   "/finance/settings": { permission: "manageFinanceMasterData" },
   "/finance/payment-terms": { permission: "viewPaymentTerms" },
   "/finance/master-data/payment-terms": { permission: "viewPaymentTerms" },

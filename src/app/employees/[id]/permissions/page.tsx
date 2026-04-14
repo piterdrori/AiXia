@@ -140,8 +140,9 @@ const permissionLabels: Record<
    viewShippingTerms: { label: "View Shipping Terms", description: "View shipping terms" },
   viewUnitsOfMeasure: { label: "View Units Of Measure", description: "View units of measure" },
   viewTaxCodes: { label: "View Tax Codes", description: "View tax codes" },
-  viewExpenseCategories: { label: "View Expense Categories", description: "View expense categories" },
+   viewExpenseCategories: { label: "View Expense Categories", description: "View expense categories" },
   viewRevenueCategories: { label: "View Revenue Categories", description: "View revenue categories" },
+  viewItems: { label: "View Items", description: "View items" },
 
   // ===== FINANCE EXPORTS =====
   exportFinanceReports: { label: "Export Finance Reports", description: "Export finance reports" },

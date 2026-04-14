@@ -668,14 +668,15 @@ export default function FinanceMasterDataPage() {
         statusLabel: data.counts.taxCodes > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
       },
-      {
+           {
         key: "expense-categories",
         title: "Expense Categories",
         description: "Control spending categories used across finance flows.",
-        route: "/finance/expense-categories",
+        route: "/finance/master-data/expense-categories",
         icon: FolderKanban,
         count: data.counts.expenseCategories,
-        statusLabel: "Active",
+        statusLabel:
+          data.counts.expenseCategories > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
       },
       {

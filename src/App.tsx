@@ -66,6 +66,9 @@ import FinanceMasterDataVendorDetailPage from "@/app/finance/master-data/vendors
 import FinanceMasterDataCompaniesPage from "@/app/finance/master-data/companies/page";
 import FinanceMasterDataCompanyCreatePage from "@/app/finance/master-data/companies/new/page";
 import FinanceMasterDataCompanyDetailPage from "@/app/finance/master-data/companies/[id]/page";
+import FinanceMasterDataVendorBankAccountsPage from "@/app/finance/master-data/vendor-bank-accounts/page";
+import FinanceMasterDataVendorBankAccountCreatePage from "@/app/finance/master-data/vendor-bank-accounts/new/page";
+import FinanceMasterDataVendorBankAccountDetailPage from "@/app/finance/master-data/vendor-bank-accounts/[id]/page";
 import FinanceTransactionsPage from "@/app/finance/transactions/page";
 import FinanceReportsPage from "@/app/finance/reports/page";
 import FinanceSettingsPage from "@/app/finance/settings/page";
@@ -1206,6 +1209,38 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceLedgerJournalDetailPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+      <Route
+  path="/finance/master-data/vendor-bank-accounts"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceMasterDataVendorBankAccountsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/master-data/vendor-bank-accounts/new"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceMasterDataVendorBankAccountCreatePage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/master-data/vendor-bank-accounts/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceMasterDataVendorBankAccountDetailPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

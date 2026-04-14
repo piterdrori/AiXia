@@ -30,6 +30,7 @@ import {
   archivePaymentMethod,
   createPaymentMethod,
   getPaymentMethods,
+  permanentlyDeletePaymentMethod,
   restorePaymentMethod,
   updatePaymentMethod,
   type FinancePaymentMethodListRow,
@@ -186,18 +187,32 @@ export default function FinancePaymentMethodsPage() {
     }
   }
 
-  async function handleArchiveToggle(row: FinancePaymentMethodListRow) {
-    try {
-      if (row.status === "archived") {
-        await restorePaymentMethod(row.id);
-      } else {
-        await archivePaymentMethod(row.id);
-      }
-      await loadPage();
-    } catch (actionError) {
-      console.error("Failed to update payment method status:", actionError);
-    }
+  async function handleDelete(row: FinancePaymentMethodListRow) {
+  try {
+    await archivePaymentMethod(row.id);
+    await loadPage();
+  } catch (actionError) {
+    console.error("Failed to archive payment method:", actionError);
   }
+}
+
+async function handleRestore(row: FinancePaymentMethodListRow) {
+  try {
+    await restorePaymentMethod(row.id);
+    await loadPage();
+  } catch (actionError) {
+    console.error("Failed to restore payment method:", actionError);
+  }
+}
+
+async function handleHardDelete(row: FinancePaymentMethodListRow) {
+  try {
+    await permanentlyDeletePaymentMethod(row.id);
+    await loadPage();
+  } catch (actionError) {
+    console.error("Failed to permanently delete payment method:", actionError);
+  }
+}
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
@@ -317,10 +332,25 @@ export default function FinancePaymentMethodsPage() {
                           <DropdownMenuContent align="end" className="w-48 border-white/10 bg-[#101522] text-white">
                             {canEdit ? <DropdownMenuItem onClick={() => openEditDialog(row)}>Edit</DropdownMenuItem> : null}
                             {canArchive ? (
-                              <DropdownMenuItem onClick={() => void handleArchiveToggle(row)}>
-                                {row.status === "archived" ? "Restore" : "Archive"}
-                              </DropdownMenuItem>
-                            ) : null}
+  row.status === "archived" ? (
+    <>
+      <DropdownMenuItem onClick={() => void handleRestore(row)}>
+        Restore
+      </DropdownMenuItem>
+
+      <DropdownMenuItem
+        onClick={() => void handleHardDelete(row)}
+        className="text-red-400 focus:text-red-400"
+      >
+        Hard Delete
+      </DropdownMenuItem>
+    </>
+  ) : (
+    <DropdownMenuItem onClick={() => void handleDelete(row)}>
+      Delete
+    </DropdownMenuItem>
+  )
+) : null}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>

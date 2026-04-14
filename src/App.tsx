@@ -71,6 +71,7 @@ import FinanceMasterDataVendorBankAccountDetailPage from "@/app/finance/master-d
 import FinanceMasterDataBankAccountsPage from "@/app/finance/master-data/bank-accounts/page";
 import FinanceMasterDataBankAccountCreatePage from "@/app/finance/master-data/bank-accounts/new/page";
 import FinanceMasterDataBankAccountDetailPage from "@/app/finance/master-data/bank-accounts/[id]/page";
+import FinancePaymentTermsPage from "@/app/finance/master-data/payment-terms/page";
 import FinanceTransactionsPage from "@/app/finance/transactions/page";
 import FinanceReportsPage from "@/app/finance/reports/page";
 import FinanceSettingsPage from "@/app/finance/settings/page";
@@ -1265,6 +1266,17 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceMasterDataBankAccountDetailPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+      <Route
+  path="/finance/master-data/payment-terms"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinancePaymentTermsPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

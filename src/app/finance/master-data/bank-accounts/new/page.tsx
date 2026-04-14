@@ -246,12 +246,12 @@ export default function FinanceMasterDataBankAccountCreatePage() {
         notes: form.notes.trim() || null,
       });
 
-      navigate(`/finance/master-data`, {
-        state: {
-          refreshCompanyBankAccounts: true,
-          createdBankAccountId: created.id,
-        },
-      });
+      navigate(`/finance/master-data/companies/${form.company_id}`, {
+  state: {
+    refreshCompanyBankAccounts: true,
+    createdBankAccountId: created.id,
+  },
+});
     } catch (error) {
       console.error("Failed to create bank account:", error);
       setFormError(

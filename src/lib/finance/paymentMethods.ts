@@ -1,33 +1,70 @@
 import { supabase } from "@/lib/supabase";
-import type { FinancePaymentMethod } from "./types";
 import { logActivity } from "@/lib/activity";
+import type { FinancePaymentMethod, FinanceRecordStatus } from "./types";
 
 const TABLE = "finance_payment_methods";
 
-/* =========================
-   GET ALL PAYMENT METHODS
-========================= */
-export async function getPaymentMethods(): Promise<FinancePaymentMethod[]> {
+export type FinancePaymentMethodListRow = Pick<
+  FinancePaymentMethod,
+  | "id"
+  | "code"
+  | "name"
+  | "status"
+  | "description"
+  | "notes"
+  | "created_at"
+  | "updated_at"
+>;
+
+async function getCurrentUserId() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  return user?.id ?? null;
+}
+
+function normalizeCode(value: string) {
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+export async function getPaymentMethods(): Promise<FinancePaymentMethodListRow[]> {
   const { data, error } = await supabase
     .from(TABLE)
-    .select("*")
+    .select("id, code, name, status, description, notes, created_at, updated_at")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return data || [];
+  return (data ?? []) as FinancePaymentMethodListRow[];
 }
 
-/* =========================
-   CREATE PAYMENT METHOD
-========================= */
-export async function createPaymentMethod(
-  input: Partial<FinancePaymentMethod>
-) {
+export async function createPaymentMethod(input: {
+  code: string;
+  name: string;
+  status?: FinanceRecordStatus;
+  description?: string | null;
+  notes?: string | null;
+}) {
+  const userId = await getCurrentUserId();
+
+  const payload = {
+    code: normalizeCode(input.code),
+    name: input.name.trim(),
+    status: input.status ?? "active",
+    description: input.description?.trim() || null,
+    notes: input.notes?.trim() || null,
+    metadata: {},
+    created_by: userId,
+    updated_by: userId,
+  };
+
   const { data, error } = await supabase
     .from(TABLE)
-    .insert({
-      ...input,
-    })
+    .insert(payload)
     .select()
     .single();
 
@@ -40,20 +77,30 @@ export async function createPaymentMethod(
     message: `Payment method created: ${data.name}`,
   });
 
-  return data;
+  return data as FinancePaymentMethod;
 }
 
-/* =========================
-   UPDATE PAYMENT METHOD
-========================= */
 export async function updatePaymentMethod(
   id: string,
-  updates: Partial<FinancePaymentMethod>
+  updates: {
+    code: string;
+    name: string;
+    status: FinanceRecordStatus;
+    description?: string | null;
+    notes?: string | null;
+  }
 ) {
+  const userId = await getCurrentUserId();
+
   const { data, error } = await supabase
     .from(TABLE)
     .update({
-      ...updates,
+      code: normalizeCode(updates.code),
+      name: updates.name.trim(),
+      status: updates.status,
+      description: updates.description?.trim() || null,
+      notes: updates.notes?.trim() || null,
+      updated_by: userId,
     })
     .eq("id", id)
     .select()
@@ -68,17 +115,17 @@ export async function updatePaymentMethod(
     message: `Payment method updated: ${data.name}`,
   });
 
-  return data;
+  return data as FinancePaymentMethod;
 }
 
-/* =========================
-   ARCHIVE PAYMENT METHOD
-========================= */
 export async function archivePaymentMethod(id: string) {
+  const userId = await getCurrentUserId();
+
   const { data, error } = await supabase
     .from(TABLE)
     .update({
       status: "archived",
+      updated_by: userId,
     })
     .eq("id", id)
     .select()
@@ -90,8 +137,33 @@ export async function archivePaymentMethod(id: string) {
     actionType: "finance.payment_method.archived",
     entityType: "finance_payment_method",
     entityId: id,
-    message: `Payment method archived`,
+    message: `Payment method archived: ${data.name}`,
   });
 
-  return data;
+  return data as FinancePaymentMethod;
+}
+
+export async function restorePaymentMethod(id: string) {
+  const userId = await getCurrentUserId();
+
+  const { data, error } = await supabase
+    .from(TABLE)
+    .update({
+      status: "active",
+      updated_by: userId,
+    })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  await logActivity({
+    actionType: "finance.payment_method.restored",
+    entityType: "finance_payment_method",
+    entityId: id,
+    message: `Payment method restored: ${data.name}`,
+  });
+
+  return data as FinancePaymentMethod;
 }

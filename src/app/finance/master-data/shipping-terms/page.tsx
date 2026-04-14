@@ -30,6 +30,7 @@ import {
   archiveShippingTerm,
   createShippingTerm,
   getShippingTerms,
+  permanentlyDeleteShippingTerm,
   restoreShippingTerm,
   updateShippingTerm,
   type FinanceShippingTermRow,
@@ -206,19 +207,32 @@ export default function FinanceShippingTermsPage() {
     }
   }
 
-  async function handleArchiveToggle(row: FinanceShippingTermRow) {
-    try {
-      if (row.status === "archived") {
-        await restoreShippingTerm(row.id);
-      } else {
-        await archiveShippingTerm(row.id);
-      }
-
-      await loadPage();
-    } catch (actionError) {
-      console.error("Failed to update shipping term status:", actionError);
-    }
+ async function handleDelete(row: FinanceShippingTermRow) {
+  try {
+    await archiveShippingTerm(row.id);
+    await loadPage();
+  } catch (actionError) {
+    console.error("Failed to archive shipping term:", actionError);
   }
+}
+
+async function handleRestore(row: FinanceShippingTermRow) {
+  try {
+    await restoreShippingTerm(row.id);
+    await loadPage();
+  } catch (actionError) {
+    console.error("Failed to restore shipping term:", actionError);
+  }
+}
+
+async function handleHardDelete(row: FinanceShippingTermRow) {
+  try {
+    await permanentlyDeleteShippingTerm(row.id);
+    await loadPage();
+  } catch (actionError) {
+    console.error("Failed to permanently delete shipping term:", actionError);
+  }
+}
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
@@ -384,10 +398,25 @@ export default function FinanceShippingTermsPage() {
                             ) : null}
 
                             {canArchive ? (
-                              <DropdownMenuItem onClick={() => void handleArchiveToggle(row)}>
-                                {row.status === "archived" ? "Restore" : "Archive"}
-                              </DropdownMenuItem>
-                            ) : null}
+  row.status === "archived" ? (
+    <>
+      <DropdownMenuItem onClick={() => void handleRestore(row)}>
+        Restore
+      </DropdownMenuItem>
+
+      <DropdownMenuItem
+        onClick={() => void handleHardDelete(row)}
+        className="text-red-400 focus:text-red-400"
+      >
+        Hard Delete
+      </DropdownMenuItem>
+    </>
+  ) : (
+    <DropdownMenuItem onClick={() => void handleDelete(row)}>
+      Delete
+    </DropdownMenuItem>
+  )
+) : null}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>

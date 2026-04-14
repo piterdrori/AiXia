@@ -703,7 +703,7 @@ export default function FinanceMasterDataPage() {
         key: "items",
         title: "Items",
         description: "Maintain reusable finance items, products, and line entries.",
-        route: "/finance/items",
+        route: "/finance/master-data/items",
         icon: Package2,
         count: data.counts.items,
         statusLabel: data.counts.items > 0 ? "Configured" : "New",

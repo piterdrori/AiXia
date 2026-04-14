@@ -36,6 +36,7 @@ import {
   archiveExpenseCategory,
   createExpenseCategory,
   getExpenseCategories,
+  permanentlyDeleteExpenseCategory,
   restoreExpenseCategory,
   updateExpenseCategory,
   type ExpenseCategoryUpsertInput,
@@ -250,17 +251,30 @@ export default function FinanceExpenseCategoriesPage() {
     }
   }
 
-  async function handleArchiveToggle(row: FinanceExpenseCategoryRow) {
+    async function handleDelete(row: FinanceExpenseCategoryRow) {
     try {
-      if (row.status === "archived") {
-        await restoreExpenseCategory(row.id);
-      } else {
-        await archiveExpenseCategory(row.id);
-      }
-
+      await archiveExpenseCategory(row.id);
       await loadPage();
     } catch (actionError) {
       console.error("Failed to update expense category status:", actionError);
+    }
+  }
+
+  async function handleRestore(row: FinanceExpenseCategoryRow) {
+    try {
+      await restoreExpenseCategory(row.id);
+      await loadPage();
+    } catch (actionError) {
+      console.error("Failed to restore expense category:", actionError);
+    }
+  }
+
+  async function handleHardDelete(row: FinanceExpenseCategoryRow) {
+    try {
+      await permanentlyDeleteExpenseCategory(row.id);
+      await loadPage();
+    } catch (actionError) {
+      console.error("Failed to permanently delete expense category:", actionError);
     }
   }
 
@@ -481,14 +495,29 @@ export default function FinanceExpenseCategoriesPage() {
                               </DropdownMenuItem>
                             ) : null}
 
-                            {canArchive ? (
-                              <DropdownMenuItem
-                                onClick={() => void handleArchiveToggle(row)}
-                              >
-                                {row.status === "archived"
-                                  ? "Restore"
-                                  : "Archive"}
-                              </DropdownMenuItem>
+                                   {canArchive ? (
+                              row.status === "archived" ? (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() => void handleRestore(row)}
+                                  >
+                                    Restore
+                                  </DropdownMenuItem>
+
+                                  <DropdownMenuItem
+                                    onClick={() => void handleHardDelete(row)}
+                                    className="text-red-400 focus:text-red-400"
+                                  >
+                                    Hard Delete
+                                  </DropdownMenuItem>
+                                </>
+                              ) : (
+                                <DropdownMenuItem
+                                  onClick={() => void handleDelete(row)}
+                                >
+                                  Delete
+                                </DropdownMenuItem>
+                              )
                             ) : null}
                           </DropdownMenuContent>
                         </DropdownMenu>

@@ -612,7 +612,7 @@ export default function FinanceMasterDataPage() {
         key: "vendor-bank-accounts",
         title: "Vendor Bank Accounts",
         description: "Store vendor payout accounts for AP and payment flows.",
-        route: "/finance/vendor-bank-accounts",
+        route: "/finance/master-data/vendor-bank-accounts",
         icon: Landmark,
         count: data.counts.vendorBankAccounts,
         statusLabel: data.counts.vendorBankAccounts > 0 ? "Configured" : "New",

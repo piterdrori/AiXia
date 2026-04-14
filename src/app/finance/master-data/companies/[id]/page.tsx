@@ -1458,9 +1458,7 @@ setBankAccounts(companyAccounts || []);
     <Button
       variant="outline"
       onClick={() =>
-        navigate(
-          `/finance/master-data/bank-accounts/new?company_id=${id}`
-        )
+        navigate(`/finance/master-data/bank-accounts/new?company_id=${id}`)
       }
       className="h-10 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
     >
@@ -1476,69 +1474,75 @@ setBankAccounts(companyAccounts || []);
       </div>
     ) : (
       [...bankAccounts]
-  .sort((a, b) => Number(b.is_default) - Number(a.is_default))
-  .map((acc, index) => (
-        <div
-          key={acc.id}
-          className="rounded-[18px] border border-white/8 bg-black/15 p-4"
-        >
-          <div className="mb-2 text-sm font-medium text-white/80">
-            Account {index + 1}
+        .sort((a, b) => Number(b.is_default) - Number(a.is_default))
+        .map((acc, index) => (
+          <div
+            key={acc.id}
+            className={`rounded-[18px] border p-4 ${
+              acc.is_default
+                ? "border-emerald-400/30 bg-emerald-500/5"
+                : "border-white/8 bg-black/15"
+            }`}
+          >
+            <div className="mb-2 text-sm font-medium text-white/80">
+              Account {index + 1}
+            </div>
+
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="text-white">{acc.bank_name || "—"}</div>
+
+                <div className="text-white/50 text-sm">
+                  {acc.currency_code || "—"} • {acc.city || "—"} • {acc.country || "—"}
+                </div>
+
+                <div className="mt-2 flex gap-2">
+                  <Badge>{acc.bank_id}</Badge>
+
+                  {acc.is_default ? (
+                    <Badge className="bg-emerald-500/20 text-emerald-200">
+                      Default
+                    </Badge>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                {!acc.is_default ? (
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      const { error } = await supabase
+                        .from("finance_bank_accounts")
+                        .update({ is_default: true })
+                        .eq("id", acc.id);
+
+                      if (error) {
+                        console.error("Failed to set default bank account:", error);
+                        return;
+                      }
+
+                      await loadCompany();
+                    }}
+                    className="h-10 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+                  >
+                    Set Default
+                  </Button>
+                ) : null}
+
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    navigate(`/finance/master-data/bank-accounts/${acc.id}`)
+                  }
+                  className="h-10 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+                >
+                  Open
+                </Button>
+              </div>
+            </div>
           </div>
-
-          <div className="flex items-center justify-between gap-4">
-  <div>
-    <div className="text-white">
-      {acc.bank_name || "—"}
-    </div>
-
-    <div className="text-white/50 text-sm">
-      {acc.currency_code} • {acc.city} • {acc.country}
-    </div>
-
-    <div className="flex gap-2 mt-2">
-      <Badge>{acc.bank_id}</Badge>
-
-      {acc.is_default && (
-        <Badge className="bg-emerald-500/20 text-emerald-200">
-          Default
-        </Badge>
-      )}
-    </div>
-  </div>
-
-  <div className="flex gap-2">
-    {!acc.is_default && (
-      <Button
-        variant="outline"
-        onClick={async () => {
-          await supabase
-            .from("finance_bank_accounts")
-            .update({ is_default: true })
-            .eq("id", acc.id);
-
-          await loadCompany();
-        }}
-        className="h-10 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
-      >
-        Set Default
-      </Button>
-    )}
-
-    <Button
-      variant="outline"
-      onClick={() =>
-        navigate(
-          `/finance/master-data/bank-accounts/${acc.id}`
-        )
-      }
-      className="h-10 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-    >
-      Open
-    </Button>
-  </div>
-</div>
-      ))
+        ))
     )}
   </div>
 </SectionCard>

@@ -199,7 +199,7 @@ export default function FinanceItemsPage() {
         supabase.from("finance_vendors").select("id, code, name").eq("status", "active").order("name"),
         supabase
           .from("finance_exchange_rates")
-          .select("from_currency_code")
+          .select("from_currency_code, to_currency_code")
           .eq("status", "active")
           .order("from_currency_code"),
       ]);
@@ -213,11 +213,16 @@ export default function FinanceItemsPage() {
 
       const distinctCurrencies = Array.from(
         new Set(
-          ((currenciesResult.data ?? []) as Array<{ from_currency_code: string }>)
-            .map((row) => row.from_currency_code)
+          ((currenciesResult.data ?? []) as Array<{
+            from_currency_code: string;
+            to_currency_code: string;
+          }>)
+            .flatMap((row) => [row.from_currency_code, row.to_currency_code])
             .filter(Boolean)
         )
-      ).map((code) => ({ code }));
+      )
+        .sort()
+        .map((code) => ({ code }));
 
       setCurrencies(distinctCurrencies);
     } catch (loadError) {
@@ -510,8 +515,8 @@ export default function FinanceItemsPage() {
         <DialogContent className="border-white/10 bg-[#0f1726] text-white sm:max-w-[900px]">
           <DialogHeader>
             <DialogTitle>{editingRow ? "Edit Item" : "Create Item"}</DialogTitle>
-            <DialogDescription className="text-white/45">
-              Build reusable item records for manufacturing, procurement, costing, invoicing, and future inventory workflows.
+             <DialogDescription className="text-white/45">
+              Build reusable item records for manufacturing, sourcing, procurement, costing, invoicing, and future inventory workflows. Items can carry both sales revenue classification and cost classification.
             </DialogDescription>
                     </DialogHeader>
 
@@ -629,7 +634,7 @@ export default function FinanceItemsPage() {
 
               <div className="space-y-2">
                 <div className="text-xs uppercase tracking-[0.18em] text-white/38">
-                  Revenue Category
+                  Revenue Category (Sales)
                 </div>
                 <select
                   value={form.revenue_category_id}
@@ -647,14 +652,14 @@ export default function FinanceItemsPage() {
 
               <div className="space-y-2">
                 <div className="text-xs uppercase tracking-[0.18em] text-white/38">
-                  Expense Category
+                  Cost / Expense Category
                 </div>
                 <select
                   value={form.expense_category_id}
                   onChange={(e) => setForm((p) => ({ ...p, expense_category_id: e.target.value }))}
                   className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none"
                 >
-                  <option value="">Expense category</option>
+                  <option value="">Cost / expense category</option>
                   {expenseCategories.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.code ? `${item.code} · ` : ""}{item.name}
@@ -664,19 +669,60 @@ export default function FinanceItemsPage() {
               </div>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-3">
-              <select value={form.tax_code_id} onChange={(e) => setForm((p) => ({ ...p, tax_code_id: e.target.value }))} className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none">
-                <option value="">Tax code</option>
-                {taxCodes.map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} · ` : ""}{item.name}</option>)}
-              </select>
-              <select value={form.unit_of_measure_id} onChange={(e) => setForm((p) => ({ ...p, unit_of_measure_id: e.target.value }))} className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none">
-                <option value="">Unit of measure</option>
-                {units.map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} · ` : ""}{item.name}</option>)}
-              </select>
-              <select value={form.preferred_vendor_id} onChange={(e) => setForm((p) => ({ ...p, preferred_vendor_id: e.target.value }))} className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none">
-                <option value="">Preferred vendor</option>
-                {vendors.map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} · ` : ""}{item.name}</option>)}
-              </select>
+             <div className="grid gap-2 sm:grid-cols-3">
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Tax Code
+                </div>
+                <select
+                  value={form.tax_code_id}
+                  onChange={(e) => setForm((p) => ({ ...p, tax_code_id: e.target.value }))}
+                  className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none"
+                >
+                  <option value="">Tax code</option>
+                  {taxCodes.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.code ? `${item.code} · ` : ""}{item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Unit Of Measure
+                </div>
+                <select
+                  value={form.unit_of_measure_id}
+                  onChange={(e) => setForm((p) => ({ ...p, unit_of_measure_id: e.target.value }))}
+                  className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none"
+                >
+                  <option value="">Unit of measure</option>
+                  {units.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.code ? `${item.code} · ` : ""}{item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Preferred Vendor (Optional / Sourced Items)
+                </div>
+                <select
+                  value={form.preferred_vendor_id}
+                  onChange={(e) => setForm((p) => ({ ...p, preferred_vendor_id: e.target.value }))}
+                  className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none"
+                >
+                  <option value="">No preferred vendor</option>
+                  {vendors.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.code ? `${item.code} · ` : ""}{item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">

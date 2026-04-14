@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   Building2,
@@ -417,7 +417,6 @@ function ModalShell({
 export default function FinanceMasterDataCompanyDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const location = useLocation();
 
   const [company, setCompany] = useState<CompanyDetailRecord | null>(null);
   const [personnel, setPersonnel] = useState<PersonnelRow[]>([]);
@@ -579,14 +578,30 @@ setBankAccounts(companyAccounts || []);
   }, [id, supabase]);
 
   useEffect(() => {
-    void loadCompany();
-  }, [loadCompany]);
+  void loadCompany();
 
-  useEffect(() => {
-  if (location.state?.refreshCompanyBankAccounts) {
-    loadCompany();
-  }
-}, [location]);
+  if (!id) return;
+
+  const channel = supabase
+    .channel(`finance_bank_accounts_company_${id}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "finance_bank_accounts",
+        filter: `company_id=eq.${id}`,
+      },
+      () => {
+        loadCompany();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [id]);
 
   function openBasicEditor() {
     if (!company) return;

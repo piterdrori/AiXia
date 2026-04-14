@@ -622,7 +622,7 @@ export default function FinanceMasterDataPage() {
         key: "bank-accounts",
         title: "Bank Accounts",
         description: "Control company bank accounts and finance banking setup.",
-        route: "/finance/bank-accounts",
+        route: "/finance/master-data/bank-accounts",
         icon: Landmark,
         count: data.counts.bankAccounts,
         statusLabel: "Active",

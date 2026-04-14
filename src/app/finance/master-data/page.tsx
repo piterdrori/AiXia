@@ -632,7 +632,7 @@ export default function FinanceMasterDataPage() {
         key: "payment-methods",
         title: "Payment Methods",
         description: "Manage available inbound and outbound payment methods.",
-        route: "/finance/payment-methods",
+        route: "/finance/master-data/payment-methods",
         icon: CreditCard,
         count: data.counts.paymentMethods,
         statusLabel: "Active",

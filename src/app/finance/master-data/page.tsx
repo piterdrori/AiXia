@@ -692,11 +692,11 @@ export default function FinanceMasterDataPage() {
         key: "units-of-measure",
         title: "Units of Measure",
         description: "Define units like pcs, set, kg, hour, month, and more.",
-        route: "/finance/units-of-measure",
+        route: "/finance/master-data/units-of-measure",
         icon: Package2,
         count: data.counts.unitsOfMeasure,
         statusLabel: data.counts.unitsOfMeasure > 0 ? "Configured" : "New",
-        lastUpdatedLabel: "Pending",
+        lastUpdatedLabel: "Live",
       },
       {
         key: "items",

@@ -155,6 +155,62 @@ export async function getBankAccounts(): Promise<FinanceBankAccountListRow[]> {
   });
 }
 
+export async function getArchivedBankAccounts(): Promise<
+  FinanceBankAccountListRow[]
+> {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select(
+      `
+        id,
+        bank_id,
+        company_id,
+        company_code,
+        beneficiary_name,
+        bank_name,
+        country,
+        city,
+        currency_code,
+        is_default,
+        status,
+        created_at,
+        updated_at,
+        finance_companies!finance_bank_accounts_company_id_fkey (
+          name,
+          legal_name
+        )
+      `
+    )
+    .eq("status", "archived")
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) => {
+    const company = Array.isArray(row.finance_companies)
+      ? row.finance_companies[0]
+      : row.finance_companies;
+
+    return {
+      id: row.id,
+      bank_id: row.bank_id,
+      company_id: row.company_id,
+      company_code: row.company_code,
+      beneficiary_name: row.beneficiary_name,
+      bank_name: row.bank_name,
+      country: row.country,
+      city: row.city,
+      currency_code: row.currency_code,
+      is_default: row.is_default,
+      status: row.status,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      company_name: company?.name ?? null,
+      company_legal_name: company?.legal_name ?? null,
+    };
+  });
+}
+
 /* ========================= GET BY ID ========================= */
 
 export async function getBankAccountById(
@@ -241,14 +297,20 @@ export async function updateBankAccount(
   const userId = await getCurrentUserId();
 
   // ensure only one default per company
-  if (updates.is_default === true && updates.company_id) {
+if (updates.is_default === true) {
+  const targetCompanyId =
+    updates.company_id ??
+    (await getBankAccountById(id)).company_id;
+
+  if (targetCompanyId) {
     const { error: resetError } = await supabase
       .from(TABLE)
       .update({ is_default: false })
-      .eq("company_id", updates.company_id);
+      .eq("company_id", targetCompanyId);
 
     if (resetError) throw resetError;
   }
+}
 
   const nextUpdates: Partial<FinanceBankAccount> = {
     ...updates,

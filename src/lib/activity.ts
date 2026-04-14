@@ -15,6 +15,7 @@ type LogActivityInput = {
   | "finance_vendor"
   | "finance_company"
   | "finance_bank_account"
+  | "finance_vendor_bank_account"
   | "finance_payment_method"
   | "finance_expense_category"
   | "finance_revenue_category"

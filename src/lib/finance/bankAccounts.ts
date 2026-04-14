@@ -239,6 +239,16 @@ export async function updateBankAccount(
 ): Promise<FinanceBankAccount> {
   const userId = await getCurrentUserId();
 
+  // 👉 HANDLE DEFAULT SWITCH (CRITICAL FIX)
+  if (updates.is_default === true) {
+    const { error: resetError } = await supabase
+      .from(TABLE)
+      .update({ is_default: false })
+      .eq("company_id", updates.company_id);
+
+    if (resetError) throw resetError;
+  }
+
   const nextUpdates: Partial<FinanceBankAccount> = {
     ...updates,
     updated_by: userId,

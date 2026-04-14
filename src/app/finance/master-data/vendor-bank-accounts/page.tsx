@@ -6,6 +6,8 @@ import {
   Plus,
   RefreshCw,
   Search,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -83,10 +85,13 @@ export default function FinanceMasterDataVendorBankAccountsPage() {
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [archiveSearch, setArchiveSearch] = useState("");
 
-  const [role, setRole] = useState<Role | null>(null);
-  const [permissionOverrides, setPermissionOverrides] = useState<
-    Partial<Record<Permission, boolean>> | null
-  >(null);
+ const [role, setRole] = useState<Role | null>(null);
+const [permissionOverrides, setPermissionOverrides] = useState<
+  Partial<Record<Permission, boolean>> | null
+>(null);
+const [expandedVendors, setExpandedVendors] = useState<Record<string, boolean>>(
+  {}
+);
 
   const loadRows = useCallback(async () => {
     setIsLoading(true);
@@ -158,20 +163,27 @@ export default function FinanceMasterDataVendorBankAccountsPage() {
   }, [rows, search]);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, FinanceVendorBankAccountListRow[]>();
+  const map = new Map<string, FinanceVendorBankAccountListRow[]>();
 
-    filtered.forEach((row) => {
-      const key = row.vendor_id || "unknown";
+  filtered.forEach((row) => {
+    const key = row.vendor_id || "unknown";
 
-      if (!map.has(key)) {
-        map.set(key, []);
-      }
+    if (!map.has(key)) {
+      map.set(key, []);
+    }
 
-      map.get(key)!.push(row);
-    });
+    map.get(key)!.push(row);
+  });
 
-    return Array.from(map.entries());
-  }, [filtered]);
+  return Array.from(map.entries());
+}, [filtered]);
+
+function toggleVendor(vendorId: string) {
+  setExpandedVendors((prev) => ({
+    ...prev,
+    [vendorId]: !prev[vendorId],
+  }));
+}
 
   const counts = useMemo(() => {
     return {
@@ -180,6 +192,16 @@ export default function FinanceMasterDataVendorBankAccountsPage() {
       archived: rows.filter((r) => r.status === "archived").length,
     };
   }, [rows]);
+
+  useEffect(() => {
+  const next: Record<string, boolean> = {};
+
+  grouped.forEach(([vendorId]) => {
+    next[vendorId] = true; // default expanded
+  });
+
+  setExpandedVendors(next);
+}, [grouped]);
 
   const filteredArchived = useMemo(() => {
     const q = archiveSearch.trim().toLowerCase();
@@ -439,10 +461,18 @@ export default function FinanceMasterDataVendorBankAccountsPage() {
     <div key={vendorId} className="space-y-3">
       
       {/* 🔹 Vendor Header */}
-      <div className="flex items-center justify-between px-2">
-        <div className="text-sm font-semibold text-white">
-          {vendorDisplayName}
-        </div>
+      <div
+  className="flex items-center justify-between px-2 cursor-pointer"
+  onClick={() => toggleVendor(vendorId)}
+>
+        <div className="flex items-center gap-2 text-sm font-semibold text-white">
+  {expandedVendors[vendorId] ? (
+    <ChevronDown className="h-4 w-4 text-white/40" />
+  ) : (
+    <ChevronRight className="h-4 w-4 text-white/40" />
+  )}
+  {vendorDisplayName}
+</div>
 
         <Badge className="border-white/10 bg-white/5 text-white">
           {vendorAccounts.length} Account
@@ -451,7 +481,8 @@ export default function FinanceMasterDataVendorBankAccountsPage() {
       </div>
 
       {/* 🔹 Accounts */}
-      {vendorAccounts.map((row) => (
+      {expandedVendors[vendorId] &&
+  vendorAccounts.map((row) => (
         <div
           key={row.id}
           className="rounded-[24px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-5"

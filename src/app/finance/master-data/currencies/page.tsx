@@ -5,7 +5,6 @@ import {
   MoreHorizontal,
   Plus,
   RefreshCw,
-  Search,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -106,6 +105,22 @@ const EMPTY_RATE_FORM: ExchangeRateFormState = {
   notes: "",
 };
 
+const CURRENCY_PRESETS: Record<
+  string,
+  { name: string; symbol: string; decimal_places: string }
+> = {
+  USD: { name: "US Dollar", symbol: "$", decimal_places: "2" },
+  EUR: { name: "Euro", symbol: "€", decimal_places: "2" },
+  CNY: { name: "Chinese Yuan", symbol: "¥", decimal_places: "2" },
+  GBP: { name: "British Pound", symbol: "£", decimal_places: "2" },
+  JPY: { name: "Japanese Yen", symbol: "¥", decimal_places: "0" },
+  ILS: { name: "Israeli New Shekel", symbol: "₪", decimal_places: "2" },
+  SGD: { name: "Singapore Dollar", symbol: "$", decimal_places: "2" },
+  HKD: { name: "Hong Kong Dollar", symbol: "$", decimal_places: "2" },
+  AUD: { name: "Australian Dollar", symbol: "$", decimal_places: "2" },
+  CAD: { name: "Canadian Dollar", symbol: "$", decimal_places: "2" },
+};
+
 function formatDateLabel(value: string) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "—";
@@ -136,6 +151,29 @@ function getStatusBadgeClass(status: string) {
   }
 
   return "rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-200 shadow-none";
+}
+
+function applyCurrencyPreset(
+  current: CurrencyFormState,
+  nextCode: string,
+): CurrencyFormState {
+  const normalizedCode = nextCode.trim().toUpperCase();
+  const preset = CURRENCY_PRESETS[normalizedCode];
+
+  if (!preset) {
+    return {
+      ...current,
+      currency_code: normalizedCode,
+    };
+  }
+
+  return {
+    ...current,
+    currency_code: normalizedCode,
+    currency_name: current.currency_name.trim() ? current.currency_name : preset.name,
+    currency_symbol: preset.symbol,
+    decimal_places: preset.decimal_places,
+  };
 }
 
 export default function FinanceMasterDataCurrenciesPage() {
@@ -587,7 +625,7 @@ export default function FinanceMasterDataCurrenciesPage() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-3 xl:max-w-[720px] xl:justify-end">
                 <Button
                   variant="outline"
                   onClick={() => navigate("/finance/master-data")}
@@ -808,10 +846,10 @@ export default function FinanceMasterDataCurrenciesPage() {
                 </div>
               </section>
 
-              <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+              <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(420px,0.95fr)]">
                 <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
                   <CardHeader className="border-b border-white/8 pb-4">
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                    <div className="flex items-center justify-between gap-4">
                       <div className="space-y-2">
                         <Badge className="w-fit rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-white/65 shadow-none">
                           Currency Registry
@@ -824,23 +862,15 @@ export default function FinanceMasterDataCurrenciesPage() {
                         </CardDescription>
                       </div>
 
-                      <div className="flex flex-col gap-3 sm:flex-row">
-                        <div className="relative min-w-[260px]">
-                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-                          <Input
-                            value={search}
-                            onChange={(event) => setSearch(event.target.value)}
-                            placeholder="Search currencies or rates"
-                            className="h-11 rounded-2xl border-white/10 bg-white/5 pl-10 text-white placeholder:text-white/30"
-                          />
-                        </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/40">
+                        {filteredCurrencies.length} rows
                       </div>
                     </div>
                   </CardHeader>
 
                   <CardContent className="p-0">
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[920px]">
+                      <table className="w-full min-w-[1080px]">
                         <thead>
                           <tr className="border-b border-white/8 text-left">
                             {[
@@ -1108,47 +1138,67 @@ export default function FinanceMasterDataCurrenciesPage() {
 
           <div className="grid gap-4">
             <div className="grid gap-2 sm:grid-cols-2">
-              <Input
-                value={currencyForm.currency_code}
-                onChange={(e) =>
-                  setCurrencyForm((p) => ({
-                    ...p,
-                    currency_code: e.target.value.toUpperCase(),
-                  }))
-                }
-                placeholder="Currency code"
-                className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
-              />
-              <Input
-                value={currencyForm.currency_name}
-                onChange={(e) =>
-                  setCurrencyForm((p) => ({ ...p, currency_name: e.target.value }))
-                }
-                placeholder="Currency name"
-                className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
-              />
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Currency Code
+                </div>
+                <Input
+                  value={currencyForm.currency_code}
+                  onChange={(e) =>
+                    setCurrencyForm((prev) =>
+                      applyCurrencyPreset(prev, e.target.value),
+                    )
+                  }
+                  placeholder="Automatic from code"
+                  className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Currency Name
+                </div>
+                <Input
+                  value={currencyForm.currency_name}
+                  onChange={(e) =>
+                    setCurrencyForm((p) => ({ ...p, currency_name: e.target.value }))
+                  }
+                  placeholder="Currency name"
+                  className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
+                />
+              </div>
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
-              <Input
-                value={currencyForm.currency_symbol}
-                onChange={(e) =>
-                  setCurrencyForm((p) => ({ ...p, currency_symbol: e.target.value }))
-                }
-                placeholder="Currency symbol"
-                className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
-              />
-              <Input
-                type="number"
-                min="0"
-                step="1"
-                value={currencyForm.decimal_places}
-                onChange={(e) =>
-                  setCurrencyForm((p) => ({ ...p, decimal_places: e.target.value }))
-                }
-                placeholder="Decimal places"
-                className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
-              />
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Currency Symbol
+                </div>
+                <Input
+                  value={currencyForm.currency_symbol}
+                  onChange={(e) =>
+                    setCurrencyForm((p) => ({ ...p, currency_symbol: e.target.value }))
+                  }
+                  placeholder="Automatic from code"
+                  className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Decimal Places
+                </div>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={currencyForm.decimal_places}
+                  onChange={(e) =>
+                    setCurrencyForm((p) => ({ ...p, decimal_places: e.target.value }))
+                  }
+                  className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
+                />
+              </div>
             </div>
 
             <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
@@ -1169,14 +1219,19 @@ export default function FinanceMasterDataCurrenciesPage() {
               </label>
             </div>
 
-            <Input
-              value={currencyForm.notes}
-              onChange={(e) =>
-                setCurrencyForm((p) => ({ ...p, notes: e.target.value }))
-              }
-              placeholder="Notes (optional)"
-              className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
-            />
+            <div className="space-y-2">
+              <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                Notes
+              </div>
+              <Input
+                value={currencyForm.notes}
+                onChange={(e) =>
+                  setCurrencyForm((p) => ({ ...p, notes: e.target.value }))
+                }
+                placeholder="Optional notes"
+                className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
+              />
+            </div>
 
             <div className="flex gap-2">
               {(["active", "inactive", "archived"] as const).map((value) => (
@@ -1240,70 +1295,96 @@ export default function FinanceMasterDataCurrenciesPage() {
 
           <div className="grid gap-4">
             <div className="grid gap-2 sm:grid-cols-2">
-              <select
-                value={rateForm.from_currency_code}
-                onChange={(e) =>
-                  setRateForm((p) => ({
-                    ...p,
-                    from_currency_code: e.target.value,
-                  }))
-                }
-                className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none"
-              >
-                <option value="">From currency</option>
-                {activeCurrencies.map((row) => (
-                  <option key={`from-${row.id}`} value={row.currency_code}>
-                    {row.currency_code} — {row.currency_name}
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  From Currency
+                </div>
+                <select
+                  value={rateForm.from_currency_code}
+                  onChange={(e) =>
+                    setRateForm((p) => ({
+                      ...p,
+                      from_currency_code: e.target.value,
+                    }))
+                  }
+                  className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none"
+                >
+                  <option value="">From currency</option>
+                  {activeCurrencies.map((row) => (
+                    <option key={`from-${row.id}`} value={row.currency_code}>
+                      {row.currency_code} — {row.currency_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-              <select
-                value={rateForm.to_currency_code}
-                onChange={(e) =>
-                  setRateForm((p) => ({
-                    ...p,
-                    to_currency_code: e.target.value,
-                  }))
-                }
-                className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none"
-              >
-                <option value="">To currency</option>
-                {activeCurrencies.map((row) => (
-                  <option key={`to-${row.id}`} value={row.currency_code}>
-                    {row.currency_code} — {row.currency_name}
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  To Currency
+                </div>
+                <select
+                  value={rateForm.to_currency_code}
+                  onChange={(e) =>
+                    setRateForm((p) => ({
+                      ...p,
+                      to_currency_code: e.target.value,
+                    }))
+                  }
+                  className="h-11 rounded-2xl border border-white/10 bg-[#0f1726] px-3 text-sm text-white outline-none"
+                >
+                  <option value="">To currency</option>
+                  {activeCurrencies.map((row) => (
+                    <option key={`to-${row.id}`} value={row.currency_code}>
+                      {row.currency_code} — {row.currency_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Exchange Rate
+                </div>
+                <Input
+                  value={rateForm.exchange_rate}
+                  onChange={(e) =>
+                    setRateForm((p) => ({ ...p, exchange_rate: e.target.value }))
+                  }
+                  placeholder="Exchange rate"
+                  className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                  Effective Date
+                </div>
+                <Input
+                  type="date"
+                  value={rateForm.effective_date}
+                  onChange={(e) =>
+                    setRateForm((p) => ({ ...p, effective_date: e.target.value }))
+                  }
+                  className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-xs uppercase tracking-[0.18em] text-white/38">
+                Notes
+              </div>
               <Input
-                value={rateForm.exchange_rate}
+                value={rateForm.notes}
                 onChange={(e) =>
-                  setRateForm((p) => ({ ...p, exchange_rate: e.target.value }))
+                  setRateForm((p) => ({ ...p, notes: e.target.value }))
                 }
-                placeholder="Exchange rate"
-                className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
-              />
-              <Input
-                type="date"
-                value={rateForm.effective_date}
-                onChange={(e) =>
-                  setRateForm((p) => ({ ...p, effective_date: e.target.value }))
-                }
+                placeholder="Optional notes"
                 className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
               />
             </div>
-
-            <Input
-              value={rateForm.notes}
-              onChange={(e) =>
-                setRateForm((p) => ({ ...p, notes: e.target.value }))
-              }
-              placeholder="Notes (optional)"
-              className="h-11 rounded-2xl border-white/10 bg-black/15 text-white"
-            />
 
             <div className="flex gap-2">
               {(["active", "inactive", "archived"] as const).map((value) => (

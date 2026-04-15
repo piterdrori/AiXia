@@ -27,15 +27,18 @@ export type FinanceIssuedInvoiceListRow = {
   project_id: string | null;
 };
 
-export const FINANCE_ISSUED_INVOICE_STATUSES: FinanceInvoiceIssuedStatus[] = [
+export const FINANCE_ISSUED_INVOICE_STATUSES = [
   "draft",
   "issued",
   "void",
   "canceled",
-];
+] as const satisfies readonly FinanceInvoiceIssuedStatus[];
 
-export const FINANCE_ISSUED_INVOICE_PAYMENT_STATUSES: FinanceInvoiceIssuedPaymentStatus[] =
-  ["unpaid", "partial", "paid"];
+export const FINANCE_ISSUED_INVOICE_PAYMENT_STATUSES = [
+  "unpaid",
+  "partial",
+  "paid",
+] as const satisfies readonly FinanceInvoiceIssuedPaymentStatus[];
 
 export function normalizeIssuedInvoiceStatus(
   status: string | null | undefined

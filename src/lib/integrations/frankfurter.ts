@@ -8,7 +8,7 @@ export type LiveConversionResult = {
   targetCurrency: string;
 };
 
-const FRANKFURTER_API_BASE = "https://api.frankfurter.dev/v2";
+const FRANKFURTER_API_BASE = "https://api.frankfurter.app";
 
 function normalizeCurrencyCode(value: string): string {
   return value.trim().toUpperCase();
@@ -35,14 +35,18 @@ export async function convertCurrencyLive(
       amount,
       base: from,
       date: new Date().toISOString().slice(0, 10),
-      rates: { [to]: 1 },
+      rates: { [to]: amount },
       convertedAmount: amount,
       rate: 1,
       targetCurrency: to,
     };
   }
 
-  const url = `${FRANKFURTER_API_BASE}/rates?base=${encodeURIComponent(from)}&quotes=${encodeURIComponent(to)}&amount=${encodeURIComponent(amount)}`;
+  const url =
+    `${FRANKFURTER_API_BASE}/latest` +
+    `?amount=${encodeURIComponent(String(amount))}` +
+    `&from=${encodeURIComponent(from)}` +
+    `&to=${encodeURIComponent(to)}`;
 
   const response = await fetch(url, {
     method: "GET",
@@ -62,9 +66,9 @@ export async function convertCurrencyLive(
     rates: Record<string, number>;
   };
 
-  const rate = data.rates?.[to];
+  const convertedAmount = data.rates?.[to];
 
-  if (typeof rate !== "number") {
+  if (typeof convertedAmount !== "number") {
     throw new Error("Target conversion rate was not returned.");
   }
 
@@ -73,8 +77,8 @@ export async function convertCurrencyLive(
     base: data.base,
     date: data.date,
     rates: data.rates,
-    convertedAmount: rate,
-    rate: rate / amount,
+    convertedAmount,
+    rate: convertedAmount / amount,
     targetCurrency: to,
   };
 }

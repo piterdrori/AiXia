@@ -83,7 +83,7 @@ import FinanceTransactionsPage from "@/app/finance/transactions/page";
 import FinanceReportsPage from "@/app/finance/reports/page";
 import FinanceSettingsPage from "@/app/finance/settings/page";
 import FinanceInvoicesPage from "@/app/finance/transactions/invoices/page";
-import FinanceNewInvoicePage from "@/app/finance/invoices/new/page";
+import FinanceNewInvoicePage from "@/app/finance/transactions/invoices/new/page";
 import FinanceInvoiceDetailPage from "@/app/finance/invoices/[id]/page";
 import FinanceBillsPage from "@/app/finance/bills/page";
 import BillDetailPage from "@/app/finance/bills/[id]/page";

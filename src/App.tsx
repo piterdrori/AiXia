@@ -82,22 +82,22 @@ import FinanceTaxCodesPage from "@/app/finance/master-data/tax-codes/page";
 import FinanceTransactionsPage from "@/app/finance/transactions/page";
 import FinanceReportsPage from "@/app/finance/reports/page";
 import FinanceSettingsPage from "@/app/finance/settings/page";
-import FinanceInvoicesPage from "@/app/finance/invoices/page";
-import FinanceNewInvoicePage from "@/app/finance/invoices/new/page";
-import FinanceInvoiceDetailPage from "@/app/finance/invoices/[id]/page";
-import FinanceBillsPage from "@/app/finance/bills/page";
-import BillDetailPage from "@/app/finance/bills/[id]/page";
-import FinancePaymentsMadePage from "@/app/finance/payments-made/page";
+import FinanceInvoicesPage from "@/app/finance/transactions/invoices/page";
+import FinanceNewInvoicePage from "@/app/finance/transactions/invoices/new/page";
+import FinanceInvoiceDetailPage from "@/app/finance/transactions/invoices/[id]/page";
+import FinanceBillsPage from "@/app/finance/transactions/bills/page";
+import BillDetailPage from "@/app/finance/transactions/bills/[id]/page";
+import FinancePaymentsMadePage from "@/app/finance/transactions/payments-made/page";
 
-import FinanceExpensesPage from "@/app/finance/expenses/page";
-import FinanceNewExpensePage from "@/app/finance/expenses/new/page";
-import FinanceExpenseDetailPage from "@/app/finance/expenses/[id]/page";
+import FinanceExpensesPage from "@/app/finance/transactions/expenses/page";
+import FinanceNewExpensePage from "@/app/finance/transactions/expenses/new/page";
+import FinanceExpenseDetailPage from "@/app/finance/transactions/expenses/[id]/page";
 
-import FinanceReimbursementsPage from "@/app/finance/reimbursements/page";
-import FinanceReimbursementDetailPage from "@/app/finance/reimbursements/[id]/page";
+import FinanceReimbursementsPage from "@/app/finance/transactions/reimbursements/page";
+import FinanceReimbursementDetailPage from "@/app/finance/transactions/reimbursements/[id]/page";
 
-import FinanceApprovalsPage from "@/app/finance/approvals/page";
-import FinancePayrollPage from "@/app/finance/payroll/page";
+import FinanceApprovalsPage from "@/app/finance/transactions/approvals/page";
+import FinancePayrollPage from "@/app/finance/transactions/payroll/page";
 import FinancePayrollProfilesPage from "@/app/finance/payroll/profiles/page";
 import FinancePayrollPeriodsPage from "@/app/finance/payroll/periods/page";
 import FinancePayrollRunsPage from "@/app/finance/payroll/runs/page";

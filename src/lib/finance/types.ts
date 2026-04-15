@@ -2,14 +2,14 @@ export type FinanceRecordStatus = "active" | "inactive" | "archived";
 
 export type FinanceInvoiceIssuedStatus =
   | "draft"
-  | "pending_approval_ready"
-  | "approved_ready"
-  | "sent"
-  | "partially_paid"
-  | "paid"
-  | "overdue"
+  | "issued"
   | "void"
   | "canceled";
+
+export type FinanceInvoiceIssuedPaymentStatus =
+  | "unpaid"
+  | "partial"
+  | "paid";
 
 export type FinancePaymentReceivedStatus =
   | "pending"
@@ -156,11 +156,23 @@ export interface FinanceInvoiceIssued
   issue_date: string;
   due_date: string;
   approval_status: string | null;
+  payment_status: FinanceInvoiceIssuedPaymentStatus;
   subtotal: number;
+  tax_amount: number;
+  discount_amount: number;
   total_amount: number;
   paid_amount: number;
   balance_due: number;
   paid_at: string | null;
+  project_id: string | null;
+  ledger_posted_at: string | null;
+  ledger_entry_id: string | null;
+  client_name_snapshot: string | null;
+  billing_address_snapshot: string | null;
+  client_email_snapshot: string | null;
+  client_phone_snapshot: string | null;
+  currency_code: string | null;
+  exchange_rate: number | null;
 }
 
 export interface FinanceInvoiceIssuedLineItem extends FinanceBaseRecord {

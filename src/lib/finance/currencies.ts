@@ -19,12 +19,33 @@ export type FinanceCurrencyRow = {
   updated_at: string;
 };
 
+export type FinanceExchangeRateRow = {
+  id: string;
+  from_currency_code: string;
+  to_currency_code: string;
+  exchange_rate: string;
+  effective_date: string;
+  status: FinanceRecordStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CurrencyUpsertInput = {
   currency_code: string;
   currency_name: string;
   currency_symbol?: string | null;
   decimal_places?: number | null;
   is_base_currency?: boolean;
+  status?: FinanceRecordStatus;
+  notes?: string | null;
+};
+
+export type ExchangeRateUpsertInput = {
+  from_currency_code: string;
+  to_currency_code: string;
+  exchange_rate: string;
+  effective_date: string;
   status?: FinanceRecordStatus;
   notes?: string | null;
 };
@@ -67,6 +88,39 @@ export async function getCurrencies(): Promise<FinanceCurrencyRow[]> {
   if (error) throw error;
 
   return (data ?? []) as FinanceCurrencyRow[];
+}
+
+export async function getArchivedCurrencies(): Promise<FinanceCurrencyRow[]> {
+  const { data, error } = await supabase
+    .from(CURRENCY_TABLE)
+    .select(
+      "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency, status, notes, created_at, updated_at",
+    )
+    .eq("status", "archived")
+    .order("updated_at", { ascending: false })
+    .order("currency_code", { ascending: true });
+
+  if (error) throw error;
+
+  return (data ?? []) as FinanceCurrencyRow[];
+}
+
+export async function getExchangeRates(): Promise<FinanceExchangeRateRow[]> {
+  const { data, error } = await supabase
+    .from(RATE_TABLE)
+    .select(
+      "id, from_currency_code, to_currency_code, exchange_rate, effective_date, status, notes, created_at, updated_at",
+    )
+    .order("effective_date", { ascending: false })
+    .order("from_currency_code", { ascending: true })
+    .order("to_currency_code", { ascending: true });
+
+  if (error) {
+    if (error.code === "42P01") return [];
+    throw error;
+  }
+
+  return (data ?? []) as FinanceExchangeRateRow[];
 }
 
 export async function getCurrencyRateCoverage(): Promise<CurrencyRateCoverageRow[]> {
@@ -174,7 +228,7 @@ export async function archiveCurrency(id: string) {
     .from(CURRENCY_TABLE)
     .update({ status: "archived", updated_by: userId })
     .eq("id", id)
-    .select("id, currency_code")
+    .select("id, currency_code, status, updated_at")
     .single();
 
   if (error) throw error;
@@ -196,7 +250,7 @@ export async function restoreCurrency(id: string) {
     .from(CURRENCY_TABLE)
     .update({ status: "active", updated_by: userId })
     .eq("id", id)
-    .select("id, currency_code")
+    .select("id, currency_code, status, updated_at")
     .single();
 
   if (error) throw error;
@@ -229,5 +283,139 @@ export async function permanentlyDeleteCurrency(id: string) {
     entityType: "finance_currency",
     entityId: id,
     message: `Currency permanently deleted: ${existing.currency_code}`,
+  });
+}
+
+export async function createExchangeRate(input: ExchangeRateUpsertInput) {
+  const userId = await getCurrentUserId();
+
+  const payload = {
+    from_currency_code: normalizeCode(input.from_currency_code),
+    to_currency_code: normalizeCode(input.to_currency_code),
+    exchange_rate: normalizeRequiredText(input.exchange_rate),
+    effective_date: input.effective_date,
+    status: input.status ?? "active",
+    notes: normalizeNullable(input.notes),
+    metadata: {},
+    created_by: userId,
+    updated_by: userId,
+  };
+
+  const { data, error } = await supabase
+    .from(RATE_TABLE)
+    .insert(payload)
+    .select(
+      "id, from_currency_code, to_currency_code, exchange_rate, effective_date, status, notes, created_at, updated_at",
+    )
+    .single();
+
+  if (error) throw error;
+
+  await logActivity({
+    actionType: "finance.exchange_rate.created",
+    entityType: "finance_exchange_rate",
+    entityId: data.id,
+    message: `Exchange rate created: ${data.from_currency_code} to ${data.to_currency_code}`,
+  });
+
+  return data as FinanceExchangeRateRow;
+}
+
+export async function updateExchangeRate(id: string, input: ExchangeRateUpsertInput) {
+  const userId = await getCurrentUserId();
+
+  const payload = {
+    from_currency_code: normalizeCode(input.from_currency_code),
+    to_currency_code: normalizeCode(input.to_currency_code),
+    exchange_rate: normalizeRequiredText(input.exchange_rate),
+    effective_date: input.effective_date,
+    status: input.status ?? "active",
+    notes: normalizeNullable(input.notes),
+    updated_by: userId,
+  };
+
+  const { data, error } = await supabase
+    .from(RATE_TABLE)
+    .update(payload)
+    .eq("id", id)
+    .select(
+      "id, from_currency_code, to_currency_code, exchange_rate, effective_date, status, notes, created_at, updated_at",
+    )
+    .single();
+
+  if (error) throw error;
+
+  await logActivity({
+    actionType: "finance.exchange_rate.updated",
+    entityType: "finance_exchange_rate",
+    entityId: id,
+    message: `Exchange rate updated: ${data.from_currency_code} to ${data.to_currency_code}`,
+  });
+
+  return data as FinanceExchangeRateRow;
+}
+
+export async function archiveExchangeRate(id: string) {
+  const userId = await getCurrentUserId();
+
+  const { data, error } = await supabase
+    .from(RATE_TABLE)
+    .update({ status: "archived", updated_by: userId })
+    .eq("id", id)
+    .select("id, from_currency_code, to_currency_code, status, updated_at")
+    .single();
+
+  if (error) throw error;
+
+  await logActivity({
+    actionType: "finance.exchange_rate.archived",
+    entityType: "finance_exchange_rate",
+    entityId: id,
+    message: `Exchange rate archived: ${data.from_currency_code} to ${data.to_currency_code}`,
+  });
+
+  return data;
+}
+
+export async function restoreExchangeRate(id: string) {
+  const userId = await getCurrentUserId();
+
+  const { data, error } = await supabase
+    .from(RATE_TABLE)
+    .update({ status: "active", updated_by: userId })
+    .eq("id", id)
+    .select("id, from_currency_code, to_currency_code, status, updated_at")
+    .single();
+
+  if (error) throw error;
+
+  await logActivity({
+    actionType: "finance.exchange_rate.restored",
+    entityType: "finance_exchange_rate",
+    entityId: id,
+    message: `Exchange rate restored: ${data.from_currency_code} to ${data.to_currency_code}`,
+  });
+
+  return data;
+}
+
+export async function permanentlyDeleteExchangeRate(id: string) {
+  const { data: existing, error: readError } = await supabase
+    .from(RATE_TABLE)
+    .select("id, from_currency_code, to_currency_code")
+    .eq("id", id)
+    .single();
+
+  if (readError) throw readError;
+
+  const { error } = await supabase.from(RATE_TABLE).delete().eq("id", id);
+
+  if (error) throw error;
+
+  await logActivity({
+    actionType: "finance.exchange_rate.deleted",
+    entityType: "finance_exchange_rate",
+    entityId: id,
+    message: `Exchange rate permanently deleted: ${existing.from_currency_code} to ${existing.to_currency_code}`,
   });
 }

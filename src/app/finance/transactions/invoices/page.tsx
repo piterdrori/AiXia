@@ -119,19 +119,26 @@ function MetricCard({ metric }: { metric: InvoiceMetricCard }) {
   );
 }
 
-function getDocumentStatusBadgeClasses(status: FinanceIssuedInvoiceListRow["status"]) {
-  switch (status) {
-    case "issued":
-      return "border-sky-400/20 bg-sky-500/10 text-sky-200";
-    case "draft":
-      return "border-white/10 bg-white/10 text-white/75";
-    case "void":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "canceled":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    default:
-      return "border-white/10 bg-white/10 text-white/75";
+function getDocumentStatusBadgeClasses(
+  status: FinanceIssuedInvoiceListRow["status"]
+) {
+  if (status === "issued") {
+    return "border-sky-400/20 bg-sky-500/10 text-sky-200";
   }
+
+  if (status === "draft") {
+    return "border-white/10 bg-white/10 text-white/75";
+  }
+
+  if (status === "void") {
+    return "border-rose-400/20 bg-rose-500/10 text-rose-200";
+  }
+
+  if (status === "canceled") {
+    return "border-amber-400/20 bg-amber-500/10 text-amber-200";
+  }
+
+  return "border-white/10 bg-white/10 text-white/75";
 }
 
 function getPaymentStatusBadgeClasses(

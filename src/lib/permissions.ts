@@ -698,6 +698,7 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/finance/revenue-categories": { permission: "viewRevenueCategories" },
   "/finance/master-data/revenue-categories": { permission: "viewRevenueCategories" },
   "/finance/master-data/items": { permission: "viewItems" },
+  "/finance/master-data/currencies": { permission: "viewFinance" },
   "/finance/settings": { permission: "manageFinanceMasterData" },
   "/finance/payment-terms": { permission: "viewPaymentTerms" },
   "/finance/master-data/payment-terms": { permission: "viewPaymentTerms" },

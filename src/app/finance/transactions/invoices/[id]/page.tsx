@@ -206,7 +206,7 @@ export default function FinanceInvoiceDetailPage() {
       setError("");
 
       try {
-        const [{ invoice, lineItems }, paymentsResult, projectResult, taskResult] =
+        const [{ invoice, lineItems }, paymentsResult, projectResult] =
           await Promise.all([
             getIssuedInvoiceById(id),
             supabase
@@ -231,8 +231,8 @@ export default function FinanceInvoiceDetailPage() {
           throw projectResult.error;
         }
 
-        const typedInvoice = invoice as InvoiceRecord;
-        const typedLineItems = (lineItems || []) as LineItemRow[];
+        const typedInvoice = invoice as unknown as InvoiceRecord;
+        const typedLineItems = (lineItems || []) as unknown as LineItemRow[];
         const typedPayments = (paymentsResult.data || []) as PaymentRow[];
         const linkedProject = (projectResult.data as any)?.project ?? null;
         const linkedTask = (projectResult.data as any)?.task ?? null;

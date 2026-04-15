@@ -77,46 +77,83 @@ export default function FinanceMasterDataEmployeesPage() {
     void loadData();
   }, []);
 
-  async function loadData() {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("finance_employee_refs")
-        .select(`
-          id,
-          user_id,
-          code,
-          status,
-          mark,
-          notes,
-          metadata,
-          created_at,
-          updated_at,
-          profile:profiles (
-            user_id,
-            full_name,
-            email,
-            role,
-            status,
-            company,
-            member_type,
-            job_title,
-            phone,
-            city,
-            country
-          )
-        `)
-        .order("created_at", { ascending: false });
+async function loadData() {
+  setLoading(true);
 
-      if (error) throw error;
-      setRows(((data || []) as unknown) as FinanceEmployeeRow[]);
-    } catch (error) {
-      console.error("Failed to load finance employees:", error);
+  try {
+    const { data: refData, error: refError } = await supabase
+      .from("finance_employee_refs")
+      .select(`
+        id,
+        user_id,
+        code,
+        status,
+        mark,
+        notes,
+        metadata,
+        created_at,
+        updated_at
+      `)
+      .order("created_at", { ascending: false });
+
+    if (refError) throw refError;
+
+    const refs = ((refData || []) as unknown) as Array<{
+      id: string;
+      user_id: string;
+      code: string;
+      status: "active" | "inactive" | "archived";
+      mark: string | null;
+      notes: string | null;
+      metadata: Record<string, unknown> | null;
+      created_at: string;
+      updated_at: string;
+    }>;
+
+    if (refs.length === 0) {
       setRows([]);
-    } finally {
-      setLoading(false);
+      return;
     }
+
+    const userIds = refs.map((row) => row.user_id);
+
+    const { data: profileData, error: profileError } = await supabase
+      .from("profiles")
+      .select(`
+        user_id,
+        full_name,
+        email,
+        role,
+        status,
+        company,
+        member_type,
+        job_title,
+        phone,
+        city,
+        country
+      `)
+      .in("user_id", userIds);
+
+    if (profileError) throw profileError;
+
+    const profileMap = new Map(
+      ((((profileData || []) as unknown) as NonNullable<FinanceEmployeeRow["profile"]>[]) || [])
+        .map((profile) => [profile.user_id, profile])
+    );
+
+    const mergedRows: FinanceEmployeeRow[] = refs.map((ref) => ({
+      ...ref,
+      profile: profileMap.get(ref.user_id) || null,
+    }));
+
+    setRows(mergedRows);
+  } catch (error) {
+    console.error("Failed to load finance employees:", error);
+    setRows([]);
+  } finally {
+    setLoading(false);
   }
+}
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();

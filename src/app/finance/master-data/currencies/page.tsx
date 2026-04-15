@@ -189,7 +189,7 @@ export default function FinanceMasterDataCurrenciesPage() {
   const [permissionOverrides, setPermissionOverrides] =
     useState<Partial<Record<Permission, boolean>> | null>(null);
 
-  const [search, setSearch] = useState("");
+  const [search] = useState("");
   const [archiveSearch, setArchiveSearch] = useState("");
 
   const [currencyDialogOpen, setCurrencyDialogOpen] = useState(false);

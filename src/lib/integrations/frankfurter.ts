@@ -8,7 +8,7 @@ export type LiveConversionResult = {
   targetCurrency: string;
 };
 
-const FRANKFURTER_API_BASE = "https://api.frankfurter.app";
+const FRANKFURTER_API_BASE = "https://api.frankfurter.dev/v1";
 
 function normalizeCurrencyCode(value: string): string {
   return value.trim().toUpperCase();

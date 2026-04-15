@@ -4,9 +4,6 @@ import {
   ArrowLeft,
   Briefcase,
   ExternalLink,
-  Mail,
-  MapPin,
-  Phone,
   RefreshCw,
   Search,
   Shield,
@@ -173,24 +170,80 @@ export default function FinanceMasterDataEmployeesPage() {
           </section>
 
           <section>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-              {[
-                ["Total Employees", stats.total, Users],
-                ["Active", stats.active, User2],
-                ["Inactive", stats.inactive, Briefcase],
-                ["Archived", stats.archived, Shield],
-              ].map(([label, value, Icon], index) => (
-                <Card key={index} className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between gap-4">
-                      <div><div className="text-xs uppercase tracking-[0.18em] text-white/35">{label}</div><div className="mt-2 text-3xl font-semibold text-white">{loading ? "—" : value}</div></div>
-                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/70"><Icon className="h-5 w-5" /></div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+  <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+    <Card className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+              Total Employees
             </div>
-          </section>
+            <div className="mt-2 text-3xl font-semibold text-white">
+              {loading ? "—" : stats.total}
+            </div>
+          </div>
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/70">
+            <Users className="h-5 w-5" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <Card className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+              Active
+            </div>
+            <div className="mt-2 text-3xl font-semibold text-white">
+              {loading ? "—" : stats.active}
+            </div>
+          </div>
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/70">
+            <User2 className="h-5 w-5" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <Card className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+              Inactive
+            </div>
+            <div className="mt-2 text-3xl font-semibold text-white">
+              {loading ? "—" : stats.inactive}
+            </div>
+          </div>
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/70">
+            <Briefcase className="h-5 w-5" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <Card className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+              Archived
+            </div>
+            <div className="mt-2 text-3xl font-semibold text-white">
+              {loading ? "—" : stats.archived}
+            </div>
+          </div>
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/70">
+            <Shield className="h-5 w-5" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  </div>
+</section>
 
           <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
             <CardHeader className="border-b border-white/8 pb-4">

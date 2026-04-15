@@ -1,10 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-type LogActivityInput = {
-  projectId?: string | null;
-  taskId?: string | null;
-  actionType: string;
-  entityType:
+type ActivityEntityType =
   | "project"
   | "task"
   | "file"
@@ -29,6 +25,12 @@ type LogActivityInput = {
   | "finance_attachment"
   | "finance_comment"
   | "finance_setting";
+
+type LogActivityInput = {
+  projectId?: string | null;
+  taskId?: string | null;
+  actionType: string;
+  entityType: ActivityEntityType;
   entityId?: string | null;
   message: string;
 };
@@ -46,7 +48,7 @@ export async function logActivity({
       data: { user },
     } = await supabase.auth.getUser();
 
-    const userId = user?.id || null;
+    const userId = user?.id ?? null;
 
     const { error } = await supabase.from("activity_logs").insert({
       project_id: projectId,
@@ -61,7 +63,7 @@ export async function logActivity({
     if (error) {
       console.error("Activity log insert error:", error);
     }
-  } catch (err) {
-    console.error("Activity logger error:", err);
+  } catch (error) {
+    console.error("Activity logger error:", error);
   }
 }

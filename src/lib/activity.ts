@@ -24,6 +24,8 @@ type LogActivityInput = {
   | "finance_expense_category"
   | "finance_revenue_category"
   | "finance_item"
+  | "finance_currency"
+  | "finance_exchange_rate"
   | "finance_attachment"
   | "finance_comment"
   | "finance_setting";

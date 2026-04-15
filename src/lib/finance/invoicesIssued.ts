@@ -2,23 +2,40 @@ import { supabase } from "@/lib/supabase";
 import type {
   FinanceInvoiceIssued,
   FinanceInvoiceIssuedLineItem,
+  FinanceInvoiceIssuedPaymentStatus,
   FinanceInvoiceIssuedStatus,
 } from "./types";
 
 const INVOICES_TABLE = "finance_invoices_issued";
 const LINE_ITEMS_TABLE = "finance_invoice_issued_line_items";
 
+export type FinanceIssuedInvoiceListRow = {
+  id: string;
+  invoice_number: string;
+  status: FinanceInvoiceIssuedStatus;
+  payment_status: FinanceInvoiceIssuedPaymentStatus;
+  approval_status: string | null;
+  client_id: string;
+  client_name: string;
+  issue_date: string;
+  due_date: string;
+  currency_code: string | null;
+  total_amount: number;
+  paid_amount: number;
+  balance_due: number;
+  created_at: string;
+  project_id: string | null;
+};
+
 export const FINANCE_ISSUED_INVOICE_STATUSES: FinanceInvoiceIssuedStatus[] = [
   "draft",
-  "pending_approval_ready",
-  "approved_ready",
-  "sent",
-  "partially_paid",
-  "paid",
-  "overdue",
+  "issued",
   "void",
   "canceled",
 ];
+
+export const FINANCE_ISSUED_INVOICE_PAYMENT_STATUSES: FinanceInvoiceIssuedPaymentStatus[] =
+  ["unpaid", "partial", "paid"];
 
 export function normalizeIssuedInvoiceStatus(
   status: string | null | undefined
@@ -32,10 +49,82 @@ export function normalizeIssuedInvoiceStatus(
     : "draft";
 }
 
+export function normalizeIssuedInvoicePaymentStatus(
+  status: string | null | undefined
+): FinanceInvoiceIssuedPaymentStatus {
+  if (!status) return "unpaid";
+
+  return FINANCE_ISSUED_INVOICE_PAYMENT_STATUSES.includes(
+    status as FinanceInvoiceIssuedPaymentStatus
+  )
+    ? (status as FinanceInvoiceIssuedPaymentStatus)
+    : "unpaid";
+}
+
 export function canEditIssuedInvoiceStructure(
   invoice: Pick<FinanceInvoiceIssued, "status">
 ) {
   return invoice.status === "draft";
+}
+
+export function formatFinanceMoney(
+  value: number | string | null | undefined,
+  currencyCode = "USD"
+) {
+  const amount = Number(value ?? 0);
+
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: currencyCode || "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(amount) ? amount : 0);
+}
+
+export function formatFinanceDate(value: string | null | undefined) {
+  if (!value) return "—";
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+export function getIssuedInvoiceStatusLabel(status: FinanceInvoiceIssuedStatus) {
+  switch (status) {
+    case "draft":
+      return "Draft";
+    case "issued":
+      return "Issued";
+    case "void":
+      return "Void";
+    case "canceled":
+      return "Canceled";
+    default:
+      return status;
+  }
+}
+
+export function getIssuedInvoicePaymentStatusLabel(
+  status: FinanceInvoiceIssuedPaymentStatus
+) {
+  switch (status) {
+    case "unpaid":
+      return "Unpaid";
+    case "partial":
+      return "Partial";
+    case "paid":
+      return "Paid";
+    default:
+      return status;
+  }
 }
 
 export async function getIssuedInvoices(): Promise<FinanceInvoiceIssued[]> {
@@ -49,6 +138,61 @@ export async function getIssuedInvoices(): Promise<FinanceInvoiceIssued[]> {
   return (data ?? []).map((row) => ({
     ...row,
     status: normalizeIssuedInvoiceStatus(row.status),
+    payment_status: normalizeIssuedInvoicePaymentStatus(row.payment_status),
+  })) as FinanceInvoiceIssued[];
+}
+
+export async function getIssuedInvoicesList(): Promise<
+  FinanceIssuedInvoiceListRow[]
+> {
+  const { data, error } = await supabase
+    .from(INVOICES_TABLE)
+    .select(
+      `
+        id,
+        invoice_number,
+        status,
+        payment_status,
+        approval_status,
+        client_id,
+        issue_date,
+        due_date,
+        currency_code,
+        total_amount,
+        paid_amount,
+        balance_due,
+        created_at,
+        project_id,
+        finance_clients (
+          name,
+          legal_name
+        )
+      `
+    )
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    invoice_number: row.invoice_number,
+    status: normalizeIssuedInvoiceStatus(row.status),
+    payment_status: normalizeIssuedInvoicePaymentStatus(row.payment_status),
+    approval_status: row.approval_status ?? null,
+    client_id: row.client_id,
+    client_name:
+      row.client_name_snapshot ||
+      row.finance_clients?.legal_name ||
+      row.finance_clients?.name ||
+      "Unknown client",
+    issue_date: row.issue_date,
+    due_date: row.due_date,
+    currency_code: row.currency_code ?? "USD",
+    total_amount: Number(row.total_amount ?? 0),
+    paid_amount: Number(row.paid_amount ?? 0),
+    balance_due: Number(row.balance_due ?? 0),
+    created_at: row.created_at,
+    project_id: row.project_id ?? null,
   }));
 }
 
@@ -73,6 +217,9 @@ export async function getIssuedInvoiceById(id: string) {
     invoice: {
       ...invoice,
       status: normalizeIssuedInvoiceStatus(invoice.status),
+      payment_status: normalizeIssuedInvoicePaymentStatus(
+        invoice.payment_status
+      ),
     } as FinanceInvoiceIssued,
     lineItems: (lineItems ?? []) as FinanceInvoiceIssuedLineItem[],
   };

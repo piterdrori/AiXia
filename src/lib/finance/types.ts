@@ -118,6 +118,37 @@ export interface FinanceRevenueCategory extends FinanceBaseRecord {
   description: string | null;
 }
 
+export interface FinanceCurrency {
+  id: string;
+  currency_code: string;
+  currency_name: string;
+  currency_symbol: string | null;
+  decimal_places: number;
+  is_base_currency: boolean;
+  status: FinanceRecordStatus;
+  notes: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  updated_by: string | null;
+}
+
+export interface FinanceExchangeRate {
+  id: string;
+  from_currency_code: string;
+  to_currency_code: string;
+  exchange_rate: string;
+  effective_date: string;
+  status: FinanceRecordStatus;
+  notes: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  updated_by: string | null;
+}
+
 export interface FinanceInvoiceIssued
   extends FinanceBaseRecord<FinanceInvoiceIssuedStatus> {
   invoice_number: string;

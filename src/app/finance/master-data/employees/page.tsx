@@ -202,7 +202,7 @@ export default function FinanceMasterDataEmployeesPage() {
 
       if (error) throw error;
 
-      setEmployees((data || []) as ProfileRow[]);
+      setEmployees(((data || []) as unknown as ProfileRow[]) ?? []);
     } catch (error) {
       console.error("Failed to load finance employees:", error);
       setEmployees([]);

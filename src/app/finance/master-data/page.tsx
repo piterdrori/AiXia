@@ -729,11 +729,11 @@ export default function FinanceMasterDataPage() {
         statusLabel: "Linked",
         lastUpdatedLabel: "Live",
       },
-      {
+            {
         key: "rates",
         title: "Rates / Currency",
         description: "Live currency reference, exchange source, and rate controls.",
-        route: "/finance/rates",
+        route: "/finance/master-data/currencies",
         icon: Banknote,
         count: data.counts.currencies,
         statusLabel: "Source",
@@ -971,9 +971,9 @@ export default function FinanceMasterDataPage() {
                 </div>
               </div>
 
-              <Button
+             <Button
                 variant="outline"
-                onClick={() => navigate("/finance/rates")}
+                onClick={() => navigate("/finance/master-data/currencies")}
                 className="h-11 w-full rounded-[18px] border-white/10 bg-black/15 text-white hover:bg-white/10"
               >
                 Open Rates / Currency

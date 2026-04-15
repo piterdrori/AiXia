@@ -100,7 +100,15 @@ const EMPTY_RATE_FORM: ExchangeRateFormState = {
   notes: "",
 };
 
-const CURRENCY_PRESETS = [
+type CurrencyPreset = {
+  code: string;
+  name: string;
+  symbol: string;
+  decimal_places: string;
+  aliases: string[];
+};
+
+const CURRENCY_PRESETS: CurrencyPreset[] = [
   {
     code: "USD",
     name: "US Dollar",
@@ -171,7 +179,7 @@ const CURRENCY_PRESETS = [
     decimal_places: "2",
     aliases: ["cad", "canadian dollar"],
   },
-] as const;
+];
 
 function formatDateLabel(value: string) {
   const parsed = new Date(value);

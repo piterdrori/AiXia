@@ -59,6 +59,8 @@ import FinanceExpenseCategoriesPage from "@/app/finance/master-data/expense-cate
 import FinanceRevenueCategoriesPage from "@/app/finance/master-data/revenue-categories/page";
 import FinanceItemsPage from "@/app/finance/master-data/items/page";
 import FinanceMasterDataCurrenciesPage from "@/app/finance/master-data/currencies/page";
+import FinanceProjectsPage from "@/app/finance/master-data/projects/page";
+import FinanceEmployeesPage from "@/app/finance/master-data/employees/page";
 import FinanceMasterDataPage from "@/app/finance/master-data/page";
 import FinanceMasterDataClientCreatePage from "@/app/finance/master-data/clients/new/page";
 import FinanceMasterDataClientDetailPage from "@/app/finance/master-data/clients/[id]/page";
@@ -787,6 +789,28 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceMasterDataPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+      <Route
+  path="/finance/master-data/projects"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceProjectsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/master-data/employees"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceEmployeesPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

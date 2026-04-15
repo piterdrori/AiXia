@@ -19,13 +19,32 @@ type ClientOption = {
   legal_name: string | null;
   company_email: string | null;
   personnel_email: string | null;
+  company_phone: string | null;
+  personnel_phone: string | null;
   currency_code: string | null;
   payment_terms_days: number | null;
+  payment_terms_id: string | null;
+};
+
+type CompanyOption = {
+  id: string;
+  name: string;
+  legal_name: string | null;
+  company_email: string | null;
+  personnel_email: string | null;
+  company_phone: string | null;
+  personnel_phone: string | null;
 };
 
 type ProjectOption = {
   id: string;
   name: string;
+};
+
+type TaskOption = {
+  id: string;
+  title: string;
+  project_id: string | null;
 };
 
 type InvoiceItemRow = {
@@ -60,20 +79,32 @@ function formatMoney(value: number, currencyCode = "USD") {
   }).format(value);
 }
 
+function buildDraftInvoiceNumber() {
+  return `INV-DRAFT-${Date.now()}`;
+}
+
 export default function FinanceNewInvoicePage() {
   const navigate = useNavigate();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+
   const [clients, setClients] = useState<ClientOption[]>([]);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [tasks, setTasks] = useState<TaskOption[]>([]);
 
   const [clientId, setClientId] = useState("");
+  const [companyId, setCompanyId] = useState("");
   const [projectId, setProjectId] = useState("");
-  const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
+  const [taskId, setTaskId] = useState("");
+
+  const [issueDate, setIssueDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
   const [dueDate, setDueDate] = useState("");
-  const [notes, setNotes] = useState("");
   const [currencyCode, setCurrencyCode] = useState("USD");
+  const [notes, setNotes] = useState("");
   const [rows, setRows] = useState<InvoiceItemRow[]>([createRow()]);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -82,8 +113,23 @@ export default function FinanceNewInvoicePage() {
     [clientId, clients]
   );
 
+  const selectedCompany = useMemo(
+    () => companies.find((company) => company.id === companyId) ?? null,
+    [companies, companyId]
+  );
+
+  const filteredTasks = useMemo(() => {
+    if (!projectId) {
+      return tasks;
+    }
+
+    return tasks.filter((task) => task.project_id === projectId);
+  }, [projectId, tasks]);
+
   useEffect(() => {
-    if (!selectedClient) return;
+    if (!selectedClient) {
+      return;
+    }
 
     setCurrencyCode(selectedClient.currency_code || "USD");
 
@@ -93,38 +139,75 @@ export default function FinanceNewInvoicePage() {
       base.setDate(base.getDate() + days);
       setDueDate(base.toISOString().slice(0, 10));
     }
-  }, [selectedClient, issueDate, dueDate]);
+  }, [dueDate, issueDate, selectedClient]);
+
+  useEffect(() => {
+    if (!projectId) {
+      setTaskId("");
+      return;
+    }
+
+    const matchingTaskStillValid = filteredTasks.some((task) => task.id === taskId);
+
+    if (!matchingTaskStillValid) {
+      setTaskId("");
+    }
+  }, [filteredTasks, projectId, taskId]);
 
   const loadFormData = useCallback(async () => {
     setIsLoading(true);
+    setErrorMessage("");
 
     try {
-      const [clientsResult, projectsResult] = await Promise.all([
-        supabase
-          .from("finance_clients")
-          .select(
-            "id, name, legal_name, company_email, personnel_email, currency_code, payment_terms_days"
-          )
-          .eq("status", "active")
-          .order("name", { ascending: true }),
-        supabase
-          .from("projects")
-          .select("id, name")
-          .order("name", { ascending: true }),
-      ]);
+      const [clientsResult, companiesResult, projectsResult, tasksResult] =
+        await Promise.all([
+          supabase
+            .from("finance_clients")
+            .select(
+              "id, name, legal_name, company_email, personnel_email, company_phone, personnel_phone, currency_code, payment_terms_days, payment_terms_id"
+            )
+            .eq("status", "active")
+            .order("name", { ascending: true }),
+
+          supabase
+            .from("finance_companies")
+            .select(
+              "id, name, legal_name, company_email, personnel_email, company_phone, personnel_phone"
+            )
+            .eq("status", "active")
+            .order("name", { ascending: true }),
+
+          supabase
+            .from("projects")
+            .select("id, name")
+            .order("name", { ascending: true }),
+
+          supabase
+            .from("tasks")
+            .select("id, title, project_id")
+            .order("created_at", { ascending: false }),
+        ]);
 
       if (clientsResult.error) throw clientsResult.error;
+      if (companiesResult.error) throw companiesResult.error;
       if (projectsResult.error) throw projectsResult.error;
+      if (tasksResult.error) throw tasksResult.error;
 
       setClients((clientsResult.data || []) as ClientOption[]);
+      setCompanies((companiesResult.data || []) as CompanyOption[]);
       setProjects((projectsResult.data || []) as ProjectOption[]);
+      setTasks((tasksResult.data || []) as TaskOption[]);
+
+      if (!companyId && (companiesResult.data || []).length === 1) {
+        setCompanyId(companiesResult.data![0].id);
+      }
     } catch (error) {
       console.error("Failed to load invoice form data:", error);
       setErrorMessage("Failed to load invoice form data.");
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [companyId]);
 
   useEffect(() => {
     void loadFormData();
@@ -181,6 +264,11 @@ export default function FinanceNewInvoicePage() {
       return;
     }
 
+    if (!companyId) {
+      setErrorMessage("Select an issuing company.");
+      return;
+    }
+
     const validRows = rows.filter(
       (row) =>
         row.description.trim() &&
@@ -207,8 +295,11 @@ export default function FinanceNewInvoicePage() {
       const { data: createdInvoice, error: invoiceError } = await supabase
         .from("finance_invoices_issued")
         .insert({
-          invoice_number: `INV-DRAFT-${Date.now()}`,
+          invoice_number: buildDraftInvoiceNumber(),
           client_id: clientId,
+          company_id: companyId,
+          project_id: projectId || null,
+          task_id: taskId || null,
           issue_date: issueDate,
           due_date: dueDate || issueDate,
           status: "draft",
@@ -220,12 +311,13 @@ export default function FinanceNewInvoicePage() {
           total_amount: 0,
           paid_amount: 0,
           balance_due: 0,
-          project_id: projectId || null,
           notes: notes || null,
           currency_code: currencyCode || "USD",
           exchange_rate: 1,
           posted_to_ledger: false,
-          metadata: {},
+          metadata: {
+            creation_mode: "manual_draft",
+          },
           created_by: user.id,
           updated_by: user.id,
         })
@@ -264,6 +356,7 @@ export default function FinanceNewInvoicePage() {
     }
   }, [
     clientId,
+    companyId,
     currencyCode,
     dueDate,
     issueDate,
@@ -271,6 +364,7 @@ export default function FinanceNewInvoicePage() {
     notes,
     projectId,
     rows,
+    taskId,
   ]);
 
   return (
@@ -295,8 +389,8 @@ export default function FinanceNewInvoicePage() {
                     Create Invoice Draft
                   </h1>
                   <div className="text-sm text-white/45">
-                    Build a draft from master data, then issue it later from the
-                    invoice detail page.
+                    Build a draft from master data, save it, then issue it later
+                    from the invoice detail page.
                   </div>
                 </div>
               </div>
@@ -339,11 +433,27 @@ export default function FinanceNewInvoicePage() {
               <CardHeader className="border-b border-white/8 pb-4">
                 <CardTitle className="text-white">Invoice Header</CardTitle>
                 <CardDescription className="text-white/45">
-                  Select master data sources and set the commercial header.
+                  Select the commercial and operational sources for the invoice.
                 </CardDescription>
               </CardHeader>
 
               <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Issuing Company</div>
+                  <select
+                    value={companyId}
+                    onChange={(event) => setCompanyId(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                  >
+                    <option value="">Select company</option>
+                    {companies.map((company) => (
+                      <option key={company.id} value={company.id}>
+                        {company.legal_name || company.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
                 <label className="space-y-2">
                   <div className="text-sm text-white/70">Client</div>
                   <select
@@ -377,6 +487,22 @@ export default function FinanceNewInvoicePage() {
                 </label>
 
                 <label className="space-y-2">
+                  <div className="text-sm text-white/70">Task</div>
+                  <select
+                    value={taskId}
+                    onChange={(event) => setTaskId(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                  >
+                    <option value="">No task</option>
+                    {filteredTasks.map((task) => (
+                      <option key={task.id} value={task.id}>
+                        {task.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-2">
                   <div className="text-sm text-white/70">Issue Date</div>
                   <input
                     type="date"
@@ -400,7 +526,9 @@ export default function FinanceNewInvoicePage() {
                   <div className="text-sm text-white/70">Currency</div>
                   <input
                     value={currencyCode}
-                    onChange={(event) => setCurrencyCode(event.target.value.toUpperCase())}
+                    onChange={(event) =>
+                      setCurrencyCode(event.target.value.toUpperCase())
+                    }
                     className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
                   />
                 </label>
@@ -410,6 +538,24 @@ export default function FinanceNewInvoicePage() {
                   <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
                     {selectedClient?.company_email ||
                       selectedClient?.personnel_email ||
+                      "—"}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-sm text-white/70">Client Phone</div>
+                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
+                    {selectedClient?.company_phone ||
+                      selectedClient?.personnel_phone ||
+                      "—"}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-sm text-white/70">Company Email</div>
+                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
+                    {selectedCompany?.company_email ||
+                      selectedCompany?.personnel_email ||
                       "—"}
                   </div>
                 </div>
@@ -446,7 +592,8 @@ export default function FinanceNewInvoicePage() {
               <CardContent className="space-y-4 p-5">
                 {rows.map((row, index) => {
                   const rowTotal = Math.max(
-                    toNumber(row.quantity) * toNumber(row.unitPrice) - toNumber(row.discount),
+                    toNumber(row.quantity) * toNumber(row.unitPrice) -
+                      toNumber(row.discount),
                     0
                   );
 
@@ -476,7 +623,11 @@ export default function FinanceNewInvoicePage() {
                           <input
                             value={row.description}
                             onChange={(event) =>
-                              updateRow(row.localId, "description", event.target.value)
+                              updateRow(
+                                row.localId,
+                                "description",
+                                event.target.value
+                              )
                             }
                             className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
                           />
@@ -541,6 +692,24 @@ export default function FinanceNewInvoicePage() {
               <CardContent className="space-y-3 p-5">
                 <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Issuing Company
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {selectedCompany?.legal_name || selectedCompany?.name || "—"}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Client
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {selectedClient?.legal_name || selectedClient?.name || "—"}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Subtotal
                   </div>
                   <div className="mt-2 text-lg font-semibold text-white">
@@ -590,6 +759,7 @@ export default function FinanceNewInvoicePage() {
 
               <CardContent className="space-y-3 p-5 text-sm text-white/55">
                 <div>• This page creates a draft only.</div>
+                <div>• Real invoice number is finalized on issue.</div>
                 <div>• Issue action happens later from the detail page.</div>
                 <div>• Master data supplies the source values.</div>
                 <div>• Invoice snapshot is frozen when issued.</div>

@@ -21,14 +21,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
+
 import {
   formatFinanceDate,
   formatFinanceMoney,
+  getInvoiceDisplayState,
+  getInvoicePostingStatus,
   getIssuedInvoicePaymentStatusLabel,
   getIssuedInvoiceStatusLabel,
   getIssuedInvoicesList,
+  isInvoiceOverdue,
   type FinanceIssuedInvoiceListRow,
+  type InvoicePostingStatus,
 } from "@/lib/finance/invoicesIssued";
+
 import {
   getEffectivePermissions,
   type Permission,
@@ -155,6 +161,22 @@ function getPaymentStatusBadgeClasses(
   }
 }
 
+function getPostingStatusBadgeClasses(status: InvoicePostingStatus) {
+  if (status === "posted") {
+    return "border-violet-400/20 bg-violet-500/10 text-violet-200";
+  }
+
+  return "border-white/10 bg-white/10 text-white/75";
+}
+
+function getPostingStatusLabel(status: InvoicePostingStatus) {
+  return status === "posted" ? "Posted" : "Not posted";
+}
+
+function getOverdueBadgeClasses() {
+  return "border-rose-400/20 bg-rose-500/10 text-rose-200";
+}
+
 export default function FinanceInvoicesPage() {
   const navigate = useNavigate();
 
@@ -253,11 +275,16 @@ export default function FinanceInvoicesPage() {
     }
 
     return invoices.filter((invoice) => {
+      const postingStatus = getInvoicePostingStatus(invoice);
+      const overdue = isInvoiceOverdue(invoice);
+
       return (
         invoice.invoice_number.toLowerCase().includes(normalizedSearch) ||
         invoice.client_name.toLowerCase().includes(normalizedSearch) ||
         invoice.status.toLowerCase().includes(normalizedSearch) ||
-        invoice.payment_status.toLowerCase().includes(normalizedSearch)
+        invoice.payment_status.toLowerCase().includes(normalizedSearch) ||
+        postingStatus.toLowerCase().includes(normalizedSearch) ||
+        (overdue ? "overdue".includes(normalizedSearch) : false)
       );
     });
   }, [invoices, search]);
@@ -438,77 +465,99 @@ export default function FinanceInvoicesPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {filteredInvoices.map((invoice) => (
-                    <button
-                      key={invoice.id}
-                      type="button"
-                      onClick={() =>
-                        navigate(`/finance/transactions/invoices/${invoice.id}`)
-                      }
-                      className="group flex w-full items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="text-base font-semibold text-white">
-                            {invoice.invoice_number}
+                                    {filteredInvoices.map((invoice) => {
+                    const displayState = getInvoiceDisplayState(invoice);
+
+                    return (
+                      <button
+                        key={invoice.id}
+                        type="button"
+                        onClick={() =>
+                          navigate(`/finance/transactions/invoices/${invoice.id}`)
+                        }
+                        className="group flex w-full items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-base font-semibold text-white">
+                              {invoice.invoice_number}
+                            </div>
+
+                            <Badge
+                              className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getDocumentStatusBadgeClasses(
+                                invoice.status
+                              )}`}
+                            >
+                              {getIssuedInvoiceStatusLabel(invoice.status)}
+                            </Badge>
+
+                            <Badge
+                              className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getPaymentStatusBadgeClasses(
+                                invoice.payment_status
+                              )}`}
+                            >
+                              {getIssuedInvoicePaymentStatusLabel(
+                                invoice.payment_status
+                              )}
+                            </Badge>
+
+                            <Badge
+                              className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getPostingStatusBadgeClasses(
+                                displayState.postingStatus
+                              )}`}
+                            >
+                              {getPostingStatusLabel(displayState.postingStatus)}
+                            </Badge>
+
+                            {displayState.isOverdue ? (
+                              <Badge
+                                className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getOverdueBadgeClasses()}`}
+                              >
+                                Overdue
+                              </Badge>
+                            ) : null}
                           </div>
 
-                          <Badge
-                            className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getDocumentStatusBadgeClasses(
-                              invoice.status
-                            )}`}
-                          >
-                            {getIssuedInvoiceStatusLabel(invoice.status)}
-                          </Badge>
-
-                          <Badge
-                            className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getPaymentStatusBadgeClasses(
-                              invoice.payment_status
-                            )}`}
-                          >
-                            {getIssuedInvoicePaymentStatusLabel(invoice.payment_status)}
-                          </Badge>
-                        </div>
-
-                        <div className="mt-2 text-sm text-white/70">
-                          {invoice.client_name}
-                        </div>
-
-                        <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-white/45 md:grid-cols-5">
-                          <div>Issued: {formatFinanceDate(invoice.issue_date)}</div>
-                          <div>Due: {formatFinanceDate(invoice.due_date)}</div>
-                          <div>
-                            Total:{" "}
-                            {formatFinanceMoney(
-                              invoice.total_amount,
-                              invoice.currency_code ?? "USD"
-                            )}
+                          <div className="mt-2 text-sm text-white/70">
+                            {invoice.client_name}
                           </div>
-                          <div>
-                            Paid:{" "}
-                            {formatFinanceMoney(
-                              invoice.paid_amount,
-                              invoice.currency_code ?? "USD"
-                            )}
-                          </div>
-                          <div>
-                            Balance:{" "}
-                            {formatFinanceMoney(
-                              invoice.balance_due,
-                              invoice.currency_code ?? "USD"
-                            )}
+
+                          <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-white/45 md:grid-cols-5">
+                            <div>Issued: {formatFinanceDate(invoice.issue_date)}</div>
+                            <div>Due: {formatFinanceDate(invoice.due_date)}</div>
+                            <div>
+                              Total:{" "}
+                              {formatFinanceMoney(
+                                invoice.total_amount,
+                                invoice.currency_code ?? "USD"
+                              )}
+                            </div>
+                            <div>
+                              Paid:{" "}
+                              {formatFinanceMoney(
+                                invoice.paid_amount,
+                                invoice.currency_code ?? "USD"
+                              )}
+                            </div>
+                            <div>
+                              Balance:{" "}
+                              {formatFinanceMoney(
+                                invoice.balance_due,
+                                invoice.currency_code ?? "USD"
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="flex shrink-0 items-center gap-3 pl-2">
-                        <div className="hidden text-xs text-white/30 transition-colors duration-200 group-hover:text-white/55 sm:block">
-                          {formatFinanceDate(invoice.created_at)}
+                        <div className="flex shrink-0 items-center gap-3 pl-2">
+                          <div className="hidden text-xs text-white/30 transition-colors duration-200 group-hover:text-white/55 sm:block">
+                            {formatFinanceDate(invoice.created_at)}
+                          </div>
+                          <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
                         </div>
-                        <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

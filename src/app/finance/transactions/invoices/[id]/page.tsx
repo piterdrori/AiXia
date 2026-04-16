@@ -314,7 +314,6 @@ export default function FinanceInvoiceDetailPage() {
   }, [lineItemsDraft]);
 
   const canEditDraft = invoice?.status === "draft";
-  const canEditIssued = invoice?.status === "issued";
   const canOpenSectionEdit = !!invoice && invoice.status !== "canceled";
   const canArchive = !!invoice && invoice.status !== "canceled";
   const canHardDelete = !!invoice && invoice.status === "canceled";

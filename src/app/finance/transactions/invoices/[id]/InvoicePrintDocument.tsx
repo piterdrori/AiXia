@@ -6,7 +6,7 @@ type Props = {
   financialSummary: any;
   payments?: any[];
   project?: any;
-  task?: any;
+  task?: any; // Keep in type for future use, but don't destructure if not needed
 };
 
 export default function InvoicePrintDocument({
@@ -15,7 +15,7 @@ export default function InvoicePrintDocument({
   financialSummary,
   payments = [],
   project,
-  task,
+  // task - removed from destructuring to fix build error
 }: Props) {
   const currency = invoice?.currency_code || "USD";
   

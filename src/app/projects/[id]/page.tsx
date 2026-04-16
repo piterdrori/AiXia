@@ -560,21 +560,40 @@ useEffect(() => {
 
     try {
       const session = await supabase.auth.getSession();
-const user = session.data.session?.user;
+      const user = session.data.session?.user;
 
       if (!user) {
         navigate("/login");
         return;
       }
 
-      const existingUserIds = projectMembers.map((member) => member.user_id);
-      const selectedSet = new Set(selectedTeamMembers);
+      const { data: latestMembersData, error: latestMembersError } = await supabase
+        .from("project_members")
+        .select("id, project_id, user_id, role, created_at")
+        .eq("project_id", id);
 
-      const toInsert = selectedTeamMembers.filter(
+      if (latestMembersError) {
+        setError(
+          latestMembersError.message ||
+            t(
+              "projects.failedToLoadLatestTeamMembers",
+              "Failed to load latest team members."
+            )
+        );
+        return;
+      }
+
+      const latestMembers = (latestMembersData || []) as ProjectMemberRow[];
+      const existingUserIds = latestMembers.map((member) => member.user_id);
+
+      const normalizedSelectedTeamMembers = Array.from(new Set(selectedTeamMembers));
+      const selectedSet = new Set(normalizedSelectedTeamMembers);
+
+      const toInsert = normalizedSelectedTeamMembers.filter(
         (userId) => !existingUserIds.includes(userId)
       );
 
-      const toDelete = projectMembers.filter(
+      const toDelete = latestMembers.filter(
         (member) => !selectedSet.has(member.user_id)
       );
 
@@ -587,10 +606,16 @@ const user = session.data.session?.user;
 
         const { error: insertError } = await supabase
           .from("project_members")
-          .insert(rows);
+          .upsert(rows, {
+            onConflict: "project_id,user_id",
+            ignoreDuplicates: true,
+          });
 
         if (insertError) {
-          setError(insertError.message || t("projects.failedToAddTeamMembers", "Failed to add team members."));
+          setError(
+            insertError.message ||
+              t("projects.failedToAddTeamMembers", "Failed to add team members.")
+          );
           return;
         }
 
@@ -610,7 +635,10 @@ const user = session.data.session?.user;
             actorUserId: user.id,
             type: "PROJECT_UPDATE",
             title: t("projects.addedToProject", "Added to Project"),
-            message: t("projects.youWereAddedToProject", `You were added to project "${project.name}"`),
+            message: t(
+              "projects.youWereAddedToProject",
+              `You were added to project "${project.name}"`
+            ),
             link: `/projects/${project.id}`,
             entityType: "project",
             entityId: project.id,
@@ -627,7 +655,10 @@ const user = session.data.session?.user;
           .in("id", idsToDelete);
 
         if (deleteError) {
-          setError(deleteError.message || t("projects.failedToRemoveTeamMembers", "Failed to remove team members."));
+          setError(
+            deleteError.message ||
+              t("projects.failedToRemoveTeamMembers", "Failed to remove team members.")
+          );
           return;
         }
 
@@ -640,6 +671,7 @@ const user = session.data.session?.user;
         });
       }
 
+      await loadProjectPage("refresh");
       setIsTeamDialogOpen(false);
     } catch (err) {
       console.error("Save team members error:", err);

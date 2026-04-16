@@ -1144,7 +1144,7 @@ export default function FinanceInvoiceDetailPage() {
             updated_by: user.id,
           })
           .eq("id", row.id)
-          .eq("invoice_issued_id", id);
+          .eq("invoice_id", id);
 
         if (lineError) throw lineError;
       }
@@ -1312,7 +1312,7 @@ export default function FinanceInvoiceDetailPage() {
             updated_by: user.id,
           })
           .eq("id", row.id)
-          .eq("invoice_issued_id", id);
+          .eq("invoice_id", id);
 
         if (lineError) throw lineError;
       }

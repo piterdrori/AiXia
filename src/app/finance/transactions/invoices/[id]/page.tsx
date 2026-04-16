@@ -419,6 +419,45 @@ export default function FinanceInvoiceDetailPage() {
     []
   );
 
+  const handleSaveIssuedOverviewChanges = useCallback(async () => {
+    if (!invoice || !id || invoice.status !== "issued") return;
+
+    setIsSavingDraft(true);
+    setError("");
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.id) {
+        throw new Error("User not authenticated");
+      }
+
+      const { error: invoiceError } = await supabase
+        .from("finance_invoices_issued")
+        .update({
+          issue_date: issueDateDraft,
+          due_date: dueDateDraft,
+          notes: notesDraft || null,
+          updated_by: user.id,
+        })
+        .eq("id", id)
+        .eq("status", "issued");
+
+      if (invoiceError) throw invoiceError;
+
+      setEditingOverview(false);
+      await loadInvoice(true);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to save issued invoice overview changes.");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }, [id, invoice, issueDateDraft, dueDateDraft, notesDraft, loadInvoice]);
+
+  
   const handleSaveDraftChanges = useCallback(async () => {
     if (!invoice || !id || !canEditDraft) return;
 
@@ -599,21 +638,6 @@ export default function FinanceInvoiceDetailPage() {
                   </Button>
                 ) : null}
 
-                {canEditIssued ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setEditingOverview((current) => !current);
-                      setEditingParties(false);
-                      setEditingLines(false);
-                    }}
-                    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                  >
-                    <SquarePen className="mr-2 h-4 w-4" />
-                    Edit Issued
-                  </Button>
-                ) : null}
-
                 {invoice.status === "draft" ? (
                   <Button
                     onClick={() => void handleIssue()}
@@ -663,16 +687,33 @@ export default function FinanceInvoiceDetailPage() {
                     </CardDescription>
                   </div>
 
-                  {canOpenSectionEdit ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => setEditingOverview((current) => !current)}
-                      className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-                    >
-                      <SquarePen className="mr-2 h-4 w-4" />
-                      Edit
-                    </Button>
-                  ) : null}
+                  <div className="flex items-center gap-2">
+                    {editingOverview ? (
+                      <Button
+                        onClick={() =>
+                          canEditDraft
+                            ? void handleSaveDraftChanges()
+                            : void handleSaveIssuedOverviewChanges()
+                        }
+                        disabled={isSavingDraft}
+                        className="h-9 rounded-2xl px-3"
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        {isSavingDraft ? "Saving..." : "Save"}
+                      </Button>
+                    ) : null}
+
+                    {canOpenSectionEdit ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => setEditingOverview((current) => !current)}
+                        className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+                      >
+                        <SquarePen className="mr-2 h-4 w-4" />
+                        {editingOverview ? "Close" : "Edit"}
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               </CardHeader>
 

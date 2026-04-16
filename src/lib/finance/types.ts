@@ -208,7 +208,7 @@ export interface FinancePaymentReceived
   payment_date: string;
   payment_method_id: string | null;
   client_id: string;
-  invoice_issued_id: string | null;
+  invoice_id: string | null;
   bank_account_id: string | null;
 }
 

@@ -71,7 +71,7 @@ export default function InvoicePrintDocument({
           fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
           position: "relative", overflow: "hidden",
         }}>
-          {/* Header Background with Curve - Exactly like reference */}
+          {/* Header Background with Curve */}
           <div style={{
             position: "absolute", top: 0, left: 0, right: 0, height: "85mm",
             background: "linear-gradient(135deg, #1f2937 0%, #111827 100%)",
@@ -84,14 +84,11 @@ export default function InvoicePrintDocument({
             
             {/* Top Row: Logo Left, Title Right */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6mm" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "3mm" }}>
-                <img
-                  src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
-                  alt="AiXia"
-                  style={{ height: "8mm", width: "auto", filter: "brightness(0) invert(1)" }}
-                />
-                <span style={{ fontSize: "12pt", fontWeight: 700, letterSpacing: "0.05em" }}>AiXia</span>
-              </div>
+              <img
+                src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
+                alt="AiXia"
+                style={{ height: "10mm", width: "auto", filter: "brightness(0) invert(1)" }}
+              />
               
               <div style={{ 
                 fontSize: "28pt", fontWeight: 300, letterSpacing: "0.1em", 
@@ -101,7 +98,7 @@ export default function InvoicePrintDocument({
               </div>
             </div>
 
-            {/* Header Info Grid - Company Left, Invoice Meta Right */}
+            {/* Header Info Grid */}
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8mm" }}>
               {/* Company Info */}
               <div style={{ maxWidth: "70mm" }}>
@@ -117,7 +114,7 @@ export default function InvoicePrintDocument({
                 </div>
               </div>
 
-              {/* Invoice Meta - Right aligned */}
+              {/* Invoice Meta */}
               <div style={{ textAlign: "right", fontSize: "8.5pt", lineHeight: 1.8 }}>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "3mm" }}>
                   <span style={{ opacity: 0.7 }}>Invoice No :</span>
@@ -142,7 +139,7 @@ export default function InvoicePrintDocument({
               </div>
             </div>
 
-            {/* Status Badges Below Header */}
+            {/* Status Badges */}
             <div style={{ display: "flex", gap: "2mm", marginBottom: "4mm" }}>
               <span style={{
                 background: invoice?.status === 'draft' ? 'rgba(255,255,255,0.2)' : invoice?.status === 'paid' ? '#10b981' : 'rgba(255,255,255,0.9)',
@@ -160,7 +157,7 @@ export default function InvoicePrintDocument({
             </div>
           </div>
 
-          {/* Bill To Section - Below curve */}
+          {/* Bill To Section */}
           <div style={{ padding: "0 15mm", marginTop: "2mm", marginBottom: "4mm" }}>
             <div style={{ 
               background: "#f9fafb", padding: "4mm 5mm", borderRadius: "2mm", 
@@ -181,7 +178,6 @@ export default function InvoicePrintDocument({
                 </div>
               </div>
               
-              {/* Project/Task Context */}
               {(project?.name || task?.title || invoice?.payment_terms_snapshot) && (
                 <div style={{ textAlign: "right", fontSize: "8pt" }}>
                   {project?.name && (
@@ -207,7 +203,7 @@ export default function InvoicePrintDocument({
             </div>
           </div>
 
-          {/* Line Items Table - Dark header like reference */}
+          {/* Line Items Table */}
           <div style={{ padding: "0 15mm", marginBottom: "4mm" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "8.5pt" }}>
               <thead>
@@ -238,11 +234,10 @@ export default function InvoicePrintDocument({
                       {item.quantity}
                     </td>
                     <td style={{ padding: "2.5mm 2mm", textAlign: "right", fontFamily: "monospace", fontWeight: 600, color: "#111827" }}>
-                      {formatFinanceMoney((item.lineTotal || (item.quantity * (item.unitPrice || item.unit_price))) - (item.discount || 0)), currency)}
+                      {formatFinanceMoney((item.lineTotal || (item.quantity * (item.unitPrice || item.unit_price))) - (item.discount || 0), currency)}
                     </td>
                   </tr>
                 ))}
-                {/* Empty rows to maintain table height if less than 10 items */}
                 {lineItems.length < 10 && Array(10 - lineItems.length).fill(0).map((_, i) => (
                   <tr key={`empty-${i}`} style={{ borderBottom: "0.5pt solid #e5e7eb", height: "8mm" }}>
                     <td style={{ padding: "2.5mm 2mm" }}>&nbsp;</td>
@@ -256,10 +251,10 @@ export default function InvoicePrintDocument({
             </table>
           </div>
 
-          {/* Bottom Section - Bank Left, Totals Right */}
+          {/* Bottom Section */}
           <div style={{ padding: "0 15mm", display: "flex", gap: "10mm", marginBottom: "4mm" }}>
             
-            {/* Left: ALL Bank Details + Payment Method */}
+            {/* Bank Details */}
             <div style={{ flex: 1, fontSize: "7.5pt", lineHeight: 1.4 }}>
               <div style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#111827", marginBottom: "2mm", fontSize: "8pt" }}>
                 Bank Transfer Details
@@ -267,73 +262,34 @@ export default function InvoicePrintDocument({
               
               {bankInfo ? (
                 <div style={{ display: "grid", gap: "1.5mm" }}>
-                  {/* Beneficiary */}
                   {bankInfo.beneficiary && (
-                    <div>
-                      <span style={{ color: "#6b7280" }}>Beneficiary: </span>
-                      <span style={{ fontWeight: 600 }}>{bankInfo.beneficiary}</span>
-                    </div>
+                    <div><span style={{ color: "#6b7280" }}>Beneficiary: </span><span style={{ fontWeight: 600 }}>{bankInfo.beneficiary}</span></div>
                   )}
-                  
-                  {/* Bank Name */}
                   {bankInfo.bank && (
-                    <div>
-                      <span style={{ color: "#6b7280" }}>Bank Name: </span>
-                      <span style={{ fontWeight: 500 }}>{bankInfo.bank}</span>
-                    </div>
+                    <div><span style={{ color: "#6b7280" }}>Bank Name: </span><span style={{ fontWeight: 500 }}>{bankInfo.bank}</span></div>
                   )}
-                  
-                  {/* Bank Address */}
                   {bankInfo.bankAddress && (
-                    <div>
-                      <span style={{ color: "#6b7280" }}>Bank Address: </span>
-                      <span style={{ fontWeight: 500 }}>{bankInfo.bankAddress}</span>
-                    </div>
+                    <div><span style={{ color: "#6b7280" }}>Bank Address: </span><span style={{ fontWeight: 500 }}>{bankInfo.bankAddress}</span></div>
                   )}
-                  
-                  {/* Account & SWIFT in one row if both exist */}
                   <div style={{ display: "flex", gap: "4mm", flexWrap: "wrap" }}>
                     {bankInfo.accountNumber && (
-                      <div>
-                        <span style={{ color: "#6b7280" }}>Account: </span>
-                        <span style={{ fontFamily: "monospace", fontWeight: 600, background: "#f3f4f6", padding: "0.5mm 1mm", borderRadius: "0.5mm" }}>
-                          {bankInfo.accountNumber}
-                        </span>
-                      </div>
+                      <div><span style={{ color: "#6b7280" }}>Account: </span><span style={{ fontFamily: "monospace", fontWeight: 600, background: "#f3f4f6", padding: "0.5mm 1mm", borderRadius: "0.5mm" }}>{bankInfo.accountNumber}</span></div>
                     )}
                     {bankInfo.swift && (
-                      <div>
-                        <span style={{ color: "#6b7280" }}>SWIFT: </span>
-                        <span style={{ fontFamily: "monospace", fontWeight: 600, background: "#f3f4f6", padding: "0.5mm 1mm", borderRadius: "0.5mm" }}>
-                          {bankInfo.swift}
-                        </span>
-                      </div>
+                      <div><span style={{ color: "#6b7280" }}>SWIFT: </span><span style={{ fontFamily: "monospace", fontWeight: 600, background: "#f3f4f6", padding: "0.5mm 1mm", borderRadius: "0.5mm" }}>{bankInfo.swift}</span></div>
                     )}
                   </div>
-                  
-                  {/* IBAN */}
                   {bankInfo.iban && (
-                    <div>
-                      <span style={{ color: "#6b7280" }}>IBAN: </span>
-                      <span style={{ fontFamily: "monospace", fontWeight: 600, background: "#f3f4f6", padding: "0.5mm 1mm", borderRadius: "0.5mm" }}>
-                        {bankInfo.iban}
-                      </span>
-                    </div>
+                    <div><span style={{ color: "#6b7280" }}>IBAN: </span><span style={{ fontFamily: "monospace", fontWeight: 600, background: "#f3f4f6", padding: "0.5mm 1mm", borderRadius: "0.5mm" }}>{bankInfo.iban}</span></div>
                   )}
-                  
-                  {/* Currency */}
                   {bankInfo.currency && (
-                    <div>
-                      <span style={{ color: "#6b7280" }}>Currency: </span>
-                      <span style={{ fontWeight: 600 }}>{bankInfo.currency}</span>
-                    </div>
+                    <div><span style={{ color: "#6b7280" }}>Currency: </span><span style={{ fontWeight: 600 }}>{bankInfo.currency}</span></div>
                   )}
                 </div>
               ) : (
                 <div style={{ color: "#6b7280" }}>No bank details available</div>
               )}
 
-              {/* Payment Method */}
               {invoice?.metadata?.preferred_payment_method_id && (
                 <div style={{ marginTop: "3mm", paddingTop: "2mm", borderTop: "0.5pt solid #e5e7eb" }}>
                   <span style={{ color: "#6b7280" }}>Preferred Method: </span>
@@ -341,7 +297,6 @@ export default function InvoicePrintDocument({
                 </div>
               )}
 
-              {/* Shipping Terms */}
               {invoice?.shipping_term_id && (
                 <div style={{ marginTop: "1.5mm" }}>
                   <span style={{ color: "#6b7280" }}>Shipping: </span>
@@ -349,7 +304,6 @@ export default function InvoicePrintDocument({
                 </div>
               )}
 
-              {/* Notes */}
               {invoice?.notes && (
                 <div style={{ marginTop: "3mm", paddingTop: "2mm", borderTop: "0.5pt solid #e5e7eb" }}>
                   <div style={{ fontWeight: 600, color: "#111827", marginBottom: "1mm" }}>Notes:</div>
@@ -358,7 +312,7 @@ export default function InvoicePrintDocument({
               )}
             </div>
 
-            {/* Right: Totals - Like reference image */}
+            {/* Totals */}
             <div style={{ width: "65mm" }}>
               <div style={{ marginBottom: "2mm" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1.5mm", fontSize: "8.5pt", color: "#4b5563" }}>
@@ -376,7 +330,6 @@ export default function InvoicePrintDocument({
                   <span style={{ fontFamily: "monospace" }}>{formatFinanceMoney(financialSummary?.tax || 0, currency)}</span>
                 </div>
                 
-                {/* Grand Total - Dark bar like reference */}
                 <div style={{ 
                   background: "#1f2937", color: "#ffffff", 
                   display: "flex", justifyContent: "space-between", alignItems: "center",
@@ -388,7 +341,6 @@ export default function InvoicePrintDocument({
                   </span>
                 </div>
 
-                {/* Balance Due if different from total */}
                 {(financialSummary?.paid || 0) > 0 && (
                   <>
                     <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1.5mm", fontSize: "8pt", color: "#10b981" }}>
@@ -408,7 +360,6 @@ export default function InvoicePrintDocument({
                 )}
               </div>
 
-              {/* Signature Line - Like reference */}
               <div style={{ marginTop: "4mm", textAlign: "center" }}>
                 <div style={{ borderBottom: "0.5pt dashed #9ca3af", marginBottom: "1mm", height: "8mm" }}></div>
                 <div style={{ fontSize: "7pt", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Authorized Signature</div>
@@ -416,7 +367,7 @@ export default function InvoicePrintDocument({
             </div>
           </div>
 
-          {/* Payment History - Compact row if exists */}
+          {/* Payment History */}
           {payments && payments.length > 0 && (
             <div style={{ padding: "0 15mm", marginBottom: "4mm" }}>
               <div style={{ 

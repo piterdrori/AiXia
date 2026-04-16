@@ -1925,250 +1925,381 @@ export default function FinanceInvoiceDetailPage() {
 
                             <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
                 {invoice.status === "draft" ? (
-                  <>
-                    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
-                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                        Issuing Company Source
-                      </div>
-                      <div className="mt-3 space-y-2 text-sm text-white/75">
-                       <div className="font-semibold text-white">
-                          {selectedDraftCompany?.legal_name || selectedDraftCompany?.name || "—"}
-                        </div>
-                        <div>{selectedDraftCompany?.email || "—"}</div>
-                        <div>
-                          {[
-                            selectedDraftCompany?.address_line_1,
-                            selectedDraftCompany?.address_line_2,
-                            selectedDraftCompany?.city,
-                            selectedDraftCompany?.state_province,
-                            selectedDraftCompany?.postal_code,
-                            selectedDraftCompany?.country,
-                          ]
-                            .filter(Boolean)
-                            .join(", ") || "—"}
-                        </div>
-                      </div>
-                    </div>
+  <>
+    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+        Issuing Company Source
+      </div>
+      <div className="mt-3 space-y-2 text-sm text-white/75">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Legal Name
+          </div>
+          <div className="mt-1 font-semibold text-white">
+            {selectedDraftCompany?.legal_name || selectedDraftCompany?.name || "—"}
+          </div>
+        </div>
 
-                    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
-                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                        Client Source
-                      </div>
-                      <div className="mt-3 space-y-2 text-sm text-white/75">
-                       <div className="font-semibold text-white">
-                          {selectedDraftClient?.legal_name || selectedDraftClient?.name || "—"}
-                        </div>
-                        <div>
-                          {selectedDraftClient?.company_email ||
-                            selectedDraftClient?.personnel_email ||
-                            "—"}
-                        </div>
-                        <div>
-                          {selectedDraftClient?.company_phone ||
-                            selectedDraftClient?.personnel_phone ||
-                            "—"}
-                        </div>
-                      </div>
-                    </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Contact Person
+          </div>
+          <div className="mt-1">—</div>
+        </div>
 
-                    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
-                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                        Payment Terms Source
-                      </div>
-                       <div className="mt-3 text-sm text-white/75">
-                        {selectedDraftPaymentTerm?.name || "—"}
-                      </div>
-                    </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Email
+          </div>
+          <div className="mt-1">{selectedDraftCompany?.email || "—"}</div>
+        </div>
 
-                    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
-                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-  Bank Details Source
-</div>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Phone
+          </div>
+          <div className="mt-1">{selectedDraftCompany?.phone || "—"}</div>
+        </div>
 
-{selectedDraftBankAccount ? (
-  <div className="mt-3 space-y-2 text-sm text-white/75">
-    
-    <div className="font-semibold text-white">
-      {selectedDraftBankAccount.beneficiary_name || "—"}
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Primary Address
+          </div>
+          <div className="mt-1 leading-6">
+            {[
+              selectedDraftCompany?.address_line_1,
+              selectedDraftCompany?.address_line_2,
+              selectedDraftCompany?.city,
+              selectedDraftCompany?.state_province,
+              selectedDraftCompany?.postal_code,
+              selectedDraftCompany?.country,
+            ]
+              .filter(Boolean)
+              .join(", ") || "—"}
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div>
-      {selectedDraftBankAccount.bank_name || "—"}
+    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+        Client Source
+      </div>
+      <div className="mt-3 space-y-2 text-sm text-white/75">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Legal Name
+          </div>
+          <div className="mt-1 font-semibold text-white">
+            {selectedDraftClient?.legal_name || selectedDraftClient?.name || "—"}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Contact Person
+          </div>
+          <div className="mt-1">—</div>
+        </div>
+
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Email
+          </div>
+          <div className="mt-1">
+            {selectedDraftClient?.company_email ||
+              selectedDraftClient?.personnel_email ||
+              "—"}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Phone
+          </div>
+          <div className="mt-1">
+            {selectedDraftClient?.company_phone ||
+              selectedDraftClient?.personnel_phone ||
+              "—"}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Primary Address
+          </div>
+          <div className="mt-1 leading-6">
+            {[
+              selectedDraftClient?.address_line_1,
+              selectedDraftClient?.address_line_2,
+              selectedDraftClient?.city,
+              selectedDraftClient?.state_province,
+              selectedDraftClient?.postal_code,
+              selectedDraftClient?.country,
+            ]
+              .filter(Boolean)
+              .join(", ") || "—"}
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div>
-      {selectedDraftBankAccount.bank_address ||
-        [
-          selectedDraftBankAccount.address_line_1,
-          selectedDraftBankAccount.address_line_2,
-          selectedDraftBankAccount.city,
-          selectedDraftBankAccount.postal_code,
-          selectedDraftBankAccount.country,
-        ]
-          .filter(Boolean)
-          .join(", ") ||
-        "—"}
+    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+        Payment Terms Source
+      </div>
+      <div className="mt-3 text-sm text-white/75">
+        {selectedDraftPaymentTerm?.name || "—"}
+      </div>
     </div>
 
-    <div>
-      Account: {selectedDraftBankAccount.account_number || "—"}
-    </div>
+    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+        Bank Details Source
+      </div>
 
-    <div>
-      IBAN: {selectedDraftBankAccount.iban || "—"}
-    </div>
+      {selectedDraftBankAccount ? (
+        <div className="mt-3 space-y-2 text-sm text-white/75">
+          <div className="font-semibold text-white">
+            {selectedDraftBankAccount.beneficiary_name || "—"}
+          </div>
 
-    <div>
-      SWIFT:{" "}
-      {selectedDraftBankAccount.swift_code ||
-        (selectedDraftBankAccount.account_identifier_type === "swift"
-          ? selectedDraftBankAccount.account_identifier_value
-          : "") ||
-        "—"}
-    </div>
+          <div>{selectedDraftBankAccount.bank_name || "—"}</div>
 
-    <div>
-      Currency: {selectedDraftBankAccount.currency_code || "—"}
-    </div>
+          <div>
+            {selectedDraftBankAccount.bank_address ||
+              [
+                selectedDraftBankAccount.address_line_1,
+                selectedDraftBankAccount.address_line_2,
+                selectedDraftBankAccount.city,
+                selectedDraftBankAccount.postal_code,
+                selectedDraftBankAccount.country,
+              ]
+                .filter(Boolean)
+                .join(", ") ||
+              "—"}
+          </div>
 
-  </div>
+          <div>
+            Account: {selectedDraftBankAccount.account_number || "—"}
+          </div>
+
+          <div>IBAN: {selectedDraftBankAccount.iban || "—"}</div>
+
+          <div>
+            SWIFT:{" "}
+            {selectedDraftBankAccount.swift_code ||
+              (selectedDraftBankAccount.account_identifier_type === "swift"
+                ? selectedDraftBankAccount.account_identifier_value
+                : "") ||
+              "—"}
+          </div>
+
+          <div>
+            Currency: {selectedDraftBankAccount.currency_code || "—"}
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 text-sm text-white/75">—</div>
+      )}
+    </div>
+  </>
 ) : (
-  <div className="mt-3 text-sm text-white/75">—</div>
+  <>
+    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+        Issuing Company
+      </div>
+      <div className="mt-3 space-y-2 text-sm text-white/75">
+        {editingParties ? (
+          <>
+            <input
+              value={companyNameDraft}
+              onChange={(event) => setCompanyNameDraft(event.target.value)}
+              placeholder="Company legal name"
+              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+            />
+            <input
+              value={companyEmailDraft}
+              onChange={(event) => setCompanyEmailDraft(event.target.value)}
+              placeholder="Company email"
+              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+            />
+            <input
+              value={companyPhoneDraft}
+              onChange={(event) => setCompanyPhoneDraft(event.target.value)}
+              placeholder="Company phone"
+              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+            />
+            <textarea
+              value={companyAddressDraft}
+              onChange={(event) => setCompanyAddressDraft(event.target.value)}
+              rows={3}
+              placeholder="Company primary address"
+              className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
+            />
+          </>
+        ) : (
+          <>
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                Legal Name
+              </div>
+              <div className="mt-1 font-semibold text-white">
+                {invoice.company_name_snapshot || "—"}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                Contact Person
+              </div>
+              <div className="mt-1">—</div>
+            </div>
+
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                Email
+              </div>
+              <div className="mt-1">{invoice.company_email_snapshot || "—"}</div>
+            </div>
+
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                Phone
+              </div>
+              <div className="mt-1">{invoice.company_phone_snapshot || "—"}</div>
+            </div>
+
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                Primary Address
+              </div>
+              <div className="mt-1 leading-6">
+                {invoice.company_address_snapshot || "—"}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+
+    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+        Client
+      </div>
+      <div className="mt-3 space-y-2 text-sm text-white/75">
+        {editingParties ? (
+          <>
+            <input
+              value={clientNameDraft}
+              onChange={(event) => setClientNameDraft(event.target.value)}
+              placeholder="Client legal name"
+              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+            />
+            <input
+              value={clientEmailDraft}
+              onChange={(event) => setClientEmailDraft(event.target.value)}
+              placeholder="Client email"
+              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+            />
+            <input
+              value={clientPhoneDraft}
+              onChange={(event) => setClientPhoneDraft(event.target.value)}
+              placeholder="Client phone"
+              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+            />
+            <textarea
+              value={billingAddressDraft}
+              onChange={(event) => setBillingAddressDraft(event.target.value)}
+              rows={3}
+              placeholder="Client primary address"
+              className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
+            />
+          </>
+        ) : (
+          <>
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                Legal Name
+              </div>
+              <div className="mt-1 font-semibold text-white">
+                {invoice.client_name_snapshot || "—"}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                Contact Person
+              </div>
+              <div className="mt-1">—</div>
+            </div>
+
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                Email
+              </div>
+              <div className="mt-1">{invoice.client_email_snapshot || "—"}</div>
+            </div>
+
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                Phone
+              </div>
+              <div className="mt-1">{invoice.client_phone_snapshot || "—"}</div>
+            </div>
+
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                Primary Address
+              </div>
+              <div className="mt-1 leading-6">
+                {invoice.billing_address_snapshot || "—"}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+
+    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+        Payment Terms
+      </div>
+      <div className="mt-3 text-sm text-white/75">
+        {editingParties ? (
+          <input
+            value={paymentTermsDraft}
+            onChange={(event) => setPaymentTermsDraft(event.target.value)}
+            placeholder="Payment terms"
+            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+          />
+        ) : (
+          invoice.payment_terms_snapshot || "—"
+        )}
+      </div>
+    </div>
+
+    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+        Bank Details
+      </div>
+      <div className="mt-3 text-sm text-white/75">
+        {editingParties ? (
+          <textarea
+            value={bankDetailsDraft}
+            onChange={(event) => setBankDetailsDraft(event.target.value)}
+            rows={3}
+            placeholder="Bank details"
+            className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
+          />
+        ) : (
+          invoice.bank_details_snapshot || "—"
+        )}
+      </div>
+    </div>
+  </>
 )}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
-                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                        Issuing Company
-                      </div>
-                      <div className="mt-3 space-y-2 text-sm text-white/75">
-                        {editingParties ? (
-                          <>
-                            <input
-                              value={companyNameDraft}
-                              onChange={(event) => setCompanyNameDraft(event.target.value)}
-                              placeholder="Company name"
-                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                            />
-                            <textarea
-                              value={companyAddressDraft}
-                              onChange={(event) => setCompanyAddressDraft(event.target.value)}
-                              rows={3}
-                              placeholder="Company address"
-                              className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
-                            />
-                            <input
-                              value={companyEmailDraft}
-                              onChange={(event) => setCompanyEmailDraft(event.target.value)}
-                              placeholder="Company email"
-                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                            />
-                            <input
-                              value={companyPhoneDraft}
-                              onChange={(event) => setCompanyPhoneDraft(event.target.value)}
-                              placeholder="Company phone"
-                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                            />
-                          </>
-                        ) : (
-                          <>
-                            <div className="font-semibold text-white">
-                              {invoice.company_name_snapshot || "—"}
-                            </div>
-                            <div>{invoice.company_address_snapshot || "—"}</div>
-                            <div>{invoice.company_email_snapshot || "—"}</div>
-                            <div>{invoice.company_phone_snapshot || "—"}</div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
-                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                        Client
-                      </div>
-                      <div className="mt-3 space-y-2 text-sm text-white/75">
-                        {editingParties ? (
-                          <>
-                            <input
-                              value={clientNameDraft}
-                              onChange={(event) => setClientNameDraft(event.target.value)}
-                              placeholder="Client name"
-                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                            />
-                            <textarea
-                              value={billingAddressDraft}
-                              onChange={(event) => setBillingAddressDraft(event.target.value)}
-                              rows={3}
-                              placeholder="Billing address"
-                              className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
-                            />
-                            <input
-                              value={clientEmailDraft}
-                              onChange={(event) => setClientEmailDraft(event.target.value)}
-                              placeholder="Client email"
-                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                            />
-                            <input
-                              value={clientPhoneDraft}
-                              onChange={(event) => setClientPhoneDraft(event.target.value)}
-                              placeholder="Client phone"
-                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                            />
-                          </>
-                        ) : (
-                          <>
-                            <div className="font-semibold text-white">
-                              {invoice.client_name_snapshot || "—"}
-                            </div>
-                            <div>{invoice.billing_address_snapshot || "—"}</div>
-                            <div>{invoice.client_email_snapshot || "—"}</div>
-                            <div>{invoice.client_phone_snapshot || "—"}</div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
-                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                        Payment Terms
-                      </div>
-                      <div className="mt-3 text-sm text-white/75">
-                        {editingParties ? (
-                          <input
-                            value={paymentTermsDraft}
-                            onChange={(event) => setPaymentTermsDraft(event.target.value)}
-                            placeholder="Payment terms"
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          />
-                        ) : (
-                          invoice.payment_terms_snapshot || "—"
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
-                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                        Bank Details
-                      </div>
-                      <div className="mt-3 text-sm text-white/75">
-                        {editingParties ? (
-                          <textarea
-                            value={bankDetailsDraft}
-                            onChange={(event) => setBankDetailsDraft(event.target.value)}
-                            rows={3}
-                            placeholder="Bank details"
-                            className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
-                          />
-                        ) : (
-                          invoice.bank_details_snapshot || "—"
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
               </CardContent>
             </Card>
 

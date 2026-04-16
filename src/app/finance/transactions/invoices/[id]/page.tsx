@@ -176,6 +176,20 @@ export default function FinanceInvoiceDetailPage() {
   const [issueDateDraft, setIssueDateDraft] = useState("");
   const [dueDateDraft, setDueDateDraft] = useState("");
   const [notesDraft, setNotesDraft] = useState("");
+
+  const [companyNameDraft, setCompanyNameDraft] = useState("");
+  const [companyAddressDraft, setCompanyAddressDraft] = useState("");
+  const [companyEmailDraft, setCompanyEmailDraft] = useState("");
+  const [companyPhoneDraft, setCompanyPhoneDraft] = useState("");
+
+  const [clientNameDraft, setClientNameDraft] = useState("");
+  const [billingAddressDraft, setBillingAddressDraft] = useState("");
+  const [clientEmailDraft, setClientEmailDraft] = useState("");
+  const [clientPhoneDraft, setClientPhoneDraft] = useState("");
+
+  const [paymentTermsDraft, setPaymentTermsDraft] = useState("");
+  const [bankDetailsDraft, setBankDetailsDraft] = useState("");
+
   const [lineItemsDraft, setLineItemsDraft] = useState<EditableLineItem[]>([]);
 
   const [error, setError] = useState("");
@@ -251,6 +265,20 @@ export default function FinanceInvoiceDetailPage() {
         setIssueDateDraft(typedInvoice.issue_date || "");
         setDueDateDraft(typedInvoice.due_date || "");
         setNotesDraft(typedInvoice.notes || "");
+
+        setCompanyNameDraft(typedInvoice.company_name_snapshot || "");
+        setCompanyAddressDraft(typedInvoice.company_address_snapshot || "");
+        setCompanyEmailDraft(typedInvoice.company_email_snapshot || "");
+        setCompanyPhoneDraft(typedInvoice.company_phone_snapshot || "");
+
+        setClientNameDraft(typedInvoice.client_name_snapshot || "");
+        setBillingAddressDraft(typedInvoice.billing_address_snapshot || "");
+        setClientEmailDraft(typedInvoice.client_email_snapshot || "");
+        setClientPhoneDraft(typedInvoice.client_phone_snapshot || "");
+
+        setPaymentTermsDraft(typedInvoice.payment_terms_snapshot || "");
+        setBankDetailsDraft(typedInvoice.bank_details_snapshot || "");
+
         setLineItemsDraft(
           typedLineItems.map((row) => ({
             id: row.id,
@@ -456,6 +484,122 @@ export default function FinanceInvoiceDetailPage() {
     }
   }, [id, invoice, issueDateDraft, dueDateDraft, notesDraft, loadInvoice]);
 
+  
+    const handleSaveIssuedPartiesChanges = useCallback(async () => {
+    if (!invoice || !id || invoice.status !== "issued") return;
+
+    setIsSavingDraft(true);
+    setError("");
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.id) {
+        throw new Error("User not authenticated");
+      }
+
+      const { error: invoiceError } = await supabase
+        .from("finance_invoices_issued")
+        .update({
+          company_name_snapshot: companyNameDraft || null,
+          company_address_snapshot: companyAddressDraft || null,
+          company_email_snapshot: companyEmailDraft || null,
+          company_phone_snapshot: companyPhoneDraft || null,
+          client_name_snapshot: clientNameDraft || null,
+          billing_address_snapshot: billingAddressDraft || null,
+          client_email_snapshot: clientEmailDraft || null,
+          client_phone_snapshot: clientPhoneDraft || null,
+          payment_terms_snapshot: paymentTermsDraft || null,
+          bank_details_snapshot: bankDetailsDraft || null,
+          updated_by: user.id,
+        })
+        .eq("id", id)
+        .eq("status", "issued");
+
+      if (invoiceError) throw invoiceError;
+
+      setEditingParties(false);
+      await loadInvoice(true);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to save issued invoice party details.");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }, [
+    id,
+    invoice,
+    companyNameDraft,
+    companyAddressDraft,
+    companyEmailDraft,
+    companyPhoneDraft,
+    clientNameDraft,
+    billingAddressDraft,
+    clientEmailDraft,
+    clientPhoneDraft,
+    paymentTermsDraft,
+    bankDetailsDraft,
+    loadInvoice,
+  ]);
+
+  const handleSaveIssuedLineChanges = useCallback(async () => {
+    if (!invoice || !id || invoice.status !== "issued") return;
+
+    setIsSavingDraft(true);
+    setError("");
+
+    const cleanedLineItems = lineItemsDraft.filter(
+      (row) =>
+        row.description.trim() &&
+        toNumber(row.quantity) > 0 &&
+        toNumber(row.unit_price) >= 0
+    );
+
+    if (cleanedLineItems.length === 0) {
+      setError("Issued invoice must include at least one valid line item.");
+      setIsSavingDraft(false);
+      return;
+    }
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.id) {
+        throw new Error("User not authenticated");
+      }
+
+      for (let index = 0; index < cleanedLineItems.length; index += 1) {
+        const row = cleanedLineItems[index];
+        const { error: lineError } = await supabase
+          .from("finance_invoice_issued_line_items")
+          .update({
+            description: row.description.trim(),
+            quantity: toNumber(row.quantity),
+            unit_price: toNumber(row.unit_price),
+            discount: toNumber(row.discount),
+            sort_order: index + 1,
+            updated_by: user.id,
+          })
+          .eq("id", row.id)
+          .eq("invoice_id", id);
+
+        if (lineError) throw lineError;
+      }
+
+      setEditingLines(false);
+      await loadInvoice(true);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to save issued invoice line items.");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }, [id, invoice, lineItemsDraft, loadInvoice]);
+  
   
   const handleSaveDraftChanges = useCallback(async () => {
     if (!invoice || !id || !canEditDraft) return;
@@ -809,7 +953,7 @@ export default function FinanceInvoiceDetailPage() {
               </CardContent>
             </Card>
 
-                        <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                          <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <CardHeader className="border-b border-white/8 pb-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -819,16 +963,29 @@ export default function FinanceInvoiceDetailPage() {
                     </CardDescription>
                   </div>
 
-                  {canOpenSectionEdit ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => setEditingParties((current) => !current)}
-                      className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-                    >
-                      <SquarePen className="mr-2 h-4 w-4" />
-                      Edit
-                    </Button>
-                  ) : null}
+                  <div className="flex items-center gap-2">
+                    {editingParties ? (
+                      <Button
+                        onClick={() => void handleSaveIssuedPartiesChanges()}
+                        disabled={isSavingDraft}
+                        className="h-9 rounded-2xl px-3"
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        {isSavingDraft ? "Saving..." : "Save"}
+                      </Button>
+                    ) : null}
+
+                    {canOpenSectionEdit ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => setEditingParties((current) => !current)}
+                        className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+                      >
+                        <SquarePen className="mr-2 h-4 w-4" />
+                        {editingParties ? "Close" : "Edit"}
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               </CardHeader>
 
@@ -838,12 +995,44 @@ export default function FinanceInvoiceDetailPage() {
                     Issuing Company
                   </div>
                   <div className="mt-3 space-y-2 text-sm text-white/75">
-                    <div className="font-semibold text-white">
-                      {invoice.company_name_snapshot || "—"}
-                    </div>
-                    <div>{invoice.company_address_snapshot || "—"}</div>
-                    <div>{invoice.company_email_snapshot || "—"}</div>
-                    <div>{invoice.company_phone_snapshot || "—"}</div>
+                    {editingParties ? (
+                      <>
+                        <input
+                          value={companyNameDraft}
+                          onChange={(event) => setCompanyNameDraft(event.target.value)}
+                          placeholder="Company name"
+                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                        />
+                        <textarea
+                          value={companyAddressDraft}
+                          onChange={(event) => setCompanyAddressDraft(event.target.value)}
+                          rows={3}
+                          placeholder="Company address"
+                          className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
+                        />
+                        <input
+                          value={companyEmailDraft}
+                          onChange={(event) => setCompanyEmailDraft(event.target.value)}
+                          placeholder="Company email"
+                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                        />
+                        <input
+                          value={companyPhoneDraft}
+                          onChange={(event) => setCompanyPhoneDraft(event.target.value)}
+                          placeholder="Company phone"
+                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-semibold text-white">
+                          {invoice.company_name_snapshot || "—"}
+                        </div>
+                        <div>{invoice.company_address_snapshot || "—"}</div>
+                        <div>{invoice.company_email_snapshot || "—"}</div>
+                        <div>{invoice.company_phone_snapshot || "—"}</div>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -852,12 +1041,44 @@ export default function FinanceInvoiceDetailPage() {
                     Client
                   </div>
                   <div className="mt-3 space-y-2 text-sm text-white/75">
-                    <div className="font-semibold text-white">
-                      {invoice.client_name_snapshot || "—"}
-                    </div>
-                    <div>{invoice.billing_address_snapshot || "—"}</div>
-                    <div>{invoice.client_email_snapshot || "—"}</div>
-                    <div>{invoice.client_phone_snapshot || "—"}</div>
+                    {editingParties ? (
+                      <>
+                        <input
+                          value={clientNameDraft}
+                          onChange={(event) => setClientNameDraft(event.target.value)}
+                          placeholder="Client name"
+                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                        />
+                        <textarea
+                          value={billingAddressDraft}
+                          onChange={(event) => setBillingAddressDraft(event.target.value)}
+                          rows={3}
+                          placeholder="Billing address"
+                          className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
+                        />
+                        <input
+                          value={clientEmailDraft}
+                          onChange={(event) => setClientEmailDraft(event.target.value)}
+                          placeholder="Client email"
+                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                        />
+                        <input
+                          value={clientPhoneDraft}
+                          onChange={(event) => setClientPhoneDraft(event.target.value)}
+                          placeholder="Client phone"
+                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-semibold text-white">
+                          {invoice.client_name_snapshot || "—"}
+                        </div>
+                        <div>{invoice.billing_address_snapshot || "—"}</div>
+                        <div>{invoice.client_email_snapshot || "—"}</div>
+                        <div>{invoice.client_phone_snapshot || "—"}</div>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -866,7 +1087,16 @@ export default function FinanceInvoiceDetailPage() {
                     Payment Terms
                   </div>
                   <div className="mt-3 text-sm text-white/75">
-                    {invoice.payment_terms_snapshot || "—"}
+                    {editingParties ? (
+                      <input
+                        value={paymentTermsDraft}
+                        onChange={(event) => setPaymentTermsDraft(event.target.value)}
+                        placeholder="Payment terms"
+                        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                      />
+                    ) : (
+                      invoice.payment_terms_snapshot || "—"
+                    )}
                   </div>
                 </div>
 
@@ -875,174 +1105,187 @@ export default function FinanceInvoiceDetailPage() {
                     Bank Details
                   </div>
                   <div className="mt-3 text-sm text-white/75">
-                    {invoice.bank_details_snapshot || "—"}
+                    {editingParties ? (
+                      <textarea
+                        value={bankDetailsDraft}
+                        onChange={(event) => setBankDetailsDraft(event.target.value)}
+                        rows={3}
+                        placeholder="Bank details"
+                        className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
+                      />
+                    ) : (
+                      invoice.bank_details_snapshot || "—"
+                    )}
                   </div>
                 </div>
-
-                {editingParties ? (
-                  <div className="rounded-[18px] border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100 md:col-span-2">
-                    Issued-party corrections need backend permission logic update before saving.
-                  </div>
-                ) : null}
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                        <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <CardHeader className="border-b border-white/8 pb-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <CardTitle className="text-white">Line Items</CardTitle>
                     <CardDescription className="text-white/45">
-                      Draft invoices can be edited here. Issued invoices are read-only.
+                      Draft invoices can be edited here. Issued invoices are read-only unless corrected manually.
                     </CardDescription>
                   </div>
 
-                  {canOpenSectionEdit ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => setEditingLines((current) => !current)}
-                      className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-                    >
-                      <SquarePen className="mr-2 h-4 w-4" />
-                      Edit
-                    </Button>
-                  ) : null}
+                  <div className="flex items-center gap-2">
+                    {editingLines ? (
+                      <Button
+                        onClick={() =>
+                          canEditDraft
+                            ? void handleSaveDraftChanges()
+                            : void handleSaveIssuedLineChanges()
+                        }
+                        disabled={isSavingDraft}
+                        className="h-9 rounded-2xl px-3"
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        {isSavingDraft ? "Saving..." : "Save"}
+                      </Button>
+                    ) : null}
+
+                    {canOpenSectionEdit ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => setEditingLines((current) => !current)}
+                        className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+                      >
+                        <SquarePen className="mr-2 h-4 w-4" />
+                        {editingLines ? "Close" : "Edit"}
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               </CardHeader>
 
               <CardContent className="space-y-3 p-5">
-                {(editingLines ? lineItemsDraft : lineItems).map(
-                  (row, index) => {
-                    const editable = editingLines;
-                    const rowTotal = editable
-                      ? Math.max(
-                          toNumber((row as EditableLineItem).quantity) *
-                            toNumber((row as EditableLineItem).unit_price) -
-                            toNumber((row as EditableLineItem).discount),
-                          0
-                        )
-                      : toNumber((row as LineItemRow).line_total);
+                {(editingLines ? lineItemsDraft : lineItems).map((row, index) => {
+                  const editable = editingLines;
+                  const rowTotal = editable
+                    ? Math.max(
+                        toNumber((row as EditableLineItem).quantity) *
+                          toNumber((row as EditableLineItem).unit_price) -
+                          toNumber((row as EditableLineItem).discount),
+                        0
+                      )
+                    : toNumber((row as LineItemRow).line_total);
 
-                    return (
-                      <div
-                        key={(row as EditableLineItem | LineItemRow).id}
-                        className="rounded-[22px] border border-white/8 bg-black/15 p-4"
-                      >
-                        <div className="mb-4 text-sm font-medium text-white">
-                          Line {index + 1}
+                  return (
+                    <div
+                      key={(row as EditableLineItem | LineItemRow).id}
+                      className="rounded-[22px] border border-white/8 bg-black/15 p-4"
+                    >
+                      <div className="mb-4 text-sm font-medium text-white">
+                        Line {index + 1}
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+                        <div className="space-y-2 md:col-span-5">
+                          <div className="text-sm text-white/70">Description</div>
+                          {editable ? (
+                            <input
+                              value={(row as EditableLineItem).description}
+                              onChange={(event) =>
+                                updateDraftLine(
+                                  (row as EditableLineItem).id,
+                                  "description",
+                                  event.target.value
+                                )
+                              }
+                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                            />
+                          ) : (
+                            <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
+                              {(row as LineItemRow).description || "—"}
+                            </div>
+                          )}
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                          <div className="space-y-2 md:col-span-5">
-                            <div className="text-sm text-white/70">Description</div>
-                            {editable ? (
-                              <input
-                                value={(row as EditableLineItem).description}
-                                onChange={(event) =>
-                                  updateDraftLine(
-                                    (row as EditableLineItem).id,
-                                    "description",
-                                    event.target.value
-                                  )
-                                }
-                                className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                              />
-                            ) : (
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
-                                {(row as LineItemRow).description || "—"}
-                              </div>
-                            )}
-                          </div>
+                        <div className="space-y-2 md:col-span-2">
+                          <div className="text-sm text-white/70">Qty</div>
+                          {editable ? (
+                            <input
+                              value={(row as EditableLineItem).quantity}
+                              onChange={(event) =>
+                                updateDraftLine(
+                                  (row as EditableLineItem).id,
+                                  "quantity",
+                                  event.target.value
+                                )
+                              }
+                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                            />
+                          ) : (
+                            <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
+                              {toNumber((row as LineItemRow).quantity)}
+                            </div>
+                          )}
+                        </div>
 
-                          <div className="space-y-2 md:col-span-2">
-                            <div className="text-sm text-white/70">Qty</div>
-                            {editable ? (
-                              <input
-                                value={(row as EditableLineItem).quantity}
-                                onChange={(event) =>
-                                  updateDraftLine(
-                                    (row as EditableLineItem).id,
-                                    "quantity",
-                                    event.target.value
-                                  )
-                                }
-                                className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                              />
-                            ) : (
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
-                                {toNumber((row as LineItemRow).quantity)}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="space-y-2 md:col-span-2">
-                            <div className="text-sm text-white/70">Unit Price</div>
-                            {editable ? (
-                              <input
-                                value={(row as EditableLineItem).unit_price}
-                                onChange={(event) =>
-                                  updateDraftLine(
-                                    (row as EditableLineItem).id,
-                                    "unit_price",
-                                    event.target.value
-                                  )
-                                }
-                                className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                              />
-                            ) : (
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
-                                {formatFinanceMoney(
-                                  toNumber((row as LineItemRow).unit_price),
-                                  invoice.currency_code || "USD"
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="space-y-2 md:col-span-1">
-                            <div className="text-sm text-white/70">Discount</div>
-                            {editable ? (
-                              <input
-                                value={(row as EditableLineItem).discount}
-                                onChange={(event) =>
-                                  updateDraftLine(
-                                    (row as EditableLineItem).id,
-                                    "discount",
-                                    event.target.value
-                                  )
-                                }
-                                className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                              />
-                            ) : (
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
-                                {formatFinanceMoney(
-                                  toNumber((row as LineItemRow).discount),
-                                  invoice.currency_code || "USD"
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="space-y-2 md:col-span-2">
-                            <div className="text-sm text-white/70">Line Total</div>
+                        <div className="space-y-2 md:col-span-2">
+                          <div className="text-sm text-white/70">Unit Price</div>
+                          {editable ? (
+                            <input
+                              value={(row as EditableLineItem).unit_price}
+                              onChange={(event) =>
+                                updateDraftLine(
+                                  (row as EditableLineItem).id,
+                                  "unit_price",
+                                  event.target.value
+                                )
+                              }
+                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                            />
+                          ) : (
                             <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
                               {formatFinanceMoney(
-                                rowTotal,
+                                toNumber((row as LineItemRow).unit_price),
                                 invoice.currency_code || "USD"
                               )}
                             </div>
+                          )}
+                        </div>
+
+                        <div className="space-y-2 md:col-span-1">
+                          <div className="text-sm text-white/70">Discount</div>
+                          {editable ? (
+                            <input
+                              value={(row as EditableLineItem).discount}
+                              onChange={(event) =>
+                                updateDraftLine(
+                                  (row as EditableLineItem).id,
+                                  "discount",
+                                  event.target.value
+                                )
+                              }
+                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                            />
+                          ) : (
+                            <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
+                              {formatFinanceMoney(
+                                toNumber((row as LineItemRow).discount),
+                                invoice.currency_code || "USD"
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="space-y-2 md:col-span-2">
+                          <div className="text-sm text-white/70">Line Total</div>
+                          <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
+                            {formatFinanceMoney(
+                              rowTotal,
+                              invoice.currency_code || "USD"
+                            )}
                           </div>
                         </div>
                       </div>
-                    );
-                  }
-                )}
-
-                {invoice.status === "issued" && editingLines ? (
-                  <div className="rounded-[18px] border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                    Issued line corrections need backend permission logic update before saving.
-                  </div>
-                ) : null}
+                    </div>
+                  );
+                })}
               </CardContent>
             </Card>
           </div>

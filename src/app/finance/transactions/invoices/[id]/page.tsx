@@ -186,6 +186,8 @@ type BankAccountOption = {
   beneficiary_name: string | null;
   iban: string | null;
   swift_code: string | null;
+  bank_address: string | null;
+  account_number: string | null;
   currency_code: string | null;
   is_default: boolean;
   company_id: string | null;
@@ -538,7 +540,7 @@ export default function FinanceInvoiceDetailPage() {
         supabase
           .from("finance_bank_accounts")
           .select(
-            "id, name, bank_name, beneficiary_name, iban, swift_code, currency_code, is_default, company_id"
+            "id, name, bank_name, beneficiary_name, iban, swift_code, currency_code, is_default, company_id, bank_address, account_number"
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
@@ -1201,15 +1203,16 @@ export default function FinanceInvoiceDetailPage() {
             .join(", ") || null
         : null;
 
-      const bankDetailsSnapshot = selectedBankAccount
-        ? [
-            selectedBankAccount.beneficiary_name,
-            selectedBankAccount.bank_name,
-            selectedBankAccount.iban,
-            selectedBankAccount.swift_code,
-          ]
-            .filter(Boolean)
-            .join(" | ") || null
+            const bankDetailsSnapshot = selectedBankAccount
+        ? JSON.stringify({
+            beneficiary_name: selectedBankAccount.beneficiary_name || "",
+            bank_name: selectedBankAccount.bank_name || "",
+            bank_address: selectedBankAccount.bank_address || "",
+            account_number: selectedBankAccount.account_number || "",
+            iban: selectedBankAccount.iban || "",
+            swift_code: selectedBankAccount.swift_code || "",
+            currency_code: selectedBankAccount.currency_code || "",
+          })
         : null;
 
       const { error: invoiceError } = await supabase

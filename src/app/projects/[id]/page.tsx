@@ -401,7 +401,8 @@ const user = session.data.session?.user;
       const { data: profilesData, error: profilesError } = await supabase
         .from("profiles")
         .select("user_id, full_name, role")
-        .in("user_id", relevantUserIds);
+        .in("role", ["admin", "manager", "employee"])
+        .order("full_name", { ascending: true });
 
       if (!requestTracker.current.isLatest(requestId)) return;
 

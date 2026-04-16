@@ -1206,7 +1206,7 @@ export default function FinanceInvoiceDetailPage() {
                   </Button>
                 ) : null}
 
-                {invoice.status === "draft" ? (
+                {invoice.status === "draft" && editingOverview ? (
                   <Button
                     onClick={() => void handleIssue()}
                     disabled={isIssuing}
@@ -1286,7 +1286,7 @@ export default function FinanceInvoiceDetailPage() {
               </CardHeader>
 
                             <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                {invoice.status === "draft" ? (
+                {invoice.status === "draft" && editingOverview ? (
                   <>
                     <label className="space-y-2">
                       <div className="text-sm text-white/70">Issuing Company</div>
@@ -1577,7 +1577,7 @@ export default function FinanceInvoiceDetailPage() {
               </CardHeader>
 
                             <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                {invoice.status === "draft" ? (
+                {invoice.status === "draft" && editingOverview ? (
                   <>
                     <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
                       <div className="text-xs uppercase tracking-[0.18em] text-white/35">

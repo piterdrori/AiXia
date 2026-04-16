@@ -670,8 +670,16 @@ export default function InvoicePrintDocument({
               >
                 {/* Left: Bank Details & Notes */}
                 <div>
-                  {/* Bank Transfer Details - Tech Style */}
-                  {bankInfo && (
+                             {/* Bank Transfer Details - Tech Style */}
+                  {bankInfo &&
+                  (
+                    bankInfo.beneficiary ||
+                    bankInfo.bank ||
+                    bankInfo.bankAddress ||
+                    bankInfo.accountNumber ||
+                    bankInfo.iban ||
+                    bankInfo.swift
+                  ) ? (
                     <div style={{ marginBottom: "8mm" }}>
                       <div
                         style={{
@@ -686,10 +694,17 @@ export default function InvoicePrintDocument({
                           gap: "2mm",
                         }}
                       >
-                        <span style={{ width: "2mm", height: "2mm", background: "#10b981", borderRadius: "50%" }}></span>
+                        <span
+                          style={{
+                            width: "2mm",
+                            height: "2mm",
+                            background: "#10b981",
+                            borderRadius: "50%",
+                          }}
+                        />
                         Bank Transfer Details
                       </div>
-                      
+
                       <div
                         style={{
                           background: "#f9fafb",
@@ -700,113 +715,256 @@ export default function InvoicePrintDocument({
                         }}
                       >
                         <div style={{ display: "grid", gap: "2.5mm" }}>
-                          {bankInfo.beneficiary && (
-                            <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
-                              <span style={{ fontSize: "7pt", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Beneficiary</span>
-                              <span style={{ fontWeight: 600, color: "#111827" }}>{bankInfo.beneficiary}</span>
+                          {bankInfo.beneficiary ? (
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "0.5mm",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "7pt",
+                                  color: "#6b7280",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.05em",
+                                }}
+                              >
+                                Beneficiary
+                              </span>
+                              <span style={{ fontWeight: 600, color: "#111827" }}>
+                                {bankInfo.beneficiary}
+                              </span>
                             </div>
-                          )}
-                          
-                                                   <div style={{ display: "grid", gap: "3mm" }}>
-                            {bankInfo.bank && (
-                              <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
-                                <span style={{ fontSize: "7pt", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                                  Beneficiary Bank Name
-                                </span>
-                                <span style={{ fontWeight: 500, color: "#374151" }}>
-                                  {bankInfo.bank}
-                                </span>
-                              </div>
-                            )}
+                          ) : null}
 
-                            {bankInfo.bankAddress && (
-                              <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
-                                <span style={{ fontSize: "7pt", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                                  Beneficiary Bank Address
-                                </span>
-                                <span style={{ fontWeight: 500, color: "#374151", lineHeight: 1.5 }}>
-                                  {bankInfo.bankAddress}
-                                </span>
-                              </div>
-                            )}
-
-                            {bankInfo.accountNumber && (
-                              <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
-                                <span style={{ fontSize: "7pt", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                                  Bank Account
-                                </span>
-                                <span
-                                  style={{
-                                    fontFamily: "monospace",
-                                    fontWeight: 600,
-                                    fontSize: "8pt",
-                                    color: "#111827",
-                                    letterSpacing: "0.03em",
-                                    background: "#ffffff",
-                                    padding: "1mm 2mm",
-                                    border: "1pt solid #d1d5db",
-                                    borderRadius: "1mm",
-                                  }}
-                                >
-                                  {bankInfo.accountNumber}
-                                </span>
-                              </div>
-                            )}
-
-                            {bankInfo.swift && (
-                              <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
-                                <span style={{ fontSize: "7pt", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                                  SWIFT Code
-                                </span>
-                                <span
-                                  style={{
-                                    fontFamily: "monospace",
-                                    fontWeight: 600,
-                                    fontSize: "8pt",
-                                    color: "#111827",
-                                    letterSpacing: "0.05em",
-                                    background: "#ffffff",
-                                    padding: "1mm 2mm",
-                                    border: "1pt solid #d1d5db",
-                                    borderRadius: "1mm",
-                                  }}
-                                >
-                                  {bankInfo.swift}
-                                </span>
-                              </div>
-                            )}
-
-                            {bankInfo.iban && (
-                              <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm" }}>
-                                <span style={{ fontSize: "7pt", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                                  IBAN
-                                </span>
-                                <span
-                                  style={{
-                                    fontFamily: "monospace",
-                                    fontWeight: 600,
-                                    fontSize: "8pt",
-                                    color: "#111827",
-                                    letterSpacing: "0.02em",
-                                    background: "#ffffff",
-                                    padding: "1mm 2mm",
-                                    border: "1pt solid #d1d5db",
-                                    borderRadius: "1mm",
-                                  }}
-                                >
-                                  {bankInfo.iban}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          
-                          {currency && (
-                            <div style={{ display: "flex", flexDirection: "column", gap: "0.5mm", marginTop: "1mm" }}>
-                              <span style={{ fontSize: "7pt", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Currency</span>
-                              <span style={{ fontWeight: 600, color: "#111827" }}>{currency}</span>
+                          {bankInfo.bank ? (
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "0.5mm",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "7pt",
+                                  color: "#6b7280",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.05em",
+                                }}
+                              >
+                                Beneficiary Bank Name
+                              </span>
+                              <span style={{ fontWeight: 500, color: "#374151" }}>
+                                {bankInfo.bank}
+                              </span>
                             </div>
-                          )}
+                          ) : null}
+
+                          {bankInfo.bankAddress ? (
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "0.5mm",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "7pt",
+                                  color: "#6b7280",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.05em",
+                                }}
+                              >
+                                Beneficiary Bank Address
+                              </span>
+                              <span
+                                style={{
+                                  fontWeight: 500,
+                                  color: "#374151",
+                                  lineHeight: 1.5,
+                                }}
+                              >
+                                {bankInfo.bankAddress}
+                              </span>
+                            </div>
+                          ) : null}
+
+                          {bankInfo.accountNumber ? (
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "0.5mm",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "7pt",
+                                  color: "#6b7280",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.05em",
+                                }}
+                              >
+                                Bank Account
+                              </span>
+                              <span
+                                style={{
+                                  fontFamily: "monospace",
+                                  fontWeight: 600,
+                                  fontSize: "8pt",
+                                  color: "#111827",
+                                  letterSpacing: "0.03em",
+                                  background: "#ffffff",
+                                  padding: "1mm 2mm",
+                                  border: "1pt solid #d1d5db",
+                                  borderRadius: "1mm",
+                                }}
+                              >
+                                {bankInfo.accountNumber}
+                              </span>
+                            </div>
+                          ) : null}
+
+                          {bankInfo.swift ? (
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "0.5mm",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "7pt",
+                                  color: "#6b7280",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.05em",
+                                }}
+                              >
+                                SWIFT Code
+                              </span>
+                              <span
+                                style={{
+                                  fontFamily: "monospace",
+                                  fontWeight: 600,
+                                  fontSize: "8pt",
+                                  color: "#111827",
+                                  letterSpacing: "0.05em",
+                                  background: "#ffffff",
+                                  padding: "1mm 2mm",
+                                  border: "1pt solid #d1d5db",
+                                  borderRadius: "1mm",
+                                }}
+                              >
+                                {bankInfo.swift}
+                              </span>
+                            </div>
+                          ) : null}
+
+                          {bankInfo.iban ? (
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "0.5mm",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "7pt",
+                                  color: "#6b7280",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.05em",
+                                }}
+                              >
+                                IBAN
+                              </span>
+                              <span
+                                style={{
+                                  fontFamily: "monospace",
+                                  fontWeight: 600,
+                                  fontSize: "8pt",
+                                  color: "#111827",
+                                  letterSpacing: "0.02em",
+                                  background: "#ffffff",
+                                  padding: "1mm 2mm",
+                                  border: "1pt solid #d1d5db",
+                                  borderRadius: "1mm",
+                                }}
+                              >
+                                {bankInfo.iban}
+                              </span>
+                            </div>
+                          ) : null}
+
+                          {currency ? (
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "0.5mm",
+                                marginTop: "1mm",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "7pt",
+                                  color: "#6b7280",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.05em",
+                                }}
+                              >
+                                Currency
+                              </span>
+                              <span style={{ fontWeight: 600, color: "#111827" }}>
+                                {currency}
+                              </span>
+                            </div>
+                          ) : null}
                         </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ marginBottom: "8mm" }}>
+                      <div
+                        style={{
+                          fontSize: "7.5pt",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.1em",
+                          color: "#111827",
+                          marginBottom: "3mm",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "2mm",
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: "2mm",
+                            height: "2mm",
+                            background: "#10b981",
+                            borderRadius: "50%",
+                          }}
+                        />
+                        Bank Transfer Details
+                      </div>
+
+                      <div
+                        style={{
+                          background: "#f9fafb",
+                          border: "1pt solid #e5e7eb",
+                          borderRadius: "2mm",
+                          padding: "4mm",
+                          fontSize: "8.5pt",
+                          color: "#6b7280",
+                        }}
+                      >
+                        No bank details available on this invoice snapshot.
                       </div>
                     </div>
                   )}

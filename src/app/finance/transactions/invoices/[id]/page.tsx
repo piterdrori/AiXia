@@ -41,11 +41,13 @@ type InvoiceRecord = {
   payment_status: "unpaid" | "partial" | "paid";
   client_id: string;
   client_name_snapshot: string | null;
+  client_contact_person_snapshot: string | null;
   billing_address_snapshot: string | null;
   client_email_snapshot: string | null;
   client_phone_snapshot: string | null;
   company_id: string | null;
   company_name_snapshot: string | null;
+  company_contact_person_snapshot: string | null;
   company_address_snapshot: string | null;
   company_email_snapshot: string | null;
   company_phone_snapshot: string | null;
@@ -133,6 +135,7 @@ type ClientOption = {
   id: string;
   name: string;
   legal_name: string | null;
+  contact_person: string | null;
   company_email: string | null;
   personnel_email: string | null;
   company_phone: string | null;
@@ -152,6 +155,7 @@ type CompanyOption = {
   id: string;
   name: string;
   legal_name: string | null;
+  contact_person: string | null;
   email: string | null;
   phone: string | null;
   currency_code: string | null;
@@ -349,11 +353,13 @@ export default function FinanceInvoiceDetailPage() {
   const [paymentMethodIdDraft, setPaymentMethodIdDraft] = useState("");
 
   const [companyNameDraft, setCompanyNameDraft] = useState("");
+  const [companyContactPersonDraft, setCompanyContactPersonDraft] = useState("");
   const [companyAddressDraft, setCompanyAddressDraft] = useState("");
   const [companyEmailDraft, setCompanyEmailDraft] = useState("");
   const [companyPhoneDraft, setCompanyPhoneDraft] = useState("");
 
   const [clientNameDraft, setClientNameDraft] = useState("");
+  const [clientContactPersonDraft, setClientContactPersonDraft] = useState("");
   const [billingAddressDraft, setBillingAddressDraft] = useState("");
   const [clientEmailDraft, setClientEmailDraft] = useState("");
   const [clientPhoneDraft, setClientPhoneDraft] = useState("");
@@ -459,11 +465,17 @@ export default function FinanceInvoiceDetailPage() {
         );
 
         setCompanyNameDraft(typedInvoice.company_name_snapshot || "");
+        setCompanyContactPersonDraft(
+          typedInvoice.company_contact_person_snapshot || ""
+        );
         setCompanyAddressDraft(typedInvoice.company_address_snapshot || "");
         setCompanyEmailDraft(typedInvoice.company_email_snapshot || "");
         setCompanyPhoneDraft(typedInvoice.company_phone_snapshot || "");
 
         setClientNameDraft(typedInvoice.client_name_snapshot || "");
+        setClientContactPersonDraft(
+          typedInvoice.client_contact_person_snapshot || ""
+        );
         setBillingAddressDraft(typedInvoice.billing_address_snapshot || "");
         setClientEmailDraft(typedInvoice.client_email_snapshot || "");
         setClientPhoneDraft(typedInvoice.client_phone_snapshot || "");
@@ -518,14 +530,14 @@ export default function FinanceInvoiceDetailPage() {
         supabase
           .from("finance_clients")
           .select(
-            "id, name, legal_name, company_email, personnel_email, company_phone, personnel_phone, currency_code, payment_terms_days, payment_terms_id, country, city, state_province, postal_code, address_line_1, address_line_2"
+            "id, name, legal_name, contact_person, company_email, personnel_email, company_phone, personnel_phone, currency_code, payment_terms_days, payment_terms_id, country, city, state_province, postal_code, address_line_1, address_line_2"
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
         supabase
           .from("finance_companies")
           .select(
-            "id, name, legal_name, email, phone, currency_code, country, city, state_province, postal_code, address_line_1, address_line_2"
+            "id, name, legal_name, contact_person, email, phone, currency_code, country, city, state_province, postal_code, address_line_1, address_line_2"
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
@@ -788,6 +800,7 @@ export default function FinanceInvoiceDetailPage() {
       .join(", ");
 
     setClientNameDraft(selectedDraftClient.legal_name || selectedDraftClient.name || "");
+    setClientContactPersonDraft(selectedDraftClient.contact_person || "");
     setBillingAddressDraft(nextBillingAddress);
     setClientEmailDraft(
       selectedDraftClient.company_email || selectedDraftClient.personnel_email || ""
@@ -844,9 +857,10 @@ export default function FinanceInvoiceDetailPage() {
       .filter(Boolean)
       .join(", ");
 
-    setCompanyNameDraft(
+      setCompanyNameDraft(
       selectedDraftCompany?.legal_name || selectedDraftCompany?.name || ""
     );
+    setCompanyContactPersonDraft(selectedDraftCompany?.contact_person || "");
     setCompanyAddressDraft(nextCompanyAddress);
     setCompanyEmailDraft(selectedDraftCompany?.email || "");
     setCompanyPhoneDraft(selectedDraftCompany?.phone || "");
@@ -1059,10 +1073,12 @@ export default function FinanceInvoiceDetailPage() {
         .from("finance_invoices_issued")
         .update({
           company_name_snapshot: companyNameDraft || null,
+          company_contact_person_snapshot: companyContactPersonDraft || null,
           company_address_snapshot: companyAddressDraft || null,
           company_email_snapshot: companyEmailDraft || null,
           company_phone_snapshot: companyPhoneDraft || null,
           client_name_snapshot: clientNameDraft || null,
+          client_contact_person_snapshot: clientContactPersonDraft || null,
           billing_address_snapshot: billingAddressDraft || null,
           client_email_snapshot: clientEmailDraft || null,
           client_phone_snapshot: clientPhoneDraft || null,
@@ -1083,14 +1099,16 @@ export default function FinanceInvoiceDetailPage() {
     } finally {
       setIsSavingDraft(false);
     }
-  }, [
+    }, [
     id,
     invoice,
     companyNameDraft,
+    companyContactPersonDraft,
     companyAddressDraft,
     companyEmailDraft,
     companyPhoneDraft,
     clientNameDraft,
+    clientContactPersonDraft,
     billingAddressDraft,
     clientEmailDraft,
     clientPhoneDraft,
@@ -1262,10 +1280,12 @@ export default function FinanceInvoiceDetailPage() {
           due_date: dueDateDraft,
           notes: notesDraft || null,
           company_name_snapshot: selectedCompany?.legal_name || selectedCompany?.name || null,
+          company_contact_person_snapshot: selectedCompany?.contact_person || null,
           company_address_snapshot: companyAddressSnapshot,
           company_email_snapshot: selectedCompany?.email || null,
           company_phone_snapshot: selectedCompany?.phone || null,
           client_name_snapshot: selectedClient?.legal_name || selectedClient?.name || null,
+          client_contact_person_snapshot: selectedClient?.contact_person || null,
           billing_address_snapshot: selectedClient
             ? [
                 selectedClient.address_line_1,
@@ -1328,11 +1348,13 @@ export default function FinanceInvoiceDetailPage() {
     } finally {
       setIsSavingDraft(false);
     }
-    }, [
+       }, [
     bankAccountIdDraft,
     canEditDraft,
     clientIdDraft,
+    clientContactPersonDraft,
     companyIdDraft,
+    companyContactPersonDraft,
     currencyIdDraft,
     dueDateDraft,
     id,
@@ -1940,11 +1962,13 @@ export default function FinanceInvoiceDetailPage() {
           </div>
         </div>
 
-        <div>
+       <div>
           <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
             Contact Person
           </div>
-          <div className="mt-1">—</div>
+          <div className="mt-1">
+            {selectedDraftCompany?.contact_person || "—"}
+          </div>
         </div>
 
         <div>
@@ -1995,11 +2019,13 @@ export default function FinanceInvoiceDetailPage() {
           </div>
         </div>
 
-        <div>
+       <div>
           <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
             Contact Person
           </div>
-          <div className="mt-1">—</div>
+          <div className="mt-1">
+            {selectedDraftClient?.contact_person || "—"}
+          </div>
         </div>
 
         <div>
@@ -2120,6 +2146,14 @@ export default function FinanceInvoiceDetailPage() {
               className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
             />
             <input
+              value={companyContactPersonDraft}
+              onChange={(event) =>
+                setCompanyContactPersonDraft(event.target.value)
+              }
+              placeholder="Company contact person"
+              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+            />
+            <input
               value={companyEmailDraft}
               onChange={(event) => setCompanyEmailDraft(event.target.value)}
               placeholder="Company email"
@@ -2154,7 +2188,9 @@ export default function FinanceInvoiceDetailPage() {
               <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
                 Contact Person
               </div>
-              <div className="mt-1">—</div>
+              <div className="mt-1">
+                {invoice.company_contact_person_snapshot || "—"}
+              </div>
             </div>
 
             <div>
@@ -2198,6 +2234,14 @@ export default function FinanceInvoiceDetailPage() {
               className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
             />
             <input
+              value={clientContactPersonDraft}
+              onChange={(event) =>
+                setClientContactPersonDraft(event.target.value)
+              }
+              placeholder="Client contact person"
+              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+            />
+            <input
               value={clientEmailDraft}
               onChange={(event) => setClientEmailDraft(event.target.value)}
               placeholder="Client email"
@@ -2228,11 +2272,13 @@ export default function FinanceInvoiceDetailPage() {
               </div>
             </div>
 
-            <div>
+             <div>
               <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
                 Contact Person
               </div>
-              <div className="mt-1">—</div>
+              <div className="mt-1">
+                {invoice.client_contact_person_snapshot || "—"}
+              </div>
             </div>
 
             <div>

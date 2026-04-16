@@ -1998,7 +1998,7 @@ export default function FinanceInvoiceDetailPage() {
   <>
     <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
       <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-        Issuing Company Source
+        Issuing Company 
       </div>
       <div className="mt-3 space-y-2 text-sm text-white/75">
         <div>
@@ -2055,7 +2055,7 @@ export default function FinanceInvoiceDetailPage() {
 
     <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
       <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-        Client Source
+        BILL TO
       </div>
       <div className="mt-3 space-y-2 text-sm text-white/75">
         <div>
@@ -2159,7 +2159,7 @@ export default function FinanceInvoiceDetailPage() {
 
     <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
       <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-        Bank Details Source
+        BANK DETAILS
       </div>
 
       {selectedDraftBankAccount ? (

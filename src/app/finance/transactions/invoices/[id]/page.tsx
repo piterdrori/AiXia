@@ -136,6 +136,12 @@ type ClientOption = {
   currency_code: string | null;
   payment_terms_days: number | null;
   payment_terms_id: string | null;
+  country: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
 };
 
 type CompanyOption = {
@@ -473,7 +479,7 @@ export default function FinanceInvoiceDetailPage() {
         supabase
           .from("finance_clients")
           .select(
-            "id, name, legal_name, company_email, personnel_email, company_phone, personnel_phone, currency_code, payment_terms_days, payment_terms_id"
+            "id, name, legal_name, company_email, personnel_email, company_phone, personnel_phone, currency_code, payment_terms_days, payment_terms_id, country, city, state_province, postal_code, address_line_1, address_line_2"
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
@@ -762,6 +768,9 @@ export default function FinanceInvoiceDetailPage() {
       if (error) throw error;
 
       setIsEditMode(false);
+      setEditingOverview(false);
+      setEditingParties(false);
+      setEditingLines(false);
       await loadInvoice(true);
       await loadArchiveItems();
       setShowArchivePopup(true);
@@ -1021,7 +1030,7 @@ export default function FinanceInvoiceDetailPage() {
     }
 
     try {
-      const {
+            const {
         data: { user },
       } = await supabase.auth.getUser();
 
@@ -1029,7 +1038,40 @@ export default function FinanceInvoiceDetailPage() {
         throw new Error("User not authenticated");
       }
 
-            const { error: invoiceError } = await supabase
+      const selectedCompany =
+        companies.find((company) => company.id === companyIdDraft) ?? null;
+      const selectedClient =
+        clients.find((client) => client.id === clientIdDraft) ?? null;
+      const selectedPaymentTerm =
+        paymentTerms.find((term) => term.id === paymentTermsIdDraft) ?? null;
+      const selectedBankAccount =
+        filteredDraftBankAccounts.find((account) => account.id === bankAccountIdDraft) ?? null;
+
+      const companyAddressSnapshot = selectedCompany
+        ? [
+            selectedCompany.address_line_1,
+            selectedCompany.address_line_2,
+            selectedCompany.city,
+            selectedCompany.state_province,
+            selectedCompany.postal_code,
+            selectedCompany.country,
+          ]
+            .filter(Boolean)
+            .join(", ") || null
+        : null;
+
+      const bankDetailsSnapshot = selectedBankAccount
+        ? [
+            selectedBankAccount.beneficiary_name,
+            selectedBankAccount.bank_name,
+            selectedBankAccount.iban,
+            selectedBankAccount.swift_code,
+          ]
+            .filter(Boolean)
+            .join(" | ") || null
+        : null;
+
+      const { error: invoiceError } = await supabase
         .from("finance_invoices_issued")
         .update({
           client_id: clientIdDraft || invoice.client_id,
@@ -1043,6 +1085,29 @@ export default function FinanceInvoiceDetailPage() {
           issue_date: issueDateDraft,
           due_date: dueDateDraft,
           notes: notesDraft || null,
+          company_name_snapshot: selectedCompany?.legal_name || selectedCompany?.name || null,
+          company_address_snapshot: companyAddressSnapshot,
+          company_email_snapshot: selectedCompany?.email || null,
+          company_phone_snapshot: selectedCompany?.phone || null,
+          client_name_snapshot: selectedClient?.legal_name || selectedClient?.name || null,
+          billing_address_snapshot: selectedClient
+            ? [
+                selectedClient.address_line_1,
+                selectedClient.address_line_2,
+                selectedClient.city,
+                selectedClient.state_province,
+                selectedClient.postal_code,
+                selectedClient.country,
+              ]
+                .filter(Boolean)
+                .join(", ") || null
+            : null,
+          client_email_snapshot:
+            selectedClient?.company_email || selectedClient?.personnel_email || null,
+          client_phone_snapshot:
+            selectedClient?.company_phone || selectedClient?.personnel_phone || null,
+          payment_terms_snapshot: selectedPaymentTerm?.name || null,
+          bank_details_snapshot: bankDetailsSnapshot,
           updated_by: user.id,
           metadata: {
             ...(invoice as any).metadata,
@@ -1077,6 +1142,9 @@ export default function FinanceInvoiceDetailPage() {
       }
 
       setIsEditMode(false);
+      setEditingOverview(false);
+      setEditingParties(false);
+      setEditingLines(false);
       await loadInvoice(true);
     } catch (err) {
       console.error(err);
@@ -1206,7 +1274,7 @@ export default function FinanceInvoiceDetailPage() {
                   </Button>
                 ) : null}
 
-                {invoice.status === "draft" && editingOverview ? (
+                {invoice.status === "draft" ? (
                   <Button
                     onClick={() => void handleIssue()}
                     disabled={isIssuing}
@@ -1434,40 +1502,89 @@ export default function FinanceInvoiceDetailPage() {
                   </>
                 ) : null}
                               
+              {!editingOverview ? (
+                 <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Issuing Company
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {invoice.status === "draft"
+                      ? companies.find((company) => company.id === companyIdDraft)?.legal_name ||
+                        companies.find((company) => company.id === companyIdDraft)?.name ||
+                        "—"
+                      : invoice.company_name_snapshot || "—"}
+                  </div>
+                </div>
+
                 <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Client
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {invoice.status === "draft"
+                      ? clients.find((client) => client.id === clientIdDraft)?.legal_name ||
+                        clients.find((client) => client.id === clientIdDraft)?.name ||
+                        "—"
+                      : invoice.client_name_snapshot || "—"}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Payment Terms
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {invoice.status === "draft"
+                      ? paymentTerms.find((term) => term.id === paymentTermsIdDraft)?.name || "—"
+                      : invoice.payment_terms_snapshot || "—"}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Shipping Terms
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {shippingTerms.find((term) => term.id === shippingTermIdDraft)?.name || "—"}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Bank Account
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {invoice.status === "draft"
+                      ? filteredDraftBankAccounts.find((account) => account.id === bankAccountIdDraft)?.name || "—"
+                      : invoice.bank_details_snapshot || "—"}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Preferred Payment Method
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {paymentMethods.find((method) => method.id === paymentMethodIdDraft)?.name || "—"}
+                  </div>
+                </div>               
+                              
+                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Issue Date
                   </div>
-                  {editingOverview ? (
-                    <input
-                      type="date"
-                      value={issueDateDraft}
-                      onChange={(event) => setIssueDateDraft(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                    />
-                  ) : (
-                    <div className="mt-2 text-base font-semibold text-white">
-                      {formatFinanceDate(invoice.issue_date)}
-                    </div>
-                  )}
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {formatFinanceDate(invoice.issue_date)}
+                  </div>
                 </div>
 
                 <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Due Date
                   </div>
-                  {editingOverview ? (
-                    <input
-                      type="date"
-                      value={dueDateDraft}
-                      onChange={(event) => setDueDateDraft(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                    />
-                  ) : (
-                    <div className="mt-2 text-base font-semibold text-white">
-                      {formatFinanceDate(invoice.due_date)}
-                    </div>
-                  )}
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {formatFinanceDate(invoice.due_date)}
+                  </div>
                 </div>
 
                 <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
@@ -1516,23 +1633,27 @@ export default function FinanceInvoiceDetailPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3 md:col-span-3">
+                 <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3 md:col-span-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Notes
                   </div>
-                  {editingOverview ? (
+                  <div className="mt-2 text-sm leading-6 text-white/70">
+                    {invoice.notes || "—"}
+                  </div>
+                </div>
+                ) : (
+                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3 md:col-span-3">
+                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      Notes
+                    </div>
                     <textarea
                       value={notesDraft}
                       onChange={(event) => setNotesDraft(event.target.value)}
                       rows={4}
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
                     />
-                  ) : (
-                    <div className="mt-2 text-sm leading-6 text-white/70">
-                      {invoice.notes || "—"}
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1541,8 +1662,10 @@ export default function FinanceInvoiceDetailPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <CardTitle className="text-white">Document Parties</CardTitle>
-                    <CardDescription className="text-white/45">
-                      Snapshot values frozen at issuance time.
+                      <CardDescription className="text-white/45">
+                      {invoice.status === "draft"
+                        ? "Auto-filled from the selected company, client, payment terms, and bank account."
+                        : "Snapshot values frozen at issuance time."}
                     </CardDescription>
                   </div>
 
@@ -1562,7 +1685,7 @@ export default function FinanceInvoiceDetailPage() {
                       </Button>
                     ) : null}
 
-                    {canOpenSectionEdit ? (
+                    {!canEditDraft && canOpenSectionEdit ? (
                       <Button
                         variant="outline"
                         onClick={() => setEditingParties((current) => !current)}
@@ -1577,7 +1700,7 @@ export default function FinanceInvoiceDetailPage() {
               </CardHeader>
 
                             <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                {invoice.status === "draft" && editingOverview ? (
+                {invoice.status === "draft" ? (
                   <>
                     <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
                       <div className="text-xs uppercase tracking-[0.18em] text-white/35">

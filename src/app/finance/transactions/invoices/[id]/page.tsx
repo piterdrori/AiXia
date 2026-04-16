@@ -584,7 +584,7 @@ export default function FinanceInvoiceDetailPage() {
     void loadMasterData();
   }, [loadInvoice, loadMasterData]);
 
-  const totals = useMemo(() => {
+   const totals = useMemo(() => {
     if (!invoice) return null;
 
     return {
@@ -597,7 +597,7 @@ export default function FinanceInvoiceDetailPage() {
     };
   }, [invoice]);
 
-    const selectedDraftClient = useMemo(
+  const selectedDraftClient = useMemo(
     () => clients.find((client) => client.id === clientIdDraft) ?? null,
     [clientIdDraft, clients]
   );
@@ -605,6 +605,36 @@ export default function FinanceInvoiceDetailPage() {
   const selectedDraftCompany = useMemo(
     () => companies.find((company) => company.id === companyIdDraft) ?? null,
     [companies, companyIdDraft]
+  );
+
+  const selectedDraftProject = useMemo(
+    () => projects.find((entry) => entry.id === projectIdDraft) ?? null,
+    [projectIdDraft, projects]
+  );
+
+  const selectedDraftTask = useMemo(
+    () => tasks.find((entry) => entry.id === taskIdDraft) ?? null,
+    [taskIdDraft, tasks]
+  );
+
+  const selectedDraftPaymentTerm = useMemo(
+    () => paymentTerms.find((entry) => entry.id === paymentTermsIdDraft) ?? null,
+    [paymentTerms, paymentTermsIdDraft]
+  );
+
+  const selectedDraftShippingTerm = useMemo(
+    () => shippingTerms.find((entry) => entry.id === shippingTermIdDraft) ?? null,
+    [shippingTerms, shippingTermIdDraft]
+  );
+
+  const selectedDraftCurrency = useMemo(
+    () => currencies.find((entry) => entry.id === currencyIdDraft) ?? null,
+    [currencies, currencyIdDraft]
+  );
+
+  const selectedDraftPaymentMethod = useMemo(
+    () => paymentMethods.find((entry) => entry.id === paymentMethodIdDraft) ?? null,
+    [paymentMethodIdDraft, paymentMethods]
   );
 
   const filteredDraftTasks = useMemo(() => {
@@ -624,8 +654,14 @@ export default function FinanceInvoiceDetailPage() {
       (account) => !account.company_id || account.company_id === companyIdDraft
     );
   }, [bankAccounts, companyIdDraft]);
-  
-  
+
+  const selectedDraftBankAccount = useMemo(
+    () =>
+      filteredDraftBankAccounts.find((account) => account.id === bankAccountIdDraft) ??
+      null,
+    [bankAccountIdDraft, filteredDraftBankAccounts]
+  );
+
   const draftTotals = useMemo(() => {
     const subtotal = lineItemsDraft.reduce(
       (sum, row) => sum + toNumber(row.quantity) * toNumber(row.unit_price),
@@ -648,7 +684,27 @@ export default function FinanceInvoiceDetailPage() {
     };
   }, [lineItemsDraft]);
 
-   useEffect(() => {
+  const financialSummary = useMemo(() => {
+    if (!invoice || !totals) return null;
+
+    if (invoice.status === "draft") {
+      const paid = totals.paid;
+      const balance = Math.max(draftTotals.total - paid, 0);
+
+      return {
+        subtotal: draftTotals.subtotal,
+        discount: draftTotals.discount,
+        tax: draftTotals.tax,
+        total: draftTotals.total,
+        paid,
+        balance,
+      };
+    }
+
+    return totals;
+  }, [draftTotals, invoice, totals]);
+
+  useEffect(() => {
     if (!invoice || invoice.status !== "draft" || !selectedDraftClient) return;
 
     if (selectedDraftClient.payment_terms_id && !paymentTermsIdDraft) {
@@ -664,6 +720,26 @@ export default function FinanceInvoiceDetailPage() {
         setCurrencyIdDraft(matchedCurrency.id);
       }
     }
+
+    const nextBillingAddress = [
+      selectedDraftClient.address_line_1,
+      selectedDraftClient.address_line_2,
+      selectedDraftClient.city,
+      selectedDraftClient.state_province,
+      selectedDraftClient.postal_code,
+      selectedDraftClient.country,
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+    setClientNameDraft(selectedDraftClient.legal_name || selectedDraftClient.name || "");
+    setBillingAddressDraft(nextBillingAddress);
+    setClientEmailDraft(
+      selectedDraftClient.company_email || selectedDraftClient.personnel_email || ""
+    );
+    setClientPhoneDraft(
+      selectedDraftClient.company_phone || selectedDraftClient.personnel_phone || ""
+    );
 
     if (!dueDateDraft) {
       const days = selectedDraftClient.payment_terms_days ?? 14;
@@ -681,7 +757,7 @@ export default function FinanceInvoiceDetailPage() {
     selectedDraftClient,
   ]);
 
-  useEffect(() => {
+   useEffect(() => {
     if (!invoice || invoice.status !== "draft" || !companyIdDraft) return;
 
     const defaultBank =
@@ -701,6 +777,24 @@ export default function FinanceInvoiceDetailPage() {
         setCurrencyIdDraft(matchedCurrency.id);
       }
     }
+
+    const nextCompanyAddress = [
+      selectedDraftCompany?.address_line_1,
+      selectedDraftCompany?.address_line_2,
+      selectedDraftCompany?.city,
+      selectedDraftCompany?.state_province,
+      selectedDraftCompany?.postal_code,
+      selectedDraftCompany?.country,
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+    setCompanyNameDraft(
+      selectedDraftCompany?.legal_name || selectedDraftCompany?.name || ""
+    );
+    setCompanyAddressDraft(nextCompanyAddress);
+    setCompanyEmailDraft(selectedDraftCompany?.email || "");
+    setCompanyPhoneDraft(selectedDraftCompany?.phone || "");
   }, [
     bankAccountIdDraft,
     companyIdDraft,
@@ -1509,10 +1603,8 @@ export default function FinanceInvoiceDetailPage() {
                     Issuing Company
                   </div>
                   <div className="mt-2 text-base font-semibold text-white">
-                    {invoice.status === "draft"
-                      ? companies.find((company) => company.id === companyIdDraft)?.legal_name ||
-                        companies.find((company) => company.id === companyIdDraft)?.name ||
-                        "—"
+                     {invoice.status === "draft"
+                      ? selectedDraftCompany?.legal_name || selectedDraftCompany?.name || "—"
                       : invoice.company_name_snapshot || "—"}
                   </div>
                 </div>
@@ -1522,10 +1614,8 @@ export default function FinanceInvoiceDetailPage() {
                     Client
                   </div>
                   <div className="mt-2 text-base font-semibold text-white">
-                    {invoice.status === "draft"
-                      ? clients.find((client) => client.id === clientIdDraft)?.legal_name ||
-                        clients.find((client) => client.id === clientIdDraft)?.name ||
-                        "—"
+                   {invoice.status === "draft"
+                      ? selectedDraftClient?.legal_name || selectedDraftClient?.name || "—"
                       : invoice.client_name_snapshot || "—"}
                   </div>
                 </div>
@@ -1534,9 +1624,9 @@ export default function FinanceInvoiceDetailPage() {
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Payment Terms
                   </div>
-                  <div className="mt-2 text-base font-semibold text-white">
+                   <div className="mt-2 text-base font-semibold text-white">
                     {invoice.status === "draft"
-                      ? paymentTerms.find((term) => term.id === paymentTermsIdDraft)?.name || "—"
+                      ? selectedDraftPaymentTerm?.name || "—"
                       : invoice.payment_terms_snapshot || "—"}
                   </div>
                 </div>
@@ -1546,7 +1636,9 @@ export default function FinanceInvoiceDetailPage() {
                     Shipping Terms
                   </div>
                   <div className="mt-2 text-base font-semibold text-white">
-                    {shippingTerms.find((term) => term.id === shippingTermIdDraft)?.name || "—"}
+                    {invoice.status === "draft"
+                      ? selectedDraftShippingTerm?.name || "—"
+                      : "—"}
                   </div>
                 </div>
 
@@ -1556,7 +1648,7 @@ export default function FinanceInvoiceDetailPage() {
                   </div>
                   <div className="mt-2 text-base font-semibold text-white">
                     {invoice.status === "draft"
-                      ? filteredDraftBankAccounts.find((account) => account.id === bankAccountIdDraft)?.name || "—"
+                      ? selectedDraftBankAccount?.name || "—"
                       : invoice.bank_details_snapshot || "—"}
                   </div>
                 </div>
@@ -1566,16 +1658,26 @@ export default function FinanceInvoiceDetailPage() {
                     Preferred Payment Method
                   </div>
                   <div className="mt-2 text-base font-semibold text-white">
-                    {paymentMethods.find((method) => method.id === paymentMethodIdDraft)?.name || "—"}
+                    {invoice.status === "draft"
+                      ? selectedDraftPaymentMethod?.name || "—"
+                      : ((invoice.metadata?.preferred_payment_method_id as string | undefined) &&
+                          paymentMethods.find(
+                            (method) =>
+                              method.id ===
+                              (invoice.metadata?.preferred_payment_method_id as string)
+                          )?.name) ||
+                        "—"}
                   </div>
-                </div>               
-                              
-                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Issue Date
                   </div>
                   <div className="mt-2 text-base font-semibold text-white">
-                    {formatFinanceDate(invoice.issue_date)}
+                    {invoice.status === "draft"
+                      ? formatFinanceDate(issueDateDraft)
+                      : formatFinanceDate(invoice.issue_date)}
                   </div>
                 </div>
 
@@ -1584,7 +1686,9 @@ export default function FinanceInvoiceDetailPage() {
                     Due Date
                   </div>
                   <div className="mt-2 text-base font-semibold text-white">
-                    {formatFinanceDate(invoice.due_date)}
+                    {invoice.status === "draft"
+                      ? formatFinanceDate(dueDateDraft)
+                      : formatFinanceDate(invoice.due_date)}
                   </div>
                 </div>
 
@@ -1594,14 +1698,8 @@ export default function FinanceInvoiceDetailPage() {
                   </div>
                   <div className="mt-2 text-base font-semibold text-white">
                     {invoice.status === "draft"
-                      ? currencies.find((currency) => currency.id === currencyIdDraft)
-                        ? `${
-                            currencies.find((currency) => currency.id === currencyIdDraft)
-                              ?.currency_code
-                          } — ${
-                            currencies.find((currency) => currency.id === currencyIdDraft)
-                              ?.currency_name
-                          }`
+                      ? selectedDraftCurrency
+                        ? `${selectedDraftCurrency.currency_code} — ${selectedDraftCurrency.currency_name}`
                         : invoice.currency_code || "USD"
                       : invoice.currency_code || "USD"}
                   </div>
@@ -1612,7 +1710,9 @@ export default function FinanceInvoiceDetailPage() {
                     Project
                   </div>
                   <div className="mt-2 text-base font-semibold text-white">
-                    {project?.name || "—"}
+                    {invoice.status === "draft"
+                      ? selectedDraftProject?.name || "—"
+                      : project?.name || "—"}
                   </div>
                 </div>
 
@@ -1621,7 +1721,9 @@ export default function FinanceInvoiceDetailPage() {
                     Task
                   </div>
                   <div className="mt-2 text-base font-semibold text-white">
-                    {task?.title || "—"}
+                    {invoice.status === "draft"
+                      ? selectedDraftTask?.title || "—"
+                      : task?.title || "—"}
                   </div>
                 </div>
 
@@ -1709,22 +1811,18 @@ export default function FinanceInvoiceDetailPage() {
                         Issuing Company Source
                       </div>
                       <div className="mt-3 space-y-2 text-sm text-white/75">
-                        <div className="font-semibold text-white">
-                          {companies.find((company) => company.id === companyIdDraft)?.legal_name ||
-                            companies.find((company) => company.id === companyIdDraft)?.name ||
-                            "—"}
+                       <div className="font-semibold text-white">
+                          {selectedDraftCompany?.legal_name || selectedDraftCompany?.name || "—"}
                         </div>
-                        <div>
-                          {companies.find((company) => company.id === companyIdDraft)?.email || "—"}
-                        </div>
+                        <div>{selectedDraftCompany?.email || "—"}</div>
                         <div>
                           {[
-                            companies.find((company) => company.id === companyIdDraft)?.address_line_1,
-                            companies.find((company) => company.id === companyIdDraft)?.address_line_2,
-                            companies.find((company) => company.id === companyIdDraft)?.city,
-                            companies.find((company) => company.id === companyIdDraft)?.state_province,
-                            companies.find((company) => company.id === companyIdDraft)?.postal_code,
-                            companies.find((company) => company.id === companyIdDraft)?.country,
+                            selectedDraftCompany?.address_line_1,
+                            selectedDraftCompany?.address_line_2,
+                            selectedDraftCompany?.city,
+                            selectedDraftCompany?.state_province,
+                            selectedDraftCompany?.postal_code,
+                            selectedDraftCompany?.country,
                           ]
                             .filter(Boolean)
                             .join(", ") || "—"}
@@ -1737,19 +1835,17 @@ export default function FinanceInvoiceDetailPage() {
                         Client Source
                       </div>
                       <div className="mt-3 space-y-2 text-sm text-white/75">
-                        <div className="font-semibold text-white">
-                          {clients.find((client) => client.id === clientIdDraft)?.legal_name ||
-                            clients.find((client) => client.id === clientIdDraft)?.name ||
+                       <div className="font-semibold text-white">
+                          {selectedDraftClient?.legal_name || selectedDraftClient?.name || "—"}
+                        </div>
+                        <div>
+                          {selectedDraftClient?.company_email ||
+                            selectedDraftClient?.personnel_email ||
                             "—"}
                         </div>
                         <div>
-                          {clients.find((client) => client.id === clientIdDraft)?.company_email ||
-                            clients.find((client) => client.id === clientIdDraft)?.personnel_email ||
-                            "—"}
-                        </div>
-                        <div>
-                          {clients.find((client) => client.id === clientIdDraft)?.company_phone ||
-                            clients.find((client) => client.id === clientIdDraft)?.personnel_phone ||
+                          {selectedDraftClient?.company_phone ||
+                            selectedDraftClient?.personnel_phone ||
                             "—"}
                         </div>
                       </div>
@@ -1759,8 +1855,8 @@ export default function FinanceInvoiceDetailPage() {
                       <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                         Payment Terms Source
                       </div>
-                      <div className="mt-3 text-sm text-white/75">
-                        {paymentTerms.find((term) => term.id === paymentTermsIdDraft)?.name || "—"}
+                       <div className="mt-3 text-sm text-white/75">
+                        {selectedDraftPaymentTerm?.name || "—"}
                       </div>
                     </div>
 
@@ -1769,16 +1865,12 @@ export default function FinanceInvoiceDetailPage() {
                         Bank Details Source
                       </div>
                       <div className="mt-3 text-sm text-white/75">
-                        {bankAccounts.find((account) => account.id === bankAccountIdDraft)
+                        {selectedDraftBankAccount
                           ? [
-                              bankAccounts.find((account) => account.id === bankAccountIdDraft)
-                                ?.beneficiary_name,
-                              bankAccounts.find((account) => account.id === bankAccountIdDraft)
-                                ?.bank_name,
-                              bankAccounts.find((account) => account.id === bankAccountIdDraft)
-                                ?.iban,
-                              bankAccounts.find((account) => account.id === bankAccountIdDraft)
-                                ?.swift_code,
+                              selectedDraftBankAccount.beneficiary_name,
+                              selectedDraftBankAccount.bank_name,
+                              selectedDraftBankAccount.iban,
+                              selectedDraftBankAccount.swift_code,
                             ]
                               .filter(Boolean)
                               .join(" | ")
@@ -2246,15 +2338,17 @@ export default function FinanceInvoiceDetailPage() {
                 </CardDescription>
               </CardHeader>
 
-              <CardContent className="space-y-3 p-5">
+                            <CardContent className="space-y-3 p-5">
                 <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Subtotal
                   </div>
                   <div className="mt-2 text-lg font-semibold text-white">
-                   {formatFinanceMoney(
-                      editingLines ? draftTotals.subtotal : totals.subtotal,
-                      invoice.currency_code || "USD"
+                    {formatFinanceMoney(
+                      financialSummary?.subtotal ?? 0,
+                      selectedDraftCurrency?.currency_code ||
+                        invoice.currency_code ||
+                        "USD"
                     )}
                   </div>
                 </div>
@@ -2265,8 +2359,10 @@ export default function FinanceInvoiceDetailPage() {
                   </div>
                   <div className="mt-2 text-lg font-semibold text-white">
                     {formatFinanceMoney(
-                     editingLines ? draftTotals.discount : totals.discount,
-                      invoice.currency_code || "USD"
+                      financialSummary?.discount ?? 0,
+                      selectedDraftCurrency?.currency_code ||
+                        invoice.currency_code ||
+                        "USD"
                     )}
                   </div>
                 </div>
@@ -2276,9 +2372,11 @@ export default function FinanceInvoiceDetailPage() {
                     Tax
                   </div>
                   <div className="mt-2 text-lg font-semibold text-white">
-                   {formatFinanceMoney(
-                      editingLines ? draftTotals.tax : totals.tax,
-                      invoice.currency_code || "USD"
+                    {formatFinanceMoney(
+                      financialSummary?.tax ?? 0,
+                      selectedDraftCurrency?.currency_code ||
+                        invoice.currency_code ||
+                        "USD"
                     )}
                   </div>
                 </div>
@@ -2289,8 +2387,10 @@ export default function FinanceInvoiceDetailPage() {
                   </div>
                   <div className="mt-2 text-xl font-semibold text-white">
                     {formatFinanceMoney(
-                      editingLines ? draftTotals.total : totals.total,
-                      invoice.currency_code || "USD"
+                      financialSummary?.total ?? 0,
+                      selectedDraftCurrency?.currency_code ||
+                        invoice.currency_code ||
+                        "USD"
                     )}
                   </div>
                 </div>
@@ -2300,7 +2400,12 @@ export default function FinanceInvoiceDetailPage() {
                     Paid
                   </div>
                   <div className="mt-2 text-lg font-semibold text-white">
-                    {formatFinanceMoney(totals.paid, invoice.currency_code || "USD")}
+                    {formatFinanceMoney(
+                      financialSummary?.paid ?? 0,
+                      selectedDraftCurrency?.currency_code ||
+                        invoice.currency_code ||
+                        "USD"
+                    )}
                   </div>
                 </div>
 
@@ -2310,8 +2415,10 @@ export default function FinanceInvoiceDetailPage() {
                   </div>
                   <div className="mt-2 text-xl font-semibold text-white">
                     {formatFinanceMoney(
-                      totals.balance,
-                      invoice.currency_code || "USD"
+                      financialSummary?.balance ?? 0,
+                      selectedDraftCurrency?.currency_code ||
+                        invoice.currency_code ||
+                        "USD"
                     )}
                   </div>
                 </div>
@@ -2339,9 +2446,9 @@ export default function FinanceInvoiceDetailPage() {
                     >
                       <div className="flex items-center justify-between gap-4">
                         <div>
-                          <div className="text-sm font-medium text-white">
-                            {payment.reference_number || "Confirmed payment"}
-                          </div>
+                            <div className="text-sm font-medium text-white">
+                              {payment.reference_number || "Confirmed payment"}
+                            </div>
                           <div className="mt-1 text-xs text-white/45">
                             {formatFinanceDate(payment.payment_date)}
                           </div>

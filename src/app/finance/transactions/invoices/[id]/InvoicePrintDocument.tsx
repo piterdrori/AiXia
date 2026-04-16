@@ -9,6 +9,9 @@ type Props = {
   task?: any;
 };
 
+const DEFAULT_TERMS =
+  "Payment is due according to the agreed payment terms stated on this invoice. Goods remain subject to the agreed shipping terms. Any bank charges are the responsibility of the payer unless otherwise agreed in writing. Please reference the invoice number with your payment. Late payments may result in delays, additional charges, or suspension of further deliveries or services.";
+
 export default function InvoicePrintDocument({
   invoice,
   lineItems,
@@ -18,9 +21,10 @@ export default function InvoicePrintDocument({
   task,
 }: Props) {
   const currency = invoice?.currency_code || "USD";
-  
+
   const parseBankDetails = (details: string) => {
     if (!details) return null;
+
     try {
       const parsed = JSON.parse(details);
       return {
@@ -38,7 +42,7 @@ export default function InvoicePrintDocument({
         beneficiary: parts[0] || "",
         bank: parts[1] || "",
         bankAddress: "",
-        accountNumber: parts[2] || "",
+        accountNumber: "",
         iban: parts[2] || "",
         swift: parts[3] || "",
         currency: "",
@@ -48,352 +52,635 @@ export default function InvoicePrintDocument({
 
   const bankInfo = parseBankDetails(invoice?.bank_details_snapshot);
 
+  const paymentTerms =
+    invoice?.payment_terms_snapshot || "—";
+
+  const shippingTerms =
+    invoice?.shipping_terms_snapshot || "—";
+
+  const termsAndConditions =
+    invoice?.terms_and_conditions_snapshot || DEFAULT_TERMS;
+
+  const totalRows = Math.max(lineItems.length, 8);
+  const emptyRows = Math.max(0, totalRows - lineItems.length);
+
   return (
     <>
       <style>{`
         @media print {
           @page { size: A4; margin: 0; }
-          html, body { background: #ffffff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          html, body {
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
           body * { visibility: hidden !important; }
-          .invoice-ref-container, .invoice-ref-container * { visibility: visible !important; }
-          .invoice-ref-container {
-            position: absolute !important; left: 0 !important; top: 0 !important;
-            width: 210mm !important; height: 297mm !important; background: #ffffff !important;
-            margin: 0 !important; padding: 0 !important; overflow: hidden !important;
+          .invoice-print-sheet, .invoice-print-sheet * { visibility: visible !important; }
+          .invoice-print-sheet {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 210mm !important;
+            height: 297mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            background: #ffffff !important;
           }
         }
-        @media screen { .invoice-ref-container { display: none !important; } }
+
+        @media screen {
+          .invoice-print-sheet {
+            display: none !important;
+          }
+        }
       `}</style>
 
-      <div className="invoice-ref-container">
-        <div style={{
-          width: "210mm", height: "297mm", background: "#ffffff", color: "#1f2937",
-          fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          position: "relative", overflow: "hidden",
-        }}>
-          {/* Header Background with Curve */}
-          <div style={{
-            position: "absolute", top: 0, left: 0, right: 0, height: "85mm",
-            background: "linear-gradient(135deg, #1f2937 0%, #111827 100%)",
-            clipPath: "ellipse(120% 100% at 50% 0%)",
-            zIndex: 0,
-          }} />
+      <div className="invoice-print-sheet">
+        <div
+          style={{
+            width: "210mm",
+            height: "297mm",
+            background: "#ffffff",
+            color: "#111827",
+            fontFamily:
+              'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          {/* HEADER */}
+          <div
+            style={{
+              position: "absolute",
+              inset: "0 0 auto 0",
+              height: "74mm",
+              background: "#232323",
+              zIndex: 0,
+            }}
+          />
 
-          {/* Header Content */}
-          <div style={{ position: "relative", zIndex: 1, padding: "8mm 15mm 0 15mm", color: "#ffffff" }}>
-            
-            {/* Top Row: Logo Left, Title Right */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6mm" }}>
-              <img
-                src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
-                alt="AiXia"
-                style={{ height: "10mm", width: "auto", filter: "brightness(0) invert(1)" }}
-              />
-              
-              <div style={{ 
-                fontSize: "28pt", fontWeight: 300, letterSpacing: "0.1em", 
-                textTransform: "uppercase", marginTop: "2mm"
-              }}>
-                Invoice
-              </div>
-            </div>
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: "45mm",
+              height: "32mm",
+              background: "#ffffff",
+              clipPath: "ellipse(92% 100% at 50% 0%)",
+              zIndex: 1,
+            }}
+          />
 
-            {/* Header Info Grid */}
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8mm" }}>
-              {/* Company Info */}
-              <div style={{ maxWidth: "70mm" }}>
-                <div style={{ fontSize: "7.5pt", lineHeight: 1.6, opacity: 0.9 }}>
-                  <div style={{ fontWeight: 600, fontSize: "9pt", marginBottom: "1mm" }}>
-                    {invoice?.company_name_snapshot || "AiXia Technologies"}
-                  </div>
-                  <div>{invoice?.company_address_snapshot || ""}</div>
-                  <div style={{ marginTop: "1mm" }}>
-                    {invoice?.company_phone_snapshot && <div>📞 {invoice.company_phone_snapshot}</div>}
-                    {invoice?.company_email_snapshot && <div>✉ {invoice.company_email_snapshot}</div>}
-                  </div>
-                </div>
-              </div>
-
-              {/* Invoice Meta */}
-              <div style={{ textAlign: "right", fontSize: "8.5pt", lineHeight: 1.8 }}>
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: "3mm" }}>
-                  <span style={{ opacity: 0.7 }}>Invoice No :</span>
-                  <span style={{ fontWeight: 600 }}>{invoice?.invoice_number || "—"}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: "3mm" }}>
-                  <span style={{ opacity: 0.7 }}>Issue Date :</span>
-                  <span>{formatFinanceDate(invoice?.issue_date)}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: "3mm" }}>
-                  <span style={{ opacity: 0.7 }}>Due Date :</span>
-                  <span style={{ color: new Date(invoice?.due_date) < new Date() && invoice?.payment_status !== 'paid' ? "#fca5a5" : "inherit" }}>
-                    {formatFinanceDate(invoice?.due_date)}
-                  </span>
-                </div>
-                {invoice?.posted_to_ledger && (
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "3mm", fontSize: "7.5pt", opacity: 0.8, marginTop: "1mm" }}>
-                    <span>Posted to Ledger</span>
-                    <span>{formatFinanceDate(invoice?.issued_at)}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Status Badges */}
-            <div style={{ display: "flex", gap: "2mm", marginBottom: "4mm" }}>
-              <span style={{
-                background: invoice?.status === 'draft' ? 'rgba(255,255,255,0.2)' : invoice?.status === 'paid' ? '#10b981' : 'rgba(255,255,255,0.9)',
-                color: invoice?.status === 'draft' || invoice?.status === 'paid' ? '#ffffff' : '#1f2937',
-                padding: "1mm 2.5mm", borderRadius: "1mm", fontSize: "7pt", fontWeight: 700, textTransform: "uppercase"
-              }}>
-                {invoice?.status}
-              </span>
-              <span style={{
-                background: invoice?.payment_status === 'paid' ? '#10b981' : invoice?.payment_status === 'partial' ? '#f59e0b' : 'rgba(239,68,68,0.9)',
-                color: '#ffffff', padding: "1mm 2.5mm", borderRadius: "1mm", fontSize: "7pt", fontWeight: 700, textTransform: "uppercase"
-              }}>
-                {invoice?.payment_status}
-              </span>
-            </div>
-          </div>
-
-          {/* Bill To Section */}
-          <div style={{ padding: "0 15mm", marginTop: "2mm", marginBottom: "4mm" }}>
-            <div style={{ 
-              background: "#f9fafb", padding: "4mm 5mm", borderRadius: "2mm", 
-              border: "0.5pt solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center"
-            }}>
+          <div
+            style={{
+              position: "relative",
+              zIndex: 2,
+              padding: "11mm 14mm 0 14mm",
+              color: "#ffffff",
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "10mm",
+                alignItems: "start",
+              }}
+            >
+              {/* LEFT HEADER */}
               <div>
-                <div style={{ fontSize: "7pt", textTransform: "uppercase", letterSpacing: "0.1em", color: "#6b7280", marginBottom: "1mm", fontWeight: 700 }}>
-                  Bill To
+                <img
+                  src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
+                  alt="AiXia"
+                  style={{
+                    height: "11mm",
+                    width: "auto",
+                    filter: "brightness(0) invert(1)",
+                    marginBottom: "4mm",
+                  }}
+                />
+
+                <div
+                  style={{
+                    fontSize: "8pt",
+                    lineHeight: 1.65,
+                    color: "rgba(255,255,255,0.92)",
+                    maxWidth: "72mm",
+                  }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: "10pt", marginBottom: "1.2mm" }}>
+                    {invoice?.company_name_snapshot || "—"}
+                  </div>
+                  {invoice?.company_contact_person_snapshot ? (
+                    <div>{invoice.company_contact_person_snapshot}</div>
+                  ) : null}
+                  {invoice?.company_phone_snapshot ? (
+                    <div>{invoice.company_phone_snapshot}</div>
+                  ) : null}
+                  {invoice?.company_email_snapshot ? (
+                    <div>{invoice.company_email_snapshot}</div>
+                  ) : null}
+                  {invoice?.company_address_snapshot ? (
+                    <div style={{ marginTop: "1mm" }}>
+                      {invoice.company_address_snapshot}
+                    </div>
+                  ) : null}
                 </div>
-                <div style={{ fontWeight: 700, fontSize: "11pt", color: "#111827", marginBottom: "1mm" }}>
-                  {invoice?.client_name_snapshot || "Client Name"}
-                </div>
-                <div style={{ fontSize: "8pt", color: "#4b5563", lineHeight: 1.5 }}>
-                  {invoice?.billing_address_snapshot || ""}
-                </div>
-                <div style={{ fontSize: "8pt", color: "#6b7280", marginTop: "1mm" }}>
-                  {invoice?.client_email_snapshot} {invoice?.client_phone_snapshot && `• ${invoice.client_phone_snapshot}`}
+
+                <div style={{ marginTop: "5mm", maxWidth: "72mm" }}>
+                  <div
+                    style={{
+                      fontSize: "8pt",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      marginBottom: "1.5mm",
+                    }}
+                  >
+                    Bill To
+                  </div>
+
+                  <div style={{ fontSize: "8pt", lineHeight: 1.6 }}>
+                    <div style={{ fontWeight: 700, fontSize: "10pt", marginBottom: "1mm" }}>
+                      {invoice?.client_name_snapshot || "—"}
+                    </div>
+                    {invoice?.client_contact_person_snapshot ? (
+                      <div>{invoice.client_contact_person_snapshot}</div>
+                    ) : null}
+                    {invoice?.client_email_snapshot ? (
+                      <div>{invoice.client_email_snapshot}</div>
+                    ) : null}
+                    {invoice?.client_phone_snapshot ? (
+                      <div>{invoice.client_phone_snapshot}</div>
+                    ) : null}
+                    {invoice?.billing_address_snapshot ? (
+                      <div style={{ marginTop: "1mm" }}>
+                        {invoice.billing_address_snapshot}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
-              
-              {(project?.name || task?.title || invoice?.payment_terms_snapshot) && (
-                <div style={{ textAlign: "right", fontSize: "8pt" }}>
-                  {project?.name && (
-                    <div style={{ marginBottom: "1mm" }}>
-                      <span style={{ color: "#9ca3af" }}>Project: </span>
-                      <span style={{ fontWeight: 600 }}>{project.name}</span>
-                    </div>
-                  )}
-                  {task?.title && (
-                    <div style={{ marginBottom: "1mm" }}>
-                      <span style={{ color: "#9ca3af" }}>Task: </span>
-                      <span style={{ fontWeight: 600 }}>{task.title}</span>
-                    </div>
-                  )}
-                  {invoice?.payment_terms_snapshot && (
-                    <div>
-                      <span style={{ color: "#9ca3af" }}>Terms: </span>
-                      <span>{invoice.payment_terms_snapshot}</span>
-                    </div>
-                  )}
+
+              {/* RIGHT HEADER */}
+              <div style={{ textAlign: "left", paddingLeft: "10mm" }}>
+                <div
+                  style={{
+                    fontSize: "32pt",
+                    fontWeight: 300,
+                    letterSpacing: "0.09em",
+                    textTransform: "uppercase",
+                    marginBottom: "8mm",
+                    marginTop: "4mm",
+                  }}
+                >
+                  Invoice
                 </div>
-              )}
+
+                <div style={{ fontSize: "10pt", lineHeight: 2 }}>
+                  <div style={{ display: "flex", gap: "5mm" }}>
+                    <span style={{ width: "25mm", opacity: 0.8 }}>Invoice No</span>
+                    <span style={{ fontWeight: 700 }}>{invoice?.invoice_number || "—"}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: "5mm" }}>
+                    <span style={{ width: "25mm", opacity: 0.8 }}>Issue Date</span>
+                    <span>{formatFinanceDate(invoice?.issue_date)}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: "5mm" }}>
+                    <span style={{ width: "25mm", opacity: 0.8 }}>Due Date</span>
+                    <span>{formatFinanceDate(invoice?.due_date)}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: "5mm" }}>
+                    <span style={{ width: "25mm", opacity: 0.8 }}>Currency</span>
+                    <span>{currency}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Line Items Table */}
-          <div style={{ padding: "0 15mm", marginBottom: "4mm" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "8.5pt" }}>
+          {/* TABLE */}
+          <div style={{ position: "relative", zIndex: 2, padding: "12mm 14mm 0 14mm" }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                tableLayout: "fixed",
+                fontSize: "8.5pt",
+              }}
+            >
               <thead>
-                <tr style={{ background: "#1f2937", color: "#ffffff" }}>
-                  <th style={{ textAlign: "center", padding: "3mm 2mm", fontWeight: 600, fontSize: "7.5pt", width: "8mm" }}>No</th>
-                  <th style={{ textAlign: "left", padding: "3mm 2mm", fontWeight: 600, fontSize: "7.5pt" }}>Item Description</th>
-                  <th style={{ textAlign: "right", padding: "3mm 2mm", fontWeight: 600, fontSize: "7.5pt", width: "20mm" }}>Unit Price</th>
-                  <th style={{ textAlign: "right", padding: "3mm 2mm", fontWeight: 600, fontSize: "7.5pt", width: "15mm" }}>Qty</th>
-                  <th style={{ textAlign: "right", padding: "3mm 2mm", fontWeight: 600, fontSize: "7.5pt", width: "20mm" }}>Value</th>
+                <tr style={{ background: "#232323", color: "#ffffff" }}>
+                  <th
+                    style={{
+                      width: "10%",
+                      textAlign: "center",
+                      padding: "3mm 2mm",
+                      fontWeight: 700,
+                    }}
+                  >
+                    No
+                  </th>
+                  <th
+                    style={{
+                      width: "48%",
+                      textAlign: "left",
+                      padding: "3mm 3mm",
+                      fontWeight: 700,
+                    }}
+                  >
+                    Item Description
+                  </th>
+                  <th
+                    style={{
+                      width: "14%",
+                      textAlign: "right",
+                      padding: "3mm 2mm",
+                      fontWeight: 700,
+                    }}
+                  >
+                    Unit Price
+                  </th>
+                  <th
+                    style={{
+                      width: "12%",
+                      textAlign: "right",
+                      padding: "3mm 2mm",
+                      fontWeight: 700,
+                    }}
+                  >
+                    Quantity
+                  </th>
+                  <th
+                    style={{
+                      width: "16%",
+                      textAlign: "right",
+                      padding: "3mm 2mm",
+                      fontWeight: 700,
+                    }}
+                  >
+                    Value
+                  </th>
                 </tr>
               </thead>
+
               <tbody>
-                {lineItems.map((item, index) => (
-                  <tr key={item.id || index} style={{ borderBottom: "0.5pt solid #e5e7eb" }}>
-                    <td style={{ padding: "2.5mm 2mm", textAlign: "center", color: "#6b7280", fontSize: "8pt" }}>{index + 1}</td>
-                    <td style={{ padding: "2.5mm 2mm", verticalAlign: "top" }}>
-                      <div style={{ fontWeight: 500, color: "#111827" }}>{item.description || "—"}</div>
-                      {(item.unit_of_measure_id || item.tax_code_id || item.revenue_category_id) && (
-                        <div style={{ fontSize: "6.5pt", color: "#9ca3af", marginTop: "0.5mm" }}>
-                          {[item.unit_of_measure_id, item.tax_code_id, item.revenue_category_id].filter(Boolean).join(" • ")}
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ padding: "2.5mm 2mm", textAlign: "right", fontFamily: "monospace", color: "#374151" }}>
-                      {formatFinanceMoney(item.unitPrice || item.unit_price, currency)}
-                    </td>
-                    <td style={{ padding: "2.5mm 2mm", textAlign: "right", fontFamily: "monospace", color: "#374151" }}>
-                      {item.quantity}
-                    </td>
-                    <td style={{ padding: "2.5mm 2mm", textAlign: "right", fontFamily: "monospace", fontWeight: 600, color: "#111827" }}>
-                      {formatFinanceMoney((item.lineTotal || (item.quantity * (item.unitPrice || item.unit_price))) - (item.discount || 0), currency)}
-                    </td>
-                  </tr>
-                ))}
-                {lineItems.length < 10 && Array(10 - lineItems.length).fill(0).map((_, i) => (
-                  <tr key={`empty-${i}`} style={{ borderBottom: "0.5pt solid #e5e7eb", height: "8mm" }}>
-                    <td style={{ padding: "2.5mm 2mm" }}>&nbsp;</td>
-                    <td style={{ padding: "2.5mm 2mm" }}>&nbsp;</td>
-                    <td style={{ padding: "2.5mm 2mm" }}>&nbsp;</td>
-                    <td style={{ padding: "2.5mm 2mm" }}>&nbsp;</td>
-                    <td style={{ padding: "2.5mm 2mm" }}>&nbsp;</td>
+                {lineItems.map((item, index) => {
+                  const unitPrice = item.unitPrice ?? item.unit_price ?? 0;
+                  const lineTotal =
+                    item.lineTotal ??
+                    item.line_total ??
+                    (Number(item.quantity || 0) * Number(unitPrice || 0) -
+                      Number(item.discount || 0));
+
+                  return (
+                    <tr key={item.id || index} style={{ borderBottom: "0.5pt solid #d1d5db" }}>
+                      <td style={{ padding: "3mm 2mm", textAlign: "center" }}>{index + 1}</td>
+                      <td style={{ padding: "3mm 3mm", verticalAlign: "top" }}>
+                        <div style={{ fontWeight: 500 }}>{item.description || "—"}</div>
+                      </td>
+                      <td
+                        style={{
+                          padding: "3mm 2mm",
+                          textAlign: "right",
+                          fontFamily: "monospace",
+                        }}
+                      >
+                        {formatFinanceMoney(unitPrice, currency)}
+                      </td>
+                      <td
+                        style={{
+                          padding: "3mm 2mm",
+                          textAlign: "right",
+                          fontFamily: "monospace",
+                        }}
+                      >
+                        {item.quantity || 0}
+                      </td>
+                      <td
+                        style={{
+                          padding: "3mm 2mm",
+                          textAlign: "right",
+                          fontFamily: "monospace",
+                          fontWeight: 700,
+                        }}
+                      >
+                        {formatFinanceMoney(lineTotal, currency)}
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {Array.from({ length: emptyRows }).map((_, index) => (
+                  <tr
+                    key={`empty-${index}`}
+                    style={{ borderBottom: "0.5pt solid #d1d5db", height: "11mm" }}
+                  >
+                    <td style={{ padding: "3mm 2mm" }}>&nbsp;</td>
+                    <td style={{ padding: "3mm 3mm" }}>&nbsp;</td>
+                    <td style={{ padding: "3mm 2mm" }}>&nbsp;</td>
+                    <td style={{ padding: "3mm 2mm" }}>&nbsp;</td>
+                    <td style={{ padding: "3mm 2mm" }}>&nbsp;</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* Bottom Section */}
-          <div style={{ padding: "0 15mm", display: "flex", gap: "10mm", marginBottom: "4mm" }}>
-            
-            {/* Bank Details */}
-            <div style={{ flex: 1, fontSize: "7.5pt", lineHeight: 1.4 }}>
-              <div style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#111827", marginBottom: "2mm", fontSize: "8pt" }}>
-                Bank Transfer Details
-              </div>
-              
-              {bankInfo ? (
-                <div style={{ display: "grid", gap: "1.5mm" }}>
-                  {bankInfo.beneficiary && (
-                    <div><span style={{ color: "#6b7280" }}>Beneficiary: </span><span style={{ fontWeight: 600 }}>{bankInfo.beneficiary}</span></div>
-                  )}
-                  {bankInfo.bank && (
-                    <div><span style={{ color: "#6b7280" }}>Bank Name: </span><span style={{ fontWeight: 500 }}>{bankInfo.bank}</span></div>
-                  )}
-                  {bankInfo.bankAddress && (
-                    <div><span style={{ color: "#6b7280" }}>Bank Address: </span><span style={{ fontWeight: 500 }}>{bankInfo.bankAddress}</span></div>
-                  )}
-                  <div style={{ display: "flex", gap: "4mm", flexWrap: "wrap" }}>
-                    {bankInfo.accountNumber && (
-                      <div><span style={{ color: "#6b7280" }}>Account: </span><span style={{ fontFamily: "monospace", fontWeight: 600, background: "#f3f4f6", padding: "0.5mm 1mm", borderRadius: "0.5mm" }}>{bankInfo.accountNumber}</span></div>
-                    )}
-                    {bankInfo.swift && (
-                      <div><span style={{ color: "#6b7280" }}>SWIFT: </span><span style={{ fontFamily: "monospace", fontWeight: 600, background: "#f3f4f6", padding: "0.5mm 1mm", borderRadius: "0.5mm" }}>{bankInfo.swift}</span></div>
-                    )}
+          {/* BOTTOM */}
+          <div
+            style={{
+              position: "absolute",
+              left: "14mm",
+              right: "14mm",
+              bottom: "18mm",
+              display: "grid",
+              gridTemplateColumns: "1.12fr 0.88fr",
+              gap: "8mm",
+              alignItems: "start",
+            }}
+          >
+            {/* LEFT */}
+            <div style={{ fontSize: "8pt", color: "#374151" }}>
+              <div style={{ marginBottom: "4mm" }}>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    fontSize: "9pt",
+                    color: "#111827",
+                    marginBottom: "1.4mm",
+                  }}
+                >
+                  Payment and Shipping Terms
+                </div>
+                <div style={{ lineHeight: 1.7 }}>
+                  <div>
+                    <span style={{ color: "#6b7280" }}>Payment Terms: </span>
+                    <span style={{ fontWeight: 500 }}>{paymentTerms}</span>
                   </div>
-                  {bankInfo.iban && (
-                    <div><span style={{ color: "#6b7280" }}>IBAN: </span><span style={{ fontFamily: "monospace", fontWeight: 600, background: "#f3f4f6", padding: "0.5mm 1mm", borderRadius: "0.5mm" }}>{bankInfo.iban}</span></div>
-                  )}
-                  {bankInfo.currency && (
-                    <div><span style={{ color: "#6b7280" }}>Currency: </span><span style={{ fontWeight: 600 }}>{bankInfo.currency}</span></div>
-                  )}
+                  <div>
+                    <span style={{ color: "#6b7280" }}>Shipping Terms: </span>
+                    <span style={{ fontWeight: 500 }}>{shippingTerms}</span>
+                  </div>
                 </div>
-              ) : (
-                <div style={{ color: "#6b7280" }}>No bank details available</div>
-              )}
+              </div>
 
-              {invoice?.metadata?.preferred_payment_method_id && (
-                <div style={{ marginTop: "3mm", paddingTop: "2mm", borderTop: "0.5pt solid #e5e7eb" }}>
-                  <span style={{ color: "#6b7280" }}>Preferred Method: </span>
-                  <span style={{ fontWeight: 500 }}>{invoice.metadata.preferred_payment_method_id}</span>
+              <div style={{ marginBottom: "4mm" }}>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    fontSize: "9pt",
+                    color: "#111827",
+                    marginBottom: "1.4mm",
+                  }}
+                >
+                  Bank Details
                 </div>
-              )}
 
-              {invoice?.shipping_term_id && (
-                <div style={{ marginTop: "1.5mm" }}>
-                  <span style={{ color: "#6b7280" }}>Shipping: </span>
-                  <span style={{ fontWeight: 500 }}>{invoice.shipping_term_id}</span>
-                </div>
-              )}
+                {bankInfo ? (
+                  <div style={{ lineHeight: 1.65 }}>
+                    {bankInfo.beneficiary ? (
+                      <div>
+                        <span style={{ color: "#6b7280" }}>Beneficiary: </span>
+                        <span style={{ fontWeight: 600 }}>{bankInfo.beneficiary}</span>
+                      </div>
+                    ) : null}
 
-              {invoice?.notes && (
-                <div style={{ marginTop: "3mm", paddingTop: "2mm", borderTop: "0.5pt solid #e5e7eb" }}>
-                  <div style={{ fontWeight: 600, color: "#111827", marginBottom: "1mm" }}>Notes:</div>
-                  <div style={{ color: "#4b5563", whiteSpace: "pre-wrap", fontSize: "7pt" }}>{invoice.notes}</div>
+                    {bankInfo.bank ? (
+                      <div>
+                        <span style={{ color: "#6b7280" }}>Beneficiary Bank Name: </span>
+                        <span>{bankInfo.bank}</span>
+                      </div>
+                    ) : null}
+
+                    {bankInfo.bankAddress ? (
+                      <div>
+                        <span style={{ color: "#6b7280" }}>Beneficiary Bank Address: </span>
+                        <span>{bankInfo.bankAddress}</span>
+                      </div>
+                    ) : null}
+
+                    {bankInfo.accountNumber ? (
+                      <div>
+                        <span style={{ color: "#6b7280" }}>Bank Account: </span>
+                        <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                          {bankInfo.accountNumber}
+                        </span>
+                      </div>
+                    ) : null}
+
+                    {bankInfo.swift ? (
+                      <div>
+                        <span style={{ color: "#6b7280" }}>SWIFT Code: </span>
+                        <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                          {bankInfo.swift}
+                        </span>
+                      </div>
+                    ) : null}
+
+                    {bankInfo.iban ? (
+                      <div>
+                        <span style={{ color: "#6b7280" }}>IBAN: </span>
+                        <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                          {bankInfo.iban}
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div>No bank details available.</div>
+                )}
+              </div>
+
+              <div>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    fontSize: "9pt",
+                    color: "#111827",
+                    marginBottom: "1.4mm",
+                  }}
+                >
+                  Terms and Conditions
                 </div>
-              )}
+                <div
+                  style={{
+                    lineHeight: 1.7,
+                    whiteSpace: "pre-wrap",
+                    maxHeight: "24mm",
+                    overflow: "hidden",
+                  }}
+                >
+                  {termsAndConditions}
+                </div>
+              </div>
             </div>
 
-            {/* Totals */}
-            <div style={{ width: "65mm" }}>
-              <div style={{ marginBottom: "2mm" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1.5mm", fontSize: "8.5pt", color: "#4b5563" }}>
+            {/* RIGHT */}
+            <div>
+              <div
+                style={{
+                  paddingLeft: "8mm",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: "2mm",
+                    fontSize: "9pt",
+                  }}
+                >
                   <span>SUB TOTAL</span>
-                  <span style={{ fontFamily: "monospace" }}>{formatFinanceMoney(financialSummary?.subtotal || 0, currency)}</span>
+                  <span style={{ fontFamily: "monospace" }}>
+                    {formatFinanceMoney(financialSummary?.subtotal || 0, currency)}
+                  </span>
                 </div>
-                {(financialSummary?.discount || 0) > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1.5mm", fontSize: "8.5pt", color: "#ef4444" }}>
-                    <span>DISCOUNT</span>
-                    <span style={{ fontFamily: "monospace" }}>-{formatFinanceMoney(financialSummary.discount, currency)}</span>
-                  </div>
-                )}
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1.5mm", fontSize: "8.5pt", color: "#4b5563" }}>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: "2mm",
+                    fontSize: "9pt",
+                  }}
+                >
                   <span>TAX / VAT</span>
-                  <span style={{ fontFamily: "monospace" }}>{formatFinanceMoney(financialSummary?.tax || 0, currency)}</span>
+                  <span style={{ fontFamily: "monospace" }}>
+                    {formatFinanceMoney(financialSummary?.tax || 0, currency)}
+                  </span>
                 </div>
-                
-                <div style={{ 
-                  background: "#1f2937", color: "#ffffff", 
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  padding: "2.5mm 3mm", marginTop: "2mm"
-                }}>
-                  <span style={{ fontSize: "9pt", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Grand Total</span>
-                  <span style={{ fontFamily: "monospace", fontSize: "11pt", fontWeight: 700 }}>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: "2.5mm",
+                    fontSize: "9pt",
+                  }}
+                >
+                  <span>DISCOUNT</span>
+                  <span style={{ fontFamily: "monospace" }}>
+                    {formatFinanceMoney(financialSummary?.discount || 0, currency)}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    background: "#232323",
+                    color: "#ffffff",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "2.8mm 3mm",
+                    marginTop: "2mm",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "10pt",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Grand Total
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "monospace",
+                      fontSize: "11pt",
+                      fontWeight: 700,
+                    }}
+                  >
                     {formatFinanceMoney(financialSummary?.total || 0, currency)}
                   </span>
                 </div>
 
-                {(financialSummary?.paid || 0) > 0 && (
-                  <>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1.5mm", fontSize: "8pt", color: "#10b981" }}>
-                      <span>PAID TO DATE</span>
-                      <span style={{ fontFamily: "monospace", fontWeight: 600 }}>{formatFinanceMoney(financialSummary.paid, currency)}</span>
-                    </div>
-                    <div style={{ 
-                      display: "flex", justifyContent: "space-between", marginTop: "1.5mm",
-                      padding: "2mm 3mm", background: "#fee2e2", border: "0.5pt solid #fca5a5", borderRadius: "1mm"
-                    }}>
-                      <span style={{ fontSize: "8pt", fontWeight: 700, color: "#991b1b", textTransform: "uppercase" }}>Balance Due</span>
-                      <span style={{ fontFamily: "monospace", fontSize: "10pt", fontWeight: 700, color: "#991b1b" }}>
-                        {formatFinanceMoney(financialSummary?.balance || 0, currency)}
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
+                {(financialSummary?.paid || 0) > 0 ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginTop: "2.2mm",
+                      fontSize: "8.5pt",
+                    }}
+                  >
+                    <span>PAID</span>
+                    <span style={{ fontFamily: "monospace" }}>
+                      {formatFinanceMoney(financialSummary?.paid || 0, currency)}
+                    </span>
+                  </div>
+                ) : null}
 
-              <div style={{ marginTop: "4mm", textAlign: "center" }}>
-                <div style={{ borderBottom: "0.5pt dashed #9ca3af", marginBottom: "1mm", height: "8mm" }}></div>
-                <div style={{ fontSize: "7pt", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Authorized Signature</div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginTop: "2.2mm",
+                    fontSize: "9pt",
+                    fontWeight: 700,
+                  }}
+                >
+                  <span>BALANCE DUE</span>
+                  <span style={{ fontFamily: "monospace" }}>
+                    {formatFinanceMoney(financialSummary?.balance || 0, currency)}
+                  </span>
+                </div>
+
+                <div style={{ marginTop: "18mm", textAlign: "center" }}>
+                  <div
+                    style={{
+                      borderBottom: "0.5pt dashed #6b7280",
+                      height: "10mm",
+                      marginBottom: "1.5mm",
+                    }}
+                  />
+                  <div style={{ fontSize: "8pt", color: "#374151" }}>Signature</div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Payment History */}
-          {payments && payments.length > 0 && (
-            <div style={{ padding: "0 15mm", marginBottom: "4mm" }}>
-              <div style={{ 
-                background: "#f0fdf4", border: "0.5pt solid #86efac", borderRadius: "1.5mm",
-                padding: "2mm 3mm", fontSize: "7.5pt", display: "flex", alignItems: "center", gap: "2mm", flexWrap: "wrap"
-              }}>
-                <span style={{ fontWeight: 700, color: "#166534", textTransform: "uppercase" }}>Payment History:</span>
-                {payments.map((payment, idx) => (
-                  <span key={payment.id} style={{ color: "#374151" }}>
-                    ✓ {formatFinanceMoney(payment.amount, currency)} on {formatFinanceDate(payment.payment_date)}
-                    {payment.reference_number && ` (Ref: ${payment.reference_number})`}
-                    {idx < payments.length - 1 && " • "}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Footer */}
-          <div style={{ 
-            position: "absolute", bottom: "8mm", left: "15mm", right: "15mm",
-            textAlign: "center", fontSize: "9pt", fontWeight: 700, 
-            color: "#111827", textTransform: "uppercase", letterSpacing: "0.1em"
-          }}>
+          {/* FOOTER */}
+          <div
+            style={{
+              position: "absolute",
+              left: "14mm",
+              bottom: "8mm",
+              fontSize: "9pt",
+              fontWeight: 700,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              color: "#111827",
+            }}
+          >
             Thank You For Your Business
           </div>
+
+          {payments?.length > 0 ? (
+            <div
+              style={{
+                position: "absolute",
+                right: "14mm",
+                bottom: "8mm",
+                maxWidth: "90mm",
+                textAlign: "right",
+                fontSize: "6.8pt",
+                color: "#6b7280",
+                lineHeight: 1.5,
+              }}
+            >
+              {payments.map((payment: any, index: number) => (
+                <div key={payment.id || index}>
+                  {formatFinanceDate(payment.payment_date)} ·{" "}
+                  {formatFinanceMoney(payment.amount, currency)}
+                  {payment.reference_number ? ` · ${payment.reference_number}` : ""}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
     </>

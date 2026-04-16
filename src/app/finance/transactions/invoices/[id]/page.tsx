@@ -1982,20 +1982,59 @@ export default function FinanceInvoiceDetailPage() {
 
                     <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
                       <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                        Bank Details Source
-                      </div>
-                      <div className="mt-3 text-sm text-white/75">
-                        {selectedDraftBankAccount
-                          ? [
-                              selectedDraftBankAccount.beneficiary_name,
-                              selectedDraftBankAccount.bank_name,
-                              selectedDraftBankAccount.iban,
-                              selectedDraftBankAccount.swift_code,
-                            ]
-                              .filter(Boolean)
-                              .join(" | ")
-                          : "—"}
-                      </div>
+  Bank Details Source
+</div>
+
+{selectedDraftBankAccount ? (
+  <div className="mt-3 space-y-2 text-sm text-white/75">
+    
+    <div className="font-semibold text-white">
+      {selectedDraftBankAccount.beneficiary_name || "—"}
+    </div>
+
+    <div>
+      {selectedDraftBankAccount.bank_name || "—"}
+    </div>
+
+    <div>
+      {selectedDraftBankAccount.bank_address ||
+        [
+          selectedDraftBankAccount.address_line_1,
+          selectedDraftBankAccount.address_line_2,
+          selectedDraftBankAccount.city,
+          selectedDraftBankAccount.postal_code,
+          selectedDraftBankAccount.country,
+        ]
+          .filter(Boolean)
+          .join(", ") ||
+        "—"}
+    </div>
+
+    <div>
+      Account: {selectedDraftBankAccount.account_number || "—"}
+    </div>
+
+    <div>
+      IBAN: {selectedDraftBankAccount.iban || "—"}
+    </div>
+
+    <div>
+      SWIFT:{" "}
+      {selectedDraftBankAccount.swift_code ||
+        (selectedDraftBankAccount.account_identifier_type === "swift"
+          ? selectedDraftBankAccount.account_identifier_value
+          : "") ||
+        "—"}
+    </div>
+
+    <div>
+      Currency: {selectedDraftBankAccount.currency_code || "—"}
+    </div>
+
+  </div>
+) : (
+  <div className="mt-3 text-sm text-white/75">—</div>
+)}
                     </div>
                   </>
                 ) : (

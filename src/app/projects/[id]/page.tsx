@@ -383,21 +383,6 @@ const user = session.data.session?.user;
       const loadedComments = (commentsData || []) as ProjectCommentRow[];
       const loadedReports = (reportsData || []) as ProjectReportRow[];
 
-      const relevantUserIds = Array.from(
-        new Set(
-          [
-            user.id,
-            loadedProject.created_by,
-            ...loadedMembers.map((member) => member.user_id),
-            ...loadedTasks.flatMap((task) => [task.assignee_id, task.created_by]),
-            ...loadedLogs.map((log) => log.user_id),
-            ...loadedFiles.map((file) => file.user_id),
-            ...loadedComments.map((comment) => comment.user_id),
-            ...loadedReports.map((report) => report.requested_by),
-          ].filter((value): value is string => Boolean(value))
-        )
-      );
-
       const { data: profilesData, error: profilesError } = await supabase
         .from("profiles")
         .select("user_id, full_name, role")

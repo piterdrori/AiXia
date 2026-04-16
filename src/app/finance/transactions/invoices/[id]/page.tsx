@@ -8,6 +8,7 @@ import {
   Save,
   Trash2,
   X,
+  SquarePen,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -168,6 +169,10 @@ export default function FinanceInvoiceDetailPage() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [showArchivePopup, setShowArchivePopup] = useState(false);
 
+  const [editingOverview, setEditingOverview] = useState(false);
+  const [editingParties, setEditingParties] = useState(false);
+  const [editingLines, setEditingLines] = useState(false);
+
   const [issueDateDraft, setIssueDateDraft] = useState("");
   const [dueDateDraft, setDueDateDraft] = useState("");
   const [notesDraft, setNotesDraft] = useState("");
@@ -309,6 +314,8 @@ export default function FinanceInvoiceDetailPage() {
   }, [lineItemsDraft]);
 
   const canEditDraft = invoice?.status === "draft";
+  const canEditIssued = invoice?.status === "issued";
+  const canOpenSectionEdit = !!invoice && invoice.status !== "canceled";
   const canArchive = !!invoice && invoice.status !== "canceled";
   const canHardDelete = !!invoice && invoice.status === "canceled";
 
@@ -558,7 +565,13 @@ export default function FinanceInvoiceDetailPage() {
                 {canEditDraft ? (
                   <Button
                     variant="outline"
-                    onClick={() => setIsEditMode((current) => !current)}
+                    onClick={() => {
+                      const next = !isEditMode;
+                      setIsEditMode(next);
+                      setEditingOverview(next);
+                      setEditingParties(false);
+                      setEditingLines(next);
+                    }}
                     className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
                   >
                     {isEditMode ? (
@@ -583,6 +596,21 @@ export default function FinanceInvoiceDetailPage() {
                   >
                     <Save className="mr-2 h-4 w-4" />
                     {isSavingDraft ? "Saving..." : "Save Changes"}
+                  </Button>
+                ) : null}
+
+                {canEditIssued ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setEditingOverview((current) => !current);
+                      setEditingParties(false);
+                      setEditingLines(false);
+                    }}
+                    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+                  >
+                    <SquarePen className="mr-2 h-4 w-4" />
+                    Edit Issued
                   </Button>
                 ) : null}
 
@@ -627,10 +655,25 @@ export default function FinanceInvoiceDetailPage() {
           <div className="space-y-6">
             <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <CardHeader className="border-b border-white/8 pb-4">
-                <CardTitle className="text-white">Document Overview</CardTitle>
-                <CardDescription className="text-white/45">
-                  Commercial header, operational references, and lifecycle state.
-                </CardDescription>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-white">Document Overview</CardTitle>
+                    <CardDescription className="text-white/45">
+                      Commercial header, operational references, and lifecycle state.
+                    </CardDescription>
+                  </div>
+
+                  {canOpenSectionEdit ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => setEditingOverview((current) => !current)}
+                      className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+                    >
+                      <SquarePen className="mr-2 h-4 w-4" />
+                      Edit
+                    </Button>
+                  ) : null}
+                </div>
               </CardHeader>
 
               <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
@@ -638,7 +681,7 @@ export default function FinanceInvoiceDetailPage() {
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Issue Date
                   </div>
-                  {canEditDraft && isEditMode ? (
+                  {editingOverview ? (
                     <input
                       type="date"
                       value={issueDateDraft}
@@ -656,7 +699,7 @@ export default function FinanceInvoiceDetailPage() {
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Due Date
                   </div>
-                  {canEditDraft && isEditMode ? (
+                  {editingOverview ? (
                     <input
                       type="date"
                       value={dueDateDraft}
@@ -710,7 +753,7 @@ export default function FinanceInvoiceDetailPage() {
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Notes
                   </div>
-                  {canEditDraft && isEditMode ? (
+                  {editingOverview ? (
                     <textarea
                       value={notesDraft}
                       onChange={(event) => setNotesDraft(event.target.value)}
@@ -726,12 +769,27 @@ export default function FinanceInvoiceDetailPage() {
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                        <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <CardHeader className="border-b border-white/8 pb-4">
-                <CardTitle className="text-white">Document Parties</CardTitle>
-                <CardDescription className="text-white/45">
-                  Snapshot values frozen at issuance time.
-                </CardDescription>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-white">Document Parties</CardTitle>
+                    <CardDescription className="text-white/45">
+                      Snapshot values frozen at issuance time.
+                    </CardDescription>
+                  </div>
+
+                  {canOpenSectionEdit ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => setEditingParties((current) => !current)}
+                      className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+                    >
+                      <SquarePen className="mr-2 h-4 w-4" />
+                      Edit
+                    </Button>
+                  ) : null}
+                </div>
               </CardHeader>
 
               <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
@@ -780,21 +838,42 @@ export default function FinanceInvoiceDetailPage() {
                     {invoice.bank_details_snapshot || "—"}
                   </div>
                 </div>
+
+                {editingParties ? (
+                  <div className="rounded-[18px] border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100 md:col-span-2">
+                    Issued-party corrections need backend permission logic update before saving.
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
 
             <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <CardHeader className="border-b border-white/8 pb-4">
-                <CardTitle className="text-white">Line Items</CardTitle>
-                <CardDescription className="text-white/45">
-                  Draft invoices can be edited here. Issued invoices are read-only.
-                </CardDescription>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-white">Line Items</CardTitle>
+                    <CardDescription className="text-white/45">
+                      Draft invoices can be edited here. Issued invoices are read-only.
+                    </CardDescription>
+                  </div>
+
+                  {canOpenSectionEdit ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => setEditingLines((current) => !current)}
+                      className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+                    >
+                      <SquarePen className="mr-2 h-4 w-4" />
+                      Edit
+                    </Button>
+                  ) : null}
+                </div>
               </CardHeader>
 
               <CardContent className="space-y-3 p-5">
-                {(canEditDraft && isEditMode ? lineItemsDraft : lineItems).map(
+                {(editingLines ? lineItemsDraft : lineItems).map(
                   (row, index) => {
-                    const editable = canEditDraft && isEditMode;
+                    const editable = editingLines;
                     const rowTotal = editable
                       ? Math.max(
                           toNumber((row as EditableLineItem).quantity) *
@@ -918,6 +997,12 @@ export default function FinanceInvoiceDetailPage() {
                     );
                   }
                 )}
+
+                {invoice.status === "issued" && editingLines ? (
+                  <div className="rounded-[18px] border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                    Issued line corrections need backend permission logic update before saving.
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           </div>
@@ -937,8 +1022,8 @@ export default function FinanceInvoiceDetailPage() {
                     Subtotal
                   </div>
                   <div className="mt-2 text-lg font-semibold text-white">
-                    {formatFinanceMoney(
-                      isEditMode && canEditDraft ? draftTotals.subtotal : totals.subtotal,
+                   {formatFinanceMoney(
+                      editingLines ? draftTotals.subtotal : totals.subtotal,
                       invoice.currency_code || "USD"
                     )}
                   </div>
@@ -950,7 +1035,7 @@ export default function FinanceInvoiceDetailPage() {
                   </div>
                   <div className="mt-2 text-lg font-semibold text-white">
                     {formatFinanceMoney(
-                      isEditMode && canEditDraft ? draftTotals.discount : totals.discount,
+                     editingLines ? draftTotals.discount : totals.discount,
                       invoice.currency_code || "USD"
                     )}
                   </div>
@@ -961,8 +1046,8 @@ export default function FinanceInvoiceDetailPage() {
                     Tax
                   </div>
                   <div className="mt-2 text-lg font-semibold text-white">
-                    {formatFinanceMoney(
-                      isEditMode && canEditDraft ? draftTotals.tax : totals.tax,
+                   {formatFinanceMoney(
+                      editingLines ? draftTotals.tax : totals.tax,
                       invoice.currency_code || "USD"
                     )}
                   </div>
@@ -974,7 +1059,7 @@ export default function FinanceInvoiceDetailPage() {
                   </div>
                   <div className="mt-2 text-xl font-semibold text-white">
                     {formatFinanceMoney(
-                      isEditMode && canEditDraft ? draftTotals.total : totals.total,
+                      editingLines ? draftTotals.total : totals.total,
                       invoice.currency_code || "USD"
                     )}
                   </div>

@@ -274,9 +274,9 @@ export default function FinanceInvoicesPage() {
       return invoices;
     }
 
-    return invoices.filter((invoice) => {
-      const postingStatus = getInvoicePostingStatus(invoice);
-      const overdue = isInvoiceOverdue(invoice);
+   return invoices.filter((invoice) => {
+      const postingStatus = getInvoicePostingStatus(invoice as any);
+      const overdue = isInvoiceOverdue(invoice as any);
 
       return (
         invoice.invoice_number.toLowerCase().includes(normalizedSearch) ||
@@ -465,8 +465,8 @@ export default function FinanceInvoicesPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                                    {filteredInvoices.map((invoice) => {
-                    const displayState = getInvoiceDisplayState(invoice);
+                 {filteredInvoices.map((invoice) => {
+                    const displayState = getInvoiceDisplayState(invoice as any);
 
                     return (
                       <button

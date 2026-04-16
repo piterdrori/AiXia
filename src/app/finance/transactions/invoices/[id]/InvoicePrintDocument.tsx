@@ -53,13 +53,16 @@ export default function InvoicePrintDocument({
   const bankInfo = parseBankDetails(invoice?.bank_details_snapshot);
 
   const paymentTerms = invoice?.payment_terms_snapshot || "—";
-  const shippingTerms = invoice?.shipping_terms_snapshot || "—";
+  const shippingTerms =
+  invoice?.shipping_terms_snapshot ||
+  invoice?.shipping_term_id ||
+  "—";
   const termsAndConditions =
     invoice?.terms_and_conditions_snapshot || DEFAULT_TERMS;
 
   const rows = Array.isArray(lineItems) ? lineItems : [];
   const visibleRows = rows.slice(0, 8);
-  const fillerRows = Math.max(0, 8 - visibleRows.length);
+  const fillerRows = Math.max(0, 6 - visibleRows.length);
 
   return (
     <>
@@ -96,7 +99,7 @@ export default function InvoicePrintDocument({
         <div
           style={{
             width: "210mm",
-            minHeight: "297mm",
+            height: "297mm",
             background: "#ffffff",
             color: "#111827",
             fontFamily:
@@ -118,18 +121,18 @@ export default function InvoicePrintDocument({
             }}
           />
           <div
-            style={{
-              position: "absolute",
-              left: "-5mm",
-              right: "-5mm",
-              top: "44mm",
-              height: "18mm",
-              background: "#ffffff",
-              borderTopLeftRadius: "100% 100%",
-              borderTopRightRadius: "100% 100%",
-              zIndex: 1,
-            }}
-          />
+  style={{
+    position: "absolute",
+    left: "-5mm",
+    right: "-5mm",
+    top: "50mm",
+    height: "14mm",
+    background: "#ffffff",
+    borderTopLeftRadius: "100% 100%",
+    borderTopRightRadius: "100% 100%",
+    zIndex: 1,
+  }}
+/>
 
           <div style={{ position: "relative", zIndex: 2, padding: "11mm 14mm 0 14mm" }}>
             {/* Top header */}
@@ -140,7 +143,7 @@ export default function InvoicePrintDocument({
                 gap: "10mm",
                 alignItems: "start",
                 color: "#ffffff",
-                minHeight: "46mm",
+                minHeight: "52mm",
               }}
             >
               <div>
@@ -148,10 +151,10 @@ export default function InvoicePrintDocument({
                   src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
                   alt="AiXia"
                   style={{
-                    height: "16mm",
+                    height: "22mm",
                     width: "auto",
                     filter: "brightness(0) invert(1)",
-                    marginBottom: "5mm",
+                    marginBottom: "4mm",
                   }}
                 />
 
@@ -502,9 +505,11 @@ export default function InvoicePrintDocument({
                     </div>
                     <div
                       style={{
-                        lineHeight: 1.72,
+                        lineHeight: 1.58,
                         whiteSpace: "pre-wrap",
-                        fontSize: "7.9pt",
+                        fontSize: "7.3pt",
+                        maxHeight: "23mm",
+                        overflow: "hidden",
                       }}
                     >
                       {termsAndConditions}
@@ -638,13 +643,17 @@ export default function InvoicePrintDocument({
               </div>
             </div>
 
-            {/* Footer */}
+                        {/* Footer */}
             <div
               style={{
-                marginTop: "8mm",
+                position: "absolute",
+                left: "14mm",
+                right: "14mm",
+                bottom: "8mm",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "flex-end",
+                background: "#ffffff",
               }}
             >
               <div

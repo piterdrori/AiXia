@@ -173,6 +173,23 @@ export interface FinanceInvoiceIssued
   client_phone_snapshot: string | null;
   currency_code: string | null;
   exchange_rate: number | null;
+  task_id: string | null;
+  proforma_invoice_id: string | null;
+  company_id: string | null;
+  company_name_snapshot: string | null;
+  company_address_snapshot: string | null;
+  company_email_snapshot: string | null;
+  company_phone_snapshot: string | null;
+  payment_terms_snapshot: string | null;
+  bank_details_snapshot: string | null;
+  document_version: number | null;
+  issued_at: string | null;
+  voided_at: string | null;
+  canceled_at: string | null;
+  payment_terms_id: string | null;
+  shipping_term_id: string | null;
+  bank_account_id: string | null;
+  currency_id: string | null;
 }
 
 export interface FinanceInvoiceIssuedLineItem extends FinanceBaseRecord {
@@ -191,7 +208,7 @@ export interface FinancePaymentReceived
   payment_date: string;
   payment_method_id: string | null;
   client_id: string;
-  invoice_id: string | null;
+  invoice_issued_id: string | null;
   bank_account_id: string | null;
 }
 

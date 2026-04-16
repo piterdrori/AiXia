@@ -32,6 +32,7 @@ import {
   getIssuedInvoiceStatusLabel,
   type InvoicePostingStatus,
 } from "@/lib/finance/invoicesIssued";
+import InvoicePrintDocument from "./InvoicePrintDocument";
 
 type InvoiceRecord = {
   id: string;
@@ -356,7 +357,9 @@ export default function FinanceInvoiceDetailPage() {
   const [error, setError] = useState("");
   
   const handlePrint = useCallback(() => {
-    window.print();
+    window.setTimeout(() => {
+      window.print();
+    }, 150);
   }, []);
 
   const loadArchiveItems = useCallback(async () => {
@@ -1320,7 +1323,17 @@ export default function FinanceInvoiceDetailPage() {
 
   const displayState = getInvoiceDisplayState(invoice as any);
 
+    const printableLineItems = lineItems.map((row) => ({
+    id: row.id,
+    description: row.description || "—",
+    quantity: toNumber(row.quantity),
+    unitPrice: toNumber(row.unit_price),
+    discount: toNumber(row.discount),
+    lineTotal: toNumber(row.line_total),
+  }));
+
   return (
+    <>
     <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
       <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
         <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6 xl:p-7">
@@ -2628,12 +2641,19 @@ export default function FinanceInvoiceDetailPage() {
           </div>
         </div>
 
-        {error ? (
+             {error ? (
           <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
             {error}
           </div>
         ) : null}
       </div>
     </div>
+
+      <InvoicePrintDocument
+        invoice={invoice}
+        lineItems={printableLineItems}
+        financialSummary={financialSummary}
+      />
+    </>
   );
 }

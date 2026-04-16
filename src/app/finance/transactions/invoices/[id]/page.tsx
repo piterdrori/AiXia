@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   CheckCircle,
   Pencil,
+  Printer,
   RefreshCw,
   Save,
   Trash2,
@@ -25,9 +26,11 @@ import {
 import {
   formatFinanceDate,
   formatFinanceMoney,
+  getInvoiceDisplayState,
   getIssuedInvoiceById,
   getIssuedInvoicePaymentStatusLabel,
   getIssuedInvoiceStatusLabel,
+  type InvoicePostingStatus,
 } from "@/lib/finance/invoicesIssued";
 
 type InvoiceRecord = {
@@ -266,7 +269,24 @@ function getPaymentStatusBadgeClasses(status: InvoiceRecord["payment_status"]) {
   return "border-rose-400/20 bg-rose-500/10 text-rose-200";
 }
 
+function getPostingStatusBadgeClasses(status: InvoicePostingStatus) {
+  if (status === "posted") {
+    return "border-violet-400/20 bg-violet-500/10 text-violet-200";
+  }
+
+  return "border-white/10 bg-white/10 text-white/75";
+}
+
+function getPostingStatusLabel(status: InvoicePostingStatus) {
+  return status === "posted" ? "Posted" : "Not posted";
+}
+
+function getOverdueBadgeClasses() {
+  return "border-rose-400/20 bg-rose-500/10 text-rose-200";
+}
+
 export default function FinanceInvoiceDetailPage() {
+  
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -334,6 +354,10 @@ export default function FinanceInvoiceDetailPage() {
   const [lineItemsDraft, setLineItemsDraft] = useState<EditableLineItem[]>([]);
 
   const [error, setError] = useState("");
+  
+  const handlePrint = useCallback(() => {
+    window.print();
+  }, []);
 
   const loadArchiveItems = useCallback(async () => {
     const { data, error } = await supabase
@@ -372,7 +396,7 @@ export default function FinanceInvoiceDetailPage() {
             supabase
               .from("finance_payments_received")
               .select("id, amount, payment_date, status, reference_number")
-              .eq("invoice_id", id)
+              .eq("invoice_issued_id", id)
               .eq("status", "confirmed")
               .order("payment_date", { ascending: true }),
             supabase
@@ -673,7 +697,23 @@ export default function FinanceInvoiceDetailPage() {
       0
     );
 
-    const tax = 0;
+    const tax = lineItemsDraft.reduce((sum, row) => {
+      const qty = toNumber(row.quantity);
+      const price = toNumber(row.unit_price);
+      const rowDiscount = toNumber(row.discount);
+
+      const base = Math.max(qty * price - rowDiscount, 0);
+
+      const taxCode = taxCodes.find(
+        (t) => t.id === row.tax_code_id
+      );
+
+      if (!taxCode) return sum;
+
+      const rate = toNumber(taxCode.rate_percent) / 100;
+      return sum + base * rate;
+    }, 0);
+
     const total = Math.max(subtotal - discount + tax, 0);
 
     return {
@@ -682,7 +722,7 @@ export default function FinanceInvoiceDetailPage() {
       tax,
       total,
     };
-  }, [lineItemsDraft]);
+  }, [lineItemsDraft, taxCodes]);
 
   const financialSummary = useMemo(() => {
     if (!invoice || !totals) return null;
@@ -815,9 +855,10 @@ export default function FinanceInvoiceDetailPage() {
     }
   }, [filteredDraftTasks, invoice, projectIdDraft, taskIdDraft]);
   
-  
   const canEditDraft = invoice?.status === "draft";
-  const canOpenSectionEdit = !!invoice && invoice.status !== "canceled";
+  const canEditIssuedOverview = invoice?.status === "issued" && !invoice.posted_to_ledger;
+  const canEditIssuedParties = false;
+  const canEditIssuedLines = false;
   const canArchive = !!invoice && invoice.status !== "canceled";
   const canHardDelete = !!invoice && invoice.status === "canceled";
 
@@ -1088,7 +1129,7 @@ export default function FinanceInvoiceDetailPage() {
             updated_by: user.id,
           })
           .eq("id", row.id)
-          .eq("invoice_id", id);
+          .eq("invoice_issued_id", id);
 
         if (lineError) throw lineError;
       }
@@ -1230,7 +1271,7 @@ export default function FinanceInvoiceDetailPage() {
             updated_by: user.id,
           })
           .eq("id", row.id)
-          .eq("invoice_id", id);
+          .eq("invoice_issued_id", id);
 
         if (lineError) throw lineError;
       }
@@ -1270,9 +1311,11 @@ export default function FinanceInvoiceDetailPage() {
     return <div className="p-6 text-white/50">Loading invoice...</div>;
   }
 
-  if (!invoice || !totals) {
+   if (!invoice || !totals) {
     return <div className="p-6 text-white/50">Invoice not found.</div>;
   }
+
+  const displayState = getInvoiceDisplayState(invoice as any);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
@@ -1292,7 +1335,7 @@ export default function FinanceInvoiceDetailPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-3">
+                 <div className="flex flex-wrap items-center gap-3">
                     <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
                       {invoice.invoice_number}
                     </h1>
@@ -1312,6 +1355,22 @@ export default function FinanceInvoiceDetailPage() {
                     >
                       {getIssuedInvoicePaymentStatusLabel(invoice.payment_status)}
                     </Badge>
+
+                    <Badge
+                      className={`rounded-full border px-3 py-1 text-xs shadow-none ${getPostingStatusBadgeClasses(
+                        displayState.postingStatus
+                      )}`}
+                    >
+                      {getPostingStatusLabel(displayState.postingStatus)}
+                    </Badge>
+
+                    {displayState.isOverdue ? (
+                      <Badge
+                        className={`rounded-full border px-3 py-1 text-xs shadow-none ${getOverdueBadgeClasses()}`}
+                      >
+                        Overdue
+                      </Badge>
+                    ) : null}
                   </div>
 
                   <div className="text-sm text-white/50">
@@ -1331,7 +1390,17 @@ export default function FinanceInvoiceDetailPage() {
                   Back
                 </Button>
 
+                <Button
+                  variant="outline"
+                  onClick={handlePrint}
+                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print
+                </Button>
+
                 {canEditDraft ? (
+      
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -1433,7 +1502,7 @@ export default function FinanceInvoiceDetailPage() {
                       </Button>
                     ) : null}
 
-                    {canOpenSectionEdit ? (
+                   {canEditDraft || canEditIssuedOverview ? (
                       <Button
                         variant="outline"
                         onClick={() => setEditingOverview((current) => !current)}
@@ -1789,7 +1858,7 @@ export default function FinanceInvoiceDetailPage() {
                       </Button>
                     ) : null}
 
-                    {!canEditDraft && canOpenSectionEdit ? (
+                     {canEditIssuedParties ? (
                       <Button
                         variant="outline"
                         onClick={() => setEditingParties((current) => !current)}
@@ -2039,7 +2108,7 @@ export default function FinanceInvoiceDetailPage() {
                       </Button>
                     ) : null}
 
-                    {canOpenSectionEdit ? (
+                    {canEditDraft || canEditIssuedLines ? (
                       <Button
                         variant="outline"
                         onClick={() => setEditingLines((current) => !current)}

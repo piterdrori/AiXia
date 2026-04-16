@@ -17,8 +17,6 @@ export default function InvoicePrintDocument({
   lineItems,
   financialSummary,
   payments = [],
-  project,
-  task,
 }: Props) {
   const currency = invoice?.currency_code || "USD";
 

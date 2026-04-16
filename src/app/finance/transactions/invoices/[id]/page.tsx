@@ -403,7 +403,7 @@ export default function FinanceInvoiceDetailPage() {
               .from("finance_invoices_issued")
               .select("project:projects(id, name), task:tasks(id, title)")
               .eq("id", id)
-              .single(),
+              .maybeSingle(),
             loadArchiveItems(),
           ]);
 
@@ -411,8 +411,11 @@ export default function FinanceInvoiceDetailPage() {
           throw paymentsResult.error;
         }
 
-        if (projectResult.error) {
-          throw projectResult.error;
+       if (projectResult.error) {
+          console.warn(
+            "Failed to load linked project/task for invoice:",
+            projectResult.error
+          );
         }
 
         const typedInvoice = invoice as unknown as InvoiceRecord;

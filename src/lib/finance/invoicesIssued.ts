@@ -227,3 +227,49 @@ export async function getIssuedInvoiceById(id: string) {
     lineItems: (lineItems ?? []) as FinanceInvoiceIssuedLineItem[],
   };
 }
+
+// ============================================
+// DERIVED LIFECYCLE HELPERS
+// ============================================
+
+export function isInvoiceOverdue(invoice: FinanceInvoiceIssued): boolean {
+  if (!invoice.due_date) return false;
+
+  const isIssued = invoice.status === "issued";
+  const isNotPaid = invoice.payment_status !== "paid";
+
+  if (!isIssued || !isNotPaid) return false;
+
+  const today = new Date();
+  const dueDate = new Date(invoice.due_date);
+
+  // normalize time
+  today.setHours(0, 0, 0, 0);
+  dueDate.setHours(0, 0, 0, 0);
+
+  return dueDate < today;
+}
+
+export type InvoicePostingStatus = "not_posted" | "posted";
+
+export function getInvoicePostingStatus(
+  invoice: FinanceInvoiceIssued
+): InvoicePostingStatus {
+  return invoice.posted_to_ledger ? "posted" : "not_posted";
+}
+
+// ============================================
+// DISPLAY HELPERS (COMBINED STATE)
+// ============================================
+
+export function getInvoiceDisplayState(invoice: FinanceInvoiceIssued) {
+  const overdue = isInvoiceOverdue(invoice);
+  const posting = getInvoicePostingStatus(invoice);
+
+  return {
+    commercialStatus: invoice.status,
+    paymentStatus: invoice.payment_status,
+    postingStatus: posting,
+    isOverdue: overdue,
+  };
+}

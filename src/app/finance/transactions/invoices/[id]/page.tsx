@@ -1503,6 +1503,7 @@ export default function FinanceInvoiceDetailPage() {
                 ) : null}
                               
               {!editingOverview ? (
+                <>
                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Issuing Company
@@ -1641,6 +1642,7 @@ export default function FinanceInvoiceDetailPage() {
                     {invoice.notes || "—"}
                   </div>
                 </div>
+                </>
                 ) : (
                   <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3 md:col-span-3">
                     <div className="text-xs uppercase tracking-[0.18em] text-white/35">

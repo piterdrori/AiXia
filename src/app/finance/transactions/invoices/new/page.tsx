@@ -30,10 +30,15 @@ type CompanyOption = {
   id: string;
   name: string;
   legal_name: string | null;
-  company_email: string | null;
-  personnel_email: string | null;
-  company_phone: string | null;
-  personnel_phone: string | null;
+  email: string | null;
+  phone: string | null;
+  currency_code: string | null;
+  country: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
 };
 
 type ProjectOption = {
@@ -47,21 +52,101 @@ type TaskOption = {
   project_id: string | null;
 };
 
+type PaymentTermOption = {
+  id: string;
+  code: string;
+  name: string;
+  due_days: number;
+  is_default: boolean;
+};
+
+type ShippingTermOption = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  is_default: boolean;
+};
+
+type BankAccountOption = {
+  id: string;
+  name: string;
+  bank_name: string | null;
+  beneficiary_name: string | null;
+  iban: string | null;
+  swift_code: string | null;
+  currency_code: string | null;
+  is_default: boolean;
+  company_id: string | null;
+};
+
+type CurrencyOption = {
+  id: string;
+  currency_code: string;
+  currency_name: string;
+  currency_symbol: string | null;
+  is_base_currency: boolean;
+};
+
+type PaymentMethodOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+type ItemOption = {
+  id: string;
+  name: string;
+  description: string | null;
+  sales_price: number | null;
+  currency_code: string | null;
+  revenue_category_id: string | null;
+  tax_code_id: string | null;
+  unit_of_measure_id: string | null;
+};
+
+type TaxCodeOption = {
+  id: string;
+  code: string;
+  name: string;
+  rate_percent: number;
+};
+
+type UnitOfMeasureOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+type RevenueCategoryOption = {
+  id: string;
+  code: string | null;
+  name: string;
+};
+
 type InvoiceItemRow = {
   localId: string;
+  itemId: string;
   description: string;
   quantity: string;
   unitPrice: string;
   discount: string;
+  taxCodeId: string;
+  unitOfMeasureId: string;
+  revenueCategoryId: string;
 };
 
 function createRow(): InvoiceItemRow {
   return {
     localId: crypto.randomUUID(),
+    itemId: "",
     description: "",
     quantity: "1",
     unitPrice: "0",
     discount: "0",
+    taxCodeId: "",
+    unitOfMeasureId: "",
+    revenueCategoryId: "",
   };
 }
 
@@ -89,15 +174,31 @@ export default function FinanceNewInvoicePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  const [clients, setClients] = useState<ClientOption[]>([]);
+   const [clients, setClients] = useState<ClientOption[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [tasks, setTasks] = useState<TaskOption[]>([]);
 
-  const [clientId, setClientId] = useState("");
+  const [paymentTerms, setPaymentTerms] = useState<PaymentTermOption[]>([]);
+  const [shippingTerms, setShippingTerms] = useState<ShippingTermOption[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
+  const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
+  const [items, setItems] = useState<ItemOption[]>([]);
+  const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
+  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>([]);
+  const [revenueCategories, setRevenueCategories] = useState<RevenueCategoryOption[]>([]);
+
+    const [clientId, setClientId] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [taskId, setTaskId] = useState("");
+
+  const [paymentTermsId, setPaymentTermsId] = useState("");
+  const [shippingTermId, setShippingTermId] = useState("");
+  const [bankAccountId, setBankAccountId] = useState("");
+  const [paymentMethodId, setPaymentMethodId] = useState("");
+  const [currencyId, setCurrencyId] = useState("");
 
   const [issueDate, setIssueDate] = useState(
     new Date().toISOString().slice(0, 10)
@@ -113,12 +214,12 @@ export default function FinanceNewInvoicePage() {
     [clientId, clients]
   );
 
-  const selectedCompany = useMemo(
+    const selectedCompany = useMemo(
     () => companies.find((company) => company.id === companyId) ?? null,
     [companies, companyId]
   );
 
-  const filteredTasks = useMemo(() => {
+   const filteredTasks = useMemo(() => {
     if (!projectId) {
       return tasks;
     }
@@ -126,12 +227,59 @@ export default function FinanceNewInvoicePage() {
     return tasks.filter((task) => task.project_id === projectId);
   }, [projectId, tasks]);
 
-  useEffect(() => {
+  const filteredBankAccounts = useMemo(() => {
+    if (!companyId) {
+      return bankAccounts;
+    }
+
+    return bankAccounts.filter(
+      (account) => !account.company_id || account.company_id === companyId
+    );
+  }, [bankAccounts, companyId]);
+
+    const selectedPaymentTerm = useMemo(
+    () => paymentTerms.find((term) => term.id === paymentTermsId) ?? null,
+    [paymentTerms, paymentTermsId]
+  );
+
+  const selectedShippingTerm = useMemo(
+    () => shippingTerms.find((term) => term.id === shippingTermId) ?? null,
+    [shippingTerms, shippingTermId]
+  );
+
+  const selectedBankAccount = useMemo(
+    () => filteredBankAccounts.find((account) => account.id === bankAccountId) ?? null,
+    [bankAccountId, filteredBankAccounts]
+  );
+
+  const selectedCurrency = useMemo(
+    () => currencies.find((currency) => currency.id === currencyId) ?? null,
+    [currencies, currencyId]
+  );
+
+  const selectedPaymentMethod = useMemo(
+    () => paymentMethods.find((method) => method.id === paymentMethodId) ?? null,
+    [paymentMethodId, paymentMethods]
+  );
+
+    useEffect(() => {
     if (!selectedClient) {
       return;
     }
 
-    setCurrencyCode(selectedClient.currency_code || "USD");
+    if (selectedClient.currency_code) {
+      setCurrencyCode(selectedClient.currency_code);
+      const matchedCurrency = currencies.find(
+        (entry) => entry.currency_code === selectedClient.currency_code
+      );
+      if (matchedCurrency) {
+        setCurrencyId(matchedCurrency.id);
+      }
+    }
+
+    if (selectedClient.payment_terms_id) {
+      setPaymentTermsId(selectedClient.payment_terms_id);
+    }
 
     if (!dueDate) {
       const days = selectedClient.payment_terms_days ?? 14;
@@ -139,7 +287,52 @@ export default function FinanceNewInvoicePage() {
       base.setDate(base.getDate() + days);
       setDueDate(base.toISOString().slice(0, 10));
     }
-  }, [dueDate, issueDate, selectedClient]);
+  }, [currencies, dueDate, issueDate, selectedClient]);
+
+    useEffect(() => {
+    if (!companyId) return;
+
+    const defaultBank =
+      filteredBankAccounts.find((account) => account.is_default) ??
+      filteredBankAccounts[0];
+
+    if (defaultBank) {
+      setBankAccountId(defaultBank.id);
+    }
+
+    if (!currencyId && selectedCompany?.currency_code) {
+      const matchedCurrency = currencies.find(
+        (entry) => entry.currency_code === selectedCompany.currency_code
+      );
+      if (matchedCurrency) {
+        setCurrencyId(matchedCurrency.id);
+        setCurrencyCode(matchedCurrency.currency_code);
+      }
+    }
+  }, [companyId, currencies, currencyId, filteredBankAccounts, selectedCompany]);
+
+  useEffect(() => {
+    if (shippingTermId) return;
+
+    const defaultShippingTerm =
+      shippingTerms.find((term) => term.is_default) ?? shippingTerms[0];
+
+    if (defaultShippingTerm) {
+      setShippingTermId(defaultShippingTerm.id);
+    }
+  }, [shippingTermId, shippingTerms]);
+
+  useEffect(() => {
+    if (paymentTermsId) return;
+
+    const defaultPaymentTerm =
+      paymentTerms.find((term) => term.is_default) ?? paymentTerms[0];
+
+    if (defaultPaymentTerm) {
+      setPaymentTermsId(defaultPaymentTerm.id);
+    }
+  }, [paymentTerms, paymentTermsId]);
+  
 
   useEffect(() => {
     if (!projectId) {
@@ -159,44 +352,135 @@ export default function FinanceNewInvoicePage() {
     setErrorMessage("");
 
     try {
-      const [clientsResult, companiesResult, projectsResult, tasksResult] =
-        await Promise.all([
-          supabase
-            .from("finance_clients")
-            .select(
-              "id, name, legal_name, company_email, personnel_email, company_phone, personnel_phone, currency_code, payment_terms_days, payment_terms_id"
-            )
-            .eq("status", "active")
-            .order("name", { ascending: true }),
+       const [
+        clientsResult,
+        companiesResult,
+        projectsResult,
+        tasksResult,
+        paymentTermsResult,
+        shippingTermsResult,
+        bankAccountsResult,
+        currenciesResult,
+        paymentMethodsResult,
+        itemsResult,
+        taxCodesResult,
+        unitsOfMeasureResult,
+        revenueCategoriesResult,
+      ] = await Promise.all([
+        supabase
+          .from("finance_clients")
+          .select(
+            "id, name, legal_name, company_email, personnel_email, company_phone, personnel_phone, currency_code, payment_terms_days, payment_terms_id"
+          )
+          .eq("status", "active")
+          .order("name", { ascending: true }),
 
-          supabase
-            .from("finance_companies")
-            .select(
-              "id, name, legal_name, company_email, personnel_email, company_phone, personnel_phone"
-            )
-            .eq("status", "active")
-            .order("name", { ascending: true }),
+        supabase
+          .from("finance_companies")
+          .select(
+            "id, name, legal_name, email, phone, currency_code, country, city, state_province, postal_code, address_line_1, address_line_2"
+          )
+          .eq("status", "active")
+          .order("name", { ascending: true }),
 
-          supabase
-            .from("projects")
-            .select("id, name")
-            .order("name", { ascending: true }),
+        supabase
+          .from("projects")
+          .select("id, name")
+          .order("name", { ascending: true }),
 
-          supabase
-            .from("tasks")
-            .select("id, title, project_id")
-            .order("created_at", { ascending: false }),
-        ]);
+        supabase
+          .from("tasks")
+          .select("id, title, project_id")
+          .order("created_at", { ascending: false }),
+
+        supabase
+          .from("finance_payment_terms")
+          .select("id, code, name, due_days, is_default")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_shipping_terms")
+          .select("id, code, name, description, is_default")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_bank_accounts")
+          .select(
+            "id, name, bank_name, beneficiary_name, iban, swift_code, currency_code, is_default, company_id"
+          )
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_currencies")
+          .select("id, currency_code, currency_name, currency_symbol, is_base_currency")
+          .eq("status", "active")
+          .order("currency_code", { ascending: true }),
+
+        supabase
+          .from("finance_payment_methods")
+          .select("id, code, name")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_items")
+          .select(
+            "id, name, description, sales_price, currency_code, revenue_category_id, tax_code_id, unit_of_measure_id"
+          )
+          .eq("status", "active")
+          .eq("is_active_for_sales", true)
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_tax_codes")
+          .select("id, code, name, rate_percent")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_units_of_measure")
+          .select("id, code, name")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_revenue_categories")
+          .select("id, code, name")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+      ]);
 
       if (clientsResult.error) throw clientsResult.error;
       if (companiesResult.error) throw companiesResult.error;
       if (projectsResult.error) throw projectsResult.error;
       if (tasksResult.error) throw tasksResult.error;
+      if (paymentTermsResult.error) throw paymentTermsResult.error;
+      if (shippingTermsResult.error) throw shippingTermsResult.error;
+      if (bankAccountsResult.error) throw bankAccountsResult.error;
+      if (currenciesResult.error) throw currenciesResult.error;
+      if (paymentMethodsResult.error) throw paymentMethodsResult.error;
+      if (itemsResult.error) throw itemsResult.error;
+      if (taxCodesResult.error) throw taxCodesResult.error;
+      if (unitsOfMeasureResult.error) throw unitsOfMeasureResult.error;
+      if (revenueCategoriesResult.error) throw revenueCategoriesResult.error;
 
       setClients((clientsResult.data || []) as ClientOption[]);
       setCompanies((companiesResult.data || []) as CompanyOption[]);
       setProjects((projectsResult.data || []) as ProjectOption[]);
       setTasks((tasksResult.data || []) as TaskOption[]);
+
+      setPaymentTerms((paymentTermsResult.data || []) as PaymentTermOption[]);
+      setShippingTerms((shippingTermsResult.data || []) as ShippingTermOption[]);
+      setBankAccounts((bankAccountsResult.data || []) as BankAccountOption[]);
+      setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
+      setPaymentMethods((paymentMethodsResult.data || []) as PaymentMethodOption[]);
+      setItems((itemsResult.data || []) as ItemOption[]);
+      setTaxCodes((taxCodesResult.data || []) as TaxCodeOption[]);
+      setUnitsOfMeasure((unitsOfMeasureResult.data || []) as UnitOfMeasureOption[]);
+      setRevenueCategories((revenueCategoriesResult.data || []) as RevenueCategoryOption[]);
 
       if (!companyId && (companiesResult.data || []).length === 1) {
         setCompanyId(companiesResult.data![0].id);
@@ -231,7 +515,7 @@ export default function FinanceNewInvoicePage() {
     };
   }, [rows]);
 
-  const updateRow = useCallback(
+   const updateRow = useCallback(
     (localId: string, field: keyof InvoiceItemRow, value: string) => {
       setRows((current) =>
         current.map((row) =>
@@ -240,6 +524,36 @@ export default function FinanceNewInvoicePage() {
       );
     },
     []
+  );
+
+  const applyItemToRow = useCallback(
+    (localId: string, itemId: string) => {
+      const selectedItem = items.find((item) => item.id === itemId);
+
+      setRows((current) =>
+        current.map((row) => {
+          if (row.localId !== localId) return row;
+
+          if (!selectedItem) {
+            return {
+              ...row,
+              itemId: "",
+            };
+          }
+
+          return {
+            ...row,
+            itemId: selectedItem.id,
+            description: selectedItem.description || selectedItem.name,
+            unitPrice: String(selectedItem.sales_price ?? 0),
+            taxCodeId: selectedItem.tax_code_id || "",
+            unitOfMeasureId: selectedItem.unit_of_measure_id || "",
+            revenueCategoryId: selectedItem.revenue_category_id || "",
+          };
+        })
+      );
+    },
+    [items]
   );
 
   const addRow = useCallback(() => {
@@ -300,6 +614,10 @@ export default function FinanceNewInvoicePage() {
           company_id: companyId,
           project_id: projectId || null,
           task_id: taskId || null,
+          payment_terms_id: paymentTermsId || null,
+          shipping_term_id: shippingTermId || null,
+          bank_account_id: bankAccountId || null,
+          currency_id: currencyId || null,
           issue_date: issueDate,
           due_date: dueDate || issueDate,
           status: "draft",
@@ -317,6 +635,7 @@ export default function FinanceNewInvoicePage() {
           posted_to_ledger: false,
           metadata: {
             creation_mode: "manual_draft",
+            preferred_payment_method_id: paymentMethodId || null,
           },
           created_by: user.id,
           updated_by: user.id,
@@ -329,10 +648,14 @@ export default function FinanceNewInvoicePage() {
 
       const linePayload = validRows.map((row, index) => ({
         invoice_id: createdInvoice.id,
+        item_id: row.itemId || null,
         description: row.description.trim(),
         quantity: toNumber(row.quantity),
         unit_price: toNumber(row.unitPrice),
         discount: toNumber(row.discount),
+        tax_code_id: row.taxCodeId || null,
+        unit_of_measure_id: row.unitOfMeasureId || null,
+        revenue_category_id: row.revenueCategoryId || null,
         sort_order: index + 1,
         status: "active",
         posted_to_ledger: false,
@@ -355,15 +678,20 @@ export default function FinanceNewInvoicePage() {
       setIsSaving(false);
     }
   }, [
+    bankAccountId,
     clientId,
     companyId,
     currencyCode,
+    currencyId,
     dueDate,
     issueDate,
     navigate,
     notes,
+    paymentMethodId,
+    paymentTermsId,
     projectId,
     rows,
+    shippingTermId,
     taskId,
   ]);
 
@@ -502,7 +830,7 @@ export default function FinanceNewInvoicePage() {
                   </select>
                 </label>
 
-                <label className="space-y-2">
+                                <label className="space-y-2">
                   <div className="text-sm text-white/70">Issue Date</div>
                   <input
                     type="date"
@@ -523,14 +851,92 @@ export default function FinanceNewInvoicePage() {
                 </label>
 
                 <label className="space-y-2">
-                  <div className="text-sm text-white/70">Currency</div>
-                  <input
-                    value={currencyCode}
-                    onChange={(event) =>
-                      setCurrencyCode(event.target.value.toUpperCase())
-                    }
+                  <div className="text-sm text-white/70">Payment Terms</div>
+                  <select
+                    value={paymentTermsId}
+                    onChange={(event) => setPaymentTermsId(event.target.value)}
                     className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                  />
+                  >
+                    <option value="">Select payment terms</option>
+                    {paymentTerms.map((term) => (
+                      <option key={term.id} value={term.id}>
+                        {term.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Shipping Terms</div>
+                  <select
+                    value={shippingTermId}
+                    onChange={(event) => setShippingTermId(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                  >
+                    <option value="">Select shipping terms</option>
+                    {shippingTerms.map((term) => (
+                      <option key={term.id} value={term.id}>
+                        {term.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Bank Account</div>
+                  <select
+                    value={bankAccountId}
+                    onChange={(event) => setBankAccountId(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                  >
+                    <option value="">Select bank account</option>
+                    {filteredBankAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Currency</div>
+                  <select
+                    value={currencyId}
+                    onChange={(event) => {
+                      const nextId = event.target.value;
+                      setCurrencyId(nextId);
+                      const matchedCurrency = currencies.find(
+                        (entry) => entry.id === nextId
+                      );
+                      if (matchedCurrency) {
+                        setCurrencyCode(matchedCurrency.currency_code);
+                      }
+                    }}
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                  >
+                    <option value="">Select currency</option>
+                    {currencies.map((currency) => (
+                      <option key={currency.id} value={currency.id}>
+                        {currency.currency_code} — {currency.currency_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Preferred Payment Method</div>
+                  <select
+                    value={paymentMethodId}
+                    onChange={(event) => setPaymentMethodId(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                  >
+                    <option value="">Select payment method</option>
+                    {paymentMethods.map((method) => (
+                      <option key={method.id} value={method.id}>
+                        {method.name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
 
                 <div className="space-y-2">
@@ -551,12 +957,26 @@ export default function FinanceNewInvoicePage() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                 <div className="space-y-2">
                   <div className="text-sm text-white/70">Company Email</div>
                   <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
-                    {selectedCompany?.company_email ||
-                      selectedCompany?.personnel_email ||
-                      "—"}
+                    {selectedCompany?.email || "—"}
+                  </div>
+                </div>
+
+                                <div className="space-y-2 md:col-span-2">
+                  <div className="text-sm text-white/70">Bank Details Preview</div>
+                  <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
+                    {selectedBankAccount
+                      ? [
+                          selectedBankAccount.beneficiary_name,
+                          selectedBankAccount.bank_name,
+                          selectedBankAccount.iban,
+                          selectedBankAccount.swift_code,
+                        ]
+                          .filter(Boolean)
+                          .join(" | ")
+                      : "—"}
                   </div>
                 </div>
 
@@ -617,8 +1037,26 @@ export default function FinanceNewInvoicePage() {
                         </Button>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                        <label className="space-y-2 md:col-span-5">
+                                            <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+                        <label className="space-y-2 md:col-span-3">
+                          <div className="text-sm text-white/70">Item</div>
+                          <select
+                            value={row.itemId}
+                            onChange={(event) =>
+                              applyItemToRow(row.localId, event.target.value)
+                            }
+                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          >
+                            <option value="">Select item</option>
+                            {items.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="space-y-2 md:col-span-4">
                           <div className="text-sm text-white/70">Description</div>
                           <input
                             value={row.description}
@@ -633,7 +1071,7 @@ export default function FinanceNewInvoicePage() {
                           />
                         </label>
 
-                        <label className="space-y-2 md:col-span-2">
+                                                <label className="space-y-2 md:col-span-1">
                           <div className="text-sm text-white/70">Qty</div>
                           <input
                             value={row.quantity}
@@ -642,6 +1080,28 @@ export default function FinanceNewInvoicePage() {
                             }
                             className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
                           />
+                        </label>
+
+                        <label className="space-y-2 md:col-span-2">
+                          <div className="text-sm text-white/70">Unit</div>
+                          <select
+                            value={row.unitOfMeasureId}
+                            onChange={(event) =>
+                              updateRow(
+                                row.localId,
+                                "unitOfMeasureId",
+                                event.target.value
+                              )
+                            }
+                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          >
+                            <option value="">Select unit</option>
+                            {unitsOfMeasure.map((unit) => (
+                              <option key={unit.id} value={unit.id}>
+                                {unit.name}
+                              </option>
+                            ))}
+                          </select>
                         </label>
 
                         <label className="space-y-2 md:col-span-2">
@@ -655,7 +1115,7 @@ export default function FinanceNewInvoicePage() {
                           />
                         </label>
 
-                        <label className="space-y-2 md:col-span-1">
+                                                <label className="space-y-2 md:col-span-1">
                           <div className="text-sm text-white/70">Discount</div>
                           <input
                             value={row.discount}
@@ -664,6 +1124,46 @@ export default function FinanceNewInvoicePage() {
                             }
                             className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
                           />
+                        </label>
+
+                        <label className="space-y-2 md:col-span-2">
+                          <div className="text-sm text-white/70">Tax Code</div>
+                          <select
+                            value={row.taxCodeId}
+                            onChange={(event) =>
+                              updateRow(row.localId, "taxCodeId", event.target.value)
+                            }
+                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          >
+                            <option value="">Select tax</option>
+                            {taxCodes.map((taxCode) => (
+                              <option key={taxCode.id} value={taxCode.id}>
+                                {taxCode.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="space-y-2 md:col-span-2">
+                          <div className="text-sm text-white/70">Revenue Category</div>
+                          <select
+                            value={row.revenueCategoryId}
+                            onChange={(event) =>
+                              updateRow(
+                                row.localId,
+                                "revenueCategoryId",
+                                event.target.value
+                              )
+                            }
+                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          >
+                            <option value="">Select category</option>
+                            {revenueCategories.map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {category.name}
+                              </option>
+                            ))}
+                          </select>
                         </label>
 
                         <div className="space-y-2 md:col-span-2">
@@ -699,12 +1199,59 @@ export default function FinanceNewInvoicePage() {
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Client
                   </div>
                   <div className="mt-2 text-base font-semibold text-white">
                     {selectedClient?.legal_name || selectedClient?.name || "—"}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Payment Terms
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {selectedPaymentTerm?.name || "—"}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Shipping Terms
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {selectedShippingTerm?.name || "—"}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Currency
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {selectedCurrency
+                      ? `${selectedCurrency.currency_code} — ${selectedCurrency.currency_name}`
+                      : currencyCode || "—"}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Bank Account
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {selectedBankAccount?.name || "—"}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Payment Method
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {selectedPaymentMethod?.name || "—"}
                   </div>
                 </div>
 

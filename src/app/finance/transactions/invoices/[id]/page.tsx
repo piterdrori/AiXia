@@ -393,10 +393,10 @@ export default function FinanceInvoiceDetailPage() {
         const [{ invoice, lineItems }, paymentsResult, projectResult] =
           await Promise.all([
             getIssuedInvoiceById(id),
-            supabase
+           supabase
               .from("finance_payments_received")
               .select("id, amount, payment_date, status, reference_number")
-              .eq("invoice_issued_id", id)
+              .eq("invoice_id", id)
               .eq("status", "confirmed")
               .order("payment_date", { ascending: true }),
             supabase

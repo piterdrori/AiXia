@@ -208,7 +208,7 @@ export async function getIssuedInvoiceById(id: string) {
     supabase
       .from(LINE_ITEMS_TABLE)
       .select("*")
-      .eq("invoice_id", id)
+      .eq("invoice_issued_id", id)
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true }),
   ]);

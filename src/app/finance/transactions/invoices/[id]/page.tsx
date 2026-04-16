@@ -54,6 +54,8 @@ type InvoiceRecord = {
   payment_terms_id: string | null;
   payment_terms_snapshot: string | null;
   shipping_term_id: string | null;
+  shipping_terms_snapshot: string | null;
+  terms_and_conditions_snapshot: string | null;
   bank_account_id: string | null;
   bank_details_snapshot: string | null;
   currency_id: string | null;
@@ -365,6 +367,8 @@ export default function FinanceInvoiceDetailPage() {
   const [clientPhoneDraft, setClientPhoneDraft] = useState("");
 
   const [paymentTermsDraft, setPaymentTermsDraft] = useState("");
+  const [shippingTermsDraft, setShippingTermsDraft] = useState("");
+  const [termsAndConditionsDraft, setTermsAndConditionsDraft] = useState("");
   const [bankDetailsDraft, setBankDetailsDraft] = useState("");
 
   const [lineItemsDraft, setLineItemsDraft] = useState<EditableLineItem[]>([]);
@@ -481,6 +485,11 @@ export default function FinanceInvoiceDetailPage() {
         setClientPhoneDraft(typedInvoice.client_phone_snapshot || "");
 
         setPaymentTermsDraft(typedInvoice.payment_terms_snapshot || "");
+        setShippingTermsDraft((typedInvoice as any).shipping_terms_snapshot || "");
+        setTermsAndConditionsDraft(
+          (typedInvoice as any).terms_and_conditions_snapshot ||
+            "Payment is due according to the agreed payment terms stated on this invoice. Goods remain subject to the agreed shipping terms. Any bank charges are the responsibility of the payer unless otherwise agreed in writing. Please reference the invoice number with your payment. Late payments may result in delays, additional charges, or suspension of further deliveries or services."
+        );
         setBankDetailsDraft(typedInvoice.bank_details_snapshot || "");
 
         setLineItemsDraft(
@@ -678,6 +687,14 @@ export default function FinanceInvoiceDetailPage() {
     [shippingTerms, shippingTermIdDraft]
   );
 
+  const selectedDraftShippingTermsLabel = useMemo(() => {
+    if (!selectedDraftShippingTerm) return "";
+    if (selectedDraftShippingTerm.description?.trim()) {
+      return `${selectedDraftShippingTerm.name} — ${selectedDraftShippingTerm.description.trim()}`;
+    }
+    return selectedDraftShippingTerm.name || selectedDraftShippingTerm.code || "";
+  }, [selectedDraftShippingTerm]);
+
   const selectedDraftCurrency = useMemo(
     () => currencies.find((entry) => entry.id === currencyIdDraft) ?? null,
     [currencies, currencyIdDraft]
@@ -823,6 +840,29 @@ export default function FinanceInvoiceDetailPage() {
     issueDateDraft,
     paymentTermsIdDraft,
     selectedDraftClient,
+  ]);
+
+    useEffect(() => {
+    if (!invoice || invoice.status !== "draft") return;
+
+    setPaymentTermsDraft(selectedDraftPaymentTerm?.name || "");
+
+    if (selectedDraftShippingTermsLabel) {
+      setShippingTermsDraft(selectedDraftShippingTermsLabel);
+    } else {
+      setShippingTermsDraft("");
+    }
+
+    setTermsAndConditionsDraft((current) => {
+      const trimmed = current.trim();
+      if (trimmed) return current;
+
+      return "Payment is due according to the agreed payment terms stated on this invoice. Goods remain subject to the agreed shipping terms. Any bank charges are the responsibility of the payer unless otherwise agreed in writing. Please reference the invoice number with your payment. Late payments may result in delays, additional charges, or suspension of further deliveries or services.";
+    });
+  }, [
+    invoice,
+    selectedDraftPaymentTerm,
+    selectedDraftShippingTermsLabel,
   ]);
 
    useEffect(() => {
@@ -1083,6 +1123,8 @@ export default function FinanceInvoiceDetailPage() {
           client_email_snapshot: clientEmailDraft || null,
           client_phone_snapshot: clientPhoneDraft || null,
           payment_terms_snapshot: paymentTermsDraft || null,
+          shipping_terms_snapshot: shippingTermsDraft || null,
+          terms_and_conditions_snapshot: termsAndConditionsDraft || null,
           bank_details_snapshot: bankDetailsDraft || null,
           updated_by: user.id,
         })
@@ -1099,7 +1141,7 @@ export default function FinanceInvoiceDetailPage() {
     } finally {
       setIsSavingDraft(false);
     }
-    }, [
+   }, [
     id,
     invoice,
     companyNameDraft,
@@ -1113,6 +1155,8 @@ export default function FinanceInvoiceDetailPage() {
     clientEmailDraft,
     clientPhoneDraft,
     paymentTermsDraft,
+    shippingTermsDraft,
+    termsAndConditionsDraft,
     bankDetailsDraft,
     loadInvoice,
   ]);
@@ -1303,6 +1347,8 @@ export default function FinanceInvoiceDetailPage() {
           client_phone_snapshot:
             selectedClient?.company_phone || selectedClient?.personnel_phone || null,
           payment_terms_snapshot: selectedPaymentTerm?.name || null,
+          shipping_terms_snapshot: selectedDraftShippingTermsLabel || null,
+          terms_and_conditions_snapshot: termsAndConditionsDraft || null,
           bank_details_snapshot: bankDetailsSnapshot,
           updated_by: user.id,
           metadata: {
@@ -1348,7 +1394,7 @@ export default function FinanceInvoiceDetailPage() {
     } finally {
       setIsSavingDraft(false);
     }
-       }, [
+  }, [
     bankAccountIdDraft,
     canEditDraft,
     clientIdDraft,
@@ -1366,8 +1412,10 @@ export default function FinanceInvoiceDetailPage() {
     paymentMethodIdDraft,
     paymentTermsIdDraft,
     projectIdDraft,
+    selectedDraftShippingTermsLabel,
     shippingTermIdDraft,
     taskIdDraft,
+    termsAndConditionsDraft,
   ]);
 
   if (isLoading) {
@@ -1773,14 +1821,14 @@ export default function FinanceInvoiceDetailPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+              <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Shipping Terms
                   </div>
                   <div className="mt-2 text-base font-semibold text-white">
                     {invoice.status === "draft"
-                      ? selectedDraftShippingTerm?.name || "—"
-                      : "—"}
+                      ? selectedDraftShippingTermsLabel || "—"
+                      : invoice.shipping_terms_snapshot || "—"}
                   </div>
                 </div>
 
@@ -2070,12 +2118,42 @@ export default function FinanceInvoiceDetailPage() {
       </div>
     </div>
 
-    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+        <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
       <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-        Payment Terms Source
+        Terms &amp; Conditions
       </div>
-      <div className="mt-3 text-sm text-white/75">
-        {selectedDraftPaymentTerm?.name || "—"}
+
+      <div className="mt-3 space-y-4 text-sm text-white/75">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Payment Terms
+          </div>
+          <div className="mt-1">
+            {selectedDraftPaymentTerm?.name || "—"}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Shipping Terms
+          </div>
+          <div className="mt-1">
+            {selectedDraftShippingTermsLabel || "—"}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Terms and Conditions
+          </div>
+          <textarea
+            value={termsAndConditionsDraft}
+            onChange={(event) => setTermsAndConditionsDraft(event.target.value)}
+            rows={7}
+            className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none"
+            placeholder="Enter invoice terms and conditions"
+          />
+        </div>
       </div>
     </div>
 
@@ -2308,21 +2386,64 @@ export default function FinanceInvoiceDetailPage() {
       </div>
     </div>
 
-    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+       <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
       <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-        Payment Terms
+        Terms &amp; Conditions
       </div>
-      <div className="mt-3 text-sm text-white/75">
-        {editingParties ? (
-          <input
-            value={paymentTermsDraft}
-            onChange={(event) => setPaymentTermsDraft(event.target.value)}
-            placeholder="Payment terms"
-            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-          />
-        ) : (
-          invoice.payment_terms_snapshot || "—"
-        )}
+
+      <div className="mt-3 space-y-4 text-sm text-white/75">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Payment Terms
+          </div>
+          {editingParties ? (
+            <input
+              value={paymentTermsDraft}
+              onChange={(event) => setPaymentTermsDraft(event.target.value)}
+              placeholder="Payment terms"
+              className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+            />
+          ) : (
+            <div className="mt-1">{invoice.payment_terms_snapshot || "—"}</div>
+          )}
+        </div>
+
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Shipping Terms
+          </div>
+          {editingParties ? (
+            <input
+              value={shippingTermsDraft}
+              onChange={(event) => setShippingTermsDraft(event.target.value)}
+              placeholder="Shipping terms"
+              className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+            />
+          ) : (
+            <div className="mt-1">
+              {(invoice as any).shipping_terms_snapshot || "—"}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Terms and Conditions
+          </div>
+          {editingParties ? (
+            <textarea
+              value={termsAndConditionsDraft}
+              onChange={(event) => setTermsAndConditionsDraft(event.target.value)}
+              rows={7}
+              placeholder="Terms and conditions"
+              className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none"
+            />
+          ) : (
+            <div className="mt-1 whitespace-pre-line leading-6">
+              {(invoice as any).terms_and_conditions_snapshot || "—"}
+            </div>
+          )}
+        </div>
       </div>
     </div>
 

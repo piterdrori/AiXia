@@ -188,6 +188,13 @@ type BankAccountOption = {
   swift_code: string | null;
   bank_address: string | null;
   account_number: string | null;
+  account_identifier_type: string | null;
+  account_identifier_value: string | null;
+  country: string | null;
+  city: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
   currency_code: string | null;
   is_default: boolean;
   company_id: string | null;
@@ -540,7 +547,7 @@ export default function FinanceInvoiceDetailPage() {
         supabase
           .from("finance_bank_accounts")
           .select(
-            "id, name, bank_name, beneficiary_name, iban, swift_code, currency_code, is_default, company_id, bank_address, account_number"
+            "id, name, bank_name, beneficiary_name, iban, swift_code, bank_address, account_number, account_identifier_type, account_identifier_value, country, city, postal_code, address_line_1, address_line_2, currency_code, is_default, company_id"
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
@@ -1203,14 +1210,39 @@ export default function FinanceInvoiceDetailPage() {
             .join(", ") || null
         : null;
 
-            const bankDetailsSnapshot = selectedBankAccount
+              const resolvedBankAddress = selectedBankAccount
+        ? (
+            selectedBankAccount.bank_address ||
+            [
+              selectedBankAccount.address_line_1,
+              selectedBankAccount.address_line_2,
+              selectedBankAccount.city,
+              selectedBankAccount.postal_code,
+              selectedBankAccount.country,
+            ]
+              .filter(Boolean)
+              .join(", ")
+          )
+        : "";
+
+      const resolvedSwiftCode = selectedBankAccount
+        ? (
+            selectedBankAccount.swift_code ||
+            (selectedBankAccount.account_identifier_type === "swift"
+              ? selectedBankAccount.account_identifier_value
+              : "") ||
+            ""
+          )
+        : "";
+
+      const bankDetailsSnapshot = selectedBankAccount
         ? JSON.stringify({
             beneficiary_name: selectedBankAccount.beneficiary_name || "",
             bank_name: selectedBankAccount.bank_name || "",
-            bank_address: selectedBankAccount.bank_address || "",
+            bank_address: resolvedBankAddress || "",
             account_number: selectedBankAccount.account_number || "",
             iban: selectedBankAccount.iban || "",
-            swift_code: selectedBankAccount.swift_code || "",
+            swift_code: resolvedSwiftCode || "",
             currency_code: selectedBankAccount.currency_code || "",
           })
         : null;

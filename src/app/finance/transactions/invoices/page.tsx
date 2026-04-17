@@ -128,23 +128,28 @@ function MetricCard({ metric }: { metric: InvoiceMetricCard }) {
 function getDocumentStatusBadgeClasses(
   status: FinanceIssuedInvoiceListRow["status"]
 ) {
-  if (status === "issued") {
-    return "border-sky-400/20 bg-sky-500/10 text-sky-200";
-  }
+  switch (status) {
+    case "draft":
+      return "border-white/10 bg-white/10 text-white/75";
 
-  if (status === "draft") {
-    return "border-white/10 bg-white/10 text-white/75";
-  }
+    case "issued":
+      return "border-sky-400/20 bg-sky-500/10 text-sky-200";
 
-  if (status === "void") {
-    return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-  }
+    case "partially_paid":
+      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
 
-  if (status === "canceled") {
-    return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-  }
+    case "paid":
+      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
 
-  return "border-white/10 bg-white/10 text-white/75";
+    case "overdue":
+      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
+
+    case "cancelled":
+      return "border-gray-400/20 bg-gray-500/10 text-gray-200";
+
+    default:
+      return "border-white/10 bg-white/10 text-white/75";
+  }
 }
 
 function getPaymentStatusBadgeClasses(
@@ -279,10 +284,10 @@ export default function FinanceInvoicesPage() {
       const overdue = isInvoiceOverdue(invoice as any);
 
       return (
-        invoice.invoice_number.toLowerCase().includes(normalizedSearch) ||
-        invoice.client_name.toLowerCase().includes(normalizedSearch) ||
-        invoice.status.toLowerCase().includes(normalizedSearch) ||
-        invoice.payment_status.toLowerCase().includes(normalizedSearch) ||
+        (invoice.invoice_number || "").toLowerCase().includes(normalizedSearch) ||
+        (invoice.client_name || "").toLowerCase().includes(normalizedSearch) ||
+        (invoice.status || "").toLowerCase().includes(normalizedSearch) ||
+        (invoice.payment_status || "").toLowerCase().includes(normalizedSearch) ||
         postingStatus.toLowerCase().includes(normalizedSearch) ||
         (overdue ? "overdue".includes(normalizedSearch) : false)
       );
@@ -323,7 +328,7 @@ export default function FinanceInvoicesPage() {
       {
         key: "open",
         title: "Open Receivables",
-        value: formatFinanceMoney(receivablesOpen, "USD"),
+        value: formatFinanceMoney(receivablesOpen, invoices[0]?.currency_code || "USD"),
         subtitle: `${unpaidInvoices.length + partialInvoices.length} invoices with balance`,
         icon: Wallet,
         tone: "emerald",
@@ -480,7 +485,7 @@ export default function FinanceInvoicesPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <div className="text-base font-semibold text-white">
-                              {invoice.invoice_number}
+                              {invoice.invoice_number || "Draft"}
                             </div>
 
                             <Badge

@@ -65,7 +65,7 @@ export default function InvoicePrintDocument({
 
   const rows = Array.isArray(lineItems) ? lineItems : [];
   const visibleRows = rows.slice(0, 8);
-  const fillerRows = Math.max(0, 6 - visibleRows.length);
+  const fillerRows = Math.max(0, 4 - visibleRows.length);
 
   return (
     <>
@@ -395,13 +395,13 @@ export default function InvoicePrintDocument({
             </div>
 
             {/* Bottom content */}
-                       <div
+                           <div
               style={{
                 display: "grid",
                 gridTemplateColumns: "1.12fr 0.88fr",
                 gap: "14mm",
                 alignItems: "start",
-                marginTop: "1mm",
+                marginTop: "0mm",
               }}
             >
               <div style={{ fontSize: "8pt", color: "#374151" }}>
@@ -617,60 +617,64 @@ export default function InvoicePrintDocument({
               </div>
             </div>
 
-                                             {/* Footer */}
+                                                      {/* Footer */}
             <div
               style={{
-                marginTop: "6mm",
-                paddingTop: "0mm",
+                marginTop: "4mm",
+                paddingTop: "3mm",
+                borderTop: "0.5pt solid #e5e7eb",
                 background: "#ffffff",
               }}
             >
               <div
                 style={{
+                  fontWeight: 700,
+                  fontSize: "9pt",
+                  color: "#111827",
+                  marginBottom: "2mm",
+                }}
+              >
+                Terms and Conditions
+              </div>
+
+              <div
+                style={{
+                  lineHeight: 1.58,
+                  whiteSpace: "pre-wrap",
+                  fontSize: "7.35pt",
+                  color: "#374151",
+                  marginBottom: "5mm",
+                }}
+              >
+                {termsAndConditions}
+              </div>
+
+              <div
+                style={{
                   display: "grid",
-                  gridTemplateColumns: "1.18fr 0.82fr",
-                  columnGap: "14mm",
-                  rowGap: "4mm",
+                  gridTemplateColumns: "1fr 1fr",
                   alignItems: "start",
+                  columnGap: "14mm",
                 }}
               >
                 <div
                   style={{
-                    minHeight: "24mm",
+                    fontSize: "8.5pt",
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    color: "#111827",
+                    paddingTop: "2mm",
                   }}
                 >
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      fontSize: "9pt",
-                      color: "#111827",
-                      marginBottom: "2mm",
-                    }}
-                  >
-                    Terms and Conditions
-                  </div>
-                  <div
-                    style={{
-                      lineHeight: 1.58,
-                      whiteSpace: "pre-wrap",
-                      fontSize: "7.4pt",
-                      color: "#374151",
-                    }}
-                  >
-                    {termsAndConditions}
-                  </div>
+                  Thank You For Your Business
                 </div>
 
-                <div
-                  style={{
-                    paddingTop: "6mm",
-                    textAlign: "center",
-                  }}
-                >
+                <div style={{ textAlign: "center", paddingTop: "0mm" }}>
                   <div
                     style={{
                       borderBottom: "0.5pt dashed #6b7280",
-                      height: "8mm",
+                      height: "7mm",
                       marginBottom: "1.5mm",
                     }}
                   />
@@ -698,20 +702,8 @@ export default function InvoicePrintDocument({
                     </div>
                   ) : null}
                 </div>
-
-                <div
-                  style={{
-                    marginTop: "-1mm",
-                    fontSize: "8.5pt",
-                    fontWeight: 700,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    color: "#111827",
-                  }}
-                >
-                  Thank You For Your Business
-                </div>
-
+              </div>
+            </div>
                 <div />
               </div>
             </div>

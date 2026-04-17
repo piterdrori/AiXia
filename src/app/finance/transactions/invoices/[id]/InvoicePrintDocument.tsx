@@ -53,7 +53,11 @@ export default function InvoicePrintDocument({
   const bankInfo = parseBankDetails(invoice?.bank_details_snapshot);
 
   const paymentTerms = invoice?.payment_terms_snapshot || "—";
-  const shippingTerms = invoice?.shipping_terms_snapshot || "—";
+  const shippingTerms =
+  invoice?.shipping_terms_snapshot &&
+  !invoice.shipping_terms_snapshot.match(/^[0-9a-f-]{36}$/i)
+    ? invoice.shipping_terms_snapshot
+    : "Not specified";
   const termsAndConditions =
     invoice?.terms_and_conditions_snapshot || DEFAULT_TERMS;
 
@@ -112,22 +116,22 @@ export default function InvoicePrintDocument({
               left: 0,
               right: 0,
               top: 0,
-              height: "58mm",
+              height: "70mm",
               background: "linear-gradient(135deg, #232323 0%, #1b1b1b 100%)",
               zIndex: 0,
             }}
           />
-          <div
+      <div
   style={{
     position: "absolute",
     left: "-5mm",
     right: "-5mm",
-    top: "53mm",
-    height: "11mm",
+    top: "58mm",
+    height: "8mm",
     background: "#ffffff",
     borderTopLeftRadius: "100% 100%",
     borderTopRightRadius: "100% 100%",
-    zIndex: 1,
+    zIndex: 0,
   }}
 />
 
@@ -148,7 +152,7 @@ export default function InvoicePrintDocument({
                   src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
                   alt="AiXia"
                   style={{
-                    height: "22mm",
+                    height: "32mm",
                     width: "auto",
                     filter: "brightness(0) invert(1)",
                     marginBottom: "4mm",
@@ -175,17 +179,17 @@ export default function InvoicePrintDocument({
                     <div>{invoice.company_email_snapshot}</div>
                   ) : null}
                   {invoice?.company_address_snapshot ? (
-                 <div
-                     style={{
-                     marginTop: "0.8mm",
-                     maxHeight: "8mm",
-                     overflow: "hidden",
-                     lineHeight: 1.35,
-                      }}
-                     >
-                  {invoice.company_address_snapshot}
-                  </div>
-                 ) : null}
+  <div
+    style={{
+      marginTop: "1mm",
+      lineHeight: 1.5,
+      whiteSpace: "pre-wrap",
+      wordBreak: "break-word",
+    }}
+  >
+    {invoice.company_address_snapshot}
+  </div>
+) : null}
                 </div>
               </div>
 

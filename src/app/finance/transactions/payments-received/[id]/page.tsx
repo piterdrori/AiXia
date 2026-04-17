@@ -1,92 +1,124 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+
 import {
   getPaymentReceivedById,
   confirmPaymentReceived,
   cancelPaymentReceived,
 } from "@/lib/finance/paymentsReceived";
-import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabase";
 
-export default function PaymentReceivedDetailPage() {
-  const router = useRouter();
-  const router = useRouter();
-  const { id } = router.query as { id: string };
+type PaymentReceivedDetail = {
+  id: string;
+  amount: number;
+  converted_amount: number;
+  payment_currency_code: string;
+  invoice_currency_code: string;
+  status: string;
+  reference_number: string | null;
+};
 
-  const [payment, setPayment] = useState<any>(null);
+export default function PaymentReceivedDetailPage() {
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+
+  const [payment, setPayment] = useState<PaymentReceivedDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasProof, setHasProof] = useState(false);
 
   useEffect(() => {
-    if (id) {
-      loadPayment();
-      checkProof();
-    }
+    if (!id) return;
+
+    void loadPayment();
+    void checkProof();
   }, [id]);
 
   async function loadPayment() {
+    if (!id) return;
+
     try {
       setLoading(true);
       const data = await getPaymentReceivedById(id);
-      setPayment(data);
+      setPayment(data as PaymentReceivedDetail);
     } catch (err) {
       console.error(err);
+      setPayment(null);
     } finally {
       setLoading(false);
     }
   }
 
   async function checkProof() {
-    const { data } = await supabase
+    if (!id) return;
+
+    const { data, error } = await supabase
       .from("finance_record_attachments")
       .select("id")
       .eq("entity_type", "finance_payment_received")
       .eq("entity_id", id);
 
+    if (error) {
+      console.error(error);
+      setHasProof(false);
+      return;
+    }
+
     setHasProof((data || []).length > 0);
   }
 
   async function handleConfirm() {
+    if (!id) return;
+
     try {
       await confirmPaymentReceived(id);
       await loadPayment();
-    } catch (err: any) {
-      alert(err.message);
+      await checkProof();
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to confirm payment.";
+      alert(message);
     }
   }
 
   async function handleCancel() {
+    if (!id) return;
+
     try {
       await cancelPaymentReceived(id);
       await loadPayment();
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to cancel payment.";
+      alert(message);
     }
   }
 
-  if (loading) return <div className="p-6">Loading...</div>;
-  if (!payment) return <div className="p-6">Payment not found</div>;
+  if (loading) {
+    return <div className="p-6">Loading...</div>;
+  }
+
+  if (!payment) {
+    return <div className="p-6">Payment not found</div>;
+  }
 
   return (
     <div className="p-6 space-y-6">
-
-      {/* HEADER */}
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">
           Payment {payment.reference_number || ""}
         </h1>
 
         <button
-          onClick={() => router.back()}
-          className="px-3 py-2 border rounded-lg"
+          onClick={() => navigate("/finance/transactions/payments-received")}
+          className="rounded-lg border px-3 py-2"
         >
           Back
         </button>
       </div>
 
-      {/* INFO CARD */}
-      <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-3">
+      <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-6">
         <div>Amount: {payment.amount}</div>
         <div>Converted: {payment.converted_amount}</div>
         <div>Currency: {payment.payment_currency_code}</div>
@@ -94,8 +126,7 @@ export default function PaymentReceivedDetailPage() {
         <div>Status: {payment.status}</div>
       </div>
 
-      {/* PROOF SECTION */}
-      <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-3">
+      <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-6">
         <h2 className="font-semibold">Proof of Payment</h2>
 
         {hasProof ? (
@@ -107,31 +138,29 @@ export default function PaymentReceivedDetailPage() {
         )}
       </div>
 
-      {/* ACTIONS */}
       <div className="flex gap-3">
-
-        {payment.status === "draft" && (
+        {payment.status === "draft" ? (
           <button
             onClick={handleConfirm}
             disabled={!hasProof}
-            className={`px-4 py-2 rounded-lg ${
+            className={`rounded-lg px-4 py-2 ${
               hasProof
                 ? "bg-green-600 hover:bg-green-700"
-                : "bg-gray-500 cursor-not-allowed"
+                : "cursor-not-allowed bg-gray-500"
             }`}
           >
             Confirm Payment
           </button>
-        )}
+        ) : null}
 
-        {payment.status !== "cancelled" && (
+        {payment.status !== "cancelled" ? (
           <button
             onClick={handleCancel}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg"
+            className="rounded-lg bg-red-600 px-4 py-2 hover:bg-red-700"
           >
             Cancel
           </button>
-        )}
+        ) : null}
       </div>
     </div>
   );

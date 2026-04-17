@@ -1,8 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import {
-  FinancePaymentReceived,
-  FinancePaymentReceivedStatus,
-} from "./types";
+import type { FinancePaymentReceived } from "./types";
 
 import { convertCurrencyLive } from "@/lib/integrations/frankfurter";
 

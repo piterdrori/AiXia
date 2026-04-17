@@ -65,7 +65,7 @@ export default function InvoicePrintDocument({
 
   const rows = Array.isArray(lineItems) ? lineItems : [];
   const visibleRows = rows.slice(0, 8);
-  const fillerRows = Math.max(0, 5 - visibleRows.length);
+  const fillerRows = Math.max(0, 3 - visibleRows.length);
 
   return (
     <>
@@ -104,49 +104,36 @@ export default function InvoicePrintDocument({
             width: "210mm",
             minHeight: "297mm",
             background: "#ffffff",
-            color: "#1a1a2e",
+            color: "#111827",
             fontFamily:
-              '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
             position: "relative",
             overflow: "visible",
           }}
         >
-          {/* Tech Header Background */}
+          {/* Header background */}
           <div
             style={{
               position: "absolute",
               left: 0,
               right: 0,
               top: 0,
-              height: "70mm",
-              background: "linear-gradient(135deg, #0d1b2a 0%, #1b263b 100%)",
+              height: "78mm",
+              background: "linear-gradient(135deg, #232323 0%, #1b1b1b 100%)",
               zIndex: 0,
             }}
           />
 
-          {/* Tech accent line - cyan */}
-          <div
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              top: "70mm",
-              height: "1mm",
-              background: "#00d4ff",
-              zIndex: 1,
-            }}
-          />
-
-          <div style={{ position: "relative", zIndex: 2, padding: "8mm 12mm 10mm 12mm" }}>
-            {/* Top header - compact */}
+          <div style={{ position: "relative", zIndex: 2, padding: "9mm 14mm 10mm 14mm" }}>
+            {/* Top header */}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "8mm",
+                gridTemplateColumns: "1.05fr 0.95fr",
+                gap: "10mm",
                 alignItems: "start",
                 color: "#ffffff",
-                minHeight: "62mm",
+                minHeight: "72mm",
               }}
             >
               <div>
@@ -154,29 +141,28 @@ export default function InvoicePrintDocument({
                   src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
                   alt="AiXia"
                   style={{
-                    height: "32mm",
+                    height: "40mm",
                     width: "auto",
                     filter: "brightness(0) invert(1)",
-                    marginTop: "-4mm",
-                    marginBottom: "1mm",
+                    marginTop: "-7mm",
+                    marginBottom: "0.5mm",
                   }}
                 />
 
                 <div
                   style={{
-                    maxWidth: "80mm",
-                    fontSize: "8pt",
-                    lineHeight: 1.4,
-                    marginTop: "-2mm",
-                    color: "rgba(255,255,255,0.85)",
+                    maxWidth: "84mm",
+                    fontSize: "8.3pt",
+                    lineHeight: 1.38,
+                    paddingTop: "0mm",
+                    marginTop: "-5mm",
                   }}
                 >
                   <div
                     style={{
-                      fontWeight: 600,
-                      fontSize: "10pt",
+                      fontWeight: 700,
+                      fontSize: "10.5pt",
                       marginBottom: "0.8mm",
-                      color: "#ffffff",
                     }}
                   >
                     {invoice?.company_name_snapshot || "—"}
@@ -194,12 +180,11 @@ export default function InvoicePrintDocument({
                     <div
                       style={{
                         marginTop: "0.5mm",
-                        lineHeight: 1.35,
+                        lineHeight: 1.32,
                         whiteSpace: "pre-wrap",
                         wordBreak: "break-word",
-                        maxWidth: "80mm",
-                        fontSize: "7.5pt",
-                        opacity: 0.9,
+                        maxWidth: "84mm",
+                        fontSize: "7.9pt",
                       }}
                     >
                       {invoice.company_address_snapshot}
@@ -211,147 +196,137 @@ export default function InvoicePrintDocument({
               <div style={{ paddingTop: "2mm", textAlign: "left" }}>
                 <div
                   style={{
-                    fontSize: "28pt",
+                    fontSize: "31pt",
                     fontWeight: 300,
-                    letterSpacing: "0.1em",
+                    letterSpacing: "0.09em",
                     textTransform: "uppercase",
-                    marginBottom: "4mm",
+                    marginBottom: "6mm",
                     lineHeight: 1,
-                    color: "#ffffff",
                   }}
                 >
                   Invoice
                 </div>
 
-                <div style={{ fontSize: "9pt", lineHeight: 1.8 }}>
+                <div style={{ fontSize: "10pt", lineHeight: 1.95 }}>
                   <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "24mm", opacity: 0.6 }}>Invoice No</span>
-                    <span style={{ fontWeight: 600 }}>{invoice?.invoice_number || "—"}</span>
+                    <span style={{ width: "26mm", opacity: 0.78 }}>Invoice No</span>
+                    <span style={{ fontWeight: 700 }}>{invoice?.invoice_number || "—"}</span>
                   </div>
                   <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "24mm", opacity: 0.6 }}>Issue Date</span>
+                    <span style={{ width: "26mm", opacity: 0.78 }}>Issue Date</span>
                     <span>{formatFinanceDate(invoice?.issue_date)}</span>
                   </div>
                   <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "24mm", opacity: 0.6 }}>Due Date</span>
+                    <span style={{ width: "26mm", opacity: 0.78 }}>Due Date</span>
                     <span>{formatFinanceDate(invoice?.due_date)}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Bill To - slim card */}
-            <div style={{ marginTop: "3mm", marginBottom: "6mm" }}>
+            {/* Bill To */}
+            <div style={{ marginTop: "5mm", marginBottom: "7mm" }}>
               <div
                 style={{
                   background: "#ffffff",
-                  border: "1px solid #e2e8f0",
+                  border: "0.5pt solid #e5e7eb",
                   borderRadius: "2mm",
-                  padding: "3mm 4mm",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                  padding: "4mm 5mm",
+                  display: "grid",
+                  gridTemplateColumns: "1fr",
                 }}
               >
                 <div
                   style={{
-                    fontSize: "6.5pt",
+                    fontSize: "7.2pt",
                     textTransform: "uppercase",
-                    letterSpacing: "0.12em",
-                    color: "#00a8cc",
-                    fontWeight: 600,
-                    marginBottom: "1mm",
+                    letterSpacing: "0.1em",
+                    color: "#6b7280",
+                    fontWeight: 700,
+                    marginBottom: "1.5mm",
                   }}
                 >
                   Bill To
                 </div>
-                <div style={{ fontWeight: 600, fontSize: "10pt", marginBottom: "0.5mm", color: "#1a1a2e" }}>
+                <div style={{ fontWeight: 700, fontSize: "11pt", marginBottom: "1mm" }}>
                   {invoice?.client_name_snapshot || "—"}
                 </div>
                 {invoice?.client_contact_person_snapshot ? (
-                  <div style={{ fontSize: "8pt", color: "#4a5568", marginBottom: "0.5mm" }}>
+                  <div style={{ fontSize: "8.3pt", color: "#4b5563", marginBottom: "0.8mm" }}>
                     {invoice.client_contact_person_snapshot}
                   </div>
                 ) : null}
                 {invoice?.client_email_snapshot || invoice?.client_phone_snapshot ? (
-                  <div style={{ fontSize: "7.5pt", color: "#64748b", marginBottom: "0.5mm" }}>
+                  <div style={{ fontSize: "8.1pt", color: "#4b5563", marginBottom: "0.8mm" }}>
                     {[invoice?.client_email_snapshot, invoice?.client_phone_snapshot]
                       .filter(Boolean)
                       .join(" • ")}
                   </div>
                 ) : null}
-                <div style={{ fontSize: "8pt", color: "#4a5568", lineHeight: 1.4 }}>
+                <div style={{ fontSize: "8.3pt", color: "#4b5563", lineHeight: 1.55 }}>
                   {invoice?.billing_address_snapshot || "—"}
                 </div>
               </div>
             </div>
 
-            {/* Table - compact */}
-            <div style={{ marginBottom: "6mm" }}>
+            {/* Table */}
+            <div style={{ marginBottom: "8mm" }}>
               <table
                 style={{
                   width: "100%",
                   borderCollapse: "collapse",
                   tableLayout: "fixed",
-                  fontSize: "8pt",
+                  fontSize: "8.5pt",
                 }}
               >
                 <thead>
-                  <tr style={{ background: "#1b263b", color: "#ffffff" }}>
+                  <tr style={{ background: "#232323", color: "#ffffff" }}>
                     <th
                       style={{
-                        width: "8%",
+                        width: "9%",
                         textAlign: "center",
-                        padding: "2.5mm 1.5mm",
-                        fontWeight: 600,
-                        fontSize: "7.5pt",
-                        borderBottom: "2px solid #00d4ff",
+                        padding: "3mm 2mm",
+                        fontWeight: 700,
                       }}
                     >
                       No
                     </th>
                     <th
                       style={{
-                        width: "52%",
+                        width: "49%",
                         textAlign: "left",
-                        padding: "2.5mm 2mm",
-                        fontWeight: 600,
-                        fontSize: "7.5pt",
-                        borderBottom: "2px solid #00d4ff",
+                        padding: "3mm 3mm",
+                        fontWeight: 700,
                       }}
                     >
                       Item Description
                     </th>
                     <th
                       style={{
-                        width: "14%",
+                        width: "15%",
                         textAlign: "right",
-                        padding: "2.5mm 1.5mm",
-                        fontWeight: 600,
-                        fontSize: "7.5pt",
-                        borderBottom: "2px solid #00d4ff",
+                        padding: "3mm 2mm",
+                        fontWeight: 700,
                       }}
                     >
                       Unit Price
                     </th>
                     <th
                       style={{
-                        width: "10%",
+                        width: "12%",
                         textAlign: "right",
-                        padding: "2.5mm 1.5mm",
-                        fontWeight: 600,
-                        fontSize: "7.5pt",
-                        borderBottom: "2px solid #00d4ff",
+                        padding: "3mm 2mm",
+                        fontWeight: 700,
                       }}
                     >
-                      Qty
+                      Quantity
                     </th>
                     <th
                       style={{
-                        width: "16%",
+                        width: "15%",
                         textAlign: "right",
-                        padding: "2.5mm 1.5mm",
-                        fontWeight: 600,
-                        fontSize: "7.5pt",
-                        borderBottom: "2px solid #00d4ff",
+                        padding: "3mm 2mm",
+                        fontWeight: 700,
                       }}
                     >
                       Value
@@ -369,38 +344,35 @@ export default function InvoicePrintDocument({
                       Math.max(quantity * unitPrice - discount, 0);
 
                     return (
-                      <tr key={item.id || index} style={{ borderBottom: "0.5pt solid #e2e8f0" }}>
-                        <td style={{ padding: "2.5mm 1.5mm", textAlign: "center", color: "#64748b" }}>{index + 1}</td>
-                        <td style={{ padding: "2.5mm 2mm", verticalAlign: "top" }}>
-                          <div style={{ fontWeight: 500, color: "#1a1a2e" }}>{item.description || "—"}</div>
+                      <tr key={item.id || index} style={{ borderBottom: "0.5pt solid #d1d5db" }}>
+                        <td style={{ padding: "3mm 2mm", textAlign: "center" }}>{index + 1}</td>
+                        <td style={{ padding: "3mm 3mm", verticalAlign: "top" }}>
+                          <div style={{ fontWeight: 500 }}>{item.description || "—"}</div>
                         </td>
                         <td
                           style={{
-                            padding: "2.5mm 1.5mm",
+                            padding: "3mm 2mm",
                             textAlign: "right",
-                            fontFamily: '"SF Mono", monospace',
-                            color: "#475569",
+                            fontFamily: "monospace",
                           }}
                         >
                           {formatFinanceMoney(unitPrice, currency)}
                         </td>
                         <td
                           style={{
-                            padding: "2.5mm 1.5mm",
+                            padding: "3mm 2mm",
                             textAlign: "right",
-                            fontFamily: '"SF Mono", monospace',
-                            color: "#475569",
+                            fontFamily: "monospace",
                           }}
                         >
                           {quantity}
                         </td>
                         <td
                           style={{
-                            padding: "2.5mm 1.5mm",
+                            padding: "3mm 2mm",
                             textAlign: "right",
-                            fontFamily: '"SF Mono", monospace',
-                            fontWeight: 600,
-                            color: "#1a1a2e",
+                            fontFamily: "monospace",
+                            fontWeight: 700,
                           }}
                         >
                           {formatFinanceMoney(value, currency)}
@@ -410,148 +382,145 @@ export default function InvoicePrintDocument({
                   })}
 
                   {Array.from({ length: fillerRows }).map((_, index) => (
-                    <tr key={`filler-${index}`} style={{ borderBottom: "0.5pt solid #e2e8f0" }}>
-                      <td style={{ height: "6.5mm", padding: "0 1.5mm" }} />
-                      <td style={{ height: "6.5mm", padding: "0 2mm" }} />
-                      <td style={{ height: "6.5mm", padding: "0 1.5mm" }} />
-                      <td style={{ height: "6.5mm", padding: "0 1.5mm" }} />
-                      <td style={{ height: "6.5mm", padding: "0 1.5mm" }} />
+                    <tr key={`filler-${index}`} style={{ borderBottom: "0.5pt solid #d1d5db" }}>
+                      <td style={{ height: "7mm", padding: "0 2mm" }} />
+                      <td style={{ height: "7mm", padding: "0 3mm" }} />
+                      <td style={{ height: "7mm", padding: "0 2mm" }} />
+                      <td style={{ height: "7mm", padding: "0 2mm" }} />
+                      <td style={{ height: "7mm", padding: "0 2mm" }} />
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            {/* Bottom content - adjusted grid to prevent overflow */}
+            {/* Bottom content */}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1.15fr 0.85fr",
-                gap: "8mm",
+                gridTemplateColumns: "1.12fr 0.88fr",
+                gap: "14mm",
                 alignItems: "start",
+                marginTop: "0mm",
               }}
             >
-              {/* Left Column - Terms & Bank */}
-              <div style={{ fontSize: "7.5pt", color: "#475569" }}>
-                <div style={{ marginBottom: "4mm" }}>
-                  <div
-                    style={{
-                      fontWeight: 600,
-                      fontSize: "8pt",
-                      color: "#1a1a2e",
-                      marginBottom: "1.5mm",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "1.5mm",
-                    }}
-                  >
-                    <span style={{ width: "4px", height: "4px", background: "#00a8cc", borderRadius: "50%" }} />
-                    Payment and Shipping Terms
-                  </div>
-                  <div style={{ lineHeight: 1.6, paddingLeft: "2.5mm" }}>
-                    <div>
-                      <span style={{ color: "#94a3b8" }}>Payment Terms: </span>
-                      <span style={{ fontWeight: 500, color: "#334155" }}>{paymentTerms}</span>
+              <div style={{ fontSize: "8pt", color: "#374151" }}>
+                <div
+                  style={{
+                    background: "#ffffff",
+                    paddingTop: "2mm",
+                    paddingRight: "1mm",
+                  }}
+                >
+                  <div style={{ marginBottom: "4mm" }}>
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        fontSize: "9pt",
+                        color: "#111827",
+                        marginBottom: "1.5mm",
+                      }}
+                    >
+                      Payment and Shipping Terms
                     </div>
-                    <div>
-                      <span style={{ color: "#94a3b8" }}>Shipping Terms: </span>
-                      <span style={{ fontWeight: 500, color: "#334155" }}>{shippingTerms}</span>
+                    <div style={{ lineHeight: 1.7 }}>
+                      <div>
+                        <span style={{ color: "#6b7280" }}>Payment Terms: </span>
+                        <span style={{ fontWeight: 500 }}>{paymentTerms}</span>
+                      </div>
+                      <div>
+                        <span style={{ color: "#6b7280" }}>Shipping Terms: </span>
+                        <span style={{ fontWeight: 500 }}>{shippingTerms}</span>
+                      </div>
+                      <div>
+                        <span style={{ color: "#6b7280" }}>Currency: </span>
+                        <span style={{ fontWeight: 500 }}>{currency}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span style={{ color: "#94a3b8" }}>Currency: </span>
-                      <span style={{ fontWeight: 500, color: "#334155" }}>{currency}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: "4mm" }}>
-                  <div
-                    style={{
-                      fontWeight: 600,
-                      fontSize: "8pt",
-                      color: "#1a1a2e",
-                      marginBottom: "1.5mm",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "1.5mm",
-                    }}
-                  >
-                    <span style={{ width: "4px", height: "4px", background: "#00a8cc", borderRadius: "50%" }} />
-                    Bank Details
                   </div>
 
-                  {bankInfo ? (
-                    <div style={{ lineHeight: 1.55, paddingLeft: "2.5mm" }}>
-                      {bankInfo.beneficiary ? (
-                        <div>
-                          <span style={{ color: "#94a3b8" }}>Beneficiary: </span>
-                          <span style={{ fontWeight: 600, color: "#334155" }}>{bankInfo.beneficiary}</span>
-                        </div>
-                      ) : null}
-                      {bankInfo.bank ? (
-                        <div>
-                          <span style={{ color: "#94a3b8" }}>Bank: </span>
-                          <span style={{ color: "#475569" }}>{bankInfo.bank}</span>
-                        </div>
-                      ) : null}
-                      {bankInfo.bankAddress ? (
-                        <div>
-                          <span style={{ color: "#94a3b8" }}>Address: </span>
-                          <span style={{ color: "#475569" }}>{bankInfo.bankAddress}</span>
-                        </div>
-                      ) : null}
-                      {bankInfo.accountNumber ? (
-                        <div>
-                          <span style={{ color: "#94a3b8" }}>Account: </span>
-                          <span style={{ fontFamily: '"SF Mono", monospace', fontWeight: 600, color: "#334155" }}>
-                            {bankInfo.accountNumber}
-                          </span>
-                        </div>
-                      ) : null}
-                      {bankInfo.swift ? (
-                        <div>
-                          <span style={{ color: "#94a3b8" }}>SWIFT: </span>
-                          <span style={{ fontFamily: '"SF Mono", monospace', fontWeight: 600, color: "#334155" }}>
-                            {bankInfo.swift}
-                          </span>
-                        </div>
-                      ) : null}
-                      {bankInfo.iban ? (
-                        <div>
-                          <span style={{ color: "#94a3b8" }}>IBAN: </span>
-                          <span style={{ fontFamily: '"SF Mono", monospace', fontWeight: 600, color: "#334155" }}>
-                            {bankInfo.iban}
-                          </span>
-                        </div>
-                      ) : null}
+                  <div style={{ marginBottom: "8mm" }}>
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        fontSize: "9pt",
+                        color: "#111827",
+                        marginBottom: "1.5mm",
+                      }}
+                    >
+                      Bank Details
                     </div>
-                  ) : (
-                    <div style={{ color: "#94a3b8", paddingLeft: "2.5mm" }}>No bank details available.</div>
-                  )}
+
+                    {bankInfo ? (
+                      <div style={{ lineHeight: 1.65 }}>
+                        {bankInfo.beneficiary ? (
+                          <div>
+                            <span style={{ color: "#6b7280" }}>Beneficiary: </span>
+                            <span style={{ fontWeight: 600 }}>{bankInfo.beneficiary}</span>
+                          </div>
+                        ) : null}
+                        {bankInfo.bank ? (
+                          <div>
+                            <span style={{ color: "#6b7280" }}>Beneficiary Bank Name: </span>
+                            <span>{bankInfo.bank}</span>
+                          </div>
+                        ) : null}
+                        {bankInfo.bankAddress ? (
+                          <div>
+                            <span style={{ color: "#6b7280" }}>Beneficiary Bank Address: </span>
+                            <span>{bankInfo.bankAddress}</span>
+                          </div>
+                        ) : null}
+                        {bankInfo.accountNumber ? (
+                          <div>
+                            <span style={{ color: "#6b7280" }}>Bank Account: </span>
+                            <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                              {bankInfo.accountNumber}
+                            </span>
+                          </div>
+                        ) : null}
+                        {bankInfo.swift ? (
+                          <div>
+                            <span style={{ color: "#6b7280" }}>SWIFT Code: </span>
+                            <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                              {bankInfo.swift}
+                            </span>
+                          </div>
+                        ) : null}
+                        {bankInfo.iban ? (
+                          <div>
+                            <span style={{ color: "#6b7280" }}>IBAN: </span>
+                            <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                              {bankInfo.iban}
+                            </span>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div>No bank details available.</div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Right Column - Slim Totals */}
+              {/* Right Column - Totals and Signature */}
               <div>
                 <div
                   style={{
-                    background: "#f8fafc",
-                    padding: "3mm",
-                    borderRadius: "2mm",
-                    border: "1px solid #e2e8f0",
+                    background: "#ffffff",
+                    padding: "2mm 0 0 6mm",
                   }}
                 >
                   <div
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
-                      marginBottom: "1.5mm",
-                      fontSize: "8pt",
-                      color: "#64748b",
+                      marginBottom: "2mm",
+                      fontSize: "9pt",
                     }}
                   >
-                    <span>Subtotal</span>
-                    <span style={{ fontFamily: '"SF Mono", monospace' }}>
+                    <span>SUB TOTAL</span>
+                    <span style={{ fontFamily: "monospace" }}>
                       {formatFinanceMoney(financialSummary?.subtotal || 0, currency)}
                     </span>
                   </div>
@@ -560,13 +529,12 @@ export default function InvoicePrintDocument({
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
-                      marginBottom: "1.5mm",
-                      fontSize: "8pt",
-                      color: "#64748b",
+                      marginBottom: "2mm",
+                      fontSize: "9pt",
                     }}
                   >
-                    <span>Tax / VAT</span>
-                    <span style={{ fontFamily: '"SF Mono", monospace' }}>
+                    <span>TAX / VAT</span>
+                    <span style={{ fontFamily: "monospace" }}>
                       {formatFinanceMoney(financialSummary?.tax || 0, currency)}
                     </span>
                   </div>
@@ -576,44 +544,40 @@ export default function InvoicePrintDocument({
                       display: "flex",
                       justifyContent: "space-between",
                       marginBottom: "2mm",
-                      fontSize: "8pt",
-                      color: "#64748b",
+                      fontSize: "9pt",
                     }}
                   >
-                    <span>Discount</span>
-                    <span style={{ fontFamily: '"SF Mono", monospace' }}>
+                    <span>DISCOUNT</span>
+                    <span style={{ fontFamily: "monospace" }}>
                       {formatFinanceMoney(financialSummary?.discount || 0, currency)}
                     </span>
                   </div>
 
-                  {/* Total - slim version */}
                   <div
                     style={{
-                      background: "#1b263b",
+                      background: "#232323",
                       color: "#ffffff",
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
-                      padding: "2.5mm 3mm",
-                      borderRadius: "1.5mm",
+                      padding: "3mm 3mm",
+                      marginTop: "2.5mm",
                     }}
                   >
                     <span
                       style={{
-                        fontSize: "9pt",
-                        fontWeight: 600,
+                        fontSize: "10pt",
+                        fontWeight: 700,
                         textTransform: "uppercase",
-                        letterSpacing: "0.05em",
                       }}
                     >
-                      Total
+                      Grand Total
                     </span>
                     <span
                       style={{
-                        fontFamily: '"SF Mono", monospace',
-                        fontSize: "10pt",
+                        fontFamily: "monospace",
+                        fontSize: "11pt",
                         fontWeight: 700,
-                        color: "#00d4ff",
                       }}
                     >
                       {formatFinanceMoney(financialSummary?.total || 0, currency)}
@@ -625,13 +589,12 @@ export default function InvoicePrintDocument({
                       style={{
                         display: "flex",
                         justifyContent: "space-between",
-                        marginTop: "2mm",
-                        fontSize: "7.5pt",
-                        color: "#22c55e",
+                        marginTop: "2.4mm",
+                        fontSize: "8.7pt",
                       }}
                     >
-                      <span>Paid</span>
-                      <span style={{ fontFamily: '"SF Mono", monospace', fontWeight: 600 }}>
+                      <span>PAID</span>
+                      <span style={{ fontFamily: "monospace" }}>
                         {formatFinanceMoney(financialSummary?.paid || 0, currency)}
                       </span>
                     </div>
@@ -641,60 +604,55 @@ export default function InvoicePrintDocument({
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
-                      marginTop: "2mm",
-                      paddingTop: "2mm",
-                      borderTop: "1px dashed #cbd5e1",
-                      fontSize: "8.5pt",
-                      fontWeight: 600,
-                      color: "#1a1a2e",
+                      marginTop: "2.4mm",
+                      fontSize: "9pt",
+                      fontWeight: 700,
                     }}
                   >
-                    <span>Balance Due</span>
-                    <span style={{ fontFamily: '"SF Mono", monospace', color: "#dc2626" }}>
+                    <span>BALANCE DUE</span>
+                    <span style={{ fontFamily: "monospace" }}>
                       {formatFinanceMoney(financialSummary?.balance || 0, currency)}
                     </span>
                   </div>
 
-                  {/* Signature - compact */}
+                  {/* Signature - Under Balance Due with signing space */}
                   <div
                     style={{
-                      marginTop: "5mm",
+                      marginTop: "6mm",
                       textAlign: "center",
+                      width: "100%",
                     }}
                   >
                     <div
                       style={{
-                        borderBottom: "1px solid #cbd5e1",
-                        height: "10mm",
-                        marginBottom: "1mm",
+                        borderBottom: "0.5pt dashed #6b7280",
+                        height: "12mm",
+                        marginBottom: "1.5mm",
                       }}
                     />
-                    <div style={{ fontSize: "6.5pt", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Signature</div>
+                    <div style={{ fontSize: "8pt", color: "#374151" }}>Signature</div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Footer - compact */}
+            {/* Footer */}
             <div
               style={{
-                marginTop: "4mm",
-                paddingTop: "3mm",
-                borderTop: "1px solid #e2e8f0",
+                marginTop: "1mm",
+                paddingTop: "2mm",
+                borderTop: "0.5pt solid #e5e7eb",
+                background: "#ffffff",
               }}
             >
               <div
                 style={{
-                  fontWeight: 600,
-                  fontSize: "8pt",
-                  color: "#1a1a2e",
-                  marginBottom: "1.5mm",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "1.5mm",
+                  fontWeight: 700,
+                  fontSize: "9pt",
+                  color: "#111827",
+                  marginBottom: "2mm",
                 }}
               >
-                <span style={{ width: "4px", height: "4px", background: "#00a8cc", borderRadius: "50%" }} />
                 Terms and Conditions
               </div>
 
@@ -702,32 +660,29 @@ export default function InvoicePrintDocument({
                 style={{
                   lineHeight: 1.45,
                   whiteSpace: "pre-wrap",
-                  fontSize: "6.8pt",
-                  color: "#64748b",
+                  fontSize: "7pt",
+                  color: "#374151",
                   marginBottom: "3mm",
-                  paddingLeft: "2.5mm",
                 }}
               >
                 {termsAndConditions}
               </div>
 
-              {/* Payment History */}
+              {/* Payment History - Right aligned if exists */}
               {payments?.length > 0 ? (
                 <div
                   style={{
                     marginTop: "2mm",
                     textAlign: "right",
-                    fontSize: "6.5pt",
-                    color: "#64748b",
+                    fontSize: "6.8pt",
+                    color: "#6b7280",
                     lineHeight: 1.5,
                   }}
                 >
                   {payments.map((payment: any, index: number) => (
                     <div key={payment.id || index}>
                       {formatFinanceDate(payment.payment_date)} ·{" "}
-                      <span style={{ fontWeight: 500, color: "#22c55e" }}>
-                        {formatFinanceMoney(payment.amount, currency)}
-                      </span>
+                      {formatFinanceMoney(payment.amount, currency)}
                       {payment.reference_number
                         ? ` · ${payment.reference_number}`
                         : ""}
@@ -736,18 +691,16 @@ export default function InvoicePrintDocument({
                 </div>
               ) : null}
 
-              {/* Thank You */}
+              {/* Thank You - Centered at bottom */}
               <div
                 style={{
                   textAlign: "center",
-                  fontSize: "9pt",
-                  fontWeight: 500,
-                  letterSpacing: "0.1em",
+                  fontSize: "10pt",
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
                   textTransform: "uppercase",
-                  color: "#1a1a2e",
-                  marginTop: "4mm",
-                  paddingTop: "3mm",
-                  borderTop: "1px solid #f1f5f9",
+                  color: "#111827",
+                  marginTop: "3mm",
                 }}
               >
                 Thank You For Your Business

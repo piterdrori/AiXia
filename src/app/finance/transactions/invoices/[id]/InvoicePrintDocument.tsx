@@ -27,18 +27,32 @@ function parseBankDetails(details: string | null | undefined) {
       currency: parsed?.currency_code || "",
     };
   } catch {
-    const parts = String(details)
-      .split("|")
-      .map((s) => s.trim());
+    const normalized = String(details).replace(/\r\n/g, "\n").trim();
+
+    const labeledValue = (label: string) => {
+      const line = normalized
+        .split("\n")
+        .map((entry) => entry.trim())
+        .find((entry) => entry.toLowerCase().startsWith(`${label.toLowerCase()}:`));
+
+      return line ? line.slice(label.length + 1).trim() : "";
+    };
+
+    const lines = normalized
+      .split("\n")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    const unlabeledLines = lines.filter((entry) => !entry.includes(":"));
 
     return {
-      beneficiary: parts[0] || "",
-      bank: parts[1] || "",
-      bankAddress: "",
-      accountNumber: "",
-      iban: parts[2] || "",
-      swift: parts[3] || "",
-      currency: "",
+      beneficiary: unlabeledLines[0] || "",
+      bank: unlabeledLines[1] || "",
+      bankAddress: unlabeledLines[2] || "",
+      accountNumber: labeledValue("Account"),
+      iban: labeledValue("IBAN"),
+      swift: labeledValue("SWIFT"),
+      currency: labeledValue("Currency"),
     };
   }
 }

@@ -64,6 +64,69 @@ export default function InvoicePrintDocument({
   payments = [],
 }: Props) {
   const currency = invoice?.currency_code || "USD";
+  // ===== RESOLVED DATA (SNAPSHOT → FALLBACK) =====
+
+const companyName =
+  invoice?.company_name_snapshot ||
+  invoice?.company_name ||
+  invoice?.company ||
+  "—";
+
+const companyContact =
+  invoice?.company_contact_person_snapshot ||
+  invoice?.company_contact_person ||
+  "";
+
+const companyEmail =
+  invoice?.company_email_snapshot ||
+  invoice?.company_email ||
+  "";
+
+const companyPhone =
+  invoice?.company_phone_snapshot ||
+  invoice?.company_phone ||
+  "";
+
+const companyAddress =
+  invoice?.company_address_snapshot ||
+  invoice?.company_address ||
+  "";
+
+const clientName =
+  invoice?.client_name_snapshot ||
+  invoice?.client_name ||
+  invoice?.client ||
+  "—";
+
+const clientContact =
+  invoice?.client_contact_person_snapshot ||
+  invoice?.client_contact_person ||
+  "";
+
+const clientEmail =
+  invoice?.client_email_snapshot ||
+  invoice?.client_email ||
+  "";
+
+const clientPhone =
+  invoice?.client_phone_snapshot ||
+  invoice?.client_phone ||
+  "";
+
+const billingAddress =
+  invoice?.billing_address_snapshot ||
+  invoice?.billing_address ||
+  "—";
+
+const invoiceNumber =
+  invoice?.invoice_number || "Draft";
+
+const issueDate =
+  invoice?.issue_date || invoice?.issued_at || null;
+
+const dueDate =
+  invoice?.due_date || null;
+  
   const bankInfo = parseBankDetails(invoice?.bank_details_snapshot);
 
   const paymentTerms = invoice?.payment_terms_snapshot || "—";
@@ -179,31 +242,31 @@ export default function InvoicePrintDocument({
                       marginBottom: "0.8mm",
                     }}
                   >
-                    {invoice?.company_name_snapshot || "—"}
+                    {companyName}
                   </div>
-                  {invoice?.company_contact_person_snapshot ? (
-                    <div>{invoice.company_contact_person_snapshot}</div>
-                  ) : null}
-                  {invoice?.company_phone_snapshot ? (
-                    <div>{invoice.company_phone_snapshot}</div>
-                  ) : null}
-                  {invoice?.company_email_snapshot ? (
-                    <div>{invoice.company_email_snapshot}</div>
-                  ) : null}
-                  {invoice?.company_address_snapshot ? (
-                    <div
-                      style={{
-                        marginTop: "0.5mm",
-                        lineHeight: 1.32,
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-word",
-                        maxWidth: "84mm",
-                        fontSize: "7.9pt",
-                      }}
-                    >
-                      {invoice.company_address_snapshot}
-                    </div>
-                  ) : null}
+                  {companyContact ? (
+  <div>{companyContact}</div>
+) : null}
+                 {companyPhone ? (
+  <div>{companyPhone}</div>
+) : null}
+                  {companyEmail ? (
+  <div>{companyEmail}</div>
+) : null}
+                  {companyAddress ? (
+  <div
+    style={{
+      marginTop: "0.5mm",
+      lineHeight: 1.32,
+      whiteSpace: "pre-wrap",
+      wordBreak: "break-word",
+      maxWidth: "84mm",
+      fontSize: "7.9pt",
+    }}
+  >
+    {companyAddress}
+  </div>
+) : null}
                 </div>
               </div>
 
@@ -224,15 +287,15 @@ export default function InvoicePrintDocument({
                 <div style={{ fontSize: "10pt", lineHeight: 1.95 }}>
                   <div style={{ display: "flex", gap: "4mm" }}>
                     <span style={{ width: "26mm", opacity: 0.78 }}>Invoice No</span>
-                    <span style={{ fontWeight: 700 }}>{invoice?.invoice_number || "—"}</span>
+                    <span style={{ fontWeight: 700 }}>{invoiceNumber}</span>
                   </div>
                   <div style={{ display: "flex", gap: "4mm" }}>
                     <span style={{ width: "26mm", opacity: 0.78 }}>Issue Date</span>
-                    <span>{formatFinanceDate(invoice?.issue_date)}</span>
+                    <span>{formatFinanceDate(issueDate)}</span>
                   </div>
                   <div style={{ display: "flex", gap: "4mm" }}>
                     <span style={{ width: "26mm", opacity: 0.78 }}>Due Date</span>
-                    <span>{formatFinanceDate(invoice?.due_date)}</span>
+                    <span>{formatFinanceDate(dueDate)}</span>
                   </div>
                 </div>
               </div>
@@ -263,22 +326,22 @@ export default function InvoicePrintDocument({
                   Bill To
                 </div>
                 <div style={{ fontWeight: 700, fontSize: "11pt", marginBottom: "1mm" }}>
-                  {invoice?.client_name_snapshot || "—"}
+                  {clientName}
                 </div>
-                {invoice?.client_contact_person_snapshot ? (
-                  <div style={{ fontSize: "8.3pt", color: "#4b5563", marginBottom: "0.8mm" }}>
-                    {invoice.client_contact_person_snapshot}
-                  </div>
-                ) : null}
-                {invoice?.client_email_snapshot || invoice?.client_phone_snapshot ? (
-                  <div style={{ fontSize: "8.1pt", color: "#4b5563", marginBottom: "0.8mm" }}>
-                    {[invoice?.client_email_snapshot, invoice?.client_phone_snapshot]
-                      .filter(Boolean)
-                      .join(" • ")}
-                  </div>
-                ) : null}
+                {clientContact ? (
+  <div style={{ fontSize: "8.3pt", color: "#4b5563", marginBottom: "0.8mm" }}>
+    {clientContact}
+  </div>
+) : null}
+                {clientEmail || clientPhone ? (
+  <div style={{ fontSize: "8.1pt", color: "#4b5563", marginBottom: "0.8mm" }}>
+    {[clientEmail, clientPhone]
+      .filter(Boolean)
+      .join(" • ")}
+  </div>
+) : null}
                 <div style={{ fontSize: "8.3pt", color: "#4b5563", lineHeight: 1.55 }}>
-                  {invoice?.billing_address_snapshot || "—"}
+                  {billingAddress}
                 </div>
               </div>
             </div>

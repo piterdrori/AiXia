@@ -32,6 +32,10 @@ export const FINANCE_ISSUED_INVOICE_STATUSES = [
   "issued",
   "void",
   "canceled",
+  "partially_paid",
+  "paid",
+  "overdue",
+  "cancelled",
 ] as const satisfies readonly FinanceInvoiceIssuedStatus[];
 
 export const FINANCE_ISSUED_INVOICE_PAYMENT_STATUSES = [
@@ -110,6 +114,14 @@ export function getIssuedInvoiceStatusLabel(status: FinanceInvoiceIssuedStatus) 
       return "Void";
     case "canceled":
       return "Canceled";
+    case "cancelled":
+      return "Cancelled";
+    case "partially_paid":
+      return "Partially Paid";
+    case "paid":
+      return "Paid";
+    case "overdue":
+      return "Overdue";
     default:
       return status;
   }

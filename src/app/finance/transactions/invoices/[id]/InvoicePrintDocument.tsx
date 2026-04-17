@@ -395,13 +395,13 @@ export default function InvoicePrintDocument({
             </div>
 
             {/* Bottom content */}
-            <div
+                       <div
               style={{
                 display: "grid",
                 gridTemplateColumns: "1.12fr 0.88fr",
                 gap: "14mm",
                 alignItems: "start",
-                marginTop: "2mm",
+                marginTop: "1mm",
               }}
             >
               <div style={{ fontSize: "8pt", color: "#374151" }}>
@@ -617,24 +617,28 @@ export default function InvoicePrintDocument({
               </div>
             </div>
 
-                                     {/* Footer */}
+                                             {/* Footer */}
             <div
               style={{
-                marginTop: "10mm",
-                paddingTop: "4mm",
-                borderTop: "0.5pt solid #e5e7eb",
+                marginTop: "6mm",
+                paddingTop: "0mm",
                 background: "#ffffff",
               }}
             >
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1.25fr 0.75fr",
-                  gap: "14mm",
-                  alignItems: "end",
+                  gridTemplateColumns: "1.18fr 0.82fr",
+                  columnGap: "14mm",
+                  rowGap: "4mm",
+                  alignItems: "start",
                 }}
               >
-                <div>
+                <div
+                  style={{
+                    minHeight: "24mm",
+                  }}
+                >
                   <div
                     style={{
                       fontWeight: 700,
@@ -647,7 +651,7 @@ export default function InvoicePrintDocument({
                   </div>
                   <div
                     style={{
-                      lineHeight: 1.62,
+                      lineHeight: 1.58,
                       whiteSpace: "pre-wrap",
                       fontSize: "7.4pt",
                       color: "#374151",
@@ -657,7 +661,12 @@ export default function InvoicePrintDocument({
                   </div>
                 </div>
 
-                <div style={{ textAlign: "center" }}>
+                <div
+                  style={{
+                    paddingTop: "6mm",
+                    textAlign: "center",
+                  }}
+                >
                   <div
                     style={{
                       borderBottom: "0.5pt dashed #6b7280",
@@ -689,19 +698,21 @@ export default function InvoicePrintDocument({
                     </div>
                   ) : null}
                 </div>
-              </div>
 
-              <div
-                style={{
-                  marginTop: "6mm",
-                  fontSize: "8.5pt",
-                  fontWeight: 700,
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  color: "#111827",
-                }}
-              >
-                Thank You For Your Business
+                <div
+                  style={{
+                    marginTop: "-1mm",
+                    fontSize: "8.5pt",
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    color: "#111827",
+                  }}
+                >
+                  Thank You For Your Business
+                </div>
+
+                <div />
               </div>
             </div>
           </div>

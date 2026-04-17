@@ -2,14 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ArrowLeft,
-  BadgeDollarSign,
-  FileCheck2,
-  RefreshCw,
-  Save,
-  Wallet,
-} from "lucide-react";
+import { ArrowLeft, RefreshCw, Save } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";

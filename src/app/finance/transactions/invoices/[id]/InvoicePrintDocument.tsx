@@ -500,30 +500,6 @@ export default function InvoicePrintDocument({
                       <div>No bank details available.</div>
                     )}
                   </div>
-
-                                    <div style={{ marginTop: "4mm" }}>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: "9pt",
-                        color: "#111827",
-                        marginBottom: "2mm",
-                      }}
-                    >
-                      Terms and Conditions
-                    </div>
-                    <div
-                      style={{
-                        lineHeight: 1.62,
-                        whiteSpace: "pre-wrap",
-                        fontSize: "7.4pt",
-                        maxHeight: "none",
-                        overflow: "visible",
-                      }}
-                    >
-                      {termsAndConditions}
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -637,35 +613,87 @@ export default function InvoicePrintDocument({
                       {formatFinanceMoney(financialSummary?.balance || 0, currency)}
                     </span>
                   </div>
-
-                  <div style={{ marginTop: "22mm", textAlign: "center" }}>
-                    <div
-                      style={{
-                        borderBottom: "0.5pt dashed #6b7280",
-                        height: "10mm",
-                        marginBottom: "1.5mm",
-                      }}
-                    />
-                    <div style={{ fontSize: "8pt", color: "#374151" }}>Signature</div>
-                  </div>
                 </div>
               </div>
             </div>
 
-                               {/* Footer */}
+                                     {/* Footer */}
             <div
               style={{
                 marginTop: "10mm",
                 paddingTop: "4mm",
                 borderTop: "0.5pt solid #e5e7eb",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-end",
                 background: "#ffffff",
               }}
             >
               <div
                 style={{
+                  display: "grid",
+                  gridTemplateColumns: "1.25fr 0.75fr",
+                  gap: "14mm",
+                  alignItems: "end",
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: "9pt",
+                      color: "#111827",
+                      marginBottom: "2mm",
+                    }}
+                  >
+                    Terms and Conditions
+                  </div>
+                  <div
+                    style={{
+                      lineHeight: 1.62,
+                      whiteSpace: "pre-wrap",
+                      fontSize: "7.4pt",
+                      color: "#374151",
+                    }}
+                  >
+                    {termsAndConditions}
+                  </div>
+                </div>
+
+                <div style={{ textAlign: "center" }}>
+                  <div
+                    style={{
+                      borderBottom: "0.5pt dashed #6b7280",
+                      height: "8mm",
+                      marginBottom: "1.5mm",
+                    }}
+                  />
+                  <div style={{ fontSize: "8pt", color: "#374151" }}>Signature</div>
+
+                  {payments?.length > 0 ? (
+                    <div
+                      style={{
+                        marginTop: "4mm",
+                        textAlign: "right",
+                        fontSize: "6.8pt",
+                        color: "#6b7280",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {payments.map((payment: any, index: number) => (
+                        <div key={payment.id || index}>
+                          {formatFinanceDate(payment.payment_date)} ·{" "}
+                          {formatFinanceMoney(payment.amount, currency)}
+                          {payment.reference_number
+                            ? ` · ${payment.reference_number}`
+                            : ""}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  marginTop: "6mm",
                   fontSize: "8.5pt",
                   fontWeight: 700,
                   letterSpacing: "0.06em",
@@ -675,26 +703,6 @@ export default function InvoicePrintDocument({
               >
                 Thank You For Your Business
               </div>
-
-              {payments?.length > 0 ? (
-                <div
-                  style={{
-                    maxWidth: "88mm",
-                    textAlign: "right",
-                    fontSize: "6.8pt",
-                    color: "#6b7280",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {payments.map((payment: any, index: number) => (
-                    <div key={payment.id || index}>
-                      {formatFinanceDate(payment.payment_date)} ·{" "}
-                      {formatFinanceMoney(payment.amount, currency)}
-                      {payment.reference_number ? ` · ${payment.reference_number}` : ""}
-                    </div>
-                  ))}
-                </div>
-              ) : null}
             </div>
           </div>
         </div>

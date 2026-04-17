@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getPaymentsReceived } from "@/lib/finance/paymentsReceived";
-import { useRouter } from "next/navigation";
+import { useRouter } from "next/router";
 
 type PaymentRow = {
   id: string;

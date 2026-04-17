@@ -4,6 +4,8 @@ import {
   FinancePaymentReceivedStatus,
 } from "./types";
 
+import { convertCurrencyLive } from "@/lib/integrations/frankfurter";
+
 // ==============================
 // LIST PAYMENTS
 // ==============================
@@ -63,12 +65,47 @@ export async function getPaymentReceivedById(id: string) {
 export async function createPaymentReceived(
   payload: Partial<FinancePaymentReceived>
 ) {
+  if (!payload.invoice_currency_code) {
+    throw new Error("Invoice currency is required.");
+  }
+
+  if (!payload.payment_currency_code) {
+    throw new Error("Payment currency is required.");
+  }
+
+  if (!payload.amount || payload.amount <= 0) {
+    throw new Error("Amount must be greater than 0.");
+  }
+
+  let exchangeRate = payload.exchange_rate;
+  let convertedAmount = payload.converted_amount;
+  let exchangeRateSource = payload.exchange_rate_source || "manual_override";
+  let exchangeRateDate = payload.exchange_rate_date;
+
+  // AUTO CONVERT if missing
+  if (!exchangeRate || !convertedAmount) {
+    const result = await convertCurrencyLive(
+      payload.amount,
+      payload.payment_currency_code,
+      payload.invoice_currency_code
+    );
+
+    exchangeRate = result.rate;
+    convertedAmount = result.convertedAmount;
+    exchangeRateSource = "frankfurter_live";
+    exchangeRateDate = result.date;
+  }
+
   const { data, error } = await supabase
     .from("finance_payments_received")
     .insert([
       {
         ...payload,
         status: "draft",
+        exchange_rate: exchangeRate,
+        converted_amount: convertedAmount,
+        exchange_rate_source: exchangeRateSource,
+        exchange_rate_date: exchangeRateDate,
       },
     ])
     .select()
@@ -90,9 +127,38 @@ export async function updatePaymentReceived(
   id: string,
   updates: Partial<FinancePaymentReceived>
 ) {
+  let exchangeRate = updates.exchange_rate;
+  let convertedAmount = updates.converted_amount;
+  let exchangeRateSource = updates.exchange_rate_source;
+  let exchangeRateDate = updates.exchange_rate_date;
+
+  if (
+    updates.amount &&
+    updates.payment_currency_code &&
+    updates.invoice_currency_code &&
+    (!exchangeRate || !convertedAmount)
+  ) {
+    const result = await convertCurrencyLive(
+      updates.amount,
+      updates.payment_currency_code,
+      updates.invoice_currency_code
+    );
+
+    exchangeRate = result.rate;
+    convertedAmount = result.convertedAmount;
+    exchangeRateSource = "frankfurter_live";
+    exchangeRateDate = result.date;
+  }
+
   const { data, error } = await supabase
     .from("finance_payments_received")
-    .update(updates)
+    .update({
+      ...updates,
+      exchange_rate: exchangeRate,
+      converted_amount: convertedAmount,
+      exchange_rate_source: exchangeRateSource,
+      exchange_rate_date: exchangeRateDate,
+    })
     .eq("id", id)
     .select()
     .single();

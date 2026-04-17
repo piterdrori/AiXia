@@ -1,9 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  ArrowLeft,
+  BadgeDollarSign,
+  FileCheck2,
+  RefreshCw,
+  Save,
+  Wallet,
+} from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
 import { createPaymentReceived } from "@/lib/finance/paymentsReceived";
 
 type InvoiceOption = {
@@ -32,11 +50,20 @@ function toNumber(value: number | string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function formatMoney(value: number, currencyCode = "USD") {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: currencyCode || "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 export default function NewPaymentReceivedPage() {
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   const [invoices, setInvoices] = useState<InvoiceOption[]>([]);
@@ -58,6 +85,11 @@ export default function NewPaymentReceivedPage() {
     [invoiceId, invoices]
   );
 
+  const selectedPaymentMethod = useMemo(
+    () => paymentMethods.find((method) => method.id === paymentMethodId) ?? null,
+    [paymentMethodId, paymentMethods]
+  );
+
   useEffect(() => {
     void loadFormData();
   }, []);
@@ -65,7 +97,9 @@ export default function NewPaymentReceivedPage() {
   useEffect(() => {
     if (!selectedInvoice) return;
 
-    setPaymentCurrencyCode((current) => current || selectedInvoice.currency_code || "USD");
+    setPaymentCurrencyCode(
+      (current) => current || selectedInvoice.currency_code || "USD"
+    );
 
     if (!amount) {
       const openBalance = toNumber(selectedInvoice.balance_due);
@@ -75,33 +109,34 @@ export default function NewPaymentReceivedPage() {
     }
   }, [amount, selectedInvoice]);
 
-  async function loadFormData() {
+  const loadFormData = useCallback(async () => {
     try {
-      setLoading(true);
+      setIsLoading(true);
       setErrorMessage("");
 
-      const [invoicesResult, currenciesResult, paymentMethodsResult] = await Promise.all([
-        supabase
-          .from("finance_invoices_issued")
-          .select(
-            "id, invoice_number, client_id, client_name_snapshot, currency_code, balance_due, status"
-          )
-          .in("status", ["issued", "partially_paid", "overdue"])
-          .gt("balance_due", 0)
-          .order("created_at", { ascending: false }),
+      const [invoicesResult, currenciesResult, paymentMethodsResult] =
+        await Promise.all([
+          supabase
+            .from("finance_invoices_issued")
+            .select(
+              "id, invoice_number, client_id, client_name_snapshot, currency_code, balance_due, status"
+            )
+            .in("status", ["issued", "partially_paid", "overdue"])
+            .gt("balance_due", 0)
+            .order("created_at", { ascending: false }),
 
-        supabase
-          .from("finance_currencies")
-          .select("id, currency_code, currency_name")
-          .eq("status", "active")
-          .order("currency_code", { ascending: true }),
+          supabase
+            .from("finance_currencies")
+            .select("id, currency_code, currency_name")
+            .eq("status", "active")
+            .order("currency_code", { ascending: true }),
 
-        supabase
-          .from("finance_payment_methods")
-          .select("id, name")
-          .eq("status", "active")
-          .order("name", { ascending: true }),
-      ]);
+          supabase
+            .from("finance_payment_methods")
+            .select("id, name")
+            .eq("status", "active")
+            .order("name", { ascending: true }),
+        ]);
 
       if (invoicesResult.error) throw invoicesResult.error;
       if (currenciesResult.error) throw currenciesResult.error;
@@ -109,16 +144,27 @@ export default function NewPaymentReceivedPage() {
 
       setInvoices((invoicesResult.data || []) as InvoiceOption[]);
       setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
-      setPaymentMethods((paymentMethodsResult.data || []) as PaymentMethodOption[]);
+      setPaymentMethods(
+        (paymentMethodsResult.data || []) as PaymentMethodOption[]
+      );
     } catch (error) {
       console.error("Failed to load payment received form data:", error);
-      setErrorMessage("Failed to load form data.");
+      setErrorMessage("Failed to load payment form data.");
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  }
+  }, []);
 
-  async function handleSaveDraft() {
+  const invoiceCurrencyCode = selectedInvoice?.currency_code || "USD";
+  const numericAmount = toNumber(amount);
+  const openBalance = toNumber(selectedInvoice?.balance_due);
+
+  const isCrossCurrency =
+    !!paymentCurrencyCode &&
+    !!invoiceCurrencyCode &&
+    paymentCurrencyCode !== invoiceCurrencyCode;
+
+  const handleSaveDraft = useCallback(async () => {
     if (!selectedInvoice) {
       setErrorMessage("Select an invoice.");
       return;
@@ -129,14 +175,18 @@ export default function NewPaymentReceivedPage() {
       return;
     }
 
-    const numericAmount = Number(amount);
+    if (!paymentDate) {
+      setErrorMessage("Select payment date.");
+      return;
+    }
+
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       setErrorMessage("Amount must be greater than 0.");
       return;
     }
 
     try {
-      setSaving(true);
+      setIsSaving(true);
       setErrorMessage("");
 
       const {
@@ -160,150 +210,413 @@ export default function NewPaymentReceivedPage() {
         created_by: user.id,
         updated_by: user.id,
         posted_to_ledger: false,
-        metadata: {},
+        metadata: {
+          creation_mode: "manual_draft",
+          proof_required_before_confirmation: true,
+        },
       });
 
       navigate(`/finance/transactions/payments-received/${created.id}`);
     } catch (error) {
       console.error("Failed to create payment received:", error);
       setErrorMessage(
-        error instanceof Error ? error.message : "Failed to create payment."
+        error instanceof Error
+          ? error.message
+          : "Failed to create payment received."
       );
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
-  }
+  }, [
+    navigate,
+    notes,
+    numericAmount,
+    paymentCurrencyCode,
+    paymentDate,
+    paymentMethodId,
+    referenceNumber,
+    selectedInvoice,
+  ]);
+
+  const metricSummary = useMemo(() => {
+    return {
+      invoiceNumber: selectedInvoice?.invoice_number || "—",
+      clientName: selectedInvoice?.client_name_snapshot || "—",
+      invoiceCurrency: invoiceCurrencyCode,
+      paymentCurrency: paymentCurrencyCode || "—",
+      openBalance,
+      enteredAmount: numericAmount,
+      paymentMethod: selectedPaymentMethod?.name || "—",
+    };
+  }, [
+    invoiceCurrencyCode,
+    numericAmount,
+    openBalance,
+    paymentCurrencyCode,
+    selectedInvoice,
+    selectedPaymentMethod,
+  ]);
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">New Payment Received</h1>
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
+      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
+        <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6 xl:p-7">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_35%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_24%)]" />
+          <div className="relative flex flex-col gap-6">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+              <div className="max-w-3xl space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.24em] text-white/70 shadow-none">
+                    Receivables
+                  </Badge>
+                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                    New payment draft
+                  </Badge>
+                </div>
 
-        <button
-          onClick={() => navigate("/finance/transactions/payments-received")}
-          className="rounded-lg border px-3 py-2"
-        >
-          Back
-        </button>
+                <div className="space-y-3">
+                  <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                    Create Payment Received Draft
+                  </h1>
+                  <div className="text-sm text-white/45">
+                    Register a manual incoming payment against an issued invoice.
+                    Confirmation happens later only after proof is uploaded.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3 xl:justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/finance/transactions/payments-received")}
+                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={() => void loadFormData()}
+                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Refresh Sources
+                </Button>
+
+                <Button
+                  onClick={() => void handleSaveDraft()}
+                  disabled={isSaving || isLoading}
+                  className="h-11 rounded-2xl px-4"
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {isSaving ? "Saving..." : "Save Draft"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
+          <div className="space-y-6">
+            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <CardHeader className="border-b border-white/8 pb-4">
+                <CardTitle className="text-white">Payment Header</CardTitle>
+                <CardDescription className="text-white/45">
+                  Link the payment to an open invoice and capture settlement
+                  details, currency, date, reference, and notes.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                <label className="space-y-2 md:col-span-2">
+                  <div className="text-sm text-white/70">Invoice</div>
+                  <select
+                    value={invoiceId}
+                    onChange={(event) => setInvoiceId(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                  >
+                    <option value="">Select invoice</option>
+                    {invoices.map((invoice) => (
+                      <option key={invoice.id} value={invoice.id}>
+                        {invoice.invoice_number} —{" "}
+                        {invoice.client_name_snapshot || "—"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Payment Date</div>
+                  <input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(event) => setPaymentDate(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                  />
+                </label>
+
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Amount</div>
+                  <input
+                    value={amount}
+                    onChange={(event) => setAmount(event.target.value)}
+                    placeholder="Enter received amount"
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                  />
+                </label>
+
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Payment Currency</div>
+                  <select
+                    value={paymentCurrencyCode}
+                    onChange={(event) => setPaymentCurrencyCode(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                  >
+                    <option value="">Select currency</option>
+                    {currencies.map((currency) => (
+                      <option key={currency.id} value={currency.currency_code}>
+                        {currency.currency_code} — {currency.currency_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="space-y-2">
+                  <div className="text-sm text-white/70">Invoice Currency</div>
+                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
+                    {invoiceCurrencyCode}
+                  </div>
+                </div>
+
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Reference Number</div>
+                  <input
+                    value={referenceNumber}
+                    onChange={(event) => setReferenceNumber(event.target.value)}
+                    placeholder="Bank reference / transfer reference"
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                  />
+                </label>
+
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Payment Method</div>
+                  <select
+                    value={paymentMethodId}
+                    onChange={(event) => setPaymentMethodId(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                  >
+                    <option value="">Select payment method</option>
+                    {paymentMethods.map((method) => (
+                      <option key={method.id} value={method.id}>
+                        {method.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="space-y-2">
+                  <div className="text-sm text-white/70">Settlement Type</div>
+                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
+                    {isCrossCurrency ? "Cross-currency settlement" : "Same-currency settlement"}
+                  </div>
+                </div>
+
+                <label className="space-y-2 md:col-span-2">
+                  <div className="text-sm text-white/70">Notes</div>
+                  <textarea
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                    rows={4}
+                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
+                  />
+                </label>
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+  <CardHeader className="border-b border-white/8 pb-4">
+    <CardTitle className="text-white">Locked Behavior</CardTitle>
+    <CardDescription className="text-white/45">
+      This module records external client payments manually and only
+      confirms them after proof is uploaded.
+    </CardDescription>
+  </CardHeader>
+
+  <CardContent className="space-y-3 p-5 text-sm text-white/55">
+    <div>• Payments are created as draft only.</div>
+    <div>• No direct bank integration — fully manual flow.</div>
+    <div>• Client sends transfer confirmation externally.</div>
+    <div>• You must upload proof before confirmation.</div>
+    <div>• Without proof → confirmation is blocked.</div>
+    <div>• Confirmed payments update invoice balance.</div>
+    <div>• Multi-currency is supported with conversion.</div>
+    <div>• Exchange rate is stored at payment level.</div>
+    <div>• Converted amount is used for invoice settlement.</div>
+    <div>• Payments can be cancelled but not edited after confirmation.</div>
+    <div>• Proof documents are locked (admin-only deletion).</div>
+  </CardContent>
+</Card>
+
+
+            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+  <CardHeader className="border-b border-white/8 pb-4">
+    <CardTitle className="text-white">Payment Summary</CardTitle>
+    <CardDescription className="text-white/45">
+      Preview the invoice linkage, entered payment, and settlement direction
+      before saving the draft.
+    </CardDescription>
+  </CardHeader>
+
+  <CardContent className="p-5">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+        <div className="text-xs uppercase tracking-[0.18em] text-white/40">
+          Entered Amount
+        </div>
+        <div className="mt-2 text-xl font-semibold text-white">
+          {paymentCurrencyCode || "—"}{" "}
+          {Number.isFinite(numericAmount) ? numericAmount.toFixed(2) : "0.00"}
+        </div>
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-white/5 p-6 space-y-4">
-        {loading ? (
-          <div>Loading...</div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="space-y-2">
-                <div className="text-sm">Invoice</div>
-                <select
-                  value={invoiceId}
-                  onChange={(event) => setInvoiceId(event.target.value)}
-                  className="h-11 w-full rounded-lg border border-white/10 bg-black/20 px-3"
-                >
-                  <option value="">Select invoice</option>
-                  {invoices.map((invoice) => (
-                    <option key={invoice.id} value={invoice.id}>
-                      {invoice.invoice_number} — {invoice.client_name_snapshot || "—"}
-                    </option>
-                  ))}
-                </select>
-              </label>
+      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+        <div className="text-xs uppercase tracking-[0.18em] text-white/40">
+          Open Invoice Balance
+        </div>
+        <div className="mt-2 text-xl font-semibold text-white">
+          {formatMoney(openBalance, invoiceCurrencyCode)}
+        </div>
+      </div>
 
-              <label className="space-y-2">
-                <div className="text-sm">Payment Date</div>
-                <input
-                  type="date"
-                  value={paymentDate}
-                  onChange={(event) => setPaymentDate(event.target.value)}
-                  className="h-11 w-full rounded-lg border border-white/10 bg-black/20 px-3"
-                />
-              </label>
+      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+        <div className="text-xs uppercase tracking-[0.18em] text-white/40">
+          Settlement Direction
+        </div>
+        <div className="mt-2 text-xl font-semibold text-white">
+          {paymentCurrencyCode || "—"} → {invoiceCurrencyCode || "—"}
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
 
-              <label className="space-y-2">
-                <div className="text-sm">Amount</div>
-                <input
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                  className="h-11 w-full rounded-lg border border-white/10 bg-black/20 px-3"
-                />
-              </label>
-
-              <label className="space-y-2">
-                <div className="text-sm">Payment Currency</div>
-                <select
-                  value={paymentCurrencyCode}
-                  onChange={(event) => setPaymentCurrencyCode(event.target.value)}
-                  className="h-11 w-full rounded-lg border border-white/10 bg-black/20 px-3"
-                >
-                  <option value="">Select currency</option>
-                  {currencies.map((currency) => (
-                    <option key={currency.id} value={currency.currency_code}>
-                      {currency.currency_code} — {currency.currency_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="space-y-2">
-                <div className="text-sm">Reference Number</div>
-                <input
-                  value={referenceNumber}
-                  onChange={(event) => setReferenceNumber(event.target.value)}
-                  className="h-11 w-full rounded-lg border border-white/10 bg-black/20 px-3"
-                />
-              </label>
-
-              <label className="space-y-2">
-                <div className="text-sm">Payment Method</div>
-                <select
-                  value={paymentMethodId}
-                  onChange={(event) => setPaymentMethodId(event.target.value)}
-                  className="h-11 w-full rounded-lg border border-white/10 bg-black/20 px-3"
-                >
-                  <option value="">Select payment method</option>
-                  {paymentMethods.map((method) => (
-                    <option key={method.id} value={method.id}>
-                      {method.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
             </div>
 
-            {selectedInvoice ? (
-              <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-2">
-                <div>Invoice Currency: {selectedInvoice.currency_code || "USD"}</div>
-                <div>Open Balance: {toNumber(selectedInvoice.balance_due).toFixed(2)}</div>
-                <div>Client: {selectedInvoice.client_name_snapshot || "—"}</div>
-              </div>
-            ) : null}
+<div className="space-y-6">
+  <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+    <CardHeader className="border-b border-white/8 pb-4">
+      <CardTitle className="text-white">Draft Summary</CardTitle>
+      <CardDescription className="text-white/45">
+        Review the linked invoice, payment method, currency path, and current
+        amount before saving the payment draft.
+      </CardDescription>
+    </CardHeader>
 
-            <label className="space-y-2 block">
-              <div className="text-sm">Notes</div>
-              <textarea
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-                rows={4}
-                className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-3"
-              />
-            </label>
+    <CardContent className="space-y-3 p-5">
+      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+          Invoice
+        </div>
+        <div className="mt-2 text-base font-semibold text-white">
+          {metricSummary.invoiceNumber}
+        </div>
+      </div>
 
-            {errorMessage ? (
-              <div className="text-sm text-red-400">{errorMessage}</div>
-            ) : null}
+      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+          Client
+        </div>
+        <div className="mt-2 text-base font-semibold text-white">
+          {metricSummary.clientName}
+        </div>
+      </div>
 
-            <div className="flex justify-end">
-              <button
-                onClick={handleSaveDraft}
-                disabled={saving}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-              >
-                {saving ? "Saving..." : "Save Draft"}
-              </button>
-            </div>
-          </>
-        )}
+      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+          Invoice Currency
+        </div>
+        <div className="mt-2 text-base font-semibold text-white">
+          {metricSummary.invoiceCurrency}
+        </div>
+      </div>
+
+      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+          Payment Currency
+        </div>
+        <div className="mt-2 text-base font-semibold text-white">
+          {metricSummary.paymentCurrency}
+        </div>
+      </div>
+
+      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+          Open Balance
+        </div>
+        <div className="mt-2 text-lg font-semibold text-white">
+          {formatMoney(metricSummary.openBalance, metricSummary.invoiceCurrency)}
+        </div>
+      </div>
+
+      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+          Entered Amount
+        </div>
+        <div className="mt-2 text-lg font-semibold text-white">
+          {formatMoney(metricSummary.enteredAmount, metricSummary.paymentCurrency)}
+        </div>
+      </div>
+
+      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+          Payment Method
+        </div>
+        <div className="mt-2 text-base font-semibold text-white">
+          {metricSummary.paymentMethod}
+        </div>
+      </div>
+
+      <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
+        <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">
+          Settlement Type
+        </div>
+        <div className="mt-2 text-xl font-semibold text-white">
+          {isCrossCurrency ? "Cross-Currency" : "Same Currency"}
+        </div>
+      </div>
+
+      {errorMessage ? (
+        <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+          {errorMessage}
+        </div>
+      ) : null}
+    </CardContent>
+  </Card>
+
+  <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+    <CardHeader className="border-b border-white/8 pb-4">
+      <CardTitle className="text-white">Workflow Reminder</CardTitle>
+    </CardHeader>
+
+    <CardContent className="space-y-3 p-5 text-sm text-white/55">
+      <div>• Save the payment as draft first.</div>
+      <div>• Upload the transfer proof on the detail page.</div>
+      <div>• Only then can the payment be confirmed.</div>
+      <div>• Confirmed payments update invoice balances automatically.</div>
+      <div>• Multi-currency conversion is stored with the payment record.</div>
+    </CardContent>
+  </Card>
+</div>
+</div>
+
+{isLoading ? (
+  <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
+    Loading payment sources...
+  </div>
+) : null}
       </div>
     </div>
   );
 }
+            

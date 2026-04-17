@@ -617,128 +617,94 @@ export default function InvoicePrintDocument({
               </div>
             </div>
 
-                                                {/* Footer */}
+            {/* Footer - Clean single section */}
+            <div
+              style={{
+                marginTop: "1mm",
+                paddingTop: "2mm",
+                borderTop: "0.5pt solid #e5e7eb",
+                background: "#ffffff",
+              }}
+            >
               <div
                 style={{
-                  marginTop: "1mm",
-                  paddingTop: "2mm",
-                  borderTop: "0.5pt solid #e5e7eb",
-                  background: "#ffffff",
+                  fontWeight: 700,
+                  fontSize: "9pt",
+                  color: "#111827",
+                  marginBottom: "2mm",
+                }}
+              >
+                Terms and Conditions
+              </div>
+
+              <div
+                style={{
+                  lineHeight: 1.45,
+                  whiteSpace: "pre-wrap",
+                  fontSize: "7pt",
+                  color: "#374151",
+                  marginBottom: "3mm",
+                }}
+              >
+                {termsAndConditions}
+              </div>
+
+              {/* Signature - Centered */}
+              <div
+                style={{
+                  textAlign: "center",
+                  marginBottom: "4mm",
+                  width: "60mm",
+                  marginLeft: "auto",
+                  marginRight: "auto",
                 }}
               >
                 <div
                   style={{
-                    fontWeight: 700,
-                    fontSize: "9pt",
-                    color: "#111827",
-                    marginBottom: "2mm",
+                    borderBottom: "0.5pt dashed #6b7280",
+                    height: "8mm",
+                    marginBottom: "1.5mm",
                   }}
-                >
-                  Terms and Conditions
-                </div>
-
-                <div
-                  style={{
-                    lineHeight: 1.45,
-                    whiteSpace: "pre-wrap",
-                    fontSize: "7pt",
-                    color: "#374151",
-                    marginBottom: "3mm",
-                  }}
-                >
-                  {termsAndConditions}
-                </div>
-
-                {/* Signature - Centered below totals */}
-                <div
-                  style={{
-                    textAlign: "center",
-                    marginBottom: "4mm",
-                    width: "60mm",
-                    marginLeft: "auto",
-                    marginRight: "auto",
-                  }}
-                >
-                  <div
-                    style={{
-                      borderBottom: "0.5pt dashed #6b7280",
-                      height: "8mm",
-                      marginBottom: "1.5mm",
-                    }}
-                  />
-                  <div style={{ fontSize: "8pt", color: "#374151" }}>Signature</div>
-                </div>
-
-                {/* Payment History - Right aligned if exists */}
-                {payments?.length > 0 ? (
-                  <div
-                    style={{
-                      marginTop: "2mm",
-                      textAlign: "right",
-                      fontSize: "6.8pt",
-                      color: "#6b7280",
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {payments.map((payment: any, index: number) => (
-                      <div key={payment.id || index}>
-                        {formatFinanceDate(payment.payment_date)} ·{" "}
-                        {formatFinanceMoney(payment.amount, currency)}
-                        {payment.reference_number
-                          ? ` · ${payment.reference_number}`
-                          : ""}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                {/* Thank You - Centered at bottom */}
-                <div
-                  style={{
-                    textAlign: "center",
-                    fontSize: "10pt",
-                    fontWeight: 700,
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    color: "#111827",
-                    marginTop: "3mm",
-                  }}
-                >
-                  Thank You For Your Business
-                </div>
+                />
+                <div style={{ fontSize: "8pt", color: "#374151" }}>Signature</div>
               </div>
-                <div style={{ textAlign: "center", paddingTop: "-6mm" }}>
-                  <div
-                    style={{
-                      borderBottom: "0.5pt dashed #6b7280",
-                      height: "7mm",
-                      marginBottom: "1.5mm",
-                    }}
-                  />
-                  <div style={{ fontSize: "8pt", color: "#374151" }}>Signature</div>
 
-                  {payments?.length > 0 ? (
-                    <div
-                      style={{
-                        marginTop: "4mm",
-                        textAlign: "right",
-                        fontSize: "6.8pt",
-                        color: "#6b7280",
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      {payments.map((payment: any, index: number) => (
-                        <div key={payment.id || index}>
-                          {formatFinanceDate(payment.payment_date)} ·{" "}
-                          {formatFinanceMoney(payment.amount, currency)}
-                          {payment.reference_number
-                            ? ` · ${payment.reference_number}`
-                            : ""}
-                        </div>
-                      ))}
+              {/* Payment History - Right aligned if exists */}
+              {payments?.length > 0 ? (
+                <div
+                  style={{
+                    marginTop: "2mm",
+                    textAlign: "right",
+                    fontSize: "6.8pt",
+                    color: "#6b7280",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {payments.map((payment: any, index: number) => (
+                    <div key={payment.id || index}>
+                      {formatFinanceDate(payment.payment_date)} ·{" "}
+                      {formatFinanceMoney(payment.amount, currency)}
+                      {payment.reference_number
+                        ? ` · ${payment.reference_number}`
+                        : ""}
                     </div>
-                  ) : null}
+                  ))}
                 </div>
+              ) : null}
+
+              {/* Thank You - Centered at bottom */}
+              <div
+                style={{
+                  textAlign: "center",
+                  fontSize: "10pt",
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "#111827",
+                  marginTop: "3mm",
+                }}
+              >
+                Thank You For Your Business
               </div>
             </div>
           </div>

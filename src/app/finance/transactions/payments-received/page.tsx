@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getPaymentsReceived } from "@/lib/finance/paymentsReceived";
-import { useRouter } from "next/router";
+import { useNavigate } from "react-router-dom";
 
 type PaymentRow = {
   id: string;
@@ -15,7 +15,7 @@ type PaymentRow = {
 };
 
 export default function PaymentsReceivedPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
 
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,9 +36,9 @@ export default function PaymentsReceivedPage() {
     }
   }
 
-  function goToDetail(id: string) {
-    router.push(`/finance/transactions/payments-received/${id}`);
-  }
+function goToDetail(id: string) {
+  navigate(`/finance/transactions/payments-received/${id}`);
+}
 
   return (
     <div className="p-6 space-y-6">
@@ -47,10 +47,10 @@ export default function PaymentsReceivedPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Payments Received</h1>
 
-        <button
-          onClick={() => router.push("/finance/transactions/payments-received/new")}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
+       <button
+  onClick={() => navigate("/finance/transactions/payments-received/new")}
+  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+>
           New Payment
         </button>
       </div>

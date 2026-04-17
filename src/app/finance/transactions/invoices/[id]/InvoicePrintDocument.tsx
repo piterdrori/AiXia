@@ -53,10 +53,7 @@ export default function InvoicePrintDocument({
   const bankInfo = parseBankDetails(invoice?.bank_details_snapshot);
 
   const paymentTerms = invoice?.payment_terms_snapshot || "—";
-  const shippingTerms =
-  invoice?.shipping_terms_snapshot ||
-  invoice?.shipping_term_id ||
-  "—";
+  const shippingTerms = invoice?.shipping_terms_snapshot || "—";
   const termsAndConditions =
     invoice?.terms_and_conditions_snapshot || DEFAULT_TERMS;
 
@@ -125,8 +122,8 @@ export default function InvoicePrintDocument({
     position: "absolute",
     left: "-5mm",
     right: "-5mm",
-    top: "50mm",
-    height: "14mm",
+    top: "53mm",
+    height: "11mm",
     background: "#ffffff",
     borderTopLeftRadius: "100% 100%",
     borderTopRightRadius: "100% 100%",
@@ -134,7 +131,7 @@ export default function InvoicePrintDocument({
   }}
 />
 
-          <div style={{ position: "relative", zIndex: 2, padding: "11mm 14mm 0 14mm" }}>
+          <div style={{ position: "relative", zIndex: 2, padding: "11mm 14mm 24mm 14mm" }}>
             {/* Top header */}
             <div
               style={{
@@ -158,7 +155,7 @@ export default function InvoicePrintDocument({
                   }}
                 />
 
-                <div style={{ maxWidth: "80mm", fontSize: "8.5pt", lineHeight: 1.6 }}>
+                <div style={{ maxWidth: "80mm", fontSize: "8.5pt", lineHeight: 1.45 }}>
                   <div
                     style={{
                       fontWeight: 700,
@@ -178,10 +175,17 @@ export default function InvoicePrintDocument({
                     <div>{invoice.company_email_snapshot}</div>
                   ) : null}
                   {invoice?.company_address_snapshot ? (
-                    <div style={{ marginTop: "1mm" }}>
-                      {invoice.company_address_snapshot}
-                    </div>
-                  ) : null}
+                 <div
+                     style={{
+                     marginTop: "0.8mm",
+                     maxHeight: "8mm",
+                     overflow: "hidden",
+                     lineHeight: 1.35,
+                      }}
+                     >
+                  {invoice.company_address_snapshot}
+                  </div>
+                 ) : null}
                 </div>
               </div>
 
@@ -505,10 +509,10 @@ export default function InvoicePrintDocument({
                     </div>
                     <div
                       style={{
-                        lineHeight: 1.58,
+                        lineHeight: 1.5,
                         whiteSpace: "pre-wrap",
-                        fontSize: "7.3pt",
-                        maxHeight: "23mm",
+                        fontSize: "7.1pt",
+                        maxHeight: "18mm",
                         overflow: "hidden",
                       }}
                     >
@@ -649,7 +653,7 @@ export default function InvoicePrintDocument({
                 position: "absolute",
                 left: "14mm",
                 right: "14mm",
-                bottom: "8mm",
+                bottom: "14mm",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "flex-end",
@@ -658,11 +662,13 @@ export default function InvoicePrintDocument({
             >
               <div
                 style={{
-                  fontSize: "9pt",
+                  fontSize: "8.5pt",
                   fontWeight: 700,
                   letterSpacing: "0.06em",
                   textTransform: "uppercase",
                   color: "#111827",
+                  background: "#ffffff",
+                  paddingRight: "3mm",
                 }}
               >
                 Thank You For Your Business

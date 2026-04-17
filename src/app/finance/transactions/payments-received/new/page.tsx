@@ -535,13 +535,13 @@ export default function NewPaymentReceivedPage() {
       </div>
 
       <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-          Payment Currency
-        </div>
-        <div className="mt-2 text-base font-semibold text-white">
-          {metricSummary.paymentCurrency}
-        </div>
-      </div>
+  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+    Payment Currency
+  </div>
+  <div className="mt-2 text-base font-semibold text-white">
+    {paymentCurrencyCode || "USD"}
+  </div>
+</div>
 
       <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
         <div className="text-xs uppercase tracking-[0.18em] text-white/35">
@@ -552,14 +552,14 @@ export default function NewPaymentReceivedPage() {
         </div>
       </div>
 
-      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-          Entered Amount
-        </div>
-        <div className="mt-2 text-lg font-semibold text-white">
-          {formatMoney(metricSummary.enteredAmount, metricSummary.paymentCurrency)}
-        </div>
-      </div>
+    <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+    Entered Amount
+  </div>
+  <div className="mt-2 text-lg font-semibold text-white">
+    {formatMoney(metricSummary.enteredAmount, paymentCurrencyCode || "USD")}
+  </div>
+</div>
 
       <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
         <div className="text-xs uppercase tracking-[0.18em] text-white/35">
@@ -571,13 +571,17 @@ export default function NewPaymentReceivedPage() {
       </div>
 
       <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
-        <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">
-          Settlement Type
-        </div>
-        <div className="mt-2 text-xl font-semibold text-white">
-          {isCrossCurrency ? "Cross-Currency" : "Same Currency"}
-        </div>
-      </div>
+  <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">
+    Settlement Type
+  </div>
+  <div className="mt-2 text-xl font-semibold text-white">
+    {!selectedInvoice
+      ? "Select Invoice First"
+      : isCrossCurrency
+      ? "Cross-Currency"
+      : "Same Currency"}
+  </div>
+</div>
 
       {errorMessage ? (
         <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">

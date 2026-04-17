@@ -72,6 +72,7 @@ export default function NewPaymentReceivedPage() {
   const [referenceNumber, setReferenceNumber] = useState("");
   const [paymentMethodId, setPaymentMethodId] = useState("");
   const [notes, setNotes] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
 
   const selectedInvoice = useMemo(
     () => invoices.find((invoice) => invoice.id === invoiceId) ?? null,
@@ -451,6 +452,39 @@ export default function NewPaymentReceivedPage() {
   </CardContent>
 </Card>
 
+    <Card className="overflow-hidden rounded-[30px] border border-amber-400/20 bg-amber-500/5 backdrop-blur-xl">
+  <CardHeader className="border-b border-white/8 pb-4">
+    <CardTitle className="text-white">Proof of Payment (Optional)</CardTitle>
+    <CardDescription className="text-white/45">
+      You can upload proof now or later. Confirmation will be blocked without it.
+    </CardDescription>
+  </CardHeader>
+
+  <CardContent className="p-5 space-y-4">
+    <input
+      type="file"
+      onChange={(e) => {
+        const file = e.target.files?.[0] || null;
+        setProofFile(file);
+      }}
+      className="block w-full text-sm text-white file:mr-4 file:py-2 file:px-4
+      file:rounded-lg file:border-0 file:bg-white/10 file:text-white hover:file:bg-white/20"
+    />
+
+    {proofFile && (
+      <div className="text-green-400 text-sm">
+        Selected file: {proofFile.name}
+      </div>
+    )}
+
+    {!proofFile && (
+      <div className="text-yellow-400 text-sm">
+        No file selected (you can upload later in detail page)
+      </div>
+    )}
+  </CardContent>
+</Card>
+            
 
             <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
   <CardHeader className="border-b border-white/8 pb-4">

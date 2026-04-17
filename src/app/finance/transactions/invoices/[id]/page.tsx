@@ -133,6 +133,20 @@ type EditableLineItem = {
   revenue_category_id: string;
 };
 
+function createEditableDraftLineItem(): EditableLineItem {
+  return {
+    id: `new_${crypto.randomUUID()}`,
+    item_id: "",
+    description: "",
+    quantity: "1",
+    unit_price: "0",
+    discount: "0",
+    tax_code_id: "",
+    unit_of_measure_id: "",
+    revenue_category_id: "",
+  };
+}
+
 type ClientOption = {
   id: string;
   name: string;
@@ -375,10 +389,10 @@ export default function FinanceInvoiceDetailPage() {
 
   const [error, setError] = useState("");
   
-  const handlePrint = useCallback(() => {
-    window.setTimeout(() => {
+   const handlePrint = useCallback(() => {
+    requestAnimationFrame(() => {
       window.print();
-    }, 150);
+    });
   }, []);
 
   const loadArchiveItems = useCallback(async () => {
@@ -773,7 +787,7 @@ export default function FinanceInvoiceDetailPage() {
 
     if (invoice.status === "draft") {
       const paid = totals.paid;
-      const balance = Math.max(draftTotals.total - paid, 0);
+      const balance = draftTotals.total - paid;
 
       return {
         subtotal: draftTotals.subtotal,
@@ -1053,6 +1067,37 @@ export default function FinanceInvoiceDetailPage() {
     },
     [items]
   );
+
+    const addDraftLineItem = useCallback(() => {
+    setLineItemsDraft((current) => {
+      const last = current[current.length - 1];
+
+      if (!last) {
+        return [createEditableDraftLineItem()];
+      }
+
+      const isLastEmpty =
+        !last.description.trim() &&
+        toNumber(last.quantity) === 0 &&
+        toNumber(last.unit_price) === 0;
+
+      if (isLastEmpty) {
+        return current;
+      }
+
+      return [...current, createEditableDraftLineItem()];
+    });
+  }, []);
+
+  const removeDraftLineItem = useCallback((lineId: string) => {
+    setLineItemsDraft((current) => {
+      if (current.length === 1) {
+        return current;
+      }
+
+      return current.filter((entry) => entry.id !== lineId);
+    });
+  }, []);
   
   
   const handleSaveIssuedOverviewChanges = useCallback(async () => {
@@ -1167,15 +1212,35 @@ export default function FinanceInvoiceDetailPage() {
     setIsSavingDraft(true);
     setError("");
 
-    const cleanedLineItems = lineItemsDraft.filter(
+        const cleanedLineItems = lineItemsDraft.map((row) => ({
+      ...row,
+      description: row.description.trim(),
+    }));
+
+    const hasAtLeastOneValidLine = cleanedLineItems.some(
       (row) =>
-        row.description.trim() &&
+        row.description &&
         toNumber(row.quantity) > 0 &&
         toNumber(row.unit_price) >= 0
     );
 
-    if (cleanedLineItems.length === 0) {
+    if (!hasAtLeastOneValidLine) {
       setError("Issued invoice must include at least one valid line item.");
+      setIsSavingDraft(false);
+      return;
+    }
+
+    const hasInvalidLine = cleanedLineItems.some(
+      (row) =>
+        !row.description ||
+        toNumber(row.quantity) <= 0 ||
+        toNumber(row.unit_price) < 0
+    );
+
+    if (hasInvalidLine) {
+      setError(
+        "Every issued invoice line must have a description, quantity greater than 0, and unit price 0 or higher."
+      );
       setIsSavingDraft(false);
       return;
     }
@@ -1189,27 +1254,77 @@ export default function FinanceInvoiceDetailPage() {
         throw new Error("User not authenticated");
       }
 
+              const existingIds = lineItems.map((entry) => entry.id);
+      const draftIds = cleanedLineItems
+        .filter((entry) => !entry.id.startsWith("new_"))
+        .map((entry) => entry.id);
+
+      const idsToDelete = existingIds.filter((entryId) => !draftIds.includes(entryId));
+
+      if (idsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("finance_invoice_issued_line_items")
+          .delete()
+          .in("id", idsToDelete);
+
+        if (deleteError) throw deleteError;
+      }
+
       for (let index = 0; index < cleanedLineItems.length; index += 1) {
         const row = cleanedLineItems[index];
-        const { error: lineError } = await supabase
-          .from("finance_invoice_issued_line_items")
-          .update({
-            item_id: row.item_id || null,
-            description: row.description.trim(),
-            quantity: toNumber(row.quantity),
-            unit_price: toNumber(row.unit_price),
-            discount: toNumber(row.discount),
-            tax_code_id: row.tax_code_id || null,
-            unit_of_measure_id: row.unit_of_measure_id || null,
-            revenue_category_id: row.revenue_category_id || null,
-            sort_order: index + 1,
-            updated_by: user.id,
-          })
-          .eq("id", row.id)
-          .eq("invoice_id", id);
 
-        if (lineError) throw lineError;
+        if (row.id.startsWith("new_")) {
+          const { error: insertError } = await supabase
+            .from("finance_invoice_issued_line_items")
+            .insert({
+              invoice_id: id,
+              item_id: row.item_id || null,
+              description: row.description.trim(),
+              quantity: toNumber(row.quantity),
+              unit_price: toNumber(row.unit_price),
+              discount: toNumber(row.discount),
+              tax_code_id: row.tax_code_id || null,
+              unit_of_measure_id: row.unit_of_measure_id || null,
+              revenue_category_id: row.revenue_category_id || null,
+              sort_order: index + 1,
+              status: "active",
+              posted_to_ledger: false,
+              metadata: {},
+              created_by: user.id,
+              updated_by: user.id,
+            });
+
+          if (insertError) throw insertError;
+        } else {
+          const { error: lineError } = await supabase
+            .from("finance_invoice_issued_line_items")
+            .update({
+              item_id: row.item_id || null,
+              description: row.description.trim(),
+              quantity: toNumber(row.quantity),
+              unit_price: toNumber(row.unit_price),
+              discount: toNumber(row.discount),
+              tax_code_id: row.tax_code_id || null,
+              unit_of_measure_id: row.unit_of_measure_id || null,
+              revenue_category_id: row.revenue_category_id || null,
+              sort_order: index + 1,
+              updated_by: user.id,
+            })
+            .eq("id", row.id)
+            .eq("invoice_id", id);
+
+          if (lineError) throw lineError;
+        }
       }
+
+      const { error: recalcError } = await supabase.rpc(
+        "finance_recalculate_invoice_issued_totals",
+        {
+          p_invoice_id: id,
+        }
+      );
+      
+      if (recalcError) throw recalcError;
 
       setEditingLines(false);
       await loadInvoice(true);
@@ -1228,15 +1343,35 @@ export default function FinanceInvoiceDetailPage() {
     setIsSavingDraft(true);
     setError("");
 
-    const cleanedLineItems = lineItemsDraft.filter(
+        const cleanedLineItems = lineItemsDraft.map((row) => ({
+      ...row,
+      description: row.description.trim(),
+    }));
+
+    const hasAtLeastOneValidLine = cleanedLineItems.some(
       (row) =>
-        row.description.trim() &&
+        row.description &&
         toNumber(row.quantity) > 0 &&
         toNumber(row.unit_price) >= 0
     );
 
-    if (cleanedLineItems.length === 0) {
+    if (!hasAtLeastOneValidLine) {
       setError("Draft invoice must include at least one valid line item.");
+      setIsSavingDraft(false);
+      return;
+    }
+
+    const hasInvalidLine = cleanedLineItems.some(
+      (row) =>
+        !row.description ||
+        toNumber(row.quantity) <= 0 ||
+        toNumber(row.unit_price) < 0
+    );
+
+    if (hasInvalidLine) {
+      setError(
+        "Every draft invoice line must have a description, quantity greater than 0, and unit price 0 or higher."
+      );
       setIsSavingDraft(false);
       return;
     }
@@ -1297,16 +1432,18 @@ export default function FinanceInvoiceDetailPage() {
           )
         : "";
 
-      const bankDetailsSnapshot = selectedBankAccount
-        ? JSON.stringify({
-            beneficiary_name: selectedBankAccount.beneficiary_name || "",
-            bank_name: selectedBankAccount.bank_name || "",
-            bank_address: resolvedBankAddress || "",
-            account_number: selectedBankAccount.account_number || "",
-            iban: selectedBankAccount.iban || "",
-            swift_code: resolvedSwiftCode || "",
-            currency_code: selectedBankAccount.currency_code || "",
-          })
+         const bankDetailsSnapshot = selectedBankAccount
+        ? [
+            selectedBankAccount.beneficiary_name || "",
+            selectedBankAccount.bank_name || "",
+            resolvedBankAddress || "",
+            `Account: ${selectedBankAccount.account_number || "—"}`,
+            `IBAN: ${selectedBankAccount.iban || "—"}`,
+            `SWIFT: ${resolvedSwiftCode || "—"}`,
+            `Currency: ${selectedBankAccount.currency_code || "—"}`,
+          ]
+            .filter(Boolean)
+            .join("\n")
         : null;
 
       const { error: invoiceError } = await supabase
@@ -1361,27 +1498,77 @@ export default function FinanceInvoiceDetailPage() {
 
       if (invoiceError) throw invoiceError;
 
+             const existingIds = lineItems.map((entry) => entry.id);
+      const draftIds = cleanedLineItems
+        .filter((entry) => !entry.id.startsWith("new_"))
+        .map((entry) => entry.id);
+
+      const idsToDelete = existingIds.filter((entryId) => !draftIds.includes(entryId));
+
+      if (idsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("finance_invoice_issued_line_items")
+          .delete()
+          .in("id", idsToDelete);
+
+        if (deleteError) throw deleteError;
+      }
+
       for (let index = 0; index < cleanedLineItems.length; index += 1) {
         const row = cleanedLineItems[index];
-        const { error: lineError } = await supabase
-          .from("finance_invoice_issued_line_items")
-          .update({
-            item_id: row.item_id || null,
-            description: row.description.trim(),
-            quantity: toNumber(row.quantity),
-            unit_price: toNumber(row.unit_price),
-            discount: toNumber(row.discount),
-            tax_code_id: row.tax_code_id || null,
-            unit_of_measure_id: row.unit_of_measure_id || null,
-            revenue_category_id: row.revenue_category_id || null,
-            sort_order: index + 1,
-            updated_by: user.id,
-          })
-          .eq("id", row.id)
-          .eq("invoice_id", id);
 
-        if (lineError) throw lineError;
+        if (row.id.startsWith("new_")) {
+          const { error: insertError } = await supabase
+            .from("finance_invoice_issued_line_items")
+            .insert({
+              invoice_id: id,
+              item_id: row.item_id || null,
+              description: row.description.trim(),
+              quantity: toNumber(row.quantity),
+              unit_price: toNumber(row.unit_price),
+              discount: toNumber(row.discount),
+              tax_code_id: row.tax_code_id || null,
+              unit_of_measure_id: row.unit_of_measure_id || null,
+              revenue_category_id: row.revenue_category_id || null,
+              sort_order: index + 1,
+              status: "active",
+              posted_to_ledger: false,
+              metadata: {},
+              created_by: user.id,
+              updated_by: user.id,
+            });
+
+          if (insertError) throw insertError;
+        } else {
+          const { error: lineError } = await supabase
+            .from("finance_invoice_issued_line_items")
+            .update({
+              item_id: row.item_id || null,
+              description: row.description.trim(),
+              quantity: toNumber(row.quantity),
+              unit_price: toNumber(row.unit_price),
+              discount: toNumber(row.discount),
+              tax_code_id: row.tax_code_id || null,
+              unit_of_measure_id: row.unit_of_measure_id || null,
+              revenue_category_id: row.revenue_category_id || null,
+              sort_order: index + 1,
+              updated_by: user.id,
+            })
+            .eq("id", row.id)
+            .eq("invoice_id", id);
+
+          if (lineError) throw lineError;
+        }
       }
+
+      const { error: recalcError } = await supabase.rpc(
+        "finance_recalculate_invoice_issued_totals",
+        {
+          p_invoice_id: id,
+        }
+      );
+
+      if (recalcError) throw recalcError;
 
       setIsEditMode(false);
       setEditingOverview(false);
@@ -2480,7 +2667,7 @@ export default function FinanceInvoiceDetailPage() {
                     </CardDescription>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2">
                     {editingLines ? (
                       <Button
                         onClick={() =>
@@ -2493,6 +2680,16 @@ export default function FinanceInvoiceDetailPage() {
                       >
                         <Save className="mr-2 h-4 w-4" />
                         {isSavingDraft ? "Saving..." : "Save"}
+                      </Button>
+                    ) : null}
+
+                    {editingLines && canEditDraft ? (
+                      <Button
+                        variant="outline"
+                        onClick={addDraftLineItem}
+                        className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+                      >
+                        Add Row
                       </Button>
                     ) : null}
 
@@ -2511,15 +2708,26 @@ export default function FinanceInvoiceDetailPage() {
               </CardHeader>
 
               <CardContent className="space-y-3 p-5">
-                {(editingLines ? lineItemsDraft : lineItems).map((row, index) => {
-                                    const editable = editingLines;
+               {(editingLines ? lineItemsDraft : lineItems).map((row, index) => {
+                  const editable = editingLines;
+
+                  const editableBase = Math.max(
+                    toNumber((row as EditableLineItem).quantity) *
+                      toNumber((row as EditableLineItem).unit_price) -
+                      toNumber((row as EditableLineItem).discount),
+                    0
+                  );
+
+                  const editableTaxRate =
+                    taxCodes.find(
+                      (entry) =>
+                        entry.id === (row as EditableLineItem).tax_code_id
+                    )?.rate_percent ?? 0;
+
                   const rowTotal = editable
-                    ? Math.max(
-                        toNumber((row as EditableLineItem).quantity) *
-                          toNumber((row as EditableLineItem).unit_price) -
-                          toNumber((row as EditableLineItem).discount),
-                        0
-                      )
+                    ? editableBase +
+                      editableBase *
+                        (toNumber(String(editableTaxRate)) / 100)
                     : toNumber((row as LineItemRow).line_total);
 
                   return (
@@ -2527,8 +2735,25 @@ export default function FinanceInvoiceDetailPage() {
                       key={(row as EditableLineItem | LineItemRow).id}
                       className="rounded-[22px] border border-white/8 bg-black/15 p-4"
                     >
-                      <div className="mb-4 text-sm font-medium text-white">
-                        Line {index + 1}
+                                            <div className="mb-4 flex items-center justify-between gap-4">
+                        <div className="text-sm font-medium text-white">
+                          Line {index + 1}
+                        </div>
+
+                        {editable && canEditDraft ? (
+                          <Button
+                            variant="outline"
+                            onClick={() =>
+                              removeDraftLineItem(
+                                (row as EditableLineItem).id
+                              )
+                            }
+                            disabled={lineItemsDraft.length === 1}
+                            className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        ) : null}
                       </div>
 
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-12">

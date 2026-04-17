@@ -308,7 +308,7 @@ useEffect(() => {
         throw uploadError;
       }
 
-      const { error: attachmentError } = await supabase
+            const { error: attachmentError } = await supabase
         .from("finance_record_attachments")
         .insert({
           entity_type: "finance_payment_received",
@@ -320,8 +320,6 @@ useEffect(() => {
             bucket: "finance-payment-proofs",
             uploaded_by: user.id,
           },
-          created_by: user.id,
-          updated_by: user.id,
         });
 
       if (attachmentError) {

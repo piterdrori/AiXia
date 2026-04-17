@@ -98,17 +98,17 @@ export default function InvoicePrintDocument({
         }
       `}</style>
 
-      <div className="invoice-print-sheet">
+            <div className="invoice-print-sheet">
         <div
           style={{
             width: "210mm",
-            height: "297mm",
+            minHeight: "297mm",
             background: "#ffffff",
             color: "#111827",
             fontFamily:
               'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
             position: "relative",
-            overflow: "hidden",
+            overflow: "visible",
           }}
         >
           {/* Header background */}
@@ -124,7 +124,7 @@ export default function InvoicePrintDocument({
             }}
           />
 
-          <div style={{ position: "relative", zIndex: 2, padding: "11mm 14mm 20mm 14mm" }}>
+          <div style={{ position: "relative", zIndex: 2, padding: "9mm 14mm 10mm 14mm" }}>
             {/* Top header */}
                         <div
               style={{
@@ -133,29 +133,29 @@ export default function InvoicePrintDocument({
                 gap: "10mm",
                 alignItems: "start",
                 color: "#ffffff",
-                minHeight: "68mm",
+                minHeight: "72mm",
               }}
             >
               <div>
-                <img
+               <img
                   src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
                   alt="AiXia"
                   style={{
                     height: "40mm",
                     width: "auto",
                     filter: "brightness(0) invert(1)",
-                    marginTop: "-4mm",
-                    marginBottom: "1.5mm",
+                    marginTop: "-7mm",
+                    marginBottom: "0.5mm",
                   }}
                 />
 
                 <div
                   style={{
                     maxWidth: "84mm",
-                    fontSize: "8.5pt",
-                    lineHeight: 1.45,
+                    fontSize: "8.3pt",
+                    lineHeight: 1.38,
                     paddingTop: "0mm",
-                    marginTop: "-2mm",
+                    marginTop: "-5mm",
                   }}
                 >
                   <div
@@ -439,7 +439,7 @@ export default function InvoicePrintDocument({
                     </div>
                   </div>
 
-                  <div style={{ marginBottom: "6mm" }}>
+                  <div style={{ marginBottom: "8mm" }}>
                     <div
                       style={{
                         fontWeight: 700,
@@ -501,7 +501,7 @@ export default function InvoicePrintDocument({
                     )}
                   </div>
 
-                                    <div style={{ marginTop: "2mm" }}>
+                                    <div style={{ marginTop: "4mm" }}>
                     <div
                       style={{
                         fontWeight: 700,
@@ -514,11 +514,11 @@ export default function InvoicePrintDocument({
                     </div>
                     <div
                       style={{
-                        lineHeight: 1.58,
+                        lineHeight: 1.62,
                         whiteSpace: "pre-wrap",
-                        fontSize: "7.2pt",
-                        maxHeight: "22mm",
-                        overflow: "hidden",
+                        fontSize: "7.4pt",
+                        maxHeight: "none",
+                        overflow: "visible",
                       }}
                     >
                       {termsAndConditions}
@@ -652,29 +652,25 @@ export default function InvoicePrintDocument({
               </div>
             </div>
 
-                        {/* Footer */}
+                               {/* Footer */}
             <div
               style={{
-                position: "absolute",
-                left: "14mm",
-                right: "14mm",
-                bottom: "10mm",
+                marginTop: "10mm",
+                paddingTop: "4mm",
+                borderTop: "0.5pt solid #e5e7eb",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "flex-end",
                 background: "#ffffff",
               }}
             >
-            <div
+              <div
                 style={{
                   fontSize: "8.5pt",
                   fontWeight: 700,
                   letterSpacing: "0.06em",
                   textTransform: "uppercase",
                   color: "#111827",
-                  background: "#ffffff",
-                  paddingRight: "3mm",
-                  paddingTop: "1mm",
                 }}
               >
                 Thank You For Your Business

@@ -65,7 +65,7 @@ export default function InvoicePrintDocument({
 
   const rows = Array.isArray(lineItems) ? lineItems : [];
   const visibleRows = rows.slice(0, 8);
-  const fillerRows = Math.max(0, 4 - visibleRows.length);
+  const fillerRows = Math.max(0, 3 - visibleRows.length);
 
   return (
     <>
@@ -381,13 +381,13 @@ export default function InvoicePrintDocument({
                     );
                   })}
 
-                  {Array.from({ length: fillerRows }).map((_, index) => (
+                                    {Array.from({ length: fillerRows }).map((_, index) => (
                     <tr key={`filler-${index}`} style={{ borderBottom: "0.5pt solid #d1d5db" }}>
-                      <td style={{ height: "10mm", padding: "0 2mm" }} />
-                      <td style={{ height: "10mm", padding: "0 3mm" }} />
-                      <td style={{ height: "10mm", padding: "0 2mm" }} />
-                      <td style={{ height: "10mm", padding: "0 2mm" }} />
-                      <td style={{ height: "10mm", padding: "0 2mm" }} />
+                      <td style={{ height: "7mm", padding: "0 2mm" }} />
+                      <td style={{ height: "7mm", padding: "0 3mm" }} />
+                      <td style={{ height: "7mm", padding: "0 2mm" }} />
+                      <td style={{ height: "7mm", padding: "0 2mm" }} />
+                      <td style={{ height: "7mm", padding: "0 2mm" }} />
                     </tr>
                   ))}
                 </tbody>
@@ -618,10 +618,10 @@ export default function InvoicePrintDocument({
             </div>
 
                                            {/* Footer */}
-            <div
+                       <div
               style={{
-                marginTop: "4mm",
-                paddingTop: "3mm",
+                marginTop: "1mm",
+                paddingTop: "2mm",
                 borderTop: "0.5pt solid #e5e7eb",
                 background: "#ffffff",
               }}
@@ -637,40 +637,41 @@ export default function InvoicePrintDocument({
                 Terms and Conditions
               </div>
 
-              <div
+                           <div
                 style={{
-                  lineHeight: 1.58,
+                  lineHeight: 1.45,
                   whiteSpace: "pre-wrap",
-                  fontSize: "7.35pt",
+                  fontSize: "7pt",
                   color: "#374151",
-                  marginBottom: "5mm",
+                  marginBottom: "3mm",
                 }}
               >
                 {termsAndConditions}
               </div>
 
-              <div
+                          <div
                 style={{
                   display: "grid",
                   gridTemplateColumns: "1fr 1fr",
                   alignItems: "start",
-                  columnGap: "14mm",
+                  columnGap: "10mm",
                 }}
               >
-                <div
+                               <div
                   style={{
                     fontSize: "8.5pt",
                     fontWeight: 700,
                     letterSpacing: "0.06em",
                     textTransform: "uppercase",
                     color: "#111827",
-                    paddingTop: "2mm",
+                    paddingTop: "0mm",
+                    marginTop: "-2mm",
                   }}
                 >
                   Thank You For Your Business
                 </div>
 
-                <div style={{ textAlign: "center", paddingTop: "0mm" }}>
+                <div style={{ textAlign: "center", paddingTop: "-6mm" }}>
                   <div
                     style={{
                       borderBottom: "0.5pt dashed #6b7280",

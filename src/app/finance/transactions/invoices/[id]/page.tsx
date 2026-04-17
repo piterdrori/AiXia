@@ -1624,6 +1624,110 @@ export default function FinanceInvoiceDetailPage() {
     lineTotal: toNumber(row.line_total),
   }));
 
+    const printableInvoice = useMemo(() => {
+    if (!invoice) return invoice;
+
+    if (invoice.status !== "draft") {
+      return invoice;
+    }
+
+    const resolvedBankAddress = selectedDraftBankAccount
+      ? (
+          selectedDraftBankAccount.bank_address ||
+          [
+            selectedDraftBankAccount.address_line_1,
+            selectedDraftBankAccount.address_line_2,
+            selectedDraftBankAccount.city,
+            selectedDraftBankAccount.postal_code,
+            selectedDraftBankAccount.country,
+          ]
+            .filter(Boolean)
+            .join(", ")
+        )
+      : "";
+
+    const resolvedSwiftCode = selectedDraftBankAccount
+      ? (
+          selectedDraftBankAccount.swift_code ||
+          (selectedDraftBankAccount.account_identifier_type === "swift"
+            ? selectedDraftBankAccount.account_identifier_value
+            : "") ||
+          ""
+        )
+      : "";
+
+    const draftBankDetails = selectedDraftBankAccount
+      ? [
+          selectedDraftBankAccount.beneficiary_name || "",
+          selectedDraftBankAccount.bank_name || "",
+          resolvedBankAddress || "",
+          `Account: ${selectedDraftBankAccount.account_number || "—"}`,
+          `IBAN: ${selectedDraftBankAccount.iban || "—"}`,
+          `SWIFT: ${resolvedSwiftCode || "—"}`,
+          `Currency: ${selectedDraftBankAccount.currency_code || "—"}`,
+        ]
+          .filter(Boolean)
+          .join("\n")
+      : invoice.bank_details_snapshot;
+
+    return {
+      ...invoice,
+      company_name_snapshot:
+        selectedDraftCompany?.legal_name || selectedDraftCompany?.name || invoice.company_name_snapshot,
+      company_contact_person_snapshot:
+        selectedDraftCompany?.contact_person || invoice.company_contact_person_snapshot,
+      company_email_snapshot:
+        selectedDraftCompany?.email || invoice.company_email_snapshot,
+      company_phone_snapshot:
+        selectedDraftCompany?.phone || invoice.company_phone_snapshot,
+      company_address_snapshot:
+        companyAddressDraft || invoice.company_address_snapshot,
+
+      client_name_snapshot:
+        selectedDraftClient?.legal_name || selectedDraftClient?.name || invoice.client_name_snapshot,
+      client_contact_person_snapshot:
+        selectedDraftClient?.contact_person || invoice.client_contact_person_snapshot,
+      client_email_snapshot:
+        selectedDraftClient?.company_email ||
+        selectedDraftClient?.personnel_email ||
+        invoice.client_email_snapshot,
+      client_phone_snapshot:
+        selectedDraftClient?.company_phone ||
+        selectedDraftClient?.personnel_phone ||
+        invoice.client_phone_snapshot,
+      billing_address_snapshot:
+        billingAddressDraft || invoice.billing_address_snapshot,
+
+      invoice_number: invoice.invoice_number || "Draft",
+      issue_date: issueDateDraft || invoice.issue_date,
+      due_date: dueDateDraft || invoice.due_date,
+      payment_terms_snapshot:
+        selectedDraftPaymentTerm?.name || paymentTermsDraft || invoice.payment_terms_snapshot,
+      shipping_terms_snapshot:
+        selectedDraftShippingTermsLabel || shippingTermsDraft || invoice.shipping_terms_snapshot,
+      terms_and_conditions_snapshot:
+        termsAndConditionsDraft || invoice.terms_and_conditions_snapshot,
+      bank_details_snapshot: draftBankDetails,
+      currency_code:
+        selectedDraftCurrency?.currency_code || invoice.currency_code || "USD",
+    };
+  }, [
+    billingAddressDraft,
+    companyAddressDraft,
+    dueDateDraft,
+    invoice,
+    issueDateDraft,
+    paymentTermsDraft,
+    selectedDraftBankAccount,
+    selectedDraftClient,
+    selectedDraftCompany,
+    selectedDraftCurrency,
+    selectedDraftPaymentTerm,
+    selectedDraftShippingTermsLabel,
+    shippingTermsDraft,
+    termsAndConditionsDraft,
+  ]);
+
   return (
     <>
     <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
@@ -3246,8 +3350,8 @@ export default function FinanceInvoiceDetailPage() {
       </div>
     </div>
 
-      <InvoicePrintDocument
-        invoice={invoice}
+     <InvoicePrintDocument
+        invoice={printableInvoice}
         lineItems={printableLineItems}
         financialSummary={financialSummary}
       />

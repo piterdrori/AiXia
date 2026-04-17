@@ -53,11 +53,13 @@ export default function InvoicePrintDocument({
   const bankInfo = parseBankDetails(invoice?.bank_details_snapshot);
 
   const paymentTerms = invoice?.payment_terms_snapshot || "—";
-  const shippingTerms =
-  invoice?.shipping_terms_snapshot &&
-  !invoice.shipping_terms_snapshot.match(/^[0-9a-f-]{36}$/i)
-    ? invoice.shipping_terms_snapshot
-    : "Not specified";
+    const shippingTerms =
+    invoice?.shipping_terms_snapshot &&
+    !invoice.shipping_terms_snapshot.match(/^[0-9a-f-]{36}$/i)
+      ? invoice.shipping_terms_snapshot
+      : invoice?.shipping_term_label ||
+        invoice?.shipping_term_name ||
+        "Not specified";
   const termsAndConditions =
     invoice?.terms_and_conditions_snapshot || DEFAULT_TERMS;
 
@@ -116,35 +118,22 @@ export default function InvoicePrintDocument({
               left: 0,
               right: 0,
               top: 0,
-              height: "70mm",
+              height: "78mm",
               background: "linear-gradient(135deg, #232323 0%, #1b1b1b 100%)",
               zIndex: 0,
             }}
           />
-      <div
-  style={{
-    position: "absolute",
-    left: "-5mm",
-    right: "-5mm",
-    top: "58mm",
-    height: "8mm",
-    background: "#ffffff",
-    borderTopLeftRadius: "100% 100%",
-    borderTopRightRadius: "100% 100%",
-    zIndex: 0,
-  }}
-/>
 
-          <div style={{ position: "relative", zIndex: 2, padding: "11mm 14mm 24mm 14mm" }}>
+          <div style={{ position: "relative", zIndex: 2, padding: "11mm 14mm 20mm 14mm" }}>
             {/* Top header */}
-            <div
+                        <div
               style={{
                 display: "grid",
                 gridTemplateColumns: "1.05fr 0.95fr",
                 gap: "10mm",
                 alignItems: "start",
                 color: "#ffffff",
-                minHeight: "52mm",
+                minHeight: "66mm",
               }}
             >
               <div>
@@ -152,19 +141,26 @@ export default function InvoicePrintDocument({
                   src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
                   alt="AiXia"
                   style={{
-                    height: "32mm",
+                    height: "40mm",
                     width: "auto",
                     filter: "brightness(0) invert(1)",
-                    marginBottom: "4mm",
+                    marginBottom: "3mm",
                   }}
                 />
 
-                <div style={{ maxWidth: "80mm", fontSize: "8.5pt", lineHeight: 1.45 }}>
+                <div
+                  style={{
+                    maxWidth: "84mm",
+                    fontSize: "8.5pt",
+                    lineHeight: 1.5,
+                    paddingTop: "1mm",
+                  }}
+                >
                   <div
                     style={{
                       fontWeight: 700,
                       fontSize: "10.5pt",
-                      marginBottom: "1.2mm",
+                      marginBottom: "0.8mm",
                     }}
                   >
                     {invoice?.company_name_snapshot || "—"}
@@ -178,13 +174,14 @@ export default function InvoicePrintDocument({
                   {invoice?.company_email_snapshot ? (
                     <div>{invoice.company_email_snapshot}</div>
                   ) : null}
-                  {invoice?.company_address_snapshot ? (
+                {invoice?.company_address_snapshot ? (
   <div
     style={{
-      marginTop: "1mm",
-      lineHeight: 1.5,
+      marginTop: "0.8mm",
+      lineHeight: 1.45,
       whiteSpace: "pre-wrap",
       wordBreak: "break-word",
+      maxWidth: "84mm",
     }}
   >
     {invoice.company_address_snapshot}
@@ -220,16 +217,12 @@ export default function InvoicePrintDocument({
                     <span style={{ width: "26mm", opacity: 0.78 }}>Due Date</span>
                     <span>{formatFinanceDate(invoice?.due_date)}</span>
                   </div>
-                  <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "26mm", opacity: 0.78 }}>Currency</span>
-                    <span>{currency}</span>
-                  </div>
                 </div>
               </div>
             </div>
 
             {/* Bill To */}
-            <div style={{ marginTop: "2mm", marginBottom: "7mm" }}>
+            <div style={{ marginTop: "5mm", marginBottom: "7mm" }}>
               <div
                 style={{
                   background: "#ffffff",
@@ -434,6 +427,10 @@ export default function InvoicePrintDocument({
                       <div>
                         <span style={{ color: "#6b7280" }}>Shipping Terms: </span>
                         <span style={{ fontWeight: 500 }}>{shippingTerms}</span>
+                      </div>
+                      <div>
+                        <span style={{ color: "#6b7280" }}>Currency: </span>
+                        <span style={{ fontWeight: 500 }}>{currency}</span>
                       </div>
                     </div>
                   </div>

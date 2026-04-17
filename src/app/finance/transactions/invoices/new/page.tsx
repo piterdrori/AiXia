@@ -164,10 +164,6 @@ function formatMoney(value: number, currencyCode = "USD") {
   }).format(value);
 }
 
-function buildDraftInvoiceNumber() {
-  return `INV-DRAFT-${Date.now()}`;
-}
-
 export default function FinanceNewInvoicePage() {
   const navigate = useNavigate();
 
@@ -504,7 +500,19 @@ export default function FinanceNewInvoicePage() {
     );
 
     const discount = rows.reduce((sum, row) => sum + toNumber(row.discount), 0);
-    const tax = 0;
+
+    const tax = rows.reduce((sum, row) => {
+      const base = Math.max(
+        toNumber(row.quantity) * toNumber(row.unitPrice) - toNumber(row.discount),
+        0
+      );
+
+      const taxCode = taxCodes.find((entry) => entry.id === row.taxCodeId);
+      if (!taxCode) return sum;
+
+      return sum + base * (toNumber(String(taxCode.rate_percent)) / 100);
+    }, 0);
+
     const total = Math.max(subtotal - discount + tax, 0);
 
     return {
@@ -513,7 +521,7 @@ export default function FinanceNewInvoicePage() {
       tax,
       total,
     };
-  }, [rows]);
+  }, [rows, taxCodes]);
 
    const updateRow = useCallback(
     (localId: string, field: keyof InvoiceItemRow, value: string) => {
@@ -556,8 +564,21 @@ export default function FinanceNewInvoicePage() {
     [items]
   );
 
-  const addRow = useCallback(() => {
-    setRows((current) => [...current, createRow()]);
+    const addRow = useCallback(() => {
+    setRows((current) => {
+      const last = current[current.length - 1];
+
+      const isLastEmpty =
+        !last.description.trim() &&
+        toNumber(last.quantity) === 0 &&
+        toNumber(last.unitPrice) === 0;
+
+      if (isLastEmpty) {
+        return current;
+      }
+
+      return [...current, createRow()];
+    });
   }, []);
 
   const removeRow = useCallback((localId: string) => {
@@ -583,17 +604,38 @@ export default function FinanceNewInvoicePage() {
       return;
     }
 
-    const validRows = rows.filter(
+       const trimmedRows = rows.map((row) => ({
+      ...row,
+      description: row.description.trim(),
+    }));
+
+    const hasAtLeastOneValidRow = trimmedRows.some(
       (row) =>
-        row.description.trim() &&
+        row.description &&
         toNumber(row.quantity) > 0 &&
         toNumber(row.unitPrice) >= 0
     );
 
-    if (validRows.length === 0) {
+    if (!hasAtLeastOneValidRow) {
       setErrorMessage("Add at least one valid line item.");
       return;
     }
+
+    const hasInvalidRow = trimmedRows.some(
+      (row) =>
+        !row.description ||
+        toNumber(row.quantity) <= 0 ||
+        toNumber(row.unitPrice) < 0
+    );
+
+    if (hasInvalidRow) {
+      setErrorMessage(
+        "Every line item must have a description, quantity greater than 0, and unit price 0 or higher."
+      );
+      return;
+    }
+
+    const validRows = trimmedRows;
 
     setIsSaving(true);
 
@@ -609,7 +651,7 @@ export default function FinanceNewInvoicePage() {
       const { data: createdInvoice, error: invoiceError } = await supabase
         .from("finance_invoices_issued")
         .insert({
-          invoice_number: buildDraftInvoiceNumber(),
+          invoice_number: null,
           client_id: clientId,
           company_id: companyId,
           project_id: projectId || null,
@@ -664,11 +706,20 @@ export default function FinanceNewInvoicePage() {
         updated_by: user.id,
       }));
 
-      const { error: lineError } = await supabase
+       const { error: lineError } = await supabase
         .from("finance_invoice_issued_line_items")
         .insert(linePayload);
 
       if (lineError) throw lineError;
+
+      const { error: recalcError } = await supabase.rpc(
+        "finance_recalculate_invoice_issued_totals",
+        {
+          p_invoice_id: createdInvoice.id,
+        }
+      );
+
+      if (recalcError) throw recalcError;
 
       navigate(`/finance/transactions/invoices/${createdInvoice.id}`);
     } catch (error) {
@@ -964,19 +1015,26 @@ export default function FinanceNewInvoicePage() {
                   </div>
                 </div>
 
-                                <div className="space-y-2 md:col-span-2">
+                 <div className="space-y-2 md:col-span-2">
                   <div className="text-sm text-white/70">Bank Details Preview</div>
-                  <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
-                    {selectedBankAccount
-                      ? [
-                          selectedBankAccount.beneficiary_name,
-                          selectedBankAccount.bank_name,
-                          selectedBankAccount.iban,
-                          selectedBankAccount.swift_code,
-                        ]
-                          .filter(Boolean)
-                          .join(" | ")
-                      : "—"}
+                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
+                    {selectedBankAccount ? (
+                      <div className="space-y-1">
+                        <div>{selectedBankAccount.beneficiary_name || "—"}</div>
+                        <div>{selectedBankAccount.bank_name || "—"}</div>
+                        <div>
+                          IBAN: {selectedBankAccount.iban || "—"}
+                        </div>
+                        <div>
+                          SWIFT: {selectedBankAccount.swift_code || "—"}
+                        </div>
+                        <div>
+                          Currency: {selectedBankAccount.currency_code || "—"}
+                        </div>
+                      </div>
+                    ) : (
+                      "—"
+                    )}
                   </div>
                 </div>
 
@@ -1011,11 +1069,18 @@ export default function FinanceNewInvoicePage() {
 
               <CardContent className="space-y-4 p-5">
                 {rows.map((row, index) => {
-                  const rowTotal = Math.max(
+                  const rowBase = Math.max(
                     toNumber(row.quantity) * toNumber(row.unitPrice) -
                       toNumber(row.discount),
                     0
                   );
+
+                  const rowTaxRate =
+                    taxCodes.find((entry) => entry.id === row.taxCodeId)
+                      ?.rate_percent ?? 0;
+
+                  const rowTotal =
+                    rowBase + rowBase * (toNumber(String(rowTaxRate)) / 100);
 
                   return (
                     <div

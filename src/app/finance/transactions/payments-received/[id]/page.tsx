@@ -175,10 +175,18 @@ export default function PaymentReceivedDetailPage() {
           setInvoiceLink(null);
         }
 
-                const { data: linkedAttachments, error: linkedAttachmentsError } =
+                 const { data: linkedAttachments, error: linkedAttachmentsError } =
           await supabase
             .from("finance_record_attachments")
-            .select("*")
+            .select(`
+              id,
+              created_at,
+              file_uploads (
+                id,
+                file_name,
+                file_path
+              )
+            `)
             .eq("entity_type", "finance_payment_received")
             .eq("entity_id", id)
             .order("created_at", { ascending: false });
@@ -187,7 +195,14 @@ export default function PaymentReceivedDetailPage() {
           console.error("Failed to load payment attachments:", linkedAttachmentsError);
           setAttachments([]);
         } else {
-          setAttachments((linkedAttachments || []) as PaymentAttachmentRow[]);
+          setAttachments(
+            ((linkedAttachments || []) as any[]).map((row) => ({
+              id: row.id,
+              created_at: row.created_at,
+              file_name: row.file_uploads?.file_name || null,
+              file_path: row.file_uploads?.file_path || null,
+            }))
+          );
         }
 
         
@@ -308,17 +323,33 @@ useEffect(() => {
         throw uploadError;
       }
 
-            const { error: attachmentError } = await supabase
+             const { data: fileUploadRow, error: fileUploadError } = await supabase
+        .from("file_uploads")
+        .insert({
+          user_id: user.id,
+          file_name: proofFile.name,
+          file_path: storagePath,
+          file_size: proofFile.size,
+          mime_type: proofFile.type || null,
+          entity_type: "finance_payment_received",
+        })
+        .select("id")
+        .single();
+
+      if (fileUploadError) {
+        throw fileUploadError;
+      }
+
+      const { error: attachmentError } = await supabase
         .from("finance_record_attachments")
         .insert({
           entity_type: "finance_payment_received",
           entity_id: id,
-          file_name: proofFile.name,
-          file_path: storagePath,
+          file_upload_id: fileUploadRow.id,
+          uploaded_by: user.id,
           notes: "Payment proof upload",
           metadata: {
             bucket: "finance-payment-proofs",
-            uploaded_by: user.id,
           },
         });
 

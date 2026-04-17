@@ -3,8 +3,10 @@ export type FinanceRecordStatus = "active" | "inactive" | "archived";
 export type FinanceInvoiceIssuedStatus =
   | "draft"
   | "issued"
-  | "void"
-  | "canceled";
+  | "partially_paid"
+  | "paid"
+  | "overdue"
+  | "cancelled";
 
 export type FinanceInvoiceIssuedPaymentStatus =
   | "unpaid"

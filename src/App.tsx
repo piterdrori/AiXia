@@ -88,6 +88,9 @@ import FinanceInvoiceDetailPage from "@/app/finance/transactions/invoices/[id]/p
 import FinanceBillsPage from "@/app/finance/bills/page";
 import BillDetailPage from "@/app/finance/bills/[id]/page";
 import FinancePaymentsMadePage from "@/app/finance/payments-made/page";
+import PaymentsReceivedPage from "@/app/finance/transactions/payments-received/page";
+import PaymentReceivedDetailPage from "@/app/finance/transactions/payments-received/[id]/page";
+import NewPaymentReceivedPage from "@/app/finance/transactions/payments-received/new/page";
 
 import FinanceExpensesPage from "@/app/finance/expenses/page";
 import FinanceNewExpensePage from "@/app/finance/expenses/new/page";
@@ -1065,6 +1068,39 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinancePaymentsMadePage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+      <Route
+  path="/finance/transactions/payments-received"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <PaymentsReceivedPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+      <Route
+  path="/finance/transactions/payments-received/new"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <NewPaymentReceivedPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+      <Route
+  path="/finance/transactions/payments-received/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <PaymentReceivedDetailPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

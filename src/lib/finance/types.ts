@@ -12,10 +12,9 @@ export type FinanceInvoiceIssuedPaymentStatus =
   | "paid";
 
 export type FinancePaymentReceivedStatus =
-  | "pending"
+  | "draft"
   | "confirmed"
-  | "failed"
-  | "reversed";
+  | "cancelled";
 
 export type FinanceBillReceivedStatus =
   | "draft"

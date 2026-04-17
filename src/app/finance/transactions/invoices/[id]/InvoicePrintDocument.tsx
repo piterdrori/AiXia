@@ -617,7 +617,7 @@ export default function InvoicePrintDocument({
               </div>
             </div>
 
-                                                      {/* Footer */}
+                                           {/* Footer */}
             <div
               style={{
                 marginTop: "4mm",
@@ -702,8 +702,6 @@ export default function InvoicePrintDocument({
                     </div>
                   ) : null}
                 </div>
-              </div>
-            </div>
               </div>
             </div>
           </div>

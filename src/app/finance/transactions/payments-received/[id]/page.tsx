@@ -175,22 +175,24 @@ export default function PaymentReceivedDetailPage() {
           setInvoiceLink(null);
         }
 
-        const { data: linkedAttachments, error: linkedAttachmentsError } =
+                const { data: linkedAttachments, error: linkedAttachmentsError } =
           await supabase
             .from("finance_record_attachments")
-            .select("id, file_name, file_path, created_at")
+            .select("*")
             .eq("entity_type", "finance_payment_received")
             .eq("entity_id", id)
             .order("created_at", { ascending: false });
 
         if (linkedAttachmentsError) {
-          throw linkedAttachmentsError;
+          console.error("Failed to load payment attachments:", linkedAttachmentsError);
+          setAttachments([]);
+        } else {
+          setAttachments((linkedAttachments || []) as PaymentAttachmentRow[]);
         }
 
-        setAttachments((linkedAttachments || []) as PaymentAttachmentRow[]);
-      } catch (err) {
+        
+            } catch (err) {
         console.error(err);
-        setPayment(null);
         setInvoiceLink(null);
         setAttachments([]);
         setErrorMessage("Failed to load payment received record.");

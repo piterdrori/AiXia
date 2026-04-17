@@ -704,7 +704,6 @@ export default function InvoicePrintDocument({
                 </div>
               </div>
             </div>
-                <div/>
               </div>
             </div>
           </div>

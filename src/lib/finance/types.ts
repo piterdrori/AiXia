@@ -209,6 +209,14 @@ export interface FinancePaymentReceived
   client_id: string;
   invoice_id: string | null;
   bank_account_id: string | null;
+
+  payment_currency_id: string | null;
+  payment_currency_code: string;
+  invoice_currency_code: string;
+  exchange_rate: number;
+  converted_amount: number;
+  exchange_rate_source: string | null;
+  exchange_rate_date: string;
 }
 
 export interface FinanceBillReceived

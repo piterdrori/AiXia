@@ -98,7 +98,7 @@ export default function InvoicePrintDocument({
         }
       `}</style>
 
-            <div className="invoice-print-sheet">
+      <div className="invoice-print-sheet">
         <div
           style={{
             width: "210mm",
@@ -126,7 +126,7 @@ export default function InvoicePrintDocument({
 
           <div style={{ position: "relative", zIndex: 2, padding: "9mm 14mm 10mm 14mm" }}>
             {/* Top header */}
-                        <div
+            <div
               style={{
                 display: "grid",
                 gridTemplateColumns: "1.05fr 0.95fr",
@@ -137,7 +137,7 @@ export default function InvoicePrintDocument({
               }}
             >
               <div>
-               <img
+                <img
                   src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
                   alt="AiXia"
                   style={{
@@ -176,20 +176,20 @@ export default function InvoicePrintDocument({
                   {invoice?.company_email_snapshot ? (
                     <div>{invoice.company_email_snapshot}</div>
                   ) : null}
-                {invoice?.company_address_snapshot ? (
-  <div
-    style={{
-      marginTop: "0.5mm",
-      lineHeight: 1.32,
-      whiteSpace: "pre-wrap",
-      wordBreak: "break-word",
-      maxWidth: "84mm",
-      fontSize: "7.9pt",
-    }}
-  >
-    {invoice.company_address_snapshot}
-  </div>
-) : null}
+                  {invoice?.company_address_snapshot ? (
+                    <div
+                      style={{
+                        marginTop: "0.5mm",
+                        lineHeight: 1.32,
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                        maxWidth: "84mm",
+                        fontSize: "7.9pt",
+                      }}
+                    >
+                      {invoice.company_address_snapshot}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -381,7 +381,7 @@ export default function InvoicePrintDocument({
                     );
                   })}
 
-                                    {Array.from({ length: fillerRows }).map((_, index) => (
+                  {Array.from({ length: fillerRows }).map((_, index) => (
                     <tr key={`filler-${index}`} style={{ borderBottom: "0.5pt solid #d1d5db" }}>
                       <td style={{ height: "7mm", padding: "0 2mm" }} />
                       <td style={{ height: "7mm", padding: "0 3mm" }} />
@@ -395,7 +395,7 @@ export default function InvoicePrintDocument({
             </div>
 
             {/* Bottom content */}
-                           <div
+            <div
               style={{
                 display: "grid",
                 gridTemplateColumns: "1.12fr 0.88fr",
@@ -503,6 +503,7 @@ export default function InvoicePrintDocument({
                 </div>
               </div>
 
+              {/* Right Column - Totals and Signature */}
               <div>
                 <div
                   style={{
@@ -613,11 +614,29 @@ export default function InvoicePrintDocument({
                       {formatFinanceMoney(financialSummary?.balance || 0, currency)}
                     </span>
                   </div>
+
+                  {/* Signature - Under Balance Due with signing space */}
+                  <div
+                    style={{
+                      marginTop: "6mm",
+                      textAlign: "center",
+                      width: "100%",
+                    }}
+                  >
+                    <div
+                      style={{
+                        borderBottom: "0.5pt dashed #6b7280",
+                        height: "12mm",
+                        marginBottom: "1.5mm",
+                      }}
+                    />
+                    <div style={{ fontSize: "8pt", color: "#374151" }}>Signature</div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Footer - Clean single section */}
+            {/* Footer */}
             <div
               style={{
                 marginTop: "1mm",
@@ -647,26 +666,6 @@ export default function InvoicePrintDocument({
                 }}
               >
                 {termsAndConditions}
-              </div>
-
-              {/* Signature - Centered */}
-              <div
-                style={{
-                  textAlign: "center",
-                  marginBottom: "4mm",
-                  width: "60mm",
-                  marginLeft: "auto",
-                  marginRight: "auto",
-                }}
-              >
-                <div
-                  style={{
-                    borderBottom: "0.5pt dashed #6b7280",
-                    height: "8mm",
-                    marginBottom: "1.5mm",
-                  }}
-                />
-                <div style={{ fontSize: "8pt", color: "#374151" }}>Signature</div>
               </div>
 
               {/* Payment History - Right aligned if exists */}

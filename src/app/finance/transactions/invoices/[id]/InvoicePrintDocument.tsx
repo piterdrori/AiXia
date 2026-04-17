@@ -133,7 +133,7 @@ export default function InvoicePrintDocument({
                 gap: "10mm",
                 alignItems: "start",
                 color: "#ffffff",
-                minHeight: "66mm",
+                minHeight: "68mm",
               }}
             >
               <div>
@@ -144,7 +144,8 @@ export default function InvoicePrintDocument({
                     height: "40mm",
                     width: "auto",
                     filter: "brightness(0) invert(1)",
-                    marginBottom: "3mm",
+                    marginTop: "-4mm",
+                    marginBottom: "1.5mm",
                   }}
                 />
 
@@ -152,8 +153,9 @@ export default function InvoicePrintDocument({
                   style={{
                     maxWidth: "84mm",
                     fontSize: "8.5pt",
-                    lineHeight: 1.5,
-                    paddingTop: "1mm",
+                    lineHeight: 1.45,
+                    paddingTop: "0mm",
+                    marginTop: "-2mm",
                   }}
                 >
                   <div
@@ -177,11 +179,12 @@ export default function InvoicePrintDocument({
                 {invoice?.company_address_snapshot ? (
   <div
     style={{
-      marginTop: "0.8mm",
-      lineHeight: 1.45,
+      marginTop: "0.5mm",
+      lineHeight: 1.32,
       whiteSpace: "pre-wrap",
       wordBreak: "break-word",
       maxWidth: "84mm",
+      fontSize: "7.9pt",
     }}
   >
     {invoice.company_address_snapshot}
@@ -396,8 +399,9 @@ export default function InvoicePrintDocument({
               style={{
                 display: "grid",
                 gridTemplateColumns: "1.12fr 0.88fr",
-                gap: "10mm",
+                gap: "14mm",
                 alignItems: "start",
+                marginTop: "2mm",
               }}
             >
               <div style={{ fontSize: "8pt", color: "#374151" }}>
@@ -435,7 +439,7 @@ export default function InvoicePrintDocument({
                     </div>
                   </div>
 
-                  <div style={{ marginBottom: "4mm" }}>
+                  <div style={{ marginBottom: "6mm" }}>
                     <div
                       style={{
                         fontWeight: 700,
@@ -497,23 +501,23 @@ export default function InvoicePrintDocument({
                     )}
                   </div>
 
-                  <div>
+                                    <div style={{ marginTop: "2mm" }}>
                     <div
                       style={{
                         fontWeight: 700,
                         fontSize: "9pt",
                         color: "#111827",
-                        marginBottom: "1.5mm",
+                        marginBottom: "2mm",
                       }}
                     >
                       Terms and Conditions
                     </div>
                     <div
                       style={{
-                        lineHeight: 1.5,
+                        lineHeight: 1.58,
                         whiteSpace: "pre-wrap",
-                        fontSize: "7.1pt",
-                        maxHeight: "18mm",
+                        fontSize: "7.2pt",
+                        maxHeight: "22mm",
                         overflow: "hidden",
                       }}
                     >
@@ -654,14 +658,14 @@ export default function InvoicePrintDocument({
                 position: "absolute",
                 left: "14mm",
                 right: "14mm",
-                bottom: "14mm",
+                bottom: "10mm",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "flex-end",
                 background: "#ffffff",
               }}
             >
-              <div
+            <div
                 style={{
                   fontSize: "8.5pt",
                   fontWeight: 700,
@@ -670,6 +674,7 @@ export default function InvoicePrintDocument({
                   color: "#111827",
                   background: "#ffffff",
                   paddingRight: "3mm",
+                  paddingTop: "1mm",
                 }}
               >
                 Thank You For Your Business

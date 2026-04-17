@@ -6,13 +6,13 @@ import {
   confirmPaymentReceived,
   cancelPaymentReceived,
 } from "@/lib/finance/paymentsReceived";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabase";
 
 export default function PaymentReceivedDetailPage() {
   const router = useRouter();
-  const params = useParams();
-  const id = params?.id as string;
+  const router = useRouter();
+  const { id } = router.query as { id: string };
 
   const [payment, setPayment] = useState<any>(null);
   const [loading, setLoading] = useState(true);

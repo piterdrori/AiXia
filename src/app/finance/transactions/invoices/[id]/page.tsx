@@ -1605,25 +1605,6 @@ export default function FinanceInvoiceDetailPage() {
     termsAndConditionsDraft,
   ]);
 
-  if (isLoading) {
-    return <div className="p-6 text-white/50">Loading invoice...</div>;
-  }
-
-   if (!invoice || !totals) {
-    return <div className="p-6 text-white/50">Invoice not found.</div>;
-  }
-
-  const displayState = getInvoiceDisplayState(invoice as any);
-
-    const printableLineItems = lineItems.map((row) => ({
-    id: row.id,
-    description: row.description || "—",
-    quantity: toNumber(row.quantity),
-    unitPrice: toNumber(row.unit_price),
-    discount: toNumber(row.discount),
-    lineTotal: toNumber(row.line_total),
-  }));
-
     const printableInvoice = useMemo(() => {
     if (!invoice) return invoice;
 
@@ -1673,20 +1654,25 @@ export default function FinanceInvoiceDetailPage() {
     return {
       ...invoice,
       company_name_snapshot:
-        selectedDraftCompany?.legal_name || selectedDraftCompany?.name || invoice.company_name_snapshot,
+        selectedDraftCompany?.legal_name ||
+        selectedDraftCompany?.name ||
+        invoice.company_name_snapshot,
       company_contact_person_snapshot:
-        selectedDraftCompany?.contact_person || invoice.company_contact_person_snapshot,
+        selectedDraftCompany?.contact_person ||
+        invoice.company_contact_person_snapshot,
       company_email_snapshot:
         selectedDraftCompany?.email || invoice.company_email_snapshot,
       company_phone_snapshot:
         selectedDraftCompany?.phone || invoice.company_phone_snapshot,
       company_address_snapshot:
         companyAddressDraft || invoice.company_address_snapshot,
-
       client_name_snapshot:
-        selectedDraftClient?.legal_name || selectedDraftClient?.name || invoice.client_name_snapshot,
+        selectedDraftClient?.legal_name ||
+        selectedDraftClient?.name ||
+        invoice.client_name_snapshot,
       client_contact_person_snapshot:
-        selectedDraftClient?.contact_person || invoice.client_contact_person_snapshot,
+        selectedDraftClient?.contact_person ||
+        invoice.client_contact_person_snapshot,
       client_email_snapshot:
         selectedDraftClient?.company_email ||
         selectedDraftClient?.personnel_email ||
@@ -1697,14 +1683,17 @@ export default function FinanceInvoiceDetailPage() {
         invoice.client_phone_snapshot,
       billing_address_snapshot:
         billingAddressDraft || invoice.billing_address_snapshot,
-
       invoice_number: invoice.invoice_number || "Draft",
       issue_date: issueDateDraft || invoice.issue_date,
       due_date: dueDateDraft || invoice.due_date,
       payment_terms_snapshot:
-        selectedDraftPaymentTerm?.name || paymentTermsDraft || invoice.payment_terms_snapshot,
+        selectedDraftPaymentTerm?.name ||
+        paymentTermsDraft ||
+        invoice.payment_terms_snapshot,
       shipping_terms_snapshot:
-        selectedDraftShippingTermsLabel || shippingTermsDraft || invoice.shipping_terms_snapshot,
+        selectedDraftShippingTermsLabel ||
+        shippingTermsDraft ||
+        invoice.shipping_terms_snapshot,
       terms_and_conditions_snapshot:
         termsAndConditionsDraft || invoice.terms_and_conditions_snapshot,
       bank_details_snapshot: draftBankDetails,
@@ -1727,6 +1716,25 @@ export default function FinanceInvoiceDetailPage() {
     shippingTermsDraft,
     termsAndConditionsDraft,
   ]);
+
+  if (isLoading) {
+    return <div className="p-6 text-white/50">Loading invoice...</div>;
+  }
+
+   if (!invoice || !totals) {
+    return <div className="p-6 text-white/50">Invoice not found.</div>;
+  }
+
+  const displayState = getInvoiceDisplayState(invoice as any);
+
+    const printableLineItems = lineItems.map((row) => ({
+    id: row.id,
+    description: row.description || "—",
+    quantity: toNumber(row.quantity),
+    unitPrice: toNumber(row.unit_price),
+    discount: toNumber(row.discount),
+    lineTotal: toNumber(row.line_total),
+  }));
 
   return (
     <>

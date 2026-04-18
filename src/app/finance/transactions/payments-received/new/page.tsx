@@ -191,7 +191,7 @@ export default function NewPaymentReceivedPage() {
         throw new Error("User not authenticated");
       }
 
-      const created = await createPaymentReceived({
+     const created = await createPaymentReceived({
         invoice_id: selectedInvoice.id,
         client_id: selectedInvoice.client_id,
         amount: numericAmount,
@@ -200,7 +200,6 @@ export default function NewPaymentReceivedPage() {
         payment_method_id: paymentMethodId || null,
         notes: notes || null,
         payment_currency_code: paymentCurrencyCode,
-        invoice_currency_code: selectedInvoice.currency_code || "USD",
         created_by: user.id,
         updated_by: user.id,
         posted_to_ledger: false,
@@ -209,6 +208,19 @@ export default function NewPaymentReceivedPage() {
           proof_required_before_confirmation: true,
         },
       });
+
+      const { error: fxError } = await supabase.functions.invoke(
+        "finance-payment-received-convert",
+        {
+          body: { payment_id: created.id },
+        }
+      );
+
+      if (fxError) {
+        throw new Error(fxError.message);
+      }
+
+      navigate(`/finance/transactions/payments-received/${created.id}`);
 
       navigate(`/finance/transactions/payments-received/${created.id}`);
     } catch (error) {
@@ -490,9 +502,9 @@ export default function NewPaymentReceivedPage() {
   <CardHeader className="border-b border-white/8 pb-4">
     <CardTitle className="text-white">Payment Summary</CardTitle>
     <CardDescription className="text-white/45">
-      Preview the invoice linkage, entered payment, and settlement direction
-      before saving the draft.
-    </CardDescription>
+  Preview the raw payment input before saving. Exchange rate, converted amount,
+  and invoice-currency settlement are calculated by the backend after draft creation.
+</CardDescription>
   </CardHeader>
 
   <CardContent className="p-5">
@@ -635,7 +647,7 @@ export default function NewPaymentReceivedPage() {
       <div>• Upload the transfer proof on the detail page.</div>
       <div>• Only then can the payment be confirmed.</div>
       <div>• Confirmed payments update invoice balances automatically.</div>
-      <div>• Multi-currency conversion is stored with the payment record.</div>
+      <div>• Multi-currency conversion is calculated automatically by the backend.</div>
     </CardContent>
   </Card>
 </div>

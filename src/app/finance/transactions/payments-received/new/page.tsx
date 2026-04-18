@@ -191,7 +191,7 @@ export default function NewPaymentReceivedPage() {
         throw new Error("User not authenticated");
       }
 
-     const created = await createPaymentReceived({
+  const created = await createPaymentReceived({
   invoice_id: selectedInvoice.id,
   client_id: selectedInvoice.client_id,
   amount: numericAmount,
@@ -201,6 +201,13 @@ export default function NewPaymentReceivedPage() {
   notes: notes || null,
   payment_currency_code: paymentCurrencyCode,
   invoice_currency_code: selectedInvoice.currency_code || undefined,
+  exchange_rate: 1,
+  converted_amount: numericAmount,
+  exchange_rate_source:
+    paymentCurrencyCode === (selectedInvoice.currency_code || "")
+      ? "system_same_currency"
+      : "pending_backend_conversion",
+  exchange_rate_date: paymentDate,
   created_by: user.id,
   updated_by: user.id,
   posted_to_ledger: false,

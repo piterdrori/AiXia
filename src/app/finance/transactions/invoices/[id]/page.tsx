@@ -1893,7 +1893,7 @@ export default function FinanceInvoiceDetailPage() {
               </CardHeader>
 
               <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                {editingOverview ? (
+                              {editingOverview ? (
                   <>
                     <label className="space-y-2">
                       <div className="text-sm text-white/70">Issuing Company</div>
@@ -1922,38 +1922,6 @@ export default function FinanceInvoiceDetailPage() {
                         {clients.map((client) => (
                           <option key={client.id} value={client.id}>
                             {client.legal_name || client.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="space-y-2">
-                      <div className="text-sm text-white/70">Project</div>
-                      <select
-                        value={projectIdDraft}
-                        onChange={(event) => setProjectIdDraft(event.target.value)}
-                        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                      >
-                        <option value="">No project</option>
-                        {projects.map((project) => (
-                          <option key={project.id} value={project.id}>
-                            {project.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="space-y-2">
-                      <div className="text-sm text-white/70">Task</div>
-                      <select
-                        value={taskIdDraft}
-                        onChange={(event) => setTaskIdDraft(event.target.value)}
-                        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                      >
-                        <option value="">No task</option>
-                        {filteredDraftTasks.map((task) => (
-                          <option key={task.id} value={task.id}>
-                            {task.title}
                           </option>
                         ))}
                       </select>
@@ -2008,22 +1976,6 @@ export default function FinanceInvoiceDetailPage() {
                     </label>
 
                     <label className="space-y-2">
-                      <div className="text-sm text-white/70">Currency</div>
-                      <select
-                        value={currencyIdDraft}
-                        onChange={(event) => setCurrencyIdDraft(event.target.value)}
-                        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                      >
-                        <option value="">Select currency</option>
-                        {currencies.map((currency) => (
-                          <option key={currency.id} value={currency.id}>
-                            {currency.currency_code} — {currency.currency_name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="space-y-2">
                       <div className="text-sm text-white/70">Preferred Payment Method</div>
                       <select
                         value={paymentMethodIdDraft}
@@ -2058,6 +2010,61 @@ export default function FinanceInvoiceDetailPage() {
                         className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
                       />
                     </label>
+
+                    <label className="space-y-2">
+                      <div className="text-sm text-white/70">Currency</div>
+                      <select
+                        value={currencyIdDraft}
+                        onChange={(event) => setCurrencyIdDraft(event.target.value)}
+                        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                      >
+                        <option value="">Select currency</option>
+                        {currencies.map((currency) => (
+                          <option key={currency.id} value={currency.id}>
+                            {currency.currency_code} — {currency.currency_name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="space-y-2">
+                      <div className="text-sm text-white/70">Project</div>
+                      <select
+                        value={projectIdDraft}
+                        onChange={(event) => setProjectIdDraft(event.target.value)}
+                        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                      >
+                        <option value="">No project</option>
+                        {projects.map((project) => (
+                          <option key={project.id} value={project.id}>
+                            {project.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="space-y-2">
+                      <div className="text-sm text-white/70">Task</div>
+                      <select
+                        value={taskIdDraft}
+                        onChange={(event) => setTaskIdDraft(event.target.value)}
+                        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                      >
+                        <option value="">No task</option>
+                        {filteredDraftTasks.map((task) => (
+                          <option key={task.id} value={task.id}>
+                            {task.title}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <div className="space-y-2">
+                      <div className="text-sm text-white/70">Posted To Ledger</div>
+                      <div className="flex h-11 w-full items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
+                        {invoice.posted_to_ledger ? "Posted" : "Not Posted"}
+                      </div>
+                    </div>
 
                     <div className="md:col-span-3">
                       <div className="text-sm text-white/70">Notes</div>

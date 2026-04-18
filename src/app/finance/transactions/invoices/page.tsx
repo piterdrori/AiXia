@@ -69,7 +69,7 @@ function getRestoredInvoiceStatus(
   previousStatus: string | null | undefined,
   paymentStatus: string | null | undefined,
   dueDate: string | null | undefined
-) {
+): string {
   if (previousStatus && previousStatus !== "archived" && previousStatus !== "deleted") {
     return previousStatus;
   }
@@ -164,9 +164,7 @@ function MetricCard({ metric }: { metric: InvoiceMetricCard }) {
   );
 }
 
-function getDocumentStatusBadgeClasses(
-  status: FinanceIssuedInvoiceListRow["status"]
-) {
+function getDocumentStatusBadgeClasses(status: string) {
   switch (status) {
     case "draft":
       return "border-white/10 bg-white/10 text-white/75";
@@ -359,9 +357,10 @@ export default function FinanceInvoicesPage() {
     };
   }, [isArchiveModalOpen, loadArchivedInvoices, loadInvoices]);
 
-  const permissions = useMemo(() => {
-    if (!role) return null;
-    return getEffectivePermissions(role, permissionOverrides);
+   const canCreateInvoices = useMemo(() => {
+    if (!role) return false;
+    const permissions = getEffectivePermissions(role, permissionOverrides);
+    return !!permissions?.createInvoices;
   }, [permissionOverrides, role]);
 
    const handleArchive = async (id: string) => {
@@ -501,7 +500,9 @@ const handleDelete = async (id: string) => {
   }, [invoices, search]);
 
  const visibleArchivedInvoices = useMemo(() => {
-  return archivedInvoices.filter((invoice) => invoice.status === archiveTab);
+  return archivedInvoices.filter(
+    (invoice) => String(invoice.status) === archiveTab
+  );
 }, [archivedInvoices, archiveTab]);
   
   const metricCards = useMemo<InvoiceMetricCard[]>(() => {

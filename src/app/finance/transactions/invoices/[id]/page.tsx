@@ -1183,13 +1183,81 @@ export default function FinanceInvoiceDetailPage() {
         throw new Error("User not authenticated");
       }
 
+      const selectedCompany =
+        companies.find((company) => company.id === companyIdDraft) ?? null;
+      const selectedClient =
+        clients.find((client) => client.id === clientIdDraft) ?? null;
+      const selectedPaymentTerm =
+        paymentTerms.find((term) => term.id === paymentTermsIdDraft) ?? null;
+      const selectedBankAccount =
+        filteredDraftBankAccounts.find((account) => account.id === bankAccountIdDraft) ?? null;
+      const selectedCurrency =
+        currencies.find((currency) => currency.id === currencyIdDraft) ?? null;
+
+      const companyAddressSnapshot = selectedCompany
+        ? [
+            selectedCompany.address_line_1,
+            selectedCompany.address_line_2,
+            selectedCompany.city,
+            selectedCompany.state_province,
+            selectedCompany.postal_code,
+            selectedCompany.country,
+          ]
+            .filter(Boolean)
+            .join(", ") || null
+        : null;
+
+      const billingAddressSnapshot = selectedClient
+        ? [
+            selectedClient.address_line_1,
+            selectedClient.address_line_2,
+            selectedClient.city,
+            selectedClient.state_province,
+            selectedClient.postal_code,
+            selectedClient.country,
+          ]
+            .filter(Boolean)
+            .join(", ") || null
+        : null;
+
+      const bankDetailsSnapshot =
+        buildBankDetailsSnapshotFromAccount(selectedBankAccount);
+
       const { error: invoiceError } = await supabase
         .from("finance_invoices_issued")
         .update({
+          client_id: clientIdDraft || invoice.client_id,
+          company_id: companyIdDraft || null,
+          project_id: projectIdDraft || null,
+          task_id: taskIdDraft || null,
+          payment_terms_id: paymentTermsIdDraft || null,
+          shipping_term_id: shippingTermIdDraft || null,
+          bank_account_id: bankAccountIdDraft || null,
+          currency_id: currencyIdDraft || null,
+          currency_code: selectedCurrency?.currency_code || invoice.currency_code || null,
           issue_date: issueDateDraft,
           due_date: dueDateDraft,
           notes: notesDraft || null,
+          company_name_snapshot: selectedCompany?.legal_name || selectedCompany?.name || null,
+          company_contact_person_snapshot: selectedCompany?.contact_person || null,
+          company_address_snapshot: companyAddressSnapshot,
+          company_email_snapshot: selectedCompany?.email || null,
+          company_phone_snapshot: selectedCompany?.phone || null,
+          client_name_snapshot: selectedClient?.legal_name || selectedClient?.name || null,
+          client_contact_person_snapshot: selectedClient?.contact_person || null,
+          billing_address_snapshot: billingAddressSnapshot,
+          client_email_snapshot:
+            selectedClient?.company_email || selectedClient?.personnel_email || null,
+          client_phone_snapshot:
+            selectedClient?.company_phone || selectedClient?.personnel_phone || null,
+          payment_terms_snapshot: selectedPaymentTerm?.name || null,
+          shipping_terms_snapshot: selectedDraftShippingTermsLabel || null,
+          bank_details_snapshot: bankDetailsSnapshot,
           updated_by: user.id,
+          metadata: {
+            ...(invoice.metadata || {}),
+            preferred_payment_method_id: paymentMethodIdDraft || null,
+          },
         })
         .eq("id", id)
         .eq("status", "issued");
@@ -1204,7 +1272,29 @@ export default function FinanceInvoiceDetailPage() {
     } finally {
       setIsSavingDraft(false);
     }
-  }, [id, invoice, issueDateDraft, dueDateDraft, notesDraft, loadInvoice]);
+  }, [
+    id,
+    invoice,
+    companyIdDraft,
+    clientIdDraft,
+    projectIdDraft,
+    taskIdDraft,
+    paymentTermsIdDraft,
+    shippingTermIdDraft,
+    bankAccountIdDraft,
+    currencyIdDraft,
+    paymentMethodIdDraft,
+    issueDateDraft,
+    dueDateDraft,
+    notesDraft,
+    companies,
+    clients,
+    paymentTerms,
+    filteredDraftBankAccounts,
+    currencies,
+    selectedDraftShippingTermsLabel,
+    loadInvoice,
+  ]);
 
   
     const handleSaveIssuedPartiesChanges = useCallback(async () => {
@@ -1616,14 +1706,13 @@ export default function FinanceInvoiceDetailPage() {
     bankAccountIdDraft,
     canEditDraft,
     clientIdDraft,
-    clientContactPersonDraft,
     companyIdDraft,
-    companyContactPersonDraft,
     currencyIdDraft,
     dueDateDraft,
     id,
     invoice,
     issueDateDraft,
+    lineItems,
     lineItemsDraft,
     loadInvoice,
     notesDraft,
@@ -1634,6 +1723,10 @@ export default function FinanceInvoiceDetailPage() {
     shippingTermIdDraft,
     taskIdDraft,
     termsAndConditionsDraft,
+    companies,
+    clients,
+    paymentTerms,
+    filteredDraftBankAccounts,
   ]);
 
     const printableInvoice = useMemo(() => {
@@ -2528,31 +2621,20 @@ export default function FinanceInvoiceDetailPage() {
                         </div>
                       </div>
 
-                                           <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+                                            <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                             Terms &amp; Conditions
                           </div>
 
                           <div className="flex items-center gap-2">
-                            {editingParties ? (
-                              <Button
-                                onClick={() => void handleSaveDraftChanges()}
-                                disabled={isSavingDraft}
-                                className="h-9 rounded-2xl px-3"
-                              >
-                                <Save className="mr-2 h-4 w-4" />
-                                {isSavingDraft ? "Saving..." : "Save"}
-                              </Button>
-                            ) : null}
-
                             <Button
                               variant="outline"
-                              onClick={() => setEditingParties((current) => !current)}
+                              onClick={() => setEditingParties(true)}
                               className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
                             >
                               <SquarePen className="mr-2 h-4 w-4" />
-                              {editingParties ? "Close" : "Edit"}
+                              Edit
                             </Button>
                           </div>
                         </div>

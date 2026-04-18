@@ -289,7 +289,9 @@ useEffect(() => {
 
   async function finalizePendingConversion() {
     try {
-      const { error } = await supabase.functions.invoke(
+      setErrorMessage("");
+
+      const { data, error } = await supabase.functions.invoke(
         "finance-payment-received-convert",
         {
           body: {
@@ -304,20 +306,30 @@ useEffect(() => {
 
       if (error) {
         console.error("Pending FX conversion failed:", error);
+        setErrorMessage(error.message || "Pending FX conversion failed.");
+        return;
+      }
+
+      if ((data as { success?: boolean; error?: string } | null)?.success === false) {
+        const message =
+          (data as { success?: boolean; error?: string }).error ||
+          "Pending FX conversion failed.";
+        console.error("Pending FX conversion failed:", message);
+        setErrorMessage(message);
         return;
       }
 
       await loadPayment(true);
     } catch (error) {
       console.error("Pending FX conversion failed:", error);
+      setErrorMessage(
+        error instanceof Error ? error.message : "Pending FX conversion failed."
+      );
     }
   }
 
   void finalizePendingConversion();
-}, [
-  payment,
-  loadPayment,
-]);
+}, [payment, loadPayment]);
 
     useEffect(() => {
     async function loadLookups() {
@@ -1093,8 +1105,10 @@ const { error: fxError } = await supabase.functions.invoke(
                     FX Source
                   </div>
                   <div className="mt-2 text-base font-semibold text-white">
-  {payment.exchange_rate_source === "pending_backend_conversion"
+  {payment.exchange_rate_source === "pending_backend_conversion" && !errorMessage
     ? "Pending backend conversion"
+    : payment.exchange_rate_source === "pending_backend_conversion" && errorMessage
+    ? "Conversion failed"
     : payment.exchange_rate_source || "—"}
 </div>
                 </div>

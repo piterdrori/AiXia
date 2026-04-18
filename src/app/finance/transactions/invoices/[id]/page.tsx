@@ -1097,6 +1097,10 @@ export default function FinanceInvoiceDetailPage() {
 
       const selectedCompany =
         companies.find((company) => company.id === companyIdDraft) ?? null;
+      const selectedClient =
+        clients.find((client) => client.id === clientIdDraft) ?? null;
+      const selectedPaymentTerm =
+        paymentTerms.find((term) => term.id === paymentTermsIdDraft) ?? null;
       const selectedBankAccount =
         filteredDraftBankAccounts.find((account) => account.id === bankAccountIdDraft) ?? null;
       const selectedCurrency =

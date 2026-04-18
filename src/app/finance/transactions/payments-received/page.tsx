@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
   BadgeCheck,
   FileCheck2,
+  MoreVertical,
   Plus,
   Receipt,
   RefreshCw,
@@ -30,7 +31,15 @@ import {
   type Permission,
   type Role,
 } from "@/lib/permissions";
-import { getPaymentsReceived } from "@/lib/finance/paymentsReceived";
+
+import {
+  getPaymentsReceived,
+  getPaymentsReceivedArchiveList,
+  archivePaymentReceived,
+  softDeletePaymentReceived,
+  restorePaymentReceived,
+  permanentlyDeletePaymentReceived,
+} from "@/lib/finance/paymentsReceived";
 
 type ProfilePermissionRow = {
   role: Role;
@@ -221,6 +230,15 @@ export default function PaymentsReceivedPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [payments, setPayments] = useState<PaymentReceivedListRow[]>([]);
   const [search, setSearch] = useState("");
+  const [openMenuPaymentId, setOpenMenuPaymentId] = useState<string | null>(null);
+
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+  const [archiveTab, setArchiveTab] = useState<"archived" | "deleted">("archived");
+  const [archivedPayments, setArchivedPayments] = useState<PaymentReceivedListRow[]>([]);
+  const [isArchiveLoading, setIsArchiveLoading] = useState(false);
+  
   const [role, setRole] = useState<Role | null>(null);
   const [permissionOverrides, setPermissionOverrides] = useState<
     Partial<Record<Permission, boolean>> | null
@@ -273,18 +291,53 @@ export default function PaymentsReceivedPage() {
     }
   }, []);
 
+  const loadArchivedPayments = useCallback(async () => {
+  setIsArchiveLoading(true);
+
+  try {
+    const rows = (await getPaymentsReceivedArchiveList()) as PaymentReceivedListRow[];
+    setArchivedPayments(rows);
+  } catch (error) {
+    console.error("Failed to load archived payments:", error);
+    setArchivedPayments([]);
+  } finally {
+    setIsArchiveLoading(false);
+  }
+}, []);
+
   useEffect(() => {
     void Promise.all([loadPermissions(), loadPayments()]);
   }, [loadPayments, loadPermissions]);
 
+ useEffect(() => {
+  function handleDocumentClick(event: MouseEvent) {
+    if (!actionsMenuRef.current) return;
+
+    if (!actionsMenuRef.current.contains(event.target as Node)) {
+      setOpenMenuPaymentId(null);
+    }
+  }
+
+  document.addEventListener("mousedown", handleDocumentClick);
+
+  return () => {
+    document.removeEventListener("mousedown", handleDocumentClick);
+  };
+}, []);
+  
   useEffect(() => {
     const channel = supabase
       .channel("finance-payments-received-list")
       .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "finance_payments_received" },
-        () => void loadPayments(true)
-      )
+  "postgres_changes",
+  { event: "*", schema: "public", table: "finance_payments_received" },
+  () => {
+    void loadPayments(true);
+    if (isArchiveModalOpen) {
+      void loadArchivedPayments();
+    }
+  }
+)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_record_attachments" },
@@ -300,7 +353,7 @@ export default function PaymentsReceivedPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loadPayments]);
+  }, [loadPayments, isArchiveModalOpen, loadArchivedPayments]);
 
   const permissions = useMemo(() => {
     if (!role) return null;
@@ -334,6 +387,12 @@ export default function PaymentsReceivedPage() {
     });
   }, [payments, search]);
 
+  const visibleArchivedPayments = useMemo(() => {
+  return archivedPayments.filter(
+    (p) => String(p.status) === archiveTab
+  );
+}, [archivedPayments, archiveTab]);
+  
   const metricCards = useMemo<PaymentMetricCard[]>(() => {
     const totalPayments = payments.length;
     const draftPayments = payments.filter((row) => row.status === "draft").length;
@@ -467,6 +526,17 @@ export default function PaymentsReceivedPage() {
                     New Payment
                   </Button>
                 ) : null}
+                <Button
+  variant="outline"
+  onClick={() => {
+    setArchiveTab("archived");
+    setIsArchiveModalOpen(true);
+    loadArchivedPayments();
+  }}
+  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+>
+  Archive
+</Button>
               </div>
             </div>
 
@@ -593,64 +663,90 @@ export default function PaymentsReceivedPage() {
                           </div>
                         </div>
 
-                        <div className="flex shrink-0 items-center gap-2 pl-2">
+<div className="flex shrink-0 items-center gap-3 pl-2">
   <div className="hidden text-xs text-white/30 transition-colors duration-200 group-hover:text-white/55 sm:block">
     {formatFinanceDate(payment.payment_date)}
   </div>
 
-  <button
-    type="button"
-    onClick={(event) => {
-      event.stopPropagation();
-      navigate(`/finance/transactions/payments-received/${payment.id}`);
-    }}
-    className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/75 transition hover:bg-white/10"
+  <div
+    className="relative"
+    ref={openMenuPaymentId === payment.id ? actionsMenuRef : null}
   >
-    Open
-  </button>
-
-  {payment.status === "draft" ? (
     <button
       type="button"
       onClick={(event) => {
         event.stopPropagation();
-        navigate(`/finance/transactions/payments-received/${payment.id}`);
-      }}
-      className="rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200 transition hover:bg-cyan-500/20"
-    >
-      Edit
-    </button>
-  ) : null}
-
-  {payment.status === "draft" || payment.status === "cancelled" ? (
-    <button
-      type="button"
-      onClick={async (event) => {
-        event.stopPropagation();
-
-        const confirmed = window.confirm(
-          "Are you sure you want to delete this payment record?"
+        setOpenMenuPaymentId((current) =>
+          current === payment.id ? null : payment.id
         );
-
-        if (!confirmed) return;
-
-        const { error } = await supabase
-          .from("finance_payments_received")
-          .delete()
-          .eq("id", payment.id);
-
-        if (error) {
-          console.error("Failed to delete payment:", error);
-          return;
-        }
-
-        await loadPayments(true);
       }}
-      className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-200 transition hover:bg-rose-500/20"
+      className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
     >
-      Delete
+      <MoreVertical className="h-4 w-4" />
     </button>
-  ) : null}
+
+    {openMenuPaymentId === payment.id ? (
+      <div className="absolute right-0 z-20 mt-2 w-40 overflow-hidden rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-xl">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpenMenuPaymentId(null);
+            navigate(`/finance/transactions/payments-received/${payment.id}`);
+          }}
+          className="w-full px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10"
+        >
+          Open
+        </button>
+
+        {payment.status === "draft" ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setOpenMenuPaymentId(null);
+              navigate(`/finance/transactions/payments-received/${payment.id}`);
+            }}
+            className="w-full px-3 py-2 text-left text-sm text-cyan-200 hover:bg-white/10"
+          >
+            Edit
+          </button>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={async (event) => {
+            event.stopPropagation();
+            setOpenMenuPaymentId(null);
+            await archivePaymentReceived(payment.id);
+            await loadPayments(true);
+            if (isArchiveModalOpen) {
+              await loadArchivedPayments();
+            }
+          }}
+          className="w-full px-3 py-2 text-left text-sm text-amber-300 hover:bg-white/10"
+        >
+          Archive
+        </button>
+
+        <button
+          type="button"
+          onClick={async (event) => {
+            event.stopPropagation();
+            setOpenMenuPaymentId(null);
+            await softDeletePaymentReceived(payment.id);
+            await loadPayments(true);
+            if (isArchiveModalOpen) {
+              await loadArchivedPayments();
+            }
+          }}
+          className="w-full px-3 py-2 text-left text-sm text-rose-400 hover:bg-white/10"
+        >
+          Delete
+        </button>
+      </div>
+    ) : null}
+  </div>
 
   <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
 </div>
@@ -662,6 +758,170 @@ export default function PaymentsReceivedPage() {
             </CardContent>
           </Card>
         </section>
+        {isArchiveModalOpen ? (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+    <div className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+      <div className="flex items-center justify-between border-b border-white/8 px-6 py-5">
+        <div>
+  <div className="text-lg font-semibold text-white">Archive</div>
+  <div className="mt-1 text-sm text-white/45">
+    Archived and deleted payment records removed from the active registry.
+  </div>
+</div>
+
+<button
+  type="button"
+  onClick={() => setIsArchiveModalOpen(false)}
+  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 hover:bg-white/10"
+>
+  Close
+</button>
+      </div>
+
+     <div className="flex items-center gap-2 border-b border-white/8 px-6 py-4">
+  <button
+    type="button"
+    onClick={async () => {
+      setArchiveTab("archived");
+      await loadArchivedPayments();
+    }}
+    className={`rounded-xl px-4 py-2 text-sm transition ${
+      archiveTab === "archived"
+        ? "bg-white/10 text-white"
+        : "text-white/55 hover:bg-white/5 hover:text-white/80"
+    }`}
+  >
+    Archived
+  </button>
+
+  <button
+    type="button"
+    onClick={async () => {
+      setArchiveTab("deleted");
+      await loadArchivedPayments();
+    }}
+    className={`rounded-xl px-4 py-2 text-sm transition ${
+      archiveTab === "deleted"
+        ? "bg-rose-500/15 text-rose-200"
+        : "text-white/55 hover:bg-white/5 hover:text-white/80"
+    }`}
+  >
+    Deleted
+  </button>
+</div>
+
+    <div className="overflow-y-auto p-6">
+  {isArchiveLoading ? (
+    <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
+      Loading archive...
+    </div>
+  ) : visibleArchivedPayments.length === 0 ? (
+    <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
+      No {archiveTab} payments found.
+    </div>
+  ) : (
+    <div className="space-y-3">
+      {visibleArchivedPayments.map((p) => (
+        <div
+          key={p.id}
+          className="flex items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-4"
+        >
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="text-base font-semibold text-white">
+                {p.reference_number || "Payment Record"}
+              </div>
+
+              <Badge
+                className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getPaymentStatusBadgeClasses(
+                  p.status
+                )}`}
+              >
+                {getPaymentStatusLabel(p.status)}
+              </Badge>
+
+              <Badge
+                className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getCurrencyBadgeClasses(
+                  p.payment_currency_code,
+                  p.invoice_currency_code
+                )}`}
+              >
+                {getCurrencyBadgeLabel(
+                  p.payment_currency_code,
+                  p.invoice_currency_code
+                )}
+              </Badge>
+            </div>
+
+            <div className="mt-2 text-sm text-white/70">
+              {p.client_name || "—"}
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-white/45 md:grid-cols-4">
+              <div>Invoice: {p.invoice_number || "—"}</div>
+              <div>
+                Paid:{" "}
+                {formatFinanceMoney(
+                  p.amount,
+                  p.payment_currency_code || "USD"
+                )}
+              </div>
+              <div>
+                Converted:{" "}
+                {formatFinanceMoney(
+                  p.converted_amount ?? p.amount ?? 0,
+                  p.invoice_currency_code || "USD"
+                )}
+              </div>
+              <div>Date: {formatFinanceDate(p.payment_date)}</div>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                navigate(`/finance/transactions/payments-received/${p.id}`)
+              }
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
+            >
+              Open
+            </button>
+
+            <button
+              type="button"
+              onClick={async () => {
+                await restorePaymentReceived(p.id);
+                await loadArchivedPayments();
+                await loadPayments(true);
+              }}
+              className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-500/20"
+            >
+              Restore
+            </button>
+
+            {archiveTab === "deleted" ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  await permanentlyDeletePaymentReceived(p.id);
+                  await loadArchivedPayments();
+                  await loadPayments(true);
+                }}
+                className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/20"
+              >
+                Hard Delete
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
+    </div>
+  </div>
+) : null}
       </div>
     </div>
   );

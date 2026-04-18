@@ -192,37 +192,43 @@ export default function NewPaymentReceivedPage() {
       }
 
      const created = await createPaymentReceived({
-        invoice_id: selectedInvoice.id,
-        client_id: selectedInvoice.client_id,
-        amount: numericAmount,
-        payment_date: paymentDate,
-        reference_number: referenceNumber || null,
-        payment_method_id: paymentMethodId || null,
-        notes: notes || null,
-        payment_currency_code: paymentCurrencyCode,
-        created_by: user.id,
-        updated_by: user.id,
-        posted_to_ledger: false,
-        metadata: {
-          creation_mode: "manual_draft",
-          proof_required_before_confirmation: true,
-        },
-      });
+  invoice_id: selectedInvoice.id,
+  client_id: selectedInvoice.client_id,
+  amount: numericAmount,
+  payment_date: paymentDate,
+  reference_number: referenceNumber || null,
+  payment_method_id: paymentMethodId || null,
+  notes: notes || null,
+  payment_currency_code: paymentCurrencyCode,
+  invoice_currency_code: selectedInvoice.currency_code || null,
+  created_by: user.id,
+  updated_by: user.id,
+  posted_to_ledger: false,
+  metadata: {
+    creation_mode: "manual_draft",
+    proof_required_before_confirmation: true,
+  },
+});
 
-      const { error: fxError } = await supabase.functions.invoke(
-        "finance-payment-received-convert",
-        {
-          body: { payment_id: created.id },
-        }
-      );
+const { error: fxError } = await supabase.functions.invoke(
+  "finance-payment-received-convert",
+  {
+    body: {
+      payment_id: created.id,
+      amount: numericAmount,
+      payment_currency_code: paymentCurrencyCode,
+      invoice_id: selectedInvoice.id,
+      payment_date: paymentDate,
+    },
+  }
+);
 
-      if (fxError) {
-        throw new Error(fxError.message);
-      }
+if (fxError) {
+  console.error("FX conversion failed:", fxError);
+}
 
-      navigate(`/finance/transactions/payments-received/${created.id}`);
-
-      navigate(`/finance/transactions/payments-received/${created.id}`);
+navigate(`/finance/transactions/payments-received/${created.id}`);
+      
     } catch (error) {
       console.error("Failed to create payment received:", error);
       setErrorMessage(

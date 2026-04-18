@@ -2161,14 +2161,56 @@ shipping_terms_snapshot:
               </CardHeader>
 
               <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                              {invoice.status === "draft" ? (
+                            {invoice.status === "draft" ? (
   <>
     <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
       <div className="text-xs uppercase tracking-[0.18em] text-white/35">
         Issuing Company
       </div>
-      <div className="mt-3 text-sm text-white/75">
-        {selectedDraftCompany?.legal_name || selectedDraftCompany?.name || "—"}
+      <div className="mt-3 space-y-2 text-sm text-white/75">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Legal Name
+          </div>
+          <div className="mt-1 font-semibold text-white">
+            {selectedDraftCompany?.legal_name || selectedDraftCompany?.name || "—"}
+          </div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Contact Person
+          </div>
+          <div className="mt-1">{selectedDraftCompany?.contact_person || "—"}</div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Email
+          </div>
+          <div className="mt-1">{selectedDraftCompany?.email || "—"}</div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Phone
+          </div>
+          <div className="mt-1">{selectedDraftCompany?.phone || "—"}</div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Primary Address
+          </div>
+          <div className="mt-1 leading-6">
+            {[
+              selectedDraftCompany?.address_line_1,
+              selectedDraftCompany?.address_line_2,
+              selectedDraftCompany?.city,
+              selectedDraftCompany?.state_province,
+              selectedDraftCompany?.postal_code,
+              selectedDraftCompany?.country,
+            ]
+              .filter(Boolean)
+              .join(", ") || "—"}
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2176,33 +2218,191 @@ shipping_terms_snapshot:
       <div className="text-xs uppercase tracking-[0.18em] text-white/35">
         Client
       </div>
-      <div className="mt-3 text-sm text-white/75">
-        {selectedDraftClient?.legal_name || selectedDraftClient?.name || "—"}
+      <div className="mt-3 space-y-2 text-sm text-white/75">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Legal Name
+          </div>
+          <div className="mt-1 font-semibold text-white">
+            {selectedDraftClient?.legal_name || selectedDraftClient?.name || "—"}
+          </div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Contact Person
+          </div>
+          <div className="mt-1">{selectedDraftClient?.contact_person || "—"}</div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Email
+          </div>
+          <div className="mt-1">
+            {selectedDraftClient?.company_email ||
+              selectedDraftClient?.personnel_email ||
+              "—"}
+          </div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Phone
+          </div>
+          <div className="mt-1">
+            {selectedDraftClient?.company_phone ||
+              selectedDraftClient?.personnel_phone ||
+              "—"}
+          </div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Primary Address
+          </div>
+          <div className="mt-1 leading-6">
+            {[
+              selectedDraftClient?.address_line_1,
+              selectedDraftClient?.address_line_2,
+              selectedDraftClient?.city,
+              selectedDraftClient?.state_province,
+              selectedDraftClient?.postal_code,
+              selectedDraftClient?.country,
+            ]
+              .filter(Boolean)
+              .join(", ") || "—"}
+          </div>
+        </div>
       </div>
     </div>
 
     <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
       <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-        Terms & Conditions
+        Terms &amp; Conditions
       </div>
-      <textarea
-        value={termsAndConditionsDraft}
-        onChange={(e) => setTermsAndConditionsDraft(e.target.value)}
-        rows={6}
-        className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-white"
-      />
+      <div className="mt-3 space-y-4 text-sm text-white/75">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Payment Terms
+          </div>
+          <div className="mt-1">{selectedDraftPaymentTerm?.name || "—"}</div>
+        </div>
+
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Shipping Terms
+          </div>
+          <div className="mt-1">{selectedDraftShippingTermsLabel || "—"}</div>
+        </div>
+
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Preferred Payment Method
+          </div>
+          <div className="mt-1">{selectedDraftPaymentMethod?.name || "—"}</div>
+        </div>
+
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Terms and Conditions
+          </div>
+          <textarea
+            value={termsAndConditionsDraft}
+            onChange={(e) => setTermsAndConditionsDraft(e.target.value)}
+            rows={6}
+            className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-white"
+          />
+        </div>
+      </div>
     </div>
 
-    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
-      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-        Bank Details
-      </div>
-      <div className="mt-3 text-sm text-white/75">
-        {resolvedBankDetailsLines.length > 0
-          ? resolvedBankDetailsLines.map((line, i) => <div key={i}>{line}</div>)
-          : "—"}
-      </div>
-    </div>
+   <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+    Bank Details
+  </div>
+
+  <div className="mt-3 space-y-2 text-sm text-white/75">
+    {selectedDraftBankAccount ? (
+      <>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Beneficiary
+          </div>
+          <div className="mt-1">
+            {selectedDraftBankAccount.beneficiary_name ||
+              selectedDraftCompany?.legal_name ||
+              selectedDraftCompany?.name ||
+              "—"}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Beneficiary Bank Name
+          </div>
+          <div className="mt-1">{selectedDraftBankAccount.bank_name || "—"}</div>
+        </div>
+
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Beneficiary Bank Address
+          </div>
+          <div className="mt-1 leading-6">
+            {selectedDraftBankAccount.bank_address ||
+              [
+                selectedDraftBankAccount.address_line_1,
+                selectedDraftBankAccount.address_line_2,
+                selectedDraftBankAccount.city,
+                selectedDraftBankAccount.postal_code,
+                selectedDraftBankAccount.country,
+              ]
+                .filter(Boolean)
+                .join(", ") ||
+              "—"}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Bank Account
+          </div>
+          <div className="mt-1">{selectedDraftBankAccount.account_number || "—"}</div>
+        </div>
+
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            IBAN
+          </div>
+          <div className="mt-1">{selectedDraftBankAccount.iban || "—"}</div>
+        </div>
+
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            SWIFT Code
+          </div>
+          <div className="mt-1">
+            {selectedDraftBankAccount.swift_code ||
+              (selectedDraftBankAccount.account_identifier_type === "swift"
+                ? selectedDraftBankAccount.account_identifier_value
+                : "") ||
+              "—"}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+            Currency
+          </div>
+          <div className="mt-1">
+            {selectedDraftBankAccount.currency_code ||
+              selectedDraftCurrency?.currency_code ||
+              invoice.currency_code ||
+              "—"}
+          </div>
+        </div>
+      </>
+    ) : (
+      <div>—</div>
+    )}
+  </div>
+</div>
   </>
 ) : (
                   <>

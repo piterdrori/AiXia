@@ -526,17 +526,16 @@ export default function PaymentsReceivedPage() {
                       payment.converted_amount ?? payment.amount ?? 0;
 
                     return (
-                      <button
-                        key={payment.id}
-                        type="button"
-                        onClick={() =>
-                          navigate(
-                            `/finance/transactions/payments-received/${payment.id}`
-                          )
-                        }
-                        className="group flex w-full items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
-                      >
-                        <div className="min-w-0 flex-1">
+                     <div
+  key={payment.id}
+  onClick={() =>
+    navigate(
+      `/finance/transactions/payments-received/${payment.id}`
+    )
+  }
+  className="group flex w-full items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
+>
+                        <div className="min-w-0 flex-1 cursor-pointer">
                           <div className="flex flex-wrap items-center gap-2">
                             <div className="text-base font-semibold text-white">
                               {payment.reference_number || "Payment Record"}
@@ -594,13 +593,68 @@ export default function PaymentsReceivedPage() {
                           </div>
                         </div>
 
-                        <div className="flex shrink-0 items-center gap-3 pl-2">
-                          <div className="hidden text-xs text-white/30 transition-colors duration-200 group-hover:text-white/55 sm:block">
-                            {formatFinanceDate(payment.payment_date)}
-                          </div>
-                          <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
-                        </div>
-                      </button>
+                        <div className="flex shrink-0 items-center gap-2 pl-2">
+  <div className="hidden text-xs text-white/30 transition-colors duration-200 group-hover:text-white/55 sm:block">
+    {formatFinanceDate(payment.payment_date)}
+  </div>
+
+  <button
+    type="button"
+    onClick={(event) => {
+      event.stopPropagation();
+      navigate(`/finance/transactions/payments-received/${payment.id}`);
+    }}
+    className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/75 transition hover:bg-white/10"
+  >
+    Open
+  </button>
+
+  {payment.status === "draft" ? (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        navigate(`/finance/transactions/payments-received/${payment.id}`);
+      }}
+      className="rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200 transition hover:bg-cyan-500/20"
+    >
+      Edit
+    </button>
+  ) : null}
+
+  {payment.status === "draft" || payment.status === "cancelled" ? (
+    <button
+      type="button"
+      onClick={async (event) => {
+        event.stopPropagation();
+
+        const confirmed = window.confirm(
+          "Are you sure you want to delete this payment record?"
+        );
+
+        if (!confirmed) return;
+
+        const { error } = await supabase
+          .from("finance_payments_received")
+          .delete()
+          .eq("id", payment.id);
+
+        if (error) {
+          console.error("Failed to delete payment:", error);
+          return;
+        }
+
+        await loadPayments(true);
+      }}
+      className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-200 transition hover:bg-rose-500/20"
+    >
+      Delete
+    </button>
+  ) : null}
+
+  <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
+</div>
+                     </div>
                     );
                   })}
                 </div>

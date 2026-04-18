@@ -1080,133 +1080,47 @@ export default function FinanceInvoiceDetailPage() {
   }, []);
   
   
-  const handleSaveIssuedOverviewChanges = useCallback(async () => {
-    if (!invoice || !id || invoice.status !== "issued") return;
+ const handleSaveIssuedOverviewChanges = useCallback(async () => {
+  if (!invoice || !id || invoice.status !== "issued") return;
 
-    setIsSavingDraft(true);
-    setError("");
+  setIsSavingDraft(true);
+  setError("");
 
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (!user?.id) {
-        throw new Error("User not authenticated");
-      }
-
-      const selectedCompany =
-        companies.find((company) => company.id === companyIdDraft) ?? null;
-      const selectedClient =
-        clients.find((client) => client.id === clientIdDraft) ?? null;
-      const selectedPaymentTerm =
-        paymentTerms.find((term) => term.id === paymentTermsIdDraft) ?? null;
-      const selectedBankAccount =
-        filteredDraftBankAccounts.find((account) => account.id === bankAccountIdDraft) ?? null;
-      const selectedCurrency =
-        currencies.find((currency) => currency.id === currencyIdDraft) ?? null;
-
-      const companyAddressSnapshot = selectedCompany
-        ? [
-            selectedCompany.address_line_1,
-            selectedCompany.address_line_2,
-            selectedCompany.city,
-            selectedCompany.state_province,
-            selectedCompany.postal_code,
-            selectedCompany.country,
-          ]
-            .filter(Boolean)
-            .join(", ") || null
-        : null;
-
-      const billingAddressSnapshot = selectedClient
-        ? [
-            selectedClient.address_line_1,
-            selectedClient.address_line_2,
-            selectedClient.city,
-            selectedClient.state_province,
-            selectedClient.postal_code,
-            selectedClient.country,
-          ]
-            .filter(Boolean)
-            .join(", ") || null
-        : null;
-
-      const bankDetailsSnapshot =
-        buildBankDetailsSnapshotFromAccount(selectedBankAccount);
-
-      const { error: invoiceError } = await supabase
-        .from("finance_invoices_issued")
-        .update({
-          client_id: clientIdDraft || invoice.client_id,
-          company_id: companyIdDraft || null,
-          project_id: projectIdDraft || null,
-          task_id: taskIdDraft || null,
-          payment_terms_id: paymentTermsIdDraft || null,
-          shipping_term_id: shippingTermIdDraft || null,
-          bank_account_id: bankAccountIdDraft || null,
-          currency_id: currencyIdDraft || null,
-          currency_code: selectedCurrency?.currency_code || invoice.currency_code || null,
-          issue_date: issueDateDraft,
-          due_date: dueDateDraft,
-          notes: notesDraft || null,
-          company_name_snapshot: selectedCompany?.legal_name || selectedCompany?.name || null,
-          company_contact_person_snapshot: selectedCompany?.contact_person || null,
-          company_address_snapshot: companyAddressSnapshot,
-          company_email_snapshot: selectedCompany?.email || null,
-          company_phone_snapshot: selectedCompany?.phone || null,
-          client_name_snapshot: selectedClient?.legal_name || selectedClient?.name || null,
-          client_contact_person_snapshot: selectedClient?.contact_person || null,
-          billing_address_snapshot: billingAddressSnapshot,
-          client_email_snapshot:
-            selectedClient?.company_email || selectedClient?.personnel_email || null,
-          client_phone_snapshot:
-            selectedClient?.company_phone || selectedClient?.personnel_phone || null,
-          payment_terms_snapshot: selectedPaymentTerm?.name || null,
-          shipping_terms_snapshot: selectedDraftShippingTermsLabel || null,
-          bank_details_snapshot: bankDetailsSnapshot,
-          updated_by: user.id,
-          metadata: {
-            ...(invoice.metadata || {}),
-            preferred_payment_method_id: paymentMethodIdDraft || null,
-          },
-        })
-        .eq("id", id)
-        .eq("status", "issued");
-
-      if (invoiceError) throw invoiceError;
-
-      setEditingOverview(false);
-      await loadInvoice(true);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to save issued invoice overview changes.");
-    } finally {
-      setIsSavingDraft(false);
+    if (!user?.id) {
+      throw new Error("User not authenticated");
     }
-  }, [
-    id,
-    invoice,
-    companyIdDraft,
-    clientIdDraft,
-    projectIdDraft,
-    taskIdDraft,
-    paymentTermsIdDraft,
-    shippingTermIdDraft,
-    bankAccountIdDraft,
-    currencyIdDraft,
-    paymentMethodIdDraft,
-    issueDateDraft,
-    dueDateDraft,
-    notesDraft,
-    companies,
-    clients,
-    paymentTerms,
-    filteredDraftBankAccounts,
-    currencies,
-    selectedDraftShippingTermsLabel,
-    loadInvoice,
-  ]);
+
+    const { error: invoiceError } = await supabase
+      .from("finance_invoices_issued")
+      .update({
+        issue_date: issueDateDraft,
+        due_date: dueDateDraft,
+        notes: notesDraft || null,
+        updated_by: user.id,
+      })
+      .eq("id", id)
+      .eq("status", "issued");
+
+    if (invoiceError) throw invoiceError;
+
+    setEditingOverview(false);
+    await loadInvoice(true);
+  } catch (err: any) {
+    console.error(err);
+    setError(
+      err?.message ||
+        err?.details ||
+        "Failed to save issued invoice overview changes."
+    );
+  } finally {
+    setIsSavingDraft(false);
+  }
+}, [id, invoice, issueDateDraft, dueDateDraft, notesDraft, loadInvoice]);
 
   
     const handleSaveIssuedPartiesChanges = useCallback(async () => {

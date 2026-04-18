@@ -408,9 +408,10 @@ const { error: fxError } = await supabase.functions.invoke(
   }
 );
 
-    if (fxError) {
-      throw new Error(fxError.message);
-    }
+   if (fxError) {
+  console.error("FX conversion failed:", fxError);
+  // DO NOT BLOCK SAVE
+}
 
     // 3. RELOAD UPDATED PAYMENT
     await loadPayment();

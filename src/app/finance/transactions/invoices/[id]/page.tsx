@@ -1387,7 +1387,7 @@ export default function FinanceInvoiceDetailPage() {
     setIsSavingDraft(true);
     setError("");
 
-        const cleanedLineItems = lineItemsDraft.map((row) => ({
+    const cleanedLineItems = lineItemsDraft.map((row) => ({
       ...row,
       description: row.description.trim(),
     }));
@@ -1421,34 +1421,13 @@ export default function FinanceInvoiceDetailPage() {
     }
 
     try {
-            const {
+      const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (!user?.id) {
         throw new Error("User not authenticated");
       }
-
-      const selectedCompany =
-        companies.find((company) => company.id === companyIdDraft) ?? null;
-      const selectedBankAccount =
-        filteredDraftBankAccounts.find((account) => account.id === bankAccountIdDraft) ?? null;
-
-      const companyAddressSnapshot = selectedCompany
-        ? [
-            selectedCompany.address_line_1,
-            selectedCompany.address_line_2,
-            selectedCompany.city,
-            selectedCompany.state_province,
-            selectedCompany.postal_code,
-            selectedCompany.country,
-          ]
-            .filter(Boolean)
-            .join(", ") || null
-        : null;
-
-               const bankDetailsSnapshot =
-        buildBankDetailsSnapshotFromAccount(selectedBankAccount);
 
       const { error: invoiceError } = await supabase
         .from("finance_invoices_issued")
@@ -1464,7 +1443,7 @@ export default function FinanceInvoiceDetailPage() {
           issue_date: issueDateDraft,
           due_date: dueDateDraft,
           notes: notesDraft || null,
-         terms_and_conditions_snapshot: termsAndConditionsDraft || null,
+          terms_and_conditions_snapshot: termsAndConditionsDraft || null,
           updated_by: user.id,
           metadata: {
             ...(invoice as any).metadata,
@@ -1476,7 +1455,7 @@ export default function FinanceInvoiceDetailPage() {
 
       if (invoiceError) throw invoiceError;
 
-             const existingIds = lineItems.map((entry) => entry.id);
+      const existingIds = lineItems.map((entry) => entry.id);
       const draftIds = cleanedLineItems
         .filter((entry) => !entry.id.startsWith("new_"))
         .map((entry) => entry.id);
@@ -1579,12 +1558,7 @@ export default function FinanceInvoiceDetailPage() {
     shippingTermIdDraft,
     taskIdDraft,
     termsAndConditionsDraft,
-    companies,
-    clients,
-    paymentTerms,
-    filteredDraftBankAccounts,
   ]);
-
     const printableInvoice = useMemo(() => {
     if (!invoice) return invoice;
 

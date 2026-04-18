@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Search,
   Wallet,
+  MoreVertical,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -194,6 +195,10 @@ export default function FinanceInvoicesPage() {
     Partial<Record<Permission, boolean>> | null
   >(null);
 
+  const [openMenuInvoiceId, setOpenMenuInvoiceId] = useState<string | null>(null);
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
+
+
   const loadPermissions = useCallback(async () => {
     const {
       data: { user },
@@ -245,6 +250,22 @@ export default function FinanceInvoicesPage() {
     void Promise.all([loadPermissions(), loadInvoices()]);
   }, [loadInvoices, loadPermissions]);
 
+ useEffect(() => {
+  function handleDocumentClick(event: MouseEvent) {
+    if (!actionsMenuRef.current) return;
+
+    if (!actionsMenuRef.current.contains(event.target as Node)) {
+      setOpenMenuInvoiceId(null);
+    }
+  }
+
+  document.addEventListener("mousedown", handleDocumentClick);
+
+  return () => {
+    document.removeEventListener("mousedown", handleDocumentClick);
+  };
+}, []);
+  
   useEffect(() => {
     const channel = supabase
       .channel("finance-issued-invoices-list")
@@ -270,7 +291,25 @@ export default function FinanceInvoicesPage() {
     return getEffectivePermissions(role, permissionOverrides);
   }, [permissionOverrides, role]);
 
-  const canCreateInvoices = !!permissions?.createInvoices;
+  const handleArchive = async (id: string) => {
+  await supabase
+    .from("finance_invoices_issued")
+    .update({ status: "archived" })
+    .eq("id", id);
+
+  setOpenMenuInvoiceId(null);
+  await loadInvoices(true);
+};
+
+const handleDelete = async (id: string) => {
+  await supabase
+    .from("finance_invoices_issued")
+    .update({ status: "deleted" })
+    .eq("id", id);
+
+  setOpenMenuInvoiceId(null);
+  await loadInvoices(true);
+};
 
   const filteredInvoices = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -555,11 +594,69 @@ export default function FinanceInvoicesPage() {
                         </div>
 
                         <div className="flex shrink-0 items-center gap-3 pl-2">
-                          <div className="hidden text-xs text-white/30 transition-colors duration-200 group-hover:text-white/55 sm:block">
-                            {formatFinanceDate(invoice.created_at)}
-                          </div>
-                          <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
-                        </div>
+  <div className="hidden text-xs text-white/30 transition-colors duration-200 group-hover:text-white/55 sm:block">
+    {formatFinanceDate(invoice.created_at)}
+  </div>
+
+  {/* ACTION MENU */}
+<div
+  className="relative"
+  ref={openMenuInvoiceId === invoice.id ? actionsMenuRef : null}
+>
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      setOpenMenuInvoiceId((current) =>
+        current === invoice.id ? null : invoice.id
+      );
+    }}
+    className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
+  >
+    <MoreVertical className="h-4 w-4" />
+  </button>
+
+  {openMenuInvoiceId === invoice.id ? (
+    <div className="absolute right-0 z-20 mt-2 w-40 overflow-hidden rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-xl">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpenMenuInvoiceId(null);
+          navigate(`/finance/transactions/invoices/${invoice.id}`);
+        }}
+        className="w-full px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10"
+      >
+        Edit
+      </button>
+
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          void handleArchive(invoice.id);
+        }}
+        className="w-full px-3 py-2 text-left text-sm text-amber-300 hover:bg-white/10"
+      >
+        Archive
+      </button>
+
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          void handleDelete(invoice.id);
+        }}
+        className="w-full px-3 py-2 text-left text-sm text-rose-400 hover:bg-white/10"
+      >
+        Delete
+      </button>
+    </div>
+  ) : null}
+</div>
+
+  <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
+</div>
                       </button>
                     );
                   })}

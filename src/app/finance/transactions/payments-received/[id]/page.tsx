@@ -394,12 +394,19 @@ useEffect(() => {
     });
 
     // 2. CALL BACKEND FX CONVERSION
-    const { error: fxError } = await supabase.functions.invoke(
-      "finance-payment-received-convert",
-      {
-        body: { payment_id: payment.id },
-      }
-    );
+    const {
+  data: { session },
+} = await supabase.auth.getSession();
+
+const { error: fxError } = await supabase.functions.invoke(
+  "finance-payment-received-convert",
+  {
+    body: { payment_id: payment.id },
+    headers: {
+      Authorization: `Bearer ${session?.access_token}`,
+    },
+  }
+);
 
     if (fxError) {
       throw new Error(fxError.message);

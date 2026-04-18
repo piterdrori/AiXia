@@ -2498,10 +2498,35 @@ export default function FinanceInvoiceDetailPage() {
                         </div>
                       </div>
 
-                      <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                          Terms &amp; Conditions
+                                           <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                            Terms &amp; Conditions
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {editingParties ? (
+                              <Button
+                                onClick={() => void handleSaveDraftChanges()}
+                                disabled={isSavingDraft}
+                                className="h-9 rounded-2xl px-3"
+                              >
+                                <Save className="mr-2 h-4 w-4" />
+                                {isSavingDraft ? "Saving..." : "Save"}
+                              </Button>
+                            ) : null}
+
+                            <Button
+                              variant="outline"
+                              onClick={() => setEditingParties((current) => !current)}
+                              className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+                            >
+                              <SquarePen className="mr-2 h-4 w-4" />
+                              {editingParties ? "Close" : "Edit"}
+                            </Button>
+                          </div>
                         </div>
+
                         <div className="mt-3 space-y-4 text-sm text-white/75">
                           <div>
                             <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">

@@ -756,7 +756,7 @@ useEffect(() => {
         type="date"
         value={paymentDateDraft}
         onChange={(e) => setPaymentDateDraft(e.target.value)}
-        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white"
+        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white appearance-none"
       />
     ) : (
       <div className="mt-2 text-white">
@@ -775,7 +775,7 @@ useEffect(() => {
       <input
         value={amountDraft}
         onChange={(e) => setAmountDraft(e.target.value)}
-        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white"
+        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white appearance-none"
       />
     ) : (
       <div className="mt-2 text-white">
@@ -791,17 +791,19 @@ useEffect(() => {
     </div>
 
     {isEditMode ? (
-      <select
-        value={paymentCurrencyCodeDraft}
-        onChange={(e) => setPaymentCurrencyCodeDraft(e.target.value)}
-        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white"
-      >
-        {currencyOptions.map((c) => (
-          <option key={c.code} value={c.code}>
-            {c.code}
-          </option>
-        ))}
-      </select>
+     <select
+  value={paymentCurrencyCodeDraft || ""}
+  onChange={(e) => setPaymentCurrencyCodeDraft(e.target.value)}
+  className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white appearance-none"
+>
+  <option value="">Select currency</option>
+
+  {currencyOptions.map((c) => (
+    <option key={c.code} value={c.code} className="text-black">
+      {c.code} {c.name ? `— ${c.name}` : ""}
+    </option>
+  ))}
+</select>
     ) : (
       <div className="mt-2 text-white">
         {payment.payment_currency_code}
@@ -819,7 +821,7 @@ useEffect(() => {
       <select
         value={paymentMethodIdDraft || ""}
         onChange={(e) => setPaymentMethodIdDraft(e.target.value)}
-        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white"
+        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white appearance-none"
       >
         <option value="">Select method</option>
         {paymentMethodOptions.map((m) => (
@@ -845,7 +847,7 @@ useEffect(() => {
       <input
         value={referenceNumberDraft}
         onChange={(e) => setReferenceNumberDraft(e.target.value)}
-        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white"
+        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white appearance-none"
       />
     ) : (
       <div className="mt-2 text-white">

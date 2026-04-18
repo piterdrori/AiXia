@@ -8,7 +8,9 @@ export type FinanceInvoiceIssuedStatus =
   | "partially_paid"
   | "paid"
   | "overdue"
-  | "cancelled";
+  | "cancelled"
+  | "archived"
+  | "deleted";
 
 export type FinanceInvoiceIssuedPaymentStatus =
   | "unpaid"

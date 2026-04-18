@@ -5,7 +5,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   CheckCircle,
+  Pencil,
   RefreshCw,
+  Save,
+  Trash2,
   Upload,
   XCircle,
 } from "lucide-react";
@@ -137,8 +140,20 @@ export default function PaymentReceivedDetailPage() {
   const [isUploadingProof, setIsUploadingProof] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isSavingChanges, setIsSavingChanges] = useState(false);
+  const [isDeletingPayment, setIsDeletingPayment] = useState(false);
+
+  const [paymentDateDraft, setPaymentDateDraft] = useState("");
+  const [referenceNumberDraft, setReferenceNumberDraft] = useState("");
+  const [amountDraft, setAmountDraft] = useState("");
+  const [notesDraft, setNotesDraft] = useState("");
 
   const hasProof = attachments.length > 0;
+
+  const canEditPayment = payment?.status === "draft";
+  const canDeletePayment =
+    payment?.status === "draft" || payment?.status === "cancelled";
 
   const loadPayment = useCallback(
     async (refreshOnly = false) => {
@@ -156,6 +171,11 @@ export default function PaymentReceivedDetailPage() {
         const data = await getPaymentReceivedById(id);
         const typedPayment = data as PaymentReceivedDetail;
         setPayment(typedPayment);
+
+        setPaymentDateDraft(typedPayment.payment_date || "");
+        setReferenceNumberDraft(typedPayment.reference_number || "");
+        setAmountDraft(String(typedPayment.amount ?? ""));
+        setNotesDraft(typedPayment.notes || "");
 
         if (typedPayment.invoice_id) {
           const { data: linkedInvoice, error: linkedInvoiceError } = await supabase
@@ -292,6 +312,90 @@ useEffect(() => {
     }
   }
 
+    async function handleSaveChanges() {
+    if (!id || !payment) return;
+
+    if (payment.status !== "draft") {
+      setErrorMessage("Only draft payments can be edited.");
+      return;
+    }
+
+    const numericAmount = Number(amountDraft);
+
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      setErrorMessage("Amount must be greater than 0.");
+      return;
+    }
+
+    try {
+      setIsSavingChanges(true);
+      setErrorMessage("");
+
+      const { error } = await supabase
+        .from("finance_payments_received")
+        .update({
+          payment_date: paymentDateDraft,
+          reference_number: referenceNumberDraft || null,
+          amount: numericAmount,
+          notes: notesDraft || null,
+        })
+        .eq("id", id);
+
+      if (error) {
+        throw error;
+      }
+
+      setIsEditMode(false);
+      await loadPayment(true);
+    } catch (err) {
+      console.error(err);
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to save payment changes."
+      );
+    } finally {
+      setIsSavingChanges(false);
+    }
+  }
+
+  async function handleDeletePayment() {
+    if (!id || !payment) return;
+
+    if (payment.status === "confirmed") {
+      setErrorMessage("Confirmed payments cannot be deleted.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this payment record?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setIsDeletingPayment(true);
+      setErrorMessage("");
+
+      const { error } = await supabase
+        .from("finance_payments_received")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        throw error;
+      }
+
+      navigate("/finance/transactions/payments-received");
+    } catch (err) {
+      console.error(err);
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to delete payment."
+      );
+    } finally {
+      setIsDeletingPayment(false);
+    }
+  }
+  
+  
   async function handleUploadProof() {
     if (!id || !proofFile) {
       setErrorMessage("Select a proof file first.");
@@ -447,15 +551,15 @@ useEffect(() => {
                 </Button>
 
                 {payment.status === "draft" ? (
-                  <Button
-                    onClick={() => void handleConfirm()}
-                    disabled={!hasProof || isConfirming}
-                    className="h-11 rounded-2xl px-4"
-                  >
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                    {isConfirming ? "Confirming..." : "Confirm Payment"}
-                  </Button>
-                ) : null}
+  <Button
+    onClick={() => void handleConfirm()}
+    disabled={!hasProof || isConfirming || isEditMode}
+    className="h-11 rounded-2xl px-4"
+  >
+    <CheckCircle className="mr-2 h-4 w-4" />
+    {isConfirming ? "Confirming..." : "Confirm Payment"}
+  </Button>
+) : null}
 
                 {payment.status !== "cancelled" ? (
                   <Button
@@ -468,6 +572,62 @@ useEffect(() => {
                     {isCancelling ? "Cancelling..." : "Cancel Payment"}
                   </Button>
                 ) : null}
+
+{/* EDIT BUTTON */}
+{canEditPayment && !isEditMode ? (
+  <Button
+    variant="outline"
+    onClick={() => setIsEditMode(true)}
+    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+  >
+    <Pencil className="mr-2 h-4 w-4" />
+    Edit
+  </Button>
+) : null}
+
+{/* SAVE BUTTON */}
+{isEditMode ? (
+  <Button
+    onClick={() => void handleSaveChanges()}
+    disabled={isSavingChanges}
+    className="h-11 rounded-2xl px-4"
+  >
+    <Save className="mr-2 h-4 w-4" />
+    {isSavingChanges ? "Saving..." : "Save"}
+  </Button>
+) : null}
+
+                {/* CANCEL EDIT BUTTON */}
+{isEditMode ? (
+  <Button
+    variant="outline"
+    onClick={() => {
+      setIsEditMode(false);
+      setPaymentDateDraft(payment?.payment_date || "");
+      setReferenceNumberDraft(payment?.reference_number || "");
+      setAmountDraft(String(payment?.amount ?? ""));
+      setNotesDraft(payment?.notes || "");
+      setErrorMessage("");
+    }}
+    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+  >
+    <XCircle className="mr-2 h-4 w-4" />
+    Cancel Edit
+  </Button>
+) : null}
+
+{/* DELETE BUTTON */}
+{canDeletePayment && !isEditMode ? (
+  <Button
+    variant="outline"
+    onClick={() => void handleDeletePayment()}
+    disabled={isDeletingPayment}
+    className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20"
+  >
+    <Trash2 className="mr-2 h-4 w-4" />
+    {isDeletingPayment ? "Deleting..." : "Delete"}
+  </Button>
+) : null}
               </div>
             </div>
           </div>
@@ -484,43 +644,118 @@ useEffect(() => {
                 </CardDescription>
               </CardHeader>
 
+              {isEditMode ? (
+  <div className="mt-3 rounded-[16px] border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+    Edit mode is active. Save or cancel your changes before confirming,
+    deleting, or uploading proof.
+  </div>
+) : null}
+
               <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Payment Date
-                  </div>
-                  <div className="mt-2 text-base font-semibold text-white">
-                    {formatFinanceDate(payment.payment_date)}
-                  </div>
-                </div>
+  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+      Payment Date
+    </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Status
-                  </div>
-                  <div className="mt-2 text-base font-semibold text-white">
-                    {getPaymentStatusLabel(payment.status)}
-                  </div>
-                </div>
+    {isEditMode ? (
+      <input
+        type="date"
+        value={paymentDateDraft}
+        onChange={(event) => setPaymentDateDraft(event.target.value)}
+        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"
+      />
+    ) : (
+      <div className="mt-2 text-base font-semibold text-white">
+        {formatFinanceDate(payment.payment_date)}
+      </div>
+    )}
+  </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Proof State
-                  </div>
-                  <div className="mt-2 text-base font-semibold text-white">
-                    {hasProof ? "Ready for confirmation" : "Missing proof"}
-                  </div>
-                </div>
+  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+      Reference Number
+    </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3 md:col-span-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Notes
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-white/70">
-                    {payment.notes || "—"}
-                  </div>
-                </div>
-              </CardContent>
+    {isEditMode ? (
+      <input
+        value={referenceNumberDraft}
+        onChange={(event) => setReferenceNumberDraft(event.target.value)}
+        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"
+        placeholder="Reference number"
+      />
+    ) : (
+      <div className="mt-2 text-base font-semibold text-white">
+        {payment.reference_number || "—"}
+      </div>
+    )}
+  </div>
+
+  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+      Amount
+    </div>
+
+    {isEditMode ? (
+      <input
+        value={amountDraft}
+        onChange={(event) => setAmountDraft(event.target.value)}
+        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"
+        placeholder="Amount"
+      />
+    ) : (
+      <div className="mt-2 text-base font-semibold text-white">
+        {formatMoney(payment.amount, payment.payment_currency_code || "USD")}
+      </div>
+    )}
+  </div>
+
+  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+      Status
+    </div>
+    <div className="mt-2 text-base font-semibold text-white">
+      {getPaymentStatusLabel(payment.status)}
+    </div>
+  </div>
+
+  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+      Proof State
+    </div>
+    <div className="mt-2 text-base font-semibold text-white">
+      {hasProof ? "Ready for confirmation" : "Missing proof"}
+    </div>
+  </div>
+
+  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+      Settlement Currency
+    </div>
+    <div className="mt-2 text-base font-semibold text-white">
+      {payment.payment_currency_code || "—"} → {payment.invoice_currency_code || "—"}
+    </div>
+  </div>
+
+  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3 md:col-span-3">
+    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+      Notes
+    </div>
+
+    {isEditMode ? (
+      <textarea
+        value={notesDraft}
+        onChange={(event) => setNotesDraft(event.target.value)}
+        rows={5}
+        className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-3 text-sm text-white outline-none"
+        placeholder="Notes"
+      />
+    ) : (
+      <div className="mt-2 text-sm leading-6 text-white/70">
+        {payment.notes || "—"}
+      </div>
+    )}
+  </div>
+</CardContent>
             </Card>
 
             <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
@@ -550,10 +785,10 @@ useEffect(() => {
 
                   <div className="mt-4">
                     <Button
-                      onClick={() => void handleUploadProof()}
-                      disabled={!proofFile || isUploadingProof}
-                      className="h-10 rounded-2xl px-4"
-                    >
+  onClick={() => void handleUploadProof()}
+  disabled={!proofFile || isUploadingProof || isEditMode}
+  className="h-10 rounded-2xl px-4"
+>
                       <Upload className="mr-2 h-4 w-4" />
                       {isUploadingProof ? "Uploading..." : "Upload Proof"}
                     </Button>

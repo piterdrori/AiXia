@@ -37,7 +37,7 @@ import InvoicePrintDocument from "./InvoicePrintDocument";
 type InvoiceRecord = {
   id: string;
   invoice_number: string;
-  status: "draft" | "issued" | "void" | "canceled";
+  status: "draft" | "issued" | "void" | "archived";
   payment_status: "unpaid" | "partial" | "paid";
   client_id: string;
   client_name_snapshot: string | null;
@@ -280,7 +280,7 @@ function getDocumentStatusBadgeClasses(status: InvoiceRecord["status"]) {
     return "border-rose-400/20 bg-rose-500/10 text-rose-200";
   }
 
-  if (status === "canceled") {
+    if (status === "archived") {
     return "border-amber-400/20 bg-amber-500/10 text-amber-200";
   }
 
@@ -401,7 +401,7 @@ export default function FinanceInvoiceDetailPage() {
       .select(
         "id, invoice_number, status, client_name_snapshot, total_amount, updated_at"
       )
-      .eq("status", "canceled")
+      .eq("status", "archived")
       .order("updated_at", { ascending: false })
       .limit(50);
 
@@ -940,10 +940,13 @@ export default function FinanceInvoiceDetailPage() {
   
   const canEditDraft = invoice?.status === "draft";
   const canEditIssuedOverview = invoice?.status === "issued" && !invoice.posted_to_ledger;
-  const canEditIssuedParties = false;
-  const canEditIssuedLines = false;
-  const canArchive = !!invoice && invoice.status !== "canceled";
-  const canHardDelete = !!invoice && invoice.status === "canceled";
+  const canEditIssuedParties =
+  invoice?.status === "issued" && !invoice.posted_to_ledger;
+
+const canEditIssuedLines =
+  invoice?.status === "issued" && !invoice.posted_to_ledger;
+  const canArchive = !!invoice && invoice.status !== "archived";
+const canHardDelete = !!invoice && invoice.status === "archived";
 
   const handleIssue = useCallback(async () => {
     if (!invoice || !id) return;
@@ -978,7 +981,7 @@ export default function FinanceInvoiceDetailPage() {
       const { error } = await supabase
         .from("finance_invoices_issued")
         .update({
-          status: "canceled",
+          status: "archived",
           canceled_at: new Date().toISOString(),
         })
         .eq("id", id);
@@ -992,6 +995,7 @@ export default function FinanceInvoiceDetailPage() {
       await loadInvoice(true);
       await loadArchiveItems();
       setShowArchivePopup(true);
+      alert("Invoice archived successfully");
     } catch (err) {
       console.error(err);
       setError("Failed to move invoice to archive.");
@@ -1017,7 +1021,7 @@ export default function FinanceInvoiceDetailPage() {
           .from("finance_invoices_issued")
           .delete()
           .eq("id", invoiceId)
-          .eq("status", "canceled");
+          .eq("status", "archived");
 
         if (invoiceError) throw invoiceError;
 
@@ -1819,7 +1823,7 @@ export default function FinanceInvoiceDetailPage() {
                   Print
                 </Button>
 
-                {canEditDraft ? (
+                {(canEditDraft || canEditIssuedOverview || canEditIssuedParties || canEditIssuedLines) ? (
       
                   <Button
                     variant="outline"
@@ -1827,7 +1831,7 @@ export default function FinanceInvoiceDetailPage() {
                       const next = !isEditMode;
                       setIsEditMode(next);
                       setEditingOverview(next);
-                      setEditingParties(false);
+                      setEditingParties(next);
                       setEditingLines(next);
                     }}
                     className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
@@ -1840,13 +1844,13 @@ export default function FinanceInvoiceDetailPage() {
                     ) : (
                       <>
                         <Pencil className="mr-2 h-4 w-4" />
-                        Edit Draft
+                         {invoice.status === "draft" ? "Edit Draft" : "Edit Invoice"}
                       </>
                     )}
                   </Button>
                 ) : null}
 
-                {canEditDraft && isEditMode ? (
+                                {canEditDraft && isEditMode ? (
                   <Button
                     onClick={() => void handleSaveDraftChanges()}
                     disabled={isSavingDraft}
@@ -2131,14 +2135,55 @@ export default function FinanceInvoiceDetailPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                               <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Bank Account
                   </div>
                   <div className="mt-2 text-base font-semibold text-white">
-                    {invoice.status === "draft"
-                      ? selectedDraftBankAccount?.name || "—"
-                      : invoice.bank_details_snapshot || "—"}
+                    {invoice.status === "draft" ? (
+                      selectedDraftBankAccount ? (
+                        <>
+                          <div>{selectedDraftBankAccount.beneficiary_name || "—"}</div>
+                          <div>{selectedDraftBankAccount.bank_name || "—"}</div>
+                          <div>
+                            {selectedDraftBankAccount.bank_address ||
+                              [
+                                selectedDraftBankAccount.address_line_1,
+                                selectedDraftBankAccount.address_line_2,
+                                selectedDraftBankAccount.city,
+                                selectedDraftBankAccount.postal_code,
+                                selectedDraftBankAccount.country,
+                              ]
+                                .filter(Boolean)
+                                .join(", ") ||
+                              "—"}
+                          </div>
+                          <div>
+                            Account: {selectedDraftBankAccount.account_number || "—"}
+                          </div>
+                          <div>IBAN: {selectedDraftBankAccount.iban || "—"}</div>
+                          <div>
+                            SWIFT:{" "}
+                            {selectedDraftBankAccount.swift_code ||
+                              (selectedDraftBankAccount.account_identifier_type === "swift"
+                                ? selectedDraftBankAccount.account_identifier_value
+                                : "") ||
+                              "—"}
+                          </div>
+                          <div>
+                            Currency: {selectedDraftBankAccount.currency_code || "—"}
+                          </div>
+                        </>
+                      ) : (
+                        "—"
+                      )
+                    ) : invoice.bank_details_snapshot ? (
+                      invoice.bank_details_snapshot.split("\n").map((line, i) => (
+                        <div key={i}>{line}</div>
+                      ))
+                    ) : (
+                      "—"
+                    )}
                   </div>
                 </div>
 
@@ -2233,20 +2278,40 @@ export default function FinanceInvoiceDetailPage() {
                     {invoice.notes || "—"}
                   </div>
                 </div>
-                </>
-                ) : (
-                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3 md:col-span-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                      Notes
-                    </div>
+                              </>
+              ) : (
+                <>
+                  <label className="space-y-2">
+                    <div className="text-sm text-white/70">Issue Date</div>
+                    <input
+                      type="date"
+                      value={issueDateDraft}
+                      onChange={(e) => setIssueDateDraft(e.target.value)}
+                      className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                    />
+                  </label>
+
+                  <label className="space-y-2">
+                    <div className="text-sm text-white/70">Due Date</div>
+                    <input
+                      type="date"
+                      value={dueDateDraft}
+                      onChange={(e) => setDueDateDraft(e.target.value)}
+                      className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                    />
+                  </label>
+
+                  <div className="md:col-span-3">
+                    <div className="text-sm text-white/70">Notes</div>
                     <textarea
                       value={notesDraft}
-                      onChange={(event) => setNotesDraft(event.target.value)}
+                      onChange={(e) => setNotesDraft(e.target.value)}
                       rows={4}
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
                     />
                   </div>
-                )}
+                </>
+                            )}
               </CardContent>
             </Card>
 
@@ -2278,7 +2343,7 @@ export default function FinanceInvoiceDetailPage() {
                       </Button>
                     ) : null}
 
-                     {canEditIssuedParties ? (
+                                         {canEditIssuedParties ? (
                       <Button
                         variant="outline"
                         onClick={() => setEditingParties((current) => !current)}
@@ -2566,7 +2631,9 @@ export default function FinanceInvoiceDetailPage() {
                 Contact Person
               </div>
               <div className="mt-1">
-                {invoice.company_contact_person_snapshot || "—"}
+                {invoice.company_contact_person_snapshot ||
+ companies.find(c => c.id === invoice.company_id)?.contact_person ||
+ "—"}
               </div>
             </div>
 
@@ -2654,7 +2721,9 @@ export default function FinanceInvoiceDetailPage() {
                 Contact Person
               </div>
               <div className="mt-1">
-                {invoice.client_contact_person_snapshot || "—"}
+              {invoice.client_contact_person_snapshot ||
+clients.find(c => c.id === invoice.client_id)?.contact_person ||
+"—"}
               </div>
             </div>
 
@@ -2737,9 +2806,10 @@ export default function FinanceInvoiceDetailPage() {
               placeholder="Terms and conditions"
               className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none"
             />
-          ) : (
+                    ) : (
             <div className="mt-1 whitespace-pre-line leading-6">
-              {(invoice as any).terms_and_conditions_snapshot || "—"}
+              {(invoice as any).terms_and_conditions_snapshot ||
+                "Payment is due according to agreed terms."}
             </div>
           )}
         </div>
@@ -2760,7 +2830,11 @@ export default function FinanceInvoiceDetailPage() {
             className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
           />
         ) : (
-          invoice.bank_details_snapshot || "—"
+        invoice.bank_details_snapshot
+  ? invoice.bank_details_snapshot.split("\n").map((line, i) => (
+      <div key={i}>{line}</div>
+    ))
+  : "—"
         )}
       </div>
     </div>
@@ -3280,8 +3354,8 @@ export default function FinanceInvoiceDetailPage() {
 
               <CardContent className="space-y-3 p-5">
                 <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-4 text-sm text-white/55">
-                  Delete logic is soft-first. Archive moves the invoice to canceled
-                  state. Hard delete is only available inside the archive list.
+                  Delete logic is soft-first. Archive moves the invoice to archived
+                   state. Hard delete is only available inside the archive list.
                 </div>
 
                 {canHardDelete ? (

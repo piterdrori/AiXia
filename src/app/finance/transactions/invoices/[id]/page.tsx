@@ -267,6 +267,52 @@ function toNumber(value: number | string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function buildBankDetailsLinesFromAccount(account: BankAccountOption | null) {
+  if (!account) return [];
+
+  const resolvedBankAddress =
+    account.bank_address ||
+    [
+      account.address_line_1,
+      account.address_line_2,
+      account.city,
+      account.postal_code,
+      account.country,
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+  const resolvedSwiftCode =
+    account.swift_code ||
+    (account.account_identifier_type === "swift"
+      ? account.account_identifier_value
+      : "") ||
+    "";
+
+  return [
+    account.beneficiary_name || "",
+    account.bank_name || "",
+    resolvedBankAddress || "",
+    `Account: ${account.account_number || "—"}`,
+    `IBAN: ${account.iban || "—"}`,
+    `SWIFT: ${resolvedSwiftCode || "—"}`,
+    `Currency: ${account.currency_code || "—"}`,
+  ].filter((line) => line && line.trim());
+}
+
+function buildBankDetailsSnapshotFromAccount(account: BankAccountOption | null) {
+  const lines = buildBankDetailsLinesFromAccount(account);
+  return lines.length > 0 ? lines.join("\n") : null;
+}
+
+function buildBankDetailsLinesFromSnapshot(snapshot: string | null | undefined) {
+  if (!snapshot) return [];
+  return snapshot
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 function getDocumentStatusBadgeClasses(status: InvoiceRecord["status"]) {
   if (status === "issued") {
     return "border-sky-400/20 bg-sky-500/10 text-sky-200";
@@ -737,12 +783,33 @@ export default function FinanceInvoiceDetailPage() {
     );
   }, [bankAccounts, companyIdDraft]);
 
-  const selectedDraftBankAccount = useMemo(
+    const selectedDraftBankAccount = useMemo(
     () =>
       filteredDraftBankAccounts.find((account) => account.id === bankAccountIdDraft) ??
       null,
     [bankAccountIdDraft, filteredDraftBankAccounts]
   );
+
+  const resolvedBankDetailsLines = useMemo(() => {
+    if (!invoice) return [];
+
+    if (invoice.status === "draft") {
+      return buildBankDetailsLinesFromAccount(selectedDraftBankAccount);
+    }
+
+    const snapshotLines = buildBankDetailsLinesFromSnapshot(
+      invoice.bank_details_snapshot
+    );
+
+    if (snapshotLines.length > 0) {
+      return snapshotLines;
+    }
+
+    const issuedBankAccount =
+      bankAccounts.find((account) => account.id === invoice.bank_account_id) ?? null;
+
+    return buildBankDetailsLinesFromAccount(issuedBankAccount);
+  }, [bankAccounts, invoice, selectedDraftBankAccount]);
 
   const draftTotals = useMemo(() => {
     const subtotal = lineItemsDraft.reduce(
@@ -938,15 +1005,13 @@ export default function FinanceInvoiceDetailPage() {
     }
   }, [filteredDraftTasks, invoice, projectIdDraft, taskIdDraft]);
   
-  const canEditDraft = invoice?.status === "draft";
-  const canEditIssuedOverview = invoice?.status === "issued" && !invoice.posted_to_ledger;
-  const canEditIssuedParties =
-  invoice?.status === "issued" && !invoice.posted_to_ledger;
-
-const canEditIssuedLines =
-  invoice?.status === "issued" && !invoice.posted_to_ledger;
+    const canEditDraft = invoice?.status === "draft";
+  const canEditIssuedOverview = invoice?.status === "issued";
+  const canEditIssuedParties = invoice?.status === "issued";
+  const canEditIssuedLines =
+    invoice?.status === "issued" && !invoice.posted_to_ledger;
   const canArchive = !!invoice && invoice.status !== "archived";
-const canHardDelete = !!invoice && invoice.status === "archived";
+  const canHardDelete = !!invoice && invoice.status === "archived";
 
   const handleIssue = useCallback(async () => {
     if (!invoice || !id) return;
@@ -978,13 +1043,22 @@ const canHardDelete = !!invoice && invoice.status === "archived";
     setError("");
 
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.id) {
+        throw new Error("User not authenticated");
+      }
+
       const { error } = await supabase
         .from("finance_invoices_issued")
         .update({
           status: "archived",
-          canceled_at: new Date().toISOString(),
+          updated_by: user.id,
         })
-        .eq("id", id);
+        .eq("id", id)
+        .neq("status", "archived");
 
       if (error) throw error;
 
@@ -995,7 +1069,6 @@ const canHardDelete = !!invoice && invoice.status === "archived";
       await loadInvoice(true);
       await loadArchiveItems();
       setShowArchivePopup(true);
-      alert("Invoice archived successfully");
     } catch (err) {
       console.error(err);
       setError("Failed to move invoice to archive.");
@@ -1411,44 +1484,8 @@ const canHardDelete = !!invoice && invoice.status === "archived";
             .join(", ") || null
         : null;
 
-              const resolvedBankAddress = selectedBankAccount
-        ? (
-            selectedBankAccount.bank_address ||
-            [
-              selectedBankAccount.address_line_1,
-              selectedBankAccount.address_line_2,
-              selectedBankAccount.city,
-              selectedBankAccount.postal_code,
-              selectedBankAccount.country,
-            ]
-              .filter(Boolean)
-              .join(", ")
-          )
-        : "";
-
-      const resolvedSwiftCode = selectedBankAccount
-        ? (
-            selectedBankAccount.swift_code ||
-            (selectedBankAccount.account_identifier_type === "swift"
-              ? selectedBankAccount.account_identifier_value
-              : "") ||
-            ""
-          )
-        : "";
-
-         const bankDetailsSnapshot = selectedBankAccount
-        ? [
-            selectedBankAccount.beneficiary_name || "",
-            selectedBankAccount.bank_name || "",
-            resolvedBankAddress || "",
-            `Account: ${selectedBankAccount.account_number || "—"}`,
-            `IBAN: ${selectedBankAccount.iban || "—"}`,
-            `SWIFT: ${resolvedSwiftCode || "—"}`,
-            `Currency: ${selectedBankAccount.currency_code || "—"}`,
-          ]
-            .filter(Boolean)
-            .join("\n")
-        : null;
+               const bankDetailsSnapshot =
+        buildBankDetailsSnapshotFromAccount(selectedBankAccount);
 
       const { error: invoiceError } = await supabase
         .from("finance_invoices_issued")
@@ -1616,44 +1653,9 @@ const canHardDelete = !!invoice && invoice.status === "archived";
       return invoice;
     }
 
-    const resolvedBankAddress = selectedDraftBankAccount
-      ? (
-          selectedDraftBankAccount.bank_address ||
-          [
-            selectedDraftBankAccount.address_line_1,
-            selectedDraftBankAccount.address_line_2,
-            selectedDraftBankAccount.city,
-            selectedDraftBankAccount.postal_code,
-            selectedDraftBankAccount.country,
-          ]
-            .filter(Boolean)
-            .join(", ")
-        )
-      : "";
-
-    const resolvedSwiftCode = selectedDraftBankAccount
-      ? (
-          selectedDraftBankAccount.swift_code ||
-          (selectedDraftBankAccount.account_identifier_type === "swift"
-            ? selectedDraftBankAccount.account_identifier_value
-            : "") ||
-          ""
-        )
-      : "";
-
-    const draftBankDetails = selectedDraftBankAccount
-      ? [
-          selectedDraftBankAccount.beneficiary_name || "",
-          selectedDraftBankAccount.bank_name || "",
-          resolvedBankAddress || "",
-          `Account: ${selectedDraftBankAccount.account_number || "—"}`,
-          `IBAN: ${selectedDraftBankAccount.iban || "—"}`,
-          `SWIFT: ${resolvedSwiftCode || "—"}`,
-          `Currency: ${selectedDraftBankAccount.currency_code || "—"}`,
-        ]
-          .filter(Boolean)
-          .join("\n")
-      : invoice.bank_details_snapshot;
+        const draftBankDetails =
+      buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount) ||
+      invoice.bank_details_snapshot;
 
     return {
       ...invoice,
@@ -1823,17 +1825,17 @@ const canHardDelete = !!invoice && invoice.status === "archived";
                   Print
                 </Button>
 
-                {(canEditDraft || canEditIssuedOverview || canEditIssuedParties || canEditIssuedLines) ? (
-      
+                               {(canEditDraft || canEditIssuedOverview || canEditIssuedParties || canEditIssuedLines) ? (
                   <Button
                     variant="outline"
                     onClick={() => {
                       const next = !isEditMode;
                       setIsEditMode(next);
-                      setEditingOverview(next);
-                      setEditingParties(next);
-                      setEditingLines(next);
+                      setEditingOverview(next && !!(canEditDraft || canEditIssuedOverview));
+                      setEditingParties(next && !!(canEditDraft || canEditIssuedParties));
+                      setEditingLines(next && !!(canEditDraft || canEditIssuedLines));
                     }}
+                    
                     className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
                   >
                     {isEditMode ? (
@@ -2135,54 +2137,17 @@ const canHardDelete = !!invoice && invoice.status === "archived";
                   </div>
                 </div>
 
-                               <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Bank Account
                   </div>
-                  <div className="mt-2 text-base font-semibold text-white">
-                    {invoice.status === "draft" ? (
-                      selectedDraftBankAccount ? (
-                        <>
-                          <div>{selectedDraftBankAccount.beneficiary_name || "—"}</div>
-                          <div>{selectedDraftBankAccount.bank_name || "—"}</div>
-                          <div>
-                            {selectedDraftBankAccount.bank_address ||
-                              [
-                                selectedDraftBankAccount.address_line_1,
-                                selectedDraftBankAccount.address_line_2,
-                                selectedDraftBankAccount.city,
-                                selectedDraftBankAccount.postal_code,
-                                selectedDraftBankAccount.country,
-                              ]
-                                .filter(Boolean)
-                                .join(", ") ||
-                              "—"}
-                          </div>
-                          <div>
-                            Account: {selectedDraftBankAccount.account_number || "—"}
-                          </div>
-                          <div>IBAN: {selectedDraftBankAccount.iban || "—"}</div>
-                          <div>
-                            SWIFT:{" "}
-                            {selectedDraftBankAccount.swift_code ||
-                              (selectedDraftBankAccount.account_identifier_type === "swift"
-                                ? selectedDraftBankAccount.account_identifier_value
-                                : "") ||
-                              "—"}
-                          </div>
-                          <div>
-                            Currency: {selectedDraftBankAccount.currency_code || "—"}
-                          </div>
-                        </>
-                      ) : (
-                        "—"
-                      )
-                    ) : invoice.bank_details_snapshot ? (
-                      invoice.bank_details_snapshot.split("\n").map((line, i) => (
-                        <div key={i}>{line}</div>
+                  <div className="mt-2 space-y-1 text-base font-semibold text-white">
+                    {resolvedBankDetailsLines.length > 0 ? (
+                      resolvedBankDetailsLines.map((line, index) => (
+                        <div key={`${line}-${index}`}>{line}</div>
                       ))
                     ) : (
-                      "—"
+                      <div>—</div>
                     )}
                   </div>
                 </div>
@@ -2522,55 +2487,21 @@ const canHardDelete = !!invoice && invoice.status === "archived";
     </div>
 
     <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
-      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-        BANK DETAILS
-      </div>
+  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+    BANK DETAILS
+  </div>
 
-      {selectedDraftBankAccount ? (
-        <div className="mt-3 space-y-2 text-sm text-white/75">
-          <div className="font-semibold text-white">
-            {selectedDraftBankAccount.beneficiary_name || "—"}
-          </div>
+  <div className="mt-3 space-y-1 text-sm text-white/75">
+    {resolvedBankDetailsLines.length > 0 ? (
+      resolvedBankDetailsLines.map((line, index) => (
+        <div key={`${line}-${index}`}>{line}</div>
+      ))
+    ) : (
+      <div>—</div>
+    )}
+  </div>
+</div>
 
-          <div>{selectedDraftBankAccount.bank_name || "—"}</div>
-
-          <div>
-            {selectedDraftBankAccount.bank_address ||
-              [
-                selectedDraftBankAccount.address_line_1,
-                selectedDraftBankAccount.address_line_2,
-                selectedDraftBankAccount.city,
-                selectedDraftBankAccount.postal_code,
-                selectedDraftBankAccount.country,
-              ]
-                .filter(Boolean)
-                .join(", ") ||
-              "—"}
-          </div>
-
-          <div>
-            Account: {selectedDraftBankAccount.account_number || "—"}
-          </div>
-
-          <div>IBAN: {selectedDraftBankAccount.iban || "—"}</div>
-
-          <div>
-            SWIFT:{" "}
-            {selectedDraftBankAccount.swift_code ||
-              (selectedDraftBankAccount.account_identifier_type === "swift"
-                ? selectedDraftBankAccount.account_identifier_value
-                : "") ||
-              "—"}
-          </div>
-
-          <div>
-            Currency: {selectedDraftBankAccount.currency_code || "—"}
-          </div>
-        </div>
-      ) : (
-        <div className="mt-3 text-sm text-white/75">—</div>
-      )}
-    </div>
   </>
 ) : (
   <>
@@ -2625,15 +2556,16 @@ const canHardDelete = !!invoice && invoice.status === "archived";
                 {invoice.company_name_snapshot || "—"}
               </div>
             </div>
-
+           
             <div>
               <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
                 Contact Person
               </div>
               <div className="mt-1">
                 {invoice.company_contact_person_snapshot ||
- companies.find(c => c.id === invoice.company_id)?.contact_person ||
- "—"}
+                  companies.find((company) => company.id === invoice.company_id)
+                    ?.contact_person ||
+                  "—"}
               </div>
             </div>
 
@@ -2716,14 +2648,15 @@ const canHardDelete = !!invoice && invoice.status === "archived";
               </div>
             </div>
 
-             <div>
+                        <div>
               <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
                 Contact Person
               </div>
               <div className="mt-1">
-              {invoice.client_contact_person_snapshot ||
-clients.find(c => c.id === invoice.client_id)?.contact_person ||
-"—"}
+                {invoice.client_contact_person_snapshot ||
+                  clients.find((client) => client.id === invoice.client_id)
+                    ?.contact_person ||
+                  "—"}
               </div>
             </div>
 
@@ -2807,8 +2740,9 @@ clients.find(c => c.id === invoice.client_id)?.contact_person ||
               className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none"
             />
                     ) : (
-            <div className="mt-1 whitespace-pre-line leading-6">
+                       <div className="mt-1 whitespace-pre-line leading-6">
               {(invoice as any).terms_and_conditions_snapshot ||
+                termsAndConditionsDraft ||
                 "Payment is due according to agreed terms."}
             </div>
           )}
@@ -2816,7 +2750,7 @@ clients.find(c => c.id === invoice.client_id)?.contact_person ||
       </div>
     </div>
 
-    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+        <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
       <div className="text-xs uppercase tracking-[0.18em] text-white/35">
         Bank Details
       </div>
@@ -2825,16 +2759,16 @@ clients.find(c => c.id === invoice.client_id)?.contact_person ||
           <textarea
             value={bankDetailsDraft}
             onChange={(event) => setBankDetailsDraft(event.target.value)}
-            rows={3}
+            rows={7}
             placeholder="Bank details"
-            className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
+            className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none"
           />
+        ) : resolvedBankDetailsLines.length > 0 ? (
+          resolvedBankDetailsLines.map((line, index) => (
+            <div key={`${line}-${index}`}>{line}</div>
+          ))
         ) : (
-        invoice.bank_details_snapshot
-  ? invoice.bank_details_snapshot.split("\n").map((line, i) => (
-      <div key={i}>{line}</div>
-    ))
-  : "—"
+          "—"
         )}
       </div>
     </div>

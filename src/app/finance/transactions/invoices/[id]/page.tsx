@@ -497,6 +497,9 @@ export default function FinanceInvoiceDetailPage() {
         setIssueDateDraft(typedInvoice.issue_date || "");
         setDueDateDraft(typedInvoice.due_date || "");
         setNotesDraft(typedInvoice.notes || "");
+        setTermsAndConditionsDraft(
+        typedInvoice.terms_and_conditions_snapshot || ""
+         );
 
         setClientIdDraft(typedInvoice.client_id || "");
         setCompanyIdDraft(typedInvoice.company_id || "");
@@ -1661,7 +1664,9 @@ shipping_terms_snapshot:
   selectedDraftShippingTermsLabel ||
   invoice.shipping_terms_snapshot,
       terms_and_conditions_snapshot:
-        termsAndConditionsDraft || invoice.terms_and_conditions_snapshot,
+  invoice.status === "draft"
+    ? termsAndConditionsDraft || invoice.terms_and_conditions_snapshot
+    : invoice.terms_and_conditions_snapshot,
       bank_details_snapshot: draftBankDetails,
       currency_code:
         selectedDraftCurrency?.currency_code || invoice.currency_code || "USD",
@@ -2381,7 +2386,8 @@ shipping_terms_snapshot:
                         </div>
                       </div>
 
-                    <div className="mt-3 space-y-4 text-sm text-white/75">
+                      <div className="mt-3 space-y-4 text-sm text-white/75">
+
   <div>
     <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
       Payment Terms
@@ -2399,29 +2405,30 @@ shipping_terms_snapshot:
       {invoice.shipping_terms_snapshot || "—"}
     </div>
   </div>
+
+  <div>
+    <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+      Terms and Conditions
+    </div>
+
+    {editingParties ? (
+      <textarea
+        value={termsAndConditionsDraft}
+        onChange={(event) => setTermsAndConditionsDraft(event.target.value)}
+        rows={7}
+        className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white"
+      />
+    ) : (
+      <div className="mt-1 whitespace-pre-line leading-6">
+      {(invoice as any).terms_and_conditions_snapshot ||
+        "Payment is due according to agreed terms."}
+      </div>
+    )}
+  </div>
+
 </div>
 
-                        <div>
-                          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
-                            Terms and Conditions
-                          </div>
-                          {editingParties ? (
-                            <textarea
-                              value={termsAndConditionsDraft}
-                              onChange={(event) => setTermsAndConditionsDraft(event.target.value)}
-                              rows={7}
-                              placeholder="Terms and conditions"
-                              className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none"
-                            />
-                          ) : (
-                            <div className="mt-1 whitespace-pre-line leading-6">
-                              {(invoice as any).terms_and_conditions_snapshot ||
-                                termsAndConditionsDraft ||
-                                "Payment is due according to agreed terms."}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                
                     </div>
 
                     <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">

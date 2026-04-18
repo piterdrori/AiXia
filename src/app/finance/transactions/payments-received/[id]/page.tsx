@@ -280,6 +280,49 @@ export default function PaymentReceivedDetailPage() {
     void loadPayment();
   }, [loadPayment]);
 
+  useEffect(() => {
+  if (!payment?.id) return;
+  if (payment.exchange_rate_source !== "pending_backend_conversion") return;
+  if (payment.status !== "draft") return;
+
+  async function finalizePendingConversion() {
+    try {
+      const { error } = await supabase.functions.invoke(
+        "finance-payment-received-convert",
+        {
+          body: {
+            payment_id: payment.id,
+            amount: payment.amount,
+            payment_currency_code: payment.payment_currency_code,
+            invoice_id: payment.invoice_id,
+            payment_date: payment.payment_date,
+          },
+        }
+      );
+
+      if (error) {
+        console.error("Pending FX conversion failed:", error);
+        return;
+      }
+
+      await loadPayment(true);
+    } catch (error) {
+      console.error("Pending FX conversion failed:", error);
+    }
+  }
+
+  void finalizePendingConversion();
+}, [
+  payment?.id,
+  payment?.amount,
+  payment?.payment_currency_code,
+  payment?.invoice_id,
+  payment?.payment_date,
+  payment?.exchange_rate_source,
+  payment?.status,
+  loadPayment,
+]);
+
     useEffect(() => {
     async function loadLookups() {
       const [{ data: invoices }, { data: methods }, { data: currencies }] =
@@ -1029,11 +1072,13 @@ const { error: fxError } = await supabase.functions.invoke(
                     Converted Amount
                   </div>
                   <div className="mt-2 text-lg font-semibold text-white">
-                    {formatMoney(
-                      payment.converted_amount,
-                      payment.invoice_currency_code || "USD"
-                    )}
-                  </div>
+  {payment.exchange_rate_source === "pending_backend_conversion"
+    ? "Pending FX conversion"
+    : formatMoney(
+        payment.converted_amount,
+        payment.invoice_currency_code || "USD"
+      )}
+</div>
                 </div>
 
                 <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
@@ -1041,8 +1086,10 @@ const { error: fxError } = await supabase.functions.invoke(
                     Exchange Rate
                   </div>
                   <div className="mt-2 text-lg font-semibold text-white">
-                    {payment.exchange_rate ?? "—"}
-                  </div>
+  {payment.exchange_rate_source === "pending_backend_conversion"
+    ? "Pending"
+    : payment.exchange_rate ?? "—"}
+</div>
                 </div>
 
                 <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
@@ -1050,8 +1097,10 @@ const { error: fxError } = await supabase.functions.invoke(
                     FX Source
                   </div>
                   <div className="mt-2 text-base font-semibold text-white">
-                    {payment.exchange_rate_source || "—"}
-                  </div>
+  {payment.exchange_rate_source === "pending_backend_conversion"
+    ? "Pending backend conversion"
+    : payment.exchange_rate_source || "—"}
+</div>
                 </div>
 
                 <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">

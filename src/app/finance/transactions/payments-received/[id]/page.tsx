@@ -166,6 +166,7 @@ export default function PaymentReceivedDetailPage() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSavingChanges, setIsSavingChanges] = useState(false);
   const [isDeletingPayment, setIsDeletingPayment] = useState(false);
+  const [fxErrorMessage, setFxErrorMessage] = useState("");
 
   const [paymentDateDraft, setPaymentDateDraft] = useState("");
   const [referenceNumberDraft, setReferenceNumberDraft] = useState("");
@@ -289,24 +290,28 @@ useEffect(() => {
 
   async function finalizePendingConversion() {
     try {
-      setErrorMessage("");
+      setFxErrorMessage("");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
       const { data, error } = await supabase.functions.invoke(
         "finance-payment-received-convert",
         {
           body: {
             payment_id: pendingPayment.id,
-            amount: pendingPayment.amount,
-            payment_currency_code: pendingPayment.payment_currency_code,
-            invoice_id: pendingPayment.invoice_id,
             payment_date: pendingPayment.payment_date,
+          },
+          headers: {
+            Authorization: `Bearer ${session?.access_token ?? ""}`,
           },
         }
       );
 
       if (error) {
         console.error("Pending FX conversion failed:", error);
-        setErrorMessage(error.message || "Pending FX conversion failed.");
+        setFxErrorMessage(error.message || "Pending FX conversion failed.");
         return;
       }
 
@@ -315,14 +320,14 @@ useEffect(() => {
           (data as { success?: boolean; error?: string }).error ||
           "Pending FX conversion failed.";
         console.error("Pending FX conversion failed:", message);
-        setErrorMessage(message);
+        setFxErrorMessage(message);
         return;
       }
 
       await loadPayment(true);
     } catch (error) {
       console.error("Pending FX conversion failed:", error);
-      setErrorMessage(
+      setFxErrorMessage(
         error instanceof Error ? error.message : "Pending FX conversion failed."
       );
     }
@@ -331,36 +336,36 @@ useEffect(() => {
   void finalizePendingConversion();
 }, [payment, loadPayment]);
 
-    useEffect(() => {
-    async function loadLookups() {
-      const [{ data: invoices }, { data: methods }, { data: currencies }] =
-        await Promise.all([
-          supabase
-            .from("finance_invoices_issued")
-            .select("id, invoice_number, currency_code, client_name_snapshot, status")
-            .in("status", ["issued", "partially_paid", "overdue", "draft"])
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("finance_payment_methods")
-            .select("id, name, status")
-            .eq("status", "active")
-            .order("name", { ascending: true }),
-          supabase
-  .from("finance_currencies")
-  .select("id, currency_code, currency_name, status")
-  .eq("status", "active")
-  .order("currency_code", { ascending: true }),
-        ]);
-
-      setInvoiceOptions((invoices || []) as PaymentInvoiceOption[]);
-      setPaymentMethodOptions((methods || []) as PaymentMethodOption[]);
-      setCurrencyOptions((currencies || []) as CurrencyOption[]);
-    }
-
-    void loadLookups();
-  }, []);
-
 useEffect(() => {
+  async function loadLookups() {
+    const [{ data: invoices }, { data: methods }, { data: currencies }] =
+      await Promise.all([
+        supabase
+          .from("finance_invoices_issued")
+          .select("id, invoice_number, currency_code, client_name_snapshot, status")
+          .in("status", ["issued", "partially_paid", "overdue", "draft"])
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("finance_payment_methods")
+          .select("id, name, status")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+        supabase
+          .from("finance_currencies")
+          .select("id, currency_code, currency_name, status")
+          .eq("status", "active")
+          .order("currency_code", { ascending: true }),
+      ]);
+
+    setInvoiceOptions((invoices || []) as PaymentInvoiceOption[]);
+    setPaymentMethodOptions((methods || []) as PaymentMethodOption[]);
+    setCurrencyOptions((currencies || []) as CurrencyOption[]);
+  }
+
+  void loadLookups();
+}, []);
+  
+  useEffect(() => {
   if (!id) return;
 
   const channel = supabase
@@ -432,9 +437,9 @@ useEffect(() => {
   try {
     setIsSavingChanges(true);
     setErrorMessage("");
+    setFxErrorMessage("");
 
-    // 1. SAVE RAW INPUTS
-     await updatePaymentReceived(payment.id, {
+    await updatePaymentReceived(payment.id, {
       invoice_id: invoiceIdDraft || null,
       payment_date: paymentDateDraft,
       reference_number: referenceNumberDraft || null,
@@ -444,38 +449,40 @@ useEffect(() => {
       notes: notesDraft || null,
     });
 
-    // 2. CALL BACKEND FX CONVERSION
     const {
-  data: { session },
-} = await supabase.auth.getSession();
+      data: { session },
+    } = await supabase.auth.getSession();
 
-const { error: fxError } = await supabase.functions.invoke(
-  "finance-payment-received-convert",
-  {
-    body: {
-  payment_id: payment.id,
-  amount: Number(amountDraft),
-  payment_currency_code: paymentCurrencyCodeDraft,
-  invoice_id: invoiceIdDraft || null,
-  payment_date: paymentDateDraft,
-},
-    headers: {
-      Authorization: `Bearer ${session?.access_token}`,
-    },
-  }
-);
+    const { data, error: fxError } = await supabase.functions.invoke(
+      "finance-payment-received-convert",
+      {
+        body: {
+          payment_id: payment.id,
+          amount: Number(amountDraft),
+          payment_currency_code: paymentCurrencyCodeDraft,
+          invoice_id: invoiceIdDraft || null,
+          payment_date: paymentDateDraft,
+        },
+        headers: {
+          Authorization: `Bearer ${session?.access_token ?? ""}`,
+        },
+      }
+    );
 
-   if (fxError) {
-  console.error("FX conversion failed:", fxError);
-  // DO NOT BLOCK SAVE
-}
+    if (fxError) {
+      console.error("FX conversion failed:", fxError);
+      setFxErrorMessage(fxError.message || "FX conversion failed.");
+    } else if (
+      (data as { success?: boolean; error?: string } | null)?.success === false
+    ) {
+      setFxErrorMessage(
+        (data as { success?: boolean; error?: string }).error ||
+          "FX conversion failed."
+      );
+    }
 
-    // 3. RELOAD UPDATED PAYMENT
     await loadPayment();
-
-    // 4. EXIT EDIT MODE
     setIsEditMode(false);
-
   } catch (err: unknown) {
     const message =
       err instanceof Error ? err.message : "Failed to save changes.";
@@ -739,6 +746,7 @@ const { error: fxError } = await supabase.functions.invoke(
       setPaymentCurrencyCodeDraft(payment?.payment_currency_code || "");
       setPaymentMethodIdDraft(payment?.payment_method_id || "");
       setErrorMessage("");
+      setFxErrorMessage("");
     }}
     className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
   >
@@ -1080,24 +1088,28 @@ const { error: fxError } = await supabase.functions.invoke(
                     Converted Amount
                   </div>
                   <div className="mt-2 text-lg font-semibold text-white">
-  {payment.exchange_rate_source === "pending_backend_conversion"
-    ? "Pending FX conversion"
-    : formatMoney(
-        payment.converted_amount,
-        payment.invoice_currency_code || "USD"
-      )}
-</div>
+ {payment.exchange_rate_source === "pending_backend_conversion"
+  ? fxErrorMessage
+    ? "Conversion failed"
+    : "Pending FX conversion"
+  : formatMoney(
+      payment.converted_amount,
+      payment.invoice_currency_code || "USD"
+    )}
+               </div>
                 </div>
 
                 <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Exchange Rate
                   </div>
-                  <div className="mt-2 text-lg font-semibold text-white">
-  {payment.exchange_rate_source === "pending_backend_conversion"
-    ? "Pending"
-    : payment.exchange_rate ?? "—"}
-</div>
+                               <div className="mt-2 text-lg font-semibold text-white">
+                    {payment.exchange_rate_source === "pending_backend_conversion"
+                      ? fxErrorMessage
+                        ? "Failed"
+                        : "Pending"
+                      : payment.exchange_rate ?? "—"}
+                  </div>
                 </div>
 
                 <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
@@ -1105,11 +1117,11 @@ const { error: fxError } = await supabase.functions.invoke(
                     FX Source
                   </div>
                   <div className="mt-2 text-base font-semibold text-white">
-  {payment.exchange_rate_source === "pending_backend_conversion" && !errorMessage
-    ? "Pending backend conversion"
-    : payment.exchange_rate_source === "pending_backend_conversion" && errorMessage
+  {payment.exchange_rate_source === "pending_backend_conversion"
+  ? fxErrorMessage
     ? "Conversion failed"
-    : payment.exchange_rate_source || "—"}
+    : "Pending backend conversion"
+  : payment.exchange_rate_source || "—"}
 </div>
                 </div>
 
@@ -1201,6 +1213,11 @@ const { error: fxError } = await supabase.functions.invoke(
             {errorMessage ? (
               <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
                 {errorMessage}
+              </div>
+            ) : null}
+                        {fxErrorMessage ? (
+              <div className="rounded-[18px] border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                {fxErrorMessage}
               </div>
             ) : null}
           </div>

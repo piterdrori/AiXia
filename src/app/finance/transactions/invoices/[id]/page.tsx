@@ -1005,11 +1005,7 @@ export default function FinanceInvoiceDetailPage() {
     }
   }, [filteredDraftTasks, invoice, projectIdDraft, taskIdDraft]);
   
-    const canEditDraft = invoice?.status === "draft";
-  const canEditIssuedOverview = invoice?.status === "issued";
-  const canEditIssuedParties = invoice?.status === "issued";
-  const canEditIssuedLines =
-    invoice?.status === "issued" && !invoice.posted_to_ledger;
+  const canEditDraft = invoice?.status === "draft";
   const canArchive = !!invoice && invoice.status !== "archived";
   const canHardDelete = !!invoice && invoice.status === "archived";
 

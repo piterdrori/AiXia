@@ -84,8 +84,8 @@ type PaymentMethodOption = {
 
 type CurrencyOption = {
   id: string;
-  code: string;
-  name: string | null;
+  currency_code: string;
+  currency_name: string | null;
   status: string;
 };
 
@@ -295,10 +295,10 @@ export default function PaymentReceivedDetailPage() {
             .eq("status", "active")
             .order("name", { ascending: true }),
           supabase
-            .from("finance_currencies")
-            .select("id, code, name, status")
-            .eq("status", "active")
-            .order("code", { ascending: true }),
+  .from("finance_currencies")
+  .select("id, currency_code, currency_name, status")
+  .eq("status", "active")
+  .order("currency_code", { ascending: true }),
         ]);
 
       setInvoiceOptions((invoices || []) as PaymentInvoiceOption[]);
@@ -799,9 +799,13 @@ useEffect(() => {
   <option value="">Select currency</option>
 
   {currencyOptions.map((c) => (
-    <option key={c.code} value={c.code} className="text-black">
-      {c.code} {c.name ? `— ${c.name}` : ""}
-    </option>
+   <option
+  key={c.currency_code}
+  value={c.currency_code}
+  className="text-black"
+>
+  {c.currency_code} {c.currency_name ? `— ${c.currency_name}` : ""}
+</option>
   ))}
 </select>
     ) : (

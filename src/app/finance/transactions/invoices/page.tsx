@@ -57,6 +57,43 @@ type InvoiceMetricCard = {
   tone: "blue" | "emerald" | "amber" | "rose";
 };
 
+type InvoiceArchiveMetadata = {
+  previous_status?: string | null;
+  archived_at?: string | null;
+  deleted_at?: string | null;
+  restored_at?: string | null;
+  [key: string]: unknown;
+};
+
+function getRestoredInvoiceStatus(
+  previousStatus: string | null | undefined,
+  paymentStatus: string | null | undefined,
+  dueDate: string | null | undefined
+) {
+  if (previousStatus && previousStatus !== "archived" && previousStatus !== "deleted") {
+    return previousStatus;
+  }
+
+  if (paymentStatus === "paid") return "paid";
+  if (paymentStatus === "partial") return "partially_paid";
+
+  if (dueDate) {
+    const today = new Date();
+    const parsedDueDate = new Date(dueDate);
+
+    if (!Number.isNaN(parsedDueDate.getTime())) {
+      today.setHours(0, 0, 0, 0);
+      parsedDueDate.setHours(0, 0, 0, 0);
+
+      if (parsedDueDate < today) {
+        return "overdue";
+      }
+    }
+  }
+
+  return "issued";
+}
+
 function getToneClasses(tone: InvoiceMetricCard["tone"]) {
   switch (tone) {
     case "emerald":
@@ -327,34 +364,119 @@ export default function FinanceInvoicesPage() {
     return getEffectivePermissions(role, permissionOverrides);
   }, [permissionOverrides, role]);
 
-  const handleArchive = async (id: string) => {
-  await supabase
-    .from("finance_invoices_issued")
-    .update({ status: "archived" })
-    .eq("id", id);
+   const handleArchive = async (id: string) => {
+    const { data: invoiceRow, error: invoiceError } = await supabase
+      .from("finance_invoices_issued")
+      .select("status, metadata")
+      .eq("id", id)
+      .single();
 
-  setOpenMenuInvoiceId(null);
-  await loadInvoices(true);
-};
+    if (invoiceError) {
+      throw invoiceError;
+    }
+
+    const currentMetadata = (invoiceRow?.metadata ?? {}) as InvoiceArchiveMetadata;
+    const currentStatus = String(invoiceRow?.status ?? "issued");
+
+    await supabase
+      .from("finance_invoices_issued")
+      .update({
+        status: "archived",
+        metadata: {
+          ...currentMetadata,
+          previous_status:
+            currentStatus === "archived" || currentStatus === "deleted"
+              ? currentMetadata.previous_status ?? "issued"
+              : currentStatus,
+          archived_at: new Date().toISOString(),
+        },
+      })
+      .eq("id", id);
+
+    setOpenMenuInvoiceId(null);
+    await Promise.all([
+      loadInvoices(true),
+      isArchiveModalOpen ? loadArchivedInvoices() : Promise.resolve(),
+    ]);
+  };
 
 const handleDelete = async (id: string) => {
+  const { data: invoiceRow, error: invoiceError } = await supabase
+    .from("finance_invoices_issued")
+    .select("status, metadata")
+    .eq("id", id)
+    .single();
+
+  if (invoiceError) {
+    throw invoiceError;
+  }
+
+  const currentMetadata = (invoiceRow?.metadata ?? {}) as InvoiceArchiveMetadata;
+  const currentStatus = String(invoiceRow?.status ?? "issued");
+
   await supabase
     .from("finance_invoices_issued")
-    .update({ status: "deleted" })
+    .update({
+      status: "deleted",
+      metadata: {
+        ...currentMetadata,
+        previous_status:
+          currentStatus === "archived" || currentStatus === "deleted"
+            ? currentMetadata.previous_status ?? "issued"
+            : currentStatus,
+        deleted_at: new Date().toISOString(),
+      },
+    })
     .eq("id", id);
 
   setOpenMenuInvoiceId(null);
-  await loadInvoices(true);
+  await Promise.all([
+    loadInvoices(true),
+    isArchiveModalOpen ? loadArchivedInvoices() : Promise.resolve(),
+  ]);
 };
 
   const handleRestore = async (id: string) => {
-  await supabase
-    .from("finance_invoices_issued")
-    .update({ status: "issued" })
-    .eq("id", id);
+    const { data: invoiceRow, error: invoiceError } = await supabase
+      .from("finance_invoices_issued")
+      .select("status, payment_status, due_date, metadata")
+      .eq("id", id)
+      .single();
 
-  await Promise.all([loadInvoices(true), loadArchivedInvoices()]);
-};
+    if (invoiceError) {
+      throw invoiceError;
+    }
+
+    const currentMetadata = (invoiceRow?.metadata ?? {}) as InvoiceArchiveMetadata;
+
+    const restoredStatus = getRestoredInvoiceStatus(
+      currentMetadata.previous_status,
+      invoiceRow?.payment_status,
+      invoiceRow?.due_date
+    );
+
+    await supabase
+      .from("finance_invoices_issued")
+      .update({
+        status: restoredStatus,
+        metadata: {
+          ...currentMetadata,
+          restored_at: new Date().toISOString(),
+        },
+      })
+      .eq("id", id);
+
+    await Promise.all([loadInvoices(true), loadArchivedInvoices()]);
+  };
+
+    const handleHardDelete = async (id: string) => {
+    await supabase
+      .from("finance_invoices_issued")
+      .delete()
+      .eq("id", id);
+
+    await Promise.all([loadInvoices(true), loadArchivedInvoices()]);
+  };
 
   const filteredInvoices = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -830,7 +952,7 @@ const handleDelete = async (id: string) => {
                         </div>
                       </div>
 
-                      <div className="flex shrink-0 items-center gap-2">
+                                          <div className="flex shrink-0 items-center gap-2">
                         <button
                           type="button"
                           onClick={() =>
@@ -848,6 +970,16 @@ const handleDelete = async (id: string) => {
                         >
                           Restore
                         </button>
+
+                        {archiveTab === "deleted" ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleHardDelete(invoice.id)}
+                            className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/20"
+                          >
+                            Hard Delete
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   ))}

@@ -830,7 +830,7 @@ export default function FinanceInvoiceDetailPage() {
     return totals;
   }, [draftTotals, invoice, totals]);
 
-  useEffect(() => {
+   useEffect(() => {
     if (!invoice || invoice.status !== "draft" || !selectedDraftClient) return;
 
     if (selectedDraftClient.payment_terms_id && !paymentTermsIdDraft) {
@@ -847,7 +847,23 @@ export default function FinanceInvoiceDetailPage() {
       }
     }
 
-    useEffect(() => {
+    if (!dueDateDraft) {
+      const days = selectedDraftClient.payment_terms_days ?? 14;
+      const base = new Date(issueDateDraft || new Date().toISOString().slice(0, 10));
+      base.setDate(base.getDate() + days);
+      setDueDateDraft(base.toISOString().slice(0, 10));
+    }
+  }, [
+    currencies,
+    currencyIdDraft,
+    dueDateDraft,
+    invoice,
+    issueDateDraft,
+    paymentTermsIdDraft,
+    selectedDraftClient,
+  ]);
+
+  useEffect(() => {
     if (!invoice || invoice.status !== "draft") return;
 
     setTermsAndConditionsDraft((current) => {
@@ -856,13 +872,9 @@ export default function FinanceInvoiceDetailPage() {
 
       return "Payment is due according to the agreed payment terms stated on this invoice. Goods remain subject to the agreed shipping terms. Any bank charges are the responsibility of the payer unless otherwise agreed in writing. Please reference the invoice number with your payment. Late payments may result in delays, additional charges, or suspension of further deliveries or services.";
     });
-  }, [
-    invoice,
-    selectedDraftPaymentTerm,
-    selectedDraftShippingTermsLabel,
-  ]);
+  }, [invoice, selectedDraftPaymentTerm, selectedDraftShippingTermsLabel]);
 
-   useEffect(() => {
+  useEffect(() => {
     if (!invoice || invoice.status !== "draft" || !companyIdDraft) return;
 
     const defaultBank =
@@ -882,8 +894,15 @@ export default function FinanceInvoiceDetailPage() {
         setCurrencyIdDraft(matchedCurrency.id);
       }
     }
-
-
+  }, [
+    bankAccountIdDraft,
+    companyIdDraft,
+    currencies,
+    currencyIdDraft,
+    filteredDraftBankAccounts,
+    invoice,
+    selectedDraftCompany,
+  ]);
 
   useEffect(() => {
     if (!invoice || invoice.status !== "draft") return;

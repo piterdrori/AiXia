@@ -280,10 +280,12 @@ export default function PaymentReceivedDetailPage() {
     void loadPayment();
   }, [loadPayment]);
 
-  useEffect(() => {
+useEffect(() => {
   if (!payment?.id) return;
   if (payment.exchange_rate_source !== "pending_backend_conversion") return;
   if (payment.status !== "draft") return;
+
+  const pendingPayment = payment;
 
   async function finalizePendingConversion() {
     try {
@@ -291,11 +293,11 @@ export default function PaymentReceivedDetailPage() {
         "finance-payment-received-convert",
         {
           body: {
-            payment_id: payment.id,
-            amount: payment.amount,
-            payment_currency_code: payment.payment_currency_code,
-            invoice_id: payment.invoice_id,
-            payment_date: payment.payment_date,
+            payment_id: pendingPayment.id,
+            amount: pendingPayment.amount,
+            payment_currency_code: pendingPayment.payment_currency_code,
+            invoice_id: pendingPayment.invoice_id,
+            payment_date: pendingPayment.payment_date,
           },
         }
       );
@@ -313,13 +315,7 @@ export default function PaymentReceivedDetailPage() {
 
   void finalizePendingConversion();
 }, [
-  payment?.id,
-  payment?.amount,
-  payment?.payment_currency_code,
-  payment?.invoice_id,
-  payment?.payment_date,
-  payment?.exchange_rate_source,
-  payment?.status,
+  payment,
   loadPayment,
 ]);
 

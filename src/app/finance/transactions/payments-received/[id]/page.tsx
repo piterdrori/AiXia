@@ -401,7 +401,13 @@ useEffect(() => {
 const { error: fxError } = await supabase.functions.invoke(
   "finance-payment-received-convert",
   {
-    body: { payment_id: payment.id },
+    body: {
+  payment_id: payment.id,
+  amount: Number(amountDraft),
+  payment_currency_code: paymentCurrencyCodeDraft,
+  invoice_id: invoiceIdDraft || null,
+  payment_date: paymentDateDraft,
+},
     headers: {
       Authorization: `Bearer ${session?.access_token}`,
     },

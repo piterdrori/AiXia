@@ -28,6 +28,7 @@ import {
   getPaymentReceivedById,
   confirmPaymentReceived,
   cancelPaymentReceived,
+  updatePaymentReceived,
 } from "@/lib/finance/paymentsReceived";
 
 type PaymentReceivedDetail = {
@@ -312,50 +313,47 @@ useEffect(() => {
     }
   }
 
-    async function handleSaveChanges() {
-    if (!id || !payment) return;
+ async function handleSaveChanges() {
+  if (!payment?.id) return;
 
-    if (payment.status !== "draft") {
-      setErrorMessage("Only draft payments can be edited.");
-      return;
-    }
+  try {
+    setIsSavingChanges(true);
+    setErrorMessage("");
 
-    const numericAmount = Number(amountDraft);
+    // 1. SAVE RAW INPUTS
+    await updatePaymentReceived(payment.id, {
+      payment_date: paymentDateDraft,
+      reference_number: referenceNumberDraft,
+      amount: Number(amountDraft),
+      notes: notesDraft,
+    });
 
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-      setErrorMessage("Amount must be greater than 0.");
-      return;
-    }
-
-    try {
-      setIsSavingChanges(true);
-      setErrorMessage("");
-
-      const { error } = await supabase
-        .from("finance_payments_received")
-        .update({
-          payment_date: paymentDateDraft,
-          reference_number: referenceNumberDraft || null,
-          amount: numericAmount,
-          notes: notesDraft || null,
-        })
-        .eq("id", id);
-
-      if (error) {
-        throw error;
+    // 2. CALL BACKEND FX CONVERSION
+    const { error: fxError } = await supabase.functions.invoke(
+      "finance-payment-received-convert",
+      {
+        body: { payment_id: payment.id },
       }
+    );
 
-      setIsEditMode(false);
-      await loadPayment(true);
-    } catch (err) {
-      console.error(err);
-      setErrorMessage(
-        err instanceof Error ? err.message : "Failed to save payment changes."
-      );
-    } finally {
-      setIsSavingChanges(false);
+    if (fxError) {
+      throw new Error(fxError.message);
     }
+
+    // 3. RELOAD UPDATED PAYMENT
+    await loadPayment();
+
+    // 4. EXIT EDIT MODE
+    setIsEditMode(false);
+
+  } catch (err: unknown) {
+    const message =
+      err instanceof Error ? err.message : "Failed to save changes.";
+    setErrorMessage(message);
+  } finally {
+    setIsSavingChanges(false);
   }
+}
 
   async function handleDeletePayment() {
     if (!id || !payment) return;

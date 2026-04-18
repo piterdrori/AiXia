@@ -36,6 +36,8 @@ export const FINANCE_ISSUED_INVOICE_STATUSES = [
   "paid",
   "overdue",
   "cancelled",
+  "archived",
+  "deleted",
 ] as const satisfies readonly FinanceInvoiceIssuedStatus[];
 
 export const FINANCE_ISSUED_INVOICE_PAYMENT_STATUSES = [
@@ -105,25 +107,29 @@ export function formatFinanceDate(value: string | null | undefined) {
 }
 
 export function getIssuedInvoiceStatusLabel(status: FinanceInvoiceIssuedStatus) {
-  switch (status) {
-    case "draft":
-      return "Draft";
-    case "issued":
-      return "Issued";
-    case "void":
-      return "Void";
-    case "canceled":
-      return "Canceled";
-    case "cancelled":
-      return "Cancelled";
-    case "partially_paid":
-      return "Partially Paid";
-    case "paid":
-      return "Paid";
-    case "overdue":
-      return "Overdue";
-    default:
-      return status;
+ switch (status) {
+  case "draft":
+    return "Draft";
+  case "issued":
+    return "Issued";
+  case "void":
+    return "Void";
+  case "canceled":
+    return "Canceled";
+  case "cancelled":
+    return "Cancelled";
+  case "partially_paid":
+    return "Partially Paid";
+  case "paid":
+    return "Paid";
+  case "overdue":
+    return "Overdue";
+  case "archived":
+    return "Archived";
+  case "deleted":
+    return "Deleted";
+  default:
+    return status;
   }
 }
 
@@ -162,29 +168,30 @@ export async function getIssuedInvoicesList(): Promise<
 > {
   const { data, error } = await supabase
     .from(INVOICES_TABLE)
-    .select(
-      `
-        id,
-        invoice_number,
-        status,
-        payment_status,
-        approval_status,
-        client_id,
-        issue_date,
-        due_date,
-        currency_code,
-        total_amount,
-        paid_amount,
-        balance_due,
-        created_at,
-        project_id,
-        finance_clients (
-          name,
-          legal_name
-        )
-      `
-    )
-    .order("created_at", { ascending: false });
+.select(
+`
+  id,
+  invoice_number,
+  status,
+  payment_status,
+  approval_status,
+  client_id,
+  issue_date,
+  due_date,
+  currency_code,
+  total_amount,
+  paid_amount,
+  balance_due,
+  created_at,
+  project_id,
+  finance_clients (
+    name,
+    legal_name
+  )
+`
+)
+.not("status", "in", '("archived","deleted")')
+.order("created_at", { ascending: false });
 
   if (error) throw error;
 

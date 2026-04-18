@@ -46,6 +46,7 @@ type PaymentReceivedDetail = {
   notes: string | null;
   invoice_id: string | null;
   client_id: string;
+  payment_method_id: string | null;
 };
 
 type PaymentAttachmentRow = {
@@ -65,6 +66,27 @@ type InvoiceLinkRow = {
   balance_due: number | string | null;
   status: string;
   payment_status: string | null;
+};
+
+type PaymentInvoiceOption = {
+  id: string;
+  invoice_number: string | null;
+  currency_code: string | null;
+  client_name_snapshot: string | null;
+  status: string;
+};
+
+type PaymentMethodOption = {
+  id: string;
+  name: string;
+  status: string;
+};
+
+type CurrencyOption = {
+  id: string;
+  code: string;
+  name: string | null;
+  status: string;
 };
 
 function toNumber(value: number | string | null | undefined) {
@@ -150,6 +172,14 @@ export default function PaymentReceivedDetailPage() {
   const [amountDraft, setAmountDraft] = useState("");
   const [notesDraft, setNotesDraft] = useState("");
 
+  const [invoiceIdDraft, setInvoiceIdDraft] = useState("");
+  const [paymentCurrencyCodeDraft, setPaymentCurrencyCodeDraft] = useState("");
+  const [paymentMethodIdDraft, setPaymentMethodIdDraft] = useState("");
+
+  const [invoiceOptions, setInvoiceOptions] = useState<PaymentInvoiceOption[]>([]);
+  const [paymentMethodOptions, setPaymentMethodOptions] = useState<PaymentMethodOption[]>([]);
+  const [currencyOptions, setCurrencyOptions] = useState<CurrencyOption[]>([]);
+
   const hasProof = attachments.length > 0;
 
   const canEditPayment = payment?.status === "draft";
@@ -177,6 +207,9 @@ export default function PaymentReceivedDetailPage() {
         setReferenceNumberDraft(typedPayment.reference_number || "");
         setAmountDraft(String(typedPayment.amount ?? ""));
         setNotesDraft(typedPayment.notes || "");
+        setInvoiceIdDraft(typedPayment.invoice_id || "");
+        setPaymentCurrencyCodeDraft(typedPayment.payment_currency_code || "");
+        setPaymentMethodIdDraft(typedPayment.payment_method_id || "");
 
         if (typedPayment.invoice_id) {
           const { data: linkedInvoice, error: linkedInvoiceError } = await supabase
@@ -246,6 +279,35 @@ export default function PaymentReceivedDetailPage() {
   useEffect(() => {
     void loadPayment();
   }, [loadPayment]);
+
+    useEffect(() => {
+    async function loadLookups() {
+      const [{ data: invoices }, { data: methods }, { data: currencies }] =
+        await Promise.all([
+          supabase
+            .from("finance_invoices_issued")
+            .select("id, invoice_number, currency_code, client_name_snapshot, status")
+            .in("status", ["issued", "partially_paid", "overdue", "draft"])
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("finance_payment_methods")
+            .select("id, name, status")
+            .eq("status", "active")
+            .order("name", { ascending: true }),
+          supabase
+            .from("finance_currencies")
+            .select("id, code, name, status")
+            .eq("status", "active")
+            .order("code", { ascending: true }),
+        ]);
+
+      setInvoiceOptions((invoices || []) as PaymentInvoiceOption[]);
+      setPaymentMethodOptions((methods || []) as PaymentMethodOption[]);
+      setCurrencyOptions((currencies || []) as CurrencyOption[]);
+    }
+
+    void loadLookups();
+  }, []);
 
 useEffect(() => {
   if (!id) return;
@@ -321,11 +383,14 @@ useEffect(() => {
     setErrorMessage("");
 
     // 1. SAVE RAW INPUTS
-    await updatePaymentReceived(payment.id, {
+     await updatePaymentReceived(payment.id, {
+      invoice_id: invoiceIdDraft || null,
       payment_date: paymentDateDraft,
-      reference_number: referenceNumberDraft,
+      reference_number: referenceNumberDraft || null,
       amount: Number(amountDraft),
-      notes: notesDraft,
+      payment_currency_code: paymentCurrencyCodeDraft,
+      payment_method_id: paymentMethodIdDraft || null,
+      notes: notesDraft || null,
     });
 
     // 2. CALL BACKEND FX CONVERSION
@@ -605,6 +670,9 @@ useEffect(() => {
       setReferenceNumberDraft(payment?.reference_number || "");
       setAmountDraft(String(payment?.amount ?? ""));
       setNotesDraft(payment?.notes || "");
+      setInvoiceIdDraft(payment?.invoice_id || "");
+      setPaymentCurrencyCodeDraft(payment?.payment_currency_code || "");
+      setPaymentMethodIdDraft(payment?.payment_method_id || "");
       setErrorMessage("");
     }}
     className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
@@ -649,7 +717,35 @@ useEffect(() => {
   </div>
 ) : null}
 
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+             <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+
+  {/* INVOICE */}
+  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3 md:col-span-3">
+    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+      Invoice
+    </div>
+
+    {isEditMode ? (
+      <select
+        value={invoiceIdDraft || ""}
+        onChange={(e) => setInvoiceIdDraft(e.target.value)}
+        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white"
+      >
+        <option value="">Select invoice</option>
+        {invoiceOptions.map((inv) => (
+          <option key={inv.id} value={inv.id}>
+            {inv.invoice_number} — {inv.client_name_snapshot}
+          </option>
+        ))}
+      </select>
+    ) : (
+      <div className="mt-2 text-base text-white">
+        {invoiceLink?.invoice_number || "—"}
+      </div>
+    )}
+  </div>
+
+  {/* PAYMENT DATE */}
   <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
     <div className="text-xs uppercase tracking-[0.18em] text-white/35">
       Payment Date
@@ -659,35 +755,17 @@ useEffect(() => {
       <input
         type="date"
         value={paymentDateDraft}
-        onChange={(event) => setPaymentDateDraft(event.target.value)}
-        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"
+        onChange={(e) => setPaymentDateDraft(e.target.value)}
+        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white"
       />
     ) : (
-      <div className="mt-2 text-base font-semibold text-white">
+      <div className="mt-2 text-white">
         {formatFinanceDate(payment.payment_date)}
       </div>
     )}
   </div>
 
-  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-      Reference Number
-    </div>
-
-    {isEditMode ? (
-      <input
-        value={referenceNumberDraft}
-        onChange={(event) => setReferenceNumberDraft(event.target.value)}
-        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"
-        placeholder="Reference number"
-      />
-    ) : (
-      <div className="mt-2 text-base font-semibold text-white">
-        {payment.reference_number || "—"}
-      </div>
-    )}
-  </div>
-
+  {/* AMOUNT */}
   <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
     <div className="text-xs uppercase tracking-[0.18em] text-white/35">
       Amount
@@ -696,44 +774,87 @@ useEffect(() => {
     {isEditMode ? (
       <input
         value={amountDraft}
-        onChange={(event) => setAmountDraft(event.target.value)}
-        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"
-        placeholder="Amount"
+        onChange={(e) => setAmountDraft(e.target.value)}
+        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white"
       />
     ) : (
-      <div className="mt-2 text-base font-semibold text-white">
-        {formatMoney(payment.amount, payment.payment_currency_code || "USD")}
+      <div className="mt-2 text-white">
+        {formatMoney(payment.amount, payment.payment_currency_code)}
       </div>
     )}
   </div>
 
+  {/* PAYMENT CURRENCY */}
   <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
     <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-      Status
+      Payment Currency
     </div>
-    <div className="mt-2 text-base font-semibold text-white">
-      {getPaymentStatusLabel(payment.status)}
-    </div>
+
+    {isEditMode ? (
+      <select
+        value={paymentCurrencyCodeDraft}
+        onChange={(e) => setPaymentCurrencyCodeDraft(e.target.value)}
+        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white"
+      >
+        {currencyOptions.map((c) => (
+          <option key={c.code} value={c.code}>
+            {c.code}
+          </option>
+        ))}
+      </select>
+    ) : (
+      <div className="mt-2 text-white">
+        {payment.payment_currency_code}
+      </div>
+    )}
   </div>
 
+  {/* PAYMENT METHOD */}
   <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
     <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-      Proof State
+      Payment Method
     </div>
-    <div className="mt-2 text-base font-semibold text-white">
-      {hasProof ? "Ready for confirmation" : "Missing proof"}
-    </div>
+
+    {isEditMode ? (
+      <select
+        value={paymentMethodIdDraft || ""}
+        onChange={(e) => setPaymentMethodIdDraft(e.target.value)}
+        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white"
+      >
+        <option value="">Select method</option>
+        {paymentMethodOptions.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.name}
+          </option>
+        ))}
+      </select>
+    ) : (
+      <div className="mt-2 text-white">
+        {paymentMethodOptions.find(m => m.id === payment.payment_method_id)?.name || "—"}
+      </div>
+    )}
   </div>
 
+  {/* REFERENCE */}
   <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
     <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-      Settlement Currency
+      Reference Number
     </div>
-    <div className="mt-2 text-base font-semibold text-white">
-      {payment.payment_currency_code || "—"} → {payment.invoice_currency_code || "—"}
-    </div>
+
+    {isEditMode ? (
+      <input
+        value={referenceNumberDraft}
+        onChange={(e) => setReferenceNumberDraft(e.target.value)}
+        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white"
+      />
+    ) : (
+      <div className="mt-2 text-white">
+        {payment.reference_number || "—"}
+      </div>
+    )}
   </div>
 
+  {/* NOTES */}
   <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3 md:col-span-3">
     <div className="text-xs uppercase tracking-[0.18em] text-white/35">
       Notes
@@ -742,17 +863,17 @@ useEffect(() => {
     {isEditMode ? (
       <textarea
         value={notesDraft}
-        onChange={(event) => setNotesDraft(event.target.value)}
-        rows={5}
-        className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-3 text-sm text-white outline-none"
-        placeholder="Notes"
+        onChange={(e) => setNotesDraft(e.target.value)}
+        rows={4}
+        className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-white"
       />
     ) : (
-      <div className="mt-2 text-sm leading-6 text-white/70">
+      <div className="mt-2 text-white/70">
         {payment.notes || "—"}
       </div>
     )}
   </div>
+
 </CardContent>
             </Card>
 

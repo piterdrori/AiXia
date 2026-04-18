@@ -200,7 +200,7 @@ export default function NewPaymentReceivedPage() {
   payment_method_id: paymentMethodId || null,
   notes: notes || null,
   payment_currency_code: paymentCurrencyCode,
-  invoice_currency_code: selectedInvoice.currency_code || null,
+  invoice_currency_code: selectedInvoice.currency_code || undefined,
   created_by: user.id,
   updated_by: user.id,
   posted_to_ledger: false,

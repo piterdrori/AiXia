@@ -847,33 +847,6 @@ export default function FinanceInvoiceDetailPage() {
       }
     }
 
-    const nextBillingAddress = [
-      selectedDraftClient.address_line_1,
-      selectedDraftClient.address_line_2,
-      selectedDraftClient.city,
-      selectedDraftClient.state_province,
-      selectedDraftClient.postal_code,
-      selectedDraftClient.country,
-    ]
-      .filter(Boolean)
-      .join(", ");
-
-    if (!dueDateDraft) {
-      const days = selectedDraftClient.payment_terms_days ?? 14;
-      const base = new Date(issueDateDraft || new Date().toISOString().slice(0, 10));
-      base.setDate(base.getDate() + days);
-      setDueDateDraft(base.toISOString().slice(0, 10));
-    }
-  }, [
-    currencies,
-    currencyIdDraft,
-    dueDateDraft,
-    invoice,
-    issueDateDraft,
-    paymentTermsIdDraft,
-    selectedDraftClient,
-  ]);
-
     useEffect(() => {
     if (!invoice || invoice.status !== "draft") return;
 
@@ -910,26 +883,7 @@ export default function FinanceInvoiceDetailPage() {
       }
     }
 
-    const nextCompanyAddress = [
-      selectedDraftCompany?.address_line_1,
-      selectedDraftCompany?.address_line_2,
-      selectedDraftCompany?.city,
-      selectedDraftCompany?.state_province,
-      selectedDraftCompany?.postal_code,
-      selectedDraftCompany?.country,
-    ]
-      .filter(Boolean)
-      .join(", ");
 
-  }, [
-    bankAccountIdDraft,
-    companyIdDraft,
-    currencies,
-    currencyIdDraft,
-    filteredDraftBankAccounts,
-    invoice,
-    selectedDraftCompany,
-  ]);
 
   useEffect(() => {
     if (!invoice || invoice.status !== "draft") return;
@@ -1124,10 +1078,6 @@ export default function FinanceInvoiceDetailPage() {
 
       const selectedCompany =
         companies.find((company) => company.id === companyIdDraft) ?? null;
-      const selectedClient =
-        clients.find((client) => client.id === clientIdDraft) ?? null;
-      const selectedPaymentTerm =
-        paymentTerms.find((term) => term.id === paymentTermsIdDraft) ?? null;
       const selectedBankAccount =
         filteredDraftBankAccounts.find((account) => account.id === bankAccountIdDraft) ?? null;
       const selectedCurrency =
@@ -1458,10 +1408,6 @@ export default function FinanceInvoiceDetailPage() {
 
       const selectedCompany =
         companies.find((company) => company.id === companyIdDraft) ?? null;
-      const selectedClient =
-        clients.find((client) => client.id === clientIdDraft) ?? null;
-      const selectedPaymentTerm =
-        paymentTerms.find((term) => term.id === paymentTermsIdDraft) ?? null;
       const selectedBankAccount =
         filteredDraftBankAccounts.find((account) => account.id === bankAccountIdDraft) ?? null;
 

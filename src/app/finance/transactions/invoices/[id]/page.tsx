@@ -3,12 +3,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   CheckCircle,
-  Pencil,
   Printer,
   RefreshCw,
   Save,
   Trash2,
-  X,
   SquarePen,
 } from "lucide-react";
 
@@ -393,8 +391,7 @@ export default function FinanceInvoiceDetailPage() {
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
   const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>([]);
   const [revenueCategories, setRevenueCategories] = useState<RevenueCategoryOption[]>([]);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [showArchivePopup, setShowArchivePopup] = useState(false);
+   const [showArchivePopup, setShowArchivePopup] = useState(false);
 
   const [editingOverview, setEditingOverview] = useState(false);
   const [editingParties, setEditingParties] = useState(false);
@@ -1022,7 +1019,6 @@ export default function FinanceInvoiceDetailPage() {
 
       if (error) throw error;
 
-      setIsEditMode(false);
       await loadInvoice(true);
     } catch (err) {
       console.error(err);
@@ -1058,7 +1054,6 @@ export default function FinanceInvoiceDetailPage() {
 
       if (error) throw error;
 
-      setIsEditMode(false);
       setEditingOverview(false);
       setEditingParties(false);
       setEditingLines(false);
@@ -1607,7 +1602,6 @@ export default function FinanceInvoiceDetailPage() {
 
       if (recalcError) throw recalcError;
 
-      setIsEditMode(false);
       setEditingOverview(false);
       setEditingParties(false);
       setEditingLines(false);
@@ -1820,42 +1814,7 @@ export default function FinanceInvoiceDetailPage() {
                   <Printer className="mr-2 h-4 w-4" />
                   Print
                 </Button>
-
-                                  <Button
-                  variant="outline"
-                  onClick={() => {
-                    const next = !isEditMode;
-                    setIsEditMode(next);
-                    setEditingOverview(next);
-                    setEditingParties(next);
-                    setEditingLines(next);
-                  }}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                >
-                  {isEditMode ? (
-                    <>
-                      <X className="mr-2 h-4 w-4" />
-                      Cancel Edit
-                    </>
-                  ) : (
-                    <>
-                      <Pencil className="mr-2 h-4 w-4" />
-                      Edit Invoice
-                    </>
-                  )}
-                </Button>
-
-                                {canEditDraft && isEditMode ? (
-                  <Button
-                    onClick={() => void handleSaveDraftChanges()}
-                    disabled={isSavingDraft}
-                    className="h-11 rounded-2xl px-4"
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    {isSavingDraft ? "Saving..." : "Save Changes"}
-                  </Button>
-                ) : null}
-
+                
                                  {invoice.status === "draft" ? (
                   <Button
                     onClick={() => void handleIssue()}
@@ -1895,7 +1854,7 @@ export default function FinanceInvoiceDetailPage() {
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
           <div className="space-y-6">
-                       <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <CardHeader className="border-b border-white/8 pb-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -1920,6 +1879,15 @@ export default function FinanceInvoiceDetailPage() {
                         {isSavingDraft ? "Saving..." : "Save"}
                       </Button>
                     ) : null}
+
+                    <Button
+                      variant="outline"
+                      onClick={() => setEditingOverview((current) => !current)}
+                      className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+                    >
+                      <SquarePen className="mr-2 h-4 w-4" />
+                      {editingOverview ? "Close" : "Edit"}
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
@@ -2258,7 +2226,7 @@ export default function FinanceInvoiceDetailPage() {
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                      <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <CardHeader className="border-b border-white/8 pb-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -2269,32 +2237,7 @@ export default function FinanceInvoiceDetailPage() {
                         : "Snapshot values frozen at issuance time."}
                     </CardDescription>
                   </div>
-
-                                   <div className="flex items-center gap-2">
-                    {editingParties ? (
-                      <Button
-                        onClick={() =>
-                          canEditDraft
-                            ? void handleSaveDraftChanges()
-                            : void handleSaveIssuedPartiesChanges()
-                        }
-                        disabled={isSavingDraft}
-                        className="h-9 rounded-2xl px-3"
-                      >
-                        <Save className="mr-2 h-4 w-4" />
-                        {isSavingDraft ? "Saving..." : "Save"}
-                      </Button>
-                    ) : null}
-
-                    <Button
-                      variant="outline"
-                      onClick={() => setEditingParties((current) => !current)}
-                      className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-                    >
-                      <SquarePen className="mr-2 h-4 w-4" />
-                      {editingParties ? "Close" : "Edit"}
-                    </Button>
-                  </div>
+                  <div />
                 </div>
               </CardHeader>
 
@@ -2600,280 +2543,208 @@ export default function FinanceInvoiceDetailPage() {
                     </>
                   )
                 ) : (
-  <>
-    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
-      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-        Issuing Company
-      </div>
-      <div className="mt-3 space-y-2 text-sm text-white/75">
-        {editingParties ? (
-          <>
-            <input
-              value={companyNameDraft}
-              onChange={(event) => setCompanyNameDraft(event.target.value)}
-              placeholder="Company legal name"
-              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-            />
-            <input
-              value={companyContactPersonDraft}
-              onChange={(event) =>
-                setCompanyContactPersonDraft(event.target.value)
-              }
-              placeholder="Company contact person"
-              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-            />
-            <input
-              value={companyEmailDraft}
-              onChange={(event) => setCompanyEmailDraft(event.target.value)}
-              placeholder="Company email"
-              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-            />
-            <input
-              value={companyPhoneDraft}
-              onChange={(event) => setCompanyPhoneDraft(event.target.value)}
-              placeholder="Company phone"
-              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-            />
-            <textarea
-              value={companyAddressDraft}
-              onChange={(event) => setCompanyAddressDraft(event.target.value)}
-              rows={3}
-              placeholder="Company primary address"
-              className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
-            />
-          </>
-        ) : (
-          <>
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
-                Legal Name
-              </div>
-              <div className="mt-1 font-semibold text-white">
-                {invoice.company_name_snapshot || "—"}
-              </div>
-            </div>
-           
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
-                Contact Person
-              </div>
-              <div className="mt-1">
-                {invoice.company_contact_person_snapshot ||
-                  companies.find((company) => company.id === invoice.company_id)
-                    ?.contact_person ||
-                  "—"}
-              </div>
-            </div>
+                  <>
+                    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                        Issuing Company
+                      </div>
+                      <div className="mt-3 space-y-2 text-sm text-white/75">
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                            Legal Name
+                          </div>
+                          <div className="mt-1 font-semibold text-white">
+                            {invoice.company_name_snapshot || "—"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                            Contact Person
+                          </div>
+                          <div className="mt-1">
+                            {invoice.company_contact_person_snapshot ||
+                              companies.find((company) => company.id === invoice.company_id)
+                                ?.contact_person ||
+                              "—"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                            Email
+                          </div>
+                          <div className="mt-1">{invoice.company_email_snapshot || "—"}</div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                            Phone
+                          </div>
+                          <div className="mt-1">{invoice.company_phone_snapshot || "—"}</div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                            Primary Address
+                          </div>
+                          <div className="mt-1 leading-6">
+                            {invoice.company_address_snapshot || "—"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
-                Email
-              </div>
-              <div className="mt-1">{invoice.company_email_snapshot || "—"}</div>
-            </div>
+                    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                        Client
+                      </div>
+                      <div className="mt-3 space-y-2 text-sm text-white/75">
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                            Legal Name
+                          </div>
+                          <div className="mt-1 font-semibold text-white">
+                            {invoice.client_name_snapshot || "—"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                            Contact Person
+                          </div>
+                          <div className="mt-1">
+                            {invoice.client_contact_person_snapshot ||
+                              clients.find((client) => client.id === invoice.client_id)
+                                ?.contact_person ||
+                              "—"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                            Email
+                          </div>
+                          <div className="mt-1">{invoice.client_email_snapshot || "—"}</div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                            Phone
+                          </div>
+                          <div className="mt-1">{invoice.client_phone_snapshot || "—"}</div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                            Primary Address
+                          </div>
+                          <div className="mt-1 leading-6">
+                            {invoice.billing_address_snapshot || "—"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
-                Phone
-              </div>
-              <div className="mt-1">{invoice.company_phone_snapshot || "—"}</div>
-            </div>
+                    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                          Terms &amp; Conditions
+                        </div>
 
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
-                Primary Address
-              </div>
-              <div className="mt-1 leading-6">
-                {invoice.company_address_snapshot || "—"}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+                        <div className="flex items-center gap-2">
+                          {editingParties ? (
+                            <Button
+                              onClick={() => void handleSaveIssuedPartiesChanges()}
+                              disabled={isSavingDraft}
+                              className="h-9 rounded-2xl px-3"
+                            >
+                              <Save className="mr-2 h-4 w-4" />
+                              {isSavingDraft ? "Saving..." : "Save"}
+                            </Button>
+                          ) : null}
 
-    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
-      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-        Client
-      </div>
-      <div className="mt-3 space-y-2 text-sm text-white/75">
-        {editingParties ? (
-          <>
-            <input
-              value={clientNameDraft}
-              onChange={(event) => setClientNameDraft(event.target.value)}
-              placeholder="Client legal name"
-              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-            />
-            <input
-              value={clientContactPersonDraft}
-              onChange={(event) =>
-                setClientContactPersonDraft(event.target.value)
-              }
-              placeholder="Client contact person"
-              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-            />
-            <input
-              value={clientEmailDraft}
-              onChange={(event) => setClientEmailDraft(event.target.value)}
-              placeholder="Client email"
-              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-            />
-            <input
-              value={clientPhoneDraft}
-              onChange={(event) => setClientPhoneDraft(event.target.value)}
-              placeholder="Client phone"
-              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-            />
-            <textarea
-              value={billingAddressDraft}
-              onChange={(event) => setBillingAddressDraft(event.target.value)}
-              rows={3}
-              placeholder="Client primary address"
-              className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
-            />
-          </>
-        ) : (
-          <>
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
-                Legal Name
-              </div>
-              <div className="mt-1 font-semibold text-white">
-                {invoice.client_name_snapshot || "—"}
-              </div>
-            </div>
+                          <Button
+                            variant="outline"
+                            onClick={() => setEditingParties((current) => !current)}
+                            className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+                          >
+                            <SquarePen className="mr-2 h-4 w-4" />
+                            {editingParties ? "Close" : "Edit"}
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 space-y-4 text-sm text-white/75">
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                            Payment Terms
+                          </div>
+                          {editingParties ? (
+                            <input
+                              value={paymentTermsDraft}
+                              onChange={(event) => setPaymentTermsDraft(event.target.value)}
+                              placeholder="Payment terms"
+                              className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                            />
+                          ) : (
+                            <div className="mt-1">{invoice.payment_terms_snapshot || "—"}</div>
+                          )}
+                        </div>
 
                         <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
-                Contact Person
-              </div>
-              <div className="mt-1">
-                {invoice.client_contact_person_snapshot ||
-                  clients.find((client) => client.id === invoice.client_id)
-                    ?.contact_person ||
-                  "—"}
-              </div>
-            </div>
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                            Shipping Terms
+                          </div>
+                          {editingParties ? (
+                            <input
+                              value={shippingTermsDraft}
+                              onChange={(event) => setShippingTermsDraft(event.target.value)}
+                              placeholder="Shipping terms"
+                              className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                            />
+                          ) : (
+                            <div className="mt-1">
+                              {(invoice as any).shipping_terms_snapshot || "—"}
+                            </div>
+                          )}
+                        </div>
 
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
-                Email
-              </div>
-              <div className="mt-1">{invoice.client_email_snapshot || "—"}</div>
-            </div>
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                            Terms and Conditions
+                          </div>
+                          {editingParties ? (
+                            <textarea
+                              value={termsAndConditionsDraft}
+                              onChange={(event) => setTermsAndConditionsDraft(event.target.value)}
+                              rows={7}
+                              placeholder="Terms and conditions"
+                              className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none"
+                            />
+                          ) : (
+                            <div className="mt-1 whitespace-pre-line leading-6">
+                              {(invoice as any).terms_and_conditions_snapshot ||
+                                termsAndConditionsDraft ||
+                                "Payment is due according to agreed terms."}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
 
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
-                Phone
-              </div>
-              <div className="mt-1">{invoice.client_phone_snapshot || "—"}</div>
-            </div>
-
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
-                Primary Address
-              </div>
-              <div className="mt-1 leading-6">
-                {invoice.billing_address_snapshot || "—"}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-
-       <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
-      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-        Terms &amp; Conditions
-      </div>
-
-      <div className="mt-3 space-y-4 text-sm text-white/75">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
-            Payment Terms
-          </div>
-          {editingParties ? (
-            <input
-              value={paymentTermsDraft}
-              onChange={(event) => setPaymentTermsDraft(event.target.value)}
-              placeholder="Payment terms"
-              className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-            />
-          ) : (
-            <div className="mt-1">{invoice.payment_terms_snapshot || "—"}</div>
-          )}
-        </div>
-
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
-            Shipping Terms
-          </div>
-          {editingParties ? (
-            <input
-              value={shippingTermsDraft}
-              onChange={(event) => setShippingTermsDraft(event.target.value)}
-              placeholder="Shipping terms"
-              className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-            />
-          ) : (
-            <div className="mt-1">
-              {(invoice as any).shipping_terms_snapshot || "—"}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
-            Terms and Conditions
-          </div>
-          {editingParties ? (
-            <textarea
-              value={termsAndConditionsDraft}
-              onChange={(event) => setTermsAndConditionsDraft(event.target.value)}
-              rows={7}
-              placeholder="Terms and conditions"
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none"
-            />
-                    ) : (
-                       <div className="mt-1 whitespace-pre-line leading-6">
-              {(invoice as any).terms_and_conditions_snapshot ||
-                termsAndConditionsDraft ||
-                "Payment is due according to agreed terms."}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-
-        <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
-      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-        Bank Details
-      </div>
-      <div className="mt-3 text-sm text-white/75">
-        {editingParties ? (
-          <textarea
-            value={bankDetailsDraft}
-            onChange={(event) => setBankDetailsDraft(event.target.value)}
-            rows={7}
-            placeholder="Bank details"
-            className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none"
-          />
-        ) : resolvedBankDetailsLines.length > 0 ? (
-          resolvedBankDetailsLines.map((line, index) => (
-            <div key={`${line}-${index}`}>{line}</div>
-          ))
-        ) : (
-          "—"
-        )}
-      </div>
-    </div>
-  </>
-)}
+                    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                        Bank Details
+                      </div>
+                      <div className="mt-3 text-sm text-white/75">
+                        {resolvedBankDetailsLines.length > 0 ? (
+                          resolvedBankDetailsLines.map((line, index) => (
+                            <div key={`${line}-${index}`}>{line}</div>
+                          ))
+                        ) : (
+                          "—"
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
-                        <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <CardHeader className="border-b border-white/8 pb-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -2883,7 +2754,7 @@ export default function FinanceInvoiceDetailPage() {
                     </CardDescription>
                   </div>
 
-                                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
                     {editingLines ? (
                       <Button
                         onClick={() =>
@@ -2909,7 +2780,7 @@ export default function FinanceInvoiceDetailPage() {
                       </Button>
                     ) : null}
 
-                                        <Button
+                    <Button
                       variant="outline"
                       onClick={() => setEditingLines((current) => !current)}
                       className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"

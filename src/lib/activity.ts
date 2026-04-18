@@ -24,7 +24,15 @@ type ActivityEntityType =
   | "finance_exchange_rate"
   | "finance_attachment"
   | "finance_comment"
-  | "finance_setting";
+  | "finance_setting"
+  | "finance_invoice_issued"
+  | "finance_payment_received"
+  | "finance_payment_made"
+  | "finance_bill_received"
+  | "finance_expense"
+  | "finance_reimbursement"
+  | "finance_payroll_run"
+  | "finance_paycheck";
 
 type LogActivityInput = {
   projectId?: string | null;

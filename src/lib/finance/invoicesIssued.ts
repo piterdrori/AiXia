@@ -218,6 +218,61 @@ export async function getIssuedInvoicesList(): Promise<
   }));
 }
 
+export async function getIssuedInvoicesArchiveList(): Promise<
+  FinanceIssuedInvoiceListRow[]
+> {
+  const { data, error } = await supabase
+    .from(INVOICES_TABLE)
+    .select(
+      `
+        id,
+        invoice_number,
+        status,
+        payment_status,
+        approval_status,
+        client_id,
+        issue_date,
+        due_date,
+        currency_code,
+        total_amount,
+        paid_amount,
+        balance_due,
+        created_at,
+        project_id,
+        finance_clients (
+          name,
+          legal_name
+        )
+      `
+    )
+    .in("status", ["archived", "deleted"])
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    invoice_number: row.invoice_number,
+    status: normalizeIssuedInvoiceStatus(row.status),
+    payment_status: normalizeIssuedInvoicePaymentStatus(row.payment_status),
+    approval_status: row.approval_status ?? null,
+    client_id: row.client_id,
+    client_name:
+      row.client_name_snapshot ||
+      row.finance_clients?.legal_name ||
+      row.finance_clients?.name ||
+      "Unknown client",
+    issue_date: row.issue_date,
+    due_date: row.due_date,
+    currency_code: row.currency_code ?? "USD",
+    total_amount: Number(row.total_amount ?? 0),
+    paid_amount: Number(row.paid_amount ?? 0),
+    balance_due: Number(row.balance_due ?? 0),
+    created_at: row.created_at,
+    project_id: row.project_id ?? null,
+  }));
+}
+
 export async function getIssuedInvoiceById(id: string) {
   const [
     { data: invoice, error: invoiceError },

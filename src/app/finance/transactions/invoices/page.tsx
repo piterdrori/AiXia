@@ -30,6 +30,7 @@ import {
   getInvoicePostingStatus,
   getIssuedInvoicePaymentStatusLabel,
   getIssuedInvoiceStatusLabel,
+  getIssuedInvoicesArchiveList,
   getIssuedInvoicesList,
   isInvoiceOverdue,
   type FinanceIssuedInvoiceListRow,
@@ -148,6 +149,12 @@ function getDocumentStatusBadgeClasses(
     case "cancelled":
       return "border-gray-400/20 bg-gray-500/10 text-gray-200";
 
+    case "archived":
+  return "border-white/20 bg-white/5 text-white/60";
+
+   case "deleted":
+  return "border-rose-500/30 bg-rose-500/10 text-rose-300";
+
     default:
       return "border-white/10 bg-white/10 text-white/75";
   }
@@ -197,6 +204,10 @@ export default function FinanceInvoicesPage() {
 
   const [openMenuInvoiceId, setOpenMenuInvoiceId] = useState<string | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+  const [archiveTab, setArchiveTab] = useState<"archived" | "deleted">("archived");
+  const [archivedInvoices, setArchivedInvoices] = useState<FinanceIssuedInvoiceListRow[]>([]);
+  const [isArchiveLoading, setIsArchiveLoading] = useState(false);
 
 
   const loadPermissions = useCallback(async () => {
@@ -246,6 +257,20 @@ export default function FinanceInvoicesPage() {
     }
   }, []);
 
+  const loadArchivedInvoices = useCallback(async () => {
+  setIsArchiveLoading(true);
+
+  try {
+    const rows = await getIssuedInvoicesArchiveList();
+    setArchivedInvoices(rows);
+  } catch (error) {
+    console.error("Failed to load archived invoices:", error);
+    setArchivedInvoices([]);
+  } finally {
+    setIsArchiveLoading(false);
+  }
+}, []);
+
   useEffect(() => {
     void Promise.all([loadPermissions(), loadInvoices()]);
   }, [loadInvoices, loadPermissions]);
@@ -266,13 +291,24 @@ export default function FinanceInvoicesPage() {
   };
 }, []);
   
+ 
+  useEffect(() => {
+  if (!isArchiveModalOpen) return;
+  void loadArchivedInvoices();
+}, [isArchiveModalOpen, loadArchivedInvoices]);
+  
   useEffect(() => {
     const channel = supabase
       .channel("finance-issued-invoices-list")
-      .on(
+           .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_invoices_issued" },
-        () => void loadInvoices(true)
+        () => {
+          void loadInvoices(true);
+          if (isArchiveModalOpen) {
+            void loadArchivedInvoices();
+          }
+        }
       )
       .on(
         "postgres_changes",
@@ -284,7 +320,7 @@ export default function FinanceInvoicesPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loadInvoices]);
+  }, [isArchiveModalOpen, loadArchivedInvoices, loadInvoices]);
 
   const permissions = useMemo(() => {
     if (!role) return null;
@@ -311,6 +347,15 @@ const handleDelete = async (id: string) => {
   await loadInvoices(true);
 };
 
+  const handleRestore = async (id: string) => {
+  await supabase
+    .from("finance_invoices_issued")
+    .update({ status: "issued" })
+    .eq("id", id);
+
+  await Promise.all([loadInvoices(true), loadArchivedInvoices()]);
+};
+
   const filteredInvoices = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
 
@@ -333,6 +378,10 @@ const handleDelete = async (id: string) => {
     });
   }, [invoices, search]);
 
+ const visibleArchivedInvoices = useMemo(() => {
+  return archivedInvoices.filter((invoice) => invoice.status === archiveTab);
+}, [archivedInvoices, archiveTab]);
+  
   const metricCards = useMemo<InvoiceMetricCard[]>(() => {
     const totalInvoices = invoices.length;
     const draftInvoices = invoices.filter((row) => row.status === "draft").length;
@@ -456,6 +505,17 @@ const handleDelete = async (id: string) => {
                     New Invoice
                   </Button>
                 ) : null}
+
+                <Button
+  variant="outline"
+  onClick={() => {
+    setArchiveTab("archived");
+    setIsArchiveModalOpen(true);
+  }}
+  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+>
+  Archive
+</Button>
               </div>
             </div>
 
@@ -665,6 +725,138 @@ const handleDelete = async (id: string) => {
             </CardContent>
           </Card>
         </section>
+           {isArchiveModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+          <div className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+            <div className="flex items-center justify-between border-b border-white/8 px-6 py-5">
+              <div>
+                <div className="text-lg font-semibold text-white">Archive</div>
+                <div className="mt-1 text-sm text-white/45">
+                  Archived and deleted invoices removed from the active registry.
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsArchiveModalOpen(false)}
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 border-b border-white/8 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setArchiveTab("archived")}
+                className={`rounded-xl px-4 py-2 text-sm transition ${
+                  archiveTab === "archived"
+                    ? "bg-white/10 text-white"
+                    : "text-white/55 hover:bg-white/5 hover:text-white/80"
+                }`}
+              >
+                Archived
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setArchiveTab("deleted")}
+                className={`rounded-xl px-4 py-2 text-sm transition ${
+                  archiveTab === "deleted"
+                    ? "bg-rose-500/15 text-rose-200"
+                    : "text-white/55 hover:bg-white/5 hover:text-white/80"
+                }`}
+              >
+                Deleted
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-6">
+              {isArchiveLoading ? (
+                <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
+                  Loading archive...
+                </div>
+              ) : visibleArchivedInvoices.length === 0 ? (
+                <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
+                  No {archiveTab} invoices found.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {visibleArchivedInvoices.map((invoice) => (
+                    <div
+                      key={invoice.id}
+                      className="flex items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-4"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-base font-semibold text-white">
+                            {invoice.invoice_number || "Draft"}
+                          </div>
+
+                          <Badge className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] text-white/75 shadow-none">
+                            {getIssuedInvoiceStatusLabel(invoice.status)}
+                          </Badge>
+
+                          <Badge
+                            className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getPaymentStatusBadgeClasses(
+                              invoice.payment_status
+                            )}`}
+                          >
+                            {getIssuedInvoicePaymentStatusLabel(invoice.payment_status)}
+                          </Badge>
+                        </div>
+
+                        <div className="mt-2 text-sm text-white/70">
+                          {invoice.client_name}
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-white/45 md:grid-cols-4">
+                          <div>Issued: {formatFinanceDate(invoice.issue_date)}</div>
+                          <div>Due: {formatFinanceDate(invoice.due_date)}</div>
+                          <div>
+                            Total:{" "}
+                            {formatFinanceMoney(
+                              invoice.total_amount,
+                              invoice.currency_code ?? "USD"
+                            )}
+                          </div>
+                          <div>
+                            Balance:{" "}
+                            {formatFinanceMoney(
+                              invoice.balance_due,
+                              invoice.currency_code ?? "USD"
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(`/finance/transactions/invoices/${invoice.id}`)
+                          }
+                          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
+                        >
+                          Open
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => void handleRestore(invoice.id)}
+                          className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-500/20"
+                        >
+                          Restore
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
       </div>
     </div>
   );

@@ -20,7 +20,9 @@ export type FinanceInvoiceIssuedPaymentStatus =
 export type FinancePaymentReceivedStatus =
   | "draft"
   | "confirmed"
-  | "cancelled";
+  | "cancelled"
+  | "archived"
+  | "deleted";
 
 export type FinanceBillReceivedStatus =
   | "draft"

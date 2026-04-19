@@ -1719,7 +1719,9 @@ shipping_terms_snapshot:
               </CardHeader>
 
               <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                              {editingOverview ? (
+                            
+                {editingOverview ? (
+                   invoice.status === "draft" ? (
                   <>
                     <label className="space-y-2">
                       <div className="text-sm text-white/70">Issuing Company</div>
@@ -1902,7 +1904,40 @@ shipping_terms_snapshot:
                       />
                     </div>
                   </>
-                ) : (
+              ) : (
+    <>
+      <label className="space-y-2">
+        <div className="text-sm text-white/70">Issue Date</div>
+        <input
+          type="date"
+          value={issueDateDraft}
+          onChange={(e) => setIssueDateDraft(e.target.value)}
+          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+        />
+      </label>
+
+      <label className="space-y-2">
+        <div className="text-sm text-white/70">Due Date</div>
+        <input
+          type="date"
+          value={dueDateDraft}
+          onChange={(e) => setDueDateDraft(e.target.value)}
+          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+        />
+      </label>
+
+      <div className="md:col-span-3">
+        <div className="text-sm text-white/70">Notes</div>
+        <textarea
+          value={notesDraft}
+          onChange={(e) => setNotesDraft(e.target.value)}
+          rows={4}
+          className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
+        />
+      </div>
+    </>
+  )
+) : (
                   <>
                     <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
                       <div className="text-xs uppercase tracking-[0.18em] text-white/35">

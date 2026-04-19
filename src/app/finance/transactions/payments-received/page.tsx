@@ -394,12 +394,15 @@ export default function PaymentsReceivedPage() {
 }, [archivedPayments, archiveTab]);
   
   const metricCards = useMemo<PaymentMetricCard[]>(() => {
-    const totalPayments = payments.length;
-    const draftPayments = payments.filter((row) => row.status === "draft").length;
-    const confirmedPayments = payments.filter(
-      (row) => row.status === "confirmed"
-    );
-    const cancelledPayments = payments.filter(
+    const activePayments = payments.filter(
+  (row) => row.status !== "archived" && row.status !== "deleted"
+);
+const totalPayments = activePayments.length;
+const draftPayments = activePayments.filter((row) => row.status === "draft").length;
+const confirmedPayments = activePayments.filter(
+  (row) => row.status === "confirmed"
+);
+    const cancelledPayments = activePayments.filter(
       (row) => row.status === "cancelled"
     ).length;
 
@@ -435,8 +438,11 @@ export default function PaymentsReceivedPage() {
       {
         key: "confirmed",
         title: "Confirmed Inflows",
-        value: formatFinanceMoney(totalConverted, "USD"),
-        subtitle: `${confirmedPayments.length} confirmed payment records`,
+        value: totalConverted.toLocaleString(undefined, {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+}),
+        subtitle: `${confirmedPayments.length} confirmed payment records (mixed currencies)`,
         icon: Wallet,
         tone: "emerald",
       },
@@ -685,67 +691,71 @@ export default function PaymentsReceivedPage() {
       <MoreVertical className="h-4 w-4" />
     </button>
 
-    {openMenuPaymentId === payment.id ? (
-      <div className="absolute right-0 z-20 mt-2 w-40 overflow-hidden rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-xl">
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            setOpenMenuPaymentId(null);
-            navigate(`/finance/transactions/payments-received/${payment.id}`);
-          }}
-          className="w-full px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10"
-        >
-          Open
-        </button>
+ {openMenuPaymentId === payment.id ? (
+  <div className="absolute right-0 z-20 mt-2 w-40 overflow-hidden rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-xl">
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        setOpenMenuPaymentId(null);
+        navigate(`/finance/transactions/payments-received/${payment.id}`);
+      }}
+      className="w-full px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10"
+    >
+      Open
+    </button>
 
-        {payment.status === "draft" ? (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              setOpenMenuPaymentId(null);
-              navigate(`/finance/transactions/payments-received/${payment.id}`);
-            }}
-            className="w-full px-3 py-2 text-left text-sm text-cyan-200 hover:bg-white/10"
-          >
-            Edit
-          </button>
-        ) : null}
-
-        <button
-          type="button"
-          onClick={async (event) => {
-            event.stopPropagation();
-            setOpenMenuPaymentId(null);
-            await archivePaymentReceived(payment.id);
-            await loadPayments(true);
-            if (isArchiveModalOpen) {
-              await loadArchivedPayments();
-            }
-          }}
-          className="w-full px-3 py-2 text-left text-sm text-amber-300 hover:bg-white/10"
-        >
-          Archive
-        </button>
-
-        <button
-          type="button"
-          onClick={async (event) => {
-            event.stopPropagation();
-            setOpenMenuPaymentId(null);
-            await softDeletePaymentReceived(payment.id);
-            await loadPayments(true);
-            if (isArchiveModalOpen) {
-              await loadArchivedPayments();
-            }
-          }}
-          className="w-full px-3 py-2 text-left text-sm text-rose-400 hover:bg-white/10"
-        >
-          Delete
-        </button>
-      </div>
+    {payment.status === "draft" ? (
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpenMenuPaymentId(null);
+          navigate(`/finance/transactions/payments-received/${payment.id}`);
+        }}
+        className="w-full px-3 py-2 text-left text-sm text-cyan-200 hover:bg-white/10"
+      >
+        Edit
+      </button>
     ) : null}
+
+    {payment.status !== "archived" && payment.status !== "deleted" ? (
+      <button
+        type="button"
+        onClick={async (event) => {
+          event.stopPropagation();
+          setOpenMenuPaymentId(null);
+          await archivePaymentReceived(payment.id);
+          await loadPayments(true);
+          if (isArchiveModalOpen) {
+            await loadArchivedPayments();
+          }
+        }}
+        className="w-full px-3 py-2 text-left text-sm text-amber-300 hover:bg-white/10"
+      >
+        Archive
+      </button>
+    ) : null}
+
+    {payment.status !== "deleted" ? (
+      <button
+        type="button"
+        onClick={async (event) => {
+          event.stopPropagation();
+          setOpenMenuPaymentId(null);
+          await softDeletePaymentReceived(payment.id);
+          await loadPayments(true);
+          if (isArchiveModalOpen) {
+            await loadArchivedPayments();
+          }
+        }}
+        className="w-full px-3 py-2 text-left text-sm text-rose-400 hover:bg-white/10"
+      >
+        Delete
+      </button>
+    ) : null}
+  </div>
+) : null}
   </div>
 
   <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />

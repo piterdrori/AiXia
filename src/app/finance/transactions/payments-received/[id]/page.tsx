@@ -688,7 +688,12 @@ useEffect(() => {
                 {payment.status === "draft" ? (
   <Button
     onClick={() => void handleConfirm()}
-    disabled={!hasProof || isConfirming || isEditMode}
+    disabled={
+  !hasProof ||
+  isConfirming ||
+  isEditMode ||
+  payment.exchange_rate_source === "pending_backend_conversion"
+}
     className="h-11 rounded-2xl px-4"
   >
     <CheckCircle className="mr-2 h-4 w-4" />
@@ -799,11 +804,12 @@ useEffect(() => {
     </div>
 
     {isEditMode ? (
-      <select
-        value={invoiceIdDraft || ""}
-        onChange={(e) => setInvoiceIdDraft(e.target.value)}
-        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white"
-      >
+     <select
+  value={invoiceIdDraft || ""}
+  onChange={(e) => setInvoiceIdDraft(e.target.value)}
+  className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white"
+  style={{ colorScheme: "dark" }}
+>
         <option value="">Select invoice</option>
         {invoiceOptions.map((inv) => (
           <option key={inv.id} value={inv.id}>
@@ -846,10 +852,13 @@ useEffect(() => {
 
     {isEditMode ? (
       <input
-        value={amountDraft}
-        onChange={(e) => setAmountDraft(e.target.value)}
-        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white appearance-none"
-      />
+  type="number"
+step="0.01"
+min="0"
+  value={amountDraft}
+  onChange={(e) => setAmountDraft(e.target.value)}
+  className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white appearance-none"
+/>
     ) : (
       <div className="mt-2 text-white">
         {formatMoney(payment.amount, payment.payment_currency_code)}
@@ -864,10 +873,11 @@ useEffect(() => {
     </div>
 
     {isEditMode ? (
-     <select
+    <select
   value={paymentCurrencyCodeDraft || ""}
   onChange={(e) => setPaymentCurrencyCodeDraft(e.target.value)}
   className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white appearance-none"
+  style={{ colorScheme: "dark" }}
 >
   <option value="">Select currency</option>
 
@@ -899,6 +909,7 @@ useEffect(() => {
         value={paymentMethodIdDraft || ""}
         onChange={(e) => setPaymentMethodIdDraft(e.target.value)}
         className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white appearance-none"
+        style={{ colorScheme: "dark" }}
       >
         <option value="">Select method</option>
         {paymentMethodOptions.map((m) => (

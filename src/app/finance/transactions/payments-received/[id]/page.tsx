@@ -218,7 +218,7 @@ export default function PaymentReceivedDetailPage() {
           const { data: linkedInvoice, error: linkedInvoiceError } = await supabase
             .from("finance_invoices_issued")
             .select(
-              "id, invoice_number, client_name_snapshot, currency_code, total_amount, paid_amount, balance_due, status, payment_status"
+              "id, invoice_number, client_name_snapshot, currency_code, total_amount, paid_amount, balance_due, status, payment_status, issue_date, due_date"
             )
             .eq("id", typedPayment.invoice_id)
             .maybeSingle();

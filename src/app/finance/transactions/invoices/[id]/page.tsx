@@ -751,26 +751,17 @@ export default function FinanceInvoiceDetailPage() {
     [bankAccountIdDraft, filteredDraftBankAccounts]
   );
 
-  const resolvedBankDetailsLines = useMemo(() => {
-    if (!invoice) return [];
+const resolvedBankDetailsLines = useMemo(() => {
+  if (!invoice) return [];
 
-    if (invoice.status === "draft") {
-      return buildBankDetailsLinesFromAccount(selectedDraftBankAccount);
-    }
+  if (invoice.status === "draft") {
+    return buildBankDetailsLinesFromAccount(selectedDraftBankAccount);
+  }
 
-    const snapshotLines = buildBankDetailsLinesFromSnapshot(
-      invoice.bank_details_snapshot
-    );
-
-    if (snapshotLines.length > 0) {
-      return snapshotLines;
-    }
-
-    const issuedBankAccount =
-      bankAccounts.find((account) => account.id === invoice.bank_account_id) ?? null;
-
-    return buildBankDetailsLinesFromAccount(issuedBankAccount);
-  }, [bankAccounts, invoice, selectedDraftBankAccount]);
+  return buildBankDetailsLinesFromSnapshot(
+    invoice.bank_details_snapshot
+  );
+}, [invoice, selectedDraftBankAccount]);
 
   const draftTotals = useMemo(() => {
     const subtotal = lineItemsDraft.reduce(
@@ -915,6 +906,9 @@ export default function FinanceInvoiceDetailPage() {
   }, [filteredDraftTasks, invoice, projectIdDraft, taskIdDraft]);
   
   const canEditDraft = invoice?.status === "draft";
+const canEditIssuedOverview = invoice?.status === "issued";
+const canEditIssuedParties = invoice?.status === "issued";
+const canEditIssuedLines = false;
   const canArchive = !!invoice && invoice.status !== "archived";
   const canHardDelete = !!invoice && invoice.status === "archived";
 
@@ -980,42 +974,54 @@ export default function FinanceInvoiceDetailPage() {
     }
   }, [id, invoice, loadArchiveItems, loadInvoice]);
 
-  const handleHardDelete = useCallback(
-    async (invoiceId: string) => {
-      setIsDeleting(true);
-      setError("");
+const handleHardDelete = useCallback(
+  async (invoiceId: string) => {
+    setIsDeleting(true);
+    setError("");
 
-      try {
-        const { error: lineError } = await supabase
-          .from("finance_invoice_issued_line_items")
-          .delete()
-          .eq("invoice_id", invoiceId);
+    try {
+      const { data: payments, error: paymentsError } = await supabase
+        .from("finance_payments_received")
+        .select("id")
+        .eq("invoice_id", invoiceId)
+        .eq("status", "confirmed");
 
-        if (lineError) throw lineError;
+      if (paymentsError) throw paymentsError;
 
-        const { error: invoiceError } = await supabase
-          .from("finance_invoices_issued")
-          .delete()
-          .eq("id", invoiceId)
-          .eq("status", "archived");
-
-        if (invoiceError) throw invoiceError;
-
-        if (invoiceId === id) {
-          navigate("/finance/transactions/invoices");
-          return;
-        }
-
-        await loadArchiveItems();
-      } catch (err) {
-        console.error(err);
-        setError("Failed to permanently delete archived invoice.");
-      } finally {
-        setIsDeleting(false);
+      if (payments && payments.length > 0) {
+        throw new Error("Cannot delete invoice with existing payments.");
       }
-    },
-    [id, loadArchiveItems, navigate]
-  );
+
+      const { error: lineError } = await supabase
+        .from("finance_invoice_issued_line_items")
+        .delete()
+        .eq("invoice_id", invoiceId);
+
+      if (lineError) throw lineError;
+
+      const { error: invoiceError } = await supabase
+        .from("finance_invoices_issued")
+        .delete()
+        .eq("id", invoiceId)
+        .eq("status", "archived");
+
+      if (invoiceError) throw invoiceError;
+
+      if (invoiceId === id) {
+        navigate("/finance/transactions/invoices");
+        return;
+      }
+
+      await loadArchiveItems();
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Failed to permanently delete archived invoice.");
+    } finally {
+      setIsDeleting(false);
+    }
+  },
+  [id, loadArchiveItems, navigate]
+);
 
   
     const applyDraftItemSelection = useCallback(
@@ -1694,10 +1700,10 @@ shipping_terms_snapshot:
                     {editingOverview ? (
                       <Button
                         onClick={() =>
-                          canEditDraft
-                            ? void handleSaveDraftChanges()
-                            : void handleSaveIssuedOverviewChanges()
-                        }
+  canEditDraft
+    ? void handleSaveDraftChanges()
+    : void handleSaveIssuedOverviewChanges()
+}
                         disabled={isSavingDraft}
                         className="h-9 rounded-2xl px-3"
                       >
@@ -1706,14 +1712,16 @@ shipping_terms_snapshot:
                       </Button>
                     ) : null}
 
-                    <Button
-                      variant="outline"
-                      onClick={() => setEditingOverview((current) => !current)}
-                      className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-                    >
-                      <SquarePen className="mr-2 h-4 w-4" />
-                      {editingOverview ? "Close" : "Edit"}
-                    </Button>
+                   {canEditDraft || canEditIssuedOverview ? (
+  <Button
+    variant="outline"
+    onClick={() => setEditingOverview((current) => !current)}
+    className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+  >
+    <SquarePen className="mr-2 h-4 w-4" />
+    {editingOverview ? "Close" : "Edit"}
+  </Button>
+) : null}
                   </div>
                 </div>
               </CardHeader>
@@ -2467,14 +2475,16 @@ shipping_terms_snapshot:
                             </Button>
                           ) : null}
 
-                          <Button
-                            variant="outline"
-                            onClick={() => setEditingParties((current) => !current)}
-                            className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-                          >
-                            <SquarePen className="mr-2 h-4 w-4" />
-                            {editingParties ? "Close" : "Edit"}
-                          </Button>
+                         {canEditDraft || canEditIssuedParties ? (
+  <Button
+    variant="outline"
+    onClick={() => setEditingParties((current) => !current)}
+    className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+  >
+    <SquarePen className="mr-2 h-4 w-4" />
+    {editingParties ? "Close" : "Edit"}
+  </Button>
+) : null}
                         </div>
                       </div>
 
@@ -2578,14 +2588,16 @@ shipping_terms_snapshot:
                       </Button>
                     ) : null}
 
-                    <Button
-                      variant="outline"
-                      onClick={() => setEditingLines((current) => !current)}
-                      className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-                    >
-                      <SquarePen className="mr-2 h-4 w-4" />
-                      {editingLines ? "Close" : "Edit"}
-                    </Button>
+                    {canEditDraft || canEditIssuedLines ? (
+  <Button
+    variant="outline"
+    onClick={() => setEditingLines((current) => !current)}
+    className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+  >
+    <SquarePen className="mr-2 h-4 w-4" />
+    {editingLines ? "Close" : "Edit"}
+  </Button>
+) : null}
                   </div>
                 </div>
               </CardHeader>

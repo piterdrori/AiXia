@@ -781,7 +781,7 @@ const handleDelete = async (id: string) => {
     {formatFinanceDate(invoice.created_at)}
   </div>
 
-  {/* ACTION MENU */}
+ {/* ACTION MENU */}
 <div
   className="relative"
   ref={openMenuInvoiceId === invoice.id ? actionsMenuRef : null}
@@ -799,47 +799,48 @@ const handleDelete = async (id: string) => {
     <MoreVertical className="h-4 w-4" />
   </button>
 
-{openMenuInvoiceId === invoice.id ? (
-  <div className="absolute right-0 z-20 mt-2 w-40 overflow-hidden rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-xl">
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        setOpenMenuInvoiceId(null);
-        navigate(`/finance/transactions/invoices/${invoice.id}`);
-      }}
-      className="w-full px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10"
-    >
-      Edit
-    </button>
-
-    {invoice.status !== "archived" && invoice.status !== "deleted" ? (
+  {openMenuInvoiceId === invoice.id ? (
+    <div className="absolute right-0 z-20 mt-2 w-40 overflow-hidden rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-xl">
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          void handleArchive(invoice.id);
+          setOpenMenuInvoiceId(null);
+          navigate(`/finance/transactions/invoices/${invoice.id}`);
         }}
-        className="w-full px-3 py-2 text-left text-sm text-amber-300 hover:bg-white/10"
+        className="w-full px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10"
       >
-        Archive
+        Edit
       </button>
-    ) : null}
 
-    {invoice.status !== "deleted" ? (
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          void handleDelete(invoice.id);
-        }}
-        className="w-full px-3 py-2 text-left text-sm text-rose-400 hover:bg-white/10"
-      >
-        Delete
-      </button>
-    ) : null}
-  </div>
-) : null}
+      {invoice.status !== "archived" && invoice.status !== "deleted" ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            void handleArchive(invoice.id);
+          }}
+          className="w-full px-3 py-2 text-left text-sm text-amber-300 hover:bg-white/10"
+        >
+          Archive
+        </button>
+      ) : null}
+
+      {invoice.status !== "deleted" ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            void handleDelete(invoice.id);
+          }}
+          className="w-full px-3 py-2 text-left text-sm text-rose-400 hover:bg-white/10"
+        >
+          Delete
+        </button>
+      ) : null}
+    </div>
+  ) : null}
+</div>
 
 <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
 </div>

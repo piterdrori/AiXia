@@ -16,6 +16,8 @@ import {
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import PaymentReceivedPrintDocument from "./PaymentReceivedPrintDocument";
+import { Printer } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -685,6 +687,15 @@ useEffect(() => {
                   {isRefreshing ? "Refreshing..." : "Refresh"}
                 </Button>
 
+                <Button
+  variant="outline"
+  onClick={() => window.print()}
+  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+>
+  <Printer className="mr-2 h-4 w-4" />
+  Print Receipt
+</Button>
+
                 {payment.status === "draft" ? (
   <Button
     onClick={() => void handleConfirm()}
@@ -1234,6 +1245,13 @@ min="0"
           </div>
         </div>
       </div>
-    </div>
+       </div>
+
+    {/* PRINT RECEIPT DOCUMENT */}
+    <PaymentReceivedPrintDocument
+      payment={payment}
+      invoiceLink={invoiceLink}
+      hasProof={hasProof}
+    />
   );
 }

@@ -118,7 +118,13 @@ export async function getPaymentsReceivedArchiveList() {
 export async function getPaymentReceivedById(id: string) {
   const { data, error } = await supabase
     .from("finance_payments_received")
-    .select("*")
+    .select(`
+      *,
+      finance_payment_methods (
+        id,
+        name
+      )
+    `)
     .eq("id", id)
     .single();
 
@@ -127,7 +133,10 @@ export async function getPaymentReceivedById(id: string) {
     throw error;
   }
 
-  return data as FinancePaymentReceived;
+  return {
+  ...data,
+  payment_method_name: (data as any)?.finance_payment_methods?.name || null,
+} as FinancePaymentReceived & { payment_method_name?: string | null };
 }
 
 // ==============================

@@ -53,7 +53,8 @@ type PaymentReceivedListRow = {
   payment_date: string;
   status: string;
   reference_number: string | null;
-  client_name: string | null;
+  counterparty_name: string | null;
+  client_name: string | null; // keep for fallback (old data)
   invoice_number: string | null;
   payment_currency_code?: string | null;
   invoice_currency_code?: string | null;
@@ -375,8 +376,12 @@ export default function PaymentsReceivedPage() {
           .toLowerCase()
           .includes(normalizedSearch) ||
         (payment.invoice_number || "").toLowerCase().includes(normalizedSearch) ||
-        (payment.client_name || "").toLowerCase().includes(normalizedSearch) ||
-        (payment.status || "").toLowerCase().includes(normalizedSearch) ||
+       (
+  payment.counterparty_name ||
+  payment.client_name ||
+  ""
+).toLowerCase().includes(normalizedSearch) ||
+(payment.status || "").toLowerCase().includes(normalizedSearch) ||
         (payment.payment_currency_code || "")
           .toLowerCase()
           .includes(normalizedSearch) ||
@@ -579,7 +584,7 @@ const confirmedPayments = activePayments.filter(
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search reference, invoice, client, or currency"
+                    placeholder="Search reference, invoice, recipient, or currency"
                     className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-10 pr-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-cyan-400/30"
                   />
                 </div>
@@ -639,7 +644,7 @@ const confirmedPayments = activePayments.filter(
                           </div>
 
                           <div className="mt-2 text-sm text-white/70">
-                            {payment.client_name || "—"}
+                            {payment.counterparty_name || payment.client_name || "—"}
                           </div>
 
                           <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-white/45 md:grid-cols-5">
@@ -864,7 +869,7 @@ const confirmedPayments = activePayments.filter(
             </div>
 
             <div className="mt-2 text-sm text-white/70">
-              {p.client_name || "—"}
+              {p.counterparty_name || p.client_name || "—"}
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-white/45 md:grid-cols-4">

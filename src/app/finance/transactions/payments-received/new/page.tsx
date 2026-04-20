@@ -193,14 +193,14 @@ const paymentMethodsResult = await supabase
 const created = await createPaymentReceived({
   invoice_id: selectedInvoice.id,
   client_id:
-  selectedInvoice.counterparty_type === "client"
-    ? selectedInvoice.client_id
-    : null,
+    selectedInvoice.counterparty_type === "client"
+      ? selectedInvoice.client_id ?? undefined
+      : undefined,
   amount: numericAmount,
   payment_date: paymentDate,
-  reference_number: referenceNumber || null,
-  payment_method_id: paymentMethodId || null,
-  notes: notes || null,
+  reference_number: referenceNumber || undefined,
+  payment_method_id: paymentMethodId || undefined,
+  notes: notes || undefined,
   payment_currency_code: paymentCurrencyCode,
   invoice_currency_code: selectedInvoice.currency_code || undefined,
   exchange_rate: 1,

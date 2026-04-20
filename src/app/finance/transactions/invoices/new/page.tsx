@@ -185,7 +185,9 @@ export default function FinanceNewInvoicePage() {
   const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>([]);
   const [revenueCategories, setRevenueCategories] = useState<RevenueCategoryOption[]>([]);
 
-    const [clientId, setClientId] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [counterpartyType, setCounterpartyType] = useState<"client" | "company">("client");
+  const [counterpartyCompanyId, setCounterpartyCompanyId] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [taskId, setTaskId] = useState("");
@@ -258,7 +260,15 @@ export default function FinanceNewInvoicePage() {
     [paymentMethodId, paymentMethods]
   );
 
-    useEffect(() => {
+  useEffect(() => {
+  if (counterpartyType === "client") {
+    setCounterpartyCompanyId("");
+  } else {
+    setClientId("");
+  }
+}, [counterpartyType]);  
+  
+  useEffect(() => {
     if (!selectedClient) {
       return;
     }
@@ -594,10 +604,15 @@ export default function FinanceNewInvoicePage() {
   const handleSaveDraft = useCallback(async () => {
     setErrorMessage("");
 
-    if (!clientId) {
-      setErrorMessage("Select a client.");
-      return;
-    }
+    if (counterpartyType === "client" && !clientId) {
+  setErrorMessage("Select a client.");
+  return;
+}
+
+if (counterpartyType === "company" && !counterpartyCompanyId) {
+  setErrorMessage("Select a receiving company.");
+  return;
+}
 
     if (!companyId) {
       setErrorMessage("Select an issuing company.");
@@ -648,11 +663,12 @@ export default function FinanceNewInvoicePage() {
         throw new Error("User not authenticated");
       }
 
-      const { data: createdInvoiceId, error: invoiceError } = await supabase.rpc(
-        "finance_create_invoice_draft",
-        {
-          p_client_id: clientId,
-          p_company_id: companyId,
+      const { data: createdInvoiceId, error: invoiceError } = await supabase.rpc("finance_create_invoice_draft", {
+         p_company_id: companyId,
+         p_counterparty_type: counterpartyType,
+          p_client_id: counterpartyType === "client" ? clientId : null,
+          p_counterparty_company_id:
+           counterpartyType === "company" ? counterpartyCompanyId : null,
           p_project_id: projectId || null,
           p_task_id: taskId || null,
           p_payment_terms_id: paymentTermsId || null,
@@ -711,10 +727,12 @@ export default function FinanceNewInvoicePage() {
     } finally {
       setIsSaving(false);
     }
-  }, [
+   }, [
     bankAccountId,
     clientId,
     companyId,
+    counterpartyCompanyId,
+    counterpartyType,
     currencyCode,
     currencyId,
     dueDate,
@@ -817,20 +835,54 @@ export default function FinanceNewInvoicePage() {
                 </label>
 
                 <label className="space-y-2">
-                  <div className="text-sm text-white/70">Client</div>
-                  <select
-                    value={clientId}
-                    onChange={(event) => setClientId(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                  >
-                    <option value="">Select client</option>
-                    {clients.map((client) => (
-                      <option key={client.id} value={client.id}>
-                        {client.legal_name || client.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+  <div className="text-sm text-white/70">Recipient Type</div>
+  <select
+    value={counterpartyType}
+    onChange={(e) => setCounterpartyType(e.target.value as "client" | "company")}
+    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white"
+  >
+    <option value="client">Client</option>
+    <option value="company">My Company</option>
+  </select>
+</label>
+
+{counterpartyType === "client" && (
+  <label className="space-y-2">
+    <div className="text-sm text-white/70">Client</div>
+    <select
+      value={clientId}
+      onChange={(e) => setClientId(e.target.value)}
+      className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white"
+    >
+      <option value="">Select client</option>
+      {clients.map((c) => (
+        <option key={c.id} value={c.id}>
+          {c.legal_name || c.name}
+        </option>
+      ))}
+    </select>
+  </label>
+)}
+
+{counterpartyType === "company" && (
+  <label className="space-y-2">
+    <div className="text-sm text-white/70">Receiving Company</div>
+    <select
+      value={counterpartyCompanyId}
+      onChange={(e) => setCounterpartyCompanyId(e.target.value)}
+      className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white"
+    >
+      <option value="">Select company</option>
+      {companies
+        .filter((c) => c.id !== companyId)
+        .map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.legal_name || c.name}
+          </option>
+        ))}
+    </select>
+  </label>
+)}
 
                 <label className="space-y-2">
                   <div className="text-sm text-white/70">Project</div>
@@ -973,23 +1025,23 @@ export default function FinanceNewInvoicePage() {
                   </select>
                 </label>
 
-                <div className="space-y-2">
-                  <div className="text-sm text-white/70">Client Email</div>
-                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
-                    {selectedClient?.company_email ||
-                      selectedClient?.personnel_email ||
-                      "—"}
-                  </div>
-                </div>
+               <div className="space-y-2">
+  <div className="text-sm text-white/70">Recipient Email</div>
+  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
+    {counterpartyType === "client"
+      ? selectedClient?.company_email || selectedClient?.personnel_email || "—"
+      : companies.find((c) => c.id === counterpartyCompanyId)?.email || "—"}
+  </div>
+</div>
 
-                <div className="space-y-2">
-                  <div className="text-sm text-white/70">Client Phone</div>
-                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
-                    {selectedClient?.company_phone ||
-                      selectedClient?.personnel_phone ||
-                      "—"}
-                  </div>
-                </div>
+<div className="space-y-2">
+  <div className="text-sm text-white/70">Recipient Phone</div>
+  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
+    {counterpartyType === "client"
+      ? selectedClient?.company_phone || selectedClient?.personnel_phone || "—"
+      : companies.find((c) => c.id === counterpartyCompanyId)?.phone || "—"}
+  </div>
+</div>
 
                  <div className="space-y-2">
                   <div className="text-sm text-white/70">Company Email</div>
@@ -1249,10 +1301,13 @@ export default function FinanceNewInvoicePage() {
 
                                 <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Client
-                  </div>
+                    Recipient
+                     </div>
                   <div className="mt-2 text-base font-semibold text-white">
-                    {selectedClient?.legal_name || selectedClient?.name || "—"}
+                    {counterpartyType === "client"
+                     ? selectedClient?.legal_name || selectedClient?.name
+                     : companies.find(c => c.id === counterpartyCompanyId)?.legal_name ||
+                       companies.find(c => c.id === counterpartyCompanyId)?.name || "—"}
                   </div>
                 </div>
 

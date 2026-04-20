@@ -394,7 +394,11 @@ const handleDelete = async (id: string) => {
 
       return (
         (invoice.invoice_number || "").toLowerCase().includes(normalizedSearch) ||
-        (invoice.client_name || "").toLowerCase().includes(normalizedSearch) ||
+        (
+  invoice.counterparty_name_snapshot ||
+  invoice.client_name ||
+  ""
+).toLowerCase().includes(normalizedSearch) ||
         (invoice.status || "").toLowerCase().includes(normalizedSearch) ||
         (invoice.payment_status || "").toLowerCase().includes(normalizedSearch) ||
         postingStatus.toLowerCase().includes(normalizedSearch) ||
@@ -650,8 +654,10 @@ const handleDelete = async (id: string) => {
                           </div>
 
                           <div className="mt-2 text-sm text-white/70">
-                            {invoice.client_name}
-                          </div>
+  {invoice.counterparty_name_snapshot ||
+   invoice.client_name ||
+   "Unknown"}
+</div>
 
                           <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-white/45 md:grid-cols-5">
                             <div>Issued: {formatFinanceDate(invoice.issue_date)}</div>
@@ -839,9 +845,11 @@ const handleDelete = async (id: string) => {
 ) : null}
                         </div>
 
-                        <div className="mt-2 text-sm text-white/70">
-                          {invoice.client_name}
-                        </div>
+                       <div className="mt-2 text-sm text-white/70">
+  {invoice.counterparty_name_snapshot ||
+   invoice.client_name ||
+   "Unknown"}
+</div>
 
                         <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-white/45 md:grid-cols-4">
                           <div>Issued: {formatFinanceDate(invoice.issue_date)}</div>

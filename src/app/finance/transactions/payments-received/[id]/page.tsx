@@ -70,6 +70,8 @@ type InvoiceLinkRow = {
   payment_status: string | null;
   issue_date: string | null;
   due_date: string | null;
+  counterparty_type: "client" | "company" | null;
+  counterparty_name_snapshot: string | null;
   client_name_snapshot: string | null;
   client_contact_person_snapshot: string | null;
   client_email_snapshot: string | null;
@@ -230,8 +232,8 @@ export default function PaymentReceivedDetailPage() {
           const { data: linkedInvoice, error: linkedInvoiceError } = await supabase
             .from("finance_invoices_issued")
             .select(
-              "id, invoice_number, currency_code, total_amount, paid_amount, balance_due, status, payment_status, issue_date, due_date, client_name_snapshot, client_contact_person_snapshot, client_email_snapshot, client_phone_snapshot, billing_address_snapshot, company_name_snapshot, company_contact_person_snapshot, company_email_snapshot, company_phone_snapshot, company_address_snapshot"
-            )
+  "id, invoice_number, currency_code, total_amount, paid_amount, balance_due, status, payment_status, issue_date, due_date, counterparty_type, counterparty_name_snapshot, client_name_snapshot, client_contact_person_snapshot, client_email_snapshot, client_phone_snapshot, billing_address_snapshot, company_name_snapshot, company_contact_person_snapshot, company_email_snapshot, company_phone_snapshot, company_address_snapshot"
+)
             .eq("id", typedPayment.invoice_id)
             .maybeSingle();
 
@@ -830,7 +832,7 @@ useEffect(() => {
         <option value="">Select invoice</option>
         {invoiceOptions.map((inv) => (
           <option key={inv.id} value={inv.id}>
-            {inv.invoice_number} — {inv.client_name_snapshot}
+            {inv.invoice_number} — {inv.client_name_snapshot || "—"}
           </option>
         ))}
       </select>
@@ -1191,10 +1193,12 @@ min="0"
 
                     <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
                       <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                        Client
-                      </div>
+                        Recipient
+                        </div>
                       <div className="mt-2 text-base font-semibold text-white">
-                        {invoiceLink.client_name_snapshot || "—"}
+                        {invoiceLink.counterparty_name_snapshot ||
+  invoiceLink.client_name_snapshot ||
+  "—"}
                       </div>
                     </div>
 

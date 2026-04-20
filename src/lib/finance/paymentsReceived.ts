@@ -34,7 +34,11 @@ export async function getPaymentsReceived() {
       exchange_rate_source,
       metadata,
       finance_clients(name),
-      finance_invoices_issued(invoice_number)
+      finance_invoices_issued(
+     invoice_number,
+     counterparty_type,
+     counterparty_name_snapshot
+)
     `)
     .not("status", "in", ["archived", "deleted"])
     .order("payment_date", { ascending: false });
@@ -45,10 +49,14 @@ export async function getPaymentsReceived() {
   }
 
   return (data || []).map((row: any) => ({
-    ...row,
-    client_name: row.finance_clients?.name || null,
-    invoice_number: row.finance_invoices_issued?.invoice_number || null,
-  }));
+  ...row,
+  counterparty_name:
+    row.finance_invoices_issued?.counterparty_name_snapshot ||
+    row.finance_clients?.name ||
+    null,
+  client_name: row.finance_clients?.name || null,
+  invoice_number: row.finance_invoices_issued?.invoice_number || null,
+}));
 }
 
 export async function getPaymentsReceivedArchiveList() {
@@ -70,7 +78,11 @@ export async function getPaymentsReceivedArchiveList() {
       exchange_rate_source,
       metadata,
       finance_clients(name),
-      finance_invoices_issued(invoice_number)
+      finance_invoices_issued(
+        invoice_number,
+        counterparty_type,
+        counterparty_name_snapshot
+      )
     `)
     .in("status", ["archived", "deleted"])
     .order("payment_date", { ascending: false });
@@ -80,11 +92,15 @@ export async function getPaymentsReceivedArchiveList() {
     throw error;
   }
 
-  return (data || []).map((row: any) => ({
-    ...row,
-    client_name: row.finance_clients?.name || null,
-    invoice_number: row.finance_invoices_issued?.invoice_number || null,
-  }));
+return (data || []).map((row: any) => ({
+  ...row,
+  counterparty_name:
+    row.finance_invoices_issued?.counterparty_name_snapshot ||
+    row.finance_clients?.name ||
+    null,
+  client_name: row.finance_clients?.name || null,
+  invoice_number: row.finance_invoices_issued?.invoice_number || null,
+}));
 }
 
 

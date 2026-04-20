@@ -56,6 +56,7 @@ function formatMoney(value: number, currencyCode = "USD") {
 
 export default function NewPaymentReceivedPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -65,6 +66,8 @@ export default function NewPaymentReceivedPage() {
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
 
+  import { useSearchParams } from "react-router-dom";
+ 
   const [invoiceId, setInvoiceId] = useState("");
   const [paymentDate, setPaymentDate] = useState(
     new Date().toISOString().slice(0, 10)
@@ -89,6 +92,13 @@ export default function NewPaymentReceivedPage() {
   useEffect(() => {
     void loadFormData();
   }, []);
+
+  useEffect(() => {
+  const invoiceFromUrl = searchParams.get("invoice_id");
+  if (invoiceFromUrl) {
+    setInvoiceId(invoiceFromUrl);
+  }
+}, [searchParams]);
 
   useEffect(() => {
     if (!selectedInvoice) return;

@@ -117,21 +117,6 @@ const counterpartyPhone =
   invoice?.client_phone ||
   "";
 
-const clientContact =
-  invoice?.client_contact_person_snapshot ||
-  invoice?.client_contact_person ||
-  "";
-
-const clientEmail =
-  invoice?.client_email_snapshot ||
-  invoice?.client_email ||
-  "";
-
-const clientPhone =
-  invoice?.client_phone_snapshot ||
-  invoice?.client_phone ||
-  "";
-
 const billingAddress =
   invoice?.billing_address_snapshot ||
   invoice?.billing_address ||

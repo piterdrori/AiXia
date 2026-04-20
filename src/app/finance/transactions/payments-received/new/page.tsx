@@ -20,7 +20,9 @@ import { createPaymentReceived } from "@/lib/finance/paymentsReceived";
 type InvoiceOption = {
   id: string;
   invoice_number: string;
-  client_id: string;
+  client_id: string | null;
+  counterparty_type: "client" | "company";
+  counterparty_company_id: string | null;
   client_name_snapshot: string | null;
   currency_code: string | null;
   balance_due: number | string | null;
@@ -111,8 +113,8 @@ export default function NewPaymentReceivedPage() {
      const invoicesResult = await supabase
   .from("finance_invoices_issued")
   .select(
-    "id, invoice_number, client_id, client_name_snapshot, currency_code, balance_due, status"
-  )
+  "id, invoice_number, client_id, counterparty_type, counterparty_company_id, client_name_snapshot, currency_code, balance_due, status"
+)
   .in("status", ["issued", "partially_paid", "overdue"])
   .gt("balance_due", 0)
   .order("created_at", { ascending: false });
@@ -190,7 +192,10 @@ const paymentMethodsResult = await supabase
 
 const created = await createPaymentReceived({
   invoice_id: selectedInvoice.id,
-  client_id: selectedInvoice.client_id ?? null,
+  client_id:
+  selectedInvoice.counterparty_type === "client"
+    ? selectedInvoice.client_id
+    : null,
   amount: numericAmount,
   payment_date: paymentDate,
   reference_number: referenceNumber || null,

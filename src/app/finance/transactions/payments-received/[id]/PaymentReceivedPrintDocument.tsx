@@ -413,7 +413,7 @@ export default function PaymentReceivedPrintDocument({
                 marginTop: "0mm",
               }}
             >
-              <div style={{ fontSize: "8pt", color: "#374151" }}>
+                           <div style={{ fontSize: "8pt", color: "#374151" }}>
                 <div
                   style={{
                     background: "#ffffff",
@@ -449,22 +449,22 @@ export default function PaymentReceivedPrintDocument({
                         <span style={{ color: "#6b7280" }}>Invoice Currency: </span>
                         <span style={{ fontWeight: 500 }}>{invoiceCurrency}</span>
                       </div>
-                     {payment.exchange_rate ? (
-  <div>
-    <span style={{ color: "#6b7280" }}>Exchange Rate: </span>
-    <span style={{ fontWeight: 500 }}>
-      {payment.exchange_rate}
-    </span>
-  </div>
-) : null}
-                    {payment.exchange_rate_source ? (
-  <div>
-    <span style={{ color: "#6b7280" }}>FX Source: </span>
-    <span style={{ fontWeight: 500 }}>
-      {payment.exchange_rate_source}
-    </span>
-  </div>
-) : null}
+                      {payment.exchange_rate ? (
+                        <div>
+                          <span style={{ color: "#6b7280" }}>Exchange Rate: </span>
+                          <span style={{ fontWeight: 500 }}>
+                            {payment.exchange_rate}
+                          </span>
+                        </div>
+                      ) : null}
+                      {payment.exchange_rate_source ? (
+                        <div>
+                          <span style={{ color: "#6b7280" }}>FX Source: </span>
+                          <span style={{ fontWeight: 500 }}>
+                            {payment.exchange_rate_source}
+                          </span>
+                        </div>
+                      ) : null}
                       <div>
                         <span style={{ color: "#6b7280" }}>FX Date: </span>
                         <span style={{ fontWeight: 500 }}>
@@ -476,11 +476,9 @@ export default function PaymentReceivedPrintDocument({
                         <span style={{ fontWeight: 500 }}>{hasProof ? "Yes" : "No"}</span>
                       </div>
                     </div>
-                  
                   </div>
                 </div>
               </div>
-
               <div>
                 <div
                   style={{

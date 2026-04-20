@@ -57,43 +57,6 @@ type InvoiceMetricCard = {
   tone: "blue" | "emerald" | "amber" | "rose";
 };
 
-type InvoiceArchiveMetadata = {
-  previous_status?: string | null;
-  archived_at?: string | null;
-  deleted_at?: string | null;
-  restored_at?: string | null;
-  [key: string]: unknown;
-};
-
-function getRestoredInvoiceStatus(
-  previousStatus: string | null | undefined,
-  paymentStatus: string | null | undefined,
-  dueDate: string | null | undefined
-): string {
-  if (previousStatus && previousStatus !== "archived" && previousStatus !== "deleted") {
-    return previousStatus;
-  }
-
-  if (paymentStatus === "paid") return "paid";
-  if (paymentStatus === "partial") return "partially_paid";
-
-  if (dueDate) {
-    const today = new Date();
-    const parsedDueDate = new Date(dueDate);
-
-    if (!Number.isNaN(parsedDueDate.getTime())) {
-      today.setHours(0, 0, 0, 0);
-      parsedDueDate.setHours(0, 0, 0, 0);
-
-      if (parsedDueDate < today) {
-        return "overdue";
-      }
-    }
-  }
-
-  return "issued";
-}
-
 function getToneClasses(tone: InvoiceMetricCard["tone"]) {
   switch (tone) {
     case "emerald":

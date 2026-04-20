@@ -1273,9 +1273,10 @@ min="0"
        </div>
 
        <PaymentReceivedPrintDocument
-      payment={payment}
-      invoiceLink={invoiceLink}
-      hasProof={hasProof}
+  payment={payment}
+  invoiceLink={invoiceLink}
+  hasProof={hasProof || undefined}
+/>
     />
     </>
   );

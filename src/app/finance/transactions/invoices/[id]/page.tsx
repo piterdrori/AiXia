@@ -37,6 +37,9 @@ type InvoiceRecord = {
   invoice_number: string;
   status: "draft" | "issued" | "void" | "archived";
   payment_status: "unpaid" | "partial" | "paid";
+  counterparty_type: "client" | "company";
+  counterparty_company_id: string | null;
+  counterparty_name_snapshot: string | null;
   client_id: string;
   client_name_snapshot: string | null;
   client_contact_person_snapshot: string | null;
@@ -114,6 +117,7 @@ type ArchiveInvoiceRow = {
   id: string;
   invoice_number: string;
   status: string;
+  counterparty_name_snapshot: string | null;
   client_name_snapshot: string | null;
   total_amount: number | string | null;
   updated_at: string | null;
@@ -427,8 +431,8 @@ export default function FinanceInvoiceDetailPage() {
     const { data, error } = await supabase
       .from("finance_invoices_issued")
       .select(
-        "id, invoice_number, status, client_name_snapshot, total_amount, updated_at"
-      )
+  "id, invoice_number, status, counterparty_name_snapshot, client_name_snapshot, total_amount, updated_at"
+)
       .eq("status", "archived")
       .order("updated_at", { ascending: false })
       .limit(50);
@@ -501,7 +505,13 @@ export default function FinanceInvoiceDetailPage() {
         typedInvoice.terms_and_conditions_snapshot || ""
          );
 
-        setClientIdDraft(typedInvoice.client_id || "");
+        setClientIdDraft(
+  typedInvoice.counterparty_type === "company"
+    ? `company:${typedInvoice.counterparty_company_id || ""}`
+    : typedInvoice.client_id
+      ? `client:${typedInvoice.client_id}`
+      : ""
+);
         setCompanyIdDraft(typedInvoice.company_id || "");
         setProjectIdDraft(typedInvoice.project_id || "");
         setTaskIdDraft(typedInvoice.task_id || "");
@@ -678,10 +688,17 @@ export default function FinanceInvoiceDetailPage() {
     };
   }, [invoice]);
 
-  const selectedDraftClient = useMemo(
-    () => clients.find((client) => client.id === clientIdDraft) ?? null,
-    [clientIdDraft, clients]
-  );
+ const selectedDraftClient = useMemo(() => {
+  if (!clientIdDraft.startsWith("client:")) return null;
+  const resolvedId = clientIdDraft.replace("client:", "");
+  return clients.find((client) => client.id === resolvedId) ?? null;
+}, [clientIdDraft, clients]);
+
+const selectedDraftRecipientCompany = useMemo(() => {
+  if (!clientIdDraft.startsWith("company:")) return null;
+  const resolvedId = clientIdDraft.replace("company:", "");
+  return companies.find((company) => company.id === resolvedId) ?? null;
+}, [clientIdDraft, companies]);
 
   const selectedDraftCompany = useMemo(
     () => companies.find((company) => company.id === companyIdDraft) ?? null,
@@ -920,8 +937,8 @@ const canEditIssuedLines = false;
 
     try {
       const { error } = await supabase.rpc("finance_issue_invoice_issued", {
-        target_invoice_id: id,
-      });
+  p_invoice_id: id,
+});
 
       if (error) throw error;
 
@@ -1333,14 +1350,27 @@ const handleHardDelete = useCallback(
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user?.id) {
+           if (!user?.id) {
         throw new Error("User not authenticated");
       }
+
+      const isCompany = clientIdDraft.startsWith("company:");
+      const isClient = clientIdDraft.startsWith("client:");
+
+      const resolvedClientId = isClient
+        ? clientIdDraft.replace("client:", "")
+        : null;
+
+      const resolvedCompanyId = isCompany
+        ? clientIdDraft.replace("company:", "")
+        : null;
 
       const { error: invoiceError } = await supabase
         .from("finance_invoices_issued")
         .update({
-          client_id: clientIdDraft || invoice.client_id,
+          client_id: resolvedClientId,
+          counterparty_company_id: resolvedCompanyId,
+          counterparty_type: isCompany ? "company" : "client",
           company_id: companyIdDraft || null,
           project_id: projectIdDraft || null,
           task_id: taskIdDraft || null,
@@ -1491,7 +1521,14 @@ const handleHardDelete = useCallback(
         selectedDraftCompany?.email || invoice.company_email_snapshot,
       company_phone_snapshot:
         selectedDraftCompany?.phone || invoice.company_phone_snapshot,
-     client_name_snapshot:
+   counterparty_name_snapshot:
+  selectedDraftClient?.legal_name ||
+  selectedDraftClient?.name ||
+  selectedDraftRecipientCompany?.legal_name ||
+  selectedDraftRecipientCompany?.name ||
+  invoice.counterparty_name_snapshot ||
+  invoice.client_name_snapshot,
+client_name_snapshot:
   selectedDraftClient?.legal_name ||
   selectedDraftClient?.name ||
   invoice.client_name_snapshot,
@@ -1507,7 +1544,17 @@ client_phone_snapshot:
   selectedDraftClient?.personnel_phone ||
   invoice.client_phone_snapshot,
 billing_address_snapshot:
-  invoice.billing_address_snapshot,
+  [
+    selectedDraftClient?.address_line_1 || selectedDraftRecipientCompany?.address_line_1,
+    selectedDraftClient?.address_line_2 || selectedDraftRecipientCompany?.address_line_2,
+    selectedDraftClient?.city || selectedDraftRecipientCompany?.city,
+    selectedDraftClient?.state_province || selectedDraftRecipientCompany?.state_province,
+    selectedDraftClient?.postal_code || selectedDraftRecipientCompany?.postal_code,
+    selectedDraftClient?.country || selectedDraftRecipientCompany?.country,
+  ]
+    .filter(Boolean)
+    .join(", ") || invoice.billing_address_snapshot,
+      
 payment_terms_snapshot:
   selectedDraftPaymentTerm?.name ||
   invoice.payment_terms_snapshot,
@@ -1526,6 +1573,7 @@ shipping_terms_snapshot:
   invoice,
   selectedDraftBankAccount,
   selectedDraftClient,
+  selectedDraftRecipientCompany,
   selectedDraftCompany,
   selectedDraftCurrency,
   selectedDraftPaymentTerm,
@@ -1610,9 +1658,9 @@ shipping_terms_snapshot:
                   </div>
 
                   <div className="text-sm text-white/50">
-                    Final outbound receivable document issued by your company to the
-                    client. Drafts are editable. Issued records are mostly locked.
-                  </div>
+  Final outbound receivable document issued by your company to the
+  recipient. Drafts are editable. Issued records are mostly locked.
+</div>
                 </div>
               </div>
 
@@ -1735,21 +1783,34 @@ shipping_terms_snapshot:
                       </select>
                     </label>
 
-                    <label className="space-y-2">
-                      <div className="text-sm text-white/70">Client</div>
-                      <select
-                        value={clientIdDraft}
-                        onChange={(event) => setClientIdDraft(event.target.value)}
-                        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                      >
-                        <option value="">Select client</option>
-                        {clients.map((client) => (
-                          <option key={client.id} value={client.id}>
-                            {client.legal_name || client.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                   <label className="space-y-2">
+  <div className="text-sm text-white/70">Recipient</div>
+  <select
+    value={clientIdDraft}
+    onChange={(event) => setClientIdDraft(event.target.value)}
+    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+  >
+    <option value="">Select recipient</option>
+
+  <optgroup label="Clients">
+    {clients.map((client) => (
+      <option key={client.id} value={`client:${client.id}`}>
+        {client.legal_name || client.name}
+      </option>
+    ))}
+  </optgroup>
+
+  <optgroup label="Companies (Intercompany)">
+    {companies
+      .filter((c) => c.id !== companyIdDraft)
+      .map((company) => (
+        <option key={company.id} value={`company:${company.id}`}>
+          {company.legal_name || company.name}
+        </option>
+      ))}
+    </optgroup>
+  </select>
+</label>
 
                     <label className="space-y-2">
                       <div className="text-sm text-white/70">Payment Terms</div>
@@ -1947,14 +2008,20 @@ shipping_terms_snapshot:
                     </div>
 
                     <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                        Client
-                      </div>
-                      <div className="mt-2 text-base font-semibold text-white">
-                        {invoice.status === "draft"
-                          ? selectedDraftClient?.legal_name || selectedDraftClient?.name || "—"
-                          : invoice.client_name_snapshot || "—"}
-                      </div>
+                     <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+  Recipient
+</div>
+<div className="mt-2 text-base font-semibold text-white">
+ {invoice.status === "draft"
+  ? selectedDraftClient?.legal_name ||
+    selectedDraftClient?.name ||
+    selectedDraftRecipientCompany?.legal_name ||
+    selectedDraftRecipientCompany?.name ||
+    "—"
+  : invoice.counterparty_name_snapshot ||
+    invoice.client_name_snapshot ||
+    "—"}
+</div>
                     </div>
 
                     <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
@@ -2161,22 +2228,28 @@ shipping_terms_snapshot:
 
     <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
       <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-        Client
-      </div>
+  Recipient
+</div>
       <div className="mt-3 space-y-2 text-sm text-white/75">
         <div>
           <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
             Legal Name
           </div>
           <div className="mt-1 font-semibold text-white">
-            {selectedDraftClient?.legal_name || selectedDraftClient?.name || "—"}
+           {selectedDraftClient?.legal_name ||
+  selectedDraftClient?.name ||
+  selectedDraftRecipientCompany?.legal_name ||
+  selectedDraftRecipientCompany?.name ||
+  "—"}
           </div>
         </div>
         <div>
           <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
             Contact Person
           </div>
-          <div className="mt-1">{selectedDraftClient?.contact_person || "—"}</div>
+          <div className="mt-1">{selectedDraftClient?.contact_person ||
+  selectedDraftRecipientCompany?.contact_person ||
+  "—"}</div>
         </div>
         <div>
           <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
@@ -2184,8 +2257,9 @@ shipping_terms_snapshot:
           </div>
           <div className="mt-1">
             {selectedDraftClient?.company_email ||
-              selectedDraftClient?.personnel_email ||
-              "—"}
+  selectedDraftClient?.personnel_email ||
+  selectedDraftRecipientCompany?.email ||
+  "—"}
           </div>
         </div>
         <div>
@@ -2194,8 +2268,9 @@ shipping_terms_snapshot:
           </div>
           <div className="mt-1">
             {selectedDraftClient?.company_phone ||
-              selectedDraftClient?.personnel_phone ||
-              "—"}
+  selectedDraftClient?.personnel_phone ||
+  selectedDraftRecipientCompany?.phone ||
+  "—"}
           </div>
         </div>
         <div>
@@ -2203,16 +2278,16 @@ shipping_terms_snapshot:
             Primary Address
           </div>
           <div className="mt-1 leading-6">
-            {[
-              selectedDraftClient?.address_line_1,
-              selectedDraftClient?.address_line_2,
-              selectedDraftClient?.city,
-              selectedDraftClient?.state_province,
-              selectedDraftClient?.postal_code,
-              selectedDraftClient?.country,
-            ]
-              .filter(Boolean)
-              .join(", ") || "—"}
+          {[
+  selectedDraftClient?.address_line_1 || selectedDraftRecipientCompany?.address_line_1,
+  selectedDraftClient?.address_line_2 || selectedDraftRecipientCompany?.address_line_2,
+  selectedDraftClient?.city || selectedDraftRecipientCompany?.city,
+  selectedDraftClient?.state_province || selectedDraftRecipientCompany?.state_province,
+  selectedDraftClient?.postal_code || selectedDraftRecipientCompany?.postal_code,
+  selectedDraftClient?.country || selectedDraftRecipientCompany?.country,
+]
+  .filter(Boolean)
+  .join(", ") || "—"}
           </div>
         </div>
       </div>
@@ -2400,39 +2475,57 @@ shipping_terms_snapshot:
 
                     <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
                       <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                        Client
-                      </div>
+                       Recipient
+                        </div>
                       <div className="mt-3 space-y-2 text-sm text-white/75">
                         <div>
                           <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
                             Legal Name
                           </div>
                           <div className="mt-1 font-semibold text-white">
-                            {invoice.client_name_snapshot || "—"}
-                          </div>
+  {invoice.counterparty_name_snapshot ||
+    invoice.client_name_snapshot ||
+    "—"}
+</div>
                         </div>
                         <div>
                           <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
                             Contact Person
                           </div>
                           <div className="mt-1">
-                            {invoice.client_contact_person_snapshot ||
-                              clients.find((client) => client.id === invoice.client_id)
-                                ?.contact_person ||
-                              "—"}
-                          </div>
+  {invoice.client_contact_person_snapshot ||
+    (invoice.counterparty_type === "company"
+      ? companies.find((company) => company.id === invoice.counterparty_company_id)
+          ?.contact_person
+      : clients.find((client) => client.id === invoice.client_id)?.contact_person) ||
+    "—"}
+</div>
                         </div>
                         <div>
                           <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
                             Email
                           </div>
-                          <div className="mt-1">{invoice.client_email_snapshot || "—"}</div>
+                          <div className="mt-1">
+  {invoice.client_email_snapshot ||
+    (invoice.counterparty_type === "company"
+      ? companies.find((company) => company.id === invoice.counterparty_company_id)
+          ?.email
+      : null) ||
+    "—"}
+</div>
                         </div>
                         <div>
                           <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
                             Phone
                           </div>
-                          <div className="mt-1">{invoice.client_phone_snapshot || "—"}</div>
+                         <div className="mt-1">
+  {invoice.client_phone_snapshot ||
+    (invoice.counterparty_type === "company"
+      ? companies.find((company) => company.id === invoice.counterparty_company_id)
+          ?.phone
+      : null) ||
+    "—"}
+</div>
                         </div>
                         <div>
                           <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
@@ -3089,7 +3182,7 @@ shipping_terms_snapshot:
                                 {item.invoice_number}
                               </div>
                               <div className="mt-1 text-xs text-white/45">
-                                {item.client_name_snapshot || "—"} •{" "}
+                                {item.counterparty_name_snapshot || item.client_name_snapshot || "—"} •{" "}
                                 {formatFinanceDate(item.updated_at || null)}
                               </div>
                             </div>

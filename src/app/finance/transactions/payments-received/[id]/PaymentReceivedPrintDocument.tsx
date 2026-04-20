@@ -316,10 +316,11 @@ export default function PaymentReceivedPrintDocument({
                     {[clientEmail, clientPhone].filter(Boolean).join(" • ")}
                   </div>
                 ) : null}
-                <div style={{ fontSize: "8.3pt", color: "#4b5563", lineHeight: 1.55 }}>
+                              <div style={{ fontSize: "8.3pt", color: "#4b5563", lineHeight: 1.55 }}>
                   {billingAddress}
                 </div>
               </div>
+            </div>
 
             <div style={{ marginBottom: "8mm" }}>
               <table

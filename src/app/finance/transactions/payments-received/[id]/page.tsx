@@ -202,7 +202,8 @@ export default function PaymentReceivedDetailPage() {
 const invoiceBalance = toNumber(invoiceLink?.balance_due);
 
 const isFxExceeding =
-  invoiceLink &&
+  !!invoiceLink &&
+  !!payment &&
   payment.exchange_rate_source !== "pending_backend_conversion" &&
   convertedAmount > invoiceBalance;
 
@@ -1277,7 +1278,6 @@ min="0"
   invoiceLink={invoiceLink}
   hasProof={hasProof || undefined}
 />
-    />
     </>
   );
 }

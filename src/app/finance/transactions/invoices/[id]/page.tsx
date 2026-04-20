@@ -1678,6 +1678,16 @@ shipping_terms_snapshot:
                 </Button>
 
                 <Button
+  onClick={() =>
+    navigate(`/finance/transactions/payments-received/new?invoice_id=${invoice.id}`)
+  }
+  className="h-11 rounded-2xl px-4 bg-emerald-600 hover:bg-emerald-700 text-white"
+>
+  <CheckCircle className="mr-2 h-4 w-4" />
+  Confirm Payment
+</Button>
+
+                <Button
                   variant="outline"
                   onClick={handlePrint}
                   className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"

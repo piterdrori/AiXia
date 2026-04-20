@@ -363,34 +363,14 @@ export default function FinanceInvoicesPage() {
     return !!permissions?.createInvoices;
   }, [permissionOverrides, role]);
 
-   const handleArchive = async (id: string) => {
-    const { data: invoiceRow, error: invoiceError } = await supabase
-      .from("finance_invoices_issued")
-      .select("status, metadata")
-      .eq("id", id)
-      .single();
+     const handleArchive = async (id: string) => {
+    const { error } = await supabase.rpc("finance_archive_invoice_issued", {
+      p_invoice_id: id,
+    });
 
-    if (invoiceError) {
-      throw invoiceError;
+    if (error) {
+      throw error;
     }
-
-    const currentMetadata = (invoiceRow?.metadata ?? {}) as InvoiceArchiveMetadata;
-    const currentStatus = String(invoiceRow?.status ?? "issued");
-
-    await supabase
-      .from("finance_invoices_issued")
-      .update({
-        status: "archived",
-        metadata: {
-          ...currentMetadata,
-          previous_status:
-            currentStatus === "archived" || currentStatus === "deleted"
-              ? currentMetadata.previous_status ?? "issued"
-              : currentStatus,
-          archived_at: new Date().toISOString(),
-        },
-      })
-      .eq("id", id);
 
     setOpenMenuInvoiceId(null);
     await Promise.all([

@@ -367,7 +367,7 @@ useEffect(() => {
         supabase
           .from("finance_invoices_issued")
           .select("id, invoice_number, currency_code, client_name_snapshot, status")
-          .in("status", ["issued", "partially_paid", "overdue", "draft"])
+          .in("status", ["issued", "partially_paid", "overdue"])
           .order("created_at", { ascending: false }),
         supabase
           .from("finance_payment_methods")

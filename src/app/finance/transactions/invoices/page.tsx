@@ -380,33 +380,13 @@ export default function FinanceInvoicesPage() {
   };
 
 const handleDelete = async (id: string) => {
-  const { data: invoiceRow, error: invoiceError } = await supabase
-    .from("finance_invoices_issued")
-    .select("status, metadata")
-    .eq("id", id)
-    .single();
+  const { error } = await supabase.rpc("finance_delete_invoice_issued", {
+    p_invoice_id: id,
+  });
 
-  if (invoiceError) {
-    throw invoiceError;
+  if (error) {
+    throw error;
   }
-
-  const currentMetadata = (invoiceRow?.metadata ?? {}) as InvoiceArchiveMetadata;
-  const currentStatus = String(invoiceRow?.status ?? "issued");
-
-  await supabase
-    .from("finance_invoices_issued")
-    .update({
-      status: "deleted",
-      metadata: {
-        ...currentMetadata,
-        previous_status:
-          currentStatus === "archived" || currentStatus === "deleted"
-            ? currentMetadata.previous_status ?? "issued"
-            : currentStatus,
-        deleted_at: new Date().toISOString(),
-      },
-    })
-    .eq("id", id);
 
   setOpenMenuInvoiceId(null);
   await Promise.all([

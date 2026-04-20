@@ -97,6 +97,9 @@ type LineItemRow = {
 type PaymentRow = {
   id: string;
   amount: number;
+  converted_amount: number;
+  payment_currency_code: string;
+  invoice_currency_code: string;
   payment_date: string;
   status: string;
   reference_number: string | null;
@@ -462,8 +465,8 @@ export default function FinanceInvoiceDetailPage() {
           await Promise.all([
             getIssuedInvoiceById(id),
            supabase
-              .from("finance_payments_received")
-              .select("id, amount, payment_date, status, reference_number")
+  .from("finance_payments_received")
+  .select("id, amount, converted_amount, payment_currency_code, invoice_currency_code, payment_date, status, reference_number")
               .eq("invoice_id", id)
               .eq("status", "confirmed")
               .order("payment_date", { ascending: true }),
@@ -3114,8 +3117,9 @@ shipping_terms_snapshot:
 
                         <div className="text-sm font-semibold text-white">
                           {formatFinanceMoney(
-                            payment.amount,
-                            invoice.currency_code || "USD"
+  payment.converted_amount ?? payment.amount,
+  invoice.currency_code || "USD"
+)
                           )}
                         </div>
                       </div>

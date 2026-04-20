@@ -395,39 +395,17 @@ const handleDelete = async (id: string) => {
   ]);
 };
 
-  const handleRestore = async (id: string) => {
-    const { data: invoiceRow, error: invoiceError } = await supabase
-      .from("finance_invoices_issued")
-      .select("status, payment_status, due_date, metadata")
-      .eq("id", id)
-      .single();
+    const handleRestore = async (id: string) => {
+    const { error } = await supabase.rpc("finance_restore_invoice_issued", {
+      p_invoice_id: id,
+    });
 
-    if (invoiceError) {
-      throw invoiceError;
+    if (error) {
+      throw error;
     }
-
-    const currentMetadata = (invoiceRow?.metadata ?? {}) as InvoiceArchiveMetadata;
-
-    const restoredStatus = getRestoredInvoiceStatus(
-      currentMetadata.previous_status,
-      invoiceRow?.payment_status,
-      invoiceRow?.due_date
-    );
-
-    await supabase
-      .from("finance_invoices_issued")
-      .update({
-        status: restoredStatus,
-        metadata: {
-          ...currentMetadata,
-          restored_at: new Date().toISOString(),
-        },
-      })
-      .eq("id", id);
 
     await Promise.all([loadInvoices(true), loadArchivedInvoices()]);
   };
-
     const handleHardDelete = async (id: string) => {
        const { error } = await supabase.rpc("finance_hard_delete_invoice_issued", {
       p_invoice_id: id,

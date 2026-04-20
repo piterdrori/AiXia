@@ -1,29 +1,26 @@
 import { formatFinanceDate, formatFinanceMoney } from "@/lib/finance/invoicesIssued";
 
-type PaymentRecord = {
-  id?: string;
-  reference_number?: string | null;
-  payment_date?: string | null;
+type InvoiceRecord = {
+  invoice_number?: string | null;
+  issue_date?: string | null;
+  due_date?: string | null;
+  total_amount?: number | string | null;
+  paid_amount?: number | string | null;
+  balance_due?: number | string | null;
+  currency_code?: string | null;
   status?: string | null;
-  amount?: number | string | null;
-  converted_amount?: number | string | null;
-  payment_currency_code?: string | null;
-  invoice_currency_code?: string | null;
-  exchange_rate?: number | string | null;
-  exchange_rate_source?: string | null;
-  exchange_rate_date?: string | null;
-  notes?: string | null;
-  payment_method_name?: string | null;
-  company_name_snapshot?: string | null;
-  company_contact_person_snapshot?: string | null;
-  company_email_snapshot?: string | null;
-  company_phone_snapshot?: string | null;
-  company_address_snapshot?: string | null;
+  payment_status?: string | null;
+  counterparty_name_snapshot?: string | null;
   client_name_snapshot?: string | null;
   client_contact_person_snapshot?: string | null;
   client_email_snapshot?: string | null;
   client_phone_snapshot?: string | null;
   billing_address_snapshot?: string | null;
+  company_name_snapshot?: string | null;
+  company_contact_person_snapshot?: string | null;
+  company_email_snapshot?: string | null;
+  company_phone_snapshot?: string | null;
+  company_address_snapshot?: string | null;
 };
 
 type InvoiceRecord = {

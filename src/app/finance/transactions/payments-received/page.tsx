@@ -247,6 +247,7 @@ export default function PaymentsReceivedPage() {
   const [payments, setPayments] = useState<PaymentReceivedListRow[]>([]);
   const [openInvoices, setOpenInvoices] = useState<OpenInvoiceRow[]>([]);
   const [search, setSearch] = useState("");
+  const [openInvoicesSearch, setOpenInvoicesSearch] = useState("");
   const [openMenuPaymentId, setOpenMenuPaymentId] = useState<string | null>(null);
 
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
@@ -427,8 +428,8 @@ export default function PaymentsReceivedPage() {
   }, [payments, search]);
 
   
-    const visibleOpenInvoices = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
+  const visibleOpenInvoices = useMemo(() => {
+    const normalizedSearch = openInvoicesSearch.trim().toLowerCase();
 
     if (!normalizedSearch) {
       return openInvoices;
@@ -445,7 +446,7 @@ export default function PaymentsReceivedPage() {
         String(invoice.payment_status || "").toLowerCase().includes(normalizedSearch)
       );
     });
-  }, [openInvoices, search]);
+  }, [openInvoices, openInvoicesSearch]);
   
   const visibleArchivedPayments = useMemo(() => {
   return archivedPayments.filter(
@@ -517,7 +518,7 @@ const confirmedPayments = activePayments.filter(
     ];
   }, [payments]);
 
-  return (
+    return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
       <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
         <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6 xl:p-7">
@@ -592,17 +593,18 @@ const confirmedPayments = activePayments.filter(
                     New Payment
                   </Button>
                 ) : null}
+
                 <Button
-  variant="outline"
-  onClick={() => {
-    setArchiveTab("archived");
-    setIsArchiveModalOpen(true);
-    loadArchivedPayments();
-  }}
-  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
->
-  Archive
-</Button>
+                  variant="outline"
+                  onClick={() => {
+                    setArchiveTab("archived");
+                    setIsArchiveModalOpen(true);
+                    void loadArchivedPayments();
+                  }}
+                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+                >
+                  Archive
+                </Button>
               </div>
             </div>
 
@@ -614,221 +616,7 @@ const confirmedPayments = activePayments.filter(
           </div>
         </section>
 
-        <section>
-          <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-            <CardHeader className="border-b border-white/8 pb-4">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div className="space-y-2">
-                  <Badge className="w-fit rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-white/65 shadow-none">
-                    Payment Registry
-                  </Badge>
-
-                  <CardTitle className="text-white">
-                    Payments Received List
-                  </CardTitle>
-
-                  <CardDescription className="max-w-2xl text-white/45">
-                    Search and open payment records, review invoice linkage,
-                    collection status, settlement currency, converted value, and
-                    payment date.
-                  </CardDescription>
-                </div>
-
-                <div className="relative w-full max-w-md">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-                  <input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search reference, invoice, recipient, or currency"
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-10 pr-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-cyan-400/30"
-                  />
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="p-4 sm:p-5 xl:p-6">
-              {isLoading ? (
-                <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
-                  Loading payments received...
-                </div>
-              ) : filteredPayments.length === 0 ? (
-                <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
-                  No payments received found.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {filteredPayments.map((payment) => {
-                    const displayConvertedAmount =
-                      payment.converted_amount ?? payment.amount ?? 0;
-
-                    return (
-                     <div
-  key={payment.id}
-  onClick={() =>
-    navigate(
-      `/finance/transactions/payments-received/${payment.id}`
-    )
-  }
-  className="group flex w-full items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
->
-                        <div className="min-w-0 flex-1 cursor-pointer">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-base font-semibold text-white">
-                              {payment.reference_number || "Payment Record"}
-                            </div>
-
-                            <Badge
-                              className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getPaymentStatusBadgeClasses(
-                                payment.status
-                              )}`}
-                            >
-                              {getPaymentStatusLabel(payment.status)}
-                            </Badge>
-
-                            <Badge
-                              className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getCurrencyBadgeClasses(
-                                payment.payment_currency_code,
-                                payment.invoice_currency_code
-                              )}`}
-                            >
-                              {getCurrencyBadgeLabel(
-                                payment.payment_currency_code,
-                                payment.invoice_currency_code
-                              )}
-                            </Badge>
-                          </div>
-
-                          <div className="mt-2 text-sm text-white/70">
-                            {payment.counterparty_name || payment.client_name || "—"}
-                          </div>
-
-                          <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-white/45 md:grid-cols-5">
-                            <div>
-                              Invoice: {payment.invoice_number || "—"}
-                            </div>
-                            <div>
-                              Paid:{" "}
-                              {formatFinanceMoney(
-                                payment.amount,
-                                payment.payment_currency_code || "USD"
-                              )}
-                            </div>
-                            <div>
-                              Converted:{" "}
-                              {formatFinanceMoney(
-                                displayConvertedAmount,
-                                payment.invoice_currency_code || "USD"
-                              )}
-                            </div>
-                            <div>
-                              Date: {formatFinanceDate(payment.payment_date)}
-                            </div>
-                            <div>
-                              FX Source: {payment.exchange_rate_source || "—"}
-                            </div>
-                          </div>
-                        </div>
-
-<div className="flex shrink-0 items-center gap-3 pl-2">
-  <div className="hidden text-xs text-white/30 transition-colors duration-200 group-hover:text-white/55 sm:block">
-    {formatFinanceDate(payment.payment_date)}
-  </div>
-
-  <div
-    className="relative"
-    ref={openMenuPaymentId === payment.id ? actionsMenuRef : null}
-  >
-    <button
-      type="button"
-      onClick={(event) => {
-        event.stopPropagation();
-        setOpenMenuPaymentId((current) =>
-          current === payment.id ? null : payment.id
-        );
-      }}
-      className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
-    >
-      <MoreVertical className="h-4 w-4" />
-    </button>
-
- {openMenuPaymentId === payment.id ? (
-  <div className="absolute right-0 z-20 mt-2 w-40 overflow-hidden rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-xl">
-    <button
-      type="button"
-      onClick={(event) => {
-        event.stopPropagation();
-        setOpenMenuPaymentId(null);
-        navigate(`/finance/transactions/payments-received/${payment.id}`);
-      }}
-      className="w-full px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10"
-    >
-      Open
-    </button>
-
-    {payment.status === "draft" ? (
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          setOpenMenuPaymentId(null);
-          navigate(`/finance/transactions/payments-received/${payment.id}`);
-        }}
-        className="w-full px-3 py-2 text-left text-sm text-cyan-200 hover:bg-white/10"
-      >
-        Edit
-      </button>
-    ) : null}
-
-    {payment.status !== "archived" && payment.status !== "deleted" ? (
-      <button
-        type="button"
-        onClick={async (event) => {
-          event.stopPropagation();
-          setOpenMenuPaymentId(null);
-          await archivePaymentReceived(payment.id);
-          await loadPayments(true);
-          if (isArchiveModalOpen) {
-            await loadArchivedPayments();
-          }
-        }}
-        className="w-full px-3 py-2 text-left text-sm text-amber-300 hover:bg-white/10"
-      >
-        Archive
-      </button>
-    ) : null}
-
-    {payment.status !== "deleted" ? (
-      <button
-        type="button"
-        onClick={async (event) => {
-          event.stopPropagation();
-          setOpenMenuPaymentId(null);
-          await softDeletePaymentReceived(payment.id);
-          await loadPayments(true);
-          if (isArchiveModalOpen) {
-            await loadArchivedPayments();
-          }
-        }}
-        className="w-full px-3 py-2 text-left text-sm text-rose-400 hover:bg-white/10"
-      >
-        Delete
-      </button>
-    ) : null}
-  </div>
-) : null}
-  </div>
-
-  <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
-</div>
-                     </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        
-               <section className="space-y-6">
+        <section className="space-y-6">
           <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
             <CardHeader className="border-b border-white/8 pb-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">

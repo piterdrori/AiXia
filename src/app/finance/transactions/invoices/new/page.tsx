@@ -648,48 +648,32 @@ export default function FinanceNewInvoicePage() {
         throw new Error("User not authenticated");
       }
 
-      const { data: createdInvoice, error: invoiceError } = await supabase
-        .from("finance_invoices_issued")
-        .insert({
-          invoice_number: null,
-          client_id: clientId,
-          company_id: companyId,
-          project_id: projectId || null,
-          task_id: taskId || null,
-          payment_terms_id: paymentTermsId || null,
-          shipping_term_id: shippingTermId || null,
-          bank_account_id: bankAccountId || null,
-          currency_id: currencyId || null,
-          issue_date: issueDate,
-          due_date: dueDate || issueDate,
-          status: "draft",
-          approval_status: null,
-          payment_status: "unpaid",
-          subtotal: 0,
-          tax_amount: 0,
-          discount_amount: 0,
-          total_amount: 0,
-          paid_amount: 0,
-          balance_due: 0,
-          notes: notes || null,
-          currency_code: currencyCode || "USD",
-          exchange_rate: 1,
-          posted_to_ledger: false,
-          metadata: {
-            creation_mode: "manual_draft",
-            preferred_payment_method_id: paymentMethodId || null,
-          },
-          created_by: user.id,
-          updated_by: user.id,
-        })
-        .select("id")
-        .single();
+      const { data: createdInvoiceId, error: invoiceError } = await supabase.rpc(
+        "finance_create_invoice_draft",
+        {
+          p_client_id: clientId,
+          p_company_id: companyId,
+          p_project_id: projectId || null,
+          p_task_id: taskId || null,
+          p_payment_terms_id: paymentTermsId || null,
+          p_shipping_term_id: shippingTermId || null,
+          p_bank_account_id: bankAccountId || null,
+          p_currency_id: currencyId || null,
+          p_issue_date: issueDate,
+          p_due_date: dueDate || issueDate,
+          p_notes: notes || null,
+          p_currency_code: currencyCode || "USD",
+          p_exchange_rate: 1,
+          p_payment_method_id: paymentMethodId || null,
+          p_created_by: user.id,
+        }
+      );
 
       if (invoiceError) throw invoiceError;
-      if (!createdInvoice?.id) throw new Error("Invoice was not created");
+      if (!createdInvoiceId) throw new Error("Invoice was not created");
 
       const linePayload = validRows.map((row, index) => ({
-        invoice_id: createdInvoice.id,
+        invoice_id: createdInvoiceId,
         item_id: row.itemId || null,
         description: row.description.trim(),
         quantity: toNumber(row.quantity),
@@ -715,13 +699,13 @@ export default function FinanceNewInvoicePage() {
       const { error: recalcError } = await supabase.rpc(
         "finance_recalculate_invoice_issued_totals",
         {
-          p_invoice_id: createdInvoice.id,
+          p_invoice_id: createdInvoiceId,
         }
       );
 
       if (recalcError) throw recalcError;
 
-      navigate(`/finance/transactions/invoices/${createdInvoice.id}`);
+      navigate(`/finance/transactions/invoices/${createdInvoiceId}`);
     } catch (error) {
       console.error("Failed to save invoice draft:", error);
       setErrorMessage("Failed to save invoice draft.");

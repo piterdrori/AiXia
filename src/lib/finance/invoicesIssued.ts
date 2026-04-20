@@ -171,33 +171,33 @@ export async function getIssuedInvoicesList(): Promise<
   FinanceIssuedInvoiceListRow[]
 > {
   const { data, error } = await supabase
-    .from(INVOICES_TABLE)
-select(
-`
-  id,
-  invoice_number,
-  status,
-  payment_status,
-  approval_status,
-  client_id,
-  counterparty_name_snapshot,
-  issue_date,
-  due_date,
-  currency_code,
-  total_amount,
-  paid_amount,
-  balance_due,
-  created_at,
-  project_id,
-  finance_clients (
-    name,
-    legal_name
+  .from(INVOICES_TABLE)
+  .select(
+    `
+      id,
+      invoice_number,
+      status,
+      payment_status,
+      approval_status,
+      client_id,
+      counterparty_name_snapshot,
+      issue_date,
+      due_date,
+      currency_code,
+      total_amount,
+      paid_amount,
+      balance_due,
+      created_at,
+      project_id,
+      finance_clients (
+        name,
+        legal_name
+      )
+    `
   )
-`
-)
-.not("status", "in", '("archived","deleted")')
-.order("created_at", { ascending: false });
-
+  .not("status", "in", '("archived","deleted")')
+  .order("created_at", { ascending: false });
+  
   if (error) throw error;
 
   return (data ?? []).map((row: any) => ({
@@ -229,33 +229,33 @@ client_name:
 export async function getIssuedInvoicesArchiveList(): Promise<
   FinanceIssuedInvoiceListRow[]
 > {
-  const { data, error } = await supabase
-    .from(INVOICES_TABLE)
-   .select(
-  `
-        id,
-        invoice_number,
-        status,
-        payment_status,
-        approval_status,
-        client_id,
-        counterparty_name_snapshot,
-        issue_date,
-        due_date,
-        currency_code,
-        total_amount,
-        paid_amount,
-        balance_due,
-        created_at,
-        project_id,
-        finance_clients (
-          name,
-          legal_name
-        )
-      `
-)
-    .in("status", ["archived", "deleted"])
-    .order("created_at", { ascending: false });
+ const { data, error } = await supabase
+  .from(INVOICES_TABLE)
+  .select(
+    `
+      id,
+      invoice_number,
+      status,
+      payment_status,
+      approval_status,
+      client_id,
+      counterparty_name_snapshot,
+      issue_date,
+      due_date,
+      currency_code,
+      total_amount,
+      paid_amount,
+      balance_due,
+      created_at,
+      project_id,
+      finance_clients (
+        name,
+        legal_name
+      )
+    `
+  )
+  .in("status", ["archived", "deleted"])
+  .order("created_at", { ascending: false });
 
   if (error) throw error;
 

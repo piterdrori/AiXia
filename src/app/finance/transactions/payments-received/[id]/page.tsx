@@ -198,6 +198,13 @@ export default function PaymentReceivedDetailPage() {
   const [currencyOptions, setCurrencyOptions] = useState<CurrencyOption[]>([]);
 
   const hasProof = attachments.length > 0;
+  const convertedAmount = toNumber(payment?.converted_amount);
+const invoiceBalance = toNumber(invoiceLink?.balance_due);
+
+const isFxExceeding =
+  invoiceLink &&
+  payment.exchange_rate_source !== "pending_backend_conversion" &&
+  convertedAmount > invoiceBalance;
 
   const canEditPayment = payment?.status === "draft";
   const canDeletePayment =
@@ -707,11 +714,12 @@ useEffect(() => {
                 {payment.status === "draft" ? (
   <Button
     onClick={() => void handleConfirm()}
-    disabled={
+   disabled={
   !hasProof ||
   isConfirming ||
   isEditMode ||
-  payment.exchange_rate_source === "pending_backend_conversion"
+  payment.exchange_rate_source === "pending_backend_conversion" ||
+  isFxExceeding
 }
     className="h-11 rounded-2xl px-4"
   >
@@ -1247,7 +1255,14 @@ min="0"
                 {errorMessage}
               </div>
             ) : null}
-                        {fxErrorMessage ? (
+
+            {isFxExceeding ? (
+  <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+    Converted amount exceeds invoice balance. Reduce payment or adjust currency.
+  </div>
+) : null}
+            
+            {fxErrorMessage ? (
               <div className="rounded-[18px] border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
                 {fxErrorMessage}
               </div>

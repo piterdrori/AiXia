@@ -949,14 +949,9 @@ const canEditIssuedLines = false;
         throw new Error("User not authenticated");
       }
 
-      const { error } = await supabase
-        .from("finance_invoices_issued")
-        .update({
-          status: "archived",
-          updated_by: user.id,
-        })
-        .eq("id", id)
-        .neq("status", "archived");
+           const { error } = await supabase.rpc("finance_archive_invoice_issued", {
+        p_invoice_id: id,
+      });
 
       if (error) throw error;
 

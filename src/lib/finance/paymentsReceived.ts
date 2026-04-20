@@ -138,7 +138,15 @@ export async function getPaymentReceivedById(id: string) {
 
 export async function createPaymentReceived(
   payload: Partial<FinancePaymentReceived>
-) {
+): Promise<{ id: string }> {
+  if (!payload.invoice_id) {
+    throw new Error("Invoice is required.");
+  }
+
+  if (!payload.payment_date) {
+    throw new Error("Payment date is required.");
+  }
+
   if (!payload.invoice_currency_code) {
     throw new Error("Invoice currency is required.");
   }
@@ -175,7 +183,7 @@ export async function createPaymentReceived(
     "finance_create_payment_received_draft",
     {
       p_invoice_id: payload.invoice_id,
-      p_client_id: payload.client_id,
+      p_client_id: payload.client_id ?? null,
       p_payment_date: payload.payment_date,
       p_amount: payload.amount,
       p_payment_currency_code: payload.payment_currency_code,
@@ -184,9 +192,9 @@ export async function createPaymentReceived(
       p_converted_amount: convertedAmount,
       p_exchange_rate_source: exchangeRateSource,
       p_exchange_rate_date: exchangeRateDate,
-      p_reference_number: payload.reference_number,
-      p_payment_method_id: payload.payment_method_id,
-      p_notes: payload.notes,
+      p_reference_number: payload.reference_number ?? null,
+      p_payment_method_id: payload.payment_method_id ?? null,
+      p_notes: payload.notes ?? null,
       p_created_by: userId,
     }
   );
@@ -196,7 +204,11 @@ export async function createPaymentReceived(
     throw error;
   }
 
-  return data;
+  if (!data || typeof data !== "string") {
+    throw new Error("Payment draft creation returned an invalid id.");
+  }
+
+  return { id: data };
 }
 
 // ==============================

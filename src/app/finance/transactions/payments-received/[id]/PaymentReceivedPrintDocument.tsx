@@ -248,7 +248,7 @@ export default function PaymentReceivedPrintDocument({
               <div style={{ paddingTop: "2mm", textAlign: "left" }}>
                 <div
                   style={{
-                    fontSize: "25pt",
+                    fontSize: "31pt",
                     fontWeight: 300,
                     letterSpacing: "0.09em",
                     textTransform: "uppercase",
@@ -261,107 +261,63 @@ export default function PaymentReceivedPrintDocument({
 
                 <div style={{ fontSize: "10pt", lineHeight: 1.95 }}>
                   <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "30mm", opacity: 0.78 }}>Receipt No</span>
+                    <span style={{ width: "26mm", opacity: 0.78 }}>Receipt No</span>
                     <span style={{ fontWeight: 700 }}>{receiptNumber}</span>
                   </div>
                   <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "30mm", opacity: 0.78 }}>Receipt Date</span>
+                    <span style={{ width: "26mm", opacity: 0.78 }}>Receipt Date</span>
                     <span>{formatFinanceDate(receiptDate)}</span>
                   </div>
                   <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "30mm", opacity: 0.78 }}>Payment Date</span>
+                    <span style={{ width: "26mm", opacity: 0.78 }}>Payment Date</span>
                     <span>{formatFinanceDate(paymentDate)}</span>
                   </div>
                   <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "30mm", opacity: 0.78 }}>Status</span>
+                    <span style={{ width: "26mm", opacity: 0.78 }}>Status</span>
                     <span>{getPaymentStatusLabel(payment.status)}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div style={{ marginTop: "5mm", marginBottom: "7mm" }}>
+                       <div style={{ marginTop: "5mm", marginBottom: "7mm" }}>
               <div
                 style={{
+                  background: "#ffffff",
+                  border: "0.5pt solid #e5e7eb",
+                  borderRadius: "2mm",
+                  padding: "4mm 5mm",
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "5mm",
+                  gridTemplateColumns: "1fr",
                 }}
               >
                 <div
                   style={{
-                    background: "#ffffff",
-                    border: "0.5pt solid #e5e7eb",
-                    borderRadius: "2mm",
-                    padding: "4mm 5mm",
+                    fontSize: "7.2pt",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.1em",
+                    color: "#6b7280",
+                    fontWeight: 700,
+                    marginBottom: "1.5mm",
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: "7.2pt",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      color: "#6b7280",
-                      fontWeight: 700,
-                      marginBottom: "1.5mm",
-                    }}
-                  >
-                    Received By
-                  </div>
-                  <div style={{ fontWeight: 700, fontSize: "11pt", marginBottom: "1mm" }}>
-                    {companyName}
-                  </div>
-                  {companyContact ? (
-                    <div style={{ fontSize: "8.3pt", color: "#4b5563", marginBottom: "0.8mm" }}>
-                      {companyContact}
-                    </div>
-                  ) : null}
-                  {companyEmail || companyPhone ? (
-                    <div style={{ fontSize: "8.1pt", color: "#4b5563", marginBottom: "0.8mm" }}>
-                      {[companyEmail, companyPhone].filter(Boolean).join(" • ")}
-                    </div>
-                  ) : null}
-                  <div style={{ fontSize: "8.3pt", color: "#4b5563", lineHeight: 1.55 }}>
-                    {companyAddress || ""}
-                  </div>
+                  Received From
                 </div>
-
-                <div
-                  style={{
-                    background: "#ffffff",
-                    border: "0.5pt solid #e5e7eb",
-                    borderRadius: "2mm",
-                    padding: "4mm 5mm",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "7.2pt",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      color: "#6b7280",
-                      fontWeight: 700,
-                      marginBottom: "1.5mm",
-                    }}
-                  >
-                    Received From
+                <div style={{ fontWeight: 700, fontSize: "11pt", marginBottom: "1mm" }}>
+                  {clientName}
+                </div>
+                {clientContact ? (
+                  <div style={{ fontSize: "8.3pt", color: "#4b5563", marginBottom: "0.8mm" }}>
+                    {clientContact}
                   </div>
-                  <div style={{ fontWeight: 700, fontSize: "11pt", marginBottom: "1mm" }}>
-                    {clientName}
+                ) : null}
+                {clientEmail || clientPhone ? (
+                  <div style={{ fontSize: "8.1pt", color: "#4b5563", marginBottom: "0.8mm" }}>
+                    {[clientEmail, clientPhone].filter(Boolean).join(" • ")}
                   </div>
-                  {clientContact ? (
-                    <div style={{ fontSize: "8.3pt", color: "#4b5563", marginBottom: "0.8mm" }}>
-                      {clientContact}
-                    </div>
-                  ) : null}
-                  {clientEmail || clientPhone ? (
-                    <div style={{ fontSize: "8.1pt", color: "#4b5563", marginBottom: "0.8mm" }}>
-                      {[clientEmail, clientPhone].filter(Boolean).join(" • ")}
-                    </div>
-                  ) : null}
-                  <div style={{ fontSize: "8.3pt", color: "#4b5563", lineHeight: 1.55 }}>
-                    {billingAddress || ""}
-                  </div>
+                ) : null}
+                <div style={{ fontSize: "8.3pt", color: "#4b5563", lineHeight: 1.55 }}>
+                  {billingAddress}
                 </div>
               </div>
             </div>
@@ -522,29 +478,6 @@ export default function PaymentReceivedPrintDocument({
                       </div>
                     </div>
                   </div>
-
-                  <div style={{ marginBottom: "8mm" }}>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: "9pt",
-                        color: "#111827",
-                        marginBottom: "1.5mm",
-                      }}
-                    >
-                      Document Remark
-                    </div>
-                    <div
-                      style={{
-                        lineHeight: 1.6,
-                        whiteSpace: "pre-wrap",
-                        fontSize: "7.8pt",
-                        color: "#374151",
-                      }}
-                    >
-                      {remarkText}
-                    </div>
-                  </div>
                   
                   </div>
                 </div>
@@ -650,9 +583,9 @@ export default function PaymentReceivedPrintDocument({
               </div>
             </div>
 
-            <div
+                       <div
               style={{
-                marginTop: "2mm",
+                marginTop: "1mm",
                 paddingTop: "2mm",
                 borderTop: "0.5pt solid #e5e7eb",
                 background: "#ffffff",
@@ -660,16 +593,25 @@ export default function PaymentReceivedPrintDocument({
             >
               <div
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: "8mm",
-                  fontSize: "6.8pt",
-                  color: "#6b7280",
-                  lineHeight: 1.5,
+                  fontWeight: 700,
+                  fontSize: "9pt",
+                  color: "#111827",
+                  marginBottom: "2mm",
                 }}
               >
-                <div>Generated by system</div>
-                <div>{new Date().toLocaleString()}</div>
+                Document Remark
+              </div>
+
+              <div
+                style={{
+                  lineHeight: 1.45,
+                  whiteSpace: "pre-wrap",
+                  fontSize: "7pt",
+                  color: "#374151",
+                  marginBottom: "3mm",
+                }}
+              >
+                {remarkText}
               </div>
 
               <div
@@ -683,7 +625,7 @@ export default function PaymentReceivedPrintDocument({
                   marginTop: "3mm",
                 }}
               >
-                Payment Received Confirmation
+                Thank You For Your Business
               </div>
             </div>
           </div>

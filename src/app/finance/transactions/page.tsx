@@ -92,8 +92,8 @@ type FinanceReimbursementRow = {
   id: string;
   reimbursement_number: string | null;
   status: string;
-  total_amount: number | string | null;
-  payment_status: string | null;
+  amount: number | string | null;
+  payment_date: string | null;
   created_at: string;
 };
 
@@ -460,8 +460,8 @@ export default function FinanceTransactionsPage() {
         supabase
           .from("finance_reimbursements")
           .select(
-            "id, reimbursement_number, status, total_amount, payment_status, created_at"
-          )
+  "id, reimbursement_number, status, amount, payment_date, created_at"
+)
           .order("created_at", { ascending: false })
           .limit(50),
 
@@ -558,11 +558,8 @@ export default function FinanceTransactionsPage() {
       ).length;
 
       const pendingReimbursements = reimbursements.filter(
-        (row) =>
-          row.status === "pending" ||
-          row.payment_status === "pending" ||
-          row.payment_status === "unpaid"
-      ).length;
+  (row) => row.status === "pending"
+).length;
 
       const pendingApprovals = approvals.filter(
         (row) => row.status === "pending"

@@ -40,7 +40,7 @@ export async function getPaymentsReceived() {
      counterparty_name_snapshot
 )
     `)
-    .not("status", "in", ["archived", "deleted"])
+    .not("status", "in", '("archived","deleted")')
     .order("payment_date", { ascending: false });
 
   if (error) {

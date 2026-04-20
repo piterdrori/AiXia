@@ -1,16 +1,7 @@
 import { supabase } from "@/lib/supabase";
-import { logActivity } from "@/lib/activity";
 import type { FinancePaymentReceived } from "./types";
 
 import { convertCurrencyLive } from "@/lib/integrations/frankfurter";
-
-type PaymentReceivedArchiveMetadata = {
-  previous_status?: string | null;
-  archived_at?: string | null;
-  deleted_at?: string | null;
-  restored_at?: string | null;
-  [key: string]: unknown;
-};
 
 async function getCurrentUserId() {
   const {
@@ -18,20 +9,6 @@ async function getCurrentUserId() {
   } = await supabase.auth.getUser();
 
   return user?.id ?? null;
-}
-
-function getRestoredPaymentReceivedStatus(
-  previousStatus: string | null | undefined
-) {
-  if (
-    previousStatus &&
-    previousStatus !== "archived" &&
-    previousStatus !== "deleted"
-  ) {
-    return previousStatus;
-  }
-
-  return "confirmed";
 }
 
 // ==============================
@@ -163,7 +140,6 @@ export async function createPaymentReceived(
   let exchangeRateSource = payload.exchange_rate_source || "manual_override";
   let exchangeRateDate = payload.exchange_rate_date;
 
-  // AUTO CONVERT if missing
   if (!exchangeRate || !convertedAmount) {
     const result = await convertCurrencyLive(
       payload.amount,
@@ -177,27 +153,34 @@ export async function createPaymentReceived(
     exchangeRateDate = result.date;
   }
 
-  const { data, error } = await supabase
-    .from("finance_payments_received")
-    .insert([
-      {
-        ...payload,
-        status: "draft",
-        exchange_rate: exchangeRate,
-        converted_amount: convertedAmount,
-        exchange_rate_source: exchangeRateSource,
-        exchange_rate_date: exchangeRateDate,
-      },
-    ])
-    .select()
-    .single();
+  const userId = await getCurrentUserId();
+
+  const { data, error } = await supabase.rpc(
+    "finance_create_payment_received_draft",
+    {
+      p_invoice_id: payload.invoice_id,
+      p_client_id: payload.client_id,
+      p_payment_date: payload.payment_date,
+      p_amount: payload.amount,
+      p_payment_currency_code: payload.payment_currency_code,
+      p_invoice_currency_code: payload.invoice_currency_code,
+      p_exchange_rate: exchangeRate,
+      p_converted_amount: convertedAmount,
+      p_exchange_rate_source: exchangeRateSource,
+      p_exchange_rate_date: exchangeRateDate,
+      p_reference_number: payload.reference_number,
+      p_payment_method_id: payload.payment_method_id,
+      p_notes: payload.notes,
+      p_created_by: userId,
+    }
+  );
 
   if (error) {
     console.error("Error creating payment:", error);
     throw error;
   }
 
-  return data as FinancePaymentReceived;
+  return data;
 }
 
 // ==============================
@@ -231,25 +214,33 @@ export async function updatePaymentReceived(
     exchangeRateDate = result.date;
   }
 
-  const { data, error } = await supabase
-    .from("finance_payments_received")
-    .update({
-      ...updates,
-      exchange_rate: exchangeRate,
-      converted_amount: convertedAmount,
-      exchange_rate_source: exchangeRateSource,
-      exchange_rate_date: exchangeRateDate,
-    })
-    .eq("id", id)
-    .select()
-    .single();
+  const userId = await getCurrentUserId();
+
+  const { error } = await supabase.rpc(
+    "finance_update_payment_received",
+    {
+      p_payment_id: id,
+      p_invoice_id: updates.invoice_id,
+      p_client_id: updates.client_id,
+      p_payment_date: updates.payment_date,
+      p_amount: updates.amount,
+      p_payment_currency_code: updates.payment_currency_code,
+      p_invoice_currency_code: updates.invoice_currency_code,
+      p_exchange_rate: exchangeRate,
+      p_converted_amount: convertedAmount,
+      p_exchange_rate_source: exchangeRateSource,
+      p_exchange_rate_date: exchangeRateDate,
+      p_reference_number: updates.reference_number,
+      p_payment_method_id: updates.payment_method_id,
+      p_notes: updates.notes,
+      p_updated_by: userId,
+    }
+  );
 
   if (error) {
     console.error("Error updating payment:", error);
     throw error;
   }
-
-  return data as FinancePaymentReceived;
 }
 
 // ==============================
@@ -259,148 +250,54 @@ export async function updatePaymentReceived(
 export async function archivePaymentReceived(id: string) {
   const userId = await getCurrentUserId();
 
-  const { data: existing } = await supabase
-    .from("finance_payments_received")
-    .select("status, metadata, reference_number")
-    .eq("id", id)
-    .single();
-
-  const currentMetadata = (existing?.metadata ?? {}) as PaymentReceivedArchiveMetadata;
-  const currentStatus = String(existing?.status ?? "confirmed");
-
-  const { data, error } = await supabase
-    .from("finance_payments_received")
-    .update({
-      status: "archived",
-      metadata: {
-        ...currentMetadata,
-        previous_status:
-          currentStatus === "archived" || currentStatus === "deleted"
-            ? currentMetadata.previous_status ?? "confirmed"
-            : currentStatus,
-        archived_at: new Date().toISOString(),
-      },
-      updated_by: userId,
-    })
-    .eq("id", id)
-    .select()
-    .single();
+  const { error } = await supabase.rpc(
+    "finance_archive_payment_received",
+    {
+      p_payment_id: id,
+      p_updated_by: userId,
+    }
+  );
 
   if (error) throw error;
-
-  await logActivity({
-    actionType: "finance.payment_received.archived",
-    entityType: "finance_payment_received",
-    entityId: id,
-    message: `Payment archived: ${data.reference_number || id}`,
-  });
-
-  return data;
 }
 
 export async function softDeletePaymentReceived(id: string) {
   const userId = await getCurrentUserId();
 
-  const { data: existing } = await supabase
-    .from("finance_payments_received")
-    .select("status, metadata, reference_number")
-    .eq("id", id)
-    .single();
-
-  const currentMetadata = (existing?.metadata ?? {}) as PaymentReceivedArchiveMetadata;
-  const currentStatus = String(existing?.status ?? "confirmed");
-
-  const { data, error } = await supabase
-    .from("finance_payments_received")
-    .update({
-      status: "deleted",
-      metadata: {
-        ...currentMetadata,
-        previous_status:
-          currentStatus === "archived" || currentStatus === "deleted"
-            ? currentMetadata.previous_status ?? "confirmed"
-            : currentStatus,
-        deleted_at: new Date().toISOString(),
-      },
-      updated_by: userId,
-    })
-    .eq("id", id)
-    .select()
-    .single();
+  const { error } = await supabase.rpc(
+    "finance_delete_payment_received",
+    {
+      p_payment_id: id,
+      p_updated_by: userId,
+    }
+  );
 
   if (error) throw error;
-
-  await logActivity({
-    actionType: "finance.payment_received.deleted_soft",
-    entityType: "finance_payment_received",
-    entityId: id,
-    message: `Payment moved to deleted: ${data.reference_number || id}`,
-  });
-
-  return data;
 }
 
 export async function restorePaymentReceived(id: string) {
   const userId = await getCurrentUserId();
 
-  const { data: existing } = await supabase
-    .from("finance_payments_received")
-    .select("metadata, reference_number")
-    .eq("id", id)
-    .single();
-
-  const currentMetadata = (existing?.metadata ?? {}) as PaymentReceivedArchiveMetadata;
-
-  const restoredStatus = getRestoredPaymentReceivedStatus(
-    currentMetadata.previous_status
+  const { error } = await supabase.rpc(
+    "finance_restore_payment_received",
+    {
+      p_payment_id: id,
+      p_updated_by: userId,
+    }
   );
 
-  const { data, error } = await supabase
-    .from("finance_payments_received")
-    .update({
-      status: restoredStatus,
-      metadata: {
-        ...currentMetadata,
-        restored_at: new Date().toISOString(),
-      },
-      updated_by: userId,
-    })
-    .eq("id", id)
-    .select()
-    .single();
-
   if (error) throw error;
-
-  await logActivity({
-    actionType: "finance.payment_received.restored",
-    entityType: "finance_payment_received",
-    entityId: id,
-    message: `Payment restored: ${data.reference_number || id}`,
-  });
-
-  return data;
 }
 
 export async function permanentlyDeletePaymentReceived(id: string) {
-  const { data: existing } = await supabase
-    .from("finance_payments_received")
-    .select("reference_number")
-    .eq("id", id)
-    .single();
-
-  const { error } = await supabase
-    .from("finance_payments_received")
-    .delete()
-    .eq("id", id);
+  const { error } = await supabase.rpc(
+    "finance_hard_delete_payment_received",
+    {
+      p_payment_id: id,
+    }
+  );
 
   if (error) throw error;
-
-  await logActivity({
-    actionType: "finance.payment_received.deleted_hard",
-    entityType: "finance_payment_received",
-    entityId: id,
-    message: `Payment permanently deleted: ${existing?.reference_number || id}`,
-  });
 }
 
 // ==============================
@@ -408,24 +305,17 @@ export async function permanentlyDeletePaymentReceived(id: string) {
 // ==============================
 
 export async function confirmPaymentReceived(id: string) {
-  // check attachments BEFORE confirm
-  const { data: attachments, error: attachError } = await supabase
-    .from("finance_record_attachments")
-    .select("id")
-    .eq("entity_type", "finance_payment_received")
-    .eq("entity_id", id);
+  const userId = await getCurrentUserId();
 
-  if (attachError) {
-    throw attachError;
-  }
+  const { error } = await supabase.rpc(
+    "finance_confirm_payment_received",
+    {
+      p_payment_id: id,
+      p_updated_by: userId,
+    }
+  );
 
-  if (!attachments || attachments.length === 0) {
-    throw new Error("Cannot confirm payment without proof document.");
-  }
-
-  return updatePaymentReceived(id, {
-    status: "confirmed",
-  });
+  if (error) throw error;
 }
 
 // ==============================
@@ -433,7 +323,15 @@ export async function confirmPaymentReceived(id: string) {
 // ==============================
 
 export async function cancelPaymentReceived(id: string) {
-  return updatePaymentReceived(id, {
-    status: "cancelled",
-  });
+  const userId = await getCurrentUserId();
+
+  const { error } = await supabase.rpc(
+    "finance_cancel_payment_received",
+    {
+      p_payment_id: id,
+      p_updated_by: userId,
+    }
+  );
+
+  if (error) throw error;
 }

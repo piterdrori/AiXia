@@ -3116,12 +3116,11 @@ shipping_terms_snapshot:
                         </div>
 
                         <div className="text-sm font-semibold text-white">
-                          {formatFinanceMoney(
-  payment.converted_amount ?? payment.amount,
-  invoice.currency_code || "USD"
-)
-                          )}
-                        </div>
+  {formatFinanceMoney(
+    payment.converted_amount ?? payment.amount,
+    invoice.currency_code || "USD"
+  )}
+</div>
                       </div>
                     </div>
                   ))

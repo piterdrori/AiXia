@@ -101,18 +101,18 @@ export default function PaymentReceivedPrintDocument({
   const invoiceCurrency =
     payment.invoice_currency_code || invoiceLink?.currency_code || "USD";
 
-  const companyName = payment.company_name_snapshot || "—";
+  const companyName = payment.company_name_snapshot || "";
   const companyContact = payment.company_contact_person_snapshot || "";
   const companyEmail = payment.company_email_snapshot || "";
   const companyPhone = payment.company_phone_snapshot || "";
   const companyAddress = payment.company_address_snapshot || "";
 
-  const clientName =
-    payment.client_name_snapshot || invoiceLink?.client_name_snapshot || "—";
+ const clientName =
+  payment.client_name_snapshot || invoiceLink?.client_name_snapshot || "";
   const clientContact = payment.client_contact_person_snapshot || "";
   const clientEmail = payment.client_email_snapshot || "";
   const clientPhone = payment.client_phone_snapshot || "";
-  const billingAddress = payment.billing_address_snapshot || "—";
+  const billingAddress = payment.billing_address_snapshot || "";
 
   const receiptNumber = payment.reference_number || payment.id || "Draft";
   const receiptDate = payment.payment_date || null;
@@ -322,7 +322,7 @@ export default function PaymentReceivedPrintDocument({
                     </div>
                   ) : null}
                   <div style={{ fontSize: "8.3pt", color: "#4b5563", lineHeight: 1.55 }}>
-                    {companyAddress || "—"}
+                    {companyAddress || ""}
                   </div>
                 </div>
 
@@ -360,7 +360,7 @@ export default function PaymentReceivedPrintDocument({
                     </div>
                   ) : null}
                   <div style={{ fontSize: "8.3pt", color: "#4b5563", lineHeight: 1.55 }}>
-                    {billingAddress}
+                    {billingAddress || ""}
                   </div>
                 </div>
               </div>
@@ -480,11 +480,11 @@ export default function PaymentReceivedPrintDocument({
                     <div style={{ lineHeight: 1.7 }}>
                       <div>
                         <span style={{ color: "#6b7280" }}>Reference Number: </span>
-                        <span style={{ fontWeight: 500 }}>{payment.reference_number || "—"}</span>
+                        <span style={{ fontWeight: 500 }}>{payment.reference_number || ""}</span>
                       </div>
                       <div>
                         <span style={{ color: "#6b7280" }}>Payment Method: </span>
-                        <span style={{ fontWeight: 500 }}>{payment.payment_method_name || "—"}</span>
+                        <span style={{ fontWeight: 500 }}>{payment.payment_method_name || ""}</span>
                       </div>
                       <div>
                         <span style={{ color: "#6b7280" }}>Payment Currency: </span>
@@ -494,18 +494,22 @@ export default function PaymentReceivedPrintDocument({
                         <span style={{ color: "#6b7280" }}>Invoice Currency: </span>
                         <span style={{ fontWeight: 500 }}>{invoiceCurrency}</span>
                       </div>
-                      <div>
-                        <span style={{ color: "#6b7280" }}>Exchange Rate: </span>
-                        <span style={{ fontWeight: 500 }}>
-                          {payment.exchange_rate ?? "—"}
-                        </span>
-                      </div>
-                      <div>
-                        <span style={{ color: "#6b7280" }}>FX Source: </span>
-                        <span style={{ fontWeight: 500 }}>
-                          {payment.exchange_rate_source || "—"}
-                        </span>
-                      </div>
+                     {payment.exchange_rate ? (
+  <div>
+    <span style={{ color: "#6b7280" }}>Exchange Rate: </span>
+    <span style={{ fontWeight: 500 }}>
+      {payment.exchange_rate}
+    </span>
+  </div>
+) : null}
+                    {payment.exchange_rate_source ? (
+  <div>
+    <span style={{ color: "#6b7280" }}>FX Source: </span>
+    <span style={{ fontWeight: 500 }}>
+      {payment.exchange_rate_source}
+    </span>
+  </div>
+) : null}
                       <div>
                         <span style={{ color: "#6b7280" }}>FX Date: </span>
                         <span style={{ fontWeight: 500 }}>
@@ -541,29 +545,7 @@ export default function PaymentReceivedPrintDocument({
                       {remarkText}
                     </div>
                   </div>
-
-                  <div>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: "9pt",
-                        color: "#111827",
-                        marginBottom: "1.5mm",
-                      }}
-                    >
-                      Notes
-                    </div>
-                    <div
-                      style={{
-                        minHeight: "18mm",
-                        lineHeight: 1.55,
-                        whiteSpace: "pre-wrap",
-                        fontSize: "7.8pt",
-                        color: "#374151",
-                      }}
-                    >
-                      {payment.notes || "—"}
-                    </div>
+                  
                   </div>
                 </div>
               </div>

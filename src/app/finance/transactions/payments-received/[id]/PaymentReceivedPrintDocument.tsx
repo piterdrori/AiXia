@@ -36,6 +36,7 @@ type InvoiceRecord = {
   currency_code?: string | null;
   status?: string | null;
   payment_status?: string | null;
+  counterparty_name_snapshot?: string | null;
   client_name_snapshot?: string | null;
   client_contact_person_snapshot?: string | null;
   client_email_snapshot?: string | null;

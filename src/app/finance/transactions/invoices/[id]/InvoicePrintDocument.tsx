@@ -92,11 +92,30 @@ const companyAddress =
   invoice?.company_address ||
   "";
 
-const clientName =
+const counterpartyName =
+  invoice?.counterparty_name_snapshot ||
   invoice?.client_name_snapshot ||
   invoice?.client_name ||
   invoice?.client ||
   "—";
+
+const counterpartyContact =
+  invoice?.counterparty_contact_person_snapshot ||
+  invoice?.client_contact_person_snapshot ||
+  invoice?.client_contact_person ||
+  "";
+
+const counterpartyEmail =
+  invoice?.counterparty_email_snapshot ||
+  invoice?.client_email_snapshot ||
+  invoice?.client_email ||
+  "";
+
+const counterpartyPhone =
+  invoice?.counterparty_phone_snapshot ||
+  invoice?.client_phone_snapshot ||
+  invoice?.client_phone ||
+  "";
 
 const clientContact =
   invoice?.client_contact_person_snapshot ||
@@ -301,7 +320,7 @@ const dueDate =
               </div>
             </div>
 
-            {/* Bill To */}
+            {/* Recipient */}
             <div style={{ marginTop: "5mm", marginBottom: "7mm" }}>
               <div
                 style={{
@@ -323,19 +342,19 @@ const dueDate =
                     marginBottom: "1.5mm",
                   }}
                 >
-                  Bill To
+                  Recipient
                 </div>
                 <div style={{ fontWeight: 700, fontSize: "11pt", marginBottom: "1mm" }}>
-                  {clientName}
+                  {counterpartyName}
                 </div>
-                {clientContact ? (
+             {counterpartyContact ? (
   <div style={{ fontSize: "8.3pt", color: "#4b5563", marginBottom: "0.8mm" }}>
-    {clientContact}
+    {counterpartyContact}
   </div>
 ) : null}
-                {clientEmail || clientPhone ? (
+             {counterpartyEmail || counterpartyPhone ? (
   <div style={{ fontSize: "8.1pt", color: "#4b5563", marginBottom: "0.8mm" }}>
-    {[clientEmail, clientPhone]
+    {[counterpartyEmail, counterpartyPhone]
       .filter(Boolean)
       .join(" • ")}
   </div>

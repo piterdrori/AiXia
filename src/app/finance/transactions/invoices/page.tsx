@@ -429,10 +429,13 @@ const handleDelete = async (id: string) => {
   };
 
     const handleHardDelete = async (id: string) => {
-    await supabase
-      .from("finance_invoices_issued")
-      .delete()
-      .eq("id", id);
+       const { error } = await supabase.rpc("finance_hard_delete_invoice_issued", {
+      p_invoice_id: id,
+    });
+
+    if (error) {
+      throw error;
+    }
 
     await Promise.all([loadInvoices(true), loadArchivedInvoices()]);
   };

@@ -108,29 +108,26 @@ export default function NewPaymentReceivedPage() {
       setIsLoading(true);
       setErrorMessage("");
 
-      const [invoicesResult, currenciesResult, paymentMethodsResult] =
-        await Promise.all([
-          supabase
-            .from("finance_invoices_issued")
-            .select(
-              "id, invoice_number, client_id, client_name_snapshot, currency_code, balance_due, status"
-            )
-            .in("status", ["issued", "partially_paid", "overdue"])
-            .gt("balance_due", 0)
-            .order("created_at", { ascending: false }),
+     const invoicesResult = await supabase
+  .from("finance_invoices_issued")
+  .select(
+    "id, invoice_number, client_id, client_name_snapshot, currency_code, balance_due, status"
+  )
+  .in("status", ["issued", "partially_paid", "overdue"])
+  .gt("balance_due", 0)
+  .order("created_at", { ascending: false });
 
-          supabase
-            .from("finance_currencies")
-            .select("id, currency_code, currency_name")
-            .eq("status", "active")
-            .order("currency_code", { ascending: true }),
+const currenciesResult = await supabase
+  .from("finance_currencies")
+  .select("id, currency_code, currency_name")
+  .eq("status", "active")
+  .order("currency_code", { ascending: true });
 
-          supabase
-            .from("finance_payment_methods")
-            .select("id, name")
-            .eq("status", "active")
-            .order("name", { ascending: true }),
-        ]);
+const paymentMethodsResult = await supabase
+  .from("finance_payment_methods")
+  .select("id, name")
+  .eq("status", "active")
+  .order("name", { ascending: true });
 
       if (invoicesResult.error) throw invoicesResult.error;
       if (currenciesResult.error) throw currenciesResult.error;
@@ -191,9 +188,9 @@ export default function NewPaymentReceivedPage() {
         throw new Error("User not authenticated");
       }
 
-  const created = await createPaymentReceived({
+const created = await createPaymentReceived({
   invoice_id: selectedInvoice.id,
-  client_id: selectedInvoice.client_id,
+  client_id: selectedInvoice.client_id ?? null,
   amount: numericAmount,
   payment_date: paymentDate,
   reference_number: referenceNumber || null,
@@ -217,6 +214,10 @@ export default function NewPaymentReceivedPage() {
   },
 });
 
+if (!created?.id) {
+  throw new Error("Payment creation failed: no id returned");
+}
+
 const { error: fxError } = await supabase.functions.invoke(
   "finance-payment-received-convert",
   {
@@ -234,7 +235,9 @@ if (fxError) {
   console.error("FX conversion failed:", fxError);
 }
 
-navigate(`/finance/transactions/payments-received/${created.id}`);
+const paymentId = created.id;
+
+navigate(`/finance/transactions/payments-received/${paymentId}`);
       
     } catch (error) {
       console.error("Failed to create payment received:", error);
@@ -260,7 +263,10 @@ navigate(`/finance/transactions/payments-received/${created.id}`);
   const metricSummary = useMemo(() => {
     return {
       invoiceNumber: selectedInvoice?.invoice_number || "—",
-      clientName: selectedInvoice?.client_name_snapshot || "—",
+      clientName:
+  selectedInvoice?.client_name_snapshot ||
+  selectedInvoice?.invoice_number ||
+  "Intercompany",
       invoiceCurrency: invoiceCurrencyCode,
       paymentCurrency: paymentCurrencyCode || "—",
       openBalance,

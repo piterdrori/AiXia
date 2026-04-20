@@ -616,10 +616,10 @@ const confirmedPayments = activePayments.filter(
           </div>
         </section>
 
-        <section className="space-y-6">
+              <section className="space-y-6">
           <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
             <CardHeader className="border-b border-white/8 pb-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="space-y-2">
                   <Badge className="w-fit rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-amber-200 shadow-none">
                     Open Invoices
@@ -634,8 +634,20 @@ const confirmedPayments = activePayments.filter(
                   </CardDescription>
                 </div>
 
-                <div className="text-sm text-white/45">
-                  {visibleOpenInvoices.length} open invoice{visibleOpenInvoices.length === 1 ? "" : "s"}
+                <div className="flex w-full max-w-md flex-col gap-2">
+                  <div className="text-sm text-white/45">
+                    {visibleOpenInvoices.length} open invoice{visibleOpenInvoices.length === 1 ? "" : "s"}
+                  </div>
+
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+                    <input
+                      value={openInvoicesSearch}
+                      onChange={(event) => setOpenInvoicesSearch(event.target.value)}
+                      placeholder="Search open invoices"
+                      className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-10 pr-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-amber-400/30"
+                    />
+                  </div>
                 </div>
               </div>
             </CardHeader>

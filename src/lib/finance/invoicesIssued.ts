@@ -15,8 +15,12 @@ export type FinanceIssuedInvoiceListRow = {
   status: FinanceInvoiceIssuedStatus;
   payment_status: FinanceInvoiceIssuedPaymentStatus;
   approval_status: string | null;
-  client_id: string;
+  client_id: string | null;
+
+  // 🔥 ADD THESE
+  counterparty_name_snapshot: string | null;
   client_name: string;
+
   issue_date: string;
   due_date: string;
   currency_code: string | null;
@@ -168,7 +172,7 @@ export async function getIssuedInvoicesList(): Promise<
 > {
   const { data, error } = await supabase
     .from(INVOICES_TABLE)
-.select(
+select(
 `
   id,
   invoice_number,
@@ -176,6 +180,7 @@ export async function getIssuedInvoicesList(): Promise<
   payment_status,
   approval_status,
   client_id,
+  counterparty_name_snapshot,
   issue_date,
   due_date,
   currency_code,
@@ -202,11 +207,14 @@ export async function getIssuedInvoicesList(): Promise<
     payment_status: normalizeIssuedInvoicePaymentStatus(row.payment_status),
     approval_status: row.approval_status ?? null,
     client_id: row.client_id,
-    client_name:
-      row.client_name_snapshot ||
-      row.finance_clients?.legal_name ||
-      row.finance_clients?.name ||
-      "Unknown client",
+    counterparty_name_snapshot: row.counterparty_name_snapshot ?? null,
+
+client_name:
+  row.counterparty_name_snapshot ||
+  row.client_name_snapshot ||
+  row.finance_clients?.legal_name ||
+  row.finance_clients?.name ||
+  "Unknown client",
     issue_date: row.issue_date,
     due_date: row.due_date,
     currency_code: row.currency_code ?? "USD",
@@ -223,14 +231,15 @@ export async function getIssuedInvoicesArchiveList(): Promise<
 > {
   const { data, error } = await supabase
     .from(INVOICES_TABLE)
-    .select(
-      `
+   .select(
+  `
         id,
         invoice_number,
         status,
         payment_status,
         approval_status,
         client_id,
+        counterparty_name_snapshot,
         issue_date,
         due_date,
         currency_code,
@@ -244,7 +253,7 @@ export async function getIssuedInvoicesArchiveList(): Promise<
           legal_name
         )
       `
-    )
+)
     .in("status", ["archived", "deleted"])
     .order("created_at", { ascending: false });
 
@@ -257,11 +266,14 @@ export async function getIssuedInvoicesArchiveList(): Promise<
     payment_status: normalizeIssuedInvoicePaymentStatus(row.payment_status),
     approval_status: row.approval_status ?? null,
     client_id: row.client_id,
-    client_name:
-      row.client_name_snapshot ||
-      row.finance_clients?.legal_name ||
-      row.finance_clients?.name ||
-      "Unknown client",
+   counterparty_name_snapshot: row.counterparty_name_snapshot ?? null,
+
+client_name:
+  row.counterparty_name_snapshot ||
+  row.client_name_snapshot ||
+  row.finance_clients?.legal_name ||
+  row.finance_clients?.name ||
+  "Unknown client",
     issue_date: row.issue_date,
     due_date: row.due_date,
     currency_code: row.currency_code ?? "USD",

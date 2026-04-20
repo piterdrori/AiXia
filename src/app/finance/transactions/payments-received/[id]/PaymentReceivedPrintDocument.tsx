@@ -135,25 +135,26 @@ export default function PaymentReceivedPrintDocument({
     invoiceLink?.company_address_snapshot ||
     "";
 
-  const clientName =
-    payment.client_name_snapshot ||
-    invoiceLink?.client_name_snapshot ||
-    "";
+const counterpartyName =
+  invoiceLink?.counterparty_name_snapshot ||
+  payment.client_name_snapshot ||
+  invoiceLink?.client_name_snapshot ||
+  "";
 
-  const clientContact =
-    payment.client_contact_person_snapshot ||
-    invoiceLink?.client_contact_person_snapshot ||
-    "";
+const counterpartyContact =
+  invoiceLink?.client_contact_person_snapshot ||
+  payment.client_contact_person_snapshot ||
+  "";
 
-  const clientEmail =
-    payment.client_email_snapshot ||
-    invoiceLink?.client_email_snapshot ||
-    "";
+const counterpartyEmail =
+  invoiceLink?.client_email_snapshot ||
+  payment.client_email_snapshot ||
+  "";
 
-  const clientPhone =
-    payment.client_phone_snapshot ||
-    invoiceLink?.client_phone_snapshot ||
-    "";
+const counterpartyPhone =
+  invoiceLink?.client_phone_snapshot ||
+  payment.client_phone_snapshot ||
+  "";
 
   const billingAddress =
     payment.billing_address_snapshot ||
@@ -347,21 +348,21 @@ export default function PaymentReceivedPrintDocument({
                     marginBottom: "1.5mm",
                   }}
                 >
-                  Received From
+                  Recipient
                 </div>
                 <div style={{ fontWeight: 700, fontSize: "11pt", marginBottom: "1mm" }}>
-                  {clientName}
+                  {counterpartyName}
                 </div>
-                               {clientContact ? (
-                  <div style={{ fontSize: "8.3pt", color: "#4b5563", marginBottom: "0.8mm" }}>
-                    {clientContact}
-                  </div>
-                ) : null}
-                {clientEmail || clientPhone ? (
-                  <div style={{ fontSize: "8.1pt", color: "#4b5563", marginBottom: "0.8mm" }}>
-                    {[clientEmail, clientPhone].filter(Boolean).join(" • ")}
-                  </div>
-                ) : null}
+                      {counterpartyContact ? (
+  <div>
+    {counterpartyContact}
+  </div>
+) : null}
+                {counterpartyEmail || counterpartyPhone ? (
+  <div>
+    {[counterpartyEmail, counterpartyPhone].filter(Boolean).join(" • ")}
+  </div>
+) : null}
                 <div style={{ fontSize: "8.3pt", color: "#4b5563", lineHeight: 1.55 }}>
                   {billingAddress}
                 </div>

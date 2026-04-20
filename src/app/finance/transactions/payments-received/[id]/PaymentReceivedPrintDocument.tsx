@@ -37,6 +37,15 @@ type InvoiceRecord = {
   status?: string | null;
   payment_status?: string | null;
   client_name_snapshot?: string | null;
+  client_contact_person_snapshot?: string | null;
+  client_email_snapshot?: string | null;
+  client_phone_snapshot?: string | null;
+  billing_address_snapshot?: string | null;
+  company_name_snapshot?: string | null;
+  company_contact_person_snapshot?: string | null;
+  company_email_snapshot?: string | null;
+  company_phone_snapshot?: string | null;
+  company_address_snapshot?: string | null;
 };
 
 type Props = {
@@ -101,18 +110,55 @@ export default function PaymentReceivedPrintDocument({
   const invoiceCurrency =
     payment.invoice_currency_code || invoiceLink?.currency_code || "USD";
 
-  const companyName = payment.company_name_snapshot || "";
-  const companyContact = payment.company_contact_person_snapshot || "";
-  const companyEmail = payment.company_email_snapshot || "";
-  const companyPhone = payment.company_phone_snapshot || "";
-  const companyAddress = payment.company_address_snapshot || "";
+  const companyName =
+    payment.company_name_snapshot ||
+    invoiceLink?.company_name_snapshot ||
+    "";
 
- const clientName =
-  payment.client_name_snapshot || invoiceLink?.client_name_snapshot || "";
-  const clientContact = payment.client_contact_person_snapshot || "";
-  const clientEmail = payment.client_email_snapshot || "";
-  const clientPhone = payment.client_phone_snapshot || "";
-  const billingAddress = payment.billing_address_snapshot || "";
+  const companyContact =
+    payment.company_contact_person_snapshot ||
+    invoiceLink?.company_contact_person_snapshot ||
+    "";
+
+  const companyEmail =
+    payment.company_email_snapshot ||
+    invoiceLink?.company_email_snapshot ||
+    "";
+
+  const companyPhone =
+    payment.company_phone_snapshot ||
+    invoiceLink?.company_phone_snapshot ||
+    "";
+
+  const companyAddress =
+    payment.company_address_snapshot ||
+    invoiceLink?.company_address_snapshot ||
+    "";
+
+  const clientName =
+    payment.client_name_snapshot ||
+    invoiceLink?.client_name_snapshot ||
+    "";
+
+  const clientContact =
+    payment.client_contact_person_snapshot ||
+    invoiceLink?.client_contact_person_snapshot ||
+    "";
+
+  const clientEmail =
+    payment.client_email_snapshot ||
+    invoiceLink?.client_email_snapshot ||
+    "";
+
+  const clientPhone =
+    payment.client_phone_snapshot ||
+    invoiceLink?.client_phone_snapshot ||
+    "";
+
+  const billingAddress =
+    payment.billing_address_snapshot ||
+    invoiceLink?.billing_address_snapshot ||
+    "";
 
   const receiptNumber = payment.reference_number || payment.id || "Draft";
   const receiptDate = payment.payment_date || null;
@@ -306,7 +352,7 @@ export default function PaymentReceivedPrintDocument({
                 <div style={{ fontWeight: 700, fontSize: "11pt", marginBottom: "1mm" }}>
                   {clientName}
                 </div>
-                {clientContact ? (
+                               {clientContact ? (
                   <div style={{ fontSize: "8.3pt", color: "#4b5563", marginBottom: "0.8mm" }}>
                     {clientContact}
                   </div>
@@ -316,7 +362,7 @@ export default function PaymentReceivedPrintDocument({
                     {[clientEmail, clientPhone].filter(Boolean).join(" • ")}
                   </div>
                 ) : null}
-                              <div style={{ fontSize: "8.3pt", color: "#4b5563", lineHeight: 1.55 }}>
+                <div style={{ fontSize: "8.3pt", color: "#4b5563", lineHeight: 1.55 }}>
                   {billingAddress}
                 </div>
               </div>

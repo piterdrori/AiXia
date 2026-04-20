@@ -61,13 +61,24 @@ type PaymentAttachmentRow = {
 type InvoiceLinkRow = {
   id: string;
   invoice_number: string | null;
-  client_name_snapshot: string | null;
   currency_code: string | null;
   total_amount: number | string | null;
   paid_amount: number | string | null;
   balance_due: number | string | null;
   status: string;
   payment_status: string | null;
+  issue_date: string | null;
+  due_date: string | null;
+  client_name_snapshot: string | null;
+  client_contact_person_snapshot: string | null;
+  client_email_snapshot: string | null;
+  client_phone_snapshot: string | null;
+  billing_address_snapshot: string | null;
+  company_name_snapshot: string | null;
+  company_contact_person_snapshot: string | null;
+  company_email_snapshot: string | null;
+  company_phone_snapshot: string | null;
+  company_address_snapshot: string | null;
 };
 
 type PaymentInvoiceOption = {

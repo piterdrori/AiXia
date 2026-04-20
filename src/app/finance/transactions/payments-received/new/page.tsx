@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, RefreshCw, Save } from "lucide-react";
 
+import { useNavigate, useSearchParams } from "react-router-dom";
+
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -65,8 +67,6 @@ export default function NewPaymentReceivedPage() {
   const [invoices, setInvoices] = useState<InvoiceOption[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
-
-  import { useSearchParams } from "react-router-dom";
  
   const [invoiceId, setInvoiceId] = useState("");
   const [paymentDate, setPaymentDate] = useState(
@@ -343,8 +343,6 @@ navigate(`/finance/transactions/payments-received/${paymentId}`);
                   <RefreshCw className="mr-2 h-4 w-4" />
                   Refresh Sources
                 </Button>
-
-                <Button
 
                 <Button
                   onClick={() => void handleSaveDraft()}

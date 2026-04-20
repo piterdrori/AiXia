@@ -36,7 +36,7 @@ export async function getPaymentsReceived() {
       finance_clients(name),
       finance_invoices_issued(invoice_number)
     `)
-    .not("status", "in", '("archived","deleted")')
+    .not("status", "in", ["archived", "deleted"])
     .order("payment_date", { ascending: false });
 
   if (error) {

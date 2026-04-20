@@ -987,21 +987,14 @@ const handleHardDelete = useCallback(
         throw new Error("Cannot delete invoice with existing payments.");
       }
 
-      const { error: lineError } = await supabase
-        .from("finance_invoice_issued_line_items")
-        .delete()
-        .eq("invoice_id", invoiceId);
-
-      if (lineError) throw lineError;
-
-      const { error: invoiceError } = await supabase
-        .from("finance_invoices_issued")
-        .delete()
-        .eq("id", invoiceId)
-        .eq("status", "archived");
+         const { error: invoiceError } = await supabase.rpc(
+        "finance_hard_delete_invoice_issued",
+        {
+          p_invoice_id: invoiceId,
+        }
+      );
 
       if (invoiceError) throw invoiceError;
-
       if (invoiceId === id) {
         navigate("/finance/transactions/invoices");
         return;

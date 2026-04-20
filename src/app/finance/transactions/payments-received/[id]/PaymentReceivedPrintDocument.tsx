@@ -320,7 +320,6 @@ export default function PaymentReceivedPrintDocument({
                   {billingAddress}
                 </div>
               </div>
-            </div>
 
             <div style={{ marginBottom: "8mm" }}>
               <table
@@ -477,7 +476,6 @@ export default function PaymentReceivedPrintDocument({
                         <span style={{ fontWeight: 500 }}>{hasProof ? "Yes" : "No"}</span>
                       </div>
                     </div>
-                  </div>
                   
                   </div>
                 </div>

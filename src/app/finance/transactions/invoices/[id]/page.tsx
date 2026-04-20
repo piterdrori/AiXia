@@ -469,7 +469,7 @@ export default function FinanceInvoiceDetailPage() {
   .select("id, amount, converted_amount, payment_currency_code, invoice_currency_code, payment_date, status, reference_number")
               .eq("invoice_id", id)
               .eq("status", "confirmed")
-              .order("payment_date", { ascending: true }),
+              .order("payment_date", { ascending: false }),
             supabase
               .from("finance_invoices_issued")
               .select("project:projects(id, name), task:tasks(id, title)")
@@ -1593,6 +1593,16 @@ shipping_terms_snapshot:
   }
 
   const displayState = getInvoiceDisplayState(invoice as any);
+
+    const paymentProgressPercent = (() => {
+    const total = Number(invoice.total_amount || 0);
+    const paid = Number(invoice.paid_amount || 0);
+
+    if (total <= 0) return 0;
+
+    const percent = (paid / total) * 100;
+    return Math.max(0, Math.min(percent, 100));
+  })();
 
     const printableLineItems = lineItems.map((row) => ({
     id: row.id,
@@ -3100,40 +3110,99 @@ shipping_terms_snapshot:
               <CardHeader className="border-b border-white/8 pb-4">
                 <CardTitle className="text-white">Payment History</CardTitle>
                 <CardDescription className="text-white/45">
-                  Confirmed payments linked to this invoice.
+                  Confirmed payments linked to this invoice and current settlement progress.
                 </CardDescription>
               </CardHeader>
 
-              <CardContent className="space-y-3 p-5">
+              <CardContent className="space-y-4 p-5">
+                <div className="rounded-[20px] border border-white/8 bg-black/20 p-4">
+                  <div className="flex items-center justify-between text-sm text-white/60">
+                    <span>Total</span>
+                    <span>
+                      {formatFinanceMoney(
+                        toNumber(invoice.total_amount),
+                        invoice.currency_code || "USD"
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between text-sm text-emerald-300">
+                    <span>Paid</span>
+                    <span>
+                      {formatFinanceMoney(
+                        toNumber(invoice.paid_amount),
+                        invoice.currency_code || "USD"
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between text-sm text-amber-300">
+                    <span>Remaining</span>
+                    <span>
+                      {formatFinanceMoney(
+                        toNumber(invoice.balance_due),
+                        invoice.currency_code || "USD"
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full bg-emerald-500 transition-all"
+                      style={{ width: `${paymentProgressPercent}%` }}
+                    />
+                  </div>
+                </div>
+
                 {payments.length === 0 ? (
-                  <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-4 text-sm text-white/45">
-                    No payments received yet.
+                  <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-6 text-center text-sm text-white/40">
+                    No payments yet — create one to start settlement
                   </div>
                 ) : (
-                  payments.map((payment) => (
-                    <div
-                      key={payment.id}
-                      className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
-                    >
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
+                  <div className="space-y-3">
+                    {payments.map((payment) => (
+                      <div
+                        key={payment.id}
+                        onClick={() =>
+                          navigate(`/finance/transactions/payments-received/${payment.id}`)
+                        }
+                        className="cursor-pointer rounded-[20px] border border-white/8 bg-black/15 p-4 transition hover:bg-white/10"
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
                             <div className="text-sm font-medium text-white">
-                              {payment.reference_number || "Confirmed payment"}
+                              {payment.reference_number || payment.id}
                             </div>
-                          <div className="mt-1 text-xs text-white/45">
-                            {formatFinanceDate(payment.payment_date)}
+
+                            <div className="mt-1 text-xs text-white/40">
+                              {formatFinanceDate(payment.payment_date)}
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <div className="text-sm font-semibold text-white">
+                              {formatFinanceMoney(
+                                toNumber(payment.amount),
+                                payment.payment_currency_code || invoice.currency_code || "USD"
+                              )}
+                            </div>
+
+                            <Badge
+                              className={`mt-1 text-[10px] ${
+                                payment.status === "confirmed"
+                                  ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-300"
+                                  : payment.status === "draft"
+                                  ? "border-amber-400/20 bg-amber-500/10 text-amber-300"
+                                  : "border-rose-400/20 bg-rose-500/10 text-rose-300"
+                              }`}
+                            >
+                              {payment.status}
+                            </Badge>
                           </div>
                         </div>
-
-                        <div className="text-sm font-semibold text-white">
-  {formatFinanceMoney(
-    payment.converted_amount ?? payment.amount,
-    invoice.currency_code || "USD"
-  )}
-</div>
                       </div>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
               </CardContent>
             </Card>

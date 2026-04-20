@@ -31,6 +31,7 @@ import {
   confirmPaymentReceived,
   cancelPaymentReceived,
   updatePaymentReceived,
+  softDeletePaymentReceived,
 } from "@/lib/finance/paymentsReceived";
 
 type PaymentReceivedDetail = {
@@ -523,15 +524,8 @@ useEffect(() => {
       setIsDeletingPayment(true);
       setErrorMessage("");
 
-      const { error } = await supabase
-        .from("finance_payments_received")
-        .delete()
-        .eq("id", id);
-
-      if (error) {
-        throw error;
-      }
-
+   await softDeletePaymentReceived(id);
+      
       navigate("/finance/transactions/payments-received");
     } catch (err) {
       console.error(err);

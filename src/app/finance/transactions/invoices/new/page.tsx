@@ -672,27 +672,26 @@ export default function FinanceNewInvoicePage() {
       if (invoiceError) throw invoiceError;
       if (!createdInvoiceId) throw new Error("Invoice was not created");
 
-      const linePayload = validRows.map((row, index) => ({
-        invoice_id: createdInvoiceId,
-        item_id: row.itemId || null,
-        description: row.description.trim(),
-        quantity: toNumber(row.quantity),
-        unit_price: toNumber(row.unitPrice),
-        discount: toNumber(row.discount),
-        tax_code_id: row.taxCodeId || null,
-        unit_of_measure_id: row.unitOfMeasureId || null,
-        revenue_category_id: row.revenueCategoryId || null,
-        sort_order: index + 1,
-        status: "active",
-        posted_to_ledger: false,
-        metadata: {},
-        created_by: user.id,
-        updated_by: user.id,
-      }));
+ const linePayload = validRows.map((row, index) => ({
+  item_id: row.itemId || null,
+  description: row.description.trim(),
+  quantity: toNumber(row.quantity),
+  unit_price: toNumber(row.unitPrice),
+  discount: toNumber(row.discount),
+  tax_code_id: row.taxCodeId || null,
+  unit_of_measure_id: row.unitOfMeasureId || null,
+  revenue_category_id: row.revenueCategoryId || null,
+  sort_order: index + 1,
+}));
 
-       const { error: lineError } = await supabase
-        .from("finance_invoice_issued_line_items")
-        .insert(linePayload);
+       const { error: lineError } = await supabase.rpc(
+  "finance_insert_invoice_issued_line_items",
+  {
+    p_invoice_id: createdInvoiceId,
+    p_lines: linePayload,
+    p_user_id: user.id,
+  }
+);
 
       if (lineError) throw lineError;
 

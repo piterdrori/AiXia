@@ -364,8 +364,7 @@ const loadProforma = useCallback(
               "id, invoice_number, status, payment_status, total_amount, paid_amount, balance_due, issue_date, due_date, currency_code"
             )
             .eq("proforma_invoice_id", id)
-            .limit(1)
-            .maybeSingle(),
+            .limit(1),
         ]);
 
       if (invoiceResult.error) {
@@ -375,40 +374,42 @@ const loadProforma = useCallback(
       const typedProforma = proformaRecord as unknown as ProformaRecord;
       const typedLineItems =
         (proformaLines || []) as unknown as ProformaLineItemRow[];
+      const linkedInvoiceRow =
+        ((invoiceResult.data || [])[0] as InvoiceLinkRow | undefined) || null;
 
       setProforma(typedProforma);
       setLineItems(typedLineItems);
-      setLinkedInvoice((invoiceResult.data || null) as InvoiceLinkRow | null);
+      setLinkedInvoice(linkedInvoiceRow);
 
       if (typedProforma.project_id) {
-        const { data: projectData, error: projectError } = await supabase
+        const { data: projectRows, error: projectError } = await supabase
           .from("projects")
           .select("id, name")
           .eq("id", typedProforma.project_id)
-          .maybeSingle();
+          .limit(1);
 
         if (projectError) {
           console.warn("Failed to load linked project:", projectError);
           setProject(null);
         } else {
-          setProject((projectData || null) as ProjectRow | null);
+          setProject(((projectRows || [])[0] as ProjectRow | undefined) || null);
         }
       } else {
         setProject(null);
       }
 
       if (typedProforma.task_id) {
-        const { data: taskData, error: taskError } = await supabase
+        const { data: taskRows, error: taskError } = await supabase
           .from("tasks")
           .select("id, title, project_id")
           .eq("id", typedProforma.task_id)
-          .maybeSingle();
+          .limit(1);
 
         if (taskError) {
           console.warn("Failed to load linked task:", taskError);
           setTask(null);
         } else {
-          setTask((taskData || null) as TaskRow | null);
+          setTask(((taskRows || [])[0] as TaskRow | undefined) || null);
         }
       } else {
         setTask(null);

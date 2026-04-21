@@ -35,6 +35,8 @@ type TransactionMetricCard = {
 };
 
 type TransactionModuleKey =
+  | "quotations"
+  | "customer-pos"
   | "invoices"
   | "bills"
   | "proforma-invoices"
@@ -50,7 +52,7 @@ type TransactionModuleCard = {
   key: TransactionModuleKey;
   title: string;
   description: string;
-  route: string;
+  route?: string;
   icon: typeof Receipt;
   count: number;
   statusLabel: string;
@@ -430,12 +432,20 @@ function TransactionModuleButton({
   onOpen: (route: string) => void;
 }) {
   const Icon = module.icon;
+  const isClickable = Boolean(module.route);
 
   return (
     <button
       type="button"
-      onClick={() => onOpen(module.route)}
-      className="group relative overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.03] text-left backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.05]"
+      onClick={() => {
+        if (!module.route) return;
+        onOpen(module.route);
+      }}
+      className={`group relative overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.03] text-left backdrop-blur-xl transition-all duration-200 ${
+        isClickable
+          ? "hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.05]"
+          : "cursor-default opacity-90"
+      }`}
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_48%)] opacity-80" />
 
@@ -449,7 +459,13 @@ function TransactionModuleButton({
             <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[10px] text-white/70 shadow-none">
               {module.statusLabel}
             </Badge>
-            <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/65" />
+            <ArrowRight
+              className={`h-4 w-4 text-white/30 transition-transform duration-200 ${
+                isClickable
+                  ? "group-hover:translate-x-1 group-hover:text-white/65"
+                  : ""
+              }`}
+            />
           </div>
         </div>
 
@@ -899,6 +915,26 @@ export default function FinanceTransactionsPage() {
 
   const allModuleCards = useMemo<Record<TransactionModuleKey, TransactionModuleCard>>(
     () => ({
+      quotations: {
+        key: "quotations",
+        title: "Quotations",
+        description:
+          "Commercial offers sent to customers before proforma and invoice issuance.",
+        icon: FileText,
+        count: 0,
+        statusLabel: "Later",
+        lastUpdatedLabel: "Planned",
+      },
+      "customer-pos": {
+        key: "customer-pos",
+        title: "Customer POs",
+        description:
+          "Customer purchase orders received as incoming commercial commitment.",
+        icon: FileText,
+        count: 0,
+        statusLabel: "Later",
+        lastUpdatedLabel: "Planned",
+      },
       invoices: {
         key: "invoices",
         title: "Invoices",
@@ -1015,20 +1051,21 @@ export default function FinanceTransactionsPage() {
 
   const transactionSections = useMemo<TransactionSection[]>(() => {
     return [
-      {
+           {
         key: "incoming",
         title: "1. Incoming (Money In)",
         subtitle:
-          "Customer-side receivable flow from commercial confirmation to formal billing and cash collection.",
+          "Customer-side receivable flow from quotation and customer commitment through proforma, formal invoice, and payment collection.",
         tone: "incoming",
-        columns: "3",
+        columns: "5",
         modules: [
+          allModuleCards.quotations,
+          allModuleCards["customer-pos"],
           allModuleCards["proforma-invoices"],
           allModuleCards.invoices,
           allModuleCards["payments-received"],
         ],
       },
-      {
         key: "procurement",
         title: "2. Outgoing · Procurement",
         subtitle:

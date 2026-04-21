@@ -877,12 +877,12 @@ const resolvedBankDetailsLines = useMemo(() => {
   useEffect(() => {
     if (!invoice || invoice.status !== "draft") return;
 
-    setTermsAndConditionsDraft((current) => {
-      const trimmed = current.trim();
-      if (trimmed) return current;
+   setTermsAndConditionsDraft((current) => {
+  const trimmed = current.trim();
+  if (trimmed || current !== "") return current;
 
-      return "Payment is due according to the agreed payment terms stated on this invoice. Goods remain subject to the agreed shipping terms. Any bank charges are the responsibility of the payer unless otherwise agreed in writing. Please reference the invoice number with your payment. Late payments may result in delays, additional charges, or suspension of further deliveries or services.";
-    });
+  return "Payment is due according to the agreed payment terms stated on this invoice. Goods remain subject to the agreed shipping terms. Any bank charges are the responsibility of the payer unless otherwise agreed in writing. Please reference the invoice number with your payment. Late payments may result in delays, additional charges, or suspension of further deliveries or services.";
+});
   }, [invoice, selectedDraftPaymentTerm, selectedDraftShippingTermsLabel]);
 
   useEffect(() => {
@@ -932,27 +932,65 @@ const canEditIssuedLines = false;
   const canArchive = !!invoice && invoice.status !== "archived";
   const canHardDelete = !!invoice && invoice.status === "archived";
 
-  const handleIssue = useCallback(async () => {
-    if (!invoice || !id) return;
+const handleIssue = useCallback(async () => {
+  if (!invoice || !id) return;
 
-    setIsIssuing(true);
-    setError("");
+  setIsIssuing(true);
+  setError("");
 
-    try {
-      const { error } = await supabase.rpc("finance_issue_invoice_issued", {
-  p_invoice_id: id,
-});
-
-      if (error) throw error;
-
-      await loadInvoice(true);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to issue invoice.");
-    } finally {
+  try {
+    // VALIDATION
+    if (!lineItemsDraft.length) {
+      setError("Invoice must have at least one line item.");
       setIsIssuing(false);
+      return;
     }
-  }, [id, invoice, loadInvoice]);
+
+    if (!clientIdDraft) {
+      setError("Invoice must have a recipient.");
+      setIsIssuing(false);
+      return;
+    }
+
+    if (!selectedDraftBankAccount) {
+      setError("Bank account is required before issuing.");
+      setIsIssuing(false);
+      return;
+    }
+
+    // SNAPSHOT BANK DETAILS
+   const { error: snapshotError } = await supabase
+  .from("finance_invoices_issued")
+  .update({
+    bank_details_snapshot: buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount),
+  })
+  .eq("id", id)
+  .eq("status", "draft");
+
+if (snapshotError) throw snapshotError;
+
+    // ISSUE
+    const { error } = await supabase.rpc("finance_issue_invoice_issued", {
+      p_invoice_id: id,
+    });
+
+    if (error) throw error;
+
+    await loadInvoice(true);
+  } catch (err) {
+    console.error(err);
+    setError("Failed to issue invoice.");
+  } finally {
+    setIsIssuing(false);
+  }
+}, [
+  id,
+  invoice,
+  loadInvoice,
+  lineItemsDraft,
+  clientIdDraft,
+  selectedDraftBankAccount,
+]);
 
   const handleArchive = useCallback(async () => {
     if (!invoice || !id) return;
@@ -1634,7 +1672,7 @@ shipping_terms_snapshot:
                 <div className="space-y-3">
                  <div className="flex flex-wrap items-center gap-3">
                     <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                      {invoice.invoice_number}
+                      {invoice.invoice_number || "Draft Invoice"}
                     </h1>
 
                     <Badge
@@ -1687,15 +1725,17 @@ shipping_terms_snapshot:
                   Back
                 </Button>
 
-                <Button
-  onClick={() =>
-    navigate(`/finance/transactions/payments-received/new?invoice_id=${invoice.id}`)
-  }
-  className="h-11 rounded-2xl px-4 bg-emerald-600 hover:bg-emerald-700 text-white"
->
-  <CheckCircle className="mr-2 h-4 w-4" />
-  Confirm Payment
-</Button>
+            {invoice.status === "issued" ? (
+  <Button
+    onClick={() =>
+      navigate(`/finance/transactions/payments-received/new?invoice_id=${invoice.id}`)
+    }
+    className="h-11 rounded-2xl px-4 bg-emerald-600 hover:bg-emerald-700 text-white"
+  >
+    <CheckCircle className="mr-2 h-4 w-4" />
+    Confirm Payment
+  </Button>
+) : null}
 
                 <Button
                   variant="outline"
@@ -1708,10 +1748,10 @@ shipping_terms_snapshot:
                 
                                  {invoice.status === "draft" ? (
                   <Button
-                    onClick={() => void handleIssue()}
-                    disabled={isIssuing}
-                    className="h-11 rounded-2xl px-4"
-                  >
+  onClick={() => void handleIssue()}
+  disabled={isIssuing || isSavingDraft}
+  className="h-11 rounded-2xl px-4"
+>
                     <CheckCircle className="mr-2 h-4 w-4" />
                     {isIssuing ? "Issuing..." : "Issue Invoice"}
                   </Button>
@@ -2692,7 +2732,7 @@ shipping_terms_snapshot:
                       </Button>
                     ) : null}
 
-                    {canEditDraft || canEditIssuedLines ? (
+                    {canEditDraft ? (
   <Button
     variant="outline"
     onClick={() => setEditingLines((current) => !current)}

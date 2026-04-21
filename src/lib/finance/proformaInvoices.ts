@@ -110,14 +110,27 @@ export async function updateProformaInvoice(
 }
 
 /* =========================
-   DELETE (SOFT)
+   ARCHIVE (RPC)
 ========================= */
 
 export async function archiveProformaInvoice(id: string) {
-  const { error } = await supabase
-    .from("finance_proforma_invoices")
-    .update({ status: "archived" })
-    .eq("id", id);
+  const { error } = await supabase.rpc(
+    "finance_archive_proforma_invoice",
+    { p_proforma_id: id }
+  );
+
+  if (error) throw error;
+}
+
+/* =========================
+   DELETE (SOFT)
+========================= */
+
+export async function softDeleteProformaInvoice(id: string) {
+  const { error } = await supabase.rpc(
+    "finance_delete_proforma_invoice",
+    { p_proforma_id: id }
+  );
 
   if (error) throw error;
 }
@@ -127,10 +140,23 @@ export async function archiveProformaInvoice(id: string) {
 ========================= */
 
 export async function restoreProformaInvoice(id: string) {
-  const { error } = await supabase
-    .from("finance_proforma_invoices")
-    .update({ status: "draft" })
-    .eq("id", id);
+  const { error } = await supabase.rpc(
+    "finance_restore_proforma_invoice",
+    { p_proforma_id: id }
+  );
+
+  if (error) throw error;
+}
+
+/* =========================
+   HARD DELETE
+========================= */
+
+export async function permanentlyDeleteProformaInvoice(id: string) {
+  const { error } = await supabase.rpc(
+    "finance_hard_delete_proforma_invoice",
+    { p_proforma_id: id }
+  );
 
   if (error) throw error;
 }

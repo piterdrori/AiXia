@@ -57,6 +57,27 @@ type TransactionModuleCard = {
   lastUpdatedLabel: string;
 };
 
+type TransactionSectionTone =
+  | "incoming"
+  | "procurement"
+  | "expense"
+  | "internal"
+  | "control";
+
+type TransactionSection = {
+  key:
+    | "incoming"
+    | "procurement"
+    | "operating-expenses"
+    | "internal-flows"
+    | "control";
+  title: string;
+  subtitle: string;
+  tone: TransactionSectionTone;
+  modules: TransactionModuleCard[];
+  columns?: "3" | "4" | "5";
+};
+
 type FinanceInvoiceRow = {
   id: string;
   invoice_number: string;
@@ -287,6 +308,80 @@ function getToneClasses(
   }
 }
 
+function getSectionToneClasses(tone: TransactionSectionTone): {
+  border: string;
+  badge: string;
+  iconWrap: string;
+  title: string;
+  panel: string;
+} {
+  switch (tone) {
+    case "incoming":
+      return {
+        border: "border-emerald-400/30",
+        badge:
+          "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+        iconWrap:
+          "border-emerald-400/25 bg-emerald-500/10 text-emerald-300",
+        title: "text-emerald-300",
+        panel:
+          "bg-[linear-gradient(180deg,rgba(16,185,129,0.08),rgba(255,255,255,0.02))]",
+      };
+    case "procurement":
+      return {
+        border: "border-amber-400/30",
+        badge: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+        iconWrap:
+          "border-amber-400/25 bg-amber-500/10 text-amber-300",
+        title: "text-amber-300",
+        panel:
+          "bg-[linear-gradient(180deg,rgba(245,158,11,0.08),rgba(255,255,255,0.02))]",
+      };
+    case "expense":
+      return {
+        border: "border-sky-400/30",
+        badge: "border-sky-400/20 bg-sky-500/10 text-sky-200",
+        iconWrap: "border-sky-400/25 bg-sky-500/10 text-sky-300",
+        title: "text-sky-300",
+        panel:
+          "bg-[linear-gradient(180deg,rgba(56,189,248,0.08),rgba(255,255,255,0.02))]",
+      };
+    case "internal":
+      return {
+        border: "border-violet-400/30",
+        badge:
+          "border-violet-400/20 bg-violet-500/10 text-violet-200",
+        iconWrap:
+          "border-violet-400/25 bg-violet-500/10 text-violet-300",
+        title: "text-violet-300",
+        panel:
+          "bg-[linear-gradient(180deg,rgba(139,92,246,0.08),rgba(255,255,255,0.02))]",
+      };
+    case "control":
+    default:
+      return {
+        border: "border-cyan-400/30",
+        badge: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+        iconWrap: "border-cyan-400/25 bg-cyan-500/10 text-cyan-300",
+        title: "text-cyan-300",
+        panel:
+          "bg-[linear-gradient(180deg,rgba(34,211,238,0.08),rgba(255,255,255,0.02))]",
+      };
+  }
+}
+
+function getSectionGridClass(columns: TransactionSection["columns"] = "3") {
+  switch (columns) {
+    case "5":
+      return "grid grid-cols-1 gap-5 xl:grid-cols-5";
+    case "4":
+      return "grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4";
+    case "3":
+    default:
+      return "grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3";
+  }
+}
+
 function TransactionMetric({
   metric,
 }: {
@@ -340,53 +435,98 @@ function TransactionModuleButton({
     <button
       type="button"
       onClick={() => onOpen(module.route)}
-      className="group relative overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] text-left backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.07]"
+      className="group relative overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.03] text-left backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.05]"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_45%)] opacity-80" />
-      <div className="relative flex h-full flex-col gap-4 p-5">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_48%)] opacity-80" />
+
+      <div className="relative flex h-full flex-col gap-5 p-5">
         <div className="flex items-start justify-between gap-4">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/80">
-            <Icon className="h-5 w-5" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/80">
+            <Icon className="h-4.5 w-4.5" />
           </div>
 
           <div className="flex items-center gap-3">
-            <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] text-white/70 shadow-none">
+            <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[10px] text-white/70 shadow-none">
               {module.statusLabel}
             </Badge>
-            <ArrowRight className="h-4 w-4 text-white/35 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
+            <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/65" />
           </div>
         </div>
 
         <div className="space-y-2">
-          <div className="text-base font-semibold text-white">
+          <div className="text-[17px] font-semibold text-white">
             {module.title}
           </div>
-          <div className="text-sm leading-6 text-white/50">
+          <div className="text-sm leading-6 text-white/48">
             {module.description}
           </div>
         </div>
 
-        <div className="mt-auto flex items-end justify-between gap-4">
+        <div className="mt-auto flex items-end justify-between gap-4 pt-2">
           <div>
-            <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
               Records
             </div>
-            <div className="mt-1 text-lg font-semibold text-white">
+            <div className="mt-1 text-xl font-semibold text-white">
               {formatCount(module.count)}
             </div>
           </div>
 
           <div className="text-right">
-            <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
               Updated
             </div>
-            <div className="mt-1 text-sm text-white/60">
+            <div className="mt-1 text-sm text-white/58">
               {module.lastUpdatedLabel}
             </div>
           </div>
         </div>
       </div>
     </button>
+  );
+}
+
+function TransactionSectionCard({
+  section,
+  onOpen,
+}: {
+  section: TransactionSection;
+  onOpen: (route: string) => void;
+}) {
+  const tone = getSectionToneClasses(section.tone);
+
+  return (
+    <section
+      className={`overflow-hidden rounded-[30px] border ${tone.border} ${tone.panel} backdrop-blur-xl`}
+    >
+      <div className="border-b border-white/8 px-6 py-5 sm:px-7">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-2">
+            <Badge
+              className={`w-fit rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.22em] shadow-none ${tone.badge}`}
+            >
+              {section.title}
+            </Badge>
+
+            <div className="max-w-3xl text-sm leading-6 text-white/50">
+              {section.subtitle}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-5 sm:p-6 xl:p-7">
+        <div className={getSectionGridClass(section.columns)}>
+          {section.modules.map((module) => (
+            <TransactionModuleButton
+              key={module.key}
+              module={module}
+              onOpen={onOpen}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -460,8 +600,8 @@ export default function FinanceTransactionsPage() {
         supabase
           .from("finance_reimbursements")
           .select(
-  "id, reimbursement_number, status, amount, payment_date, created_at"
-)
+            "id, reimbursement_number, status, amount, payment_date, created_at"
+          )
           .order("created_at", { ascending: false })
           .limit(50),
 
@@ -520,7 +660,8 @@ export default function FinanceTransactionsPage() {
         []) as FinancePaymentMadeRow[];
       const paymentsReceived = (paymentsReceivedResult.data ||
         []) as FinancePaymentReceivedRow[];
-      const payrollRuns = (payrollRunsResult.data || []) as FinancePayrollRunRow[];
+      const payrollRuns = (payrollRunsResult.data ||
+        []) as FinancePayrollRunRow[];
 
       const receivables = invoices.reduce(
         (sum, row) => sum + toNumber(row.balance_due),
@@ -558,8 +699,8 @@ export default function FinanceTransactionsPage() {
       ).length;
 
       const pendingReimbursements = reimbursements.filter(
-  (row) => row.status === "pending"
-).length;
+        (row) => row.status === "pending"
+      ).length;
 
       const pendingApprovals = approvals.filter(
         (row) => row.status === "pending"
@@ -709,7 +850,7 @@ export default function FinanceTransactionsPage() {
     };
   }, [loadTransactionsData]);
 
-   const metricCards = useMemo<TransactionMetricCard[]>(() => {
+  const metricCards = useMemo<TransactionMetricCard[]>(() => {
     return [
       {
         key: "receivables",
@@ -728,42 +869,12 @@ export default function FinanceTransactionsPage() {
         tone: "amber",
       },
       {
-        key: "overdue-invoices",
-        title: "Overdue Invoices",
-        value: isLoading ? "—" : formatCount(data.alerts.overdueInvoices),
-        subtitle: "Receivables needing collection",
-        icon: BadgeAlert,
-        tone: "rose",
-      },
-      {
-        key: "overdue-bills",
-        title: "Overdue Bills",
-        value: isLoading ? "—" : formatCount(data.alerts.overdueBills),
-        subtitle: "Payables needing payment",
-        icon: BadgeAlert,
-        tone: "amber",
-      },
-      {
-        key: "pending-expenses",
-        title: "Pending Expenses",
-        value: isLoading ? "—" : formatCount(data.alerts.pendingExpenses),
-        subtitle: `${formatCount(data.counts.expenses)} total expense records`,
-        icon: Receipt,
-        tone: "violet",
-      },
-      {
-        key: "pending-reimbursements",
-        title: "Pending Reimbursements",
-        value: isLoading ? "—" : formatCount(data.alerts.pendingReimbursements),
-        subtitle: `${formatCount(data.counts.reimbursements)} reimbursement records`,
-        icon: Wallet,
-        tone: "blue",
-      },
-      {
         key: "payments-in",
         title: "Payments In",
         value: isLoading ? "—" : `$${formatMoney(data.totals.paymentsIn)}`,
-        subtitle: `${formatCount(data.counts.paymentsReceived)} incoming payments`,
+        subtitle: `${formatCount(
+          data.counts.paymentsReceived
+        )} incoming payments`,
         icon: CreditCard,
         tone: "blue",
       },
@@ -786,110 +897,186 @@ export default function FinanceTransactionsPage() {
     ];
   }, [data, isLoading]);
 
-  const moduleCards = useMemo<TransactionModuleCard[]>(() => {
-    return [
-      {
+  const allModuleCards = useMemo<Record<TransactionModuleKey, TransactionModuleCard>>(
+    () => ({
+      invoices: {
         key: "invoices",
         title: "Invoices",
-        description: "Issued invoices, receivables, statuses, export, and detail flow.",
+        description:
+          "Official receivable records issued to customers and clients.",
         route: "/finance/transactions/invoices",
         icon: FileText,
         count: data.counts.invoices,
         statusLabel: "Live",
         lastUpdatedLabel: "Live",
       },
-      {
+      bills: {
         key: "bills",
         title: "Bills",
-        description: "Received bills, payables, due tracking, and AP workflow.",
+        description:
+          "Vendor PI and invoice records, payables, due dates, and AP flow.",
         route: "/finance/transactions/bills",
         icon: Receipt,
         count: data.counts.bills,
         statusLabel: "Live",
         lastUpdatedLabel: "Live",
       },
-      {
+      "proforma-invoices": {
         key: "proforma-invoices",
         title: "Proforma Invoices",
-        description: "Pre-invoice flow before accounting conversion into formal invoice.",
+        description:
+          "Advance-payment and commercial confirmation flow before final invoice.",
         route: "/finance/transactions/proforma-invoices",
         icon: FileText,
         count: data.counts.proformaInvoices,
         statusLabel: data.counts.proformaInvoices > 0 ? "Live" : "Later",
-        lastUpdatedLabel: "Pending",
+        lastUpdatedLabel: data.counts.proformaInvoices > 0 ? "Live" : "Pending",
       },
-      {
+      expenses: {
         key: "expenses",
         title: "Expenses",
-        description: "Operational spend records with approval and payment state.",
+        description:
+          "Direct company operating expenses with approval and payment state.",
         route: "/finance/transactions/expenses",
         icon: Receipt,
         count: data.counts.expenses,
         statusLabel: "Live",
         lastUpdatedLabel: "Live",
       },
-      {
+      reimbursements: {
         key: "reimbursements",
         title: "Reimbursements",
-        description: "Employee and internal reimbursements with pending control.",
+        description:
+          "Internal repayments owed back to employees or internal parties.",
         route: "/finance/transactions/reimbursements",
         icon: Wallet,
         count: data.counts.reimbursements,
         statusLabel: "Live",
         lastUpdatedLabel: "Live",
       },
-      {
+      "payments-made": {
         key: "payments-made",
         title: "Payments Made",
-        description: "Outgoing payments across AP, expense, and reimbursement flows.",
+        description:
+          "Outgoing cash settlements across procurement, expenses, payroll, and reimbursements.",
         route: "/finance/transactions/payments-made",
         icon: CreditCard,
         count: data.counts.paymentsMade,
         statusLabel: "Live",
         lastUpdatedLabel: "Live",
       },
-      {
+      "payments-received": {
         key: "payments-received",
         title: "Payments Received",
-        description: "Incoming payments mapped to receivables and customer collections.",
+        description:
+          "Incoming payment confirmations mapped to customer receivables.",
         route: "/finance/transactions/payments-received",
         icon: CreditCard,
         count: data.counts.paymentsReceived,
         statusLabel: "Live",
         lastUpdatedLabel: "Live",
       },
-      {
+      approvals: {
         key: "approvals",
         title: "Approvals",
-        description: "Cross-object approval workflow, pending queue, and decision history.",
+        description:
+          "Cross-object decision layer for release, control, and workflow gating.",
         route: "/finance/transactions/approvals",
         icon: ShieldCheck,
         count: data.counts.approvals,
         statusLabel: "Live",
         lastUpdatedLabel: "Live",
       },
-      {
+      "purchase-orders": {
         key: "purchase-orders",
         title: "Purchase Orders",
-        description: "PO workflow reserved under transactions for later execution stage.",
+        description:
+          "Issued supplier purchase orders and outbound procurement commitment.",
         route: "/finance/transactions/purchase-orders",
         icon: FileText,
         count: data.counts.purchaseOrders,
         statusLabel: data.counts.purchaseOrders > 0 ? "Live" : "Later",
-        lastUpdatedLabel: "Pending",
+        lastUpdatedLabel: data.counts.purchaseOrders > 0 ? "Live" : "Pending",
       },
-      {
+      payroll: {
         key: "payroll",
         title: "Payroll",
-        description: "Payroll runs, approvals, payments, and payroll operational control.",
+        description:
+          "Payroll runs, salary obligations, approvals, and execution control.",
         route: "/finance/transactions/payroll",
         icon: BriefcaseBusiness,
         count: data.counts.payrollRuns,
         statusLabel: "Live",
         lastUpdatedLabel: "Live",
       },
+    }),
+    [data]
+  );
+
+  const transactionSections = useMemo<TransactionSection[]>(() => {
+    return [
+      {
+        key: "incoming",
+        title: "1. Incoming (Money In)",
+        subtitle:
+          "Customer-side receivable flow from commercial confirmation to formal billing and cash collection.",
+        tone: "incoming",
+        columns: "3",
+        modules: [
+          allModuleCards["proforma-invoices"],
+          allModuleCards.invoices,
+          allModuleCards["payments-received"],
+        ],
+      },
+      {
+        key: "procurement",
+        title: "2. Outgoing · Procurement",
+        subtitle:
+          "Supplier-side purchasing and payable flow: commitment, vendor billing, and outgoing settlement.",
+        tone: "procurement",
+        columns: "3",
+        modules: [
+          allModuleCards["purchase-orders"],
+          allModuleCards.bills,
+          allModuleCards["payments-made"],
+        ],
+      },
+      {
+        key: "operating-expenses",
+        title: "3. Outgoing · Operating Expenses",
+        subtitle:
+          "Direct operating spend that does not require a full procurement chain.",
+        tone: "expense",
+        columns: "3",
+        modules: [
+          allModuleCards.expenses,
+          allModuleCards["payments-made"],
+        ],
+      },
+      {
+        key: "internal-flows",
+        title: "4. Outgoing · Internal Flows",
+        subtitle:
+          "Internal company obligations such as reimbursements and payroll, both settled through outgoing payment execution.",
+        tone: "internal",
+        columns: "3",
+        modules: [
+          allModuleCards.reimbursements,
+          allModuleCards.payroll,
+          allModuleCards["payments-made"],
+        ],
+      },
+      {
+        key: "control",
+        title: "5. Control & Other",
+        subtitle:
+          "Cross-process control layer used to approve, release, and govern transaction movement.",
+        tone: "control",
+        columns: "3",
+        modules: [allModuleCards.approvals],
+      },
     ];
-  }, [data]);
+  }, [allModuleCards]);
 
   const recentActivity = useMemo(() => {
     return [...data.recentActivity];
@@ -901,9 +1088,8 @@ export default function FinanceTransactionsPage() {
     },
     [navigate]
   );
-
-    return (
-        <div className="flex h-full min-h-0 flex-col overflow-hidden">
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="mx-auto flex h-full w-full max-w-[1680px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
         <section className="relative z-10 overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.10),transparent_32%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.10),transparent_24%)]" />
@@ -918,8 +1104,10 @@ export default function FinanceTransactionsPage() {
                 Transactions Hub
               </h1>
 
-              <div className="mt-2 text-sm text-white/45">
-                Cross-object finance operations across invoices, bills, expenses, reimbursements, payments, approvals, and payroll.
+              <div className="mt-2 max-w-3xl text-sm text-white/45">
+                Issue, store, and manage financial documents and records. Trigger
+                events and keep the transaction layer structured around incoming,
+                outgoing, and control flows.
               </div>
             </div>
 
@@ -945,253 +1133,254 @@ export default function FinanceTransactionsPage() {
           </div>
         </section>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
-        <section>
-          <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-            <CardHeader className="border-b border-white/8 pb-4">
-              <div className="space-y-2">
-                <Badge className="w-fit rounded-full border border-cyan-400/15 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                  Cross-Object KPIs
-                </Badge>
-                <CardTitle className="text-white">
-                  Transaction Analytics
-                </CardTitle>
-                <CardDescription className="text-white/45">
-                  Total receivables, payables, overdue exposure, pending items, payments, and approvals.
-                </CardDescription>
-              </div>
-            </CardHeader>
-
-            <CardContent className="p-4 sm:p-5 xl:p-6">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-                {metricCards.map((metric) => (
-                  <TransactionMetric key={metric.key} metric={metric} />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
-          <div className="flex min-h-0 flex-col gap-6">
-            <section className="min-h-0">
-              <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <CardHeader className="border-b border-white/8 pb-4">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                    <div className="space-y-2">
-                      <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-white/65 shadow-none">
-                        Module Navigation
-                      </Badge>
-
-                      <CardTitle className="text-white">
-                        Open a Transaction Module
-                      </CardTitle>
-
-                      <CardDescription className="max-w-2xl text-white/45">
-                        Each card opens the dedicated workspace for that finance
-                        object. This hub stays focused on cross-object monitoring
-                        and navigation.
-                      </CardDescription>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-xs uppercase tracking-[0.18em] text-white/40">
-                      10 transaction modules locked
-                    </div>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="p-4 sm:p-5 xl:p-6">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
-                    {moduleCards.map((module) => (
-                      <TransactionModuleButton
-                        key={module.key}
-                        module={module}
-                        onOpen={openRoute}
-                      />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </section>
-
-                       <section>
-              <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <CardHeader className="border-b border-white/8 pb-4">
-                  <CardTitle className="text-white">
-                    Object Summaries
-                  </CardTitle>
-                  <CardDescription className="text-white/45">
-                    High-level grouped summaries before opening the detailed
-                    object pages.
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="p-5">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    <SummaryBlock
-                      title="Invoices Summary"
-                      value={isLoading ? "—" : formatCount(data.counts.invoices)}
-                      subtitle={`$${formatMoney(data.totals.receivables)} open receivables`}
-                    />
-                    <SummaryBlock
-                      title="Bills Summary"
-                      value={isLoading ? "—" : formatCount(data.counts.bills)}
-                      subtitle={`$${formatMoney(data.totals.payables)} open payables`}
-                    />
-                    <SummaryBlock
-                      title="Proforma Summary"
-                      value={
-                        isLoading ? "—" : formatCount(data.counts.proformaInvoices)
-                      }
-                      subtitle="Pre-invoice workflow reserved"
-                    />
-                    <SummaryBlock
-                      title="Expenses Summary"
-                      value={isLoading ? "—" : formatCount(data.counts.expenses)}
-                      subtitle={`${formatCount(data.alerts.pendingExpenses)} pending expense items`}
-                    />
-                    <SummaryBlock
-                      title="Reimbursements Summary"
-                      value={
-                        isLoading ? "—" : formatCount(data.counts.reimbursements)
-                      }
-                      subtitle={`${formatCount(
-                        data.alerts.pendingReimbursements
-                      )} pending reimbursements`}
-                    />
-                    <SummaryBlock
-                      title="Payments Made Summary"
-                      value={isLoading ? "—" : formatCount(data.counts.paymentsMade)}
-                      subtitle={`$${formatMoney(data.totals.paymentsOut)} total payments out`}
-                    />
-                    <SummaryBlock
-                      title="Payments Received Summary"
-                      value={
-                        isLoading ? "—" : formatCount(data.counts.paymentsReceived)
-                      }
-                      subtitle={`$${formatMoney(data.totals.paymentsIn)} total payments in`}
-                    />
-                    <SummaryBlock
-                      title="Payroll Summary"
-                      value={isLoading ? "—" : formatCount(data.counts.payrollRuns)}
-                      subtitle="Payroll runs currently visible"
-                    />
-                    <SummaryBlock
-                      title="Purchase Orders Summary"
-                      value={
-                        isLoading ? "—" : formatCount(data.counts.purchaseOrders)
-                      }
-                      subtitle="PO workflow reserved for later stage"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </section>
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px_320px]">
+          <div className="rounded-[22px] border border-emerald-400/20 bg-[linear-gradient(135deg,rgba(16,185,129,0.12),rgba(255,255,255,0.03))] px-5 py-4 backdrop-blur-xl">
+            <div className="text-sm font-medium text-white/85">
+              {isLoading
+                ? "—"
+                : `${formatCount(data.counts.paymentsReceived)} incoming payments`}
+            </div>
           </div>
 
-                                       <div className="flex flex-col gap-6">
-            <Card className="h-[620px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardHeader className="border-b border-white/8 pb-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <CardTitle className="text-white">Recent Activity</CardTitle>
-                    <CardDescription className="text-white/45">
-                      Latest movement across transaction objects.
-                    </CardDescription>
-                  </div>
+          <div className="rounded-[22px] border border-rose-400/20 bg-[linear-gradient(135deg,rgba(244,63,94,0.12),rgba(255,255,255,0.03))] px-5 py-4 backdrop-blur-xl">
+            <div className="text-sm font-medium text-white/85">
+              {isLoading
+                ? "—"
+                : `${formatCount(data.counts.paymentsMade)} outgoing payments`}
+            </div>
+          </div>
 
-                  <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs text-white/70 shadow-none">
-                    Live feed
+          <div className="rounded-[22px] border border-cyan-400/20 bg-[linear-gradient(135deg,rgba(34,211,238,0.12),rgba(255,255,255,0.03))] px-5 py-4 backdrop-blur-xl">
+            <div className="text-sm font-medium text-white/85">
+              {isLoading
+                ? "—"
+                : `${formatCount(data.alerts.pendingApprovals)} cross-object approvals waiting`}
+            </div>
+          </div>
+        </section>
+
+        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
+          <section>
+            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <CardHeader className="border-b border-white/8 pb-4">
+                <div className="space-y-2">
+                  <Badge className="w-fit rounded-full border border-cyan-400/15 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                    Cross-Object KPIs
                   </Badge>
+                  <CardTitle className="text-white">
+                    Transaction Analytics
+                  </CardTitle>
+                  <CardDescription className="text-white/45">
+                    Clean top-level visibility before entering the detailed
+                    flows.
+                  </CardDescription>
                 </div>
               </CardHeader>
 
-              <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-                {recentActivity.length === 0 ? (
-                  <div className="p-6 text-sm text-white/50">
-                    No transaction activity found yet.
-                  </div>
-                ) : (
-                  <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-                    <div className="space-y-3">
-                      {recentActivity.map((item, index) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => {
-                            if (!item.route) return;
-                            navigate(item.route);
-                          }}
-                          className="group flex w-full items-start justify-between gap-4 rounded-[20px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
-                        >
-                          <div className="flex min-w-0 items-start gap-4">
-                            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/75">
-                              <span className="text-xs font-semibold text-white/70">
-                                {String(index + 1).padStart(2, "0")}
-                              </span>
-                            </div>
+              <CardContent className="p-4 sm:p-5 xl:p-6">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+                  {metricCards.map((metric) => (
+                    <TransactionMetric key={metric.key} metric={metric} />
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </section>
 
-                            <div className="min-w-0 space-y-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Badge className="rounded-full border border-cyan-400/15 bg-cyan-500/10 px-2.5 py-1 text-[11px] text-cyan-200 shadow-none">
-                                  {item.type}
-                                </Badge>
-                                <div className="truncate text-sm font-medium text-white sm:text-[15px]">
-                                  {item.title}
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_360px]">
+            <div className="flex min-h-0 flex-col gap-6">
+              {transactionSections.map((section) => (
+                <TransactionSectionCard
+                  key={section.key}
+                  section={section}
+                  onOpen={openRoute}
+                />
+              ))}
+
+              <section>
+                <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                  <CardHeader className="border-b border-white/8 pb-4">
+                    <CardTitle className="text-white">
+                      Object Summaries
+                    </CardTitle>
+                    <CardDescription className="text-white/45">
+                      High-level grouped summaries for the core transaction
+                      records.
+                    </CardDescription>
+                  </CardHeader>
+
+                  <CardContent className="p-5">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      <SummaryBlock
+                        title="Invoices Summary"
+                        value={
+                          isLoading ? "—" : formatCount(data.counts.invoices)
+                        }
+                        subtitle={`$${formatMoney(
+                          data.totals.receivables
+                        )} open receivables`}
+                      />
+                      <SummaryBlock
+                        title="Bills Summary"
+                        value={isLoading ? "—" : formatCount(data.counts.bills)}
+                        subtitle={`$${formatMoney(
+                          data.totals.payables
+                        )} open payables`}
+                      />
+                      <SummaryBlock
+                        title="Proforma Summary"
+                        value={
+                          isLoading
+                            ? "—"
+                            : formatCount(data.counts.proformaInvoices)
+                        }
+                        subtitle="Pre-invoice workflow currently tracked"
+                      />
+                      <SummaryBlock
+                        title="Expenses Summary"
+                        value={
+                          isLoading ? "—" : formatCount(data.counts.expenses)
+                        }
+                        subtitle={`${formatCount(
+                          data.alerts.pendingExpenses
+                        )} pending expense items`}
+                      />
+                      <SummaryBlock
+                        title="Reimbursements Summary"
+                        value={
+                          isLoading
+                            ? "—"
+                            : formatCount(data.counts.reimbursements)
+                        }
+                        subtitle={`${formatCount(
+                          data.alerts.pendingReimbursements
+                        )} pending reimbursements`}
+                      />
+                      <SummaryBlock
+                        title="Payroll Summary"
+                        value={
+                          isLoading
+                            ? "—"
+                            : formatCount(data.counts.payrollRuns)
+                        }
+                        subtitle="Payroll runs currently visible"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+            </div>
+
+            <div className="flex flex-col gap-6">
+              <Card className="h-[620px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                <CardHeader className="border-b border-white/8 pb-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <CardTitle className="text-white">
+                        Recent Activity
+                      </CardTitle>
+                      <CardDescription className="text-white/45">
+                        Latest movement across transaction objects.
+                      </CardDescription>
+                    </div>
+
+                    <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs text-white/70 shadow-none">
+                      Live feed
+                    </Badge>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+                  {recentActivity.length === 0 ? (
+                    <div className="p-6 text-sm text-white/50">
+                      No transaction activity found yet.
+                    </div>
+                  ) : (
+                    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+                      <div className="space-y-3">
+                        {recentActivity.map((item, index) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              if (!item.route) return;
+                              navigate(item.route);
+                            }}
+                            className="group flex w-full items-start justify-between gap-4 rounded-[20px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
+                          >
+                            <div className="flex min-w-0 items-start gap-4">
+                              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/75">
+                                <span className="text-xs font-semibold text-white/70">
+                                  {String(index + 1).padStart(2, "0")}
+                                </span>
+                              </div>
+
+                              <div className="min-w-0 space-y-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge className="rounded-full border border-cyan-400/15 bg-cyan-500/10 px-2.5 py-1 text-[11px] text-cyan-200 shadow-none">
+                                    {item.type}
+                                  </Badge>
+                                  <div className="truncate text-sm font-medium text-white sm:text-[15px]">
+                                    {item.title}
+                                  </div>
+                                </div>
+
+                                <div className="text-sm leading-6 text-white/48">
+                                  {item.subtitle}
                                 </div>
                               </div>
+                            </div>
 
-                              <div className="text-sm leading-6 text-white/48">
-                                {item.subtitle}
+                            <div className="flex shrink-0 items-center gap-3 pl-2">
+                              <div className="hidden text-xs text-white/30 transition-colors duration-200 group-hover:text-white/55 sm:block">
+                                {formatDateLabel(item.createdAt)}
                               </div>
+                              <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
                             </div>
-                          </div>
-
-                          <div className="flex shrink-0 items-center gap-3 pl-2">
-                            <div className="hidden text-xs text-white/30 transition-colors duration-200 group-hover:text-white/55 sm:block">
-                              {formatDateLabel(item.createdAt)}
-                            </div>
-                            <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  )}
+                </CardContent>
+              </Card>
 
-            <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardHeader className="border-b border-white/8 pb-4">
-                <CardTitle className="flex items-center gap-3 text-white">
-                  <BadgeAlert className="h-4 w-4 text-cyan-300" />
-                  Operations Pressure
-                </CardTitle>
-                <CardDescription className="text-white/45">
-                  Pending and overdue operational pressure across the transaction layer.
-                </CardDescription>
-              </CardHeader>
+              <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                <CardHeader className="border-b border-white/8 pb-4">
+                  <CardTitle className="flex items-center gap-3 text-white">
+                    <BadgeAlert className="h-4 w-4 text-cyan-300" />
+                    Operations Overview
+                  </CardTitle>
+                  <CardDescription className="text-white/45">
+                    Real-time overview of pressure points in the transaction
+                    layer.
+                  </CardDescription>
+                </CardHeader>
 
-              <CardContent className="space-y-3 p-5">
-                <SummaryBlock
-                  title="Overdue Invoices"
-                  value={isLoading ? "—" : formatCount(data.alerts.overdueInvoices)}
-                  subtitle="Receivables requiring collection attention"
-                />
-                <SummaryBlock
-                  title="Overdue Bills"
-                  value={isLoading ? "—" : formatCount(data.alerts.overdueBills)}
-                  subtitle="Payables requiring outgoing payment attention"
-                />
-                <SummaryBlock
-                  title="Pending Approvals"
-                  value={isLoading ? "—" : formatCount(data.alerts.pendingApprovals)}
-                  subtitle="Cross-object approvals waiting for action"
-                />
-              </CardContent>
-            </Card>
+                <CardContent className="space-y-3 p-5">
+                  <SummaryBlock
+                    title="Overdue Invoices"
+                    value={
+                      isLoading ? "—" : formatCount(data.alerts.overdueInvoices)
+                    }
+                    subtitle="Receivables requiring collection attention"
+                  />
+                  <SummaryBlock
+                    title="Overdue Bills"
+                    value={isLoading ? "—" : formatCount(data.alerts.overdueBills)}
+                    subtitle="Payables requiring payment attention"
+                  />
+                  <SummaryBlock
+                    title="Pending Approvals"
+                    value={
+                      isLoading ? "—" : formatCount(data.alerts.pendingApprovals)
+                    }
+                    subtitle="Cross-object approvals waiting for action"
+                  />
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        </div>
         </div>
       </div>
     </div>

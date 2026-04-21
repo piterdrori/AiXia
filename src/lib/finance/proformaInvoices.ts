@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import {
+import type {
   FinanceProformaInvoice,
   FinanceProformaInvoiceLineItem,
 } from "./types";

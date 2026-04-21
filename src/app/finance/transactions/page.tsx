@@ -464,15 +464,15 @@ function TransactionModuleButton({
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_48%)] opacity-80" />
 
-      <div className="relative flex h-full flex-col gap-5 p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/80">
-              <Icon className="h-4.5 w-4.5" />
+          <div className="relative flex h-full flex-col gap-3 p-3.5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/80">
+              <Icon className="h-4 w-4" />
             </div>
 
             {sequenceLabel ? (
-              <div className="flex h-7 min-w-[1.8rem] items-center justify-center rounded-lg border border-white/10 bg-white/6 px-1.5 text-[10px] font-medium text-white/70">
+              <div className="flex h-6 min-w-[1.65rem] items-center justify-center rounded-lg border border-white/10 bg-white/6 px-1.5 text-[10px] font-medium text-white/70">
                 {sequenceLabel}
               </div>
             ) : null}
@@ -492,29 +492,29 @@ function TransactionModuleButton({
           </div>
         </div>
 
-                <div className="space-y-2">
-          <div className="text-[15px] font-medium leading-6 text-white">
+               <div className="space-y-1.5">
+          <div className="text-[14px] font-medium leading-5 text-white">
             {titleOverride ?? module.title}
           </div>
-          <div className="text-[13px] leading-5 text-white/45">
+          <div className="text-[12px] leading-5 text-white/44">
             {descriptionOverride ?? module.description}
           </div>
         </div>
 
         <div className="mt-auto flex items-end justify-between gap-3 pt-1">
-                    <div>
+          <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
               Records
             </div>
-            <div className="mt-1 text-lg font-semibold text-white">
+            <div className="mt-1 text-[16px] font-semibold text-white">
               {formatCount(module.count)}
             </div>
           </div>
-                   <div className="text-right">
+          <div className="text-right">
             <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
               Updated
             </div>
-            <div className="mt-1 text-[13px] text-white/58">
+            <div className="mt-1 text-[12px] text-white/58">
               {module.lastUpdatedLabel}
             </div>
           </div>
@@ -563,15 +563,23 @@ function TransactionSectionCard({
         </div>
       </div>
 
-      <div className="p-5 sm:p-6 xl:p-7">
+            <div className="p-5 sm:p-6 xl:p-7">
         {section.layout === "flow" ? (
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-stretch xl:gap-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch xl:gap-3">
             {section.modules.map((item, index) => (
               <div
                 key={`${item.module.key}-${item.sequenceLabel ?? index}`}
-                className="flex min-w-0 flex-1 items-stretch"
+                className={
+                  section.key === "incoming"
+                    ? "flex items-stretch xl:w-[210px] xl:min-w-[210px] xl:max-w-[210px] xl:flex-none"
+                    : "flex min-w-0 flex-1 basis-0 items-stretch"
+                }
               >
-                <div className="min-w-0 flex-1">
+                <div
+                  className={
+                    section.key === "incoming" ? "w-full" : "min-w-0 flex-1"
+                  }
+                >
                   <TransactionModuleButton
                     module={item.module}
                     onOpen={onOpen}
@@ -581,7 +589,7 @@ function TransactionSectionCard({
                   />
                 </div>
 
-                               {index < section.modules.length - 1 ? (
+                {index < section.modules.length - 1 ? (
                   <TransactionFlowArrow />
                 ) : null}
               </div>

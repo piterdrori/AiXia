@@ -51,8 +51,8 @@ export function normalizeIssuedInvoiceStatus(
 ): FinanceInvoiceIssuedStatus {
   if (!status) return "draft";
 
-  return FINANCE_ISSUED_INVOICE_STATUSES.includes(
-    status as FinanceInvoiceIssuedStatus
+  return FINANCE_ISSUED_INVOICE_STATUSES.some(
+    (allowedStatus) => allowedStatus === status
   )
     ? (status as FinanceInvoiceIssuedStatus)
     : "draft";
@@ -183,7 +183,7 @@ export async function getIssuedInvoicesList(): Promise<
       )
     `
   )
-  .not("status", "in", '("archived","deleted")')
+  .not("status", "in", "(archived,deleted)")
   .order("created_at", { ascending: false });
   
   if (error) throw error;

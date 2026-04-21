@@ -28,6 +28,7 @@ import {
   getProformaInvoiceById,
   getProformaInvoiceLineItems,
   archiveProformaInvoice,
+  softDeleteProformaInvoice,
   restoreProformaInvoice,
   permanentlyDeleteProformaInvoice,
   convertProformaToInvoice,
@@ -40,13 +41,12 @@ type ProformaRecord = {
   issue_date: string;
   valid_until: string | null;
   status:
-    | "draft"
-    | "sent"
-    | "accepted"
-    | "converted"
-    | "cancelled"
-    | "archived"
-    | "deleted";
+  | "draft"
+  | "sent"
+  | "accepted"
+  | "converted"
+  | "archived"
+  | "deleted";
   subtotal: number | string | null;
   tax_amount: number | string | null;
   discount_amount: number | string | null;
@@ -250,8 +250,6 @@ function getProformaStatusBadgeClasses(status: ProformaRecord["status"]) {
       return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
     case "converted":
       return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "cancelled":
-      return "border-gray-400/20 bg-gray-500/10 text-gray-200";
     case "archived":
       return "border-amber-400/20 bg-amber-500/10 text-amber-200";
     case "deleted":
@@ -271,8 +269,6 @@ function getProformaStatusLabel(status: ProformaRecord["status"]) {
       return "Accepted";
     case "converted":
       return "Converted";
-    case "cancelled":
-      return "Cancelled";
     case "archived":
       return "Archived";
     case "deleted":
@@ -312,6 +308,7 @@ export default function FinanceProformaInvoiceDetailPage() {
     RevenueCategoryOption[]
   >([]);
   const [showArchivePopup, setShowArchivePopup] = useState(false);
+const [archiveTab, setArchiveTab] = useState<"archived" | "deleted">("archived");
 
   const [editingOverview, setEditingOverview] = useState(false);
   const [editingParties, setEditingParties] = useState(false);
@@ -721,12 +718,10 @@ const loadProforma = useCallback(
     }
   }, [filteredDraftTasks, proforma, projectIdDraft, taskIdDraft]);
 
-  const canEditDraft = proforma?.status === "draft";
-  const canMarkSent = proforma?.status === "draft";
-  const canAccept = proforma?.status === "sent";
-  const canConvert = proforma?.status === "accepted";
-  const canArchive = !!proforma && proforma.status !== "archived";
-  const canHardDelete = !!proforma && proforma.status === "archived";
+const canEditDraft = proforma?.status === "draft";
+const canMarkSent = proforma?.status === "draft";
+const canAccept = proforma?.status === "sent";
+const canConvert = proforma?.status === "accepted";
 
   const handleMarkSent = useCallback(async () => {
     if (!proforma || !id) return;
@@ -801,6 +796,31 @@ const loadProforma = useCallback(
     }
   }, [id, loadProforma, navigate, proforma]);
 
+  
+  const handleDelete = useCallback(async () => {
+  if (!proforma || !id) return;
+
+  setIsDeleting(true);
+  setError("");
+
+  try {
+    await softDeleteProformaInvoice(id);
+
+    setEditingOverview(false);
+    setEditingParties(false);
+    setEditingLines(false);
+
+    await loadProforma(true);
+    await loadArchiveItems();
+    setShowArchivePopup(true);
+  } catch (err) {
+    console.error(err);
+    setError("Failed to delete proforma invoice.");
+  } finally {
+    setIsDeleting(false);
+  }
+}, [id, loadArchiveItems, loadProforma, proforma]);
+  
   const handleArchive = useCallback(async () => {
     if (!proforma || !id) return;
 
@@ -1038,10 +1058,14 @@ const loadProforma = useCallback(
     return <div className="p-6 text-white/50">Proforma invoice not found.</div>;
   }
 
-  const printableCurrencyCode =
-    selectedDraftCurrency?.currency_code ||
-    (proforma.metadata?.currency_code as string | undefined) ||
-    "USD";
+ const printableCurrencyCode =
+  selectedDraftCurrency?.currency_code ||
+  (proforma.metadata?.currency_code as string | undefined) ||
+  "USD";
+
+const visibleArchiveItems = archiveItems.filter(
+  (item) => item.status === archiveTab
+);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
@@ -1141,17 +1165,29 @@ const loadProforma = useCallback(
                   </Button>
                 ) : null}
 
-                {canArchive ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => void handleArchive()}
-                    disabled={isArchiving}
-                    className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    {isArchiving ? "Archiving..." : "Archive"}
-                  </Button>
-                ) : null}
+                {proforma.status !== "archived" && proforma.status !== "deleted" && proforma.status !== "converted" ? (
+  <Button
+    variant="outline"
+    onClick={() => void handleArchive()}
+    disabled={isArchiving}
+    className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20"
+  >
+    <Trash2 className="mr-2 h-4 w-4" />
+    {isArchiving ? "Archiving..." : "Archive"}
+  </Button>
+) : null}
+
+{proforma.status !== "deleted" && proforma.status !== "converted" ? (
+  <Button
+    variant="outline"
+    onClick={() => void handleDelete()}
+    disabled={isDeleting}
+    className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20"
+  >
+    <Trash2 className="mr-2 h-4 w-4" />
+    {isDeleting ? "Deleting..." : "Delete"}
+  </Button>
+) : null}
 
                 <Button
                   variant="outline"
@@ -2101,10 +2137,17 @@ const loadProforma = useCallback(
                   <CardTitle className="text-white">Archive</CardTitle>
                   <Button
                     variant="outline"
+                   
                     onClick={() => {
-                      setShowArchivePopup((current) => !current);
-                      void loadArchiveItems();
-                    }}
+  setShowArchivePopup((current) => {
+    const next = !current;
+    if (next) {
+      setArchiveTab("archived");
+      void loadArchiveItems();
+    }
+    return next;
+  });
+}}
                     className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
                   >
                     {showArchivePopup ? "Close" : "Open Archive"}
@@ -2118,30 +2161,44 @@ const loadProforma = useCallback(
                   archived state. Hard delete is only available inside the archive list.
                 </div>
 
-                {canHardDelete ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => void handleHardDelete(proforma.id)}
-                    disabled={isDeleting}
-                    className="h-11 w-full rounded-2xl border-rose-400/20 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    {isDeleting ? "Deleting..." : "Hard Delete This Proforma"}
-                  </Button>
-                ) : null}
-
                 {showArchivePopup ? (
                   <div className="space-y-3 rounded-[22px] border border-white/8 bg-black/15 p-4">
-                    <div className="text-sm font-medium text-white">
-                      Archived Proforma Invoices
-                    </div>
+                    <div className="space-y-3">
+  <div className="text-sm font-medium text-white">Archive Records</div>
 
-                    {archiveItems.length === 0 ? (
+  <div className="flex items-center gap-2">
+    <button
+      type="button"
+      onClick={() => setArchiveTab("archived")}
+      className={`rounded-xl px-4 py-2 text-sm transition ${
+        archiveTab === "archived"
+          ? "bg-white/10 text-white"
+          : "text-white/55 hover:bg-white/5 hover:text-white/80"
+      }`}
+    >
+      Archived
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setArchiveTab("deleted")}
+      className={`rounded-xl px-4 py-2 text-sm transition ${
+        archiveTab === "deleted"
+          ? "bg-rose-500/15 text-rose-200"
+          : "text-white/55 hover:bg-white/5 hover:text-white/80"
+      }`}
+    >
+      Deleted
+    </button>
+  </div>
+</div>
+
+                    {visibleArchiveItems.length === 0 ? (
                       <div className="text-sm text-white/45">
-                        No archived proforma invoices.
+                        No {archiveTab} proforma invoices.
                       </div>
                     ) : (
-                      archiveItems.map((item) => (
+                      visibleArchiveItems.map((item) => (
                         <div
                           key={item.id}
                           className="rounded-[18px] border border-white/8 bg-black/20 px-4 py-3"
@@ -2173,14 +2230,16 @@ const loadProforma = useCallback(
                                 Restore
                               </Button>
 
-                              <Button
-                                variant="outline"
-                                onClick={() => void handleHardDelete(item.id)}
-                                disabled={isDeleting}
-                                className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              {item.status === "deleted" ? (
+  <Button
+    variant="outline"
+    onClick={() => void handleHardDelete(item.id)}
+    disabled={isDeleting}
+    className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+  >
+    <Trash2 className="h-4 w-4" />
+  </Button>
+) : null}
                             </div>
                           </div>
                         </div>

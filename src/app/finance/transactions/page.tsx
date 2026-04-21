@@ -37,6 +37,7 @@ type TransactionMetricCard = {
 type TransactionModuleKey =
   | "quotations"
   | "customer-pos"
+  | "vendor-quotations"
   | "invoices"
   | "bills"
   | "proforma-invoices"
@@ -59,6 +60,13 @@ type TransactionModuleCard = {
   lastUpdatedLabel: string;
 };
 
+type TransactionSectionModule = {
+  module: TransactionModuleCard;
+  sequenceLabel?: string;
+  titleOverride?: string;
+  descriptionOverride?: string;
+};
+
 type TransactionSectionTone =
   | "incoming"
   | "procurement"
@@ -76,8 +84,9 @@ type TransactionSection = {
   title: string;
   subtitle: string;
   tone: TransactionSectionTone;
-  modules: TransactionModuleCard[];
+  modules: TransactionSectionModule[];
   columns?: "3" | "4" | "5";
+  layout?: "flow" | "grid";
 };
 
 type FinanceInvoiceRow = {
@@ -427,9 +436,15 @@ function TransactionMetric({
 function TransactionModuleButton({
   module,
   onOpen,
+  sequenceLabel,
+  titleOverride,
+  descriptionOverride,
 }: {
   module: TransactionModuleCard;
   onOpen: (route: string) => void;
+  sequenceLabel?: string;
+  titleOverride?: string;
+  descriptionOverride?: string;
 }) {
   const Icon = module.icon;
   const isClickable = Boolean(module.route);
@@ -451,8 +466,16 @@ function TransactionModuleButton({
 
       <div className="relative flex h-full flex-col gap-5 p-5">
         <div className="flex items-start justify-between gap-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/80">
-            <Icon className="h-4.5 w-4.5" />
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/80">
+              <Icon className="h-4.5 w-4.5" />
+            </div>
+
+            {sequenceLabel ? (
+              <div className="flex h-8 min-w-[2rem] items-center justify-center rounded-xl border border-white/10 bg-white/6 px-2 text-[11px] font-semibold text-white/78">
+                {sequenceLabel}
+              </div>
+            ) : null}
           </div>
 
           <div className="flex items-center gap-3">
@@ -471,10 +494,10 @@ function TransactionModuleButton({
 
         <div className="space-y-2">
           <div className="text-[17px] font-semibold text-white">
-            {module.title}
+            {titleOverride ?? module.title}
           </div>
           <div className="text-sm leading-6 text-white/48">
-            {module.description}
+            {descriptionOverride ?? module.description}
           </div>
         </div>
 
@@ -499,6 +522,16 @@ function TransactionModuleButton({
         </div>
       </div>
     </button>
+  );
+}
+
+function TransactionFlowArrow() {
+  return (
+    <div className="hidden xl:flex xl:items-center xl:justify-center xl:px-1">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/8 bg-white/[0.03] text-white/55">
+        <ArrowRight className="h-4 w-4" />
+      </div>
+    </div>
   );
 }
 
@@ -532,15 +565,41 @@ function TransactionSectionCard({
       </div>
 
       <div className="p-5 sm:p-6 xl:p-7">
-        <div className={getSectionGridClass(section.columns)}>
-          {section.modules.map((module) => (
-            <TransactionModuleButton
-              key={module.key}
-              module={module}
-              onOpen={onOpen}
-            />
-          ))}
-        </div>
+        {section.layout === "flow" ? (
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch xl:gap-3">
+            {section.modules.map((item, index) => (
+              <div
+                key={`${item.module.key}-${item.sequenceLabel ?? index}`}
+                className="flex min-w-0 flex-1 items-stretch"
+              >
+                <div className="min-w-0 flex-1">
+                  <TransactionModuleButton
+                    module={item.module}
+                    onOpen={onOpen}
+                    sequenceLabel={item.sequenceLabel}
+                    titleOverride={item.titleOverride}
+                    descriptionOverride={item.descriptionOverride}
+                  />
+                </div>
+
+                {index < section.modules.length - 1 ? <TransactionFlowArrow /> : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className={getSectionGridClass(section.columns)}>
+            {section.modules.map((item, index) => (
+              <TransactionModuleButton
+                key={`${item.module.key}-${item.sequenceLabel ?? index}`}
+                module={item.module}
+                onOpen={onOpen}
+                sequenceLabel={item.sequenceLabel}
+                titleOverride={item.titleOverride}
+                descriptionOverride={item.descriptionOverride}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -935,6 +994,16 @@ export default function FinanceTransactionsPage() {
         statusLabel: "Later",
         lastUpdatedLabel: "Planned",
       },
+      "vendor-quotations": {
+        key: "vendor-quotations",
+        title: "Quotation (from vendor)",
+        description:
+          "Vendor quotations received before purchase order issuance.",
+        icon: FileText,
+        count: 0,
+        statusLabel: "Later",
+        lastUpdatedLabel: "Planned",
+      },
       invoices: {
         key: "invoices",
         title: "Invoices",
@@ -948,9 +1017,9 @@ export default function FinanceTransactionsPage() {
       },
       bills: {
         key: "bills",
-        title: "Bills",
+        title: "Vendor PI / Invoice",
         description:
-          "Vendor PI and invoice records, payables, due dates, and AP flow.",
+          "Vendor proforma invoices and bills received into the payable flow.",
         route: "/finance/transactions/bills",
         icon: Receipt,
         count: data.counts.bills,
@@ -1025,9 +1094,9 @@ export default function FinanceTransactionsPage() {
       },
       "purchase-orders": {
         key: "purchase-orders",
-        title: "Purchase Orders",
+        title: "Purchase Order",
         description:
-          "Issued supplier purchase orders and outbound procurement commitment.",
+          "Issued supplier purchase order and outbound procurement commitment.",
         route: "/finance/transactions/purchase-orders",
         icon: FileText,
         count: data.counts.purchaseOrders,
@@ -1058,25 +1127,57 @@ export default function FinanceTransactionsPage() {
           "Customer-side receivable flow from quotation and customer commitment through proforma, formal invoice, and payment collection.",
         tone: "incoming",
         columns: "5",
+        layout: "flow",
         modules: [
-          allModuleCards.quotations,
-          allModuleCards["customer-pos"],
-          allModuleCards["proforma-invoices"],
-          allModuleCards.invoices,
-          allModuleCards["payments-received"],
+          {
+            module: allModuleCards.quotations,
+            sequenceLabel: "01",
+          },
+          {
+            module: allModuleCards["customer-pos"],
+            sequenceLabel: "02",
+          },
+          {
+            module: allModuleCards["proforma-invoices"],
+            sequenceLabel: "03",
+          },
+          {
+            module: allModuleCards.invoices,
+            sequenceLabel: "04",
+          },
+          {
+            module: allModuleCards["payments-received"],
+            sequenceLabel: "05",
+          },
         ],
       },
       {
         key: "procurement",
-        title: "2. Outgoing · Procurement",
+        title: "2. Outgoing · Procurement (Supplier Flow)",
         subtitle:
-          "Supplier-side purchasing and payable flow: commitment, vendor billing, and outgoing settlement.",
+          "Supplier quotation, purchase order, vendor PI or invoice, and outgoing payment settlement.",
         tone: "procurement",
-        columns: "3",
+        columns: "4",
+        layout: "flow",
         modules: [
-          allModuleCards["purchase-orders"],
-          allModuleCards.bills,
-          allModuleCards["payments-made"],
+          {
+            module: allModuleCards["vendor-quotations"],
+            sequenceLabel: "01",
+          },
+          {
+            module: allModuleCards["purchase-orders"],
+            sequenceLabel: "02",
+          },
+          {
+            module: allModuleCards.bills,
+            sequenceLabel: "03",
+            titleOverride: "Vendor PI / Invoice",
+          },
+          {
+            module: allModuleCards["payments-made"],
+            sequenceLabel: "04",
+            titleOverride: "Payment Made",
+          },
         ],
       },
       {
@@ -1086,7 +1187,19 @@ export default function FinanceTransactionsPage() {
           "Direct operating spend that does not require a full procurement chain.",
         tone: "expense",
         columns: "3",
-        modules: [allModuleCards.expenses, allModuleCards["payments-made"]],
+        layout: "flow",
+        modules: [
+          {
+            module: allModuleCards.expenses,
+            sequenceLabel: "01",
+            titleOverride: "Expense",
+          },
+          {
+            module: allModuleCards["payments-made"],
+            sequenceLabel: "02",
+            titleOverride: "Payment Made",
+          },
+        ],
       },
       {
         key: "internal-flows",
@@ -1095,10 +1208,23 @@ export default function FinanceTransactionsPage() {
           "Internal company obligations such as reimbursements and payroll, both settled through outgoing payment execution.",
         tone: "internal",
         columns: "3",
+        layout: "flow",
         modules: [
-          allModuleCards.reimbursements,
-          allModuleCards.payroll,
-          allModuleCards["payments-made"],
+          {
+            module: allModuleCards.reimbursements,
+            sequenceLabel: "01",
+            titleOverride: "Reimbursement",
+          },
+          {
+            module: allModuleCards.payroll,
+            sequenceLabel: "02",
+            titleOverride: "Payroll",
+          },
+          {
+            module: allModuleCards["payments-made"],
+            sequenceLabel: "03",
+            titleOverride: "Payment Made",
+          },
         ],
       },
       {
@@ -1108,7 +1234,13 @@ export default function FinanceTransactionsPage() {
           "Cross-process control layer used to approve, release, and govern transaction movement.",
         tone: "control",
         columns: "3",
-        modules: [allModuleCards.approvals],
+        layout: "grid",
+        modules: [
+          {
+            module: allModuleCards.approvals,
+            sequenceLabel: "01",
+          },
+        ],
       },
     ];
   }, [allModuleCards]);

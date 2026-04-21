@@ -25,6 +25,7 @@ type ActivityEntityType =
   | "finance_attachment"
   | "finance_comment"
   | "finance_setting"
+  | "finance_proforma_invoice"
   | "finance_invoice_issued"
   | "finance_payment_received"
   | "finance_payment_made"

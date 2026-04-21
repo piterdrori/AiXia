@@ -85,6 +85,9 @@ import FinanceSettingsPage from "@/app/finance/settings/page";
 import FinanceInvoicesPage from "@/app/finance/transactions/invoices/page";
 import FinanceNewInvoicePage from "@/app/finance/transactions/invoices/new/page";
 import FinanceInvoiceDetailPage from "@/app/finance/transactions/invoices/[id]/page";
+import FinanceProformaInvoicesPage from "@/app/finance/transactions/proforma-invoices/page";
+import FinanceNewProformaInvoicePage from "@/app/finance/transactions/proforma-invoices/new/page";
+import FinanceProformaInvoiceDetailPage from "@/app/finance/transactions/proforma-invoices/[id]/page";
 import FinanceBillsPage from "@/app/finance/bills/page";
 import BillDetailPage from "@/app/finance/bills/[id]/page";
 import FinancePaymentsMadePage from "@/app/finance/payments-made/page";
@@ -1035,6 +1038,39 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceInvoiceDetailPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+      <Route
+  path="/finance/transactions/proforma-invoices"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceProformaInvoicesPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/proforma-invoices/new"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceNewProformaInvoicePage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/proforma-invoices/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceProformaInvoiceDetailPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

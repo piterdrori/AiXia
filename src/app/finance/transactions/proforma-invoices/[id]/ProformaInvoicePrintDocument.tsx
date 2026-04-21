@@ -6,6 +6,8 @@ type Props = {
   financialSummary: any;
   project?: any;
   task?: any;
+  company?: any;
+  client?: any;
 };
 
 const DEFAULT_TERMS =
@@ -60,43 +62,61 @@ export default function ProformaInvoicePrintDocument({
   proforma,
   lineItems,
   financialSummary,
+  company,
+  client,
 }: Props) {
-  if (!proforma) return null;
-
+  
   const currency =
     proforma?.currency_code ||
     proforma?.metadata?.currency_code ||
     "USD";
 
-  const companyName =
+    const companyName =
     proforma?.company_name_snapshot ||
+    company?.legal_name ||
+    company?.name ||
     proforma?.company_name ||
     proforma?.company ||
     "—";
 
   const companyContact =
     proforma?.company_contact_person_snapshot ||
+    company?.contact_person ||
     proforma?.company_contact_person ||
     "";
 
   const companyEmail =
     proforma?.company_email_snapshot ||
+    company?.email ||
     proforma?.company_email ||
     "";
 
   const companyPhone =
     proforma?.company_phone_snapshot ||
+    company?.phone ||
     proforma?.company_phone ||
     "";
 
   const companyAddress =
     proforma?.company_address_snapshot ||
+    [
+      company?.address_line_1,
+      company?.address_line_2,
+      company?.city,
+      company?.state_province,
+      company?.postal_code,
+      company?.country,
+    ]
+      .filter(Boolean)
+      .join(", ") ||
     proforma?.company_address ||
     "";
 
   const counterpartyName =
     proforma?.counterparty_name_snapshot ||
     proforma?.client_name_snapshot ||
+    client?.legal_name ||
+    client?.name ||
     proforma?.client_name ||
     proforma?.client ||
     "—";
@@ -104,23 +124,38 @@ export default function ProformaInvoicePrintDocument({
   const counterpartyContact =
     proforma?.counterparty_contact_person_snapshot ||
     proforma?.client_contact_person_snapshot ||
+    client?.contact_person ||
     proforma?.client_contact_person ||
     "";
 
   const counterpartyEmail =
     proforma?.counterparty_email_snapshot ||
     proforma?.client_email_snapshot ||
+    client?.company_email ||
+    client?.personnel_email ||
     proforma?.client_email ||
     "";
 
   const counterpartyPhone =
     proforma?.counterparty_phone_snapshot ||
     proforma?.client_phone_snapshot ||
+    client?.company_phone ||
+    client?.personnel_phone ||
     proforma?.client_phone ||
     "";
 
   const billingAddress =
     proforma?.billing_address_snapshot ||
+    [
+      client?.address_line_1,
+      client?.address_line_2,
+      client?.city,
+      client?.state_province,
+      client?.postal_code,
+      client?.country,
+    ]
+      .filter(Boolean)
+      .join(", ") ||
     proforma?.billing_address ||
     "—";
 

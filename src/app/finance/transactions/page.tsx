@@ -87,6 +87,8 @@ type TransactionSection = {
   modules: TransactionSectionModule[];
   columns?: "3" | "4" | "5";
   layout?: "flow" | "grid";
+  splitLabelLeft?: string;
+  splitLabelRight?: string;
 };
 
 type FinanceInvoiceRow = {
@@ -543,6 +545,103 @@ function TransactionSectionCard({
 }) {
   const tone = getSectionToneClasses(section.tone);
 
+  if (section.key === "internal-flows") {
+    const leftModules = section.modules.slice(0, 2);
+    const rightModules = section.modules.slice(2);
+
+    return (
+      <section
+        className={`overflow-hidden rounded-[30px] border ${tone.border} ${tone.panel} backdrop-blur-xl`}
+      >
+        <div className="border-b border-white/8 px-6 py-5 sm:px-7">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-2">
+              <Badge
+                className={`w-fit rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.22em] shadow-none ${tone.badge}`}
+              >
+                {section.title}
+              </Badge>
+
+              <div className="max-w-3xl text-sm leading-6 text-white/50">
+                {section.subtitle}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5 sm:p-6 xl:p-7">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <div className="space-y-4">
+              <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-violet-200/80">
+                {section.splitLabelLeft ?? "A. Reimbursements"}
+              </div>
+
+              <div className="overflow-x-auto pb-3">
+                <div className="flex min-w-max items-stretch">
+                  {leftModules.map((item, index) => (
+                    <div
+                      key={`${item.module.key}-${item.sequenceLabel ?? index}`}
+                      className="flex flex-none items-stretch"
+                    >
+                      <div className="w-[220px] min-w-[220px] max-w-[220px] flex-none">
+                        <TransactionModuleButton
+                          module={item.module}
+                          onOpen={onOpen}
+                          sequenceLabel={item.sequenceLabel}
+                          titleOverride={item.titleOverride}
+                          descriptionOverride={item.descriptionOverride}
+                        />
+                      </div>
+
+                      {index < leftModules.length - 1 ? (
+                        <div className="flex flex-none items-center justify-center px-3">
+                          <TransactionFlowArrow />
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 border-t border-white/8 pt-6 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
+              <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-violet-200/80">
+                {section.splitLabelRight ?? "B. Payroll"}
+              </div>
+
+              <div className="overflow-x-auto pb-3">
+                <div className="flex min-w-max items-stretch">
+                  {rightModules.map((item, index) => (
+                    <div
+                      key={`${item.module.key}-${item.sequenceLabel ?? index}`}
+                      className="flex flex-none items-stretch"
+                    >
+                      <div className="w-[220px] min-w-[220px] max-w-[220px] flex-none">
+                        <TransactionModuleButton
+                          module={item.module}
+                          onOpen={onOpen}
+                          sequenceLabel={item.sequenceLabel}
+                          titleOverride={item.titleOverride}
+                          descriptionOverride={item.descriptionOverride}
+                        />
+                      </div>
+
+                      {index < rightModules.length - 1 ? (
+                        <div className="flex flex-none items-center justify-center px-3">
+                          <TransactionFlowArrow />
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section
       className={`overflow-hidden rounded-[30px] border ${tone.border} ${tone.panel} backdrop-blur-xl`}
@@ -563,7 +662,7 @@ function TransactionSectionCard({
         </div>
       </div>
 
-                 <div className="p-5 sm:p-6 xl:p-7">
+      <div className="p-5 sm:p-6 xl:p-7">
         {section.layout === "flow" ? (
           <div className="overflow-x-auto pb-3">
             <div className="flex min-w-max items-stretch">
@@ -592,7 +691,7 @@ function TransactionSectionCard({
             </div>
           </div>
         ) : (
-                  <div className="grid grid-cols-1 gap-5 xl:grid-cols-[520px] xl:justify-center">
+          <div className={getSectionGridClass(section.columns)}>
             {section.modules.map((item, index) => (
               <TransactionModuleButton
                 key={`${item.module.key}-${item.sequenceLabel ?? index}`}

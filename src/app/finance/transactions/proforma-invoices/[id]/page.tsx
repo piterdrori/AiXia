@@ -929,194 +929,106 @@ const loadProforma = useCallback(
   }, []);
 
   const handleSaveDraftChanges = useCallback(async () => {
-    if (!proforma || !id || !canEditDraft) return;
+  if (!proforma || !id || !canEditDraft) return;
 
-    setIsSavingDraft(true);
-    setError("");
+  setIsSavingDraft(true);
+  setError("");
 
-    const cleanedLineItems = lineItemsDraft.map((row) => ({
-      ...row,
-      description: row.description.trim(),
-    }));
+  const cleanedLineItems = lineItemsDraft.map((row) => ({
+    ...row,
+    description: row.description.trim(),
+  }));
 
-    const hasAtLeastOneValidLine = cleanedLineItems.some(
-      (row) =>
-        row.description &&
-        toNumber(row.quantity) > 0 &&
-        toNumber(row.unit_price) >= 0
+  const hasAtLeastOneValidLine = cleanedLineItems.some(
+    (row) =>
+      row.description &&
+      toNumber(row.quantity) > 0 &&
+      toNumber(row.unit_price) >= 0
+  );
+
+  if (!hasAtLeastOneValidLine) {
+    setError("Draft proforma invoice must include at least one valid line item.");
+    setIsSavingDraft(false);
+    return;
+  }
+
+  const hasInvalidLine = cleanedLineItems.some(
+    (row) =>
+      !row.description ||
+      toNumber(row.quantity) <= 0 ||
+      toNumber(row.unit_price) < 0
+  );
+
+  if (hasInvalidLine) {
+    setError(
+      "Every draft proforma line must have a description, quantity greater than 0, and unit price 0 or higher."
+    );
+    setIsSavingDraft(false);
+    return;
+  }
+
+  try {
+    const { error: rpcError } = await supabase.rpc(
+      "finance_update_proforma_invoice_draft",
+      {
+        p_proforma_id: id,
+        p_client_id: clientIdDraft || null,
+        p_issue_date: issueDateDraft,
+        p_valid_until: validUntilDraft || null,
+        p_currency_id: currencyIdDraft || null,
+        p_project_id: projectIdDraft || null,
+        p_task_id: taskIdDraft || null,
+        p_notes: notesDraft || null,
+        p_metadata: {
+          ...(proforma.metadata || {}),
+          issuing_company_id: companyIdDraft || null,
+          currency_code:
+            selectedDraftCurrency?.currency_code ||
+            (proforma.metadata?.currency_code as string | undefined) ||
+            "USD",
+        },
+        p_lines: cleanedLineItems.map((row) => ({
+          id: row.id,
+          item_id: row.item_id || null,
+          description: row.description.trim(),
+          quantity: toNumber(row.quantity),
+          unit_price: toNumber(row.unit_price),
+          discount: toNumber(row.discount),
+          tax_code_id: row.tax_code_id || null,
+          unit_of_measure_id: row.unit_of_measure_id || null,
+          revenue_category_id: row.revenue_category_id || null,
+        })),
+      }
     );
 
-    if (!hasAtLeastOneValidLine) {
-      setError("Draft proforma invoice must include at least one valid line item.");
-      setIsSavingDraft(false);
-      return;
-    }
+    if (rpcError) throw rpcError;
 
-    const hasInvalidLine = cleanedLineItems.some(
-      (row) =>
-        !row.description ||
-        toNumber(row.quantity) <= 0 ||
-        toNumber(row.unit_price) < 0
-    );
-
-    if (hasInvalidLine) {
-      setError(
-        "Every draft proforma line must have a description, quantity greater than 0, and unit price 0 or higher."
-      );
-      setIsSavingDraft(false);
-      return;
-    }
-
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user?.id) {
-        throw new Error("User not authenticated");
-      }
-
-      const { error: proformaError } = await supabase
-        .from("finance_proforma_invoices")
-        .update({
-          client_id: clientIdDraft || null,
-          issue_date: issueDateDraft,
-          valid_until: validUntilDraft || null,
-          currency_id: currencyIdDraft || null,
-          project_id: projectIdDraft || null,
-          task_id: taskIdDraft || null,
-          notes: notesDraft || null,
-          subtotal: draftTotals.subtotal,
-          tax_amount: draftTotals.tax,
-          discount_amount: draftTotals.discount,
-          total_amount: draftTotals.total,
-          updated_by: user.id,
-          metadata: {
-            ...(proforma.metadata || {}),
-            issuing_company_id: companyIdDraft || null,
-            currency_code:
-              selectedDraftCurrency?.currency_code ||
-              (proforma.metadata?.currency_code as string | undefined) ||
-              "USD",
-          },
-        })
-        .eq("id", id)
-        .eq("status", "draft");
-
-      if (proformaError) throw proformaError;
-
-      const existingIds = lineItems.map((entry) => entry.id);
-      const draftIds = cleanedLineItems
-        .filter((entry) => !entry.id.startsWith("new_"))
-        .map((entry) => entry.id);
-
-      const idsToDelete = existingIds.filter((entryId) => !draftIds.includes(entryId));
-
-      if (idsToDelete.length > 0) {
-        const { error: deleteError } = await supabase
-          .from("finance_proforma_invoice_line_items")
-          .delete()
-          .in("id", idsToDelete);
-
-        if (deleteError) throw deleteError;
-      }
-
-
-            for (let index = 0; index < cleanedLineItems.length; index += 1) {
-        const row = cleanedLineItems[index];
-
-        const base =
-          toNumber(row.quantity) * toNumber(row.unit_price) -
-          toNumber(row.discount);
-
-        const safeBase = Math.max(base, 0);
-
-        const taxCode = taxCodes.find((entry) => entry.id === row.tax_code_id);
-        const taxRate = Number(taxCode?.rate_percent ?? 0);
-        const lineTotal = safeBase + safeBase * (taxRate / 100);
-
-        if (row.id.startsWith("new_")) {
-          const { error: insertError } = await supabase
-            .from("finance_proforma_invoice_line_items")
-            .insert({
-              proforma_invoice_id: id,
-              item_id: row.item_id || null,
-              description: row.description.trim(),
-              quantity: toNumber(row.quantity),
-              unit_price: toNumber(row.unit_price),
-              line_total: lineTotal,
-              discount: toNumber(row.discount),
-              tax_code_id: row.tax_code_id || null,
-              unit_of_measure_id: row.unit_of_measure_id || null,
-              revenue_category_id: row.revenue_category_id || null,
-              project_id: projectIdDraft || null,
-              task_id: taskIdDraft || null,
-              sort_order: index + 1,
-              status: "active",
-              posted_to_ledger: false,
-              metadata: {},
-              created_by: user.id,
-              updated_by: user.id,
-            });
-
-          if (insertError) throw insertError;
-        } else {
-          const { error: lineError } = await supabase
-            .from("finance_proforma_invoice_line_items")
-            .update({
-              item_id: row.item_id || null,
-              description: row.description.trim(),
-              quantity: toNumber(row.quantity),
-              unit_price: toNumber(row.unit_price),
-              line_total: lineTotal,
-              discount: toNumber(row.discount),
-              tax_code_id: row.tax_code_id || null,
-              unit_of_measure_id: row.unit_of_measure_id || null,
-              revenue_category_id: row.revenue_category_id || null,
-              project_id: projectIdDraft || null,
-              task_id: taskIdDraft || null,
-              sort_order: index + 1,
-              updated_by: user.id,
-            })
-            .eq("id", row.id)
-            .eq("proforma_invoice_id", id);
-
-          if (lineError) throw lineError;
-        }
-      }
-
-      setEditingOverview(false);
-      setEditingParties(false);
-      setEditingLines(false);
-      await loadProforma(true);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to save draft changes.");
-    } finally {
-      setIsSavingDraft(false);
-    }
-  }, [
-    canEditDraft,
-    clientIdDraft,
-    companyIdDraft,
-    currencyIdDraft,
-    draftTotals.discount,
-    draftTotals.subtotal,
-    draftTotals.tax,
-    draftTotals.total,
-    id,
-    issueDateDraft,
-    lineItems,
-    lineItemsDraft,
-    loadProforma,
-    notesDraft,
-    proforma,
-    projectIdDraft,
-    selectedDraftCurrency,
-    taskIdDraft,
-    taxCodes,
-    validUntilDraft,
-  ]);
+    setEditingOverview(false);
+    setEditingParties(false);
+    setEditingLines(false);
+    await loadProforma(true);
+  } catch (err) {
+    console.error(err);
+    setError("Failed to save draft changes.");
+  } finally {
+    setIsSavingDraft(false);
+  }
+}, [
+  canEditDraft,
+  clientIdDraft,
+  companyIdDraft,
+  currencyIdDraft,
+  id,
+  issueDateDraft,
+  lineItemsDraft,
+  loadProforma,
+  notesDraft,
+  proforma,
+  projectIdDraft,
+  selectedDraftCurrency,
+  taskIdDraft,
+  validUntilDraft,
+]);
 
   if (isLoading) {
     return <div className="p-6 text-white/50">Loading proforma invoice...</div>;

@@ -871,7 +871,7 @@ const confirmedPayments = activePayments.filter(
                             </button>
 
                             {openMenuPaymentId === payment.id ? (
-                              <div className="absolute right-0 z-20 mt-2 w-40 overflow-hidden rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-xl">
+                              <div className="absolute right-0 z-50 bottom-full mb-2 w-40 overflow-hidden rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-xl">
                                 <button
                                   type="button"
                                   onClick={(event) => {
@@ -916,7 +916,7 @@ const confirmedPayments = activePayments.filter(
                                   </button>
                                 ) : null}
 
-                                {payment.status !== "deleted" ? (
+                                {payment.status !== "deleted" && payment.status !== "archived" ? (
                                   <button
                                     type="button"
                                     onClick={async (event) => {

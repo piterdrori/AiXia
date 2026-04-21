@@ -23,6 +23,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+import ProformaInvoicePrintDocument from "./ProformaInvoicePrintDocument";
+
 import {
   getProformaInvoicesArchiveList,
   getProformaInvoiceById,

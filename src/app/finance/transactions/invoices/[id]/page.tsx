@@ -35,7 +35,13 @@ import InvoicePrintDocument from "./InvoicePrintDocument";
 type InvoiceRecord = {
   id: string;
   invoice_number: string;
-  status: "draft" | "issued" | "void" | "archived";
+  status:
+  | "draft"
+  | "issued"
+  | "partially_paid"
+  | "paid"
+  | "deleted"
+  | "archived";
   payment_status: "unpaid" | "partial" | "paid";
   counterparty_type: "client" | "company";
   counterparty_company_id: string | null;
@@ -119,7 +125,7 @@ type TaskRow = {
 type ArchiveInvoiceRow = {
   id: string;
   invoice_number: string;
-  status: string;
+  status: "archived" | "deleted";
   counterparty_name_snapshot: string | null;
   client_name_snapshot: string | null;
   total_amount: number | string | null;
@@ -327,12 +333,20 @@ function getDocumentStatusBadgeClasses(status: InvoiceRecord["status"]) {
     return "border-white/10 bg-white/10 text-white/75";
   }
 
-  if (status === "void") {
-    return "border-rose-400/20 bg-rose-500/10 text-rose-200";
+  if (status === "partially_paid") {
+    return "border-amber-400/20 bg-amber-500/10 text-amber-200";
   }
 
-    if (status === "archived") {
-    return "border-amber-400/20 bg-amber-500/10 text-amber-200";
+  if (status === "paid") {
+    return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
+  }
+
+  if (status === "archived") {
+    return "border-white/20 bg-white/5 text-white/60";
+  }
+
+  if (status === "deleted") {
+    return "border-rose-500/30 bg-rose-500/10 text-rose-300";
   }
 
   return "border-white/10 bg-white/10 text-white/75";
@@ -398,7 +412,8 @@ export default function FinanceInvoiceDetailPage() {
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
   const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>([]);
   const [revenueCategories, setRevenueCategories] = useState<RevenueCategoryOption[]>([]);
-   const [showArchivePopup, setShowArchivePopup] = useState(false);
+ const [showArchivePopup, setShowArchivePopup] = useState(false);
+const [archiveTab, setArchiveTab] = useState<"archived" | "deleted">("archived");
 
   const [editingOverview, setEditingOverview] = useState(false);
   const [editingParties, setEditingParties] = useState(false);
@@ -430,23 +445,23 @@ export default function FinanceInvoiceDetailPage() {
     });
   }, []);
 
-  const loadArchiveItems = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("finance_invoices_issued")
-      .select(
-  "id, invoice_number, status, counterparty_name_snapshot, client_name_snapshot, total_amount, updated_at"
-)
-      .eq("status", "archived")
-      .order("updated_at", { ascending: false })
-      .limit(50);
+const loadArchiveItems = useCallback(async () => {
+  const { data, error } = await supabase
+    .from("finance_invoices_issued")
+    .select(
+      "id, invoice_number, status, counterparty_name_snapshot, client_name_snapshot, total_amount, updated_at"
+    )
+    .in("status", ["archived", "deleted"])
+    .order("updated_at", { ascending: false })
+    .limit(50);
 
-    if (error) {
-      console.error("Failed to load archived invoices:", error);
-      return;
-    }
+  if (error) {
+    console.error("Failed to load archived invoices:", error);
+    return;
+  }
 
-    setArchiveItems((data || []) as ArchiveInvoiceRow[]);
-  }, []);
+  setArchiveItems((data || []) as ArchiveInvoiceRow[]);
+}, []);
 
   const loadInvoice = useCallback(
     async (refreshOnly = false) => {
@@ -928,8 +943,10 @@ const resolvedBankDetailsLines = useMemo(() => {
   const canEditDraft = invoice?.status === "draft";
   const canEditIssuedOverview = invoice?.status === "issued";
   const canEditIssuedParties = invoice?.status === "issued";
-  const canArchive = !!invoice && invoice.status !== "archived";
-  const canHardDelete = !!invoice && invoice.status === "archived";
+  const canArchive =
+  !!invoice &&
+  ["draft", "issued", "partially_paid", "paid"].includes(invoice.status);
+  const canHardDelete = false;
 
 const handleIssue = useCallback(async () => {
   if (!invoice || !id) return;
@@ -1026,7 +1043,34 @@ if (snapshotError) throw snapshotError;
     }
   }, [id, invoice, loadArchiveItems, loadInvoice]);
 
-const handleHardDelete = useCallback(
+const handleRestore = useCallback(
+  async (invoiceId: string) => {
+    setIsDeleting(true);
+    setError("");
+
+    try {
+      const { error } = await supabase.rpc("finance_restore_invoice_issued", {
+        p_invoice_id: invoiceId,
+      });
+
+      if (error) throw error;
+
+      if (invoiceId === id) {
+        await loadInvoice(true);
+      }
+
+      await loadArchiveItems();
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Failed to restore invoice.");
+    } finally {
+      setIsDeleting(false);
+    }
+  },
+  [id, loadArchiveItems, loadInvoice]
+);
+  
+  const handleHardDelete = useCallback(
   async (invoiceId: string) => {
     setIsDeleting(true);
     setError("");
@@ -1631,6 +1675,10 @@ shipping_terms_snapshot:
 
   const displayState = getInvoiceDisplayState(invoice as any);
 
+const visibleArchiveItems = archiveItems.filter(
+  (item) => item.status === archiveTab
+);
+
     const paymentProgressPercent = (() => {
     const total = Number(invoice.total_amount || 0);
     const paid = Number(invoice.paid_amount || 0);
@@ -1671,7 +1719,8 @@ shipping_terms_snapshot:
                 <div className="space-y-3">
                  <div className="flex flex-wrap items-center gap-3">
                     <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                      {invoice.invoice_number || "Draft Invoice"}
+                      {invoice.invoice_number ||
+  (invoice.status === "draft" ? "Draft Invoice" : "Invoice")}
                     </h1>
 
                     <Badge
@@ -1767,6 +1816,37 @@ shipping_terms_snapshot:
                     {isArchiving ? "Archiving..." : "Archive"}
                   </Button>
                 ) : null}
+
+                {invoice.status !== "deleted" && invoice.status !== "archived" ? (
+  <Button
+    variant="outline"
+    onClick={async () => {
+      setIsDeleting(true);
+      setError("");
+
+      try {
+        const { error } = await supabase.rpc(
+          "finance_delete_invoice_issued",
+          { p_invoice_id: invoice.id }
+        );
+
+        if (error) throw error;
+
+        await loadInvoice(true);
+      } catch (err) {
+        console.error(err);
+        setError("Failed to delete invoice.");
+      } finally {
+        setIsDeleting(false);
+      }
+    }}
+    disabled={isDeleting}
+    className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20"
+  >
+    <Trash2 className="mr-2 h-4 w-4" />
+    {isDeleting ? "Deleting..." : "Delete"}
+  </Button>
+) : null}
 
                 <Button
                   variant="outline"
@@ -2731,7 +2811,7 @@ shipping_terms_snapshot:
                       </Button>
                     ) : null}
 
-                    {canEditDraft ? (
+           {canEditDraft || invoice.status === "issued" ? (
   <Button
     variant="outline"
     onClick={() => setEditingLines((current) => !current)}
@@ -3247,91 +3327,122 @@ shipping_terms_snapshot:
             </Card>
 
             <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardHeader className="border-b border-white/8 pb-4">
-                <div className="flex items-center justify-between gap-4">
-                  <CardTitle className="text-white">Archive</CardTitle>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowArchivePopup((current) => !current);
-                      void loadArchiveItems();
-                    }}
-                    className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-                  >
-                    {showArchivePopup ? "Close" : "Open Archive"}
-                  </Button>
+  <CardHeader className="border-b border-white/8 pb-4">
+    <div className="flex items-center justify-between gap-4">
+      <CardTitle className="text-white">Archive</CardTitle>
+      <Button
+        variant="outline"
+        onClick={() => {
+          setShowArchivePopup((current) => {
+            const next = !current;
+            if (next) {
+              setArchiveTab("archived");
+              void loadArchiveItems();
+            }
+            return next;
+          });
+        }}
+        className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+      >
+        {showArchivePopup ? "Close" : "Open Archive"}
+      </Button>
+    </div>
+  </CardHeader>
+
+  <CardContent className="space-y-3 p-5">
+    <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-4 text-sm text-white/55">
+      Archive moves the invoice to the archived state. Delete moves the invoice
+      to the deleted state. Restore is available from both tabs. Hard delete is
+      available only from the deleted tab.
+    </div>
+
+    {showArchivePopup ? (
+      <div className="space-y-4 rounded-[22px] border border-white/8 bg-black/15 p-4">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setArchiveTab("archived")}
+            className={`rounded-xl px-4 py-2 text-sm transition ${
+              archiveTab === "archived"
+                ? "bg-white/10 text-white"
+                : "text-white/55 hover:bg-white/5 hover:text-white/80"
+            }`}
+          >
+            Archived
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setArchiveTab("deleted")}
+            className={`rounded-xl px-4 py-2 text-sm transition ${
+              archiveTab === "deleted"
+                ? "bg-rose-500/15 text-rose-200"
+                : "text-white/55 hover:bg-white/5 hover:text-white/80"
+            }`}
+          >
+            Deleted
+          </button>
+        </div>
+
+        {visibleArchiveItems.length === 0 ? (
+          <div className="text-sm text-white/45">
+            No {archiveTab} invoices.
+          </div>
+        ) : (
+          visibleArchiveItems.map((item) => (
+            <div
+              key={item.id}
+              className="rounded-[18px] border border-white/8 bg-black/20 px-4 py-3"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-sm font-medium text-white">
+                    {item.invoice_number || "Invoice"}
+                  </div>
+                  <div className="mt-1 text-xs text-white/45">
+                    {item.counterparty_name_snapshot ||
+                      item.client_name_snapshot ||
+                      "—"}{" "}
+                    • {formatFinanceDate(item.updated_at || null)}
+                  </div>
                 </div>
-              </CardHeader>
 
-              <CardContent className="space-y-3 p-5">
-                <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-4 text-sm text-white/55">
-                  Delete logic is soft-first. Archive moves the invoice to archived
-                   state. Hard delete is only available inside the archive list.
-                </div>
-
-                {canHardDelete ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => void handleHardDelete(invoice.id)}
-                    disabled={isDeleting}
-                    className="h-11 w-full rounded-2xl border-rose-400/20 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    {isDeleting ? "Deleting..." : "Hard Delete This Invoice"}
-                  </Button>
-                ) : null}
-
-                {showArchivePopup ? (
-                  <div className="space-y-3 rounded-[22px] border border-white/8 bg-black/15 p-4">
-                    <div className="text-sm font-medium text-white">
-                      Archived Invoices
-                    </div>
-
-                    {archiveItems.length === 0 ? (
-                      <div className="text-sm text-white/45">
-                        No archived invoices.
-                      </div>
-                    ) : (
-                      archiveItems.map((item) => (
-                        <div
-                          key={item.id}
-                          className="rounded-[18px] border border-white/8 bg-black/20 px-4 py-3"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <div className="text-sm font-medium text-white">
-                                {item.invoice_number}
-                              </div>
-                              <div className="mt-1 text-xs text-white/45">
-                                {item.counterparty_name_snapshot || item.client_name_snapshot || "—"} •{" "}
-                                {formatFinanceDate(item.updated_at || null)}
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <div className="text-sm text-white/65">
-                                {formatFinanceMoney(
-                                  toNumber(item.total_amount),
-                                  invoice.currency_code || "USD"
-                                )}
-                              </div>
-                              <Button
-                                variant="outline"
-                                onClick={() => void handleHardDelete(item.id)}
-                                disabled={isDeleting}
-                                className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ))
+                <div className="flex items-center gap-2">
+                  <div className="text-sm text-white/65">
+                    {formatFinanceMoney(
+                      toNumber(item.total_amount),
+                      invoice.currency_code || "USD"
                     )}
                   </div>
-                ) : null}
-              </CardContent>
-            </Card>
+
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleRestore(item.id)}
+                    disabled={isDeleting}
+                    className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+                  >
+                    Restore
+                  </Button>
+
+                  {archiveTab === "deleted" ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => void handleHardDelete(item.id)}
+                      disabled={isDeleting}
+                      className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    ) : null}
+  </CardContent>
+</Card>
           </div>
         </div>
 

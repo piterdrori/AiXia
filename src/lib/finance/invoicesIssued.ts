@@ -34,12 +34,8 @@ export type FinanceIssuedInvoiceListRow = {
 export const FINANCE_ISSUED_INVOICE_STATUSES = [
   "draft",
   "issued",
-  "void",
-  "canceled",
   "partially_paid",
   "paid",
-  "overdue",
-  "cancelled",
   "archived",
   "deleted",
 ] as const satisfies readonly FinanceInvoiceIssuedStatus[];
@@ -115,19 +111,11 @@ export function getIssuedInvoiceStatusLabel(status: FinanceInvoiceIssuedStatus) 
   case "draft":
     return "Draft";
   case "issued":
-    return "Issued";
-  case "void":
-    return "Void";
-  case "canceled":
-    return "Canceled";
-  case "cancelled":
-    return "Cancelled";
+    return "Issued"; 
   case "partially_paid":
     return "Partially Paid";
   case "paid":
     return "Paid";
-  case "overdue":
-    return "Overdue";
   case "archived":
     return "Archived";
   case "deleted":
@@ -211,7 +199,6 @@ export async function getIssuedInvoicesList(): Promise<
 
 client_name:
   row.counterparty_name_snapshot ||
-  row.client_name_snapshot ||
   row.finance_clients?.legal_name ||
   row.finance_clients?.name ||
   "Unknown client",
@@ -270,7 +257,6 @@ export async function getIssuedInvoicesArchiveList(): Promise<
 
 client_name:
   row.counterparty_name_snapshot ||
-  row.client_name_snapshot ||
   row.finance_clients?.legal_name ||
   row.finance_clients?.name ||
   "Unknown client",

@@ -563,14 +563,14 @@ function TransactionSectionCard({
         </div>
       </div>
 
-             <div className="p-5 sm:p-6 xl:p-7">
+                 <div className="p-5 sm:p-6 xl:p-7">
         {section.layout === "flow" ? (
           <div className="overflow-x-auto pb-3">
             <div className="flex min-w-max items-stretch">
               {section.modules.map((item, index) => (
                 <div
                   key={`${item.module.key}-${item.sequenceLabel ?? index}`}
-                  className="flex items-stretch"
+                  className="flex flex-none items-stretch"
                 >
                   <div className="w-[220px] min-w-[220px] max-w-[220px] flex-none">
                     <TransactionModuleButton

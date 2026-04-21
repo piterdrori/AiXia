@@ -830,8 +830,9 @@ export default function FinanceProformaInvoicesPage() {
                               <MoreVertical className="h-4 w-4" />
                             </button>
 
-                            {openMenuProformaId === proforma.id ? (
-                              <div className="absolute right-0 z-20 mt-2 w-48 overflow-hidden rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-xl">
+                           {openMenuProformaId === proforma.id ? (
+  <div className="absolute right-0 z-50 w-48 overflow-hidden rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-xl
+                  bottom-full mb-2">
                                 <button
                                   type="button"
                                   onClick={(event) => {

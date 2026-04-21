@@ -1070,6 +1070,7 @@ const visibleArchiveItems = archiveItems.filter(
 );
 
   return (
+  <>
     <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
       <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
         <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6 xl:p-7">
@@ -2266,9 +2267,20 @@ const visibleArchiveItems = archiveItems.filter(
         ) : null}
       </div>
     </div>
+     <ProformaInvoicePrintDocument
+        proforma={{
+          ...proforma,
+          currency_code: printableCurrencyCode,
+        }}
+        lineItems={lineItems}
+        financialSummary={financialSummary}
+        project={project}
+        task={task}
+      />
+    </>
   );
 }
-
+  
 
 
 

@@ -449,14 +449,14 @@ function TransactionModuleButton({
   const Icon = module.icon;
   const isClickable = Boolean(module.route);
 
-  return (
+   return (
     <button
       type="button"
       onClick={() => {
         if (!module.route) return;
         onOpen(module.route);
       }}
-      className={`group relative overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.03] text-left backdrop-blur-xl transition-all duration-200 ${
+      className={`group relative flex h-full min-h-[236px] w-full overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.03] text-left backdrop-blur-xl transition-all duration-200 ${
         isClickable
           ? "hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.05]"
           : "cursor-default opacity-90"
@@ -464,7 +464,7 @@ function TransactionModuleButton({
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_48%)] opacity-80" />
 
-          <div className="relative flex h-full flex-col gap-3 p-3.5">
+      <div className="relative flex h-full w-full flex-col gap-3 p-3.5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/80">
@@ -492,7 +492,7 @@ function TransactionModuleButton({
           </div>
         </div>
 
-               <div className="space-y-1.5">
+        <div className="space-y-1.5">
           <div className="text-[14px] font-medium leading-5 text-white">
             {titleOverride ?? module.title}
           </div>

@@ -946,7 +946,6 @@ const resolvedBankDetailsLines = useMemo(() => {
   const canArchive =
   !!invoice &&
   ["draft", "issued", "partially_paid", "paid"].includes(invoice.status);
-  const canHardDelete = false;
 
 const handleIssue = useCallback(async () => {
   if (!invoice || !id) return;

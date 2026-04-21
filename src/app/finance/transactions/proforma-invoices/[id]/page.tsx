@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/card";
 
 import {
+  getProformaInvoicesArchiveList,
   getProformaInvoiceById,
   getProformaInvoiceLineItems,
   archiveProformaInvoice,

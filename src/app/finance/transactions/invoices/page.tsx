@@ -141,17 +141,11 @@ function getDocumentStatusBadgeClasses(status: string) {
     case "paid":
       return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
 
-    case "overdue":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-
-    case "cancelled":
-      return "border-gray-400/20 bg-gray-500/10 text-gray-200";
-
     case "archived":
-  return "border-white/20 bg-white/5 text-white/60";
+      return "border-white/20 bg-white/5 text-white/60";
 
-   case "deleted":
-  return "border-rose-500/30 bg-rose-500/10 text-rose-300";
+    case "deleted":
+      return "border-rose-500/30 bg-rose-500/10 text-rose-300";
 
     default:
       return "border-white/10 bg-white/10 text-white/75";
@@ -395,9 +389,7 @@ const handleDelete = async (id: string) => {
       return (
         (invoice.invoice_number || "").toLowerCase().includes(normalizedSearch) ||
         (
-  invoice.counterparty_name_snapshot ||
-  invoice.client_name ||
-  ""
+ (invoice.counterparty_name_snapshot || "")
 ).toLowerCase().includes(normalizedSearch) ||
         (invoice.status || "").toLowerCase().includes(normalizedSearch) ||
         (invoice.payment_status || "").toLowerCase().includes(normalizedSearch) ||
@@ -422,7 +414,7 @@ const handleDelete = async (id: string) => {
     const partialInvoices = invoices.filter(
       (row) => row.payment_status === "partial"
     );
-   const receivablesOpen = invoices.filter((row) => row.status !== "archived" && row.status !== "deleted").reduce(
+   const receivablesOpen = invoices.reduce(
       (sum, row) => sum + Number(row.balance_due ?? 0),
       0
     );
@@ -615,7 +607,7 @@ const handleDelete = async (id: string) => {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <div className="text-base font-semibold text-white">
-                              {invoice.invoice_number || "Draft"}
+                              {invoice.invoice_number || "Draft Invoice"}
                             </div>
 
                             <Badge
@@ -716,7 +708,7 @@ const handleDelete = async (id: string) => {
         onClick={(e) => {
           e.stopPropagation();
           setOpenMenuInvoiceId(null);
-          navigate(`/finance/transactions/invoices/${invoice.id}`);
+          navigate(`/finance/transactions/invoices/${invoice.id}?mode=edit`);
         }}
         className="w-full px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10"
       >
@@ -827,7 +819,7 @@ const handleDelete = async (id: string) => {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="text-base font-semibold text-white">
-                            {invoice.invoice_number || "Draft"}
+                            {invoice.invoice_number || "Draft Invoice"}
                           </div>
 
                           <Badge className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] text-white/75 shadow-none">

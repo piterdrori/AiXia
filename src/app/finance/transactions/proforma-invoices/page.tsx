@@ -187,8 +187,6 @@ function getProformaStatusBadgeClasses(status: string) {
       return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
     case "converted":
       return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "cancelled":
-      return "border-gray-400/20 bg-gray-500/10 text-gray-200";
     case "archived":
       return "border-white/20 bg-white/5 text-white/60";
     case "deleted":
@@ -208,8 +206,6 @@ function getProformaStatusLabel(status: string) {
       return "Accepted";
     case "converted":
       return "Converted";
-    case "cancelled":
-      return "Cancelled";
     case "archived":
       return "Archived";
     case "deleted":
@@ -760,7 +756,12 @@ export default function FinanceProformaInvoicesPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <div className="text-base font-semibold text-white">
-                              {proforma.proforma_number || "Draft Proforma"}
+                              {proforma.proforma_number ||
+  (proforma.status === "draft"
+    ? "Draft Proforma"
+    : proforma.status === "converted"
+    ? "Converted Proforma"
+    : "Proforma Invoice")}
                             </div>
 
                             <Badge
@@ -874,7 +875,7 @@ export default function FinanceProformaInvoicesPage() {
                                   </button>
                                 ) : null}
 
-                               {!["archived", "deleted", "converted"].includes(proforma.status) ? (
+                               {!["archived", "deleted"].includes(proforma.status) ? (
   <button
     type="button"
     onClick={async (event) => {
@@ -900,18 +901,7 @@ export default function FinanceProformaInvoicesPage() {
   </button>
 ) : null}
 
-{proforma.status === "converted" ? (
-  <button
-    type="button"
-    onClick={(event) => {
-      event.stopPropagation();
-    }}
-    className="w-full px-3 py-2 text-left text-sm text-violet-200 hover:bg-white/10"
-  >
-    Converted
-  </button>
-) : null}
-                              </div>
+                  </div>
                             ) : null}
                           </div>
 
@@ -996,7 +986,12 @@ export default function FinanceProformaInvoicesPage() {
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <div className="text-base font-semibold text-white">
-                                {proforma.proforma_number || "Draft Proforma"}
+                               {proforma.proforma_number ||
+  (proforma.status === "draft"
+    ? "Draft Proforma"
+    : proforma.status === "converted"
+    ? "Converted Proforma"
+    : "Proforma Invoice")}
                               </div>
 
                               <Badge

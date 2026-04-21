@@ -1471,88 +1471,21 @@ export default function FinanceTransactionsPage() {
             </Card>
           </section>
 
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_360px]">
+                  <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_360px]">
             <div className="flex min-h-0 flex-col gap-6">
-              {transactionSections.map((section) => (
-                <TransactionSectionCard
-                  key={section.key}
-                  section={section}
-                  onOpen={openRoute}
-                />
-              ))}
-
-              <section>
-                <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                  <CardHeader className="border-b border-white/8 pb-4">
-                    <CardTitle className="text-white">
-                      Object Summaries
-                    </CardTitle>
-                    <CardDescription className="text-white/45">
-                      High-level grouped summaries for the core transaction
-                      records.
-                    </CardDescription>
-                  </CardHeader>
-
-                  <CardContent className="p-5">
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                      <SummaryBlock
-                        title="Invoices Summary"
-                        value={
-                          isLoading ? "—" : formatCount(data.counts.invoices)
-                        }
-                        subtitle={`$${formatMoney(
-                          data.totals.receivables
-                        )} open receivables`}
-                      />
-                      <SummaryBlock
-                        title="Bills Summary"
-                        value={isLoading ? "—" : formatCount(data.counts.bills)}
-                        subtitle={`$${formatMoney(
-                          data.totals.payables
-                        )} open payables`}
-                      />
-                      <SummaryBlock
-                        title="Proforma Summary"
-                        value={
-                          isLoading
-                            ? "—"
-                            : formatCount(data.counts.proformaInvoices)
-                        }
-                        subtitle="Pre-invoice workflow currently tracked"
-                      />
-                      <SummaryBlock
-                        title="Expenses Summary"
-                        value={
-                          isLoading ? "—" : formatCount(data.counts.expenses)
-                        }
-                        subtitle={`${formatCount(
-                          data.alerts.pendingExpenses
-                        )} pending expense items`}
-                      />
-                      <SummaryBlock
-                        title="Reimbursements Summary"
-                        value={
-                          isLoading
-                            ? "—"
-                            : formatCount(data.counts.reimbursements)
-                        }
-                        subtitle={`${formatCount(
-                          data.alerts.pendingReimbursements
-                        )} pending reimbursements`}
-                      />
-                      <SummaryBlock
-                        title="Payroll Summary"
-                        value={
-                          isLoading
-                            ? "—"
-                            : formatCount(data.counts.payrollRuns)
-                        }
-                        subtitle="Payroll runs currently visible"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              </section>
+              {transactionSections
+                .filter(
+                  (section) =>
+                    section.key !== "internal-flows" &&
+                    section.key !== "control"
+                )
+                .map((section) => (
+                  <TransactionSectionCard
+                    key={section.key}
+                    section={section}
+                    onOpen={openRoute}
+                  />
+                ))}
             </div>
 
             <div className="flex flex-col gap-6">
@@ -1664,6 +1597,94 @@ export default function FinanceTransactionsPage() {
                 </CardContent>
               </Card>
             </div>
+          </div>
+
+          <div className="flex flex-col gap-6">
+            {transactionSections
+              .filter(
+                (section) =>
+                  section.key === "internal-flows" || section.key === "control"
+              )
+              .map((section) => (
+                <TransactionSectionCard
+                  key={section.key}
+                  section={section}
+                  onOpen={openRoute}
+                />
+              ))}
+
+            <section>
+              <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                <CardHeader className="border-b border-white/8 pb-4">
+                  <CardTitle className="text-white">
+                    Object Summaries
+                  </CardTitle>
+                  <CardDescription className="text-white/45">
+                    High-level grouped summaries for the core transaction
+                    records.
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="p-5">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <SummaryBlock
+                      title="Invoices Summary"
+                      value={
+                        isLoading ? "—" : formatCount(data.counts.invoices)
+                      }
+                      subtitle={`$${formatMoney(
+                        data.totals.receivables
+                      )} open receivables`}
+                    />
+                    <SummaryBlock
+                      title="Bills Summary"
+                      value={isLoading ? "—" : formatCount(data.counts.bills)}
+                      subtitle={`$${formatMoney(
+                        data.totals.payables
+                      )} open payables`}
+                    />
+                    <SummaryBlock
+                      title="Proforma Summary"
+                      value={
+                        isLoading
+                          ? "—"
+                          : formatCount(data.counts.proformaInvoices)
+                      }
+                      subtitle="Pre-invoice workflow currently tracked"
+                    />
+                    <SummaryBlock
+                      title="Expenses Summary"
+                      value={
+                        isLoading ? "—" : formatCount(data.counts.expenses)
+                      }
+                      subtitle={`${formatCount(
+                        data.alerts.pendingExpenses
+                      )} pending expense items`}
+                    />
+                    <SummaryBlock
+                      title="Reimbursements Summary"
+                      value={
+                        isLoading
+                          ? "—"
+                          : formatCount(data.counts.reimbursements)
+                      }
+                      subtitle={`${formatCount(
+                        data.alerts.pendingReimbursements
+                      )} pending reimbursements`}
+                    />
+                    <SummaryBlock
+                      title="Payroll Summary"
+                      value={
+                        isLoading
+                          ? "—"
+                          : formatCount(data.counts.payrollRuns)
+                      }
+                      subtitle="Payroll runs currently visible"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
           </div>
         </div>
       </div>

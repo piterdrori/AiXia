@@ -874,32 +874,43 @@ export default function FinanceProformaInvoicesPage() {
                                   </button>
                                 ) : null}
 
-                                {proforma.status !== "archived" &&
-                                proforma.status !== "deleted" ? (
-                                  <button
-                                    type="button"
-                                    onClick={async (event) => {
-                                      event.stopPropagation();
-                                      await handleArchive(proforma.id);
-                                    }}
-                                    className="w-full px-3 py-2 text-left text-sm text-amber-300 hover:bg-white/10"
-                                  >
-                                    Archive
-                                  </button>
-                                ) : null}
+                               {!["archived", "deleted", "converted"].includes(proforma.status) ? (
+  <button
+    type="button"
+    onClick={async (event) => {
+      event.stopPropagation();
+      await handleArchive(proforma.id);
+    }}
+    className="w-full px-3 py-2 text-left text-sm text-amber-300 hover:bg-white/10"
+  >
+    Archive
+  </button>
+) : null}
 
-                                {proforma.status !== "deleted" ? (
-                                  <button
-                                    type="button"
-                                    onClick={async (event) => {
-                                      event.stopPropagation();
-                                      await handleDelete(proforma.id);
-                                    }}
-                                    className="w-full px-3 py-2 text-left text-sm text-rose-400 hover:bg-white/10"
-                                  >
-                                    Delete
-                                  </button>
-                                ) : null}
+{!["deleted", "converted"].includes(proforma.status) ? (
+  <button
+    type="button"
+    onClick={async (event) => {
+      event.stopPropagation();
+      await handleDelete(proforma.id);
+    }}
+    className="w-full px-3 py-2 text-left text-sm text-rose-400 hover:bg-white/10"
+  >
+    Delete
+  </button>
+) : null}
+
+{proforma.status === "converted" ? (
+  <button
+    type="button"
+    onClick={(event) => {
+      event.stopPropagation();
+    }}
+    className="w-full px-3 py-2 text-left text-sm text-violet-200 hover:bg-white/10"
+  >
+    Converted
+  </button>
+) : null}
                               </div>
                             ) : null}
                           </div>

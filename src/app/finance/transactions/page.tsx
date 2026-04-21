@@ -592,7 +592,7 @@ function TransactionSectionCard({
             </div>
           </div>
         ) : (
-          <div className={getSectionGridClass(section.columns)}>
+                  <div className="grid grid-cols-1 gap-5 xl:grid-cols-[520px] xl:justify-center">
             {section.modules.map((item, index) => (
               <TransactionModuleButton
                 key={`${item.module.key}-${item.sequenceLabel ?? index}`}

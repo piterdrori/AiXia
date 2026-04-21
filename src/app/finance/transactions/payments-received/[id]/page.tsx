@@ -13,6 +13,8 @@ import {
   XCircle,
 } from "lucide-react";
 
+import { archivePaymentReceived } from "@/lib/finance/paymentsReceived";
+
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -208,8 +210,10 @@ const isFxExceeding =
   convertedAmount > invoiceBalance;
 
   const canEditPayment = payment?.status === "draft";
-  const canDeletePayment =
-    payment?.status === "draft" || payment?.status === "cancelled";
+const canDeletePayment =
+  payment?.status !== "deleted" &&
+  payment?.status !== "archived" &&
+  payment?.status !== "confirmed";
 
   const loadPayment = useCallback(
     async (refreshOnly = false) => {
@@ -536,7 +540,7 @@ useEffect(() => {
 
    await softDeletePaymentReceived(id);
       
-      navigate("/finance/transactions/payments-received");
+      navigate("/finance/transactions/payments-received?tab=deleted");
     } catch (err) {
       console.error(err);
       setErrorMessage(
@@ -788,7 +792,25 @@ useEffect(() => {
   </Button>
 ) : null}
 
-{/* DELETE BUTTON */}
+{/* ARCHIVE BUTTON */}
+{payment.status !== "archived" &&
+  payment.status !== "deleted" &&
+  payment.status !== "confirmed" &&
+  !isEditMode ? (
+  <Button
+    variant="outline"
+    onClick={async () => {
+      await archivePaymentReceived(payment.id);
+      await loadPayment(true);
+     navigate("/finance/transactions/payments-received?tab=archived");
+    }}
+    className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20"
+  >
+    Archive
+  </Button>
+) : null}
+                
+                {/* DELETE BUTTON */}
 {canDeletePayment && !isEditMode ? (
   <Button
     variant="outline"

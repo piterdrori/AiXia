@@ -2268,15 +2268,17 @@ const visibleArchiveItems = archiveItems.filter(
       </div>
     </div>
      <ProformaInvoicePrintDocument
-        proforma={{
-          ...proforma,
-          currency_code: printableCurrencyCode,
-        }}
-        lineItems={lineItems}
-        financialSummary={financialSummary}
-        project={project}
-        task={task}
-      />
+  proforma={{
+    ...proforma,
+    currency_code: printableCurrencyCode,
+  }}
+  lineItems={lineItems}
+  financialSummary={financialSummary}
+  project={project}
+  task={task}
+  company={selectedDraftCompany}
+  client={selectedDraftClient}
+/>
     </>
   );
 }

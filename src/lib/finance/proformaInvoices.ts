@@ -12,7 +12,7 @@ export async function getProformaInvoicesList() {
   const { data, error } = await supabase
     .from("finance_proforma_invoices")
     .select("*")
-    .neq("status", "archived")
+    .not("status", "in", '("archived","deleted")')
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -28,14 +28,13 @@ export async function getProformaInvoicesArchiveList() {
   const { data, error } = await supabase
     .from("finance_proforma_invoices")
     .select("*")
-    .eq("status", "archived")
+    .in("status", ["archived", "deleted"])
     .order("created_at", { ascending: false });
 
   if (error) throw error;
 
   return data as FinanceProformaInvoice[];
 }
-
 /* =========================
    GET BY ID
 ========================= */

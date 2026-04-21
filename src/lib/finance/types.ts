@@ -24,6 +24,15 @@ export type FinancePaymentReceivedStatus =
   | "archived"
   | "deleted";
 
+export type FinanceProformaInvoiceStatus =
+  | "draft"
+  | "sent"
+  | "accepted"
+  | "converted"
+  | "cancelled"
+  | "archived"
+  | "deleted";
+
 export type FinanceBillReceivedStatus =
   | "draft"
   | "pending_approval_ready"
@@ -207,6 +216,34 @@ export interface FinanceInvoiceIssuedLineItem extends FinanceBaseRecord {
   line_total: number;
   sort_order: number;
   revenue_category_id: string | null;
+}
+
+export interface FinanceProformaInvoice
+  extends FinanceBaseRecord<FinanceProformaInvoiceStatus> {
+  proforma_number: string | null;
+  client_id: string | null;
+  issue_date: string;
+  valid_until: string | null;
+  subtotal: number;
+  tax_amount: number | null;
+  discount_amount: number | null;
+  total_amount: number;
+  currency_id: string | null;
+  exchange_rate: number | null;
+}
+
+export interface FinanceProformaInvoiceLineItem extends FinanceBaseRecord {
+  proforma_invoice_id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+  sort_order: number;
+  revenue_category_id: string | null;
+  item_id: string | null;
+  unit_of_measure_id: string | null;
+  tax_code_id: string | null;
+  discount: number | null;
 }
 
 export interface FinancePaymentReceived

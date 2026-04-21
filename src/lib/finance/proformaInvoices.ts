@@ -45,9 +45,12 @@ export async function getProformaInvoiceById(id: string) {
     .from("finance_proforma_invoices")
     .select("*")
     .eq("id", id)
-    .single();
+    .maybeSingle();
 
   if (error) throw error;
+  if (!data) {
+    throw new Error("Proforma invoice not found");
+  }
 
   return data as FinanceProformaInvoice;
 }

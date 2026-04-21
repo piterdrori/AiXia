@@ -341,97 +341,116 @@ export default function FinanceProformaInvoiceDetailPage() {
     setArchiveItems(rows);
   }, []);
 
-  const loadProforma = useCallback(
-    async (refreshOnly = false) => {
-      if (!id) return;
+const loadProforma = useCallback(
+  async (refreshOnly = false) => {
+    if (!id) return;
 
-      if (refreshOnly) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
+    if (refreshOnly) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+
+    setError("");
+
+    try {
+      const [proformaRecord, proformaLines, invoiceResult] =
+        await Promise.all([
+          getProformaInvoiceById(id),
+          getProformaInvoiceLineItems(id),
+          supabase
+            .from("finance_invoices_issued")
+            .select(
+              "id, invoice_number, status, payment_status, total_amount, paid_amount, balance_due, issue_date, due_date, currency_code"
+            )
+            .eq("proforma_invoice_id", id)
+            .limit(1)
+            .maybeSingle(),
+        ]);
+
+      if (invoiceResult.error) {
+        throw invoiceResult.error;
       }
 
-      setError("");
+      const typedProforma = proformaRecord as unknown as ProformaRecord;
+      const typedLineItems =
+        (proformaLines || []) as unknown as ProformaLineItemRow[];
 
-      try {
-        const [proformaRecord, proformaLines, invoiceResult, projectResult] =
-          await Promise.all([
-            getProformaInvoiceById(id),
-            getProformaInvoiceLineItems(id),
-            supabase
-              .from("finance_invoices_issued")
-              .select(
-                "id, invoice_number, status, payment_status, total_amount, paid_amount, balance_due, issue_date, due_date, currency_code"
-              )
-              .eq("proforma_invoice_id", id)
-              .maybeSingle(),
-            supabase
-              .from("finance_proforma_invoices")
-              .select("project:projects(id, name), task:tasks(id, title)")
-              .eq("id", id)
-              .maybeSingle(),
-          ]);
+      setProforma(typedProforma);
+      setLineItems(typedLineItems);
+      setLinkedInvoice((invoiceResult.data || null) as InvoiceLinkRow | null);
 
-        if (invoiceResult.error) {
-          throw invoiceResult.error;
-        }
+      if (typedProforma.project_id) {
+        const { data: projectData, error: projectError } = await supabase
+          .from("projects")
+          .select("id, name")
+          .eq("id", typedProforma.project_id)
+          .maybeSingle();
 
-        if (projectResult.error) {
-          console.warn(
-            "Failed to load linked project/task for proforma:",
-            projectResult.error
-          );
-        }
-
-        const typedProforma = proformaRecord as unknown as ProformaRecord;
-        const typedLineItems =
-          (proformaLines || []) as unknown as ProformaLineItemRow[];
-        const linkedProject = (projectResult.data as any)?.project ?? null;
-        const linkedTask = (projectResult.data as any)?.task ?? null;
-
-        setProforma(typedProforma);
-        setLineItems(typedLineItems);
-        setLinkedInvoice((invoiceResult.data || null) as InvoiceLinkRow | null);
-        setProject(linkedProject);
-        setTask(linkedTask);
-
-        setClientIdDraft(typedProforma.client_id || "");
-        setCompanyIdDraft(
-          ((typedProforma.metadata?.issuing_company_id as string | undefined) || "")
-        );
-        setProjectIdDraft(typedProforma.project_id || "");
-        setTaskIdDraft(typedProforma.task_id || "");
-        setIssueDateDraft(typedProforma.issue_date || "");
-        setValidUntilDraft(typedProforma.valid_until || "");
-        setCurrencyIdDraft(typedProforma.currency_id || "");
-        setNotesDraft(typedProforma.notes || "");
-
-        setLineItemsDraft(
-          typedLineItems.map((row: any) => ({
-            id: row.id,
-            item_id: row.item_id || "",
-            description: row.description || "",
-            quantity: String(row.quantity ?? 0),
-            unit_price: String(row.unit_price ?? 0),
-            discount: String(row.discount ?? 0),
-            tax_code_id: row.tax_code_id || "",
-            unit_of_measure_id: row.unit_of_measure_id || "",
-            revenue_category_id: row.revenue_category_id || "",
-          }))
-        );
-      } catch (err) {
-        console.error(err);
-        setError("Failed to load proforma invoice.");
-      } finally {
-        if (refreshOnly) {
-          setIsRefreshing(false);
+        if (projectError) {
+          console.warn("Failed to load linked project:", projectError);
+          setProject(null);
         } else {
-          setIsLoading(false);
+          setProject((projectData || null) as ProjectRow | null);
         }
+      } else {
+        setProject(null);
       }
-    },
-    [id]
-  );
+
+      if (typedProforma.task_id) {
+        const { data: taskData, error: taskError } = await supabase
+          .from("tasks")
+          .select("id, title, project_id")
+          .eq("id", typedProforma.task_id)
+          .maybeSingle();
+
+        if (taskError) {
+          console.warn("Failed to load linked task:", taskError);
+          setTask(null);
+        } else {
+          setTask((taskData || null) as TaskRow | null);
+        }
+      } else {
+        setTask(null);
+      }
+
+      setClientIdDraft(typedProforma.client_id || "");
+      setCompanyIdDraft(
+        ((typedProforma.metadata?.issuing_company_id as string | undefined) || "")
+      );
+      setProjectIdDraft(typedProforma.project_id || "");
+      setTaskIdDraft(typedProforma.task_id || "");
+      setIssueDateDraft(typedProforma.issue_date || "");
+      setValidUntilDraft(typedProforma.valid_until || "");
+      setCurrencyIdDraft(typedProforma.currency_id || "");
+      setNotesDraft(typedProforma.notes || "");
+
+      setLineItemsDraft(
+        typedLineItems.map((row: any) => ({
+          id: row.id,
+          item_id: row.item_id || "",
+          description: row.description || "",
+          quantity: String(row.quantity ?? 0),
+          unit_price: String(row.unit_price ?? 0),
+          discount: String(row.discount ?? 0),
+          tax_code_id: row.tax_code_id || "",
+          unit_of_measure_id: row.unit_of_measure_id || "",
+          revenue_category_id: row.revenue_category_id || "",
+        }))
+      );
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load proforma invoice.");
+    } finally {
+      if (refreshOnly) {
+        setIsRefreshing(false);
+      } else {
+        setIsLoading(false);
+      }
+    }
+  },
+  [id]
+);
 
   const loadMasterData = useCallback(async () => {
     try {

@@ -607,7 +607,10 @@ const handleDelete = async (id: string) => {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <div className="text-base font-semibold text-white">
-                              {invoice.invoice_number || "Draft Invoice"}
+                              {invoice.invoice_number ||
+  (invoice.status === "draft"
+    ? "Draft Invoice"
+    : "Invoice")}
                             </div>
 
                             <Badge
@@ -618,7 +621,7 @@ const handleDelete = async (id: string) => {
                               {getIssuedInvoiceStatusLabel(invoice.status)}
                             </Badge>
 
-                           {invoice.status !== "deleted" ? (
+                           {invoice.status !== "deleted" && invoice.status !== "archived" ? (
   <Badge
     className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getPaymentStatusBadgeClasses(
       invoice.payment_status
@@ -702,7 +705,7 @@ const handleDelete = async (id: string) => {
   </button>
 
   {openMenuInvoiceId === invoice.id ? (
-    <div className="absolute right-0 z-20 mt-2 w-40 overflow-hidden rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-xl">
+    <div className="absolute right-0 z-50 bottom-full mb-2 w-40 overflow-hidden rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-xl">
       <button
         type="button"
         onClick={(e) => {
@@ -728,7 +731,7 @@ const handleDelete = async (id: string) => {
         </button>
       ) : null}
 
-      {invoice.status !== "deleted" ? (
+      {invoice.status !== "deleted" && invoice.status !== "archived" ? (
         <button
           type="button"
           onClick={(e) => {
@@ -819,14 +822,17 @@ const handleDelete = async (id: string) => {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="text-base font-semibold text-white">
-                            {invoice.invoice_number || "Draft Invoice"}
+                           {invoice.invoice_number ||
+  (invoice.status === "draft"
+    ? "Draft Invoice"
+    : "Invoice")}
                           </div>
 
                           <Badge className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] text-white/75 shadow-none">
                             {getIssuedInvoiceStatusLabel(invoice.status)}
                           </Badge>
 
-                          {invoice.status !== "deleted" ? (
+                          {invoice.status !== "deleted" && invoice.status !== "archived" ? (
   <Badge
     className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getPaymentStatusBadgeClasses(
       invoice.payment_status

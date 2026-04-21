@@ -1087,7 +1087,12 @@ const visibleArchiveItems = archiveItems.filter(
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-3">
                     <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                      {proforma.proforma_number || "Draft Proforma"}
+                      {proforma.proforma_number ||
+  (proforma.status === "draft"
+    ? "Draft Proforma"
+    : proforma.status === "converted"
+    ? "Converted Proforma"
+    : "Proforma Invoice")}
                     </h1>
 
                     <Badge
@@ -1165,7 +1170,7 @@ const visibleArchiveItems = archiveItems.filter(
                   </Button>
                 ) : null}
 
-                {proforma.status !== "archived" && proforma.status !== "deleted" && proforma.status !== "converted" ? (
+            {proforma.status !== "archived" && proforma.status !== "deleted" ? (
   <Button
     variant="outline"
     onClick={() => void handleArchive()}

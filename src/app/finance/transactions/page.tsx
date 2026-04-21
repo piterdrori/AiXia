@@ -563,37 +563,31 @@ function TransactionSectionCard({
         </div>
       </div>
 
-            <div className="p-5 sm:p-6 xl:p-7">
+                <div className="p-5 sm:p-6 xl:p-7">
         {section.layout === "flow" ? (
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch xl:gap-3">
-            {section.modules.map((item, index) => (
-              <div
-                key={`${item.module.key}-${item.sequenceLabel ?? index}`}
-                className={
-                  section.key === "incoming"
-                    ? "flex items-stretch xl:w-[210px] xl:min-w-[210px] xl:max-w-[210px] xl:flex-none"
-                    : "flex min-w-0 flex-1 basis-0 items-stretch"
-                }
-              >
+          <div className="overflow-x-auto pb-3">
+            <div className="flex min-w-max items-stretch gap-3">
+              {section.modules.map((item, index) => (
                 <div
-                  className={
-                    section.key === "incoming" ? "w-full" : "min-w-0 flex-1"
-                  }
+                  key={`${item.module.key}-${item.sequenceLabel ?? index}`}
+                  className="flex w-[220px] min-w-[220px] max-w-[220px] flex-none items-stretch"
                 >
-                  <TransactionModuleButton
-                    module={item.module}
-                    onOpen={onOpen}
-                    sequenceLabel={item.sequenceLabel}
-                    titleOverride={item.titleOverride}
-                    descriptionOverride={item.descriptionOverride}
-                  />
-                </div>
+                  <div className="w-full">
+                    <TransactionModuleButton
+                      module={item.module}
+                      onOpen={onOpen}
+                      sequenceLabel={item.sequenceLabel}
+                      titleOverride={item.titleOverride}
+                      descriptionOverride={item.descriptionOverride}
+                    />
+                  </div>
 
-                {index < section.modules.length - 1 ? (
-                  <TransactionFlowArrow />
-                ) : null}
-              </div>
-            ))}
+                  {index < section.modules.length - 1 ? (
+                    <TransactionFlowArrow />
+                  ) : null}
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
           <div className={getSectionGridClass(section.columns)}>

@@ -1185,11 +1185,11 @@ export default function FinanceTransactionsPage() {
           },
         ],
       },
-      {
+           {
         key: "operating-expenses",
         title: "3. Outgoing · Operating Expenses",
         subtitle:
-          "Direct operating spend that does not require a full procurement chain.",
+          "Direct company operating expenses.",
         tone: "expense",
         columns: "3",
         layout: "flow",
@@ -1198,11 +1198,13 @@ export default function FinanceTransactionsPage() {
             module: allModuleCards.expenses,
             sequenceLabel: "01",
             titleOverride: "Expense",
+            descriptionOverride: "Company expense recorded.",
           },
           {
             module: allModuleCards["payments-made"],
             sequenceLabel: "02",
             titleOverride: "Payment Made",
+            descriptionOverride: "Payment made for expense.",
           },
         ],
       },
@@ -1210,25 +1212,36 @@ export default function FinanceTransactionsPage() {
         key: "internal-flows",
         title: "4. Outgoing · Internal Flows",
         subtitle:
-          "Internal company obligations such as reimbursements and payroll, both settled through outgoing payment execution.",
+          "Internal obligations and employee related payments.",
         tone: "internal",
         columns: "3",
         layout: "flow",
+        splitLabelLeft: "A. Reimbursements",
+        splitLabelRight: "B. Payroll",
         modules: [
           {
             module: allModuleCards.reimbursements,
             sequenceLabel: "01",
             titleOverride: "Reimbursement",
-          },
-          {
-            module: allModuleCards.payroll,
-            sequenceLabel: "02",
-            titleOverride: "Payroll",
+            descriptionOverride: "Employee or internal reimbursement.",
           },
           {
             module: allModuleCards["payments-made"],
-            sequenceLabel: "03",
+            sequenceLabel: "02",
             titleOverride: "Payment Made",
+            descriptionOverride: "Payment made for reimbursement.",
+          },
+          {
+            module: allModuleCards.payroll,
+            sequenceLabel: "01",
+            titleOverride: "Payroll",
+            descriptionOverride: "Payroll runs and salary obligations.",
+          },
+          {
+            module: allModuleCards["payments-made"],
+            sequenceLabel: "02",
+            titleOverride: "Payment Made",
+            descriptionOverride: "Payment made for payroll.",
           },
         ],
       },
@@ -1236,7 +1249,7 @@ export default function FinanceTransactionsPage() {
         key: "control",
         title: "5. Control & Other",
         subtitle:
-          "Cross-process control layer used to approve, release, and govern transaction movement.",
+          "Workflow control, approvals, and cross-process management.",
         tone: "control",
         columns: "3",
         layout: "grid",

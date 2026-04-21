@@ -28,7 +28,6 @@ import {
   getProformaInvoiceById,
   getProformaInvoiceLineItems,
   archiveProformaInvoice,
-  softDeleteProformaInvoice,
   restoreProformaInvoice,
   permanentlyDeleteProformaInvoice,
   convertProformaToInvoice,

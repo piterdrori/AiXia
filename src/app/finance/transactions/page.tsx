@@ -1051,7 +1051,7 @@ export default function FinanceTransactionsPage() {
 
   const transactionSections = useMemo<TransactionSection[]>(() => {
     return [
-           {
+      {
         key: "incoming",
         title: "1. Incoming (Money In)",
         subtitle:
@@ -1066,6 +1066,7 @@ export default function FinanceTransactionsPage() {
           allModuleCards["payments-received"],
         ],
       },
+      {
         key: "procurement",
         title: "2. Outgoing · Procurement",
         subtitle:
@@ -1085,10 +1086,7 @@ export default function FinanceTransactionsPage() {
           "Direct operating spend that does not require a full procurement chain.",
         tone: "expense",
         columns: "3",
-        modules: [
-          allModuleCards.expenses,
-          allModuleCards["payments-made"],
-        ],
+        modules: [allModuleCards.expenses, allModuleCards["payments-made"]],
       },
       {
         key: "internal-flows",

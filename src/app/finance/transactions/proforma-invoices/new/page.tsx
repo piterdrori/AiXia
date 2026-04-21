@@ -453,159 +453,107 @@ export default function FinanceNewProformaInvoicePage() {
   }, []);
 
   const handleSaveDraft = useCallback(async () => {
-    setErrorMessage("");
+  setErrorMessage("");
 
-    if (!clientId) {
-      setErrorMessage("Select a client.");
-      return;
-    }
+  if (!clientId) {
+    setErrorMessage("Select a client.");
+    return;
+  }
 
-    if (!companyId) {
-      setErrorMessage("Select an issuing company.");
-      return;
-    }
+  if (!companyId) {
+    setErrorMessage("Select an issuing company.");
+    return;
+  }
 
-    const trimmedRows = rows.map((row) => ({
-      ...row,
-      description: row.description.trim(),
-    }));
+  const trimmedRows = rows.map((row) => ({
+    ...row,
+    description: row.description.trim(),
+  }));
 
-    const hasAtLeastOneValidRow = trimmedRows.some(
-      (row) =>
-        row.description &&
-        toNumber(row.quantity) > 0 &&
-        toNumber(row.unitPrice) >= 0
+  const hasAtLeastOneValidRow = trimmedRows.some(
+    (row) =>
+      row.description &&
+      toNumber(row.quantity) > 0 &&
+      toNumber(row.unitPrice) >= 0
+  );
+
+  if (!hasAtLeastOneValidRow) {
+    setErrorMessage("Add at least one valid line item.");
+    return;
+  }
+
+  const hasInvalidRow = trimmedRows.some(
+    (row) =>
+      !row.description ||
+      toNumber(row.quantity) <= 0 ||
+      toNumber(row.unitPrice) < 0
+  );
+
+  if (hasInvalidRow) {
+    setErrorMessage(
+      "Every line item must have a description, quantity greater than 0, and unit price 0 or higher."
     );
+    return;
+  }
 
-    if (!hasAtLeastOneValidRow) {
-      setErrorMessage("Add at least one valid line item.");
-      return;
-    }
+  const validRows = trimmedRows;
 
-    const hasInvalidRow = trimmedRows.some(
-      (row) =>
-        !row.description ||
-        toNumber(row.quantity) <= 0 ||
-        toNumber(row.unitPrice) < 0
-    );
+  setIsSaving(true);
 
-    if (hasInvalidRow) {
-      setErrorMessage(
-        "Every line item must have a description, quantity greater than 0, and unit price 0 or higher."
-      );
-      return;
-    }
-
-    const validRows = trimmedRows;
-
-    setIsSaving(true);
-
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user?.id) {
-        throw new Error("User not authenticated");
-      }
-
-      const { data: createdProforma, error: createError } = await supabase
-        .from("finance_proforma_invoices")
-        .insert({
-          client_id: clientId,
-          issue_date: issueDate,
-          valid_until: validUntil || null,
-          status: "draft",
-          subtotal: totals.subtotal,
-          tax_amount: totals.tax,
-          discount_amount: totals.discount,
-          total_amount: totals.total,
-          currency_id: currencyId || null,
-          exchange_rate: 1,
-          project_id: projectId || null,
-          task_id: taskId || null,
-          notes: notes || null,
-          metadata: {
-            currency_code: currencyCode || "USD",
-            issuing_company_id: companyId,
-            creation_mode: "manual_draft",
-          },
-          created_by: user.id,
-          updated_by: user.id,
-        })
-        .select("id")
-        .single();
-
-      if (createError) throw createError;
-      if (!createdProforma?.id) {
-        throw new Error("Proforma invoice was not created");
-      }
-
-      const linePayload = validRows.map((row, index) => {
-        const base =
-          toNumber(row.quantity) * toNumber(row.unitPrice) -
-          toNumber(row.discount);
-
-        const safeBase = Math.max(base, 0);
-
-        const taxCode = taxCodes.find((entry) => entry.id === row.taxCodeId);
-        const taxRate = Number(taxCode?.rate_percent ?? 0);
-        const lineTotal = safeBase + safeBase * (taxRate / 100);
-
-        return {
-          proforma_invoice_id: createdProforma.id,
+  try {
+    const { data, error } = await supabase.rpc(
+      "finance_create_proforma_invoice",
+      {
+        p_client_id: clientId,
+        p_issue_date: issueDate,
+        p_valid_until: validUntil || null,
+        p_currency_id: currencyId || null,
+        p_project_id: projectId || null,
+        p_task_id: taskId || null,
+        p_notes: notes || null,
+        p_metadata: {
+          currency_code: currencyCode || "USD",
+          issuing_company_id: companyId,
+          creation_mode: "manual_draft",
+        },
+        p_lines: validRows.map((row) => ({
+          item_id: row.itemId || null,
           description: row.description.trim(),
           quantity: toNumber(row.quantity),
           unit_price: toNumber(row.unitPrice),
-          line_total: lineTotal,
-          sort_order: index + 1,
-          revenue_category_id: row.revenueCategoryId || null,
-          project_id: projectId || null,
-          task_id: taskId || null,
-          item_id: row.itemId || null,
-          unit_of_measure_id: row.unitOfMeasureId || null,
-          tax_code_id: row.taxCodeId || null,
           discount: toNumber(row.discount),
-          status: "active",
-          posted_to_ledger: false,
-          notes: null,
-          metadata: {},
-          created_by: user.id,
-          updated_by: user.id,
-        };
-      });
+          tax_code_id: row.taxCodeId || null,
+          unit_of_measure_id: row.unitOfMeasureId || null,
+          revenue_category_id: row.revenueCategoryId || null,
+        })),
+      }
+    );
 
-      const { error: lineError } = await supabase
-        .from("finance_proforma_invoice_line_items")
-        .insert(linePayload);
-
-      if (lineError) throw lineError;
-
-      navigate(`/finance/transactions/proforma-invoices/${createdProforma.id}`);
-    } catch (error) {
-      console.error("Failed to save proforma invoice draft:", error);
-      setErrorMessage("Failed to save proforma invoice draft.");
-    } finally {
-      setIsSaving(false);
+    if (error) throw error;
+    if (!data) {
+      throw new Error("Proforma invoice was not created");
     }
-  }, [
-    clientId,
-    companyId,
-    currencyCode,
-    currencyId,
-    issueDate,
-    navigate,
-    notes,
-    projectId,
-    rows,
-    taskId,
-    taxCodes,
-    totals.discount,
-    totals.subtotal,
-    totals.tax,
-    totals.total,
-    validUntil,
-  ]);
+
+    navigate(`/finance/transactions/proforma-invoices/${data}`);
+  } catch (error) {
+    console.error("Failed to save proforma invoice draft:", error);
+    setErrorMessage("Failed to save proforma invoice draft.");
+  } finally {
+    setIsSaving(false);
+  }
+}, [
+  clientId,
+  companyId,
+  currencyCode,
+  currencyId,
+  issueDate,
+  navigate,
+  notes,
+  projectId,
+  rows,
+  taskId,
+  validUntil,
+]);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">

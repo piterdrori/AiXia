@@ -996,31 +996,46 @@ export default function FinanceQuotationDetailPage() {
     }
   }, [id, loadArchiveItems, loadQuotation, quotation]);
 
-  const handleRestore = useCallback(
-    async (quotationId: string) => {
-      setIsSavingDraft(true);
-      setError("");
+const handleRestore = useCallback(
+  async (quotationId: string) => {
+    setIsSavingDraft(true);
+    setError("");
 
-      try {
-        const { error } = await supabase
-          .from("finance_quotations")
-          .update({
-            status: "draft",
-          })
-          .eq("id", quotationId);
+    try {
+      // STEP 1: get metadata
+      const { data, error: fetchError } = await supabase
+        .from("finance_quotations")
+        .select("metadata")
+        .eq("id", quotationId)
+        .single();
 
-        if (error) throw error;
+      if (fetchError) throw fetchError;
 
-        await Promise.all([loadQuotation(true), loadArchiveItems()]);
-      } catch (err) {
-        console.error(err);
-        setError("Failed to restore quotation.");
-      } finally {
-        setIsSavingDraft(false);
-      }
-    },
-    [loadArchiveItems, loadQuotation]
-  );
+      const previousStatus =
+        (data?.metadata as any)?.previous_status || "draft";
+
+      // STEP 2: restore to previous status
+      const { error } = await supabase
+        .from("finance_quotations")
+        .update({
+          status: previousStatus,
+          archived_at: null,
+          deleted_at: null,
+        })
+        .eq("id", quotationId);
+
+      if (error) throw error;
+
+      await Promise.all([loadQuotation(true), loadArchiveItems()]);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to restore quotation.");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  },
+  [loadArchiveItems, loadQuotation]
+);
 
   const handleHardDelete = useCallback(
     async (quotationId: string) => {

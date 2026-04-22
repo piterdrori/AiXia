@@ -47,10 +47,6 @@ type QuotationMetricCard = {
   tone: "blue" | "emerald" | "amber" | "rose";
 };
 
-function toNumber(value: number | string | null | undefined) {
-  return Number(value ?? 0);
-}
-
 function formatFinanceDate(value: string | null | undefined) {
   if (!value) return "—";
 

@@ -2188,13 +2188,9 @@ export default function FinanceQuotationDetailPage() {
                                   </option>
                                 ))}
                               </select>
-                            ) : (
+                                                       ) : (
                               <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
-                                {unitsOfMeasure.find(
-                                  (unit) =>
-                                    unit.id ===
-                                    (row as QuotationLineItemRow).unit_of_measure_id
-                                )?.name || "—"}
+                                —
                               </div>
                             )}
                           </label>
@@ -2290,13 +2286,12 @@ export default function FinanceQuotationDetailPage() {
                                   </option>
                                 ))}
                               </select>
-                            ) : (
+                                                       ) : (
                               <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
-                                {taxCodes.find(
-                                  (taxCode) =>
-                                    taxCode.id ===
-                                    (row as QuotationLineItemRow).tax_code_id
-                                )?.name || "—"}
+                                {toNumber(
+                                  (row as QuotationLineItemRow).tax_rate
+                                ).toFixed(2)}
+                                %
                               </div>
                             )}
                           </label>
@@ -2329,13 +2324,9 @@ export default function FinanceQuotationDetailPage() {
                                   </option>
                                 ))}
                               </select>
-                            ) : (
+                                                      ) : (
                               <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
-                                {revenueCategories.find(
-                                  (category) =>
-                                    category.id ===
-                                    (row as QuotationLineItemRow).revenue_category_id
-                                )?.name || "—"}
+                                —
                               </div>
                             )}
                           </label>

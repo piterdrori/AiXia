@@ -553,10 +553,31 @@ export default function FinanceQuotationsPage() {
     ]);
   };
 
-  const handleRestore = async (id: string) => {
+    const handleRestore = async (id: string) => {
+    const { data: quotationRow, error: fetchError } = await supabase
+      .from("finance_quotations")
+      .select("metadata")
+      .eq("id", id)
+      .single();
+
+    if (fetchError) {
+      throw fetchError;
+    }
+
+    const metadata =
+      quotationRow && typeof quotationRow.metadata === "object"
+        ? (quotationRow.metadata as Record<string, unknown>)
+        : {};
+
+    const previousStatus =
+      typeof metadata.previous_status === "string" &&
+      metadata.previous_status.trim() !== ""
+        ? metadata.previous_status
+        : "draft";
+
     const { error } = await supabase
       .from("finance_quotations")
-      .update({ status: "draft" })
+      .update({ status: previousStatus })
       .eq("id", id);
 
     if (error) {
@@ -654,10 +675,9 @@ export default function FinanceQuotationsPage() {
                   </Button>
                 ) : null}
 
-                <Button
+                                <Button
                   variant="outline"
                   onClick={() => {
-                    setArchiveTab("archived");
                     setIsArchiveModalOpen(true);
                   }}
                   className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
@@ -861,7 +881,7 @@ export default function FinanceQuotationsPage() {
                 <div className="text-white/50 text-sm">Loading...</div>
               ) : (
                 <div className="space-y-2">
-                  {visibleArchivedQuotations.map((q) => (
+                                    {visibleArchivedQuotations.map((q) => (
                     <div
                       key={q.id}
                       className="flex items-center justify-between text-sm text-white/70 border border-white/10 rounded-lg px-3 py-2"
@@ -877,13 +897,15 @@ export default function FinanceQuotationsPage() {
                           Restore
                         </Button>
 
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleHardDelete(q.id)}
-                        >
-                          Delete Forever
-                        </Button>
+                        {archiveTab === "deleted" ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleHardDelete(q.id)}
+                          >
+                            Hard Delete
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
                   ))}

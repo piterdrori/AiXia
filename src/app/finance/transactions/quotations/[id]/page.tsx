@@ -70,24 +70,17 @@ type QuotationRecord = {
 type QuotationLineItemRow = {
   id: string;
   quotation_id: string;
-  item_id: string | null;
   item_name?: string | null;
   description?: string | null;
   quantity: number | string | null;
   unit_price: number | string | null;
-  discount?: number | string | null;
   discount_rate?: number | string | null;
-  tax_code_id?: string | null;
   tax_rate?: number | string | null;
-  unit_of_measure_id?: string | null;
-  revenue_category_id?: string | null;
   line_subtotal?: number | string | null;
   line_discount_amount?: number | string | null;
   line_tax_amount?: number | string | null;
   line_total: number | string | null;
   sort_order: number | null;
-  project_id?: string | null;
-  task_id?: string | null;
 };
 
 type ClientPORow = {
@@ -439,30 +432,23 @@ export default function FinanceQuotationDetailPage() {
               .eq("id", id)
               .maybeSingle(),
 
-            supabase
+             supabase
               .from("finance_quotation_line_items")
               .select(
                 [
                   "id",
                   "quotation_id",
-                  "item_id",
                   "item_name",
                   "description",
                   "quantity",
                   "unit_price",
-                  "discount",
                   "discount_rate",
-                  "tax_code_id",
                   "tax_rate",
-                  "unit_of_measure_id",
-                  "revenue_category_id",
                   "line_subtotal",
                   "line_discount_amount",
                   "line_tax_amount",
                   "line_total",
                   "sort_order",
-                  "project_id",
-                  "task_id",
                 ].join(", ")
               )
               .eq("quotation_id", id)
@@ -515,20 +501,20 @@ export default function FinanceQuotationDetailPage() {
             typedQuotation.terms_and_conditions_snapshot || ""
           );
 
-          setLineItemsDraft(
+                    setLineItemsDraft(
             typedLineItems.map((row) => ({
               id: row.id,
-              item_id: row.item_id || "",
+              item_id: "",
               item_name: row.item_name || "",
               description: row.description || row.item_name || "",
               quantity: String(row.quantity ?? 0),
               unit_price: String(row.unit_price ?? 0),
-              discount: String(row.discount ?? 0),
+              discount: "0",
               discount_rate: String(row.discount_rate ?? 0),
-              tax_code_id: row.tax_code_id || "",
+              tax_code_id: "",
               tax_rate: String(row.tax_rate ?? 0),
-              unit_of_measure_id: row.unit_of_measure_id || "",
-              revenue_category_id: row.revenue_category_id || "",
+              unit_of_measure_id: "",
+              revenue_category_id: "",
             }))
           );
         }

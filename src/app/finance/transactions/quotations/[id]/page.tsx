@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import QuotationPrintDocument from "./QuotationPrintDocument";
 import {
   ArrowLeft,
   CheckCircle,
@@ -352,11 +353,33 @@ export default function FinanceQuotationDetailPage() {
 
   const [error, setError] = useState("");
 
-  const handlePrint = useCallback(() => {
-    requestAnimationFrame(() => {
-      window.print();
-    });
-  }, []);
+const handlePrint = useCallback(() => {
+  const printContent = document.getElementById("quotation-print-root");
+  if (!printContent) return;
+
+  const printWindow = window.open("", "_blank", "width=900,height=1200");
+
+  if (!printWindow) return;
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Quotation</title>
+      </head>
+      <body>
+        ${printContent.innerHTML}
+      </body>
+    </html>
+  `);
+
+  printWindow.document.close();
+  printWindow.focus();
+
+  setTimeout(() => {
+    printWindow.print();
+    printWindow.close();
+  }, 300);
+}, []);
 
   const loadArchiveItems = useCallback(async () => {
     const { data, error } = await supabase
@@ -2496,7 +2519,7 @@ export default function FinanceQuotationDetailPage() {
         </div>
       </div>
 
-      {showArchivePopup ? (
+            {showArchivePopup ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
           <div className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
             <div className="flex items-center justify-between border-b border-white/8 px-6 py-5">
@@ -2626,6 +2649,18 @@ export default function FinanceQuotationDetailPage() {
           </div>
         </div>
       ) : null}
+
+      <div style={{ display: "none" }}>
+        <div id="quotation-print-root">
+          <QuotationPrintDocument
+            quotation={quotation}
+            lineItems={lineItems}
+            financialSummary={financialSummary}
+            company={selectedDraftCompany}
+            client={selectedDraftClient}
+          />
+        </div>
+      </div>
     </>
   );
 }

@@ -7,15 +7,14 @@ import {
   ArrowRight,
   FileText,
   RefreshCw,
-  FileBadge2,
+  Search,
+  Wallet,
+  Receipt,
   BadgeCheck,
-  Layers3,
 } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
-
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -23,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { supabase } from "@/lib/supabase";
 
 type FinanceQuotationRow = {
   id: string;
@@ -35,6 +35,7 @@ type FinanceQuotationRow = {
   client_name_snapshot: string | null;
   company_name_snapshot: string | null;
   created_at: string;
+  updated_at?: string;
 };
 
 type QuotationMetricCard = {
@@ -42,19 +43,32 @@ type QuotationMetricCard = {
   title: string;
   value: string;
   subtitle: string;
-  icon: typeof FileText;
-  tone: "emerald" | "blue" | "violet" | "cyan";
+  icon: typeof Wallet;
+  tone: "blue" | "emerald" | "amber" | "rose";
 };
 
 function toNumber(value: number | string | null | undefined) {
   return Number(value ?? 0);
 }
 
-function formatMoney(
-  value: number | string | null | undefined,
+function formatFinanceDate(value: string | null | undefined) {
+  if (!value) return "—";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+
+  return parsed.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function formatFinanceMoney(
+  amount: number | string | null | undefined,
   currencyCode = "USD"
 ) {
-  const numeric = toNumber(value);
+  const numeric = Number(amount ?? 0);
 
   return new Intl.NumberFormat(undefined, {
     style: "currency",
@@ -64,26 +78,7 @@ function formatMoney(
   }).format(Number.isFinite(numeric) ? numeric : 0);
 }
 
-function formatDateLabel(value: string | null) {
-  if (!value) return "—";
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-
-  return parsed.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function getToneClasses(
-  tone: QuotationMetricCard["tone"]
-): {
-  glow: string;
-  iconWrap: string;
-  accent: string;
-} {
+function getToneClasses(tone: QuotationMetricCard["tone"]) {
   switch (tone) {
     case "emerald":
       return {
@@ -92,87 +87,37 @@ function getToneClasses(
           "border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_0_30px_rgba(16,185,129,0.18)]",
         accent: "bg-emerald-400",
       };
+    case "amber":
+      return {
+        glow: "from-amber-500/20 via-amber-400/10 to-transparent",
+        iconWrap:
+          "border-amber-400/20 bg-amber-500/10 text-amber-300 shadow-[0_0_30px_rgba(245,158,11,0.18)]",
+        accent: "bg-amber-400",
+      };
+    case "rose":
+      return {
+        glow: "from-rose-500/20 via-rose-400/10 to-transparent",
+        iconWrap:
+          "border-rose-400/20 bg-rose-500/10 text-rose-300 shadow-[0_0_30px_rgba(244,63,94,0.18)]",
+        accent: "bg-rose-400",
+      };
     case "blue":
+    default:
       return {
         glow: "from-sky-500/20 via-sky-400/10 to-transparent",
         iconWrap:
           "border-sky-400/20 bg-sky-500/10 text-sky-300 shadow-[0_0_30px_rgba(56,189,248,0.18)]",
         accent: "bg-sky-400",
       };
-    case "violet":
-      return {
-        glow: "from-violet-500/20 via-violet-400/10 to-transparent",
-        iconWrap:
-          "border-violet-400/20 bg-violet-500/10 text-violet-300 shadow-[0_0_30px_rgba(139,92,246,0.18)]",
-        accent: "bg-violet-400",
-      };
-    case "cyan":
-    default:
-      return {
-        glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
-        iconWrap:
-          "border-cyan-400/20 bg-cyan-500/10 text-cyan-300 shadow-[0_0_30px_rgba(34,211,238,0.18)]",
-        accent: "bg-cyan-400",
-      };
   }
 }
 
-function getQuotationStatusBadgeClasses(status: string) {
-  switch (status) {
-    case "draft":
-      return "border-white/10 bg-white/8 text-white/70";
-    case "issued":
-      return "border-sky-400/20 bg-sky-500/10 text-sky-200";
-    case "sent":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "accepted":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "rejected":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "expired":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "converted":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "archived":
-      return "border-white/10 bg-white/5 text-white/55";
-    default:
-      return "border-white/10 bg-white/8 text-white/70";
-  }
-}
-
-function getQuotationStatusLabel(status: string) {
-  switch (status) {
-    case "draft":
-      return "Draft";
-    case "issued":
-      return "Issued";
-    case "sent":
-      return "Sent";
-    case "accepted":
-      return "Accepted";
-    case "rejected":
-      return "Rejected";
-    case "expired":
-      return "Expired";
-    case "converted":
-      return "Converted";
-    case "archived":
-      return "Archived";
-    default:
-      return status;
-  }
-}
-
-function QuotationMetric({
-  metric,
-}: {
-  metric: QuotationMetricCard;
-}) {
-  const Icon = metric.icon;
+function MetricCard({ metric }: { metric: QuotationMetricCard }) {
   const tone = getToneClasses(metric.tone);
+  const Icon = metric.icon;
 
   return (
-    <div className="group relative overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+    <div className="group relative overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
       <div
         className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`}
       />
@@ -203,13 +148,66 @@ function QuotationMetric({
   );
 }
 
+function getQuotationStatusBadgeClasses(status: string) {
+  switch (status) {
+    case "draft":
+      return "border-white/10 bg-white/10 text-white/75";
+    case "issued":
+      return "border-sky-400/20 bg-sky-500/10 text-sky-200";
+    case "sent":
+      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
+    case "accepted":
+      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
+    case "rejected":
+      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
+    case "expired":
+      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
+    case "converted":
+      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
+    case "archived":
+      return "border-white/20 bg-white/5 text-white/60";
+    default:
+      return "border-white/10 bg-white/10 text-white/75";
+  }
+}
+
+function getQuotationStatusLabel(status: string) {
+  switch (status) {
+    case "draft":
+      return "Draft";
+    case "issued":
+      return "Issued";
+    case "sent":
+      return "Sent";
+    case "accepted":
+      return "Accepted";
+    case "rejected":
+      return "Rejected";
+    case "expired":
+      return "Expired";
+    case "converted":
+      return "Converted";
+    case "archived":
+      return "Archived";
+    default:
+      return status;
+  }
+}
+
 export default function FinanceQuotationsPage() {
   const navigate = useNavigate();
-  const [quotations, setQuotations] = useState<FinanceQuotationRow[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  const loadQuotations = useCallback(async () => {
-    setIsLoading(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [quotations, setQuotations] = useState<FinanceQuotationRow[]>([]);
+  const [search, setSearch] = useState("");
+
+  const loadQuotations = useCallback(async (refreshMode = false) => {
+    if (refreshMode) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
 
     try {
       const { data, error } = await supabase
@@ -226,18 +224,25 @@ export default function FinanceQuotationsPage() {
             "client_name_snapshot",
             "company_name_snapshot",
             "created_at",
+            "updated_at",
           ].join(", ")
         )
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       setQuotations((data ?? []) as unknown as FinanceQuotationRow[]);
     } catch (error) {
       console.error("Failed to load quotations:", error);
       setQuotations([]);
     } finally {
-      setIsLoading(false);
+      if (refreshMode) {
+        setIsRefreshing(false);
+      } else {
+        setIsLoading(false);
+      }
     }
   }, []);
 
@@ -245,103 +250,178 @@ export default function FinanceQuotationsPage() {
     void loadQuotations();
   }, [loadQuotations]);
 
-  const summary = useMemo(() => {
-    return quotations.reduce(
-      (acc, row) => {
-        acc.totalValue += toNumber(row.total_amount);
+  useEffect(() => {
+    const channel = supabase
+      .channel("finance-quotations-list")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_quotations" },
+        () => void loadQuotations(true)
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_quotation_line_items" },
+        () => void loadQuotations(true)
+      )
+      .subscribe();
 
-        if (row.status === "draft") acc.draftCount += 1;
-        if (row.status === "converted") acc.convertedCount += 1;
-        if (row.status === "accepted") acc.acceptedCount += 1;
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadQuotations]);
 
-        return acc;
-      },
-      {
-        totalValue: 0,
-        draftCount: 0,
-        convertedCount: 0,
-        acceptedCount: 0,
-      }
-    );
-  }, [quotations]);
+  const filteredQuotations = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    if (!normalizedSearch) {
+      return quotations;
+    }
+
+    return quotations.filter((quotation) => {
+      return (
+        (quotation.quotation_number || "")
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        (quotation.client_name_snapshot || "")
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        (quotation.company_name_snapshot || "")
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        (quotation.status || "").toLowerCase().includes(normalizedSearch) ||
+        (quotation.currency_code || "").toLowerCase().includes(normalizedSearch)
+      );
+    });
+  }, [quotations, search]);
 
   const metricCards = useMemo<QuotationMetricCard[]>(() => {
+    const activeQuotations = quotations.filter(
+      (row) => row.status !== "archived"
+    );
+
+    const totalQuotations = activeQuotations.length;
+    const draftQuotations = activeQuotations.filter(
+      (row) => row.status === "draft"
+    ).length;
+    const acceptedQuotations = activeQuotations.filter(
+      (row) => row.status === "accepted"
+    );
+    const convertedQuotations = activeQuotations.filter(
+      (row) => row.status === "converted"
+    ).length;
+
+    const pipelineValue = acceptedQuotations.reduce(
+      (sum, row) => sum + Number(row.total_amount ?? 0),
+      0
+    );
+
+    const pipelineCurrency = acceptedQuotations[0]?.currency_code || "USD";
+
     return [
       {
-        key: "records",
-        title: "Quotation Records",
-        value: isLoading ? "—" : quotations.length.toLocaleString(),
-        subtitle: "Commercial offers currently tracked",
+        key: "total",
+        title: "Quotations",
+        value: totalQuotations.toLocaleString(),
+        subtitle: "Commercial offer records",
         icon: FileText,
-        tone: "emerald",
+        tone: "blue",
       },
       {
-        key: "draft",
+        key: "drafts",
         title: "Draft Quotations",
-        value: isLoading ? "—" : summary.draftCount.toLocaleString(),
-        subtitle: "Items not yet converted downstream",
-        icon: FileBadge2,
-        tone: "blue",
+        value: draftQuotations.toLocaleString(),
+        subtitle: "Offers still being prepared",
+        icon: Receipt,
+        tone: "amber",
+      },
+      {
+        key: "pipeline",
+        title: "Accepted Value",
+        value: formatFinanceMoney(pipelineValue, pipelineCurrency),
+        subtitle: `${acceptedQuotations.length} accepted quotations awaiting PO`,
+        icon: Wallet,
+        tone: "emerald",
       },
       {
         key: "converted",
         title: "Converted",
-        value: isLoading ? "—" : summary.convertedCount.toLocaleString(),
+        value: convertedQuotations.toLocaleString(),
         subtitle: "Moved forward into customer commitment",
-        icon: ArrowRight,
-        tone: "violet",
-      },
-      {
-        key: "total-value",
-        title: "Total Value",
-        value: isLoading ? "—" : formatMoney(summary.totalValue, "USD"),
-        subtitle: "Current quotation portfolio value",
-        icon: Layers3,
-        tone: "cyan",
+        icon: BadgeCheck,
+        tone: "rose",
       },
     ];
-  }, [isLoading, quotations.length, summary]);
+  }, [quotations]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="mx-auto flex h-full w-full max-w-[1680px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
-        <section className="relative z-10 overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.10),transparent_32%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.12),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.10),transparent_24%)]" />
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
+      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
+        <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6 xl:p-7">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_35%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_24%)]" />
+          <div className="relative flex flex-col gap-6">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+              <div className="max-w-3xl space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.24em] text-white/70 shadow-none">
+                    Receivables
+                  </Badge>
 
-          <div className="relative flex items-center justify-between gap-4 px-5 py-5 sm:px-6 xl:px-7">
-            <div className="min-w-0">
-              <div className="inline-flex items-center rounded-full border border-emerald-400/15 bg-emerald-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-emerald-200">
-                Incoming · Quotations
+                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                    Quotations
+                  </Badge>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/10 bg-black/20 text-white shadow-[0_0_30px_rgba(255,255,255,0.08)]">
+                      <FileText className="h-5 w-5" />
+                    </div>
+
+                    <div>
+                      <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                        Quotations
+                      </h1>
+                      <div className="mt-1 text-sm text-white/45">
+                        Commercial offers before client PO, PI, invoice, and payment.
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="max-w-2xl text-sm leading-7 text-white/55 sm:text-[15px]">
+                    This module tracks draft, issued, accepted, rejected, expired,
+                    and converted quotations. It is the first controlled document
+                    in the incoming flow and provides the commercial basis before
+                    customer commitment and PI issuance.
+                  </p>
+                </div>
               </div>
 
-              <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-                Quotations
-              </h1>
+              <div className="flex flex-wrap gap-3 xl:justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/finance/transactions")}
+                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back
+                </Button>
 
-              <div className="mt-2 max-w-3xl text-sm text-white/45">
-                Commercial offers sent to customers before client PO, proforma,
-                invoice, and payment collection.
+                <Button
+                  variant="outline"
+                  onClick={() => void loadQuotations(true)}
+                  disabled={isRefreshing}
+                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10 disabled:opacity-60"
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  {isRefreshing ? "Refreshing..." : "Refresh"}
+                </Button>
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-3">
-              <Button
-                variant="outline"
-                onClick={() => navigate("/finance/transactions")}
-                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-
-              <Button
-                variant="outline"
-                onClick={() => void loadQuotations()}
-                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Refresh
-              </Button>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {metricCards.map((metric) => (
+                <MetricCard key={metric.key} metric={metric} />
+              ))}
             </div>
           </div>
         </section>
@@ -349,115 +429,124 @@ export default function FinanceQuotationsPage() {
         <section>
           <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
             <CardHeader className="border-b border-white/8 pb-4">
-              <div className="space-y-2">
-                <Badge className="w-fit rounded-full border border-emerald-400/15 bg-emerald-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-emerald-200 shadow-none">
-                  Quotation Analytics
-                </Badge>
-                <CardTitle className="text-white">
-                  Quotations Overview
-                </CardTitle>
-                <CardDescription className="text-white/45">
-                  Top-level visibility for the first step of the incoming flow.
-                </CardDescription>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="space-y-2">
+                  <Badge className="w-fit rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-white/65 shadow-none">
+                    Quotation Registry
+                  </Badge>
+
+                  <CardTitle className="text-white">
+                    Quotations List
+                  </CardTitle>
+
+                  <CardDescription className="max-w-2xl text-white/45">
+                    Search and review quotation records, commercial status,
+                    counterparty, dates, and total amount before downstream conversion.
+                  </CardDescription>
+                </div>
+
+                <div className="relative w-full max-w-md">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search quotation number, client, company, or status"
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-10 pr-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-cyan-400/30"
+                  />
+                </div>
               </div>
             </CardHeader>
 
             <CardContent className="p-4 sm:p-5 xl:p-6">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                {metricCards.map((metric) => (
-                  <QuotationMetric key={metric.key} metric={metric} />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-
-        <section className="min-h-0 flex-1">
-          <Card className="flex h-full min-h-0 flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-            <CardHeader className="border-b border-white/8 pb-4">
-              <div className="flex items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <CardTitle className="flex items-center gap-3 text-white">
-                    <BadgeCheck className="h-4 w-4 text-emerald-300" />
-                    Quotations List
-                  </CardTitle>
-                  <CardDescription className="text-white/45">
-                    Current quotation records from the incoming flow.
-                  </CardDescription>
-                </div>
-
-                <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs text-white/70 shadow-none">
-                  Live data
-                </Badge>
-              </div>
-            </CardHeader>
-
-            <CardContent className="flex min-h-0 flex-1 flex-col p-0">
               {isLoading ? (
-                <div className="p-6 text-sm text-white/50">
+                <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
                   Loading quotations...
                 </div>
-              ) : quotations.length === 0 ? (
-                <div className="p-6 text-sm text-white/50">
-                  No quotations found yet.
+              ) : filteredQuotations.length === 0 ? (
+                <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
+                  No quotations found.
                 </div>
               ) : (
-                <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-                  <div className="space-y-3">
-                    {quotations.map((quotation, index) => (
+                <div className="space-y-3">
+                  {filteredQuotations.map((quotation) => {
+                    const currencyCode = quotation.currency_code || "USD";
+
+
+                                                              return (
                       <button
                         key={quotation.id}
                         type="button"
-                        className="group flex w-full items-start justify-between gap-4 rounded-[20px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
+                        onClick={() =>
+                          navigate(
+                            `/finance/transactions/quotations/${quotation.id}`
+                          )
+                        }
+                        className="group flex w-full items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
                       >
-                        <div className="flex min-w-0 items-start gap-4">
-                          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/75">
-                            <span className="text-xs font-semibold text-white/70">
-                              {String(index + 1).padStart(2, "0")}
-                            </span>
-                          </div>
-
-                          <div className="min-w-0 space-y-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge
-                                className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getQuotationStatusBadgeClasses(
-                                  quotation.status
-                                )}`}
-                              >
-                                {getQuotationStatusLabel(quotation.status)}
-                              </Badge>
-
-                              <div className="truncate text-sm font-medium text-white sm:text-[15px]">
-                                {quotation.quotation_number || "Quotation"}
-                              </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-base font-semibold text-white">
+                              {quotation.quotation_number ||
+                                (quotation.status === "draft"
+                                  ? "Draft Quotation"
+                                  : "Quotation")}
                             </div>
 
-                            <div className="text-sm leading-6 text-white/48">
-                              Client: {quotation.client_name_snapshot || "—"} ·
-                              Company: {quotation.company_name_snapshot || "—"}
+                            <Badge
+                              className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getQuotationStatusBadgeClasses(
+                                quotation.status
+                              )}`}
+                            >
+                              {getQuotationStatusLabel(quotation.status)}
+                            </Badge>
+
+                            <Badge className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] text-white/75 shadow-none">
+                              {currencyCode}
+                            </Badge>
+                          </div>
+
+                          <div className="mt-2 text-sm text-white/70">
+                            {quotation.client_name_snapshot ||
+                              quotation.company_name_snapshot ||
+                              "Unknown"}
+                          </div>
+
+                          <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-white/45 md:grid-cols-4">
+                            <div>
+                              Issue:{" "}
+                              {formatFinanceDate(quotation.issue_date)}
+                            </div>
+
+                            <div>
+                              Valid Until:{" "}
+                              {formatFinanceDate(quotation.valid_until)}
+                            </div>
+
+                            <div>
+                              Total:{" "}
+                              {formatFinanceMoney(
+                                quotation.total_amount,
+                                currencyCode
+                              )}
+                            </div>
+
+                            <div>
+                              Status:{" "}
+                              {getQuotationStatusLabel(quotation.status)}
                             </div>
                           </div>
                         </div>
 
                         <div className="flex shrink-0 items-center gap-3 pl-2">
-                          <div className="text-right">
-                            <div className="text-sm font-medium text-white">
-                              {formatMoney(
-                                quotation.total_amount,
-                                quotation.currency_code || "USD"
-                              )}
-                            </div>
-                            <div className="mt-1 text-xs text-white/35">
-                              Issue {formatDateLabel(quotation.issue_date)} ·
-                              Valid {formatDateLabel(quotation.valid_until)}
-                            </div>
+                          <div className="hidden text-xs text-white/30 transition-colors duration-200 group-hover:text-white/55 sm:block">
+                            {formatFinanceDate(quotation.created_at)}
                           </div>
 
                           <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
                         </div>
                       </button>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

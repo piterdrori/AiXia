@@ -49,7 +49,7 @@ export default function AIPage() {
 
               <p className="max-w-2xl text-sm text-white/60">
                 Ask a question and the system will route the request through the
-                free-tier AI providers configured in Supabase.
+                configured AI providers.
               </p>
             </div>
           </div>

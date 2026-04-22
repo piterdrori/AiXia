@@ -130,7 +130,7 @@ export default function FinanceQuotationsPage() {
 
       if (error) throw error;
 
-      setQuotations((data ?? []) as FinanceQuotationRow[]);
+      setQuotations((data ?? []) as unknown as FinanceQuotationRow[]);
     } catch (error) {
       console.error("Failed to load quotations:", error);
       setQuotations([]);

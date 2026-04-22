@@ -1078,15 +1078,16 @@ export default function FinanceTransactionsPage() {
 
   const allModuleCards = useMemo<Record<TransactionModuleKey, TransactionModuleCard>>(
     () => ({
-      quotations: {
+            quotations: {
         key: "quotations",
         title: "Quotations",
         description:
           "Commercial offers sent to customers before proforma and invoice issuance.",
+        route: "/finance/transactions/quotations",
         icon: FileText,
         count: 0,
-        statusLabel: "Later",
-        lastUpdatedLabel: "Planned",
+        statusLabel: "Live",
+        lastUpdatedLabel: "Ready",
       },
       "customer-pos": {
         key: "customer-pos",

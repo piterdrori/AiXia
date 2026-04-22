@@ -28,6 +28,7 @@ import {
 
 import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/lib/i18n";
+import FloatingAIChat from "@/components/ai/FloatingAIChat";
 import { useUserPreferences } from "@/lib/useUserPreferences";
 import { formatDateTimeInTimezone } from "@/lib/datetime";
 import { useAppClock } from "@/lib/clock/provider";
@@ -1297,7 +1298,12 @@ const handleNotificationClick = async (notification: NotificationRow) => {
             </div>
           </div>
         </header>
-        <div className="flex-1 min-h-0 p-5 lg:p-8 space-y-6">{children}</div>
+        <div className="flex-1 min-h-0 p-5 lg:p-8 space-y-6">
+  {children}
+</div>
+
+{/* AI FLOATING CHAT */}
+<FloatingAIChat />
       </main>
     </div>
   );

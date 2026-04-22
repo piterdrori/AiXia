@@ -680,16 +680,21 @@ export default function FinanceNewQuotationPage() {
     validUntil,
   ]);
 
-  if (isLoading) {
+    if (isLoading) {
     return (
-      <div className="flex h-[60vh] items-center justify-center text-white/60">
-        Loading quotation form...
+      <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
+        <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
+          <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
+            Loading quotation sources...
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
+      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
       {/* HEADER */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -1284,11 +1289,7 @@ export default function FinanceNewQuotationPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
-          Loading quotation sources...
-        </div>
-      ) : null}
+            </div>
     </div>
   );
 }

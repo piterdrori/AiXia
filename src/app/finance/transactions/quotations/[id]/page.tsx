@@ -1287,19 +1287,14 @@ export default function FinanceQuotationDetailPage() {
         const lineTax = taxableBase * (ratePercent / 100);
         const lineTotal = taxableBase + lineTax;
 
-        const payload = {
+                const payload = {
           quotation_id: id,
-          item_id: row.item_id || null,
           item_name: row.item_name || row.description.trim() || null,
           description: row.description.trim() || null,
           quantity: qty,
           unit_price: unitPrice,
-          discount: toNumber(row.discount),
           discount_rate: toNumber(row.discount_rate),
-          tax_code_id: row.tax_code_id || null,
           tax_rate: ratePercent,
-          unit_of_measure_id: row.unit_of_measure_id || null,
-          revenue_category_id: row.revenue_category_id || null,
           line_subtotal: base,
           line_discount_amount: lineDiscount,
           line_tax_amount: lineTax,

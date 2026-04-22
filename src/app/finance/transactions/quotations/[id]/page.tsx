@@ -396,7 +396,7 @@ export default function FinanceQuotationDetailPage() {
       setError("");
 
       try {
-        const [quotationResult, lineItemsResult, poResult, archiveLoad] =
+                const [quotationResult, lineItemsResult, poResult] =
           await Promise.all([
             supabase
               .from("finance_quotations")
@@ -495,7 +495,7 @@ export default function FinanceQuotationDetailPage() {
 
         const typedQuotation = quotationResult.data as QuotationRecord | null;
         const typedLineItems =
-          (lineItemsResult.data || []) as QuotationLineItemRow[];
+          (lineItemsResult.data || []) as unknown as QuotationLineItemRow[];
         const typedClientPO = (poResult.data || null) as ClientPORow | null;
 
         setQuotation(typedQuotation);

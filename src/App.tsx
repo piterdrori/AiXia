@@ -86,6 +86,7 @@ import FinanceInvoicesPage from "@/app/finance/transactions/invoices/page";
 import FinanceNewInvoicePage from "@/app/finance/transactions/invoices/new/page";
 import FinanceInvoiceDetailPage from "@/app/finance/transactions/invoices/[id]/page";
 import FinanceQuotationsPage from "@/app/finance/transactions/quotations/page";
+import FinanceQuotationDetailPage from "@/app/finance/transactions/quotations/[id]/page";
 import FinanceProformaInvoicesPage from "@/app/finance/transactions/proforma-invoices/page";
 import FinanceNewProformaInvoicePage from "@/app/finance/transactions/proforma-invoices/new/page";
 import FinanceProformaInvoiceDetailPage from "@/app/finance/transactions/proforma-invoices/[id]/page";
@@ -1039,6 +1040,17 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceQuotationsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+      <Route
+  path="/finance/transactions/quotations/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceQuotationDetailPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

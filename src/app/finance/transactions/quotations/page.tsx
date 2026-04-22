@@ -838,118 +838,118 @@ export default function FinanceQuotationsPage() {
           </Card>
         </section>
 
-       {/* ARCHIVE MODAL */}
-{isArchiveModalOpen && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur">
-    <div className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-
-      {/* HEADER */}
-      <div className="flex items-center justify-between border-b border-white/8 px-6 py-5">
-        <div>
-          <div className="text-lg font-semibold text-white">Archive</div>
-          <div className="mt-1 text-sm text-white/45">
-            Archived and deleted quotations removed from the active registry.
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setIsArchiveModalOpen(false)}
-          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 hover:bg-white/10"
-        >
-          Close
-        </button>
-      </div>
-
-      {/* TABS */}
-      <div className="flex items-center gap-2 border-b border-white/8 px-6 py-4">
-        <button
-          type="button"
-          onClick={() => setArchiveTab("archived")}
-          className={`rounded-xl px-4 py-2 text-sm transition ${
-            archiveTab === "archived"
-              ? "bg-white/10 text-white"
-              : "text-white/55 hover:bg-white/5 hover:text-white/80"
-          }`}
-        >
-          Archived
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setArchiveTab("deleted")}
-          className={`rounded-xl px-4 py-2 text-sm transition ${
-            archiveTab === "deleted"
-              ? "bg-rose-500/15 text-rose-200"
-              : "text-white/55 hover:bg-white/5 hover:text-white/80"
-          }`}
-        >
-          Deleted
-        </button>
-      </div>
-
-      {/* CONTENT */}
-      {isArchiveLoading ? (
-        <div className="p-6 text-sm text-white/50">Loading...</div>
-      ) : (
-        <div className="overflow-y-auto p-6">
-          <div className="space-y-3">
-                        {visibleArchivedQuotations.map((q) => (
-              <button
-                key={q.id}
-                type="button"
-                onClick={() =>
-                  navigate(`/finance/transactions/quotations/${q.id}`)
-                }
-                className="group relative flex w-full items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-5 py-4 text-left transition-all hover:border-white/20 hover:bg-white/[0.08]"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <div className="text-base font-semibold text-white">
-                      {q.quotation_number}
-                    </div>
-
-                    <Badge
-                      className={`rounded-full border px-2.5 py-1 text-[11px] ${getQuotationStatusBadgeClasses(
-                        q.status
-                      )}`}
-                    >
-                      {getQuotationStatusLabel(q.status)}
-                    </Badge>
+              {/* ARCHIVE MODAL */}
+        {isArchiveModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur">
+            <div className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+              <div className="flex items-center justify-between border-b border-white/8 px-6 py-5">
+                <div>
+                  <div className="text-lg font-semibold text-white">Archive</div>
+                  <div className="mt-1 text-sm text-white/45">
+                    Archived and deleted quotations removed from the active registry.
                   </div>
                 </div>
 
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRestore(q.id);
-                    }}
-                  >
-                    Restore
-                  </Button>
+                <button
+                  type="button"
+                  onClick={() => setIsArchiveModalOpen(false)}
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 hover:bg-white/10"
+                >
+                  Close
+                </button>
+              </div>
 
-                  {archiveTab === "deleted" && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleHardDelete(q.id);
-                      }}
-                    >
-                      Hard Delete
-                    </Button>
-                  )}
+              <div className="flex items-center gap-2 border-b border-white/8 px-6 py-4">
+                <button
+                  type="button"
+                  onClick={() => setArchiveTab("archived")}
+                  className={`rounded-xl px-4 py-2 text-sm transition ${
+                    archiveTab === "archived"
+                      ? "bg-white/10 text-white"
+                      : "text-white/55 hover:bg-white/5 hover:text-white/80"
+                  }`}
+                >
+                  Archived
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setArchiveTab("deleted")}
+                  className={`rounded-xl px-4 py-2 text-sm transition ${
+                    archiveTab === "deleted"
+                      ? "bg-rose-500/15 text-rose-200"
+                      : "text-white/55 hover:bg-white/5 hover:text-white/80"
+                  }`}
+                >
+                  Deleted
+                </button>
+              </div>
+
+              {isArchiveLoading ? (
+                <div className="p-6 text-sm text-white/50">Loading...</div>
+              ) : (
+                <div className="overflow-y-auto p-6">
+                  <div className="space-y-3">
+                    {visibleArchivedQuotations.map((q) => (
+                      <button
+                        key={q.id}
+                        type="button"
+                        onClick={() =>
+                          navigate(`/finance/transactions/quotations/${q.id}`)
+                        }
+                        className="group relative flex w-full items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-5 py-4 text-left transition-all hover:border-white/20 hover:bg-white/[0.08]"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <div className="text-base font-semibold text-white">
+                              {q.quotation_number}
+                            </div>
+
+                            <Badge
+                              className={`rounded-full border px-2.5 py-1 text-[11px] ${getQuotationStatusBadgeClasses(
+                                q.status
+                              )}`}
+                            >
+                              {getQuotationStatusLabel(q.status)}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRestore(q.id);
+                            }}
+                          >
+                            Restore
+                          </Button>
+
+                          {archiveTab === "deleted" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleHardDelete(q.id);
+                              }}
+                            >
+                              Hard Delete
+                            </Button>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </button>
-            ))}
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
+      </div>
     </div>
-  </div>
-)}
+  );
+}

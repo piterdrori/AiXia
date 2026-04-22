@@ -1,16 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
   FileText,
+  MoreVertical,
+  Plus,
+  Receipt,
   RefreshCw,
   Search,
   Wallet,
-  Receipt,
-  BadgeCheck,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -24,18 +25,41 @@ import {
 } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
 
+import {
+  getEffectivePermissions,
+  type Permission,
+  type Role,
+} from "@/lib/permissions";
+
+type ProfilePermissionRow = {
+  role: Role;
+  permissions?: Partial<Record<Permission, boolean>> | null;
+};
+
 type FinanceQuotationRow = {
   id: string;
   quotation_number: string | null;
-  status: string;
+  client_id?: string | null;
+  company_id?: string | null;
   issue_date: string;
   valid_until: string | null;
+  status: string;
+  subtotal?: number | string | null;
+  tax_amount?: number | string | null;
+  discount_amount?: number | string | null;
   total_amount: number | string | null;
+  currency_id?: string | null;
   currency_code: string | null;
+  project_id?: string | null;
+  task_id?: string | null;
+  notes?: string | null;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
   client_name_snapshot: string | null;
   company_name_snapshot: string | null;
-  created_at: string;
-  updated_at?: string;
 };
 
 type QuotationMetricCard = {
@@ -46,33 +70,6 @@ type QuotationMetricCard = {
   icon: typeof Wallet;
   tone: "blue" | "emerald" | "amber" | "rose";
 };
-
-function formatFinanceDate(value: string | null | undefined) {
-  if (!value) return "—";
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "—";
-
-  return parsed.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function formatFinanceMoney(
-  amount: number | string | null | undefined,
-  currencyCode = "USD"
-) {
-  const numeric = Number(amount ?? 0);
-
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: currencyCode || "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number.isFinite(numeric) ? numeric : 0);
-}
 
 function getToneClasses(tone: QuotationMetricCard["tone"]) {
   switch (tone) {
@@ -144,6 +141,33 @@ function MetricCard({ metric }: { metric: QuotationMetricCard }) {
   );
 }
 
+function formatFinanceDate(value: string | null | undefined) {
+  if (!value) return "—";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+
+  return parsed.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function formatFinanceMoney(
+  amount: number | string | null | undefined,
+  currencyCode = "USD"
+) {
+  const numeric = Number(amount ?? 0);
+
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: currencyCode || "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(numeric) ? numeric : 0);
+}
+
 function getQuotationStatusBadgeClasses(status: string) {
   switch (status) {
     case "draft":
@@ -162,6 +186,8 @@ function getQuotationStatusBadgeClasses(status: string) {
       return "border-violet-400/20 bg-violet-500/10 text-violet-200";
     case "archived":
       return "border-white/20 bg-white/5 text-white/60";
+    case "deleted":
+      return "border-rose-500/30 bg-rose-500/10 text-rose-300";
     default:
       return "border-white/10 bg-white/10 text-white/75";
   }
@@ -185,6 +211,8 @@ function getQuotationStatusLabel(status: string) {
       return "Converted";
     case "archived":
       return "Archived";
+    case "deleted":
+      return "Deleted";
     default:
       return status;
   }
@@ -197,6 +225,49 @@ export default function FinanceQuotationsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [quotations, setQuotations] = useState<FinanceQuotationRow[]>([]);
   const [search, setSearch] = useState("");
+  const [role, setRole] = useState<Role | null>(null);
+  const [permissionOverrides, setPermissionOverrides] = useState<
+    Partial<Record<Permission, boolean>> | null
+  >(null);
+
+  const [openMenuQuotationId, setOpenMenuQuotationId] = useState<string | null>(
+    null
+  );
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+  const [archiveTab, setArchiveTab] = useState<"archived" | "deleted">(
+    "archived"
+  );
+  const [archivedQuotations, setArchivedQuotations] = useState<
+    FinanceQuotationRow[]
+  >([]);
+  const [isArchiveLoading, setIsArchiveLoading] = useState(false);
+
+  const loadPermissions = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user?.id) return;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("role, permissions")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Failed to load quotation permissions:", error);
+      return;
+    }
+
+    if (data) {
+      const typed = data as ProfilePermissionRow;
+      setRole(typed.role);
+      setPermissionOverrides(typed.permissions || null);
+    }
+  }, []);
 
   const loadQuotations = useCallback(async (refreshMode = false) => {
     if (refreshMode) {
@@ -212,17 +283,30 @@ export default function FinanceQuotationsPage() {
           [
             "id",
             "quotation_number",
-            "status",
+            "client_id",
+            "company_id",
             "issue_date",
             "valid_until",
+            "status",
+            "subtotal",
+            "tax_amount",
+            "discount_amount",
             "total_amount",
+            "currency_id",
             "currency_code",
-            "client_name_snapshot",
-            "company_name_snapshot",
+            "project_id",
+            "task_id",
+            "notes",
+            "metadata",
             "created_at",
             "updated_at",
+            "created_by",
+            "updated_by",
+            "client_name_snapshot",
+            "company_name_snapshot",
           ].join(", ")
         )
+        .not("status", "in", '("archived","deleted")')
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -242,9 +326,79 @@ export default function FinanceQuotationsPage() {
     }
   }, []);
 
+  const loadArchivedQuotations = useCallback(async () => {
+    setIsArchiveLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("finance_quotations")
+        .select(
+          [
+            "id",
+            "quotation_number",
+            "client_id",
+            "company_id",
+            "issue_date",
+            "valid_until",
+            "status",
+            "subtotal",
+            "tax_amount",
+            "discount_amount",
+            "total_amount",
+            "currency_id",
+            "currency_code",
+            "project_id",
+            "task_id",
+            "notes",
+            "metadata",
+            "created_at",
+            "updated_at",
+            "created_by",
+            "updated_by",
+            "client_name_snapshot",
+            "company_name_snapshot",
+          ].join(", ")
+        )
+        .in("status", ["archived", "deleted"])
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setArchivedQuotations((data ?? []) as unknown as FinanceQuotationRow[]);
+    } catch (error) {
+      console.error("Failed to load archived quotations:", error);
+      setArchivedQuotations([]);
+    } finally {
+      setIsArchiveLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    void loadQuotations();
-  }, [loadQuotations]);
+    void Promise.all([loadPermissions(), loadQuotations()]);
+  }, [loadPermissions, loadQuotations]);
+
+  useEffect(() => {
+    function handleDocumentClick(event: MouseEvent) {
+      if (!actionsMenuRef.current) return;
+
+      if (!actionsMenuRef.current.contains(event.target as Node)) {
+        setOpenMenuQuotationId(null);
+      }
+    }
+
+    document.addEventListener("mousedown", handleDocumentClick);
+
+    return () => {
+      document.removeEventListener("mousedown", handleDocumentClick);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isArchiveModalOpen) return;
+    void loadArchivedQuotations();
+  }, [isArchiveModalOpen, loadArchivedQuotations]);
 
   useEffect(() => {
     const channel = supabase
@@ -252,7 +406,12 @@ export default function FinanceQuotationsPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_quotations" },
-        () => void loadQuotations(true)
+        () => {
+          void loadQuotations(true);
+          if (isArchiveModalOpen) {
+            void loadArchivedQuotations();
+          }
+        }
       )
       .on(
         "postgres_changes",
@@ -264,7 +423,13 @@ export default function FinanceQuotationsPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loadQuotations]);
+  }, [isArchiveModalOpen, loadArchivedQuotations, loadQuotations]);
+
+  const canCreateQuotations = useMemo(() => {
+    if (!role) return false;
+    const permissions = getEffectivePermissions(role, permissionOverrides);
+    return !!permissions?.createFinanceRecords;
+  }, [permissionOverrides, role]);
 
   const filteredQuotations = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -290,9 +455,15 @@ export default function FinanceQuotationsPage() {
     });
   }, [quotations, search]);
 
+  const visibleArchivedQuotations = useMemo(() => {
+    return archivedQuotations.filter(
+      (quotation) => String(quotation.status) === archiveTab
+    );
+  }, [archivedQuotations, archiveTab]);
+
   const metricCards = useMemo<QuotationMetricCard[]>(() => {
     const activeQuotations = quotations.filter(
-      (row) => row.status !== "archived"
+      (row) => row.status !== "archived" && row.status !== "deleted"
     );
 
     const totalQuotations = activeQuotations.length;
@@ -306,7 +477,7 @@ export default function FinanceQuotationsPage() {
       (row) => row.status === "converted"
     ).length;
 
-    const pipelineValue = acceptedQuotations.reduce(
+    const pipelineTotal = acceptedQuotations.reduce(
       (sum, row) => sum + Number(row.total_amount ?? 0),
       0
     );
@@ -333,7 +504,7 @@ export default function FinanceQuotationsPage() {
       {
         key: "pipeline",
         title: "Accepted Value",
-        value: formatFinanceMoney(pipelineValue, pipelineCurrency),
+        value: formatFinanceMoney(pipelineTotal, pipelineCurrency),
         subtitle: `${acceptedQuotations.length} accepted quotations awaiting PO`,
         icon: Wallet,
         tone: "emerald",
@@ -343,11 +514,71 @@ export default function FinanceQuotationsPage() {
         title: "Converted",
         value: convertedQuotations.toLocaleString(),
         subtitle: "Moved forward into customer commitment",
-        icon: BadgeCheck,
+        icon: Receipt,
         tone: "rose",
       },
     ];
   }, [quotations]);
+
+  const handleArchive = async (id: string) => {
+    const { error } = await supabase
+      .from("finance_quotations")
+      .update({ status: "archived" })
+      .eq("id", id);
+
+    if (error) {
+      throw error;
+    }
+
+    setOpenMenuQuotationId(null);
+    await Promise.all([
+      loadQuotations(true),
+      isArchiveModalOpen ? loadArchivedQuotations() : Promise.resolve(),
+    ]);
+  };
+
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase
+      .from("finance_quotations")
+      .update({ status: "deleted" })
+      .eq("id", id);
+
+    if (error) {
+      throw error;
+    }
+
+    setOpenMenuQuotationId(null);
+    await Promise.all([
+      loadQuotations(true),
+      isArchiveModalOpen ? loadArchivedQuotations() : Promise.resolve(),
+    ]);
+  };
+
+  const handleRestore = async (id: string) => {
+    const { error } = await supabase
+      .from("finance_quotations")
+      .update({ status: "draft" })
+      .eq("id", id);
+
+    if (error) {
+      throw error;
+    }
+
+    await Promise.all([loadQuotations(true), loadArchivedQuotations()]);
+  };
+
+  const handleHardDelete = async (id: string) => {
+    const { error } = await supabase
+      .from("finance_quotations")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      throw error;
+    }
+
+    await Promise.all([loadQuotations(true), loadArchivedQuotations()]);
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
@@ -411,6 +642,29 @@ export default function FinanceQuotationsPage() {
                   <RefreshCw className="mr-2 h-4 w-4" />
                   {isRefreshing ? "Refreshing..." : "Refresh"}
                 </Button>
+
+                {canCreateQuotations ? (
+                  <Button
+                    onClick={() =>
+                      navigate("/finance/transactions/quotations/new")
+                    }
+                    className="h-11 rounded-2xl px-4"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Quotation
+                  </Button>
+                ) : null}
+
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setArchiveTab("archived");
+                    setIsArchiveModalOpen(true);
+                  }}
+                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+                >
+                  Archive
+                </Button>
               </div>
             </div>
 
@@ -422,7 +676,7 @@ export default function FinanceQuotationsPage() {
           </div>
         </section>
 
-        <section>
+                <section>
           <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
             <CardHeader className="border-b border-white/8 pb-4">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -436,8 +690,7 @@ export default function FinanceQuotationsPage() {
                   </CardTitle>
 
                   <CardDescription className="max-w-2xl text-white/45">
-                    Search and review quotation records, commercial status,
-                    counterparty, dates, and total amount before downstream conversion.
+                    Manage quotations, review status, and control the full incoming commercial flow.
                   </CardDescription>
                 </div>
 
@@ -445,8 +698,8 @@ export default function FinanceQuotationsPage() {
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
                   <input
                     value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search quotation number, client, company, or status"
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search quotation, client, status..."
                     className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-10 pr-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-cyan-400/30"
                   />
                 </div>
@@ -455,92 +708,114 @@ export default function FinanceQuotationsPage() {
 
             <CardContent className="p-4 sm:p-5 xl:p-6">
               {isLoading ? (
-                <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
+                <div className="text-white/50 text-sm">
                   Loading quotations...
                 </div>
               ) : filteredQuotations.length === 0 ? (
-                <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
-                  No quotations found.
+                <div className="text-white/50 text-sm">
+                  No quotations found
                 </div>
               ) : (
                 <div className="space-y-3">
                   {filteredQuotations.map((quotation) => {
-                    const currencyCode = quotation.currency_code || "USD";
+                    const currency = quotation.currency_code || "USD";
 
-
-                                                              return (
-                      <button
+                    return (
+                      <div
                         key={quotation.id}
-                        type="button"
-                        onClick={() =>
-                          navigate(
-                            `/finance/transactions/quotations/${quotation.id}`
-                          )
-                        }
-                        className="group flex w-full items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
+                        className="group flex items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-4 transition-all hover:border-white/15 hover:bg-white/[0.07]"
                       >
+                        {/* LEFT */}
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <div className="text-base font-semibold text-white">
-                              {quotation.quotation_number ||
-                                (quotation.status === "draft"
-                                  ? "Draft Quotation"
-                                  : "Quotation")}
+                              {quotation.quotation_number || "Quotation"}
                             </div>
 
                             <Badge
-                              className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getQuotationStatusBadgeClasses(
+                              className={`rounded-full border px-2.5 py-1 text-[11px] ${getQuotationStatusBadgeClasses(
                                 quotation.status
                               )}`}
                             >
                               {getQuotationStatusLabel(quotation.status)}
-                            </Badge>
-
-                            <Badge className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] text-white/75 shadow-none">
-                              {currencyCode}
                             </Badge>
                           </div>
 
                           <div className="mt-2 text-sm text-white/70">
                             {quotation.client_name_snapshot ||
                               quotation.company_name_snapshot ||
-                              "Unknown"}
+                              "—"}
                           </div>
 
-                          <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-white/45 md:grid-cols-4">
+                          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-white/45">
                             <div>
-                              Issue:{" "}
-                              {formatFinanceDate(quotation.issue_date)}
+                              Issue: {formatFinanceDate(quotation.issue_date)}
                             </div>
-
                             <div>
-                              Valid Until:{" "}
-                              {formatFinanceDate(quotation.valid_until)}
+                              Valid: {formatFinanceDate(quotation.valid_until)}
                             </div>
-
                             <div>
                               Total:{" "}
                               {formatFinanceMoney(
                                 quotation.total_amount,
-                                currencyCode
+                                currency
                               )}
                             </div>
+                            <div>Status: {quotation.status}</div>
+                          </div>
+                        </div>
 
-                            <div>
-                              Status:{" "}
-                              {getQuotationStatusLabel(quotation.status)}
+                        {/* RIGHT ACTIONS */}
+                        <div className="relative flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              navigate(
+                                `/finance/transactions/quotations/${quotation.id}`
+                              )
+                            }
+                          >
+                            Open
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              setOpenMenuQuotationId(
+                                openMenuQuotationId === quotation.id
+                                  ? null
+                                  : quotation.id
+                              )
+                            }
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+
+                          {/* DROPDOWN */}
+                          {openMenuQuotationId === quotation.id && (
+                            <div
+                              ref={actionsMenuRef}
+                              className="absolute right-0 top-10 z-50 w-44 rounded-xl border border-white/10 bg-black/90 p-2 shadow-xl"
+                            >
+                              <button
+                                className="w-full text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-md"
+                                onClick={() => handleArchive(quotation.id)}
+                              >
+                                Archive
+                              </button>
+
+                              <button
+                                className="w-full text-left px-3 py-2 text-sm text-rose-400 hover:bg-white/10 rounded-md"
+                                onClick={() => handleDelete(quotation.id)}
+                              >
+                                Delete
+                              </button>
                             </div>
-                          </div>
+                          )}
                         </div>
-
-                        <div className="flex shrink-0 items-center gap-3 pl-2">
-                          <div className="hidden text-xs text-white/30 transition-colors duration-200 group-hover:text-white/55 sm:block">
-                            {formatFinanceDate(quotation.created_at)}
-                          </div>
-
-                          <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
-                        </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -548,6 +823,76 @@ export default function FinanceQuotationsPage() {
             </CardContent>
           </Card>
         </section>
+
+        {/* ARCHIVE MODAL */}
+        {isArchiveModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur">
+            <div className="w-full max-w-3xl rounded-2xl border border-white/10 bg-black/90 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-white font-semibold">Archive</div>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setIsArchiveModalOpen(false)}
+                >
+                  Close
+                </Button>
+              </div>
+
+              <div className="flex gap-2 mb-4">
+                <Button
+                  size="sm"
+                  variant={archiveTab === "archived" ? "default" : "ghost"}
+                  onClick={() => setArchiveTab("archived")}
+                >
+                  Archived
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant={archiveTab === "deleted" ? "default" : "ghost"}
+                  onClick={() => setArchiveTab("deleted")}
+                >
+                  Deleted
+                </Button>
+              </div>
+
+              {isArchiveLoading ? (
+                <div className="text-white/50 text-sm">Loading...</div>
+              ) : (
+                <div className="space-y-2">
+                  {visibleArchivedQuotations.map((q) => (
+                    <div
+                      key={q.id}
+                      className="flex items-center justify-between text-sm text-white/70 border border-white/10 rounded-lg px-3 py-2"
+                    >
+                      <div>{q.quotation_number}</div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRestore(q.id)}
+                        >
+                          Restore
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleHardDelete(q.id)}
+                        >
+                          Delete Forever
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -322,19 +322,19 @@ export default function AICacheReviewPage() {
     });
   }, [items, search, statusFilter]);
 
-  const selectedItem =
-    items.find((item) => item.id === selectedItemId) ??
-    filteredItems[0] ??
-    null;
+const selectedItem =
+  items.find((item) => item.id === selectedItemId) ??
+  filteredItems[0] ??
+  null;
 
-    useEffect(() => {
-    if (!selectedItem) {
-      setSimilarityRows([]);
-      return;
-    }
+useEffect(() => {
+  if (!selectedItem) {
+    setSimilarityRows([]);
+    return;
+  }
 
-    void loadSemanticDiagnostics(selectedItem);
-  }, [selectedItem?.id]);
+  void loadSemanticDiagnostics(selectedItem);
+}, [selectedItem?.id]);
 
    const summary = useMemo(() => {
     const blocked = items.filter((item) => Boolean(item.is_blocked)).length;

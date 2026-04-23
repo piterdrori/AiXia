@@ -892,146 +892,146 @@ const handleNotificationClick = async (notification: NotificationRow) => {
     }
   };
 
- const SidebarContent = () => (
-  <div className="grid h-full min-h-0 grid-rows-[auto,minmax(0,1fr),auto] overflow-hidden">
-    <div className="relative flex items-center justify-center border-b border-border px-4 py-5">
-      <img
-        src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
-        alt="AiXia Logo"
-        className="h-40 w-auto object-contain"
-      />
+  const renderSidebarContent = () => (
+    <div className="grid h-full min-h-0 grid-rows-[auto,minmax(0,1fr),auto] overflow-hidden">
+      <div className="relative flex items-center justify-center border-b border-border px-4 py-5">
+        <img
+          src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
+          alt="AiXia Logo"
+          className="h-40 w-auto object-contain"
+        />
 
-      {isMobile && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setMobileMenuOpen(false)}
-          className="absolute right-3 top-3"
-        >
-          <X className="h-5 w-5 text-muted-foreground" />
-        </Button>
-      )}
-    </div>
-
-    <nav className="min-h-0 overflow-y-auto overscroll-y-contain px-4 py-4 [scrollbar-gutter:stable]">
-      <div className="space-y-1">
-        <TooltipProvider delayDuration={0}>
-          {navItems.map((item) => (
-            <Tooltip key={item.href}>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => {
-                    navigate(item.href);
-                    if (isMobile) setMobileMenuOpen(false);
-                  }}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-200 ${
-                    isActive(item.href)
-                      ? "bg-primary/10 text-primary backdrop-blur-md shadow-sm"
-                      : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
-                  }`}
-                >
-                  <item.icon
-                    className={`h-5 w-5 ${isActive(item.href) ? "text-primary" : ""}`}
-                  />
-                  <span className="flex-1 text-left">{item.label}</span>
-
-                  {item.badge ? (
-                    <Badge
-                      variant="default"
-                      className={
-                        item.href === "/inbox"
-                          ? "bg-red-600 text-xs text-white"
-                          : "bg-primary text-xs text-primary-foreground"
-                      }
-                    >
-                      {item.badge > 99 ? "99+" : item.badge}
-                    </Badge>
-                  ) : null}
-                </button>
-              </TooltipTrigger>
-
-              {!sidebarOpen && !isMobile && (
-                <TooltipContent side="right">
-                  <p>{item.label}</p>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          ))}
-        </TooltipProvider>
-      </div>
-    </nav>
-
-    <div className="border-t border-border bg-background/80 p-4 backdrop-blur-2xl">
-      <div className="flex flex-col gap-3">
-        <div className="rounded-xl border border-border bg-background/40 px-3 py-2 backdrop-blur-md">
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            {t("clock.systemTime", "System Time")}
-          </p>
-          <p className="mt-1 text-sm font-medium text-foreground">
-            {format(clock.now, "PPP")}
-          </p>
-          <p className="text-xs text-muted-foreground">{format(clock.now, "p")}</p>
-        </div>
-
-        <div className="rounded-xl border border-border bg-background/40 px-3 py-2 backdrop-blur-md">
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            {t("clock.localTime", "My Local Time")}
-          </p>
-          <p className="mt-1 text-sm font-medium text-foreground">{localTime}</p>
-          <p className="text-xs text-muted-foreground">{timezone}</p>
-        </div>
+        {isMobile && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setMobileMenuOpen(false)}
+            className="absolute right-3 top-3"
+          >
+            <X className="h-5 w-5 text-muted-foreground" />
+          </Button>
+        )}
       </div>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="mt-4 flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={userProfile?.avatarUrl || undefined} />
-              <AvatarFallback className="bg-primary text-sm text-primary-foreground">
-                {userInitials}
-              </AvatarFallback>
-            </Avatar>
+      <nav className="min-h-0 overflow-y-auto overscroll-y-contain px-4 py-4 [scrollbar-gutter:stable]">
+        <div className="space-y-1">
+          <TooltipProvider delayDuration={0}>
+            {navItems.map((item) => (
+              <Tooltip key={item.href}>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => {
+                      navigate(item.href);
+                      if (isMobile) setMobileMenuOpen(false);
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-200 ${
+                      isActive(item.href)
+                        ? "bg-primary/10 text-primary backdrop-blur-md shadow-sm"
+                        : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                    }`}
+                  >
+                    <item.icon
+                      className={`h-5 w-5 ${isActive(item.href) ? "text-primary" : ""}`}
+                    />
+                    <span className="flex-1 text-left">{item.label}</span>
 
-            <div className="flex-1 overflow-hidden text-left">
-              <p className="truncate text-sm font-medium text-foreground">
-                {isLoadingUser
-                  ? t("common.loading", "Loading...")
-                  : userProfile?.fullName || t("common.user", "User")}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">
-                {userProfile?.email || ""}
-              </p>
-            </div>
-          </button>
-        </DropdownMenuTrigger>
+                    {item.badge ? (
+                      <Badge
+                        variant="default"
+                        className={
+                          item.href === "/inbox"
+                            ? "bg-red-600 text-xs text-white"
+                            : "bg-primary text-xs text-primary-foreground"
+                        }
+                      >
+                        {item.badge > 99 ? "99+" : item.badge}
+                      </Badge>
+                    ) : null}
+                  </button>
+                </TooltipTrigger>
 
-        <DropdownMenuContent
-          align="end"
-          className="w-56 border-border bg-popover"
-        >
-          <DropdownMenuLabel className="text-muted-foreground">
-            {t("common.myAccount", "My Account")}
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator className="bg-border" />
-          <DropdownMenuItem
-            onClick={() => navigate("/settings")}
-            className="text-foreground focus:bg-muted focus:text-foreground"
+                {!sidebarOpen && !isMobile && (
+                  <TooltipContent side="right">
+                    <p>{item.label}</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            ))}
+          </TooltipProvider>
+        </div>
+      </nav>
+
+      <div className="border-t border-border bg-background/80 p-4 backdrop-blur-2xl">
+        <div className="flex flex-col gap-3">
+          <div className="rounded-xl border border-border bg-background/40 px-3 py-2 backdrop-blur-md">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              {t("clock.systemTime", "System Time")}
+            </p>
+            <p className="mt-1 text-sm font-medium text-foreground">
+              {format(clock.now, "PPP")}
+            </p>
+            <p className="text-xs text-muted-foreground">{format(clock.now, "p")}</p>
+          </div>
+
+          <div className="rounded-xl border border-border bg-background/40 px-3 py-2 backdrop-blur-md">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              {t("clock.localTime", "My Local Time")}
+            </p>
+            <p className="mt-1 text-sm font-medium text-foreground">{localTime}</p>
+            <p className="text-xs text-muted-foreground">{timezone}</p>
+          </div>
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="mt-4 flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={userProfile?.avatarUrl || undefined} />
+                <AvatarFallback className="bg-primary text-sm text-primary-foreground">
+                  {userInitials}
+                </AvatarFallback>
+              </Avatar>
+
+              <div className="flex-1 overflow-hidden text-left">
+                <p className="truncate text-sm font-medium text-foreground">
+                  {isLoadingUser
+                    ? t("common.loading", "Loading...")
+                    : userProfile?.fullName || t("common.user", "User")}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {userProfile?.email || ""}
+                </p>
+              </div>
+            </button>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent
+            align="end"
+            className="w-56 border-border bg-popover"
           >
-            <Settings className="mr-2 h-4 w-4" />
-            {t("common.settings", "Settings")}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={handleLogout}
-            className="text-red-500 focus:bg-muted focus:text-red-500"
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            {t("common.signOut", "Logout")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+            <DropdownMenuLabel className="text-muted-foreground">
+              {t("common.myAccount", "My Account")}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator className="bg-border" />
+            <DropdownMenuItem
+              onClick={() => navigate("/settings")}
+              className="text-foreground focus:bg-muted focus:text-foreground"
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              {t("common.settings", "Settings")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={handleLogout}
+              className="text-red-500 focus:bg-muted focus:text-red-500"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              {t("common.signOut", "Logout")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
-  </div>
-);
+  );
 
    return (
     <div className="flex h-dvh overflow-hidden bg-background text-foreground">

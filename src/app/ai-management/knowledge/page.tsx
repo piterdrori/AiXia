@@ -596,45 +596,39 @@ export default function AIKnowledgeBankPage() {
     }
   }
 
-  async function handleUploadInputChange(
+    async function handleUploadInputChange(
     event: ChangeEvent<HTMLInputElement>
   ) {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const text = await file.text().catch(() => "");
     setPageError(null);
     setActionMessage(null);
 
-    const payload = {
-      title: file.name.replace(/\.[^/.]+$/, ""),
-      category: "upload",
-      source_type: "upload" as const,
-      status: "draft" as const,
-      content: text || null,
-      extracted_text: text || null,
-      source_path: null,
-      source_url: null,
-      file_name: file.name,
-      file_type: file.type || "text/plain",
-      file_size_bytes: file.size,
-      admin_notes: "Uploaded from AI Knowledge Bank",
-      is_active: false,
-    };
+    try {
+      const text = await file.text();
 
-    const { error } = await supabase.from("ai_knowledge_items").insert(payload);
+      await callGithubKnowledgeApi("", {
+        method: "POST",
+        body: JSON.stringify({
+          title: file.name.replace(/\.[^/.]+$/, ""),
+          category: "upload",
+          content: text,
+          status: "draft",
+        }),
+      });
 
-    if (error) {
-      setPageError(error.message);
-      return;
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      setActionMessage("File uploaded to GitHub knowledge bank.");
+      await loadKnowledgeItems(true);
+    } catch (error) {
+      setPageError(
+        error instanceof Error ? error.message : "Upload failed"
+      );
     }
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-
-    setActionMessage("File uploaded into knowledge bank.");
-    await loadKnowledgeItems(true);
   }
 
   function openSelectedInEditor() {

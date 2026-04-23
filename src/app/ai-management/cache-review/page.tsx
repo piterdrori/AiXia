@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  AlertTriangle,
   ArrowLeft,
   BadgeCheck,
   Ban,
   Brain,
   Database,
-  Eye,
   FileCheck2,
   Pencil,
   RefreshCw,
@@ -15,7 +13,6 @@ import {
   Search,
   ShieldAlert,
   Sparkles,
-  Target,
   Trash2,
   X,
 } from "lucide-react";
@@ -502,7 +499,7 @@ export default function AICacheReviewPage() {
             onClick={() => loadCacheItems(true)}
             className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/70 hover:bg-white/[0.08]"
           >
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             Refresh
           </button>
         </div>
@@ -518,6 +515,22 @@ export default function AICacheReviewPage() {
         <SummaryCard label="Usage" value={summary.usage} />
       </div>
 
+            {(pageError || actionMessage) && (
+        <div className="space-y-2">
+          {pageError && (
+            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+              {pageError}
+            </div>
+          )}
+
+          {actionMessage && (
+            <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+              {actionMessage}
+            </div>
+          )}
+        </div>
+      )}
+      
       {/* MAIN GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-6">
         {/* LEFT — LIST */}
@@ -704,7 +717,7 @@ export default function AICacheReviewPage() {
                   onClick={() => promoteToApproved(selectedItem)}
                   className="btn"
                 >
-                  <FileCheck2 className="h-4 w-4" /> Promote
+                  <FileCheck2 className="h-4 w-4" /> {promoting ? "Promoting..." : "Promote"}
                 </button>
 
                 <button
@@ -755,9 +768,10 @@ export default function AICacheReviewPage() {
               </button>
 
               <button
-                onClick={saveEditor}
-                className="btn-primary"
-              >
+  onClick={saveEditor}
+  disabled={saving}
+  className="btn-primary disabled:opacity-50"
+>
                 <Save className="h-4 w-4" /> Save
               </button>
             </div>

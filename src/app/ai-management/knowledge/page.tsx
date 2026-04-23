@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   Database,
   Eye,
+  ExternalLink,
   FileCode2,
   FileText,
   Github,
@@ -884,9 +885,11 @@ export default function AIKnowledgeBankPage() {
                     <button
                       key={item.id}
                       onClick={() => setSelectedItemId(item.id)}
-                      className={`w-full rounded-[26px] border p-4 text-left transition-all duration-300 ${
+                       className={`w-full rounded-[26px] border p-4 text-left transition-all duration-300 ${
                         isSelected
                           ? "border-cyan-400/20 bg-cyan-500/10 shadow-[0_0_0_1px_rgba(34,211,238,0.08)]"
+                          : item.origin === "github"
+                          ? "border-cyan-400/10 bg-cyan-500/[0.04] hover:border-cyan-400/20 hover:bg-cyan-500/[0.07]"
                           : "border-white/10 bg-black/20 hover:border-white/15 hover:bg-white/[0.03]"
                       }`}
                     >
@@ -933,6 +936,9 @@ export default function AIKnowledgeBankPage() {
                             <span>
                               Updated: {formatKnowledgeDate(item.updated_at)}
                             </span>
+                            {item.origin === "github" && item.github_path && (
+                              <span>Path: {item.github_path}</span>
+                            )}
                           </div>
 
                           <div className="mt-3 line-clamp-2 text-sm leading-6 text-white/55">
@@ -956,7 +962,7 @@ export default function AIKnowledgeBankPage() {
                             Preview
                           </button>
 
-                          <button
+                                                    <button
                             type="button"
                             onClick={(event) => {
                               event.stopPropagation();
@@ -967,6 +973,19 @@ export default function AIKnowledgeBankPage() {
                             <Pencil className="h-3.5 w-3.5" />
                             Edit
                           </button>
+
+                          {item.origin === "github" && item.html_url && (
+                            <a
+                              href={item.html_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(event) => event.stopPropagation()}
+                              className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200 transition-all duration-300 hover:bg-cyan-500/20"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              GitHub
+                            </a>
+                          )}
 
                           {item.origin !== "github" && (
                             <>
@@ -1065,6 +1084,12 @@ export default function AIKnowledgeBankPage() {
                     {selectedItem.source_type}
                   </span>
 
+                  {selectedItem.origin === "github" && (
+                    <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-1 text-[11px] text-cyan-200">
+                      synced from GitHub
+                    </span>
+                  )}
+
                   <span
                     className={`rounded-full border px-2.5 py-1 text-[11px] ${statusChipClass(
                       selectedItem.status,
@@ -1078,7 +1103,6 @@ export default function AIKnowledgeBankPage() {
                     {selectedItem.file_type || "text"}
                   </span>
                 </div>
-
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
                     <div className="text-[11px] uppercase tracking-[0.18em] text-white/35">
@@ -1097,9 +1121,20 @@ export default function AIKnowledgeBankPage() {
                       {formatFileSize(selectedItem.file_size_bytes)}
                     </div>
                   </div>
+
+                  {selectedItem.origin === "github" && selectedItem.github_path && (
+                    <div className="rounded-2xl border border-cyan-400/10 bg-cyan-500/[0.05] p-3 md:col-span-2">
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-cyan-200/70">
+                        GitHub Path
+                      </div>
+                      <div className="mt-1 break-all text-sm text-cyan-100/90">
+                        {selectedItem.github_path}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                               <div className="mt-4 flex flex-wrap gap-2">
+               <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     onClick={openSelectedInEditor}
                     className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/75 transition-all duration-300 hover:bg-white/[0.08] hover:text-white"
@@ -1107,6 +1142,18 @@ export default function AIKnowledgeBankPage() {
                     <Pencil className="h-4 w-4" />
                     Edit
                   </button>
+
+                  {selectedItem.origin === "github" && selectedItem.html_url && (
+                    <a
+                      href={selectedItem.html_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-200 transition-all duration-300 hover:bg-cyan-500/20"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Open in GitHub
+                    </a>
+                  )}
 
                   {selectedItem.origin !== "github" && (
                     <>

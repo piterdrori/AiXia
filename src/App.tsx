@@ -117,6 +117,7 @@ import FinanceLedgerAccountDetailPage from "@/app/finance/ledger/accounts/[id]/p
 import FinanceLedgerPeriodsPage from "@/app/finance/ledger/periods/page";
 import FinanceLedgerJournalsPage from "@/app/finance/ledger/journals/page";
 import FinanceLedgerJournalDetailPage from "@/app/finance/ledger/journals/[id]/page";
+import AIManagementPage from "@/app/ai-management/page";
 
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -770,12 +771,23 @@ function AppRoutes() {
   }
 />
 
-            <Route
+             <Route
         path="/settings"
         element={
           <ProtectedRoute>
             <DashboardLayout>
               <SettingsPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/ai-management"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AIManagementPage />
             </DashboardLayout>
           </ProtectedRoute>
         }

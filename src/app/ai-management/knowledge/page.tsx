@@ -5,7 +5,9 @@ import {
   useState,
   type ChangeEvent,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import {
+  ArrowLeft,
   Database,
   Eye,
   FileCode2,
@@ -148,6 +150,7 @@ function toEditorForm(item: KnowledgeItem): EditorFormState {
 }
 
 export default function AIKnowledgeBankPage() {
+  const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [items, setItems] = useState<KnowledgeItem[]>([]);
@@ -225,7 +228,13 @@ export default function AIKnowledgeBankPage() {
         sourceFilter === "all" ? true : item.source_type === sourceFilter;
 
       const matchesStatus =
-        statusFilter === "all" ? true : item.status === statusFilter;
+  statusFilter === "all"
+    ? true
+    : statusFilter === "active"
+    ? item.is_active === true
+    : statusFilter === "inactive"
+    ? item.is_active === false
+    : item.status === statusFilter;
 
       return matchesSearch && matchesSource && matchesStatus;
     });
@@ -333,11 +342,7 @@ export default function AIKnowledgeBankPage() {
     setActionMessage(null);
 
     const nextIsActive = !item.is_active;
-    const nextStatus: KnowledgeStatus = nextIsActive
-      ? item.status === "archived"
-        ? "active"
-        : item.status
-      : "inactive";
+    const nextStatus: KnowledgeStatus = nextIsActive ? "active" : "inactive";
 
     const { error } = await supabase
       .from("ai_knowledge_items")
@@ -458,7 +463,17 @@ export default function AIKnowledgeBankPage() {
   return (
     <div className="grid min-h-[calc(100vh-165px)] gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
       <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-        <div className="border-b border-white/10 px-6 py-5">
+                <div className="border-b border-white/10 px-6 py-5">
+          <div className="mb-4">
+            <button
+              onClick={() => navigate("/ai-management")}
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/70 transition-all duration-300 hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to AI Studio
+            </button>
+          </div>
+
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-2">
               <div className="w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200">
@@ -576,44 +591,56 @@ export default function AIKnowledgeBankPage() {
                 />
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                {(["all", "github", "manual", "upload"] as const).map((value) => (
-                  <button
-                    key={value}
-                    onClick={() => setSourceFilter(value)}
-                    className={`rounded-2xl border px-3 py-2 text-xs transition-all duration-300 ${
-                      sourceFilter === value
-                        ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
-                        : "border-white/10 bg-white/[0.03] text-white/55 hover:bg-white/[0.06] hover:text-white/80"
-                    }`}
-                  >
-                    {value === "all"
-                      ? "All Sources"
-                      : value === "upload"
-                      ? "Uploads"
-                      : value === "manual"
-                      ? "Manual"
-                      : "GitHub"}
-                  </button>
-                ))}
+                            <div className="flex flex-col gap-3 xl:items-end">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="mr-1 text-[11px] uppercase tracking-[0.18em] text-white/35">
+                    Source
+                  </div>
 
-                {(["all", "active", "draft", "inactive", "archived"] as const).map(
-                  (value) => (
+                  {(["all", "github", "manual", "upload"] as const).map((value) => (
                     <button
                       key={value}
-                      onClick={() => setStatusFilter(value)}
+                      onClick={() => setSourceFilter(value)}
                       className={`rounded-2xl border px-3 py-2 text-xs transition-all duration-300 ${
-                        statusFilter === value
+                        sourceFilter === value
                           ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
                           : "border-white/10 bg-white/[0.03] text-white/55 hover:bg-white/[0.06] hover:text-white/80"
                       }`}
                     >
                       {value === "all"
-                        ? "All Status"
-                        : value.charAt(0).toUpperCase() + value.slice(1)}
+                        ? "All"
+                        : value === "upload"
+                        ? "Uploads"
+                        : value === "manual"
+                        ? "Manual"
+                        : "GitHub"}
                     </button>
-                  )
-                )}
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="mr-1 text-[11px] uppercase tracking-[0.18em] text-white/35">
+                    Status
+                  </div>
+
+                  {(["all", "active", "draft", "inactive", "archived"] as const).map(
+                    (value) => (
+                      <button
+                        key={value}
+                        onClick={() => setStatusFilter(value)}
+                        className={`rounded-2xl border px-3 py-2 text-xs transition-all duration-300 ${
+                          statusFilter === value
+                            ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
+                            : "border-white/10 bg-white/[0.03] text-white/55 hover:bg-white/[0.06] hover:text-white/80"
+                        }`}
+                      >
+                        {value === "all"
+                          ? "All"
+                          : value.charAt(0).toUpperCase() + value.slice(1)}
+                      </button>
+                    )
+                  )}
+                </div>
               </div>
             </div>
 
@@ -704,8 +731,7 @@ export default function AIKnowledgeBankPage() {
                                 item.is_active
                               )}`}
                             >
-                              {item.status}
-                              {item.is_active ? " • live" : ""}
+                              {item.is_active ? "active • live" : item.status}
                             </span>
                           </div>
 
@@ -854,8 +880,7 @@ export default function AIKnowledgeBankPage() {
                       selectedItem.is_active
                     )}`}
                   >
-                    {selectedItem.status}
-                    {selectedItem.is_active ? " • live" : ""}
+                    {selectedItem.is_active ? "active • live" : selectedItem.status}
                   </span>
 
                   <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-white/45">

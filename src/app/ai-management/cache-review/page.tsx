@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  AlertTriangle,
   ArrowLeft,
   BadgeCheck,
   Ban,
+  Brain,
   Database,
   Eye,
   FileCheck2,
@@ -13,6 +15,7 @@ import {
   Search,
   ShieldAlert,
   Sparkles,
+  Target,
   Trash2,
   X,
 } from "lucide-react";
@@ -111,6 +114,88 @@ function statusChipClass(isBlocked: boolean) {
   }
 
   return "border-emerald-400/20 bg-emerald-500/10 text-emerald-300";
+}
+
+function scoreCacheQuality(item: CacheItem) {
+  let score = 100;
+
+  const answer = (item.answer ?? "").trim();
+  const question = (item.question ?? "").trim();
+  const normalized = (item.normalized_question ?? "").trim();
+  const provider = (item.provider ?? "unknown").toLowerCase();
+  const usage = item.usage_count ?? 0;
+
+  if (!question) score -= 40;
+  if (!answer) score -= 60;
+  if (answer.length < 30) score -= 18;
+  if (answer.length > 1200) score -= 10;
+  if (usage === 0) score -= 8;
+  if (Boolean(item.is_blocked)) score -= 50;
+  if (provider === "openai") score -= 6;
+  if (provider === "semantic-cache") score += 4;
+  if (normalized !== normalizeQuestion(question)) score -= 12;
+
+  if (
+    answer === "I do not have an approved answer for that yet." ||
+    answer.toLowerCase().includes("i do not have an approved answer")
+  ) {
+    score -= 25;
+  }
+
+  return Math.max(0, Math.min(100, score));
+}
+
+function inferCacheRisk(item: CacheItem) {
+  const answer = (item.answer ?? "").trim();
+  const question = (item.question ?? "").trim();
+  const normalized = (item.normalized_question ?? "").trim();
+
+  if (Boolean(item.is_blocked)) return "blocked";
+  if (!answer) return "empty-answer";
+  if (!question) return "empty-question";
+  if (normalized !== normalizeQuestion(question)) return "normalization-mismatch";
+  if (answer.length < 30) return "too-short";
+  if (
+    answer === "I do not have an approved answer for that yet." ||
+    answer.toLowerCase().includes("i do not have an approved answer")
+  ) {
+    return "fallback-cached";
+  }
+
+  return "healthy";
+}
+
+function riskChipClass(risk: string) {
+  if (risk === "healthy") {
+    return "border-emerald-400/20 bg-emerald-500/10 text-emerald-300";
+  }
+
+  if (risk === "normalization-mismatch" || risk === "too-short") {
+    return "border-amber-400/20 bg-amber-500/10 text-amber-300";
+  }
+
+  return "border-rose-400/20 bg-rose-500/10 text-rose-300";
+}
+
+function riskLabel(risk: string) {
+  switch (risk) {
+    case "healthy":
+      return "healthy";
+    case "blocked":
+      return "blocked";
+    case "empty-answer":
+      return "empty answer";
+    case "empty-question":
+      return "empty question";
+    case "normalization-mismatch":
+      return "normalization mismatch";
+    case "too-short":
+      return "too short";
+    case "fallback-cached":
+      return "fallback cached";
+    default:
+      return "review";
+  }
 }
 
 function toEditorState(item: CacheItem): CacheEditorState {
@@ -216,7 +301,7 @@ export default function AICacheReviewPage() {
     filteredItems[0] ??
     null;
 
-  const summary = useMemo(() => {
+   const summary = useMemo(() => {
     const blocked = items.filter((item) => Boolean(item.is_blocked)).length;
     const active = items.filter((item) => !item.is_blocked).length;
     const semantic = items.filter(
@@ -226,6 +311,10 @@ export default function AICacheReviewPage() {
       (sum, item) => sum + (item.usage_count ?? 0),
       0
     );
+    const weak = items.filter((item) => scoreCacheQuality(item) < 70).length;
+    const risky = items.filter(
+      (item) => inferCacheRisk(item) !== "healthy"
+    ).length;
 
     return {
       total: items.length,
@@ -233,6 +322,8 @@ export default function AICacheReviewPage() {
       blocked,
       semantic,
       usage: totalUsage,
+      weak,
+      risky,
     };
   }, [items]);
 
@@ -349,7 +440,25 @@ export default function AICacheReviewPage() {
     await loadCacheItems(true);
   }
 
-  async function promoteToApproved(item: CacheItem) {
+   async function promoteToApproved(item: CacheItem) {
+    const quality = scoreCacheQuality(item);
+    const risk = inferCacheRisk(item);
+
+    if (Boolean(item.is_blocked)) {
+      setPageError("Blocked cache items cannot be promoted.");
+      return;
+    }
+
+    if (risk !== "healthy") {
+      setPageError("Only healthy cache items should be promoted.");
+      return;
+    }
+
+    if (quality < 70) {
+      setPageError("Cache quality is too low for promotion.");
+      return;
+    }
+
     setPromoting(true);
     setPageError(null);
     setActionMessage(null);
@@ -400,11 +509,12 @@ export default function AICacheReviewPage() {
       </div>
 
       {/* SUMMARY */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         <SummaryCard label="Total" value={summary.total} />
         <SummaryCard label="Active" value={summary.active} />
         <SummaryCard label="Blocked" value={summary.blocked} />
         <SummaryCard label="Semantic" value={summary.semantic} />
+        <SummaryCard label="Weak" value={summary.weak} />
         <SummaryCard label="Usage" value={summary.usage} />
       </div>
 
@@ -459,7 +569,7 @@ export default function AICacheReviewPage() {
                     {item.question}
                   </div>
 
-                  <div className="mt-2 flex gap-2 flex-wrap">
+                                 <div className="mt-2 flex gap-2 flex-wrap">
                     <span
                       className={`px-2 py-0.5 text-[11px] rounded-full border ${providerChipClass(
                         item.provider
@@ -474,6 +584,18 @@ export default function AICacheReviewPage() {
                       )}`}
                     >
                       {item.is_blocked ? "blocked" : "active"}
+                    </span>
+
+                    <span
+                      className={`px-2 py-0.5 text-[11px] rounded-full border ${riskChipClass(
+                        inferCacheRisk(item)
+                      )}`}
+                    >
+                      {riskLabel(inferCacheRisk(item))}
+                    </span>
+
+                    <span className="px-2 py-0.5 text-[11px] rounded-full border border-white/10 bg-white/[0.04] text-white/60">
+                      q{scoreCacheQuality(item)}
                     </span>
                   </div>
                 </div>
@@ -500,23 +622,61 @@ export default function AICacheReviewPage() {
                 Cache Inspector
               </div>
 
-              <div className="mt-4 space-y-3 text-sm">
+                          <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <InsightCard
+                  icon={Sparkles}
+                  label="Quality Score"
+                  value={`${scoreCacheQuality(selectedItem)}/100`}
+                />
+                <InsightCard
+                  icon={ShieldAlert}
+                  label="Risk"
+                  value={riskLabel(inferCacheRisk(selectedItem))}
+                />
+                <InsightCard
+                  icon={Database}
+                  label="Provider"
+                  value={selectedItem.provider || "unknown"}
+                />
+                <InsightCard
+                  icon={Brain}
+                  label="Usage Count"
+                  value={String(selectedItem.usage_count ?? 0)}
+                />
+              </div>
+
+              <div className="mt-5 space-y-3 text-sm">
                 <Field label="Question" value={selectedItem.question} />
                 <Field label="Normalized" value={selectedItem.normalized_question} />
+                <Field
+                  label="Normalization Check"
+                  value={
+                    selectedItem.normalized_question ===
+                    normalizeQuestion(selectedItem.question)
+                      ? "match"
+                      : "mismatch"
+                  }
+                />
                 <Field label="Answer" value={selectedItem.answer} multiline />
                 <Field label="Provider" value={selectedItem.provider} />
                 <Field label="Model" value={selectedItem.model} />
                 <Field
-                  label="Usage"
-                  value={String(selectedItem.usage_count ?? 0)}
-                />
-                <Field
                   label="Created"
                   value={formatDateTime(selectedItem.created_at)}
+                />
+                <Field
+                  label="Updated"
+                  value={formatDateTime(selectedItem.updated_at)}
                 />
               </div>
 
               {/* ACTIONS */}
+             {inferCacheRisk(selectedItem) !== "healthy" && (
+                <div className="mt-5 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+                  This cache item has a review flag. Fix it before promoting to approved answers.
+                </div>
+              )}
+
               <div className="mt-5 flex flex-wrap gap-2">
                 <button
                   onClick={() => openEditEditor(selectedItem)}
@@ -611,6 +771,26 @@ export default function AICacheReviewPage() {
 /* =========================
    SMALL UI COMPONENTS
 ========================= */
+
+function InsightCard({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Sparkles;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[20px] border border-white/10 bg-white/[0.04] p-4">
+      <div className="flex items-center gap-2 text-white/40">
+        <Icon className="h-4 w-4" />
+        <span className="text-xs">{label}</span>
+      </div>
+      <div className="mt-2 text-sm text-white/85">{value}</div>
+    </div>
+  );
+}
 
 function SummaryCard({
   label,

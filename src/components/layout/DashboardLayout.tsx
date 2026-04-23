@@ -1033,18 +1033,18 @@ const handleNotificationClick = async (notification: NotificationRow) => {
   </div>
 );
 
-  return (
-    <div className="flex h-screen overflow-hidden bg-background text-foreground">
+   return (
+    <div className="flex h-dvh overflow-hidden bg-background text-foreground">
       {!isMobile && (
         <aside
-  className={`fixed left-0 top-0 z-40 h-full overflow-hidden border-r border-border bg-background/60 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)] transition-all duration-300 ${
-    sidebarOpen ? "w-64" : "w-16"
-  }`}
->
+          className={`fixed left-0 top-0 z-40 h-dvh min-h-0 overflow-hidden border-r border-border bg-background/60 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)] transition-all duration-300 ${
+            sidebarOpen ? "w-64" : "w-16"
+          }`}
+        >
           {sidebarOpen ? (
             <SidebarContent />
           ) : (
-            <div className="flex h-full flex-col">
+            <div className="grid h-full min-h-0 grid-rows-[auto,minmax(0,1fr),auto] overflow-hidden">
               <div className="flex justify-center border-b border-border p-4">
                 <img
                   src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
@@ -1053,42 +1053,44 @@ const handleNotificationClick = async (notification: NotificationRow) => {
                 />
               </div>
 
-              <nav className="flex-1 min-h-0 space-y-1 overflow-y-auto scroll-smooth p-2 overscroll-contain">
-                <TooltipProvider delayDuration={0}>
-                  {navItems.map((item) => (
-                    <Tooltip key={item.href}>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => navigate(item.href)}
-                          className={`relative flex w-full items-center justify-center rounded-lg p-2.5 transition-all duration-200 ${
-                            isActive(item.href)
-                              ? "bg-primary/15 text-primary"
-                              : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
-                          }`}
-                        >
-                          <item.icon className="h-5 w-5" />
+              <nav className="min-h-0 overflow-y-auto overscroll-y-contain p-2 [scrollbar-gutter:stable]">
+                <div className="space-y-1">
+                  <TooltipProvider delayDuration={0}>
+                    {navItems.map((item) => (
+                      <Tooltip key={item.href}>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => navigate(item.href)}
+                            className={`relative flex w-full items-center justify-center rounded-lg p-2.5 transition-all duration-200 ${
+                              isActive(item.href)
+                                ? "bg-primary/15 text-primary"
+                                : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                            }`}
+                          >
+                            <item.icon className="h-5 w-5" />
 
-                          {item.badge ? (
-                            <span
-                              className={`absolute -right-0.5 -top-0.5 min-w-[16px] rounded-full px-1 text-[10px] text-white ${
-                                item.href === "/inbox" ? "bg-red-600" : "bg-primary"
-                              }`}
-                            >
-                              {item.badge > 99 ? "99+" : item.badge}
-                            </span>
-                          ) : null}
-                        </button>
-                      </TooltipTrigger>
+                            {item.badge ? (
+                              <span
+                                className={`absolute -right-0.5 -top-0.5 min-w-[16px] rounded-full px-1 text-[10px] text-white ${
+                                  item.href === "/inbox" ? "bg-red-600" : "bg-primary"
+                                }`}
+                              >
+                                {item.badge > 99 ? "99+" : item.badge}
+                              </span>
+                            ) : null}
+                          </button>
+                        </TooltipTrigger>
 
-                      <TooltipContent side="right">
-                        <p>{item.label}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  ))}
-                </TooltipProvider>
+                        <TooltipContent side="right">
+                          <p>{item.label}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
+                  </TooltipProvider>
+                </div>
               </nav>
 
-              <div className="shrink-0 border-t border-border p-2">
+              <div className="border-t border-border bg-background/80 p-2 backdrop-blur-2xl">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className="flex w-full justify-center rounded-lg p-2 transition-colors hover:bg-muted">
@@ -1137,18 +1139,18 @@ const handleNotificationClick = async (notification: NotificationRow) => {
             className="fixed inset-0 z-40 bg-black/50"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <aside className="fixed left-0 top-0 z-50 h-full w-64 overflow-hidden border-r border-border bg-background/70 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
+          <aside className="fixed left-0 top-0 z-50 h-dvh min-h-0 w-64 overflow-hidden border-r border-border bg-background/70 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
             <SidebarContent />
           </aside>
         </>
       )}
 
       <main
-  className={`flex flex-1 min-h-0 flex-col overflow-hidden transition-all duration-300 ${
-    !isMobile && sidebarOpen ? "ml-64" : !isMobile ? "ml-16" : ""
-  }`}
->
-        <header className="sticky top-0 z-30 border-b border-border bg-background/60 backdrop-blur-2xl shadow-[0_1px_0_rgba(255,255,255,0.03)]">
+        className={`flex flex-1 min-h-0 flex-col overflow-hidden transition-all duration-300 ${
+          !isMobile && sidebarOpen ? "ml-64" : !isMobile ? "ml-16" : ""
+        }`}
+      >
+        <header className="sticky top-0 z-30 shrink-0 border-b border-border bg-background/60 backdrop-blur-2xl shadow-[0_1px_0_rgba(255,255,255,0.03)]">
           <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-4">
               {isMobile && (
@@ -1227,7 +1229,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
 
                   <DropdownMenuSeparator className="bg-border" />
 
-                  <div className="max-h-96 overflow-y-auto scroll-smooth">
+                  <div className="max-h-96 overflow-y-auto [scrollbar-gutter:stable]">
                     {isLoadingNotifications ? (
                       <div className="px-4 py-6 text-sm text-muted-foreground">
                         {t(
@@ -1275,10 +1277,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
 
                           <p className="text-[11px] text-muted-foreground">
                             {isValidDate(notification.created_at)
-                              ? format(
-                                  new Date(notification.created_at),
-                                  "MMM d, h:mm a"
-                                )
+                              ? format(new Date(notification.created_at), "MMM d, h:mm a")
                               : "—"}
                           </p>
                         </DropdownMenuItem>
@@ -1302,12 +1301,14 @@ const handleNotificationClick = async (notification: NotificationRow) => {
             </div>
           </div>
         </header>
-        <div className="flex-1 min-h-0 p-5 lg:p-8 space-y-6">
-  {children}
-</div>
 
-{/* AI FLOATING CHAT */}
-<FloatingAIChat />
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain p-5 [scrollbar-gutter:stable] lg:p-8">
+          <div className="space-y-6">
+            {children}
+          </div>
+        </div>
+
+        <FloatingAIChat />
       </main>
     </div>
   );

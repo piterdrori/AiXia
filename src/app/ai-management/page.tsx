@@ -311,7 +311,7 @@ export default function AIManagementPage() {
   );
 
   return (
-    <div className="grid min-h-[calc(100vh-165px)] gap-4 xl:grid-cols-[260px_minmax(0,1fr)_340px]">
+    <div className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)_340px]">
       <aside className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-xl">
         <div className="border-b border-white/10 px-5 py-5">
           <div className="space-y-1">
@@ -327,8 +327,8 @@ export default function AIManagementPage() {
           </div>
         </div>
 
-               <div className="flex h-[calc(100%-96px)] min-h-0 flex-col">
-          <nav className="flex-1 min-h-0 overflow-y-auto px-4 py-4 overscroll-contain">
+               <div className="flex flex-col">
+          <nav className="px-4 py-4">
             <div className="space-y-2">
               {studioNavItems.map((item) => {
                 const Icon = item.icon;
@@ -435,7 +435,7 @@ if (item.id === "cache") {
           </div>
         </div>
 
-        <div className="h-[calc(100%-109px)] min-h-0 overflow-y-auto px-6 py-6 overscroll-contain">
+        <div className="px-6 py-6">
           {renderCenterContent(activeSection)}
         </div>
       </section>
@@ -455,7 +455,7 @@ if (item.id === "cache") {
           </div>
         </div>
 
-        <div className="flex h-[calc(100%-96px)] min-h-0 flex-col gap-4 p-4">
+        <div className="flex flex-col gap-4 p-4">
           <div className="rounded-[28px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)] p-4">
             <div className="mb-4 flex items-center justify-between">
               <div className="rounded-full border border-emerald-400/15 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300">
@@ -481,7 +481,7 @@ if (item.id === "cache") {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-hidden rounded-[28px] border border-white/10 bg-black/20">
+          <div className="overflow-hidden rounded-[28px] border border-white/10 bg-black/20">
             <div className="border-b border-white/10 px-4 py-3">
               <div className="text-sm font-medium text-white">Chat Preview</div>
               <div className="text-xs text-white/45">
@@ -489,8 +489,8 @@ if (item.id === "cache") {
               </div>
             </div>
 
-            <div className="flex h-[calc(100%-67px)] min-h-0 flex-col">
-              <div className="flex-1 min-h-0 space-y-3 overflow-y-auto px-4 py-4 overscroll-contain">
+            <div className="flex flex-col">
+              <div className="space-y-3 px-4 py-4">
                 {previewMessages.map((message, index) => (
                   <div
                     key={`${message.role}-${index}`}

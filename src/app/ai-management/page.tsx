@@ -1,4 +1,5 @@
 import { useMemo, useState, type ElementType } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Activity,
   Brain,
@@ -300,6 +301,7 @@ function renderCenterContent(section: StudioSectionId) {
 }
 
 export default function AIManagementPage() {
+  const navigate = useNavigate();
   const [activeSection, setActiveSection] =
     useState<StudioSectionId>("overview");
 
@@ -333,9 +335,16 @@ export default function AIManagementPage() {
                 const isActive = item.id === activeSection;
 
                 return (
-                  <button
+                                    <button
                     key={item.id}
-                    onClick={() => setActiveSection(item.id)}
+                    onClick={() => {
+                      if (item.id === "knowledge") {
+                        navigate("/ai-management/knowledge");
+                        return;
+                      }
+
+                      setActiveSection(item.id);
+                    }}
                     className={`w-full rounded-[22px] border px-4 py-3 text-left transition-all duration-300 ${
                       isActive
                         ? "border-cyan-400/20 bg-cyan-500/10 shadow-[0_0_0_1px_rgba(34,211,238,0.08)]"

@@ -18,13 +18,6 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-type CacheProvider =
-  | "cache"
-  | "semantic-cache"
-  | "openai"
-  | "approved-knowledge"
-  | "unknown";
-
 type CacheItem = {
   id: string;
   question: string;

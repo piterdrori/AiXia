@@ -892,8 +892,8 @@ const handleNotificationClick = async (notification: NotificationRow) => {
     }
   };
 
-  const SidebarContent = () => (
-    <div className="flex h-full flex-col">
+ const SidebarContent = () => (
+  <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="relative flex items-center justify-center border-b border-border px-4 py-5">
         <img
           src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
@@ -913,7 +913,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
         )}
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-4">
+      <nav className="flex-1 min-h-0 space-y-1 overflow-y-auto scroll-smooth px-4 py-4 overscroll-contain">
         <TooltipProvider delayDuration={0}>
           {navItems.map((item) => (
             <Tooltip key={item.href}>
@@ -959,7 +959,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
         </TooltipProvider>
       </nav>
 
-      <div className="border-t border-border p-4">
+      <div className="shrink-0 border-t border-border p-4">
         <div className="flex flex-col gap-3">
           <div className="rounded-xl border border-border bg-background/40 backdrop-blur-md px-3 py-2">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -1039,10 +1039,10 @@ const handleNotificationClick = async (notification: NotificationRow) => {
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
       {!isMobile && (
         <aside
-          className={`fixed left-0 top-0 z-40 h-full border-r border-border bg-background/60 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)] transition-all duration-300 ${
-            sidebarOpen ? "w-64" : "w-16"
-          }`}
-        >
+  className={`fixed left-0 top-0 z-40 h-full overflow-hidden border-r border-border bg-background/60 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)] transition-all duration-300 ${
+    sidebarOpen ? "w-64" : "w-16"
+  }`}
+>
           {sidebarOpen ? (
             <SidebarContent />
           ) : (
@@ -1055,7 +1055,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
                 />
               </div>
 
-              <nav className="flex-1 space-y-1 p-2">
+              <nav className="flex-1 min-h-0 space-y-1 overflow-y-auto scroll-smooth p-2 overscroll-contain">
                 <TooltipProvider delayDuration={0}>
                   {navItems.map((item) => (
                     <Tooltip key={item.href}>
@@ -1090,7 +1090,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
                 </TooltipProvider>
               </nav>
 
-              <div className="border-t border-border p-2">
+              <div className="shrink-0 border-t border-border p-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className="flex w-full justify-center rounded-lg p-2 transition-colors hover:bg-muted">
@@ -1139,7 +1139,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
             className="fixed inset-0 z-40 bg-black/50"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <aside className="fixed left-0 top-0 z-50 h-full w-64 border-r border-border bg-background/70 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
+          <aside className="fixed left-0 top-0 z-50 h-full w-64 overflow-hidden border-r border-border bg-background/70 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
             <SidebarContent />
           </aside>
         </>
@@ -1229,7 +1229,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
 
                   <DropdownMenuSeparator className="bg-border" />
 
-                  <div className="max-h-96 overflow-y-auto">
+                  <div className="max-h-96 overflow-y-auto scroll-smooth">
                     {isLoadingNotifications ? (
                       <div className="px-4 py-6 text-sm text-muted-foreground">
                         {t(

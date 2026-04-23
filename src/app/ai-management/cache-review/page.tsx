@@ -53,6 +53,15 @@ const EMPTY_EDITOR: CacheEditorState = {
   is_blocked: false,
 };
 
+const buttonNeutralClass =
+  "inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/75 transition-all duration-300 hover:bg-white/[0.08] hover:text-white";
+
+const buttonPrimaryClass =
+  "inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 transition-all duration-300 hover:bg-cyan-400 disabled:opacity-50";
+
+const buttonDangerClass =
+  "inline-flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-300 transition-all duration-300 hover:bg-rose-500/20";
+
 function normalizeQuestion(input: string) {
   return input
     .toLowerCase()
@@ -476,7 +485,7 @@ export default function AICacheReviewPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="grid min-h-[calc(100vh-165px)] grid-rows-[auto_auto_minmax(0,1fr)] gap-4">
       {/* HEADER */}
       <div className="flex items-center justify-between">
         <button
@@ -525,7 +534,7 @@ export default function AICacheReviewPage() {
       )}
       
       {/* MAIN GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-6">
+      <div className="grid min-h-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.15fr)_420px]">
         {/* LEFT — LIST */}
         <div className="rounded-[26px] border border-white/10 bg-black/20 overflow-hidden">
           {/* SEARCH */}
@@ -557,7 +566,7 @@ export default function AICacheReviewPage() {
           </div>
 
           {/* LIST */}
-          <div className="max-h-[600px] overflow-y-auto">
+          <div className="h-[calc(100vh-430px)] min-h-[420px] overflow-y-auto overscroll-contain">
             {filteredItems.map((item) => {
               const selected = item.id === selectedItem?.id;
 
@@ -617,7 +626,7 @@ export default function AICacheReviewPage() {
         </div>
 
         {/* RIGHT — INSPECTOR */}
-        <div className="rounded-[26px] border border-white/10 bg-black/20 p-5">
+        <div className="min-h-0 overflow-y-auto rounded-[26px] border border-white/10 bg-black/20 p-5 overscroll-contain">
           {!selectedItem ? (
             <div className="text-white/40 text-sm">
               Select a cache item
@@ -686,14 +695,14 @@ export default function AICacheReviewPage() {
               <div className="mt-5 flex flex-wrap gap-2">
                 <button
                   onClick={() => openEditEditor(selectedItem)}
-                  className="btn"
+                  className={buttonNeutralClass}
                 >
                   <Pencil className="h-4 w-4" /> Edit
                 </button>
 
                 <button
                   onClick={() => toggleBlocked(selectedItem)}
-                  className="btn"
+                  className={buttonNeutralClass}
                 >
                   {selectedItem.is_blocked ? (
                     <>
@@ -708,14 +717,14 @@ export default function AICacheReviewPage() {
 
                 <button
                   onClick={() => promoteToApproved(selectedItem)}
-                  className="btn"
+                  className={buttonNeutralClass}
                 >
                   <FileCheck2 className="h-4 w-4" /> {promoting ? "Promoting..." : "Promote"}
                 </button>
 
                 <button
                   onClick={() => deleteItem(selectedItem)}
-                  className="btn-danger"
+                  className={buttonDangerClass}
                 >
                   <Trash2 className="h-4 w-4" /> Delete
                 </button>
@@ -755,7 +764,7 @@ export default function AICacheReviewPage() {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setEditorOpen(false)}
-                className="btn"
+                className={buttonNeutralClass}
               >
                 Cancel
               </button>
@@ -763,7 +772,7 @@ export default function AICacheReviewPage() {
               <button
   onClick={saveEditor}
   disabled={saving}
-  className="btn-primary disabled:opacity-50"
+  className={buttonPrimaryClass}
 >
                 <Save className="h-4 w-4" /> Save
               </button>

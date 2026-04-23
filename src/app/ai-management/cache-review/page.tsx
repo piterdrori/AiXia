@@ -33,6 +33,13 @@ type CacheItem = {
 
 type CacheStatusFilter = "all" | "active" | "blocked";
 
+type SimilarityRow = {
+  id: string;
+  question: string;
+  answer: string;
+  similarity: number;
+};
+
 type CacheEditorState = {
   question: string;
   normalized_question: string;
@@ -230,7 +237,27 @@ export default function AICacheReviewPage() {
 
   const [pageError, setPageError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [similarityRows, setSimilarityRows] = useState<SimilarityRow[]>([]);
+  const [similarityLoading, setSimilarityLoading] = useState(false);
 
+  
+    async function loadSemanticDiagnostics(item: CacheItem) {
+    setSimilarityLoading(true);
+
+    const { data, error } = await supabase.rpc("debug_ai_cache_similarity", {
+      p_question: item.question,
+    });
+
+    if (error) {
+      setSimilarityRows([]);
+      setSimilarityLoading(false);
+      return;
+    }
+
+    setSimilarityRows((data ?? []) as SimilarityRow[]);
+    setSimilarityLoading(false);
+  }
+  
   async function loadCacheItems(showRefreshing = false) {
     if (showRefreshing) {
       setRefreshing(true);
@@ -295,6 +322,15 @@ export default function AICacheReviewPage() {
     });
   }, [items, search, statusFilter]);
 
+    useEffect(() => {
+    if (!selectedItem) {
+      setSimilarityRows([]);
+      return;
+    }
+
+    void loadSemanticDiagnostics(selectedItem);
+  }, [selectedItem?.id]);
+  
   const selectedItem =
     items.find((item) => item.id === selectedItemId) ??
     filteredItems[0] ??
@@ -566,7 +602,7 @@ export default function AICacheReviewPage() {
           </div>
 
           {/* LIST */}
-          <div className="h-[calc(100vh-430px)] min-h-[420px] overflow-y-auto overscroll-contain">
+          <div className="max-h-[600px] overflow-y-auto">
             {filteredItems.map((item) => {
               const selected = item.id === selectedItem?.id;
 
@@ -626,7 +662,7 @@ export default function AICacheReviewPage() {
         </div>
 
         {/* RIGHT — INSPECTOR */}
-        <div className="min-h-0 overflow-y-auto rounded-[26px] border border-white/10 bg-black/20 p-5 overscroll-contain">
+        <div className="rounded-[26px] border border-white/10 bg-black/20 p-5">
           {!selectedItem ? (
             <div className="text-white/40 text-sm">
               Select a cache item
@@ -660,6 +696,62 @@ export default function AICacheReviewPage() {
                 />
               </div>
 
+                           <div className="mt-5 rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium text-white">
+                      Semantic Diagnostics
+                    </div>
+                    <div className="mt-1 text-xs text-white/40">
+                      Closest cache matches from vector similarity.
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => void loadSemanticDiagnostics(selectedItem)}
+                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/60 transition hover:bg-white/[0.08] hover:text-white"
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                <div className="mt-4 space-y-2">
+                  {similarityLoading && (
+                    <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-xs text-white/40">
+                      Loading semantic matches...
+                    </div>
+                  )}
+
+                  {!similarityLoading && similarityRows.length === 0 && (
+                    <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-xs text-white/40">
+                      No embedding diagnostics available for this cache item.
+                    </div>
+                  )}
+
+                  {!similarityLoading &&
+                    similarityRows.map((row) => (
+                      <div
+                        key={row.id}
+                        className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0 truncate text-xs text-white/70">
+                            {row.question}
+                          </div>
+
+                          <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 text-[11px] text-cyan-200">
+                            {Number(row.similarity).toFixed(3)}
+                          </span>
+                        </div>
+
+                        <div className="mt-2 line-clamp-2 text-xs leading-5 text-white/40">
+                          {row.answer}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+              
               <div className="mt-5 space-y-3 text-sm">
                 <Field label="Question" value={selectedItem.question} />
                 <Field label="Normalized" value={selectedItem.normalized_question} />
@@ -770,10 +862,10 @@ export default function AICacheReviewPage() {
               </button>
 
               <button
-  onClick={saveEditor}
-  disabled={saving}
-  className={buttonPrimaryClass}
->
+                onClick={saveEditor}
+                disabled={saving}
+                className={buttonPrimaryClass}
+              >
                 <Save className="h-4 w-4" /> Save
               </button>
             </div>

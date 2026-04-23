@@ -1041,8 +1041,8 @@ const handleNotificationClick = async (notification: NotificationRow) => {
             sidebarOpen ? "w-64" : "w-16"
           }`}
         >
-          {sidebarOpen ? (
-            <SidebarContent />
+                   {sidebarOpen ? (
+            renderSidebarContent()
           ) : (
             <div className="grid h-full min-h-0 grid-rows-[auto,minmax(0,1fr),auto] overflow-hidden">
               <div className="flex justify-center border-b border-border p-4">
@@ -1140,7 +1140,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
             onClick={() => setMobileMenuOpen(false)}
           />
           <aside className="fixed left-0 top-0 z-50 h-dvh min-h-0 w-64 overflow-hidden border-r border-border bg-background/70 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
-            <SidebarContent />
+            {renderSidebarContent()}
           </aside>
         </>
       )}

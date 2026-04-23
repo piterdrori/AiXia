@@ -59,8 +59,8 @@ type GithubKnowledgeItem = {
   category: string;
   title: string;
   source_type: "github";
-  status: "active";
-  is_active: true;
+  status: KnowledgeStatus;
+  is_active: boolean;
   updated_at: string | null;
   content?: string | null;
 };
@@ -165,7 +165,7 @@ function normalizeGithubItem(item: GithubKnowledgeItem): UnifiedKnowledgeItem {
     slug: null,
     category: item.category ?? "general",
     source_type: "github",
-    status: "active",
+    status: item.status,
     content: item.content ?? null,
     extracted_text: item.content ?? null,
     source_path: item.path,
@@ -173,7 +173,7 @@ function normalizeGithubItem(item: GithubKnowledgeItem): UnifiedKnowledgeItem {
     file_name: item.name,
     file_type: "markdown",
     file_size_bytes: item.size ?? null,
-    is_active: true,
+    is_active: item.is_active,
     admin_notes: "GitHub synced knowledge",
     created_at: "",
     updated_at: item.updated_at ?? "",

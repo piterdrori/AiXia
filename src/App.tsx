@@ -119,6 +119,7 @@ import FinanceLedgerPeriodsPage from "@/app/finance/ledger/periods/page";
 import FinanceLedgerJournalsPage from "@/app/finance/ledger/journals/page";
 import FinanceLedgerJournalDetailPage from "@/app/finance/ledger/journals/[id]/page";
 import AIManagementPage from "@/app/ai-management/page";
+import AICacheReviewPage from "@/app/ai-management/cache-review/page";
 
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -804,6 +805,17 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      <Route
+  path="/ai-management/cache-review"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <AICacheReviewPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
 
            <Route
         path="/finance"

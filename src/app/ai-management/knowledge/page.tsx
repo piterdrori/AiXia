@@ -47,6 +47,30 @@ type KnowledgeItem = {
   updated_at: string;
 };
 
+type GithubKnowledgeItem = {
+  name: string;
+  path: string;
+  sha: string;
+  size: number;
+  download_url: string | null;
+  html_url: string | null;
+  type: "file";
+  category: string;
+  title: string;
+  source_type: "github";
+  status: "active";
+  is_active: true;
+  updated_at: string | null;
+  content?: string | null;
+};
+
+type UnifiedKnowledgeItem = KnowledgeItem & {
+  origin: "database" | "github";
+  github_path?: string | null;
+  github_sha?: string | null;
+  html_url?: string | null;
+};
+
 type EditorMode = "create" | "edit";
 
 type EditorFormState = {
@@ -133,6 +157,32 @@ function statusChipClass(status: KnowledgeStatus, isActive: boolean) {
   return "border-white/10 bg-white/[0.05] text-white/45";
 }
 
+function normalizeGithubItem(item: GithubKnowledgeItem): UnifiedKnowledgeItem {
+  return {
+    id: `github:${item.path}`,
+    title: item.title,
+    slug: null,
+    category: item.category ?? "general",
+    source_type: "github",
+    status: "active",
+    content: item.content ?? null,
+    extracted_text: item.content ?? null,
+    source_path: item.path,
+    source_url: item.download_url ?? item.html_url ?? null,
+    file_name: item.name,
+    file_type: "markdown",
+    file_size_bytes: item.size ?? null,
+    is_active: true,
+    admin_notes: "GitHub synced knowledge",
+    created_at: "",
+    updated_at: item.updated_at ?? "",
+    origin: "github",
+    github_path: item.path,
+    github_sha: item.sha,
+    html_url: item.html_url ?? null,
+  };
+}
+
 function toEditorForm(item: KnowledgeItem): EditorFormState {
   return {
     title: item.title ?? "",
@@ -153,7 +203,8 @@ export default function AIKnowledgeBankPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [items, setItems] = useState<KnowledgeItem[]>([]);
+  const [dbItems, setDbItems] = useState<KnowledgeItem[]>([]);
+  const [githubItems, setGithubItems] = useState<UnifiedKnowledgeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -172,8 +223,41 @@ export default function AIKnowledgeBankPage() {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editorForm, setEditorForm] = useState<EditorFormState>(EMPTY_FORM);
 
-  const [pageError, setPageError] = useState<string | null>(null);
+    const [pageError, setPageError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+
+  function getFunctionsBaseUrl() {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+    return `${supabaseUrl}/functions/v1`;
+  }
+
+  async function callGithubKnowledgeApi(
+    path: string,
+    init?: RequestInit
+  ) {
+    const session = await supabase.auth.getSession();
+    const accessToken = session.data.session?.access_token;
+
+    const response = await fetch(
+      `${getFunctionsBaseUrl()}/ai-knowledge-github${path}`,
+      {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          ...(init?.headers ?? {}),
+        },
+      }
+    );
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || data?.success === false) {
+      throw new Error(data?.error || "GitHub knowledge request failed");
+    }
+
+    return data;
+  }
 
   async function loadKnowledgeItems(showRefreshing = false) {
     if (showRefreshing) {
@@ -184,28 +268,51 @@ export default function AIKnowledgeBankPage() {
 
     setPageError(null);
 
-    const { data, error } = await supabase
-      .from("ai_knowledge_items")
-      .select("*")
-      .order("updated_at", { ascending: false });
+    try {
+      const [dbResult, githubResult] = await Promise.all([
+        supabase
+          .from("ai_knowledge_items")
+          .select("*")
+          .order("updated_at", { ascending: false }),
+        callGithubKnowledgeApi(""),
+      ]);
 
-    if (error) {
-      setPageError(error.message);
-      setItems([]);
-    } else {
-      const nextItems = (data ?? []) as KnowledgeItem[];
-      setItems(nextItems);
+      const { data, error } = dbResult;
 
-      if (!selectedItemId && nextItems.length > 0) {
-        setSelectedItemId(nextItems[0].id);
+      if (error) {
+        throw new Error(error.message);
       }
 
-      if (
-        selectedItemId &&
-        nextItems.every((item) => item.id !== selectedItemId)
-      ) {
-        setSelectedItemId(nextItems[0]?.id ?? null);
+      const nextDbItems = (data ?? []) as KnowledgeItem[];
+      const nextGithubItems = Array.isArray(githubResult?.items)
+        ? (githubResult.items as GithubKnowledgeItem[]).map(normalizeGithubItem)
+        : [];
+
+      setDbItems(nextDbItems);
+      setGithubItems(nextGithubItems);
+
+      const merged = [
+        ...nextGithubItems,
+        ...nextDbItems.map((item) => ({
+          ...item,
+          origin: "database" as const,
+          github_path: null,
+          github_sha: null,
+          html_url: null,
+        })),
+      ];
+
+      if (!selectedItemId && merged.length > 0) {
+        setSelectedItemId(merged[0].id);
       }
+
+      if (selectedItemId && merged.every((item) => item.id !== selectedItemId)) {
+        setSelectedItemId(merged[0]?.id ?? null);
+      }
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "Load failed");
+      setDbItems([]);
+      setGithubItems([]);
     }
 
     setLoading(false);
@@ -215,6 +322,19 @@ export default function AIKnowledgeBankPage() {
   useEffect(() => {
     void loadKnowledgeItems();
   }, []);
+
+  const items = useMemo<UnifiedKnowledgeItem[]>(() => {
+    return [
+      ...githubItems,
+      ...dbItems.map((item) => ({
+        ...item,
+        origin: "database" as const,
+        github_path: null,
+        github_sha: null,
+        html_url: null,
+      })),
+    ];
+  }, [dbItems, githubItems]);
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -228,13 +348,13 @@ export default function AIKnowledgeBankPage() {
         sourceFilter === "all" ? true : item.source_type === sourceFilter;
 
       const matchesStatus =
-  statusFilter === "all"
-    ? true
-    : statusFilter === "active"
-    ? item.is_active === true
-    : statusFilter === "inactive"
-    ? item.is_active === false
-    : item.status === statusFilter;
+        statusFilter === "all"
+          ? true
+          : statusFilter === "active"
+          ? item.is_active === true
+          : statusFilter === "inactive"
+          ? item.is_active === false
+          : item.status === statusFilter;
 
       return matchesSearch && matchesSource && matchesStatus;
     });
@@ -247,9 +367,7 @@ export default function AIKnowledgeBankPage() {
     const githubCount = items.filter((item) => item.source_type === "github").length;
     const manualCount = items.filter((item) => item.source_type === "manual").length;
     const uploadCount = items.filter((item) => item.source_type === "upload").length;
-    const activeCount = items.filter(
-      (item) => item.status === "active" && item.is_active
-    ).length;
+    const activeCount = items.filter((item) => item.is_active).length;
 
     return {
       total: items.length,
@@ -716,7 +834,7 @@ export default function AIKnowledgeBankPage() {
                               {item.title}
                             </div>
 
-                            <span
+                                                        <span
                               className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] ${sourceChipClass(
                                 item.source_type
                               )}`}
@@ -724,6 +842,12 @@ export default function AIKnowledgeBankPage() {
                               <SourceIcon className="h-3.5 w-3.5" />
                               {item.source_type}
                             </span>
+
+                            {item.origin === "github" && (
+                              <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-1 text-[11px] text-cyan-200">
+                                synced
+                              </span>
+                            )}
 
                             <span
                               className={`rounded-full border px-2.5 py-1 text-[11px] ${statusChipClass(

@@ -51,6 +51,7 @@ import EmployeesPage from "@/app/employees/page";
 import EmployeeDetailPage from "@/app/employees/[id]/page";
 import EmployeePermissionsPage from "@/app/employees/[id]/permissions/page";
 import SettingsPage from "@/app/settings/page";
+import AIKnowledgeBankPage from "@/app/ai-management/knowledge/page";
 import FinancePage from "@/app/finance/page";
 import FinanceMasterDataClientsPage from "@/app/finance/master-data/clients/page";
 import FinanceMasterDataVendorsPage from "@/app/finance/master-data/vendors/page";
@@ -788,6 +789,17 @@ function AppRoutes() {
           <ProtectedRoute>
             <DashboardLayout>
               <AIManagementPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+         <Route
+        path="/ai-management/knowledge"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AIKnowledgeBankPage />
             </DashboardLayout>
           </ProtectedRoute>
         }

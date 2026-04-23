@@ -90,7 +90,7 @@ type EditorFormState = {
 const EMPTY_FORM: EditorFormState = {
   title: "",
   category: "",
-  source_type: "manual",
+  source_type: "github",
   status: "draft",
   content: "",
   source_path: "",
@@ -398,9 +398,14 @@ export default function AIKnowledgeBankPage() {
     setActionMessage(null);
   }
 
-  async function saveEditor() {
+   async function saveEditor() {
     if (!editorForm.title.trim()) {
       setPageError("Title is required.");
+      return;
+    }
+
+    if (!editorForm.content.trim()) {
+      setPageError("Content is required.");
       return;
     }
 
@@ -408,51 +413,97 @@ export default function AIKnowledgeBankPage() {
     setPageError(null);
     setActionMessage(null);
 
-    const payload = {
-      title: editorForm.title.trim(),
-      category: editorForm.category.trim() || null,
-      source_type: editorForm.source_type,
-      status: editorForm.status,
-      content: editorForm.content.trim() || null,
-      extracted_text: editorForm.content.trim() || null,
-      source_path: editorForm.source_path.trim() || null,
-      source_url: editorForm.source_url.trim() || null,
-      file_name: editorForm.file_name.trim() || null,
-      file_type: editorForm.file_type.trim() || null,
-      admin_notes: editorForm.admin_notes.trim() || null,
-      is_active: editorForm.is_active,
-      updated_at: new Date().toISOString(),
-    };
+    try {
+      if (editorMode === "create") {
+        if (editorForm.source_type === "github") {
+          await callGithubKnowledgeApi("", {
+            method: "POST",
+            body: JSON.stringify({
+              title: editorForm.title.trim(),
+              category: editorForm.category.trim() || "general",
+              content: editorForm.content.trim(),
+              status: editorForm.status,
+            }),
+          });
 
-    if (editorMode === "create") {
-      const { error } = await supabase.from("ai_knowledge_items").insert(payload);
+          setActionMessage("GitHub knowledge file created.");
+        } else {
+          const payload = {
+            title: editorForm.title.trim(),
+            category: editorForm.category.trim() || null,
+            source_type: editorForm.source_type,
+            status: editorForm.status,
+            content: editorForm.content.trim() || null,
+            extracted_text: editorForm.content.trim() || null,
+            source_path: editorForm.source_path.trim() || null,
+            source_url: editorForm.source_url.trim() || null,
+            file_name: editorForm.file_name.trim() || null,
+            file_type: editorForm.file_type.trim() || null,
+            admin_notes: editorForm.admin_notes.trim() || null,
+            is_active: editorForm.is_active,
+            updated_at: new Date().toISOString(),
+          };
 
-      if (error) {
-        setPageError(error.message);
-        setSaving(false);
-        return;
+          const { error } = await supabase.from("ai_knowledge_items").insert(payload);
+
+          if (error) {
+            throw new Error(error.message);
+          }
+
+          setActionMessage("Knowledge item created.");
+        }
+      } else {
+        if (selectedItem?.origin === "github" && selectedItem.github_path) {
+          await callGithubKnowledgeApi("", {
+            method: "PUT",
+            body: JSON.stringify({
+              path: selectedItem.github_path,
+              title: editorForm.title.trim(),
+              category: editorForm.category.trim() || "general",
+              content: editorForm.content.trim(),
+              status: editorForm.status,
+            }),
+          });
+
+          setActionMessage("GitHub knowledge file updated.");
+        } else {
+          const payload = {
+            title: editorForm.title.trim(),
+            category: editorForm.category.trim() || null,
+            source_type: editorForm.source_type,
+            status: editorForm.status,
+            content: editorForm.content.trim() || null,
+            extracted_text: editorForm.content.trim() || null,
+            source_path: editorForm.source_path.trim() || null,
+            source_url: editorForm.source_url.trim() || null,
+            file_name: editorForm.file_name.trim() || null,
+            file_type: editorForm.file_type.trim() || null,
+            admin_notes: editorForm.admin_notes.trim() || null,
+            is_active: editorForm.is_active,
+            updated_at: new Date().toISOString(),
+          };
+
+          const { error } = await supabase
+            .from("ai_knowledge_items")
+            .update(payload)
+            .eq("id", editingItemId);
+
+          if (error) {
+            throw new Error(error.message);
+          }
+
+          setActionMessage("Knowledge item updated.");
+        }
       }
 
-      setActionMessage("Knowledge item created.");
-    } else {
-      const { error } = await supabase
-        .from("ai_knowledge_items")
-        .update(payload)
-        .eq("id", editingItemId);
-
-      if (error) {
-        setPageError(error.message);
-        setSaving(false);
-        return;
-      }
-
-      setActionMessage("Knowledge item updated.");
+      setEditorOpen(false);
+      resetEditor();
+      await loadKnowledgeItems(true);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "Save failed");
+    } finally {
+      setSaving(false);
     }
-
-    setEditorOpen(false);
-    resetEditor();
-    await loadKnowledgeItems(true);
-    setSaving(false);
   }
 
   async function toggleItemActive(item: KnowledgeItem) {
@@ -504,7 +555,7 @@ export default function AIKnowledgeBankPage() {
     await loadKnowledgeItems(true);
   }
 
-  async function deleteItem(item: KnowledgeItem) {
+    async function deleteItem(item: UnifiedKnowledgeItem) {
     const confirmed = window.confirm(
       `Delete "${item.title}" permanently from AI knowledge?`
     );
@@ -514,22 +565,34 @@ export default function AIKnowledgeBankPage() {
     setPageError(null);
     setActionMessage(null);
 
-    const { error } = await supabase
-      .from("ai_knowledge_items")
-      .delete()
-      .eq("id", item.id);
+    try {
+      if (item.origin === "github" && item.github_path) {
+        await callGithubKnowledgeApi("", {
+          method: "DELETE",
+          body: JSON.stringify({
+            path: item.github_path,
+          }),
+        });
+      } else {
+        const { error } = await supabase
+          .from("ai_knowledge_items")
+          .delete()
+          .eq("id", item.id);
 
-    if (error) {
-      setPageError(error.message);
-      return;
+        if (error) {
+          throw new Error(error.message);
+        }
+      }
+
+      if (selectedItemId === item.id) {
+        setSelectedItemId(null);
+      }
+
+      setActionMessage("Knowledge item deleted.");
+      await loadKnowledgeItems(true);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "Delete failed");
     }
-
-    if (selectedItemId === item.id) {
-      setSelectedItemId(null);
-    }
-
-    setActionMessage("Knowledge item deleted.");
-    await loadKnowledgeItems(true);
   }
 
   async function handleUploadInputChange(
@@ -880,7 +943,7 @@ export default function AIKnowledgeBankPage() {
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                                              <div className="flex flex-wrap items-center gap-2 xl:justify-end">
                           <button
                             type="button"
                             onClick={(event) => {
@@ -905,27 +968,31 @@ export default function AIKnowledgeBankPage() {
                             Edit
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void toggleItemActive(item);
-                            }}
-                            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/70 transition-all duration-300 hover:bg-white/[0.08] hover:text-white"
-                          >
-                            {item.is_active ? "Deactivate" : "Activate"}
-                          </button>
+                          {item.origin !== "github" && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void toggleItemActive(item);
+                                }}
+                                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/70 transition-all duration-300 hover:bg-white/[0.08] hover:text-white"
+                              >
+                                {item.is_active ? "Deactivate" : "Activate"}
+                              </button>
 
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void archiveItem(item);
-                            }}
-                            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/70 transition-all duration-300 hover:bg-white/[0.08] hover:text-white"
-                          >
-                            Archive
-                          </button>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void archiveItem(item);
+                                }}
+                                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/70 transition-all duration-300 hover:bg-white/[0.08] hover:text-white"
+                              >
+                                Archive
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     </button>
@@ -1032,7 +1099,7 @@ export default function AIKnowledgeBankPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
+                               <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     onClick={openSelectedInEditor}
                     className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/75 transition-all duration-300 hover:bg-white/[0.08] hover:text-white"
@@ -1041,19 +1108,23 @@ export default function AIKnowledgeBankPage() {
                     Edit
                   </button>
 
-                  <button
-                    onClick={() => void toggleItemActive(selectedItem)}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/75 transition-all duration-300 hover:bg-white/[0.08] hover:text-white"
-                  >
-                    {selectedItem.is_active ? "Deactivate" : "Activate"}
-                  </button>
+                  {selectedItem.origin !== "github" && (
+                    <>
+                      <button
+                        onClick={() => void toggleItemActive(selectedItem)}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/75 transition-all duration-300 hover:bg-white/[0.08] hover:text-white"
+                      >
+                        {selectedItem.is_active ? "Deactivate" : "Activate"}
+                      </button>
 
-                  <button
-                    onClick={() => void archiveItem(selectedItem)}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/75 transition-all duration-300 hover:bg-white/[0.08] hover:text-white"
-                  >
-                    Archive
-                  </button>
+                      <button
+                        onClick={() => void archiveItem(selectedItem)}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/75 transition-all duration-300 hover:bg-white/[0.08] hover:text-white"
+                      >
+                        Archive
+                      </button>
+                    </>
+                  )}
 
                   <button
                     onClick={() => void deleteItem(selectedItem)}

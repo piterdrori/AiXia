@@ -797,6 +797,12 @@ const navItems: NavItem[] = useMemo(
         : []),
 
 {
+  label: "AI Management",
+  icon: Settings,
+  href: "/ai-management",
+},
+
+{
   label: t("common.settings", "Settings"),
   icon: Settings,
   href: "/settings",

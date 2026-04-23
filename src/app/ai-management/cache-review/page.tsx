@@ -322,6 +322,11 @@ export default function AICacheReviewPage() {
     });
   }, [items, search, statusFilter]);
 
+  const selectedItem =
+    items.find((item) => item.id === selectedItemId) ??
+    filteredItems[0] ??
+    null;
+
     useEffect(() => {
     if (!selectedItem) {
       setSimilarityRows([]);
@@ -330,11 +335,6 @@ export default function AICacheReviewPage() {
 
     void loadSemanticDiagnostics(selectedItem);
   }, [selectedItem?.id]);
-  
-  const selectedItem =
-    items.find((item) => item.id === selectedItemId) ??
-    filteredItems[0] ??
-    null;
 
    const summary = useMemo(() => {
     const blocked = items.filter((item) => Boolean(item.is_blocked)).length;

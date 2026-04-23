@@ -325,7 +325,7 @@ export default function AIManagementPage() {
           </div>
         </div>
 
-        <div className="flex h-[calc(100%-96px)] min-h-0 flex-col">
+               <div className="flex h-[calc(100%-96px)] min-h-0 flex-col">
           <nav className="flex-1 min-h-0 overflow-y-auto px-4 py-4 overscroll-contain">
             <div className="space-y-2">
               {studioNavItems.map((item) => {
@@ -370,3 +370,143 @@ export default function AIManagementPage() {
               })}
             </div>
           </nav>
+
+          <div className="shrink-0 border-t border-white/10 p-4">
+            <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-500/10 text-sm font-semibold text-cyan-200">
+                  PD
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-white">
+                    Piter Drori
+                  </div>
+                  <div className="text-xs text-white/45">AI Studio Admin</div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-emerald-400/15 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+                All systems operational
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <section className="min-w-0 overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-xl">
+        <div className="border-b border-white/10 px-6 py-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-2">
+              <div className="w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200">
+                {activeNav?.label ?? "AI Studio"}
+              </div>
+
+              <h2 className="text-2xl font-semibold tracking-tight text-white">
+                {activeNav?.label ?? "AI Studio"}
+              </h2>
+
+              <p className="max-w-3xl text-sm leading-6 text-white/55">
+                {getSectionDescription(activeSection)}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/70 transition-all duration-300 hover:border-white/20 hover:bg-white/[0.08] hover:text-white">
+                Preview AI
+              </button>
+
+              <button className="rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 transition-all duration-300 hover:bg-cyan-400">
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="h-[calc(100%-109px)] min-h-0 overflow-y-auto px-6 py-6 overscroll-contain">
+          {renderCenterContent(activeSection)}
+        </div>
+      </section>
+
+      <aside className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-xl">
+        <div className="border-b border-white/10 px-5 py-5">
+          <div className="space-y-1">
+            <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/90">
+              AI Preview
+            </div>
+            <h2 className="text-xl font-semibold tracking-tight text-white">
+              Live Runtime View
+            </h2>
+            <p className="text-sm text-white/50">
+              Preview identity, response style, and chat behavior.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex h-[calc(100%-96px)] min-h-0 flex-col gap-4 p-4">
+          <div className="rounded-[28px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)] p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="rounded-full border border-emerald-400/15 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300">
+                Connected
+              </div>
+
+              <div className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-white/55">
+                Preview Mode
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center justify-center gap-4 py-3">
+              <div className="relative flex h-32 w-32 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-500/10">
+                <div className="absolute inset-0 rounded-full bg-cyan-400/10 blur-2xl" />
+                <div className="relative z-10 text-3xl font-semibold text-cyan-100">
+                  AIX
+                </div>
+              </div>
+
+              <button className="rounded-2xl border border-white/10 bg-black/30 px-5 py-2.5 text-sm text-white transition-all duration-300 hover:border-white/20 hover:bg-white/[0.08]">
+                Start voice preview
+              </button>
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-hidden rounded-[28px] border border-white/10 bg-black/20">
+            <div className="border-b border-white/10 px-4 py-3">
+              <div className="text-sm font-medium text-white">Chat Preview</div>
+              <div className="text-xs text-white/45">
+                Simulated conversation with current AI setup.
+              </div>
+            </div>
+
+            <div className="flex h-[calc(100%-67px)] min-h-0 flex-col">
+              <div className="flex-1 min-h-0 space-y-3 overflow-y-auto px-4 py-4 overscroll-contain">
+                {previewMessages.map((message, index) => (
+                  <div
+                    key={`${message.role}-${index}`}
+                    className={`flex ${
+                      message.role === "user" ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6 ${
+                        message.role === "user"
+                          ? "bg-cyan-500/15 text-cyan-100"
+                          : "border border-white/10 bg-white/[0.04] text-white/80"
+                      }`}
+                    >
+                      {message.content}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t border-white/10 p-4">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/35">
+                  Type a message...
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}

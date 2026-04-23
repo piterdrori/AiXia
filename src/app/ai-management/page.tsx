@@ -338,11 +338,15 @@ export default function AIManagementPage() {
                                     <button
                     key={item.id}
                     onClick={() => {
-                      if (item.id === "knowledge") {
-                        navigate("/ai-management/knowledge");
-                        return;
-                      }
+                     if (item.id === "knowledge") {
+  navigate("/ai-management/knowledge");
+  return;
+}
 
+if (item.id === "cache") {
+  navigate("/ai-management/cache-review");
+  return;
+}
                       setActiveSection(item.id);
                     }}
                     className={`w-full rounded-[22px] border px-4 py-3 text-left transition-all duration-300 ${

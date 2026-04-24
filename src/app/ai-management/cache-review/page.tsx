@@ -601,10 +601,53 @@ async function promoteToApproved(item: CacheItem) {
   }
 
   if (existing && existing.length > 0) {
-    setPageError("Approved answer already exists for this question. Use version replace.");
+  const existingId = existing[0].id;
+
+  // get current version
+  const { data: current } = await supabase
+    .from("ai_approved_answers")
+    .select("approved_version, source_cache_id")
+    .eq("id", existingId)
+    .single();
+
+  const newVersion = (current?.approved_version ?? 1) + 1;
+
+  // create new version
+  const { data: newRow, error: insertError } = await supabase
+    .from("ai_approved_answers")
+    .insert({
+      question: item.question,
+      normalized_question: normalized,
+      answer: item.answer,
+      category: null,
+      is_active: true,
+      priority: 100,
+      confidence_score: 1,
+      approved_version: newVersion,
+      source_cache_id: item.id,
+    })
+    .select("id")
+    .single();
+
+  if (insertError) {
+    setPageError(insertError.message);
     setPromoting(false);
     return;
   }
+
+  // deactivate old
+  await supabase
+    .from("ai_approved_answers")
+    .update({
+      is_active: false,
+      replaced_by_id: newRow.id,
+    })
+    .eq("id", existingId);
+
+  setActionMessage("Approved answer replaced with new version from cache.");
+  setPromoting(false);
+  return;
+}
 
   const { error } = await supabase
     .from("ai_approved_answers")

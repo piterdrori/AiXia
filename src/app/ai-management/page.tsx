@@ -15,6 +15,9 @@ import {
   Volume2,
   Wand2,
   Send,
+  RotateCcw,
+  ThumbsDown,
+  ThumbsUp,
 } from "lucide-react";
 
 type StudioSectionId =
@@ -143,31 +146,27 @@ const overviewMetrics: OverviewMetric[] = [
 ];
 
 type PreviewMessage = {
+  id: string;
   role: "user" | "assistant";
   content: string;
   provider?: string;
   similarity?: number;
   matchedQuestion?: string;
+  sourceQuestion?: string;
+  feedback?: "liked" | "disliked";
 };
 
 const initialPreviewMessages: PreviewMessage[] = [
   {
+    id: "preview-user-1",
     role: "user",
     content: "How should I handle an unpaid invoice?",
   },
   {
+    id: "preview-assistant-1",
     role: "assistant",
     content:
       "Open the invoice in Finance, review due date and payment status, record follow-up, and escalate according to your workflow if payment remains overdue.",
-  },
-  {
-    role: "user",
-    content: "Where does that answer come from?",
-  },
-  {
-    role: "assistant",
-    content:
-      "This studio combines approved answers, reusable cache, GitHub knowledge, manual knowledge items, and AI fallback.",
   },
 ];
 
@@ -310,6 +309,14 @@ function renderCenterContent(section: StudioSectionId) {
   );
 }
 
+function normalizePreviewQuestion(input: string) {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s]/g, "")
+    .replace(/\s+/g, " ");
+}
+
 export default function AIManagementPage() {
   const navigate = useNavigate();
   const [activeSection, setActiveSection] =
@@ -326,44 +333,116 @@ export default function AIManagementPage() {
   );
 
   async function sendPreviewMessage() {
-  const prompt = previewInput.trim();
+    const prompt = previewInput.trim();
 
-  if (!prompt || previewLoading) return;
+    if (!prompt || previewLoading) return;
 
-  setPreviewInput("");
-  setPreviewError(null);
-  setPreviewLoading(true);
+    const userMessageId = crypto.randomUUID();
+    const assistantMessageId = crypto.randomUUID();
 
-  setPreviewMessages((current) => [
-    ...current,
-    {
-      role: "user",
-      content: prompt,
-    },
-  ]);
+    setPreviewInput("");
+    setPreviewError(null);
+    setPreviewLoading(true);
 
-  const { data, error } = await supabase.functions.invoke("ai-router", {
-    body: { prompt },
-  });
+    setPreviewMessages((current) => [
+      ...current,
+      {
+        id: userMessageId,
+        role: "user",
+        content: prompt,
+      },
+    ]);
 
-  if (error) {
-    setPreviewError(error.message);
+    const { data, error } = await supabase.functions.invoke("ai-router", {
+      body: { prompt },
+    });
+
+    if (error) {
+      setPreviewError(error.message);
+      setPreviewLoading(false);
+      return;
+    }
+
+    setPreviewMessages((current) => [
+      ...current,
+      {
+        id: assistantMessageId,
+        role: "assistant",
+        content: data?.text ?? "No response returned.",
+        provider: data?.provider,
+        similarity: data?.similarity,
+        matchedQuestion: data?.matched_question,
+        sourceQuestion: prompt,
+      },
+    ]);
+
     setPreviewLoading(false);
-    return;
   }
 
-  setPreviewMessages((current) => [
-    ...current,
-    {
-      role: "assistant",
-      content: data?.text ?? "No response returned.",
-      provider: data?.provider,
-      similarity: data?.similarity,
-      matchedQuestion: data?.matched_question,
-    },
-  ]);
+  function startNewPreviewChat() {
+    setPreviewMessages([]);
+    setPreviewInput("");
+    setPreviewError(null);
+  }
 
-  setPreviewLoading(false);
+  async function approvePreviewReply(message: PreviewMessage) {
+  if (!message.sourceQuestion || message.role !== "assistant") return;
+
+  const normalized = normalizePreviewQuestion(message.sourceQuestion);
+
+  await supabase.from("ai_qa_cache").update({
+    is_blocked: true,
+    updated_at: new Date().toISOString(),
+    admin_notes: "Superseded by approved preview reply.",
+  }).eq("normalized_question", normalized);
+
+  await supabase.from("ai_qa_cache").insert({
+    question: message.sourceQuestion,
+    normalized_question: normalized,
+    answer: message.content,
+    provider: message.provider ?? "preview-approved",
+    model: "preview-feedback",
+    usage_count: 1,
+    is_blocked: false,
+    updated_at: new Date().toISOString(),
+    admin_notes: "Approved from AI Studio preview.",
+  });
+
+  setPreviewMessages((current) =>
+    current.map((item) =>
+      item.id === message.id ? { ...item, feedback: "liked" } : item
+    )
+  );
+}
+
+async function rejectPreviewReply(message: PreviewMessage) {
+  if (!message.sourceQuestion || message.role !== "assistant") return;
+
+  const normalized = normalizePreviewQuestion(message.sourceQuestion);
+
+  await supabase.from("ai_qa_cache").update({
+    is_blocked: true,
+    updated_at: new Date().toISOString(),
+    admin_notes: "Rejected from AI Studio preview.",
+  }).eq("normalized_question", normalized);
+
+  await supabase.from("ai_qa_cache").insert({
+    question: message.sourceQuestion,
+    normalized_question: normalized,
+    answer: message.content,
+    provider: message.provider ?? "preview-rejected",
+    model: "preview-feedback",
+    usage_count: 0,
+    is_blocked: true,
+    updated_at: new Date().toISOString(),
+    admin_notes: "Rejected from AI Studio preview. Do not reuse this answer.",
+  });
+
+  setPreviewMessages((current) =>
+    current.map((item) =>
+      item.id === message.id ? { ...item, feedback: "disliked" } : item
+    )
+  );
 }
 
   return (
@@ -539,14 +618,24 @@ if (item.id === "cache") {
 
           <div className="overflow-hidden rounded-[28px] border border-white/10 bg-black/20">
             <div className="border-b border-white/10 px-4 py-3">
-              <div className="text-sm font-medium text-white">Chat Preview</div>
+              <div className="flex items-center justify-between gap-3">
+  <div className="text-sm font-medium text-white">AI Test Console</div>
+
+  <button
+    onClick={startNewPreviewChat}
+    className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] px-2 py-1 text-xs text-white/60 hover:bg-white/[0.08] hover:text-white"
+  >
+    <RotateCcw className="h-3 w-3" />
+    New
+  </button>
+</div>
               <div className="text-xs text-white/45">
                 Live test against ai-router.
               </div>
             </div>
 
             <div className="flex flex-col">
-              <div className="space-y-3 px-4 py-4">
+              <div className="max-h-[360px] space-y-3 overflow-y-auto px-4 py-4 overscroll-contain">
                 {previewMessages.map((message, index) => (
                   <div
                     key={`${message.role}-${index}`}
@@ -562,11 +651,13 @@ if (item.id === "cache") {
                       }`}
                     >
                       {message.content}
-                      {message.role === "assistant" && message.provider && (
+                      {message.role === "assistant" && (
   <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-white/45">
-    <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">
-      {message.provider}
-    </span>
+    {message.provider && (
+      <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">
+        {message.provider}
+      </span>
+    )}
 
     {typeof message.similarity === "number" && (
       <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 text-cyan-200">
@@ -578,6 +669,26 @@ if (item.id === "cache") {
       <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">
         matched cache
       </span>
+    )}
+
+    {message.sourceQuestion && (
+      <>
+        <button
+          onClick={() => void approvePreviewReply(message)}
+          disabled={message.feedback === "liked"}
+          className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-300 disabled:opacity-50"
+        >
+          <ThumbsUp className="inline h-3 w-3" /> Like
+        </button>
+
+        <button
+          onClick={() => void rejectPreviewReply(message)}
+          disabled={message.feedback === "disliked"}
+          className="rounded-full border border-rose-400/20 bg-rose-500/10 px-2 py-0.5 text-rose-300 disabled:opacity-50"
+        >
+          <ThumbsDown className="inline h-3 w-3" /> Bad
+        </button>
+      </>
     )}
   </div>
 )}

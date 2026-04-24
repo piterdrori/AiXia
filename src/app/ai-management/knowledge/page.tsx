@@ -654,7 +654,7 @@ export default function AIKnowledgeBankPage() {
       `?path=${encodeURIComponent(item.github_path)}`
     );
 
-    const content = String(result?.content ?? "").trim();
+    const content = String(result?.item?.content ?? result?.content ?? "").trim();
 
     if (!content) {
       setPageError("GitHub file content was not returned.");

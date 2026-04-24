@@ -316,14 +316,26 @@ const duplicates = useMemo(() => {
     setSaving(false);
   }
 
- async function replaceVersion() {
+async function replaceVersion() {
   if (!selectedAnswer) return;
 
   const trimmedQuestion = form.question.trim();
   const trimmedAnswer = form.answer.trim();
+  const priority = Number(form.priority);
+  const confidenceScore = Number(form.confidence_score);
 
   if (!trimmedQuestion || !trimmedAnswer) {
     setErrorMessage("Question and answer are required.");
+    return;
+  }
+
+  if (!Number.isInteger(priority) || priority < 1) {
+    setErrorMessage("Priority must be a positive whole number.");
+    return;
+  }
+
+  if (!Number.isFinite(confidenceScore) || confidenceScore < 0 || confidenceScore > 1) {
+    setErrorMessage("Confidence score must be between 0 and 1.");
     return;
   }
 
@@ -333,7 +345,6 @@ const duplicates = useMemo(() => {
 
   const newVersion = (selectedAnswer.approved_version ?? 1) + 1;
 
-  // 1. create new version
   const { data: newRow, error: insertError } = await supabase
     .from("ai_approved_answers")
     .insert({
@@ -341,13 +352,15 @@ const duplicates = useMemo(() => {
       normalized_question: normalizeQuestion(trimmedQuestion),
       answer: trimmedAnswer,
       category: form.category.trim() || null,
-      priority: Number(form.priority),
-      confidence_score: Number(form.confidence_score),
+      priority,
+      confidence_score: confidenceScore,
       is_active: true,
       approved_version: newVersion,
       source_cache_id: selectedAnswer.source_cache_id,
     })
-    .select("*")
+    .select(
+      "id, question, normalized_question, answer, category, is_active, priority, created_at, updated_at, source_cache_id, usage_count, confidence_score, last_used_at, demoted_at, approved_version, replaced_by_id"
+    )
     .single();
 
   if (insertError) {
@@ -356,12 +369,11 @@ const duplicates = useMemo(() => {
     return;
   }
 
-  // 2. deactivate old + link
   const { error: updateError } = await supabase
     .from("ai_approved_answers")
     .update({
       is_active: false,
-      replaced_by_id: newRow.id,
+      replaced_by_id: (newRow as ApprovedAnswerRow).id,
     })
     .eq("id", selectedAnswer.id);
 
@@ -371,10 +383,9 @@ const duplicates = useMemo(() => {
     return;
   }
 
-  // 3. reload
   await loadApprovedAnswers();
 
-  setSelectedId(newRow.id);
+  setSelectedId((newRow as ApprovedAnswerRow).id);
   setIsCreating(false);
   setActionMessage("New version created and old version archived.");
   setSaving(false);

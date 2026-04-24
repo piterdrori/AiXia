@@ -491,7 +491,7 @@ useEffect(() => {
       return;
     }
 
-    if (quality < 75 || item.quality_score < 1 || item.usage_count < 3) {
+    if (quality < 75 || (item.quality_score ?? 0) < 1 || (item.usage_count ?? 0) < 3) {
       setPageError("Cache quality is too low for promotion.");
       return;
     }
@@ -717,13 +717,65 @@ useEffect(() => {
                  />
               </div>
 
-                           <div className="mt-5 rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium text-white">
-                      Semantic Diagnostics
-                      
+                 <div className="mt-5 rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+  {/* HEADER */}
+  <div className="flex items-center justify-between gap-3">
+    <div>
+      <div className="text-sm font-medium text-white">
+        Semantic Diagnostics
+      </div>
+      <div className="mt-1 text-xs text-white/40">
+        Closest cache matches from vector similarity.
+      </div>
+    </div>
 
+    <button
+      onClick={() => void loadSemanticDiagnostics(selectedItem)}
+      className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/60 transition hover:bg-white/[0.08] hover:text-white"
+    >
+      Refresh
+    </button>
+  </div>
+
+  {/* CONTENT */}
+  <div className="mt-4 space-y-2">
+    {similarityLoading && (
+      <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-xs text-white/40">
+        Loading semantic matches...
+      </div>
+    )}
+
+    {!similarityLoading && similarityRows.length === 0 && (
+      <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-xs text-white/40">
+        No embedding diagnostics available for this cache item.
+      </div>
+    )}
+
+    {!similarityLoading &&
+      similarityRows.map((row) => (
+        <div
+          key={row.id}
+          className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 truncate text-xs text-white/70">
+              {row.question}
+            </div>
+
+            <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 text-[11px] text-cyan-200">
+              {Number(row.similarity).toFixed(3)}
+            </span>
+          </div>
+
+          <div className="mt-2 line-clamp-2 text-xs leading-5 text-white/40">
+            {row.answer}
+          </div>
+        </div>
+      ))}
+  </div>
+</div>
+
+{/* 🔥 DUPLICATES PANEL — CORRECT POSITION */}
 {duplicates.length > 0 && (
   <div className="mt-5 rounded-[22px] border border-amber-400/20 bg-amber-500/10 p-4">
     <div className="text-sm text-amber-200">
@@ -742,57 +794,6 @@ useEffect(() => {
     </div>
   </div>
 )}
-                      
-                    </div>
-                    <div className="mt-1 text-xs text-white/40">
-                      Closest cache matches from vector similarity.
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => void loadSemanticDiagnostics(selectedItem)}
-                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/60 transition hover:bg-white/[0.08] hover:text-white"
-                  >
-                    Refresh
-                  </button>
-                </div>
-
-                <div className="mt-4 space-y-2">
-                  {similarityLoading && (
-                    <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-xs text-white/40">
-                      Loading semantic matches...
-                    </div>
-                  )}
-
-                  {!similarityLoading && similarityRows.length === 0 && (
-                    <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-xs text-white/40">
-                      No embedding diagnostics available for this cache item.
-                    </div>
-                  )}
-
-                  {!similarityLoading &&
-                    similarityRows.map((row) => (
-                      <div
-                        key={row.id}
-                        className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0 truncate text-xs text-white/70">
-                            {row.question}
-                          </div>
-
-                          <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 text-[11px] text-cyan-200">
-                            {Number(row.similarity).toFixed(3)}
-                          </span>
-                        </div>
-
-                        <div className="mt-2 line-clamp-2 text-xs leading-5 text-white/40">
-                          {row.answer}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
               
               <div className="mt-5 space-y-3 text-sm">
                 <Field label="Question" value={selectedItem.question} />

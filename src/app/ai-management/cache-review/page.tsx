@@ -563,50 +563,70 @@ useEffect(() => {
     await loadCacheItems(true);
   }
 
-   async function promoteToApproved(item: CacheItem) {
-    const quality = scoreCacheQuality(item);
-    const risk = inferCacheRisk(item);
+  async function promoteToApproved(item: CacheItem) {
+  const quality = scoreCacheQuality(item);
+  const risk = inferCacheRisk(item);
 
-    if (Boolean(item.is_blocked)) {
-      setPageError("Blocked cache items cannot be promoted.");
-      return;
-    }
-
-    if (risk !== "healthy") {
-      setPageError("Only healthy cache items should be promoted.");
-      return;
-    }
-
-    if (quality < 75 || (item.quality_score ?? 0) < 1 || (item.usage_count ?? 0) < 3) {
-      setPageError("Cache quality is too low for promotion.");
-      return;
-    }
-
-    setPromoting(true);
-    setPageError(null);
-    setActionMessage(null);
-
-    const payload = {
-      normalized_question:
-        item.normalized_question || normalizeQuestion(item.question),
-      answer: item.answer,
-      is_active: true,
-      priority: 100,
-    };
-
-    const { error } = await supabase
-      .from("ai_approved_answers")
-      .insert(payload);
-
-    if (error) {
-      setPageError(error.message);
-      setPromoting(false);
-      return;
-    }
-
-       setActionMessage("Cache item promoted to approved answers.");
-    setPromoting(false);
+  if (Boolean(item.is_blocked)) {
+    setPageError("Blocked cache items cannot be promoted.");
+    return;
   }
+
+  if (risk !== "healthy") {
+    setPageError("Only healthy cache items should be promoted.");
+    return;
+  }
+
+  if (quality < 75 || (item.quality_score ?? 0) < 1 || (item.usage_count ?? 0) < 3) {
+    setPageError("Cache quality is too low for promotion.");
+    return;
+  }
+
+  setPromoting(true);
+  setPageError(null);
+  setActionMessage(null);
+
+  const normalized =
+    item.normalized_question || normalizeQuestion(item.question);
+
+  // 🔍 CHECK IF ALREADY EXISTS
+  const { data: existing } = await supabase
+    .from("ai_approved_answers")
+    .select("id")
+    .eq("normalized_question", normalized)
+    .limit(1);
+
+  if (existing && existing.length > 0) {
+    setPageError("Approved answer already exists for this question. Use version replace.");
+    setPromoting(false);
+    return;
+  }
+
+  const payload = {
+    question: item.question,
+    normalized_question: normalized,
+    answer: item.answer,
+    category: null,
+    is_active: true,
+    priority: 100,
+    confidence_score: 1,
+    approved_version: 1,
+    source_cache_id: item.id,
+  };
+
+  const { error } = await supabase
+    .from("ai_approved_answers")
+    .insert(payload);
+
+  if (error) {
+    setPageError(error.message);
+    setPromoting(false);
+    return;
+  }
+
+  setActionMessage("Cache item promoted to approved answers.");
+  setPromoting(false);
+}
 
   const duplicates = selectedItem
     ? items.filter(

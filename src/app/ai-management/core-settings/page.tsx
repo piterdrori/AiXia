@@ -9,7 +9,6 @@ import {
   Save,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
   ToggleLeft,
   ToggleRight,
 } from "lucide-react";
@@ -146,8 +145,9 @@ const settingDescriptions: Partial<
   },
 };
 
-function formatSettingValue(value: number | boolean | string) {
+function formatSettingValue(value: number | boolean | string | string[]) {
   if (typeof value === "boolean") return value ? "Enabled" : "Disabled";
+  if (Array.isArray(value)) return value.join(", ");
   return String(value);
 }
 
@@ -204,8 +204,9 @@ export default function AICoreSettingsPage() {
     for (const row of data ?? []) {
       const key = row.setting_key as SettingKey;
 
-      if (key in nextSettings) {
-        nextSettings[key] = row.setting_value?.value ?? nextSettings[key];
+            if (key in nextSettings) {
+        (nextSettings as Record<string, unknown>)[key] =
+          row.setting_value?.value ?? nextSettings[key];
       }
     }
 

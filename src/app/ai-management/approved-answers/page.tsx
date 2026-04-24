@@ -316,6 +316,70 @@ const duplicates = useMemo(() => {
     setSaving(false);
   }
 
+ async function replaceVersion() {
+  if (!selectedAnswer) return;
+
+  const trimmedQuestion = form.question.trim();
+  const trimmedAnswer = form.answer.trim();
+
+  if (!trimmedQuestion || !trimmedAnswer) {
+    setErrorMessage("Question and answer are required.");
+    return;
+  }
+
+  setSaving(true);
+  setErrorMessage(null);
+  setActionMessage(null);
+
+  const newVersion = (selectedAnswer.approved_version ?? 1) + 1;
+
+  // 1. create new version
+  const { data: newRow, error: insertError } = await supabase
+    .from("ai_approved_answers")
+    .insert({
+      question: trimmedQuestion,
+      normalized_question: normalizeQuestion(trimmedQuestion),
+      answer: trimmedAnswer,
+      category: form.category.trim() || null,
+      priority: Number(form.priority),
+      confidence_score: Number(form.confidence_score),
+      is_active: true,
+      approved_version: newVersion,
+      source_cache_id: selectedAnswer.source_cache_id,
+    })
+    .select("*")
+    .single();
+
+  if (insertError) {
+    setErrorMessage(insertError.message);
+    setSaving(false);
+    return;
+  }
+
+  // 2. deactivate old + link
+  const { error: updateError } = await supabase
+    .from("ai_approved_answers")
+    .update({
+      is_active: false,
+      replaced_by_id: newRow.id,
+    })
+    .eq("id", selectedAnswer.id);
+
+  if (updateError) {
+    setErrorMessage(updateError.message);
+    setSaving(false);
+    return;
+  }
+
+  // 3. reload
+  await loadApprovedAnswers();
+
+  setSelectedId(newRow.id);
+  setIsCreating(false);
+  setActionMessage("New version created and old version archived.");
+  setSaving(false);
+}
+  
   async function toggleActive(answer: ApprovedAnswerRow) {
     setSaving(true);
     setErrorMessage(null);
@@ -749,6 +813,17 @@ const duplicates = useMemo(() => {
                     <Save className="h-4 w-4" />
                     {saving ? "Saving..." : isCreating ? "Create Answer" : "Save Changes"}
                   </button>
+
+                  {selectedAnswer && !isCreating && (
+  <button
+    type="button"
+    onClick={() => void replaceVersion()}
+    disabled={saving}
+    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200 transition hover:border-amber-300/60 hover:bg-amber-500/20 disabled:opacity-50"
+  >
+    Replace Version
+  </button>
+)}
 
                   {selectedAnswer ? (
                     <button

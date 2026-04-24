@@ -58,25 +58,8 @@ const defaultSettings: AISettings = {
 
 const settingDescriptions: Record<
   SettingKey,
-  { title: string; description: string; type: "toggle" | "number"; min?: number; max?: number; step?: number }
+  { title: string; description: string; type: "toggle" | "number" | "select"; min?: number; max?: number; step?: number }
 > = {
-  
-    openai_temperature: {
-    title: "OpenAI Temperature",
-    description: "Controls creativity (0 = strict, 1 = creative).",
-    type: "number",
-    min: 0,
-    max: 1,
-    step: 0.05,
-  },
-  openai_max_tokens: {
-    title: "Max Tokens",
-    description: "Maximum response length from OpenAI.",
-    type: "number",
-    min: 50,
-    max: 2000,
-    step: 10,
-  },
   cache_enabled: {
     title: "Exact Cache",
     description: "Allow exact saved cache answers before semantic or OpenAI fallback.",
@@ -121,9 +104,35 @@ const settingDescriptions: Record<
     max: 500,
     step: 1,
   },
+  openai_temperature: {
+    title: "OpenAI Temperature",
+    description: "Controls creativity (0 = strict, 1 = creative).",
+    type: "number",
+    min: 0,
+    max: 1,
+    step: 0.05,
+  },
+  openai_max_tokens: {
+    title: "Max Tokens",
+    description: "Maximum response length from OpenAI.",
+    type: "number",
+    min: 50,
+    max: 2000,
+    step: 10,
+  },
+  response_mode: {
+    title: "Response Mode",
+    description: "Controls how direct or expressive OpenAI fallback responses should be.",
+    type: "select",
+  },
+  knowledge_strictness: {
+    title: "Knowledge Strictness",
+    description: "Controls how tightly OpenAI fallback must stay inside approved knowledge.",
+    type: "select",
+  },
 };
 
-function formatSettingValue(value: number | boolean) {
+function formatSettingValue(value: number | boolean | string) {
   if (typeof value === "boolean") return value ? "Enabled" : "Disabled";
   return String(value);
 }
@@ -218,7 +227,7 @@ export default function AICoreSettingsPage() {
     setSaving(false);
   }
 
-  function updateSetting(key: SettingKey, value: number | boolean) {
+   function updateSetting(key: SettingKey, value: number | boolean | string) {
     setSettings((current) => ({
       ...current,
       [key]: value,

@@ -1,6 +1,6 @@
-import { useMemo, useState, type ElementType } from "react";
 import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
+import { useMemo, useState, useRef, useEffect, type ElementType } from "react";
 import {
   Activity,
   Brain,
@@ -337,12 +337,22 @@ export default function AIManagementPage() {
   const [previewMessages, setPreviewMessages] =
     useState<PreviewMessage[]>(initialPreviewMessages);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
   const activeNav = useMemo(
     () => studioNavItems.find((item) => item.id === activeSection),
     [activeSection]
   );
+
+  useEffect(() => {
+  if (!messagesEndRef.current) return;
+
+  messagesEndRef.current.scrollTo({
+    top: messagesEndRef.current.scrollHeight,
+    behavior: "smooth",
+  });
+}, [previewMessages, previewLoading]);
 
   async function sendPreviewMessage() {
     const prompt = previewInput.trim();
@@ -394,6 +404,8 @@ export default function AIManagementPage() {
 
   function startNewPreviewChat() {
     setPreviewMessages([]);
+    setPreviewError(null);
+    setPreviewLoading(false);
     setPreviewInput("");
     setPreviewError(null);
   }
@@ -574,7 +586,7 @@ if (item.id === "cache") {
         </div>
       </section>
 
-      <aside className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-xl">
+      <aside className="flex min-h-[calc(100vh-165px)] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-xl">
         <div className="border-b border-white/10 px-5 py-5">
           <div className="space-y-1">
             <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/90">
@@ -589,7 +601,7 @@ if (item.id === "cache") {
           </div>
         </div>
 
-        <div className="flex flex-col gap-4 p-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
           <div className="rounded-[28px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)] p-4">
             <div className="mb-4 flex items-center justify-between">
               <div className="rounded-full border border-emerald-400/15 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300">
@@ -615,7 +627,7 @@ if (item.id === "cache") {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-[28px] border border-white/10 bg-black/20">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-black/20">
             <div className="border-b border-white/10 px-4 py-3">
               <div className="flex items-center justify-between gap-3">
   <div className="text-sm font-medium text-white">AI Test Console</div>
@@ -633,8 +645,11 @@ if (item.id === "cache") {
               </div>
             </div>
 
-            <div className="flex flex-col">
-              <div className="max-h-[360px] space-y-3 overflow-y-auto px-4 py-4 overscroll-contain">
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div
+  ref={messagesEndRef}
+  className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 overscroll-contain scroll-smooth"
+>
                 {previewMessages.map((message, index) => (
                   <div
                     key={`${message.role}-${index}`}

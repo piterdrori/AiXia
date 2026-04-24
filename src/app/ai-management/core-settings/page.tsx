@@ -222,14 +222,11 @@ export default function AICoreSettingsPage() {
     for (const key of Object.keys(settings) as SettingKey[]) {
       const { error } = await supabase
         .from("ai_settings")
-        .upsert(
-          {
-            setting_key: key,
-            setting_value: { value: settings[key] },
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "setting_key" }
-        );
+        .update({
+          setting_value: { value: settings[key] },
+          updated_at: new Date().toISOString(),
+        })
+        .eq("setting_key", key);
 
       if (error) {
         setErrorMessage(error.message);
@@ -237,6 +234,8 @@ export default function AICoreSettingsPage() {
         return;
       }
     }
+
+    await loadSettings();
 
     setActionMessage("Core AI settings saved.");
     setSaving(false);

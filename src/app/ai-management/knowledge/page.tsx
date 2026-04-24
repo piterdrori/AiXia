@@ -754,8 +754,8 @@ export default function AIKnowledgeBankPage() {
           </div>
         </div>
 
-        <div className="flex flex-col">
-          <div className="border-b border-white/10 px-6 py-4">
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="border-b border-white/10 px-6 py-3">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div className="relative w-full xl:max-w-[360px]">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
@@ -1177,7 +1177,7 @@ export default function AIKnowledgeBankPage() {
                 </div>
               </div>
 
-                            <div className="mt-4 min-h-0 flex-1 overflow-hidden rounded-[28px] border border-white/10 bg-black/30">
+                            <div className="mt-4 h-[360px] overflow-hidden rounded-[28px] border border-white/10 bg-black/30">
                 <div className="border-b border-white/10 px-4 py-3 text-xs text-white/40">
                   Content Preview
                 </div>

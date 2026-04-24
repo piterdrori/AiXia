@@ -518,9 +518,17 @@ useEffect(() => {
       return;
     }
 
-    setActionMessage("Cache item promoted to approved answers.");
+       setActionMessage("Cache item promoted to approved answers.");
     setPromoting(false);
   }
+
+  const duplicates = selectedItem
+    ? items.filter(
+        (item) =>
+          item.normalized_question === selectedItem.normalized_question &&
+          item.id !== selectedItem.id
+      )
+    : [];
 
   return (
     <div className="grid min-h-[calc(100vh-165px)] grid-rows-[auto_auto_minmax(0,1fr)] gap-4">

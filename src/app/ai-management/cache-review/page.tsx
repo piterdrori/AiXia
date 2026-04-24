@@ -35,6 +35,17 @@ type CacheItem = {
 
 type CacheStatusFilter = "all" | "active" | "blocked";
 
+type CacheViewMode = "items" | "clusters";
+
+type CacheCluster = {
+  normalized_question: string;
+  items: CacheItem[];
+  bestItem: CacheItem;
+  totalUsage: number;
+  activeCount: number;
+  blockedCount: number;
+};
+
 type SimilarityRow = {
   id: string;
   question: string;
@@ -231,6 +242,8 @@ export default function AICacheReviewPage() {
   const [statusFilter, setStatusFilter] =
     useState<CacheStatusFilter>("all");
 
+  const [viewMode, setViewMode] = useState<CacheViewMode>("items");
+
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   const [editorOpen, setEditorOpen] = useState(false);
@@ -323,6 +336,47 @@ export default function AICacheReviewPage() {
       return matchesSearch && matchesStatus;
     });
   }, [items, search, statusFilter]);
+
+const cacheClusters = useMemo<CacheCluster[]>(() => {
+  const groups = new Map<string, CacheItem[]>();
+
+  for (const item of filteredItems) {
+    const key = item.normalized_question || normalizeQuestion(item.question);
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+  }
+
+  return Array.from(groups.entries())
+    .map(([normalized_question, groupItems]) => {
+      const sorted = [...groupItems].sort((a, b) => {
+        const aScore =
+          (a.is_blocked ? -1000 : 0) +
+          scoreCacheQuality(a) +
+          ((a.quality_score ?? 0) * 20) +
+          ((a.usage_count ?? 0) * 2);
+
+        const bScore =
+          (b.is_blocked ? -1000 : 0) +
+          scoreCacheQuality(b) +
+          ((b.quality_score ?? 0) * 20) +
+          ((b.usage_count ?? 0) * 2);
+
+        return bScore - aScore;
+      });
+
+      return {
+        normalized_question,
+        items: sorted,
+        bestItem: sorted[0],
+        totalUsage: sorted.reduce(
+          (sum, item) => sum + (item.usage_count ?? 0),
+          0
+        ),
+        activeCount: sorted.filter((item) => !item.is_blocked).length,
+        blockedCount: sorted.filter((item) => Boolean(item.is_blocked)).length,
+      };
+    })
+    .sort((a, b) => b.totalUsage - a.totalUsage);
+}, [filteredItems]);
 
 const selectedItem =
   items.find((item) => item.id === selectedItemId) ??
@@ -477,6 +531,38 @@ useEffect(() => {
     await loadCacheItems(true);
   }
 
+    async function autoCleanDuplicates() {
+    if (!selectedItem || duplicates.length === 0) return;
+
+    const confirmed = window.confirm(
+      `Auto-clean ${duplicates.length} duplicate cache row(s) for "${selectedItem.normalized_question}"?`
+    );
+
+    if (!confirmed) return;
+
+    setPageError(null);
+    setActionMessage(null);
+
+    const duplicateIds = duplicates.map((item) => item.id);
+
+    const { error } = await supabase
+      .from("ai_qa_cache")
+      .update({
+        is_blocked: true,
+        admin_notes: "Auto-cleaned duplicate from cache review UI.",
+        updated_at: new Date().toISOString(),
+      })
+      .in("id", duplicateIds);
+
+    if (error) {
+      setPageError(error.message);
+      return;
+    }
+
+    setActionMessage(`Auto-cleaned ${duplicateIds.length} duplicate cache row(s).`);
+    await loadCacheItems(true);
+  }
+
    async function promoteToApproved(item: CacheItem) {
     const quality = scoreCacheQuality(item);
     const risk = inferCacheRisk(item);
@@ -595,74 +681,125 @@ useEffect(() => {
           </div>
 
           {/* FILTERS */}
-          <div className="p-4 border-b border-white/5 flex gap-2">
-            {["all", "active", "blocked"].map((f) => (
-              <button
-                key={f}
-                onClick={() => setStatusFilter(f as CacheStatusFilter)}
-                className={`px-3 py-1 rounded-xl text-xs border ${
-                  statusFilter === f
-                    ? "border-cyan-400/30 bg-cyan-500/10 text-cyan-200"
-                    : "border-white/10 text-white/60 hover:bg-white/[0.05]"
-                }`}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
+         <div className="p-4 border-b border-white/5 flex flex-wrap gap-2">
+  {["all", "active", "blocked"].map((f) => (
+    <button
+      key={f}
+      onClick={() => setStatusFilter(f as CacheStatusFilter)}
+      className={`px-3 py-1 rounded-xl text-xs border ${
+        statusFilter === f
+          ? "border-cyan-400/30 bg-cyan-500/10 text-cyan-200"
+          : "border-white/10 text-white/60 hover:bg-white/[0.05]"
+      }`}
+    >
+      {f}
+    </button>
+  ))}
+
+  <div className="mx-1 h-6 w-px bg-white/10" />
+
+  {(["items", "clusters"] as CacheViewMode[]).map((mode) => (
+    <button
+      key={mode}
+      onClick={() => setViewMode(mode)}
+      className={`px-3 py-1 rounded-xl text-xs border ${
+        viewMode === mode
+          ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+          : "border-white/10 text-white/60 hover:bg-white/[0.05]"
+      }`}
+    >
+      {mode}
+    </button>
+  ))}
+</div>
 
           {/* LIST */}
           <div className="max-h-[600px] overflow-y-auto">
-            {filteredItems.map((item) => {
-              const selected = item.id === selectedItem?.id;
-      
+  {viewMode === "items" &&
+    filteredItems.map((item) => {
+      const selected = item.id === selectedItem?.id;
+
       return (
-                <div
-                  key={item.id}
-                  onClick={() => setSelectedItemId(item.id)}
-                  className={`p-4 border-b border-white/5 cursor-pointer transition ${
-                    selected
-                      ? "bg-cyan-500/[0.08]"
-                      : "hover:bg-white/[0.03]"
-                  }`}
-                >
-                  <div className="text-sm text-white/90 line-clamp-2">
-                    {item.question}
-                  </div>
+        <div
+          key={item.id}
+          onClick={() => setSelectedItemId(item.id)}
+          className={`p-4 border-b border-white/5 cursor-pointer transition ${
+            selected ? "bg-cyan-500/[0.08]" : "hover:bg-white/[0.03]"
+          }`}
+        >
+          <div className="text-sm text-white/90 line-clamp-2">
+            {item.question}
+          </div>
 
-                                 <div className="mt-2 flex gap-2 flex-wrap">
-                    <span
-                      className={`px-2 py-0.5 text-[11px] rounded-full border ${providerChipClass(
-                        item.provider
-                      )}`}
-                    >
-                      {item.provider}
-                    </span>
+          <div className="mt-2 flex gap-2 flex-wrap">
+            <span className={`px-2 py-0.5 text-[11px] rounded-full border ${providerChipClass(item.provider)}`}>
+              {item.provider}
+            </span>
 
-                    <span
-                      className={`px-2 py-0.5 text-[11px] rounded-full border ${statusChipClass(
-                        Boolean(item.is_blocked)
-                      )}`}
-                    >
-                      {item.is_blocked ? "blocked" : "active"}
-                    </span>
+            <span className={`px-2 py-0.5 text-[11px] rounded-full border ${statusChipClass(Boolean(item.is_blocked))}`}>
+              {item.is_blocked ? "blocked" : "active"}
+            </span>
 
-                    <span
-                      className={`px-2 py-0.5 text-[11px] rounded-full border ${riskChipClass(
-                        inferCacheRisk(item)
-                      )}`}
-                    >
-                      {riskLabel(inferCacheRisk(item))}
-                    </span>
+            <span className={`px-2 py-0.5 text-[11px] rounded-full border ${riskChipClass(inferCacheRisk(item))}`}>
+              {riskLabel(inferCacheRisk(item))}
+            </span>
 
-                    <span className="px-2 py-0.5 text-[11px] rounded-full border border-white/10 bg-white/[0.04] text-white/60">
-                      q{scoreCacheQuality(item)}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+            <span className="px-2 py-0.5 text-[11px] rounded-full border border-white/10 bg-white/[0.04] text-white/60">
+              q{scoreCacheQuality(item)}
+            </span>
+          </div>
+        </div>
+      );
+    })}
 
+  {viewMode === "clusters" &&
+    cacheClusters.map((cluster) => {
+      const selected = cluster.items.some((item) => item.id === selectedItem?.id);
+
+      return (
+        <div
+          key={cluster.normalized_question}
+          onClick={() => setSelectedItemId(cluster.bestItem.id)}
+          className={`p-4 border-b border-white/5 cursor-pointer transition ${
+            selected ? "bg-emerald-500/[0.08]" : "hover:bg-white/[0.03]"
+          }`}
+        >
+          <div className="text-sm text-white/90 line-clamp-2">
+            {cluster.bestItem.question}
+          </div>
+
+          <div className="mt-2 text-xs text-white/40 line-clamp-1">
+            {cluster.normalized_question}
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-200">
+              best q{scoreCacheQuality(cluster.bestItem)}
+            </span>
+
+            <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 text-[11px] text-cyan-200">
+              {cluster.items.length} rows
+            </span>
+
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] text-white/60">
+              usage {cluster.totalUsage}
+            </span>
+
+            {cluster.items.length > 1 && (
+              <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-200">
+                duplicates {cluster.items.length - 1}
+              </span>
+            )}
+
+            {cluster.blockedCount > 0 && (
+              <span className="rounded-full border border-rose-400/20 bg-rose-500/10 px-2 py-0.5 text-[11px] text-rose-300">
+                blocked {cluster.blockedCount}
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    })}
             {!loading && filteredItems.length === 0 && (
               <div className="p-6 text-center text-white/40">
                 No results
@@ -778,9 +915,18 @@ useEffect(() => {
 {/* 🔥 DUPLICATES PANEL — CORRECT POSITION */}
 {duplicates.length > 0 && (
   <div className="mt-5 rounded-[22px] border border-amber-400/20 bg-amber-500/10 p-4">
-    <div className="text-sm text-amber-200">
-      Duplicate Entries ({duplicates.length})
-    </div>
+    <div className="flex items-center justify-between gap-3">
+  <div className="text-sm text-amber-200">
+    Duplicate Entries ({duplicates.length})
+  </div>
+
+  <button
+    onClick={autoCleanDuplicates}
+    className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-200 transition hover:bg-amber-500/20"
+  >
+    Auto-clean
+  </button>
+</div>
 
     <div className="mt-2 space-y-2">
       {duplicates.map((dup) => (

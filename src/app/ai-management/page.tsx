@@ -1,4 +1,5 @@
 import { useMemo, useState, type ElementType } from "react";
+import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
 import {
   Activity,
@@ -13,6 +14,7 @@ import {
   Upload,
   Volume2,
   Wand2,
+  Send,
 } from "lucide-react";
 
 type StudioSectionId =
@@ -140,7 +142,15 @@ const overviewMetrics: OverviewMetric[] = [
   },
 ];
 
-const previewMessages = [
+type PreviewMessage = {
+  role: "user" | "assistant";
+  content: string;
+  provider?: string;
+  similarity?: number;
+  matchedQuestion?: string;
+};
+
+const initialPreviewMessages: PreviewMessage[] = [
   {
     role: "user",
     content: "How should I handle an unpaid invoice?",
@@ -304,11 +314,57 @@ export default function AIManagementPage() {
   const navigate = useNavigate();
   const [activeSection, setActiveSection] =
     useState<StudioSectionId>("overview");
+  const [previewInput, setPreviewInput] = useState("");
+  const [previewMessages, setPreviewMessages] =
+    useState<PreviewMessage[]>(initialPreviewMessages);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const activeNav = useMemo(
     () => studioNavItems.find((item) => item.id === activeSection),
     [activeSection]
   );
+
+  async function sendPreviewMessage() {
+  const prompt = previewInput.trim();
+
+  if (!prompt || previewLoading) return;
+
+  setPreviewInput("");
+  setPreviewError(null);
+  setPreviewLoading(true);
+
+  setPreviewMessages((current) => [
+    ...current,
+    {
+      role: "user",
+      content: prompt,
+    },
+  ]);
+
+  const { data, error } = await supabase.functions.invoke("ai-router", {
+    body: { prompt },
+  });
+
+  if (error) {
+    setPreviewError(error.message);
+    setPreviewLoading(false);
+    return;
+  }
+
+  setPreviewMessages((current) => [
+    ...current,
+    {
+      role: "assistant",
+      content: data?.text ?? "No response returned.",
+      provider: data?.provider,
+      similarity: data?.similarity,
+      matchedQuestion: data?.matched_question,
+    },
+  ]);
+
+  setPreviewLoading(false);
+}
 
   return (
     <div className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)_340px]">
@@ -485,7 +541,7 @@ if (item.id === "cache") {
             <div className="border-b border-white/10 px-4 py-3">
               <div className="text-sm font-medium text-white">Chat Preview</div>
               <div className="text-xs text-white/45">
-                Simulated conversation with current AI setup.
+                Live test against ai-router.
               </div>
             </div>
 
@@ -506,16 +562,59 @@ if (item.id === "cache") {
                       }`}
                     >
                       {message.content}
+                      {message.role === "assistant" && message.provider && (
+  <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-white/45">
+    <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">
+      {message.provider}
+    </span>
+
+    {typeof message.similarity === "number" && (
+      <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 text-cyan-200">
+        sim {message.similarity.toFixed(3)}
+      </span>
+    )}
+
+    {message.matchedQuestion && (
+      <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">
+        matched cache
+      </span>
+    )}
+  </div>
+)}
                     </div>
                   </div>
                 ))}
               </div>
 
               <div className="border-t border-white/10 p-4">
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/35">
-                  Type a message...
-                </div>
-              </div>
+  {previewError && (
+    <div className="mb-3 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+      {previewError}
+    </div>
+  )}
+
+  <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+    <input
+      value={previewInput}
+      onChange={(event) => setPreviewInput(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          void sendPreviewMessage();
+        }
+      }}
+      placeholder="Test the live AI router..."
+      className="min-w-0 flex-1 bg-transparent text-sm text-white/80 outline-none placeholder:text-white/35"
+    />
+
+    <button
+      onClick={() => void sendPreviewMessage()}
+      disabled={previewLoading || !previewInput.trim()}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-500 text-slate-950 transition hover:bg-cyan-400 disabled:opacity-50"
+    >
+      <Send className="h-4 w-4" />
+    </button>
+  </div>
+</div>
             </div>
           </div>
         </div>

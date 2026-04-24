@@ -563,7 +563,119 @@ useEffect(() => {
     await loadCacheItems(true);
   }
 
-async function promoteToApproved(item: CacheItem) {
+async function autoPromoteBestClusters() {
+  const confirmed = window.confirm(
+    "Auto-promote the best healthy cache item from each cluster?"
+  );
+
+  if (!confirmed) return;
+
+  setPromoting(true);
+  setPageError(null);
+  setActionMessage(null);
+
+  let promotedCount = 0;
+  let skippedCount = 0;
+
+  for (const cluster of cacheClusters) {
+    const bestItem = cluster.bestItem;
+    const quality = scoreCacheQuality(bestItem);
+    const risk = inferCacheRisk(bestItem);
+
+    if (
+      Boolean(bestItem.is_blocked) ||
+      risk !== "healthy" ||
+      quality < 75 ||
+      (bestItem.quality_score ?? 0) < 1 ||
+      (bestItem.usage_count ?? 0) < 3
+    ) {
+      skippedCount += 1;
+      continue;
+    }
+
+    const normalized =
+      bestItem.normalized_question || normalizeQuestion(bestItem.question);
+
+    const { data: existing, error: existingError } = await supabase
+      .from("ai_approved_answers")
+      .select("id, approved_version")
+      .eq("normalized_question", normalized)
+      .limit(1);
+
+    if (existingError) {
+      skippedCount += 1;
+      continue;
+    }
+
+    if (existing && existing.length > 0) {
+      const existingId = existing[0].id;
+      const newVersion = (existing[0].approved_version ?? 1) + 1;
+
+      const { data: newRow, error: insertError } = await supabase
+        .from("ai_approved_answers")
+        .insert({
+          question: bestItem.question,
+          normalized_question: normalized,
+          answer: bestItem.answer,
+          category: null,
+          is_active: true,
+          priority: 100,
+          confidence_score: 1,
+          approved_version: newVersion,
+          source_cache_id: bestItem.id,
+        })
+        .select("id")
+        .single();
+
+      if (insertError || !newRow) {
+        skippedCount += 1;
+        continue;
+      }
+
+      const { error: updateError } = await supabase
+        .from("ai_approved_answers")
+        .update({
+          is_active: false,
+          replaced_by_id: newRow.id,
+        })
+        .eq("id", existingId);
+
+      if (updateError) {
+        skippedCount += 1;
+        continue;
+      }
+
+      promotedCount += 1;
+      continue;
+    }
+
+    const { error } = await supabase.from("ai_approved_answers").insert({
+      question: bestItem.question,
+      normalized_question: normalized,
+      answer: bestItem.answer,
+      category: null,
+      is_active: true,
+      priority: 100,
+      confidence_score: 1,
+      approved_version: 1,
+      source_cache_id: bestItem.id,
+    });
+
+    if (error) {
+      skippedCount += 1;
+      continue;
+    }
+
+    promotedCount += 1;
+  }
+
+  setActionMessage(
+    `Auto-promote complete. Promoted ${promotedCount} cluster(s), skipped ${skippedCount}.`
+  );
+  setPromoting(false);
+}
+  
+  async function promoteToApproved(item: CacheItem) {
   const quality = scoreCacheQuality(item);
   const risk = inferCacheRisk(item);
 
@@ -635,14 +747,19 @@ async function promoteToApproved(item: CacheItem) {
     return;
   }
 
-  // deactivate old
-  await supabase
+    const { error: updateError } = await supabase
     .from("ai_approved_answers")
     .update({
       is_active: false,
       replaced_by_id: newRow.id,
     })
     .eq("id", existingId);
+
+  if (updateError) {
+    setPageError(updateError.message);
+    setPromoting(false);
+    return;
+  }
 
   setActionMessage("Approved answer replaced with new version from cache.");
   setPromoting(false);
@@ -694,6 +811,16 @@ async function promoteToApproved(item: CacheItem) {
         </button>
 
         <div className="flex items-center gap-2">
+         
+          <button
+  onClick={() => void autoPromoteBestClusters()}
+  disabled={promoting}
+  className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50"
+>
+  <FileCheck2 className="h-4 w-4" />
+  {promoting ? "Auto-promoting..." : "Auto Promote"}
+</button>
+          
           <button
             onClick={() => loadCacheItems(true)}
             className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/70 hover:bg-white/[0.08]"

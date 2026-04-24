@@ -661,40 +661,11 @@ const duplicates = useMemo(() => {
                   </label>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                             <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
                   <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                     <SlidersHorizontal className="h-4 w-4" />
                     Runtime Details
                   </div>
-
-                  {duplicates.length > 0 && (
-  <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4">
-    <div className="text-[11px] uppercase tracking-[0.18em] text-amber-300">
-      Duplicate Warning
-    </div>
-
-    <div className="mt-2 text-sm text-amber-200">
-      This question has {duplicates.length} duplicate approved answer(s).
-      Router may return inconsistent results.
-    </div>
-
-    <div className="mt-3 space-y-2">
-      {duplicates.map((dup) => (
-        <div
-          key={dup.id}
-          className="rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/70"
-        >
-          <div className="font-medium text-white">
-            {dup.question}
-          </div>
-          <div className="mt-1 text-white/40">
-            Priority {dup.priority} • {dup.is_active ? "Active" : "Inactive"}
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-)}
 
                   <div className="mt-4 grid gap-3 text-xs text-slate-400 sm:grid-cols-2">
                     <div>
@@ -726,6 +697,35 @@ const duplicates = useMemo(() => {
                     </div>
                   </div>
                 </div>
+
+                {duplicates.length > 0 && (
+                  <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-amber-300">
+                      Duplicate Warning
+                    </div>
+
+                    <div className="mt-2 text-sm text-amber-200">
+                      This question has {duplicates.length} duplicate approved answer(s).
+                      Router may return inconsistent results.
+                    </div>
+
+                    <div className="mt-3 space-y-2">
+                      {duplicates.map((dup) => (
+                        <div
+                          key={dup.id}
+                          className="rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/70"
+                        >
+                          <div className="font-medium text-white">
+                            {dup.question}
+                          </div>
+                          <div className="mt-1 text-white/40">
+                            Priority {dup.priority} • {dup.is_active ? "Active" : "Inactive"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {errorMessage ? (
                   <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">

@@ -176,20 +176,6 @@ type PreviewMessage = {
   feedback?: "liked" | "disliked";
 };
 
-const initialPreviewMessages: PreviewMessage[] = [
-  {
-    id: "preview-user-1",
-    role: "user",
-    content: "How should I handle an unpaid invoice?",
-  },
-  {
-    id: "preview-assistant-1",
-    role: "assistant",
-    content:
-      "Open the invoice in Finance, review due date and payment status, record follow-up, and escalate according to your workflow if payment remains overdue.",
-  },
-];
-
 function getSectionDescription(section: StudioSectionId) {
   switch (section) {
     case "overview":

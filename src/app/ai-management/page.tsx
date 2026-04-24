@@ -645,12 +645,11 @@ if (item.id === "cache") {
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col">
-              <div
-               <div
-               ref={messagesEndRef}
-                  className="h-[420px] space-y-3 overflow-y-auto px-4 py-4 overscroll-contain scroll-smooth"
-                >
+           <div className="flex min-h-0 flex-1 flex-col">
+  <div
+    ref={messagesEndRef}
+    className="h-[420px] space-y-3 overflow-y-auto px-4 py-4 overscroll-contain scroll-smooth"
+  >
                 {previewMessages.map((message, index) => (
                   <div
                     key={`${message.role}-${index}`}

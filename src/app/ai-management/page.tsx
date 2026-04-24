@@ -382,7 +382,7 @@ async function approvePreviewReply(message: PreviewMessage) {
 
   const { error } = await supabase.functions.invoke("ai-feedback", {
     body: {
-      question: message.sourceQuestion,
+      question: message.matchedQuestion ?? message.sourceQuestion,
       answer: message.content,
       feedback: "liked",
     },
@@ -405,7 +405,7 @@ async function rejectPreviewReply(message: PreviewMessage) {
 
   const { error } = await supabase.functions.invoke("ai-feedback", {
     body: {
-      question: message.sourceQuestion,
+      question: message.matchedQuestion ?? message.sourceQuestion,
       answer: message.content,
       feedback: "disliked",
     },

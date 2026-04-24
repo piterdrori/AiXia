@@ -637,8 +637,8 @@ export default function AIKnowledgeBankPage() {
   }
 
   return (
-    <div className="grid h-[calc(100vh-165px)] min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <section className="flex min-h-0 flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+    <div className="grid gap-4 pb-10 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
                 <div className="border-b border-white/10 px-6 py-5">
           <div className="mb-4">
             <button
@@ -754,7 +754,7 @@ export default function AIKnowledgeBankPage() {
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex flex-col">
           <div className="border-b border-white/10 px-6 py-3">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div className="relative w-full xl:max-w-[360px]">
@@ -837,7 +837,7 @@ export default function AIKnowledgeBankPage() {
             )}
           </div>
 
-                    <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6 overscroll-contain">
+                    <div className="px-6 py-6">
             {loading ? (
               <div className="grid gap-3">
                 {[1, 2, 3, 4].map((row) => (
@@ -1017,7 +1017,7 @@ export default function AIKnowledgeBankPage() {
         </div>
       </section>
 
-      <aside className="flex min-h-0 flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <aside className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
         <div className="border-b border-white/10 px-5 py-5">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
@@ -1040,7 +1040,7 @@ export default function AIKnowledgeBankPage() {
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col p-4">
+        <div className="flex flex-col p-4">
           {!selectedItem ? (
             <div className="flex h-full items-center justify-center rounded-[28px] border border-dashed border-white/10 bg-black/20 p-6 text-center text-sm text-white/45">
               Select a knowledge item to inspect its content and actions.

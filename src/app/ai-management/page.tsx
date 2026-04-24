@@ -145,6 +145,25 @@ const overviewMetrics: OverviewMetric[] = [
   },
 ];
 
+type PreviewDebugCandidate = {
+  id?: string;
+  question?: string;
+  similarity?: number;
+  rank_score?: number;
+  usage_count?: number;
+  quality_score?: number;
+};
+
+type PreviewDebug = {
+  reason?: string;
+  layer?: string;
+  threshold?: number;
+  totalCache?: number;
+  avgUsage?: number;
+  selected?: PreviewDebugCandidate;
+  candidates?: PreviewDebugCandidate[];
+};
+
 type PreviewMessage = {
   id: string;
   role: "user" | "assistant";
@@ -153,6 +172,7 @@ type PreviewMessage = {
   similarity?: number;
   matchedQuestion?: string;
   sourceQuestion?: string;
+  debug?: PreviewDebug;
   feedback?: "liked" | "disliked";
 };
 
@@ -365,6 +385,7 @@ export default function AIManagementPage() {
         similarity: data?.similarity,
         matchedQuestion: data?.matched_question,
         sourceQuestion: prompt,
+        debug: data?.debug,
       },
     ]);
 
@@ -649,6 +670,90 @@ if (item.id === "cache") {
       </span>
     )}
 
+    {message.debug && (
+  <div className="mt-2 w-full rounded-2xl border border-white/10 bg-black/25 p-3">
+    <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-cyan-200/80">
+      Router Debug
+    </div>
+
+    <div className="grid gap-2 text-[11px] text-white/55">
+      {message.debug.reason && (
+        <div>
+          <span className="text-white/35">Reason:</span>{" "}
+          {message.debug.reason}
+        </div>
+      )}
+
+      {message.debug.layer && (
+        <div>
+          <span className="text-white/35">Layer:</span>{" "}
+          {message.debug.layer}
+        </div>
+      )}
+
+      {typeof message.debug.threshold === "number" && (
+        <div>
+          <span className="text-white/35">Threshold:</span>{" "}
+          {message.debug.threshold.toFixed(3)}
+        </div>
+      )}
+
+      {typeof message.debug.totalCache === "number" && (
+        <div>
+          <span className="text-white/35">Total cache:</span>{" "}
+          {message.debug.totalCache}
+        </div>
+      )}
+
+      {message.debug.selected && (
+        <div className="rounded-xl border border-cyan-400/15 bg-cyan-500/10 p-2 text-cyan-100/80">
+          <div className="text-[11px] text-cyan-200">Selected</div>
+          <div className="mt-1">{message.debug.selected.question}</div>
+          <div className="mt-1 text-cyan-100/55">
+            sim{" "}
+            {typeof message.debug.selected.similarity === "number"
+              ? message.debug.selected.similarity.toFixed(3)
+              : "n/a"}{" "}
+            · rank{" "}
+            {typeof message.debug.selected.rank_score === "number"
+              ? message.debug.selected.rank_score.toFixed(3)
+              : "n/a"}{" "}
+            · usage {message.debug.selected.usage_count ?? 0} · quality{" "}
+            {message.debug.selected.quality_score ?? 0}
+          </div>
+        </div>
+      )}
+
+      {message.debug.candidates && message.debug.candidates.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-[11px] text-white/35">Candidates</div>
+          {message.debug.candidates.map((candidate, candidateIndex) => (
+            <div
+              key={candidate.id ?? `${candidate.question}-${candidateIndex}`}
+              className="rounded-xl border border-white/10 bg-white/[0.03] p-2"
+            >
+              <div className="line-clamp-1">{candidate.question}</div>
+              <div className="mt-1 text-white/35">
+                sim{" "}
+                {typeof candidate.similarity === "number"
+                  ? candidate.similarity.toFixed(3)
+                  : "n/a"}{" "}
+                · rank{" "}
+                {typeof candidate.rank_score === "number"
+                  ? candidate.rank_score.toFixed(3)
+                  : "n/a"}{" "}
+                · usage {candidate.usage_count ?? 0} · quality{" "}
+                {candidate.quality_score ?? 0}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+)}
+    
+    
     {message.sourceQuestion && (
       <>
         <button

@@ -470,13 +470,18 @@ async function rejectPreviewReply(message: PreviewMessage) {
                                     <button
                     key={item.id}
                     onClick={() => {
-                     if (item.id === "knowledge") {
+                    if (item.id === "knowledge") {
   navigate("/ai-management/knowledge");
   return;
 }
 
 if (item.id === "cache") {
   navigate("/ai-management/cache-review");
+  return;
+}
+
+if (item.id === "approved") {
+  navigate("/ai-management/approved-answers");
   return;
 }
                       setActiveSection(item.id);

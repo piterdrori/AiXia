@@ -771,120 +771,92 @@ if (success) {
   setPromoting(false);
 }
   
-  async function promoteToApproved(item: CacheItem) {
-  const quality = scoreCacheQuality(item);
-  const risk = inferCacheRisk(item);
+    async function promoteToApproved(item: CacheItem): Promise<boolean> {
+    const quality = scoreCacheQuality(item);
+    const risk = inferCacheRisk(item);
 
-  if (Boolean(item.is_blocked)) {
-    setPageError("Blocked cache items cannot be promoted.");
-    return;
-  }
+    if (Boolean(item.is_blocked)) return false;
+    if (risk !== "healthy") return false;
+    if (quality < 75 || (item.quality_score ?? 0) < 1 || (item.usage_count ?? 0) < 3) {
+      return false;
+    }
 
-  if (risk !== "healthy") {
-    setPageError("Only healthy cache items should be promoted.");
-    return;
-  }
+    setPromoting(true);
 
-  if (quality < 75 || (item.quality_score ?? 0) < 1 || (item.usage_count ?? 0) < 3) {
-    setPageError("Cache quality is too low for promotion.");
-    return;
-  }
+    const normalized = item.normalized_question || normalizeQuestion(item.question);
 
-  setPromoting(true);
-  setPageError(null);
-  setActionMessage(null);
+    const { data: existing, error: existingError } = await supabase
+      .from("ai_approved_answers")
+      .select("id")
+      .eq("normalized_question", normalized)
+      .limit(1);
 
-  const normalized = item.normalized_question || normalizeQuestion(item.question);
+    if (existingError) {
+      setPromoting(false);
+      return false;
+    }
 
-  const { data: existing, error: existingError } = await supabase
-    .from("ai_approved_answers")
-    .select("id")
-    .eq("normalized_question", normalized)
-    .limit(1);
+    if (existing && existing.length > 0) {
+      const existingId = existing[0].id;
 
-  if (existingError) {
-    setPageError(existingError.message);
+      const { data: current } = await supabase
+        .from("ai_approved_answers")
+        .select("approved_version")
+        .eq("id", existingId)
+        .single();
+
+      const newVersion = (current?.approved_version ?? 1) + 1;
+
+      const { data: newRow, error: insertError } = await supabase
+        .from("ai_approved_answers")
+        .insert({
+          question: item.question,
+          normalized_question: normalized,
+          answer: item.answer,
+          category: null,
+          is_active: true,
+          priority: 100,
+          confidence_score: 1,
+          approved_version: newVersion,
+          source_cache_id: item.id,
+        })
+        .select("id")
+        .single();
+
+      if (insertError || !newRow) {
+        setPromoting(false);
+        return false;
+      }
+
+      const { error: updateError } = await supabase
+        .from("ai_approved_answers")
+        .update({
+          is_active: false,
+          replaced_by_id: newRow.id,
+        })
+        .eq("id", existingId);
+
+      setPromoting(false);
+      return !updateError;
+    }
+
+    const { error } = await supabase
+      .from("ai_approved_answers")
+      .insert({
+        question: item.question,
+        normalized_question: normalized,
+        answer: item.answer,
+        category: null,
+        is_active: true,
+        priority: 100,
+        confidence_score: 1,
+        approved_version: 1,
+        source_cache_id: item.id,
+      });
+
     setPromoting(false);
-    return;
+    return !error;
   }
-
-  if (existing && existing.length > 0) {
-  const existingId = existing[0].id;
-
-  // get current version
-  const { data: current } = await supabase
-    .from("ai_approved_answers")
-    .select("approved_version, source_cache_id")
-    .eq("id", existingId)
-    .single();
-
-  const newVersion = (current?.approved_version ?? 1) + 1;
-
-  // create new version
-  const { data: newRow, error: insertError } = await supabase
-    .from("ai_approved_answers")
-    .insert({
-      question: item.question,
-      normalized_question: normalized,
-      answer: item.answer,
-      category: null,
-      is_active: true,
-      priority: 100,
-      confidence_score: 1,
-      approved_version: newVersion,
-      source_cache_id: item.id,
-    })
-    .select("id")
-    .single();
-
-  if (insertError) {
-    setPageError(insertError.message);
-    setPromoting(false);
-    return;
-  }
-
-    const { error: updateError } = await supabase
-    .from("ai_approved_answers")
-    .update({
-      is_active: false,
-      replaced_by_id: newRow.id,
-    })
-    .eq("id", existingId);
-
-  if (updateError) {
-    setPageError(updateError.message);
-    setPromoting(false);
-    return;
-  }
-
-  setActionMessage("Approved answer replaced with new version from cache.");
-  setPromoting(false);
-  return;
-}
-
-  const { error } = await supabase
-    .from("ai_approved_answers")
-    .insert({
-      question: item.question,
-      normalized_question: normalized,
-      answer: item.answer,
-      category: null,
-      is_active: true,
-      priority: 100,
-      confidence_score: 1,
-      approved_version: 1,
-      source_cache_id: item.id,
-    });
-
-  if (error) {
-    setPageError(error.message);
-    setPromoting(false);
-    return;
-  }
-
-  setActionMessage("Cache item promoted to approved answers.");
-  setPromoting(false);
-}
   
   const duplicates = selectedItem
     ? items.filter(

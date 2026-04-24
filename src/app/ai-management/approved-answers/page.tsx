@@ -315,8 +315,8 @@ const duplicates = useMemo(() => {
     setActionMessage("Approved answer updated.");
     setSaving(false);
   }
-
-async function replaceVersion() {
+  
+  async function replaceVersion() {
   if (!selectedAnswer) return;
 
   const trimmedQuestion = form.question.trim();
@@ -824,6 +824,7 @@ async function replaceVersion() {
                     <Save className="h-4 w-4" />
                     {saving ? "Saving..." : isCreating ? "Create Answer" : "Save Changes"}
                   </button>
+
 
                   {selectedAnswer && !isCreating && (
   <button

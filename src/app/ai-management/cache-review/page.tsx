@@ -29,6 +29,8 @@ type CacheItem = {
   is_blocked: boolean | null;
   created_at: string;
   updated_at: string | null;
+  last_used_at: string | null;
+  quality_score: number | null;
 };
 
 type CacheStatusFilter = "all" | "active" | "blocked";
@@ -489,7 +491,7 @@ useEffect(() => {
       return;
     }
 
-    if (quality < 70) {
+    if (quality < 75 || item.quality_score < 1 || item.usage_count < 3) {
       setPageError("Cache quality is too low for promotion.");
       return;
     }
@@ -661,6 +663,12 @@ useEffect(() => {
           </div>
         </div>
 
+        const duplicates = items.filter(
+  (i) =>
+    i.normalized_question === selectedItem?.normalized_question &&
+    i.id !== selectedItem?.id
+);
+        
         {/* RIGHT — INSPECTOR */}
         <div className="rounded-[26px] border border-white/10 bg-black/20 p-5">
           {!selectedItem ? (
@@ -694,6 +702,17 @@ useEffect(() => {
                   label="Usage Count"
                   value={String(selectedItem.usage_count ?? 0)}
                 />
+                <InsightCard
+                  icon={Sparkles}
+                  label="Quality Score"
+                  value={String(selectedItem.quality_score ?? 0)}
+                />
+
+                <InsightCard
+                 icon={Database}
+                 label="Last Used"
+                 value={formatDateTime(selectedItem.last_used_at)}
+                 />
               </div>
 
                            <div className="mt-5 rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
@@ -701,6 +720,27 @@ useEffect(() => {
                   <div>
                     <div className="text-sm font-medium text-white">
                       Semantic Diagnostics
+                      
+
+{duplicates.length > 0 && (
+  <div className="mt-5 rounded-[22px] border border-amber-400/20 bg-amber-500/10 p-4">
+    <div className="text-sm text-amber-200">
+      Duplicate Entries ({duplicates.length})
+    </div>
+
+    <div className="mt-2 space-y-2">
+      {duplicates.map((dup) => (
+        <div
+          key={dup.id}
+          className="rounded-xl border border-white/10 bg-black/20 p-2 text-xs text-white/60"
+        >
+          {dup.question}
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+                      
                     </div>
                     <div className="mt-1 text-xs text-white/40">
                       Closest cache matches from vector similarity.

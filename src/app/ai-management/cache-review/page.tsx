@@ -597,8 +597,8 @@ async function autoPromoteBestClusters() {
       bestItem.normalized_question || normalizeQuestion(bestItem.question);
 
     const { data: existing, error: existingError } = await supabase
-      .from("ai_approved_answers")
-      .select("id, approved_version")
+  .from("ai_approved_answers")
+  .select("id, approved_version, answer, usage_count")
       .eq("normalized_question", normalized)
       .limit(1);
 
@@ -608,8 +608,24 @@ async function autoPromoteBestClusters() {
     }
 
     if (existing && existing.length > 0) {
-      const existingId = existing[0].id;
-      const newVersion = (existing[0].approved_version ?? 1) + 1;
+  const existingRow = existing[0];
+  const existingId = existingRow.id;
+
+  // 🧠 QUALITY COMPARISON
+  const existingScore =
+    (existingRow.usage_count ?? 0) * 2 +
+    (existingRow.answer?.length ?? 0) / 10;
+
+  const candidateScore =
+    (bestItem.usage_count ?? 0) * 2 +
+    (bestItem.answer?.length ?? 0) / 10;
+
+  if (candidateScore <= existingScore) {
+    skippedCount += 1;
+    continue;
+  }
+
+  const newVersion = (existingRow.approved_version ?? 1) + 1;
 
       const { data: newRow, error: insertError } = await supabase
         .from("ai_approved_answers")

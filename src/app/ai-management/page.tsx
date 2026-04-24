@@ -484,6 +484,11 @@ if (item.id === "approved") {
   navigate("/ai-management/approved-answers");
   return;
 }
+
+if (item.id === "core-settings") {
+  navigate("/ai-management/core-settings");
+  return;
+}
                       setActiveSection(item.id);
                     }}
                     className={`w-full rounded-[22px] border px-4 py-3 text-left transition-all duration-300 ${

@@ -26,7 +26,11 @@ type SettingKey =
   | "openai_temperature"
   | "openai_max_tokens"
   | "response_mode"
-  | "knowledge_strictness";
+  | "knowledge_strictness"
+  | "blocked_topics"
+  | "allowed_topics"
+  | "force_refusal"
+  | "response_tone";
 
 type AISettings = {
   semantic_threshold: number;
@@ -40,6 +44,10 @@ type AISettings = {
   openai_max_tokens: number;
   response_mode: string;
   knowledge_strictness: string;
+  blocked_topics: string[];
+  allowed_topics: string[];
+  force_refusal: boolean;
+  response_tone: string;
 };
 
 const defaultSettings: AISettings = {
@@ -54,11 +62,17 @@ const defaultSettings: AISettings = {
   openai_max_tokens: 500,
   response_mode: "balanced",
   knowledge_strictness: "hybrid",
+  blocked_topics: [],
+  allowed_topics: [],
+  force_refusal: false,
+  response_tone: "professional",
 };
 
-const settingDescriptions: Record<
-  SettingKey,
-  { title: string; description: string; type: "toggle" | "number" | "select"; min?: number; max?: number; step?: number }
+const settingDescriptions: Partial<
+  Record<
+    SettingKey,
+    { title: string; description: string; type: "toggle" | "number" | "select"; min?: number; max?: number; step?: number }
+  >
 > = {
   cache_enabled: {
     title: "Exact Cache",
@@ -227,7 +241,10 @@ export default function AICoreSettingsPage() {
     setSaving(false);
   }
 
-   function updateSetting(key: SettingKey, value: number | boolean | string) {
+     function updateSetting(
+    key: SettingKey,
+    value: number | boolean | string | string[]
+  ) {
     setSettings((current) => ({
       ...current,
       [key]: value,
@@ -339,6 +356,10 @@ export default function AICoreSettingsPage() {
               {(Object.keys(settingDescriptions) as SettingKey[]).map((key) => {
                 const definition = settingDescriptions[key];
                 const value = settings[key];
+
+                if (!definition) {
+                  return null;
+                }
 
                 return (
                   <div key={key} className="grid gap-4 px-5 py-5 lg:grid-cols-[1fr_220px] lg:items-center">
@@ -480,14 +501,68 @@ export default function AICoreSettingsPage() {
               {saving ? "Saving..." : "Save Core Settings"}
             </button>
 
-            <div className="rounded-[28px] border border-amber-400/20 bg-amber-500/10 p-5">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">
-                <Sparkles className="h-4 w-4" />
-                Important
+                        <div className="rounded-[28px] border border-red-400/20 bg-red-500/10 p-5">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-red-300">
+                <ShieldCheck className="h-4 w-4" />
+                AI Guardrails
               </div>
-              <p className="mt-3 text-sm leading-6 text-amber-100/75">
-                Keep OpenAI enabled during learning. Turning it off creates a closed system where only approved/cache/semantic answers can respond.
-              </p>
+
+              <div className="mt-4 space-y-4">
+
+                <div>
+                  <label className="text-xs text-slate-400">Blocked Topics (comma separated)</label>
+                  <input
+                    value={settings.blocked_topics.join(", ")}
+                    onChange={(e) =>
+                      updateSetting(
+                        "blocked_topics",
+                        e.target.value.split(",").map((v) => v.trim()).filter(Boolean)
+                      )
+                    }
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-400">Allowed Topics (comma separated)</label>
+                  <input
+                    value={settings.allowed_topics.join(", ")}
+                    onChange={(e) =>
+                      updateSetting(
+                        "allowed_topics",
+                        e.target.value.split(",").map((v) => v.trim()).filter(Boolean)
+                      )
+                    }
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-white">Force Refusal</span>
+                  <button
+                    onClick={() => updateSetting("force_refusal", !settings.force_refusal)}
+                    className={`px-4 py-2 rounded-xl ${
+                      settings.force_refusal ? "bg-red-500/20 text-red-200" : "bg-white/10"
+                    }`}
+                  >
+                    {settings.force_refusal ? "ON" : "OFF"}
+                  </button>
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-400">Response Tone</label>
+                  <select
+                    value={settings.response_tone}
+                    onChange={(e) => updateSetting("response_tone", e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                  >
+                    <option value="professional">Professional</option>
+                    <option value="strict">Strict</option>
+                    <option value="friendly">Friendly</option>
+                  </select>
+                </div>
+
+              </div>
             </div>
           </div>
         </section>

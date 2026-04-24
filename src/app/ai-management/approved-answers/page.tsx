@@ -238,9 +238,25 @@ const duplicates = useMemo(() => {
     }
 
       if (!Number.isFinite(confidenceScore) || confidenceScore < 0 || confidenceScore > 1) {
-      setErrorMessage("Confidence score must be between 0 and 1.");
-      return;
-    }
+  setErrorMessage("Confidence score must be between 0 and 1.");
+  return;
+}
+
+const normalized = normalizeQuestion(trimmedQuestion);
+
+const duplicateExists = answers.some(
+  (item) =>
+    item.normalized_question === normalized &&
+    item.id !== selectedAnswer?.id &&
+    item.is_active
+);
+
+if (duplicateExists) {
+  setErrorMessage(
+    "An active approved answer with the same normalized question already exists. Deactivate or replace it first."
+  );
+  return;
+}
 
     setSaving(true);
     setErrorMessage(null);

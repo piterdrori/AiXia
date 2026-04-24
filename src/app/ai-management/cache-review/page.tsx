@@ -607,8 +607,8 @@ useEffect(() => {
           <div className="max-h-[600px] overflow-y-auto">
             {filteredItems.map((item) => {
               const selected = item.id === selectedItem?.id;
-
-              return (
+      
+      return (
                 <div
                   key={item.id}
                   onClick={() => setSelectedItemId(item.id)}
@@ -662,12 +662,6 @@ useEffect(() => {
             )}
           </div>
         </div>
-
-        const duplicates = items.filter(
-  (i) =>
-    i.normalized_question === selectedItem?.normalized_question &&
-    i.id !== selectedItem?.id
-);
         
         {/* RIGHT — INSPECTOR */}
         <div className="rounded-[26px] border border-white/10 bg-black/20 p-5">

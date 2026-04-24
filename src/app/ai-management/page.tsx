@@ -309,14 +309,6 @@ function renderCenterContent(section: StudioSectionId) {
   );
 }
 
-function normalizePreviewQuestion(input: string) {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s]/g, "")
-    .replace(/\s+/g, " ");
-}
-
 export default function AIManagementPage() {
   const navigate = useNavigate();
   const [activeSection, setActiveSection] =

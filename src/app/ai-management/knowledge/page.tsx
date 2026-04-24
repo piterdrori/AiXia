@@ -209,6 +209,7 @@ export default function AIKnowledgeBankPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadingGithubContent, setLoadingGithubContent] = useState(false);
 
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState<
@@ -363,6 +364,11 @@ export default function AIKnowledgeBankPage() {
 
   const selectedItem =
     items.find((item) => item.id === selectedItemId) ?? filteredItems[0] ?? null;
+
+  useEffect(() => {
+  if (!selectedItem) return;
+  void loadSelectedGithubContent(selectedItem);
+}, [selectedItem?.id]);
 
   const summary = useMemo(() => {
     const githubCount = items.filter((item) => item.source_type === "github").length;
@@ -635,6 +641,45 @@ export default function AIKnowledgeBankPage() {
     if (!selectedItem) return;
     openEditEditor(selectedItem);
   }
+
+  async function loadSelectedGithubContent(item: UnifiedKnowledgeItem) {
+  if (item.origin !== "github" || !item.github_path) return;
+  if (item.content || item.extracted_text) return;
+
+  setLoadingGithubContent(true);
+  setPageError(null);
+
+  try {
+    const result = await callGithubKnowledgeApi(
+      `?path=${encodeURIComponent(item.github_path)}`
+    );
+
+    const content = String(result?.content ?? "").trim();
+
+    if (!content) {
+      setPageError("GitHub file content was not returned.");
+      return;
+    }
+
+    setGithubItems((current) =>
+      current.map((githubItem) =>
+        githubItem.id === item.id
+          ? {
+              ...githubItem,
+              content,
+              extracted_text: content,
+            }
+          : githubItem
+      )
+    );
+  } catch (error) {
+    setPageError(
+      error instanceof Error ? error.message : "Failed to load GitHub content"
+    );
+  } finally {
+    setLoadingGithubContent(false);
+  }
+}
 
   return (
     <div className="grid gap-4 pb-10 xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -1183,10 +1228,11 @@ export default function AIKnowledgeBankPage() {
                 </div>
 
                 <div className="h-[calc(100%-41px)] overflow-y-auto px-4 py-4 text-sm leading-6 text-white/75 whitespace-pre-wrap overscroll-contain">
-                  {selectedItem.content ||
-                    selectedItem.extracted_text ||
-                    selectedItem.source_path ||
-                    "No content available"}
+                  {loadingGithubContent
+  ? "Loading GitHub file content..."
+  : selectedItem.content ||
+    selectedItem.extracted_text ||
+    "No content available"}
                 </div>
               </div>
             </>

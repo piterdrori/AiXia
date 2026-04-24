@@ -563,7 +563,7 @@ useEffect(() => {
     await loadCacheItems(true);
   }
 
-  async function promoteToApproved(item: CacheItem) {
+async function promoteToApproved(item: CacheItem) {
   const quality = scoreCacheQuality(item);
   const risk = inferCacheRisk(item);
 
@@ -586,15 +586,19 @@ useEffect(() => {
   setPageError(null);
   setActionMessage(null);
 
-  const normalized =
-    item.normalized_question || normalizeQuestion(item.question);
+  const normalized = item.normalized_question || normalizeQuestion(item.question);
 
-  // 🔍 CHECK IF ALREADY EXISTS
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from("ai_approved_answers")
     .select("id")
     .eq("normalized_question", normalized)
     .limit(1);
+
+  if (existingError) {
+    setPageError(existingError.message);
+    setPromoting(false);
+    return;
+  }
 
   if (existing && existing.length > 0) {
     setPageError("Approved answer already exists for this question. Use version replace.");
@@ -602,21 +606,19 @@ useEffect(() => {
     return;
   }
 
-  const payload = {
-    question: item.question,
-    normalized_question: normalized,
-    answer: item.answer,
-    category: null,
-    is_active: true,
-    priority: 100,
-    confidence_score: 1,
-    approved_version: 1,
-    source_cache_id: item.id,
-  };
-
   const { error } = await supabase
     .from("ai_approved_answers")
-    .insert(payload);
+    .insert({
+      question: item.question,
+      normalized_question: normalized,
+      answer: item.answer,
+      category: null,
+      is_active: true,
+      priority: 100,
+      confidence_score: 1,
+      approved_version: 1,
+      source_cache_id: item.id,
+    });
 
   if (error) {
     setPageError(error.message);
@@ -627,7 +629,7 @@ useEffect(() => {
   setActionMessage("Cache item promoted to approved answers.");
   setPromoting(false);
 }
-
+  
   const duplicates = selectedItem
     ? items.filter(
         (item) =>

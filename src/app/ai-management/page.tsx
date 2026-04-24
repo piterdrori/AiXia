@@ -335,7 +335,7 @@ export default function AIManagementPage() {
     useState<StudioSectionId>("overview");
   const [previewInput, setPreviewInput] = useState("");
   const [previewMessages, setPreviewMessages] =
-    useState<PreviewMessage[]>(initialPreviewMessages);
+  useState<PreviewMessage[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -647,8 +647,9 @@ if (item.id === "cache") {
 
             <div className="flex min-h-0 flex-1 flex-col">
               <div
+  <div
   ref={messagesEndRef}
-  className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 overscroll-contain scroll-smooth"
+  className="h-[420px] space-y-3 overflow-y-auto px-4 py-4 overscroll-contain scroll-smooth"
 >
                 {previewMessages.map((message, index) => (
                   <div

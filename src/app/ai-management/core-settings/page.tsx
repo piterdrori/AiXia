@@ -22,9 +22,25 @@ type SettingKey =
   | "openai_enabled"
   | "auto_learning_enabled"
   | "min_cache_confidence"
-  | "min_openai_length";
+  | "min_openai_length"
+  | "openai_temperature"
+  | "openai_max_tokens"
+  | "response_mode"
+  | "knowledge_strictness";
 
-type AISettings = Record<SettingKey, number | boolean>;
+type AISettings = {
+  semantic_threshold: number;
+  cache_enabled: boolean;
+  semantic_enabled: boolean;
+  openai_enabled: boolean;
+  auto_learning_enabled: boolean;
+  min_cache_confidence: number;
+  min_openai_length: number;
+  openai_temperature: number;
+  openai_max_tokens: number;
+  response_mode: string;
+  knowledge_strictness: string;
+};
 
 const defaultSettings: AISettings = {
   semantic_threshold: 0.8,
@@ -34,12 +50,33 @@ const defaultSettings: AISettings = {
   auto_learning_enabled: true,
   min_cache_confidence: 0.8,
   min_openai_length: 80,
+  openai_temperature: 0.2,
+  openai_max_tokens: 500,
+  response_mode: "balanced",
+  knowledge_strictness: "hybrid",
 };
 
 const settingDescriptions: Record<
   SettingKey,
   { title: string; description: string; type: "toggle" | "number"; min?: number; max?: number; step?: number }
 > = {
+  
+    openai_temperature: {
+    title: "OpenAI Temperature",
+    description: "Controls creativity (0 = strict, 1 = creative).",
+    type: "number",
+    min: 0,
+    max: 1,
+    step: 0.05,
+  },
+  openai_max_tokens: {
+    title: "Max Tokens",
+    description: "Maximum response length from OpenAI.",
+    type: "number",
+    min: 50,
+    max: 2000,
+    step: 10,
+  },
   cache_enabled: {
     title: "Exact Cache",
     description: "Allow exact saved cache answers before semantic or OpenAI fallback.",
@@ -318,8 +355,28 @@ export default function AICoreSettingsPage() {
                       </div>
                     </div>
 
-                    <div>
-                      {definition.type === "toggle" ? (
+                                        <div>
+                      {key === "response_mode" ? (
+                        <select
+                          value={String(value)}
+                          onChange={(e) => updateSetting(key, e.target.value)}
+                          className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white"
+                        >
+                          <option value="strict">Strict</option>
+                          <option value="balanced">Balanced</option>
+                          <option value="creative">Creative</option>
+                        </select>
+                      ) : key === "knowledge_strictness" ? (
+                        <select
+                          value={String(value)}
+                          onChange={(e) => updateSetting(key, e.target.value)}
+                          className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white"
+                        >
+                          <option value="strict">Strict</option>
+                          <option value="hybrid">Hybrid</option>
+                          <option value="open">Open</option>
+                        </select>
+                      ) : definition.type === "toggle" ? (
                         <button
                           type="button"
                           onClick={() => updateSetting(key, !Boolean(value))}
@@ -397,7 +454,10 @@ export default function AICoreSettingsPage() {
                 <SnapshotRow label="OpenAI Fallback" value={formatSettingValue(settings.openai_enabled)} />
                 <SnapshotRow label="Auto Learning" value={formatSettingValue(settings.auto_learning_enabled)} />
                 <SnapshotRow label="Semantic Threshold" value={String(settings.semantic_threshold)} />
-                <SnapshotRow label="Min OpenAI Length" value={String(settings.min_openai_length)} />
+                <SnapshotRow label="Temperature" value={String(settings.openai_temperature)} />
+                <SnapshotRow label="Max Tokens" value={String(settings.openai_max_tokens)} />
+                <SnapshotRow label="Response Mode" value={String(settings.response_mode)} />
+                <SnapshotRow label="Knowledge Strictness" value={String(settings.knowledge_strictness)} />
               </div>
             </div>
 

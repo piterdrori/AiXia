@@ -385,28 +385,21 @@ export default function AIManagementPage() {
     setPreviewError(null);
   }
 
-  async function approvePreviewReply(message: PreviewMessage) {
+async function approvePreviewReply(message: PreviewMessage) {
   if (!message.sourceQuestion || message.role !== "assistant") return;
 
-  const normalized = normalizePreviewQuestion(message.sourceQuestion);
-
-  await supabase.from("ai_qa_cache").update({
-    is_blocked: true,
-    updated_at: new Date().toISOString(),
-    admin_notes: "Superseded by approved preview reply.",
-  }).eq("normalized_question", normalized);
-
-  await supabase.from("ai_qa_cache").insert({
-    question: message.sourceQuestion,
-    normalized_question: normalized,
-    answer: message.content,
-    provider: message.provider ?? "preview-approved",
-    model: "preview-feedback",
-    usage_count: 1,
-    is_blocked: false,
-    updated_at: new Date().toISOString(),
-    admin_notes: "Approved from AI Studio preview.",
+  const { error } = await supabase.functions.invoke("ai-feedback", {
+    body: {
+      question: message.sourceQuestion,
+      answer: message.content,
+      feedback: "liked",
+    },
   });
+
+  if (error) {
+    setPreviewError(error.message);
+    return;
+  }
 
   setPreviewMessages((current) =>
     current.map((item) =>
@@ -418,25 +411,18 @@ export default function AIManagementPage() {
 async function rejectPreviewReply(message: PreviewMessage) {
   if (!message.sourceQuestion || message.role !== "assistant") return;
 
-  const normalized = normalizePreviewQuestion(message.sourceQuestion);
-
-  await supabase.from("ai_qa_cache").update({
-    is_blocked: true,
-    updated_at: new Date().toISOString(),
-    admin_notes: "Rejected from AI Studio preview.",
-  }).eq("normalized_question", normalized);
-
-  await supabase.from("ai_qa_cache").insert({
-    question: message.sourceQuestion,
-    normalized_question: normalized,
-    answer: message.content,
-    provider: message.provider ?? "preview-rejected",
-    model: "preview-feedback",
-    usage_count: 0,
-    is_blocked: true,
-    updated_at: new Date().toISOString(),
-    admin_notes: "Rejected from AI Studio preview. Do not reuse this answer.",
+  const { error } = await supabase.functions.invoke("ai-feedback", {
+    body: {
+      question: message.sourceQuestion,
+      answer: message.content,
+      feedback: "disliked",
+    },
   });
+
+  if (error) {
+    setPreviewError(error.message);
+    return;
+  }
 
   setPreviewMessages((current) =>
     current.map((item) =>

@@ -120,6 +120,7 @@ import FinanceLedgerJournalsPage from "@/app/finance/ledger/journals/page";
 import FinanceLedgerJournalDetailPage from "@/app/finance/ledger/journals/[id]/page";
 import AIManagementPage from "@/app/ai-management/page";
 import AICacheReviewPage from "@/app/ai-management/cache-review/page";
+import AIApprovedAnswersPage from "@/app/ai-management/approved-answers/page";
 
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -816,6 +817,19 @@ function AppRoutes() {
     </ProtectedRoute>
   }
 />
+
+<Route
+  path="/ai-management/approved-answers"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <AIApprovedAnswersPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+      
 
            <Route
         path="/finance"

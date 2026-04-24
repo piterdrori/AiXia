@@ -643,7 +643,93 @@ if (success) {
   setPromoting(false);
 }
   
-  async function autoPromoteBestClusters() {
+async function runFeedbackScoring() {
+  setPromoting(true);
+  setPageError(null);
+  setActionMessage(null);
+
+  let updated = 0;
+  let skipped = 0;
+
+  const { data: logs, error: logError } = await supabase
+    .from("ai_request_logs")
+    .select("prompt, response_text")
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  if (logError || !logs) {
+    setPageError("Failed to load logs.");
+    setPromoting(false);
+    return;
+  }
+
+  for (const log of logs) {
+    const prompt = log.prompt || "";
+    const response = log.response_text || "";
+    const normalized = normalizeQuestion(prompt);
+
+    const { data: approved } = await supabase
+      .from("ai_approved_answers")
+      .select("id, confidence_score, answer")
+      .eq("normalized_question", normalized)
+      .eq("is_active", true)
+      .limit(1);
+
+    if (!approved || approved.length === 0) {
+      skipped++;
+      continue;
+    }
+
+    const row = approved[0];
+    let delta = 0;
+
+    if (!response || response.length < 40) {
+      delta = -0.1;
+    } else if (response.length > 120) {
+      delta = 0.05;
+    }
+
+    if (
+      response.toLowerCase().includes("i do not know") ||
+      response.toLowerCase().includes("not available")
+    ) {
+      delta = -0.2;
+    }
+
+    const newScore = Math.max(
+      0,
+      Math.min(1, (row.confidence_score ?? 0.5) + delta)
+    );
+
+    if (newScore === row.confidence_score) {
+      skipped++;
+      continue;
+    }
+
+    const { error } = await supabase
+      .from("ai_approved_answers")
+      .update({
+        confidence_score: newScore,
+        last_used_at: new Date().toISOString(),
+      })
+      .eq("id", row.id);
+
+    if (error) {
+      skipped++;
+      continue;
+    }
+
+    updated++;
+  }
+
+  setActionMessage(
+    `Feedback scoring complete. Updated ${updated}, skipped ${skipped}.`
+  );
+
+  setPromoting(false);
+}
+
+async function autoPromoteBestClusters() {
   const confirmed = window.confirm(
     "Auto-promote the best healthy cache item from each cluster?"
   );
@@ -677,8 +763,8 @@ if (success) {
       bestItem.normalized_question || normalizeQuestion(bestItem.question);
 
     const { data: existing, error: existingError } = await supabase
-  .from("ai_approved_answers")
-  .select("id, approved_version, answer, usage_count")
+      .from("ai_approved_answers")
+      .select("id, approved_version, answer, usage_count")
       .eq("normalized_question", normalized)
       .limit(1);
 
@@ -688,24 +774,23 @@ if (success) {
     }
 
     if (existing && existing.length > 0) {
-  const existingRow = existing[0];
-  const existingId = existingRow.id;
+      const existingRow = existing[0];
+      const existingId = existingRow.id;
 
-  // 🧠 QUALITY COMPARISON
-  const existingScore =
-    (existingRow.usage_count ?? 0) * 2 +
-    (existingRow.answer?.length ?? 0) / 10;
+      const existingScore =
+        (existingRow.usage_count ?? 0) * 2 +
+        (existingRow.answer?.length ?? 0) / 10;
 
-  const candidateScore =
-    (bestItem.usage_count ?? 0) * 2 +
-    (bestItem.answer?.length ?? 0) / 10;
+      const candidateScore =
+        (bestItem.usage_count ?? 0) * 2 +
+        (bestItem.answer?.length ?? 0) / 10;
 
-  if (candidateScore <= existingScore) {
-    skippedCount += 1;
-    continue;
-  }
+      if (candidateScore <= existingScore) {
+        skippedCount += 1;
+        continue;
+      }
 
-  const newVersion = (existingRow.approved_version ?? 1) + 1;
+      const newVersion = (existingRow.approved_version ?? 1) + 1;
 
       const { data: newRow, error: insertError } = await supabase
         .from("ai_approved_answers")
@@ -768,6 +853,7 @@ if (success) {
   setActionMessage(
     `Auto-promote complete. Promoted ${promotedCount} cluster(s), skipped ${skippedCount}.`
   );
+
   setPromoting(false);
 }
   
@@ -889,13 +975,22 @@ if (success) {
   {promoting ? "Auto-promoting..." : "Auto Promote"}
 </button>
 
-          <button
+      <button
   onClick={() => void runLearningLoop()}
   disabled={promoting}
   className="inline-flex items-center gap-2 rounded-2xl border border-purple-400/20 bg-purple-500/10 px-3 py-2 text-sm text-purple-200 hover:bg-purple-500/20 disabled:opacity-50"
 >
   <Brain className="h-4 w-4" />
   {promoting ? "Learning..." : "Learning Loop"}
+</button>
+
+<button
+  onClick={() => void runFeedbackScoring()}
+  disabled={promoting}
+  className="inline-flex items-center gap-2 rounded-2xl border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-sm text-blue-200 hover:bg-blue-500/20 disabled:opacity-50"
+>
+  <Sparkles className="h-4 w-4" />
+  {promoting ? "Scoring..." : "Feedback Scoring"}
 </button>
           
           <button

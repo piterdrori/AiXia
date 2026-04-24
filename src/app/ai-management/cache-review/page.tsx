@@ -563,7 +563,87 @@ useEffect(() => {
     await loadCacheItems(true);
   }
 
-async function autoPromoteBestClusters() {
+async function runLearningLoop() {
+  setPromoting(true);
+  setPageError(null);
+  setActionMessage(null);
+
+  let improved = 0;
+  let skipped = 0;
+
+  // 1. get recent requests
+  const { data: logs, error: logError } = await supabase
+    .from("ai_request_logs")
+    .select("prompt, response_text")
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (logError || !logs) {
+    setPageError("Failed to load request logs.");
+    setPromoting(false);
+    return;
+  }
+
+  for (const log of logs) {
+    const prompt = log.prompt || "";
+    const response = log.response_text || "";
+
+    // 🚨 detect weak answers
+    const isWeak =
+      !response ||
+      response.length < 40 ||
+      response.toLowerCase().includes("i do not know") ||
+      response.toLowerCase().includes("not available");
+
+    if (!isWeak) {
+      skipped++;
+      continue;
+    }
+
+    const normalized = normalizeQuestion(prompt);
+
+    // 2. find best cache candidate
+    const cluster = cacheClusters.find(
+      (c) => c.normalized_question === normalized
+    );
+
+    if (!cluster) {
+      skipped++;
+      continue;
+    }
+
+    const bestItem = cluster.bestItem;
+
+    const quality = scoreCacheQuality(bestItem);
+    const risk = inferCacheRisk(bestItem);
+
+    if (
+      risk !== "healthy" ||
+      quality < 75 ||
+      (bestItem.usage_count ?? 0) < 3
+    ) {
+      skipped++;
+      continue;
+    }
+
+        // 3. promote using existing logic
+    const beforeImproved = improved;
+
+    await promoteToApproved(bestItem);
+
+        if (beforeImproved === improved) {
+      improved++;
+    }
+  }
+
+  setActionMessage(
+    `Learning loop complete. Improved ${improved}, skipped ${skipped}.`
+  );
+
+  setPromoting(false);
+}
+  
+  async function autoPromoteBestClusters() {
   const confirmed = window.confirm(
     "Auto-promote the best healthy cache item from each cluster?"
   );
@@ -835,6 +915,15 @@ async function autoPromoteBestClusters() {
 >
   <FileCheck2 className="h-4 w-4" />
   {promoting ? "Auto-promoting..." : "Auto Promote"}
+</button>
+
+          <button
+  onClick={() => void runLearningLoop()}
+  disabled={promoting}
+  className="inline-flex items-center gap-2 rounded-2xl border border-purple-400/20 bg-purple-500/10 px-3 py-2 text-sm text-purple-200 hover:bg-purple-500/20 disabled:opacity-50"
+>
+  <Brain className="h-4 w-4" />
+  {promoting ? "Learning..." : "Learning Loop"}
 </button>
           
           <button

@@ -627,13 +627,13 @@ async function runLearningLoop() {
     }
 
         // 3. promote using existing logic
-    const beforeImproved = improved;
+    const success = await promoteToApproved(bestItem);
 
-    await promoteToApproved(bestItem);
-
-        if (beforeImproved === improved) {
-      improved++;
-    }
+if (success) {
+  improved++;
+} else {
+  skipped++;
+}
   }
 
   setActionMessage(

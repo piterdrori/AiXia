@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Brain,
-  CheckCircle2,
   Database,
   Gauge,
   RefreshCcw,
@@ -112,9 +111,12 @@ export default function AICoreSettingsPage() {
     [settings]
   );
 
-  const safetyMode = useMemo(() => {
+    const safetyMode = useMemo(() => {
+    const semanticThreshold = Number(settings.semantic_threshold);
+    const minOpenAiLength = Number(settings.min_openai_length);
+
     if (!settings.openai_enabled) return "Closed";
-    if (settings.semantic_threshold >= 0.8 && settings.min_openai_length >= 80) return "Controlled";
+    if (semanticThreshold >= 0.8 && minOpenAiLength >= 80) return "Controlled";
     return "Flexible";
   }, [settings]);
 

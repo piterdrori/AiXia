@@ -366,7 +366,7 @@ export default function AICacheReviewPage() {
     });
   }, [items, search, statusFilter]);
 
-  const cacheClusters = useMemo<CacheCluster[]>((() => {
+   const cacheClusters = useMemo<CacheCluster[]>(() => {
     const groups = new Map<string, CacheItem[]>();
 
     for (const item of filteredItems) {
@@ -405,7 +405,7 @@ export default function AICacheReviewPage() {
         };
       })
       .sort((a, b) => b.totalUsage - a.totalUsage);
-  })(), [filteredItems]);
+  }, [filteredItems]);
 
   const selectedItem =
     items.find((item) => item.id === selectedItemId) ??

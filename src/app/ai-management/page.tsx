@@ -489,6 +489,12 @@ if (item.id === "core-settings") {
   navigate("/ai-management/core-settings");
   return;
 }
+
+if (item.id === "activity") {
+  navigate("/ai-management/activity");
+  return;
+}
+
                       setActiveSection(item.id);
                     }}
                     className={`w-full rounded-[22px] border px-4 py-3 text-left transition-all duration-300 ${

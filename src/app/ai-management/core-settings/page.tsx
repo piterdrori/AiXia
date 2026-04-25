@@ -222,8 +222,9 @@ export default function AICoreSettingsPage() {
     setBlockedTopicsText(nextSettings.blocked_topics.join(", "));
     setAllowedTopicsText(nextSettings.allowed_topics.join(", "));
     setLoading(false);
+  }
 
-     async function saveSettings() {
+  async function saveSettings() {
     setSaving(true);
     setErrorMessage(null);
     setActionMessage(null);

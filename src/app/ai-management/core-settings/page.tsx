@@ -7,246 +7,362 @@ import {
   Gauge,
   RefreshCcw,
   Save,
+  ServerCog,
   ShieldCheck,
   SlidersHorizontal,
   ToggleLeft,
   ToggleRight,
+  Wrench,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-type SettingKey =
-  | "semantic_threshold"
-  | "cache_enabled"
-  | "semantic_enabled"
+type RuntimeSettingKey =
   | "openai_enabled"
-  | "auto_learning_enabled"
-  | "min_cache_confidence"
-  | "min_openai_length"
+  | "openai_model"
   | "openai_temperature"
   | "openai_max_tokens"
-  | "response_mode"
-  | "knowledge_strictness"
-  | "blocked_topics"
-  | "allowed_topics"
-  | "force_refusal"
-  | "response_tone";
+  | "cache_enabled"
+  | "semantic_enabled"
+  | "semantic_threshold"
+  | "auto_learning_enabled"
+  | "knowledge_refresh_enabled"
+  | "knowledge_cache_ttl_minutes"
+  | "debug_mode_enabled"
+  | "router_logging_enabled";
 
-type AISettings = {
-  semantic_threshold: number;
-  cache_enabled: boolean;
-  semantic_enabled: boolean;
+type CoreRuntimeSettings = {
   openai_enabled: boolean;
-  auto_learning_enabled: boolean;
-  min_cache_confidence: number;
-  min_openai_length: number;
+  openai_model: string;
   openai_temperature: number;
   openai_max_tokens: number;
-  response_mode: string;
-  knowledge_strictness: string;
-  blocked_topics: string[];
-  allowed_topics: string[];
-  force_refusal: boolean;
-  response_tone: string;
+
+  cache_enabled: boolean;
+  semantic_enabled: boolean;
+  semantic_threshold: number;
+
+  auto_learning_enabled: boolean;
+  knowledge_refresh_enabled: boolean;
+  knowledge_cache_ttl_minutes: number;
+
+  debug_mode_enabled: boolean;
+  router_logging_enabled: boolean;
 };
 
-const defaultSettings: AISettings = {
-  semantic_threshold: 0.8,
-  cache_enabled: true,
-  semantic_enabled: true,
+type SettingDefinition = {
+  key: RuntimeSettingKey;
+  title: string;
+  description: string;
+  type: "toggle" | "number" | "select";
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: Array<{ value: string; label: string }>;
+};
+
+const defaultSettings: CoreRuntimeSettings = {
   openai_enabled: true,
-  auto_learning_enabled: true,
-  min_cache_confidence: 0.8,
-  min_openai_length: 80,
+  openai_model: "gpt-4.1-mini",
   openai_temperature: 0.2,
   openai_max_tokens: 500,
-  response_mode: "balanced",
-  knowledge_strictness: "hybrid",
-  blocked_topics: [],
-  allowed_topics: [],
-  force_refusal: false,
-  response_tone: "professional",
+
+  cache_enabled: true,
+  semantic_enabled: true,
+  semantic_threshold: 0.8,
+
+  auto_learning_enabled: true,
+  knowledge_refresh_enabled: true,
+  knowledge_cache_ttl_minutes: 5,
+
+  debug_mode_enabled: true,
+  router_logging_enabled: true,
 };
 
-const settingDescriptions: Partial<
-  Record<
-    SettingKey,
-    { title: string; description: string; type: "toggle" | "number" | "select"; min?: number; max?: number; step?: number }
-  >
-> = {
-  cache_enabled: {
-    title: "Exact Cache",
-    description: "Allow exact saved cache answers before semantic or OpenAI fallback.",
-    type: "toggle",
-  },
-  semantic_enabled: {
-    title: "Semantic Cache",
-    description: "Allow vector similarity matching when no exact cache answer exists.",
-    type: "toggle",
-  },
-  openai_enabled: {
+const runtimeSettingKeys = Object.keys(
+  defaultSettings
+) as RuntimeSettingKey[];
+
+const providerRuntimeSettings: SettingDefinition[] = [
+  {
+    key: "openai_enabled",
     title: "OpenAI Fallback",
-    description: "Allow OpenAI + knowledge fallback when approved and cache layers do not answer.",
+    description:
+      "Allows OpenAI + active knowledge fallback when Approved Answers and Cache do not answer.",
     type: "toggle",
   },
-  auto_learning_enabled: {
-    title: "Auto Learning",
-    description: "Allow high-quality OpenAI + knowledge answers to be saved into cache.",
-    type: "toggle",
+  {
+    key: "openai_model",
+    title: "OpenAI Model",
+    description:
+      "The model used by the router fallback path. This is runtime engine configuration only.",
+    type: "select",
+    options: [
+      { value: "gpt-4.1-mini", label: "gpt-4.1-mini" },
+      { value: "gpt-4.1", label: "gpt-4.1" },
+      { value: "gpt-4o-mini", label: "gpt-4o-mini" },
+    ],
   },
-  semantic_threshold: {
-    title: "Semantic Threshold",
-    description: "Minimum similarity required before semantic cache is allowed to answer.",
-    type: "number",
-    min: 0,
-    max: 1,
-    step: 0.01,
-  },
-  min_cache_confidence: {
-    title: "Cache Promotion Confidence",
-    description: "Minimum cache quality score required before automatic promotion can happen.",
-    type: "number",
-    min: 0,
-    max: 1,
-    step: 0.01,
-  },
-  min_openai_length: {
-    title: "Minimum OpenAI Answer Length",
-    description: "Minimum answer length before OpenAI fallback is considered strong enough.",
-    type: "number",
-    min: 20,
-    max: 500,
-    step: 1,
-  },
-  openai_temperature: {
+  {
+    key: "openai_temperature",
     title: "OpenAI Temperature",
-    description: "Controls creativity (0 = strict, 1 = creative).",
+    description:
+      "Controls generation randomness. Lower is more deterministic. Higher is more flexible.",
     type: "number",
     min: 0,
     max: 1,
     step: 0.05,
   },
-  openai_max_tokens: {
-    title: "Max Tokens",
-    description: "Maximum response length from OpenAI.",
+  {
+    key: "openai_max_tokens",
+    title: "OpenAI Max Tokens",
+    description:
+      "Maximum generated response size from the model. This is not a guardrail.",
     type: "number",
     min: 50,
-    max: 2000,
-    step: 10,
+    max: 4000,
+    step: 50,
   },
-  response_mode: {
-    title: "Response Mode",
-    description: "Controls how direct or expressive OpenAI fallback responses should be.",
-    type: "select",
-  },
-  knowledge_strictness: {
-    title: "Knowledge Strictness",
-    description: "Controls how tightly OpenAI fallback must stay inside approved knowledge.",
-    type: "select",
-  },
-};
+];
 
-function formatSettingValue(value: number | boolean | string | string[]) {
+const cacheRuntimeSettings: SettingDefinition[] = [
+  {
+    key: "cache_enabled",
+    title: "Exact Cache",
+    description:
+      "Allows exact cached answers before semantic cache or OpenAI fallback.",
+    type: "toggle",
+  },
+  {
+    key: "semantic_enabled",
+    title: "Semantic Cache",
+    description:
+      "Allows vector similarity matching when no exact cached answer exists.",
+    type: "toggle",
+  },
+  {
+    key: "semantic_threshold",
+    title: "Semantic Threshold",
+    description:
+      "Minimum similarity score required before semantic cache can answer.",
+    type: "number",
+    min: 0,
+    max: 1,
+    step: 0.01,
+  },
+];
+
+const learningRuntimeSettings: SettingDefinition[] = [
+  {
+    key: "auto_learning_enabled",
+    title: "Auto-Learning",
+    description:
+      "Allows router-generated answers to be saved into cache when guardrails permit it.",
+    type: "toggle",
+  },
+  {
+    key: "knowledge_refresh_enabled",
+    title: "Knowledge Refresh",
+    description:
+      "Allows the router to refresh GitHub/static knowledge instead of only using warm cache.",
+    type: "toggle",
+  },
+  {
+    key: "knowledge_cache_ttl_minutes",
+    title: "Knowledge Cache TTL",
+    description:
+      "How long static knowledge should stay cached before refresh is allowed.",
+    type: "number",
+    min: 1,
+    max: 120,
+    step: 1,
+  },
+];
+
+const diagnosticsRuntimeSettings: SettingDefinition[] = [
+  {
+    key: "debug_mode_enabled",
+    title: "Debug Mode",
+    description:
+      "Allows router debug metadata to return to the AI Studio preview console.",
+    type: "toggle",
+  },
+  {
+    key: "router_logging_enabled",
+    title: "Router Logging",
+    description:
+      "Allows router activity logs to be written for audits and troubleshooting.",
+    type: "toggle",
+  },
+];
+
+function formatSettingValue(value: number | boolean | string) {
   if (typeof value === "boolean") return value ? "Enabled" : "Disabled";
-  if (Array.isArray(value)) return value.join(", ");
   return String(value);
+}
+
+function normalizeSettingValue(
+  key: RuntimeSettingKey,
+  value: unknown
+): string | boolean | number {
+  const fallback = defaultSettings[key];
+
+  if (typeof fallback === "boolean") {
+    return Boolean(value);
+  }
+
+  if (typeof fallback === "number") {
+    return Number(value ?? fallback);
+  }
+
+  return String(value ?? fallback);
+}
+
+function getNumberValue(value: string | number | boolean) {
+  if (typeof value === "boolean") return value ? 1 : 0;
+  return typeof value === "number" ? value : Number(value);
 }
 
 export default function AICoreSettingsPage() {
   const navigate = useNavigate();
 
-    const [settings, setSettings] = useState<AISettings>(defaultSettings);
-  const settingsRef = useRef<AISettings>(defaultSettings);
+  const [settings, setSettings] =
+    useState<CoreRuntimeSettings>(defaultSettings);
+  const settingsRef = useRef<CoreRuntimeSettings>(defaultSettings);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [blockedTopicsText, setBlockedTopicsText] = useState("");
-  const [allowedTopicsText, setAllowedTopicsText] = useState("");
 
   const enabledCount = useMemo(
     () =>
       [
+        settings.openai_enabled,
         settings.cache_enabled,
         settings.semantic_enabled,
-        settings.openai_enabled,
         settings.auto_learning_enabled,
+        settings.knowledge_refresh_enabled,
+        settings.debug_mode_enabled,
+        settings.router_logging_enabled,
       ].filter(Boolean).length,
     [settings]
   );
 
-    const safetyMode = useMemo(() => {
-    const semanticThreshold = Number(settings.semantic_threshold);
-    const minOpenAiLength = Number(settings.min_openai_length);
-
-    if (!settings.openai_enabled) return "Closed";
-    if (semanticThreshold >= 0.8 && minOpenAiLength >= 80) return "Controlled";
-    return "Flexible";
+  const runtimeMode = useMemo(() => {
+    if (!settings.openai_enabled && !settings.cache_enabled) return "Closed";
+    if (settings.cache_enabled && settings.semantic_enabled && settings.openai_enabled) {
+      return "Full Runtime";
+    }
+    if (settings.openai_enabled) return "Fallback Only";
+    return "Cache Only";
   }, [settings]);
+
+  const semanticGate = useMemo(() => {
+    if (!settings.semantic_enabled) return "Off";
+    if (settings.semantic_threshold >= 0.85) return "Strict";
+    if (settings.semantic_threshold >= 0.65) return "Balanced";
+    return "Flexible";
+  }, [settings.semantic_enabled, settings.semantic_threshold]);
 
   useEffect(() => {
     void loadSettings();
   }, []);
+
+  async function seedMissingSettings(existingKeys: Set<string>) {
+    const missingRows = runtimeSettingKeys
+      .filter((key) => !existingKeys.has(key))
+      .map((key) => ({
+        setting_key: key,
+        setting_value: {
+          value: defaultSettings[key],
+        },
+      }));
+
+    if (missingRows.length === 0) return;
+
+    const { error } = await supabase.from("ai_settings").insert(missingRows);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
 
   async function loadSettings() {
     setLoading(true);
     setErrorMessage(null);
     setActionMessage(null);
 
-    const { data, error } = await supabase
-      .from("ai_settings")
-      .select("setting_key, setting_value");
+    try {
+      const { data, error } = await supabase
+        .from("ai_settings")
+        .select("setting_key, setting_value")
+        .in("setting_key", runtimeSettingKeys as string[]);
 
-    if (error) {
-      setErrorMessage(error.message);
-      setLoading(false);
-      return;
-    }
-
-    if (!data || data.length === 0) {
-      setErrorMessage("AI settings could not be loaded from the database.");
-      setLoading(false);
-      return;
-    }
-
-    const nextSettings = { ...defaultSettings };
-
-    for (const row of data) {
-      const key = row.setting_key as SettingKey;
-
-      if (key in nextSettings) {
-        (nextSettings as Record<string, unknown>)[key] =
-          row.setting_value?.value ?? nextSettings[key];
+      if (error) {
+        throw new Error(error.message);
       }
-    }
 
-        settingsRef.current = nextSettings;
-    setSettings(nextSettings);
-    setBlockedTopicsText(nextSettings.blocked_topics.join(", "));
-    setAllowedTopicsText(nextSettings.allowed_topics.join(", "));
-    setLoading(false);
+      const existingKeys = new Set(
+        (data ?? []).map((row) => String(row.setting_key))
+      );
+
+      await seedMissingSettings(existingKeys);
+
+      const { data: refreshedData, error: refreshedError } = await supabase
+        .from("ai_settings")
+        .select("setting_key, setting_value")
+        .in("setting_key", runtimeSettingKeys as string[]);
+
+      if (refreshedError) {
+        throw new Error(refreshedError.message);
+      }
+
+      const nextSettings = { ...defaultSettings };
+
+      for (const row of refreshedData ?? []) {
+        const key = row.setting_key as RuntimeSettingKey;
+
+        if (key in nextSettings) {
+          (nextSettings as Record<string, string | boolean | number>)[key] =
+            normalizeSettingValue(key, row.setting_value?.value);
+        }
+      }
+
+      settingsRef.current = nextSettings;
+      setSettings(nextSettings);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to load core settings."
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
-   async function saveSettings() {
+  function updateLocalSetting(
+    key: RuntimeSettingKey,
+    value: string | boolean | number
+  ) {
+    const nextSettings = {
+      ...settingsRef.current,
+      [key]: value,
+    } as CoreRuntimeSettings;
+
+    settingsRef.current = nextSettings;
+    setSettings(nextSettings);
+  }
+
+  async function saveAllSettings() {
     setSaving(true);
     setErrorMessage(null);
     setActionMessage(null);
 
-        const settingsToSave: AISettings = {
-      ...settingsRef.current,
-      blocked_topics: blockedTopicsText
-        .split(",")
-        .map((value) => value.trim())
-        .filter(Boolean),
-      allowed_topics: allowedTopicsText
-        .split(",")
-        .map((value) => value.trim())
-        .filter(Boolean),
-    };
+    for (const key of runtimeSettingKeys) {
+      const value = settingsRef.current[key];
 
-    for (const key of Object.keys(settingsToSave) as SettingKey[]) {
       const { error } = await supabase.rpc("ai_update_setting", {
         p_setting_key: key,
-        p_setting_value: { value: settingsToSave[key] },
+        p_setting_value: { value },
       });
 
       if (error) {
@@ -256,64 +372,25 @@ export default function AICoreSettingsPage() {
       }
     }
 
-    await loadSettings();
-
-    setActionMessage("Saved successfully. Settings are now stored in the database.");
-    setSaving(false);
-  }
-
-    async function updateSettingAndSave(
-    key: SettingKey,
-    value: number | boolean | string | string[]
-  ) {
-    const nextSettings = {
-      ...settingsRef.current,
-      [key]: value,
-    } as AISettings;
-
-    settingsRef.current = nextSettings;
-    setSettings(nextSettings);
-
-       const { error } = await supabase.rpc("ai_update_setting", {
-      p_setting_key: key,
-      p_setting_value: { value },
+    await supabase.from("ai_admin_activity_logs").insert({
+      action_type: "core_runtime_settings_updated",
+      entity_type: "ai_core_settings",
+      entity_id: null,
+      details: {
+        settings_saved: runtimeSettingKeys.length,
+        openai_enabled: settingsRef.current.openai_enabled,
+        openai_model: settingsRef.current.openai_model,
+        cache_enabled: settingsRef.current.cache_enabled,
+        semantic_enabled: settingsRef.current.semantic_enabled,
+        semantic_threshold: settingsRef.current.semantic_threshold,
+        auto_learning_enabled: settingsRef.current.auto_learning_enabled,
+        debug_mode_enabled: settingsRef.current.debug_mode_enabled,
+        router_logging_enabled: settingsRef.current.router_logging_enabled,
+      },
     });
 
-    if (error) {
-      setErrorMessage(error.message);
-      return;
-    }
-
-       const { error: logError } = await supabase
-      .from("ai_admin_activity_logs")
-      .insert({
-        action_type: "setting_updated",
-        entity_type: "ai_setting",
-        entity_id: null,
-        details: {
-          setting: key,
-          value,
-        },
-      });
-
-    if (logError) {
-      console.error("AI LOG INSERT ERROR:", logError);
-    }
-
-    setActionMessage(`${key} saved successfully.`);
-  }   
-  
-  function updateSetting(
-    key: SettingKey,
-    value: number | boolean | string | string[]
-  ) {
-    const nextSettings = {
-      ...settingsRef.current,
-      [key]: value,
-    } as AISettings;
-
-    settingsRef.current = nextSettings;
-    setSettings(nextSettings);
+    setActionMessage("Core runtime settings saved.");
+    setSaving(false);
   }
 
   return (
@@ -334,7 +411,7 @@ export default function AICoreSettingsPage() {
               <div className="space-y-3">
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Gauge className="h-3.5 w-3.5" />
-                  Runtime Control Layer
+                  Runtime Engine Layer
                 </div>
 
                 <div>
@@ -342,309 +419,325 @@ export default function AICoreSettingsPage() {
                     Core AI Settings
                   </h1>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                    Control the live AI router behavior without changing code. Approved answers still remain the top authority layer.
+                    Configure only the AI runtime engine: provider, model, cache, semantic matching, learning runtime, and diagnostics. Guardrails, identity, mood, and exact answers live in their own modules.
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[540px]">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  Enabled Layers
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-emerald-200">
-                  {enabledCount}/4
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  Safety Mode
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-cyan-200">
-                  {safetyMode}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  Semantic Gate
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-white">
-                  {settings.semantic_threshold}
-                </p>
-              </div>
+            <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[620px]">
+              <MetricCard label="Runtime" value={runtimeMode} tone="cyan" />
+              <MetricCard label="Enabled" value={`${enabledCount}/7`} tone="emerald" />
+              <MetricCard label="Semantic" value={semanticGate} tone="white" />
             </div>
           </div>
         </header>
 
         {(errorMessage || actionMessage) && (
           <div className="space-y-2">
-            {errorMessage && (
+            {errorMessage ? (
               <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
                 {errorMessage}
               </div>
-            )}
+            ) : null}
 
-            {actionMessage && (
+            {actionMessage ? (
               <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
                 {actionMessage}
               </div>
-            )}
+            ) : null}
           </div>
         )}
 
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
-          <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
-              <div>
-                <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Runtime Settings
-                </h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  These values are read by the ai-router Edge Function.
-                </p>
-              </div>
+        <section className="grid gap-4 md:grid-cols-4">
+          <PurposeCard
+            icon={ServerCog}
+            title="Provider Runtime"
+            description="Controls whether OpenAI is available and which model parameters are used."
+          />
 
-              <button
-                type="button"
-                onClick={() => void loadSettings()}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-white/20 hover:text-white"
-              >
-                <RefreshCcw className="h-4 w-4" />
-                Refresh
-              </button>
-            </div>
+          <PurposeCard
+            icon={Database}
+            title="Cache Runtime"
+            description="Controls exact cache, semantic cache, and semantic matching threshold."
+          />
 
-            <div className="divide-y divide-white/5">
-              {(Object.keys(settingDescriptions) as SettingKey[]).map((key) => {
-                const definition = settingDescriptions[key];
-                const value = settings[key];
+          <PurposeCard
+            icon={Brain}
+            title="Learning Runtime"
+            description="Controls whether router answers can become reusable cache entries."
+          />
 
-                if (!definition) {
-                  return null;
-                }
+          <PurposeCard
+            icon={Wrench}
+            title="Diagnostics"
+            description="Controls runtime debug output and router logging."
+          />
+        </section>
 
-                return (
-                  <div key={key} className="grid gap-4 px-5 py-5 lg:grid-cols-[1fr_220px] lg:items-center">
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                        {definition.type === "toggle" ? (
-                          <ShieldCheck className="h-5 w-5" />
-                        ) : (
-                          <SlidersHorizontal className="h-5 w-5" />
-                        )}
-                      </div>
+        <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="flex flex-col gap-6">
+            <RuntimePanel
+              title="Provider Runtime"
+              description="Unique to Core Settings. Does not control tone, guardrails, or exact answers."
+              settings={providerRuntimeSettings}
+              values={settings}
+              onChange={updateLocalSetting}
+            />
 
-                      <div>
-                        <div className="text-sm font-semibold text-white">
-                          {definition.title}
-                        </div>
-                        <div className="mt-1 text-sm leading-6 text-slate-400">
-                          {definition.description}
-                        </div>
-                        <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-slate-600">
-                          {key}
-                        </div>
-                      </div>
-                    </div>
+            <RuntimePanel
+              title="Cache Runtime"
+              description="Controls the cache layers before OpenAI fallback."
+              settings={cacheRuntimeSettings}
+              values={settings}
+              onChange={updateLocalSetting}
+            />
 
-                                        <div>
-                      {key === "response_mode" ? (
-                        <select
-                          value={String(value)}
-                                                    onChange={(e) => {
-                            void updateSettingAndSave(key, e.target.value);
-                          }}
-                          className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white"
-                        >
-                          <option value="strict">Strict</option>
-                          <option value="balanced">Balanced</option>
-                          <option value="creative">Creative</option>
-                        </select>
-                      ) : key === "knowledge_strictness" ? (
-                        <select
-                          value={String(value)}
-                                                    onChange={(e) => {
-                            void updateSettingAndSave(key, e.target.value);
-                          }}
-                          className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white"
-                        >
-                          <option value="strict">Strict</option>
-                          <option value="hybrid">Hybrid</option>
-                          <option value="open">Open</option>
-                        </select>
-                      ) : definition.type === "toggle" ? (
-                        <button
-                          type="button"
-                                                    onClick={() => {
-                            const nextValue = !Boolean(settingsRef.current[key]);
-                            void updateSettingAndSave(key, nextValue);
-                          }}
-                          className={`inline-flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                            value
-                              ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
-                              : "border-rose-400/20 bg-rose-500/10 text-rose-200"
-                          }`}
-                        >
-                          {formatSettingValue(value)}
-                          {value ? (
-                            <ToggleRight className="h-5 w-5" />
-                          ) : (
-                            <ToggleLeft className="h-5 w-5" />
-                          )}
-                        </button>
-                      ) : (
-                        <input
-                          type="number"
-                          min={definition.min}
-                          max={definition.max}
-                          step={definition.step}
-                          value={Number(value)}
-                                                    onBlur={(event) => {
-                            void updateSettingAndSave(key, Number(event.target.value));
-                          }}
-                          onChange={(event) =>
-                            updateSetting(key, Number(event.target.value))
-                          }
-                          className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white focus:border-cyan-400/40 focus:outline-none"
-                        />
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <RuntimePanel
+              title="Learning Runtime"
+              description="Controls runtime learning and knowledge refresh behavior."
+              settings={learningRuntimeSettings}
+              values={settings}
+              onChange={updateLocalSetting}
+            />
+
+            <RuntimePanel
+              title="Diagnostics Runtime"
+              description="Controls debug metadata and router activity logging."
+              settings={diagnosticsRuntimeSettings}
+              values={settings}
+              onChange={updateLocalSetting}
+            />
+
+            <button
+              type="button"
+              onClick={() => void saveAllSettings()}
+              disabled={saving || loading}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500 px-5 py-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Save className="h-4 w-4" />
+              {saving ? "Saving..." : "Save Core Runtime Settings"}
+            </button>
           </div>
 
-          <div className="flex flex-col gap-4">
+          <aside className="flex flex-col gap-6">
             <div className="rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                <Brain className="h-4 w-4" />
-                Router Order
+                <ShieldCheck className="h-4 w-4" />
+                Module Boundaries
               </div>
 
-              <div className="mt-4 space-y-3">
-                {[
-                  "Approved Answers",
-                  "Exact Cache",
-                  "Semantic Cache",
-                  "OpenAI + Knowledge",
-                ].map((layer, index) => (
-                  <div
-                    key={layer}
-                    className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3"
-                  >
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-cyan-200/70">
-                      Step {index}
-                    </div>
-                    <div className="mt-1 text-sm font-medium text-white">
-                      {layer}
-                    </div>
-                  </div>
-                ))}
+              <div className="mt-4 space-y-3 text-sm leading-6 text-slate-400">
+                <BoundaryRow label="Character / Identity" value="AI name, role, tone baseline, verbosity." />
+                <BoundaryRow label="State of Mind" value="Optional mood and temporary response posture." />
+                <BoundaryRow label="Guardrails" value="Allowed topics, blocked topics, weak answer guard, refusals." />
+                <BoundaryRow label="Approved Answers" value="Exact controlled Q&A responses." />
+                <BoundaryRow label="Knowledge Bank" value="Knowledge items and active source content." />
+                <BoundaryRow label="Core Settings" value="Runtime engine only." />
               </div>
             </div>
 
             <div className="rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                 <Database className="h-4 w-4" />
-                Current Runtime Snapshot
+                Runtime Snapshot
               </div>
 
               <div className="mt-4 grid gap-3 text-sm text-slate-300">
-                <SnapshotRow label="Cache" value={formatSettingValue(settings.cache_enabled)} />
-                <SnapshotRow label="Semantic" value={formatSettingValue(settings.semantic_enabled)} />
-                <SnapshotRow label="OpenAI Fallback" value={formatSettingValue(settings.openai_enabled)} />
-                <SnapshotRow label="Auto Learning" value={formatSettingValue(settings.auto_learning_enabled)} />
-                <SnapshotRow label="Semantic Threshold" value={String(settings.semantic_threshold)} />
+                <SnapshotRow label="OpenAI" value={formatSettingValue(settings.openai_enabled)} />
+                <SnapshotRow label="Model" value={settings.openai_model} />
                 <SnapshotRow label="Temperature" value={String(settings.openai_temperature)} />
                 <SnapshotRow label="Max Tokens" value={String(settings.openai_max_tokens)} />
-                <SnapshotRow label="Response Mode" value={String(settings.response_mode)} />
-                <SnapshotRow label="Knowledge Strictness" value={String(settings.knowledge_strictness)} />
+                <SnapshotRow label="Exact Cache" value={formatSettingValue(settings.cache_enabled)} />
+                <SnapshotRow label="Semantic Cache" value={formatSettingValue(settings.semantic_enabled)} />
+                <SnapshotRow label="Semantic Threshold" value={String(settings.semantic_threshold)} />
+                <SnapshotRow label="Auto-Learning" value={formatSettingValue(settings.auto_learning_enabled)} />
+                <SnapshotRow label="Knowledge Refresh" value={formatSettingValue(settings.knowledge_refresh_enabled)} />
+                <SnapshotRow label="Knowledge TTL" value={`${settings.knowledge_cache_ttl_minutes} min`} />
+                <SnapshotRow label="Debug Mode" value={formatSettingValue(settings.debug_mode_enabled)} />
+                <SnapshotRow label="Router Logging" value={formatSettingValue(settings.router_logging_enabled)} />
               </div>
             </div>
-
-                       <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => void saveSettings()}
-                disabled={saving || loading}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500 px-5 py-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Save className="h-4 w-4" />
-                {saving ? "Saving..." : "Save Core Settings"}
-              </button>
-
-              {actionMessage && (
-                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-center text-sm font-semibold text-emerald-200">
-                  {actionMessage}
-                </div>
-              )}
-            </div>
-
-                        <div className="rounded-[28px] border border-red-400/20 bg-red-500/10 p-5">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-red-300">
-                <ShieldCheck className="h-4 w-4" />
-                AI Guardrails
-              </div>
-
-              <div className="mt-4 space-y-4">
-
-                <div>
-                  <label className="text-xs text-slate-400">Blocked Topics (comma separated)</label>
-                                   <input
-                    value={blockedTopicsText}
-                    onChange={(e) => setBlockedTopicsText(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs text-slate-400">Allowed Topics (comma separated)</label>
-                                   <input
-                    value={allowedTopicsText}
-                    onChange={(e) => setAllowedTopicsText(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-white">Force Refusal</span>
-                  <button
-                                        onClick={() => {
-                      const nextValue = !settingsRef.current.force_refusal;
-                      void updateSettingAndSave("force_refusal", nextValue);
-                    }}
-                    className={`px-4 py-2 rounded-xl ${
-                      settings.force_refusal ? "bg-red-500/20 text-red-200" : "bg-white/10"
-                    }`}
-                  >
-                    {settings.force_refusal ? "ON" : "OFF"}
-                  </button>
-                </div>
-
-                <div>
-                  <label className="text-xs text-slate-400">Response Tone</label>
-                  <select
-                    value={settings.response_tone}
-                                        onChange={(e) => {
-                      void updateSettingAndSave("response_tone", e.target.value);
-                    }}
-                    className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
-                  >
-                    <option value="professional">Professional</option>
-                    <option value="strict">Strict</option>
-                    <option value="friendly">Friendly</option>
-                  </select>
-                </div>
-
-              </div>
-            </div>
-          </div>
+          </aside>
         </section>
       </div>
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "cyan" | "emerald" | "white";
+}) {
+  const toneClass =
+    tone === "cyan"
+      ? "text-cyan-200"
+      : tone === "emerald"
+        ? "text-emerald-200"
+        : "text-white";
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+      <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+        {label}
+      </p>
+      <p className={`mt-2 text-2xl font-semibold ${toneClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function PurposeCard({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: typeof Gauge;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
+      <div className="flex items-start gap-3">
+        <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-cyan-200">
+          <Icon className="h-5 w-5" />
+        </div>
+
+        <div>
+          <div className="text-sm font-semibold text-white">{title}</div>
+          <p className="mt-2 text-sm leading-6 text-slate-400">
+            {description}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RuntimePanel({
+  title,
+  description,
+  settings,
+  values,
+  onChange,
+}: {
+  title: string;
+  description: string;
+  settings: SettingDefinition[];
+  values: CoreRuntimeSettings;
+  onChange: (key: RuntimeSettingKey, value: string | boolean | number) => void;
+}) {
+  return (
+    <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <div className="border-b border-white/10 px-5 py-4">
+        <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+          {title}
+        </h2>
+        <p className="mt-1 text-xs text-slate-500">{description}</p>
+      </div>
+
+      <div className="divide-y divide-white/5">
+        {settings.map((setting) => (
+          <RuntimeSettingRow
+            key={setting.key}
+            setting={setting}
+            value={values[setting.key]}
+            onChange={(value) => onChange(setting.key, value)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RuntimeSettingRow({
+  setting,
+  value,
+  onChange,
+}: {
+  setting: SettingDefinition;
+  value: string | boolean | number;
+  onChange: (value: string | boolean | number) => void;
+}) {
+  return (
+    <div className="grid gap-4 px-5 py-5 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-center">
+      <div className="flex items-start gap-3">
+        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+          {setting.type === "toggle" ? (
+            <ShieldCheck className="h-5 w-5" />
+          ) : (
+            <SlidersHorizontal className="h-5 w-5" />
+          )}
+        </div>
+
+        <div>
+          <div className="text-sm font-semibold text-white">
+            {setting.title}
+          </div>
+          <div className="mt-1 text-sm leading-6 text-slate-400">
+            {setting.description}
+          </div>
+          <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-slate-600">
+            {setting.key}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        {setting.type === "toggle" ? (
+          <button
+            type="button"
+            onClick={() => onChange(!Boolean(value))}
+            className={`inline-flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+              value
+                ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+                : "border-rose-400/20 bg-rose-500/10 text-rose-200"
+            }`}
+          >
+            {formatSettingValue(value)}
+            {value ? (
+              <ToggleRight className="h-5 w-5" />
+            ) : (
+              <ToggleLeft className="h-5 w-5" />
+            )}
+          </button>
+        ) : setting.type === "select" ? (
+          <select
+            value={String(value)}
+            onChange={(event) => onChange(event.target.value)}
+            className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white focus:border-cyan-400/40 focus:outline-none"
+          >
+            {(setting.options ?? []).map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type="number"
+            min={setting.min}
+            max={setting.max}
+            step={setting.step}
+            value={getNumberValue(value)}
+            onChange={(event) => onChange(Number(event.target.value))}
+            className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white focus:border-cyan-400/40 focus:outline-none"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BoundaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
+      <div className="text-sm font-semibold text-white">{label}</div>
+      <div className="mt-1 text-sm text-slate-500">{value}</div>
     </div>
   );
 }

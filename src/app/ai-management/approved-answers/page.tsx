@@ -10,6 +10,7 @@ import {
   Search,
   ShieldCheck,
   SlidersHorizontal,
+  Trash2,
   XCircle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -494,6 +495,55 @@ export default function AIApprovedAnswersPage() {
     setSaving(false);
   }
 
+    async function deleteAnswer(answer: ApprovedAnswerRow) {
+    const confirmed = window.confirm(
+      `Delete approved answer for "${answer.question}" permanently?`
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setErrorMessage(null);
+    setActionMessage(null);
+
+    const { error } = await supabase
+      .from("ai_approved_answers")
+      .delete()
+      .eq("id", answer.id);
+
+    if (error) {
+      setErrorMessage(error.message);
+      setSaving(false);
+      return;
+    }
+
+    await supabase.from("ai_admin_activity_logs").insert({
+      action_type: "approved_deleted",
+      entity_type: "approved_answer",
+      entity_id: answer.id,
+      details: {
+        question: answer.question,
+        normalized_question: answer.normalized_question,
+        category: answer.category,
+        priority: answer.priority,
+        was_active: answer.is_active,
+      },
+    });
+
+    const remainingAnswers = answers.filter((item) => item.id !== answer.id);
+
+    setAnswers(remainingAnswers);
+
+    if (selectedId === answer.id) {
+      setSelectedId(remainingAnswers[0]?.id ?? null);
+      setIsCreating(false);
+      setForm(emptyForm);
+    }
+
+    setActionMessage("Approved answer deleted.");
+    setSaving(false);
+  }
+
   async function toggleActive(answer: ApprovedAnswerRow) {
     setSaving(true);
     setErrorMessage(null);
@@ -914,7 +964,7 @@ export default function AIApprovedAnswersPage() {
                   </div>
                 ) : null}
 
-                <div className="flex flex-col gap-3 sm:flex-row">
+                                <div className="flex flex-col gap-3 sm:flex-row">
                   <button
                     type="button"
                     onClick={() => void saveAnswer()}
@@ -958,6 +1008,18 @@ export default function AIApprovedAnswersPage() {
                           Activate
                         </>
                       )}
+                    </button>
+                  ) : null}
+
+                  {selectedAnswer && !isCreating ? (
+                    <button
+                      type="button"
+                      onClick={() => void deleteAnswer(selectedAnswer)}
+                      disabled={saving}
+                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200 transition hover:border-rose-300/60 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
                     </button>
                   ) : null}
                 </div>

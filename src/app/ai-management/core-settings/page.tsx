@@ -428,7 +428,10 @@ export default function AICoreSettingsPage() {
                       ) : definition.type === "toggle" ? (
                         <button
                           type="button"
-                          onClick={() => updateSetting(key, !Boolean(value))}
+                                                    onClick={() => {
+                            const nextValue = !Boolean(settings[key]);
+                            updateSetting(key, nextValue);
+                          }}
                           className={`inline-flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
                             value
                               ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"

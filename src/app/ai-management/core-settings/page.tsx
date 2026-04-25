@@ -224,7 +224,7 @@ export default function AICoreSettingsPage() {
     setLoading(false);
   }
 
-  async function saveSettings() {
+   async function saveSettings() {
     setSaving(true);
     setErrorMessage(null);
     setActionMessage(null);
@@ -242,13 +242,10 @@ export default function AICoreSettingsPage() {
     };
 
     for (const key of Object.keys(settingsToSave) as SettingKey[]) {
-      const { error } = await supabase
-        .from("ai_settings")
-        .update({
-          setting_value: { value: settingsToSave[key] },
-          updated_at: new Date().toISOString(),
-        })
-        .eq("setting_key", key);
+      const { error } = await supabase.rpc("ai_update_setting", {
+        p_setting_key: key,
+        p_setting_value: { value: settingsToSave[key] },
+      });
 
       if (error) {
         setErrorMessage(error.message);
@@ -257,40 +254,9 @@ export default function AICoreSettingsPage() {
       }
     }
 
-    const { data, error } = await supabase
-      .from("ai_settings")
-      .select("setting_key, setting_value")
-      .order("setting_key", { ascending: true });
+    await loadSettings();
 
-    if (error) {
-      setErrorMessage(error.message);
-      setSaving(false);
-      return;
-    }
-
-       if (!data || data.length === 0) {
-      setErrorMessage("Saved, but settings could not be reloaded from the database.");
-      setSaving(false);
-      return;
-    }
-
-    const nextSettings = { ...defaultSettings };
-
-    for (const row of data) {
-      const key = row.setting_key as SettingKey;
-
-      if (key in nextSettings) {
-        (nextSettings as Record<string, unknown>)[key] =
-          row.setting_value?.value ?? nextSettings[key];
-      }
-    }
-
-    setSettings(nextSettings);
-    setBlockedTopicsText(nextSettings.blocked_topics.join(", "));
-    setAllowedTopicsText(nextSettings.allowed_topics.join(", "));
-    setActionMessage(
-      `Saved successfully. Loaded ${data.length} settings from database.`
-    );
+    setActionMessage("Saved successfully. Settings are now stored in the database.");
     setSaving(false);
   }
 

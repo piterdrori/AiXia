@@ -157,9 +157,13 @@ type PreviewDebugCandidate = {
 type PreviewDebug = {
   reason?: string;
   layer?: string;
+  note?: string;
   threshold?: number;
   totalCache?: number;
   avgUsage?: number;
+  character_enabled?: boolean;
+  state_of_mind_enabled?: boolean;
+  state_mode?: string;
   selected?: PreviewDebugCandidate;
   candidates?: PreviewDebugCandidate[];
 };
@@ -735,10 +739,38 @@ if (item.id === "state-of-mind") {
         </div>
       )}
 
-      {typeof message.debug.totalCache === "number" && (
+           {typeof message.debug.totalCache === "number" && (
         <div>
           <span className="text-white/35">Total cache:</span>{" "}
           {message.debug.totalCache}
+        </div>
+      )}
+
+      {typeof message.debug.character_enabled === "boolean" && (
+        <div>
+          <span className="text-white/35">Character:</span>{" "}
+          {message.debug.character_enabled ? "enabled" : "disabled"}
+        </div>
+      )}
+
+      {typeof message.debug.state_of_mind_enabled === "boolean" && (
+        <div>
+          <span className="text-white/35">State of Mind:</span>{" "}
+          {message.debug.state_of_mind_enabled ? "enabled" : "disabled"}
+        </div>
+      )}
+
+      {message.debug.state_mode && (
+        <div>
+          <span className="text-white/35">State mode:</span>{" "}
+          {message.debug.state_mode}
+        </div>
+      )}
+
+      {message.debug.note && (
+        <div>
+          <span className="text-white/35">Note:</span>{" "}
+          {message.debug.note}
         </div>
       )}
 

@@ -126,6 +126,7 @@ import AIActivityLogsPage from "@/app/ai-management/activity/page";
 import AIGuardrailsPage from "@/app/ai-management/guardrails/page";
 import AIMemoryPage from "@/app/ai-management/memory/page";
 import AICharacterPage from "@/app/ai-management/character/page";
+import AIStateOfMindPage from "@/app/ai-management/state-of-mind/page";
 
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";

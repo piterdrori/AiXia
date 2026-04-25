@@ -2,16 +2,20 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
+  BookOpen,
   Brain,
+  Building2,
   CheckCircle2,
   Database,
   Plus,
   RefreshCcw,
   Save,
   Search,
+  Settings2,
   ToggleLeft,
   ToggleRight,
   Trash2,
+  Wand2,
   XCircle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -46,6 +50,52 @@ const emptyForm: MemoryForm = {
   priority: "100",
   is_active: true,
 };
+
+const memoryPresets: Array<{
+  title: string;
+  description: string;
+  form: MemoryForm;
+}> = [
+  {
+    title: "Business Context",
+    description: "Store stable company or product facts the AI should reuse.",
+    form: {
+      memory_key: "business_context",
+      memory_value:
+        "AiXia is an internal enterprise platform with finance, projects, tasks, employees, AI management, and operational modules.",
+      category: "business-context",
+      scope: "global",
+      priority: "10",
+      is_active: true,
+    },
+  },
+  {
+    title: "Working Style",
+    description: "Store how the AI should work with the admin/operator.",
+    form: {
+      memory_key: "working_style",
+      memory_value:
+        "Use short execution-focused answers. For code changes, provide exact full remove-and-replace blocks. Avoid vague anchors and unnecessary explanation.",
+      category: "behavior",
+      scope: "global",
+      priority: "10",
+      is_active: true,
+    },
+  },
+  {
+    title: "System Architecture",
+    description: "Store technical rules that should guide future AI reasoning.",
+    form: {
+      memory_key: "system_architecture",
+      memory_value:
+        "AiXia follows a DB-first and server-first architecture. Supabase owns business logic, RLS, triggers, and RPCs. Frontend should orchestrate and display, not replace backend rules.",
+      category: "system-rule",
+      scope: "global",
+      priority: "10",
+      is_active: true,
+    },
+  },
+];
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", {
@@ -190,13 +240,21 @@ export default function AIMemoryPage() {
     setActionMessage(null);
   }
 
+  function applyPreset(preset: MemoryForm) {
+    setIsCreating(true);
+    setSelectedId(null);
+    setForm({ ...preset });
+    setErrorMessage(null);
+    setActionMessage(null);
+  }
+
   async function saveMemoryItem() {
     const memoryKey = form.memory_key.trim();
     const memoryValue = form.memory_value.trim();
     const priority = Number(form.priority);
 
     if (!memoryKey || !memoryValue) {
-      setErrorMessage("Memory key and memory value are required.");
+      setErrorMessage("Context name and context/instruction are required.");
       return;
     }
 
@@ -254,13 +312,13 @@ export default function AIMemoryPage() {
       );
       setSelectedId((data as MemoryItem).id);
       setIsCreating(false);
-      setActionMessage("Memory item created.");
+      setActionMessage("Context memory created.");
       setSaving(false);
       return;
     }
 
-    if (!selectedItem) {
-      setErrorMessage("No memory item selected.");
+      if (!selectedItem) {
+      setErrorMessage("No context memory selected.");
       setSaving(false);
       return;
     }
@@ -301,7 +359,7 @@ export default function AIMemoryPage() {
         .sort((first, second) => first.priority - second.priority)
     );
     setSelectedId((data as MemoryItem).id);
-    setActionMessage("Memory item updated.");
+    setActionMessage("Context memory updated.");
     setSaving(false);
   }
 
@@ -348,14 +406,14 @@ export default function AIMemoryPage() {
     );
     setSelectedId((data as MemoryItem).id);
     setActionMessage(
-      nextActive ? "Memory item activated." : "Memory item deactivated."
+      nextActive ? "Context memory activated." : "Context memory deactivated."
     );
     setSaving(false);
   }
 
   async function deleteMemoryItem(item: MemoryItem) {
     const confirmed = window.confirm(
-      `Delete memory item "${item.memory_key}" permanently?`
+      `Delete context memory "${item.memory_key}" permanently?`
     );
 
     if (!confirmed) return;
@@ -385,7 +443,9 @@ export default function AIMemoryPage() {
       },
     });
 
-    setItems((current) => current.filter((currentItem) => currentItem.id !== item.id));
+    setItems((current) =>
+      current.filter((currentItem) => currentItem.id !== item.id)
+    );
 
     if (selectedId === item.id) {
       setSelectedId(null);
@@ -393,15 +453,15 @@ export default function AIMemoryPage() {
       setForm(emptyForm);
     }
 
-    setActionMessage("Memory item deleted.");
+    setActionMessage("Context memory deleted.");
     setSaving(false);
   }
 
   const pageTitle = isCreating
-    ? "Create Memory Item"
+    ? "Create Context Memory"
     : selectedItem
-      ? "Memory Inspector"
-      : "Memory Inspector";
+      ? "Context Memory Inspector"
+      : "Context Memory Inspector";
 
   return (
     <div className="min-h-screen bg-[#05070d] px-6 py-6 text-white">
@@ -426,10 +486,10 @@ export default function AIMemoryPage() {
 
                 <div>
                   <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white md:text-4xl">
-                    Memory
+                    Context Memory
                   </h1>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                    Manage long-lived AI memory items used for context, behavior, preferences, and operational recall.
+                    Store reusable AI context that is not an answer: company facts, working rules, system architecture, design direction, and long-term behavior instructions.
                   </p>
                 </div>
               </div>
@@ -444,6 +504,26 @@ export default function AIMemoryPage() {
           </div>
         </header>
 
+        <section className="grid gap-4 md:grid-cols-3">
+          <PurposeCard
+            icon={Building2}
+            title="Business Context"
+            description="Reusable facts about AiXia, company structure, product scope, and operating model."
+          />
+
+          <PurposeCard
+            icon={Settings2}
+            title="System Rules"
+            description="Architecture rules, workflow rules, and execution preferences that should guide future AI behavior."
+          />
+
+          <PurposeCard
+            icon={Wand2}
+            title="Behavior Memory"
+            description="How the AI should speak, format instructions, handle code changes, and work with the operator."
+          />
+        </section>
+
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
           <div className="flex flex-col gap-4">
             <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
@@ -451,10 +531,10 @@ export default function AIMemoryPage() {
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Memory Items
+                      Context Memories
                     </h2>
                     <p className="mt-1 text-xs text-slate-500">
-                      Active memory is available for future AI routing and context layers.
+                      These are reusable context instructions, not exact Q&A answers.
                     </p>
                   </div>
 
@@ -485,12 +565,12 @@ export default function AIMemoryPage() {
                     <input
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
-                      placeholder="Search memory key, value, category, scope..."
+                      placeholder="Search context name, instruction, category, applies-to..."
                       className="w-full rounded-xl border border-white/10 bg-white/[0.05] px-9 py-2 text-sm text-white placeholder:text-slate-500 focus:border-purple-400/40 focus:outline-none"
                     />
                   </div>
 
-                  <select
+                                    <select
                     value={statusFilter}
                     onChange={(event) =>
                       setStatusFilter(event.target.value as "all" | "active" | "inactive")
@@ -507,7 +587,7 @@ export default function AIMemoryPage() {
                     onChange={(event) => setScopeFilter(event.target.value)}
                     className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs text-slate-300 focus:border-purple-400/40 focus:outline-none"
                   >
-                    <option value="all">All Scopes</option>
+                    <option value="all">All Applies-To</option>
                     {scopes.map((scope) => (
                       <option key={scope} value={scope}>
                         {scope}
@@ -520,11 +600,11 @@ export default function AIMemoryPage() {
               <div className="max-h-[620px] overflow-y-auto">
                 {loading ? (
                   <div className="px-5 py-6 text-sm text-slate-400">
-                    Loading memory items...
+                    Loading context memories...
                   </div>
                 ) : filteredItems.length === 0 ? (
                   <div className="px-5 py-6 text-sm text-slate-500">
-                    No memory items found.
+                    No context memories found.
                   </div>
                 ) : (
                   <div className="divide-y divide-white/5">
@@ -549,7 +629,7 @@ export default function AIMemoryPage() {
                                 {item.memory_value}
                               </p>
                               <p className="text-xs text-slate-500">
-                                {formatCategory(item.category)} • {item.scope} • Priority {item.priority}
+                                {formatCategory(item.category)} • applies to {item.scope} • Priority {item.priority}
                               </p>
                             </div>
 
@@ -585,7 +665,7 @@ export default function AIMemoryPage() {
               <div className="flex flex-col gap-4 px-5 py-5">
                 <div className="flex flex-col gap-2">
                   <label className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                    Memory Key
+                    Context Name
                   </label>
                   <input
                     value={form.memory_key}
@@ -595,14 +675,14 @@ export default function AIMemoryPage() {
                         memory_key: event.target.value,
                       }))
                     }
-                    placeholder="company_voice, default_finance_scope, etc."
+                    placeholder="business_context, working_style, system_architecture"
                     className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white focus:border-purple-400/40 focus:outline-none"
                   />
                 </div>
 
                 <div className="flex flex-col gap-2">
                   <label className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                    Memory Value
+                    Context / Instruction
                   </label>
                   <textarea
                     rows={7}
@@ -613,7 +693,7 @@ export default function AIMemoryPage() {
                         memory_value: event.target.value,
                       }))
                     }
-                    placeholder="Describe the memory this AI should keep..."
+                    placeholder="Describe the reusable context, rule, or behavior instruction this AI should keep..."
                     className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white focus:border-purple-400/40 focus:outline-none"
                   />
                 </div>
@@ -621,7 +701,7 @@ export default function AIMemoryPage() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="flex flex-col gap-2">
                     <label className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                      Category
+                      Memory Category
                     </label>
                     <input
                       value={form.category}
@@ -631,14 +711,14 @@ export default function AIMemoryPage() {
                           category: event.target.value,
                         }))
                       }
-                      placeholder="behavior, finance, user-preference"
+                      placeholder="business-context, behavior, system-rule"
                       className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white focus:border-purple-400/40 focus:outline-none"
                     />
                   </div>
 
                   <div className="flex flex-col gap-2">
                     <label className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                      Scope
+                      Applies To
                     </label>
                     <input
                       value={form.scope}
@@ -648,7 +728,7 @@ export default function AIMemoryPage() {
                           scope: event.target.value,
                         }))
                       }
-                      placeholder="global"
+                      placeholder="global, finance, ai-management"
                       className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white focus:border-purple-400/40 focus:outline-none"
                     />
                   </div>
@@ -684,7 +764,7 @@ export default function AIMemoryPage() {
                       }
                       className="mb-1 h-4 w-4 rounded border-white/20 bg-white/10"
                     />
-                    Active memory item
+                    Active context memory
                   </label>
                 </div>
 
@@ -696,7 +776,7 @@ export default function AIMemoryPage() {
 
                   <div className="mt-4 grid gap-3 text-xs text-slate-400 sm:grid-cols-2">
                     <DetailCell label="Status" value={form.is_active ? "Active" : "Inactive"} />
-                    <DetailCell label="Scope" value={form.scope || "global"} />
+                    <DetailCell label="Applies To" value={form.scope || "global"} />
                     <DetailCell
                       label="Created"
                       value={selectedItem ? formatDate(selectedItem.created_at) : "Not created yet"}
@@ -728,7 +808,7 @@ export default function AIMemoryPage() {
                     className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-purple-400/30 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-purple-100 transition hover:border-purple-300/60 hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Save className="h-4 w-4" />
-                    {saving ? "Saving..." : isCreating ? "Create Memory" : "Save Changes"}
+                    {saving ? "Saving..." : isCreating ? "Create Context Memory" : "Save Changes"}
                   </button>
 
                   {selectedItem ? (
@@ -753,7 +833,7 @@ export default function AIMemoryPage() {
                   ) : null}
                 </div>
 
-                {selectedItem ? (
+                                {selectedItem ? (
                   <button
                     type="button"
                     onClick={() => void deleteMemoryItem(selectedItem)}
@@ -761,7 +841,7 @@ export default function AIMemoryPage() {
                     className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Trash2 className="h-4 w-4" />
-                    Delete Memory Item
+                    Delete Context Memory
                   </button>
                 ) : null}
               </div>
@@ -770,12 +850,43 @@ export default function AIMemoryPage() {
             <div className="rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                 <Brain className="h-4 w-4" />
-                Memory Rule
+                Why Context Memory Exists
               </div>
+
               <p className="mt-3 text-sm leading-6 text-slate-400">
-                Memory should store stable system context and AI behavior preferences.
-                Do not store temporary chat details, secrets, passwords, tokens, or private personal data.
+                Approved Answers are exact question-and-answer overrides. Context Memory is different:
+                it stores reusable background instructions that help the AI understand AiXia, your working style,
+                business rules, system architecture, and long-term preferences.
               </p>
+
+              <div className="mt-4 rounded-2xl border border-purple-400/15 bg-purple-500/10 px-4 py-3 text-sm leading-6 text-purple-100/80">
+                Memory should not store temporary chat details, secrets, passwords, tokens, or private personal data.
+              </div>
+            </div>
+
+            <div className="rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                <BookOpen className="h-4 w-4" />
+                Quick Memory Templates
+              </div>
+
+              <div className="mt-4 grid gap-3">
+                {memoryPresets.map((preset) => (
+                  <button
+                    key={preset.title}
+                    type="button"
+                    onClick={() => applyPreset(preset.form)}
+                    className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-left transition hover:border-purple-400/30 hover:bg-purple-500/10"
+                  >
+                    <div className="text-sm font-semibold text-white">
+                      {preset.title}
+                    </div>
+                    <div className="mt-1 text-sm leading-6 text-slate-400">
+                      {preset.description}
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </section>
@@ -808,6 +919,33 @@ function MetricCard({
         {label}
       </p>
       <p className={`mt-2 text-3xl font-semibold ${toneClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function PurposeCard({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: typeof Brain;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
+      <div className="flex items-start gap-3">
+        <div className="rounded-2xl border border-purple-400/20 bg-purple-500/10 p-3 text-purple-200">
+          <Icon className="h-5 w-5" />
+        </div>
+
+        <div>
+          <div className="text-sm font-semibold text-white">{title}</div>
+          <p className="mt-2 text-sm leading-6 text-slate-400">
+            {description}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

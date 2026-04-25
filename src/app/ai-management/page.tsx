@@ -505,6 +505,11 @@ if (item.id === "memory") {
   return;
 }
 
+if (item.id === "character") {
+  navigate("/ai-management/character");
+  return;
+}
+
                       setActiveSection(item.id);
                     }}
                     className={`w-full rounded-[22px] border px-4 py-3 text-left transition-all duration-300 ${

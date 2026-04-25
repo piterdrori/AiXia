@@ -233,14 +233,6 @@ function getPromotionBlockReason(item: CacheItem) {
     return `This cache item quality is too low. Current quality: ${quality}/100. Required: 75/100.`;
   }
 
-  if ((item.quality_score ?? 0) < 1) {
-    return `This cache item quality score is too low. Current DB quality score: ${item.quality_score ?? 0}. Required: 1.`;
-  }
-
-  if ((item.usage_count ?? 0) < 3) {
-    return `This cache item does not have enough usage. Current usage: ${item.usage_count ?? 0}. Required: 3.`;
-  }
-
   return null;
 }
 
@@ -807,21 +799,47 @@ async function autoPromoteBestClusters() {
   setPageError(null);
   setActionMessage(null);
 
-  let promotedCount = 0;
+    let promotedCount = 0;
   let skippedCount = 0;
+  let skippedBlocked = 0;
+  let skippedRisk = 0;
+  let skippedQuality = 0;
+  let skippedDbQuality = 0;
+  let skippedUsage = 0;
+  let skippedExistingBetter = 0;
+  let skippedError = 0;
 
   for (const cluster of cacheClusters) {
     const bestItem = cluster.bestItem;
     const quality = scoreCacheQuality(bestItem);
     const risk = inferCacheRisk(bestItem);
 
-    if (
-      Boolean(bestItem.is_blocked) ||
-      risk !== "healthy" ||
-      quality < 75 ||
-      (bestItem.quality_score ?? 0) < 1 ||
-      (bestItem.usage_count ?? 0) < 3
-    ) {
+        if (Boolean(bestItem.is_blocked)) {
+      skippedBlocked += 1;
+      skippedCount += 1;
+      continue;
+    }
+
+    if (risk !== "healthy") {
+      skippedRisk += 1;
+      skippedCount += 1;
+      continue;
+    }
+
+    if (quality < 75) {
+      skippedQuality += 1;
+      skippedCount += 1;
+      continue;
+    }
+
+    if ((bestItem.quality_score ?? 0) < 1) {
+      skippedDbQuality += 1;
+      skippedCount += 1;
+      continue;
+    }
+
+    if ((bestItem.usage_count ?? 0) < 3) {
+      skippedUsage += 1;
       skippedCount += 1;
       continue;
     }
@@ -835,7 +853,8 @@ async function autoPromoteBestClusters() {
       .eq("normalized_question", normalized)
       .limit(1);
 
-    if (existingError) {
+        if (existingError) {
+      skippedError += 1;
       skippedCount += 1;
       continue;
     }
@@ -852,11 +871,11 @@ async function autoPromoteBestClusters() {
         (bestItem.usage_count ?? 0) * 2 +
         (bestItem.answer?.length ?? 0) / 10;
 
-      if (candidateScore <= existingScore) {
+            if (candidateScore <= existingScore) {
+        skippedExistingBetter += 1;
         skippedCount += 1;
         continue;
       }
-
       const newVersion = (existingRow.approved_version ?? 1) + 1;
 
       const { data: newRow, error: insertError } = await supabase
@@ -875,7 +894,8 @@ async function autoPromoteBestClusters() {
         .select("id")
         .single();
 
-      if (insertError || !newRow) {
+            if (insertError || !newRow) {
+        skippedError += 1;
         skippedCount += 1;
         continue;
       }
@@ -888,7 +908,8 @@ async function autoPromoteBestClusters() {
         })
         .eq("id", existingId);
 
-      if (updateError) {
+           if (updateError) {
+        skippedError += 1;
         skippedCount += 1;
         continue;
       }
@@ -909,7 +930,8 @@ async function autoPromoteBestClusters() {
       source_cache_id: bestItem.id,
     });
 
-    if (error) {
+       if (error) {
+      skippedError += 1;
       skippedCount += 1;
       continue;
     }
@@ -917,8 +939,8 @@ async function autoPromoteBestClusters() {
     promotedCount += 1;
   }
 
-  setActionMessage(
-    `Auto-promote complete. Promoted ${promotedCount} cluster(s), skipped ${skippedCount}.`
+    setActionMessage(
+    `Auto-promote complete. Promoted ${promotedCount}, skipped ${skippedCount}. Reasons: blocked ${skippedBlocked}, risk ${skippedRisk}, quality ${skippedQuality}, DB quality ${skippedDbQuality}, usage ${skippedUsage}, existing better ${skippedExistingBetter}, errors ${skippedError}.`
   );
 
   setPromoting(false);

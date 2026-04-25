@@ -495,6 +495,13 @@ if (item.id === "activity") {
   return;
 }
 
+if (item.id === "guardrails") {
+  navigate("/ai-management/guardrails");
+  return;
+}
+
+                      setActiveSection(item.id);
+
                       setActiveSection(item.id);
                     }}
                     className={`w-full rounded-[22px] border px-4 py-3 text-left transition-all duration-300 ${

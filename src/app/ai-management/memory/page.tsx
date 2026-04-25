@@ -345,167 +345,32 @@ export default function AIMemoryPage() {
     setLoadingMessages(false);
   }
 
-  async function analyzeSelectedSession() {
+   async function analyzeSelectedSession() {
     if (!selectedSession) return;
 
-    const health = calculateSessionHealth(messages);
+    setErrorMessage(null);
 
-    const generatedInsights: Array<{
-      insight_type: string;
-      severity: string;
-      title: string;
-      description: string;
-      recommended_action: string;
-      metadata: Record<string, unknown>;
-    }> = [];
-
-    if (health.errorCount > 0) {
-      generatedInsights.push({
-        insight_type: "router_error",
-        severity: "critical",
-        title: "Router or client error detected",
-        description:
-          "This session contains one or more assistant responses that failed through the client or Edge Function path.",
-        recommended_action:
-          "Review router logs and fix the failing provider, Edge Function, or client-side request path.",
-        metadata: {
-          error_count: health.errorCount,
-        },
-      });
-    }
-
-    if (health.dislikedCount > 0) {
-      generatedInsights.push({
-        insight_type: "negative_feedback",
-        severity: "warning",
-        title: "Negative feedback received",
-        description:
-          "The user marked one or more assistant responses as bad. This indicates the response may need an approved answer, better knowledge, or a router rule.",
-        recommended_action:
-          "Review disliked messages and decide whether to create an approved answer, update knowledge, or adjust guardrails.",
-        metadata: {
-          disliked_count: health.dislikedCount,
-        },
-      });
-    }
-
-    if (health.refusalCount > 0) {
-      generatedInsights.push({
-        insight_type: "refusal_review",
-        severity: "warning",
-        title: "Refusal or no-answer response detected",
-        description:
-          "The assistant refused or returned no approved answer during this session.",
-        recommended_action:
-          "If the request is valid, create an approved answer or add supporting knowledge. If invalid, keep guardrails as-is.",
-        metadata: {
-          refusal_count: health.refusalCount,
-        },
-      });
-    }
-
-    if (health.openAiCount > health.approvedCount + health.cacheCount) {
-      generatedInsights.push({
-        insight_type: "approval_candidate",
-        severity: "info",
-        title: "OpenAI fallback used often",
-        description:
-          "This session relied more on OpenAI fallback than approved answers or cache.",
-        recommended_action:
-          "Promote repeated stable responses into Approved Answers or Cache Review.",
-        metadata: {
-          openai_count: health.openAiCount,
-          approved_count: health.approvedCount,
-          cache_count: health.cacheCount,
-        },
-      });
-    }
-
-    if (generatedInsights.length === 0) {
-      generatedInsights.push({
-        insight_type: "healthy_session",
-        severity: "info",
-        title: "Session looks healthy",
-        description:
-          "No major errors, refusals, or negative feedback were detected in this session.",
-        recommended_action:
-          "No immediate action needed. Continue monitoring future sessions.",
-        metadata: {
-          score: health.score,
-        },
-      });
-    }
-
-    await supabase
-      .from("ai_session_insights")
-      .delete()
-      .eq("session_id", selectedSession.id);
-
-    const { error: insertError } = await supabase
-      .from("ai_session_insights")
-      .insert(
-        generatedInsights.map((insight) => ({
+    const { data, error } = await supabase.functions.invoke(
+      "ai-session-analyzer",
+      {
+        body: {
           session_id: selectedSession.id,
-          ...insight,
-        }))
-      );
-
-    if (insertError) {
-      setErrorMessage(insertError.message);
-      return;
-    }
-
-    const { error: updateError } = await supabase
-      .from("ai_conversation_sessions")
-      .update({
-        quality_score: health.score,
-        summary: buildSessionSummary(messages, health),
-        insights: {
-          score: health.score,
-          liked_count: health.likedCount,
-          disliked_count: health.dislikedCount,
-          error_count: health.errorCount,
-          refusal_count: health.refusalCount,
-          approved_count: health.approvedCount,
-          cache_count: health.cacheCount,
-          openai_count: health.openAiCount,
-          message_count: health.messageCount,
         },
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", selectedSession.id);
+      }
+    );
 
-    if (updateError) {
-      setErrorMessage(updateError.message);
+    if (error) {
+      setErrorMessage(error.message);
       return;
     }
 
-    await supabase.from("ai_admin_activity_logs").insert({
-      action_type: "ai_session_analyzed",
-      entity_type: "memory",
-      entity_id: selectedSession.id,
-      details: {
-        quality_score: health.score,
-        insight_count: generatedInsights.length,
-        title: getSessionTitle(selectedSession),
-      },
-    });
+    if (!data?.success) {
+      setErrorMessage(data?.error ?? "Session analysis failed.");
+      return;
+    }
 
     await loadSessions();
     await loadSessionDetails(selectedSession.id);
-  }
-
-  function buildSessionSummary(sessionMessages: AIMessage[], health: SessionHealth) {
-    const userQuestions = sessionMessages
-      .filter((message) => message.role === "user")
-      .map((message) => message.content)
-      .slice(0, 5);
-
-    if (userQuestions.length === 0) {
-      return "No user questions were recorded in this session.";
-    }
-
-    return `Session included ${userQuestions.length} user question(s). Quality score: ${health.score}/100. Main questions: ${userQuestions.join(" | ")}`;
   }
 
   async function endSelectedSession() {

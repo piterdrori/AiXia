@@ -218,7 +218,7 @@ export default function AICoreSettingsPage() {
     setLoading(false);
   }
 
-    async function saveSettings() {
+     async function saveSettings() {
     setSaving(true);
     setErrorMessage(null);
     setActionMessage(null);
@@ -236,23 +236,54 @@ export default function AICoreSettingsPage() {
     };
 
     for (const key of Object.keys(settingsToSave) as SettingKey[]) {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("ai_settings")
         .update({
           setting_value: { value: settingsToSave[key] },
           updated_at: new Date().toISOString(),
         })
-        .eq("setting_key", key);
+        .eq("setting_key", key)
+        .select("setting_key")
+        .maybeSingle();
 
       if (error) {
         setErrorMessage(error.message);
         setSaving(false);
         return;
       }
+
+      if (!data) {
+        setErrorMessage(`Setting was not saved: ${key}`);
+        setSaving(false);
+        return;
+      }
     }
 
-    setSettings(settingsToSave);
-    setActionMessage("Saved successfully.");
+    const { data, error } = await supabase
+      .from("ai_settings")
+      .select("setting_key, setting_value");
+
+    if (error) {
+      setErrorMessage(error.message);
+      setSaving(false);
+      return;
+    }
+
+    const nextSettings = { ...defaultSettings };
+
+    for (const row of data ?? []) {
+      const key = row.setting_key as SettingKey;
+
+      if (key in nextSettings) {
+        (nextSettings as Record<string, unknown>)[key] =
+          row.setting_value?.value ?? nextSettings[key];
+      }
+    }
+
+    setSettings(nextSettings);
+    setBlockedTopicsText(nextSettings.blocked_topics.join(", "));
+    setAllowedTopicsText(nextSettings.allowed_topics.join(", "));
+    setActionMessage("Saved successfully. Settings are now stored in the database.");
     setSaving(false);
   }
 

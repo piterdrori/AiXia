@@ -1,17 +1,26 @@
 import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
-import { useEffect, useMemo, useState, type ElementType } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ElementType,
+  type RefObject,
+} from "react";
 import {
   Activity,
   ArrowRight,
-  Brain,
   Bot,
+  Brain,
   Database,
   FileCheck2,
   Gauge,
   Mic,
   MessageSquareText,
   RefreshCcw,
+  RotateCcw,
+  Send,
   Shield,
   Sparkles,
   Wand2,
@@ -55,6 +64,46 @@ type ActivityLog = {
   entity_type: string | null;
   details: Record<string, unknown> | null;
   created_at: string;
+};
+
+type PreviewDebugCandidate = {
+  id?: string;
+  question?: string;
+  similarity?: number;
+  rank_score?: number;
+  usage_count?: number;
+  quality_score?: number;
+};
+
+type PreviewDebug = {
+  reason?: string;
+  layer?: string;
+  note?: string;
+  threshold?: number;
+  totalCache?: number;
+  avgUsage?: number;
+  character_enabled?: boolean;
+  state_of_mind_enabled?: boolean;
+  state_mode?: string;
+  guardrail_master_enabled?: boolean;
+  weak_answer_guard_enabled?: boolean;
+  weak_answer_strictness?: number;
+  min_openai_length?: number;
+  cache_guard_enabled?: boolean;
+  auto_learning_guard_enabled?: boolean;
+  selected?: PreviewDebugCandidate;
+  candidates?: PreviewDebugCandidate[];
+};
+
+type PreviewMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  provider?: string;
+  similarity?: number;
+  matchedQuestion?: string;
+  sourceQuestion?: string;
+  debug?: PreviewDebug;
 };
 
 const defaultStats: StudioStats = {
@@ -159,8 +208,7 @@ const studioModules: StudioModule[] = [
   {
     id: "voice",
     label: "Voice",
-    description:
-      "Future TTS/STT control layer for speaking with the assistant.",
+    description: "Future TTS/STT control layer for speaking with the assistant.",
     icon: Mic,
     status: "draft",
     group: "Experience",
@@ -189,7 +237,6 @@ function formatDetails(details: Record<string, unknown> | null) {
   if (!details) return "No details";
 
   const keys = Object.keys(details);
-
   if (keys.length === 0) return "No details";
 
   return keys
@@ -209,7 +256,6 @@ async function getCount(table: string, filters?: (query: any) => any) {
   }
 
   const { count } = await query;
-
   return count ?? 0;
 }
 
@@ -220,6 +266,12 @@ export default function AIManagementPage() {
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const [previewInput, setPreviewInput] = useState("");
+  const [previewMessages, setPreviewMessages] = useState<PreviewMessage[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const previewMessagesRef = useRef<HTMLDivElement | null>(null);
 
   const liveModules = useMemo(
     () => studioModules.filter((module) => module.status === "live").length,
@@ -248,6 +300,15 @@ export default function AIManagementPage() {
   useEffect(() => {
     void loadStudioData();
   }, []);
+
+  useEffect(() => {
+    if (!previewMessagesRef.current) return;
+
+    previewMessagesRef.current.scrollTo({
+      top: previewMessagesRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [previewMessages, previewLoading]);
 
   async function loadStudioData() {
     setLoading(true);
@@ -305,6 +366,61 @@ export default function AIManagementPage() {
     }
   }
 
+  async function sendPreviewMessage() {
+    const prompt = previewInput.trim();
+
+    if (!prompt || previewLoading) return;
+
+    const userMessageId = crypto.randomUUID();
+    const assistantMessageId = crypto.randomUUID();
+
+    setPreviewInput("");
+    setPreviewError(null);
+    setPreviewLoading(true);
+
+    setPreviewMessages((current) => [
+      ...current,
+      {
+        id: userMessageId,
+        role: "user",
+        content: prompt,
+      },
+    ]);
+
+    const { data, error } = await supabase.functions.invoke("ai-router", {
+      body: { prompt },
+    });
+
+    if (error) {
+      setPreviewError(error.message);
+      setPreviewLoading(false);
+      return;
+    }
+
+    setPreviewMessages((current) => [
+      ...current,
+      {
+        id: assistantMessageId,
+        role: "assistant",
+        content: data?.text ?? "No response returned.",
+        provider: data?.provider,
+        similarity: data?.similarity,
+        matchedQuestion: data?.matched_question,
+        sourceQuestion: prompt,
+        debug: data?.debug,
+      },
+    ]);
+
+    setPreviewLoading(false);
+  }
+
+  function startNewPreviewChat() {
+    setPreviewMessages([]);
+    setPreviewError(null);
+    setPreviewLoading(false);
+    setPreviewInput("");
+  }
+
   return (
     <div className="min-h-screen bg-[#05070d] px-6 py-6 text-white">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
@@ -321,8 +437,9 @@ export default function AIManagementPage() {
                   AI Studio
                 </h1>
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Manage the live AiXia assistant from one clean control center. Each module has one clear job:
-                  behavior, knowledge, runtime, logs, voice, or avatar experience.
+                  Manage the live AiXia assistant from one clean control center.
+                  Each module has one clear job: behavior, knowledge, runtime,
+                  logs, voice, or avatar experience.
                 </p>
               </div>
 
@@ -389,7 +506,7 @@ export default function AIManagementPage() {
           />
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="flex flex-col gap-6">
             {groupedModules.map((group) => (
               <div
@@ -425,6 +542,17 @@ export default function AIManagementPage() {
           </div>
 
           <aside className="flex flex-col gap-6">
+            <LiveTestConsole
+              previewInput={previewInput}
+              previewMessages={previewMessages}
+              previewLoading={previewLoading}
+              previewError={previewError}
+              previewMessagesRef={previewMessagesRef}
+              onInputChange={setPreviewInput}
+              onSend={() => void sendPreviewMessage()}
+              onNew={startNewPreviewChat}
+            />
+
             <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
                 <div>
@@ -446,7 +574,7 @@ export default function AIManagementPage() {
                 </button>
               </div>
 
-              <div className="max-h-[520px] overflow-y-auto">
+              <div className="max-h-[380px] overflow-y-auto">
                 {activityLogs.length === 0 ? (
                   <div className="p-5 text-sm text-slate-500">
                     No AI activity yet.
@@ -481,8 +609,8 @@ export default function AIManagementPage() {
                 Animation / Avatar
               </h2>
               <p className="mt-2 text-sm leading-6 text-slate-400">
-                This replaces Publish / Deploy. You will choose the visual AI assistant people talk to:
-                orb, waveform, avatar, robot, hologram, or mascot.
+                This replaces Publish / Deploy. You will choose the visual AI assistant
+                people talk to: orb, waveform, avatar, robot, hologram, or mascot.
               </p>
 
               <div className="mt-5 grid gap-3">
@@ -663,5 +791,284 @@ function ModuleCard({
         <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
       </div>
     </button>
+  );
+}
+
+function LiveTestConsole({
+  previewInput,
+  previewMessages,
+  previewLoading,
+  previewError,
+  previewMessagesRef,
+  onInputChange,
+  onSend,
+  onNew,
+}: {
+  previewInput: string;
+  previewMessages: PreviewMessage[];
+  previewLoading: boolean;
+  previewError: string | null;
+  previewMessagesRef: RefObject<HTMLDivElement | null>;
+  onInputChange: (value: string) => void;
+  onSend: () => void;
+  onNew: () => void;
+}) {
+  return (
+    <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+            Live Test Console
+          </h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Test the live ai-router with Router Debug visible in the chat.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={onNew}
+          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-white/20 hover:text-white"
+        >
+          <RotateCcw className="h-4 w-4" />
+          New
+        </button>
+      </div>
+
+      <div className="flex min-h-[540px] flex-col">
+        <div
+          ref={previewMessagesRef}
+          className="h-[405px] space-y-3 overflow-y-auto px-4 py-4 overscroll-contain scroll-smooth"
+        >
+          {previewMessages.length === 0 ? (
+            <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/20 p-5 text-center text-sm leading-6 text-slate-500">
+              Ask a test question to verify Approved Answers, Cache, OpenAI fallback,
+              Character, State of Mind, Guardrails, and Router Debug.
+            </div>
+          ) : (
+            previewMessages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex ${
+                  message.role === "user" ? "justify-end" : "justify-start"
+                }`}
+              >
+                <div
+                  className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-6 ${
+                    message.role === "user"
+                      ? "bg-cyan-500/15 text-cyan-100"
+                      : "border border-white/10 bg-white/[0.04] text-white/80"
+                  }`}
+                >
+                  <div>{message.content}</div>
+
+                  {message.role === "assistant" ? (
+                    <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-white/45">
+                      {message.provider ? (
+                        <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">
+                          {message.provider}
+                        </span>
+                      ) : null}
+
+                      {typeof message.similarity === "number" ? (
+                        <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 text-cyan-200">
+                          sim {message.similarity.toFixed(3)}
+                        </span>
+                      ) : null}
+
+                      {message.matchedQuestion ? (
+                        <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">
+                          matched cache
+                        </span>
+                      ) : null}
+
+                      {message.debug ? (
+                        <RouterDebugPanel debug={message.debug} />
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ))
+          )}
+
+          {previewLoading ? (
+            <div className="flex justify-start">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-400">
+                Thinking...
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="border-t border-white/10 p-4">
+          {previewError ? (
+            <div className="mb-3 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+              {previewError}
+            </div>
+          ) : null}
+
+          <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+            <input
+              value={previewInput}
+              onChange={(event) => onInputChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  onSend();
+                }
+              }}
+              placeholder="Test the live AI router..."
+              className="min-w-0 flex-1 bg-transparent text-sm text-white/80 outline-none placeholder:text-white/35"
+            />
+
+            <button
+              type="button"
+              onClick={onSend}
+              disabled={previewLoading || !previewInput.trim()}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-500 text-slate-950 transition hover:bg-cyan-400 disabled:opacity-50"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RouterDebugPanel({ debug }: { debug: PreviewDebug }) {
+  return (
+    <div className="mt-2 w-full rounded-2xl border border-white/10 bg-black/25 p-3">
+      <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-cyan-200/80">
+        Router Debug
+      </div>
+
+      <div className="grid gap-2 text-[11px] text-white/55">
+        {debug.reason ? <DebugRow label="Reason" value={debug.reason} /> : null}
+        {debug.layer ? <DebugRow label="Layer" value={debug.layer} /> : null}
+        {debug.note ? <DebugRow label="Note" value={debug.note} /> : null}
+
+        {typeof debug.threshold === "number" ? (
+          <DebugRow label="Threshold" value={debug.threshold.toFixed(3)} />
+        ) : null}
+
+        {typeof debug.totalCache === "number" ? (
+          <DebugRow label="Total cache" value={String(debug.totalCache)} />
+        ) : null}
+
+        {typeof debug.character_enabled === "boolean" ? (
+          <DebugRow
+            label="Character"
+            value={debug.character_enabled ? "enabled" : "disabled"}
+          />
+        ) : null}
+
+        {typeof debug.state_of_mind_enabled === "boolean" ? (
+          <DebugRow
+            label="State of Mind"
+            value={debug.state_of_mind_enabled ? "enabled" : "disabled"}
+          />
+        ) : null}
+
+        {debug.state_mode ? (
+          <DebugRow label="State mode" value={debug.state_mode} />
+        ) : null}
+
+        {typeof debug.guardrail_master_enabled === "boolean" ? (
+          <DebugRow
+            label="Guardrails"
+            value={debug.guardrail_master_enabled ? "enabled" : "disabled"}
+          />
+        ) : null}
+
+        {typeof debug.weak_answer_guard_enabled === "boolean" ? (
+          <DebugRow
+            label="Weak Answer Guard"
+            value={debug.weak_answer_guard_enabled ? "enabled" : "disabled"}
+          />
+        ) : null}
+
+        {typeof debug.weak_answer_strictness === "number" ? (
+          <DebugRow
+            label="Weak Strictness"
+            value={String(debug.weak_answer_strictness)}
+          />
+        ) : null}
+
+        {typeof debug.min_openai_length === "number" ? (
+          <DebugRow
+            label="Min Answer Length"
+            value={String(debug.min_openai_length)}
+          />
+        ) : null}
+
+        {typeof debug.cache_guard_enabled === "boolean" ? (
+          <DebugRow
+            label="Cache Guard"
+            value={debug.cache_guard_enabled ? "enabled" : "disabled"}
+          />
+        ) : null}
+
+        {typeof debug.auto_learning_guard_enabled === "boolean" ? (
+          <DebugRow
+            label="Auto-Learning Guard"
+            value={debug.auto_learning_guard_enabled ? "enabled" : "disabled"}
+          />
+        ) : null}
+
+        {debug.selected ? (
+          <div className="rounded-xl border border-cyan-400/15 bg-cyan-500/10 p-2 text-cyan-100/80">
+            <div className="text-[11px] text-cyan-200">Selected</div>
+            <div className="mt-1">{debug.selected.question}</div>
+            <div className="mt-1 text-cyan-100/55">
+              sim{" "}
+              {typeof debug.selected.similarity === "number"
+                ? debug.selected.similarity.toFixed(3)
+                : "n/a"}{" "}
+              · rank{" "}
+              {typeof debug.selected.rank_score === "number"
+                ? debug.selected.rank_score.toFixed(3)
+                : "n/a"}{" "}
+              · usage {debug.selected.usage_count ?? 0} · quality{" "}
+              {debug.selected.quality_score ?? 0}
+            </div>
+          </div>
+        ) : null}
+
+        {debug.candidates && debug.candidates.length > 0 ? (
+          <div className="space-y-1">
+            <div className="text-[11px] text-white/35">Candidates</div>
+            {debug.candidates.map((candidate, candidateIndex) => (
+              <div
+                key={candidate.id ?? `${candidate.question}-${candidateIndex}`}
+                className="rounded-xl border border-white/10 bg-white/[0.03] p-2"
+              >
+                <div className="line-clamp-1">{candidate.question}</div>
+                <div className="mt-1 text-white/35">
+                  sim{" "}
+                  {typeof candidate.similarity === "number"
+                    ? candidate.similarity.toFixed(3)
+                    : "n/a"}{" "}
+                  · rank{" "}
+                  {typeof candidate.rank_score === "number"
+                    ? candidate.rank_score.toFixed(3)
+                    : "n/a"}{" "}
+                  · usage {candidate.usage_count ?? 0} · quality{" "}
+                  {candidate.quality_score ?? 0}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function DebugRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span className="text-white/35">{label}:</span> {value}
+    </div>
   );
 }

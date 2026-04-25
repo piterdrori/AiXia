@@ -433,7 +433,7 @@ export default function AIVoicePage() {
     });
   }
 
-    function speakRouterAnswerWithRealtime(answer: string) {
+     function speakRouterAnswerWithRealtime(answer: string) {
     const cleanAnswer = answer.trim();
     const dataChannel = realtimeConnectionRef.current?.dataChannel;
 
@@ -450,17 +450,25 @@ export default function AIVoicePage() {
       JSON.stringify({
         type: "response.create",
         response: {
-          modalities: ["audio"],
+          output_modalities: ["audio"],
           instructions: [
             "You are only the voice speaker for AiXia Assistant.",
             "Do not add new facts.",
             "Do not answer differently.",
+            "Do not summarize.",
             "Speak exactly this answer in a clear professional voice:",
             cleanAnswer,
           ].join("\n"),
         },
       })
     );
+
+    window.setTimeout(() => {
+      if (realtimeConnectionRef.current) {
+        setRealtimeMicrophoneEnabled(true);
+        setAvatarState("idle");
+      }
+    }, 12000);
   }
 
   async function handleRealtimeRouterAnswer(question: string, itemId: string) {

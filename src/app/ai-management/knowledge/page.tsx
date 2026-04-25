@@ -457,8 +457,8 @@ export default function AIKnowledgeBankPage() {
             throw new Error(error.message);
           }
 
-          await supabase.from("ai_admin_activity_logs").insert({
-  action_type: editorMode === "create" ? "knowledge_created" : "knowledge_updated",
+       await supabase.from("ai_admin_activity_logs").insert({
+  action_type: "knowledge_updated",
   entity_type: "knowledge",
   entity_id: editingItemId ?? null,
   details: {
@@ -468,11 +468,7 @@ export default function AIKnowledgeBankPage() {
   },
 });
 
-setActionMessage(
-  editorMode === "create"
-    ? "Knowledge item created."
-    : "Knowledge item updated."
-);
+setActionMessage("Knowledge item updated.");
         }
       } else {
         if (selectedItem?.origin === "github" && selectedItem.github_path) {

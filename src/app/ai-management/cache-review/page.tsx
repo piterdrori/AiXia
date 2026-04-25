@@ -1228,7 +1228,7 @@ export default function AICacheReviewPage() {
             </div>
           </div>
 
-                    <div className="px-6 py-6">
+                    <div className="max-h-[calc(100vh-430px)] overflow-y-auto overscroll-contain px-6 py-6">
             {loading ? (
               <div className="grid gap-3">
                 {[1, 2, 3, 4].map((row) => (

@@ -124,6 +124,7 @@ import AIApprovedAnswersPage from "@/app/ai-management/approved-answers/page";
 import AICoreSettingsPage from "@/app/ai-management/core-settings/page";
 import AIActivityLogsPage from "@/app/ai-management/activity/page";
 import AIGuardrailsPage from "@/app/ai-management/guardrails/page";
+import AIMemoryPage from "@/app/ai-management/memory/page";
 
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -860,6 +861,17 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <AIGuardrailsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/ai-management/memory"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <AIMemoryPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

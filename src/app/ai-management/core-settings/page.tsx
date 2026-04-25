@@ -274,7 +274,7 @@ export default function AICoreSettingsPage() {
     settingsRef.current = nextSettings;
     setSettings(nextSettings);
 
-    const { error } = await supabase.rpc("ai_update_setting", {
+       const { error } = await supabase.rpc("ai_update_setting", {
       p_setting_key: key,
       p_setting_value: { value },
     });
@@ -283,6 +283,16 @@ export default function AICoreSettingsPage() {
       setErrorMessage(error.message);
       return;
     }
+
+    await supabase.from("ai_admin_activity_logs").insert({
+      action_type: "setting_updated",
+      entity_type: "ai_setting",
+      entity_id: null,
+      details: {
+        setting: key,
+        value,
+      },
+    });
 
     setActionMessage(`${key} saved successfully.`);
   }   

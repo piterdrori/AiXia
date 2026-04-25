@@ -246,9 +246,14 @@ function formatPercent(value: boolean) {
 
 export default function AIVoicePage() {
   const navigate = useNavigate();
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+  const activeAudioTokenRef = useRef<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingStartedSpeakingRef = useRef(false);
+  const silenceTimerRef = useRef<number | null>(null);
+  const silenceCheckRef = useRef<number | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
   const [settings, setSettings] = useState<VoiceSettings>(defaultVoiceSettings);
@@ -421,12 +426,46 @@ export default function AIVoicePage() {
     setSavingSettings(false);
   }
 
-  function updateSetting(key: keyof VoiceSettings, value: string | number | boolean) {
+    function updateSetting(key: keyof VoiceSettings, value: string | number | boolean) {
     setSettings((current) => ({
       ...current,
       [key]: value,
     }));
   }
+
+  function stopCurrentAudio() {
+    activeAudioTokenRef.current = null;
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current.src = "";
+      audioRef.current = null;
+    }
+
+    setSpeaking(false);
+  }
+
+  function clearSilenceDetection() {
+    if (silenceTimerRef.current) {
+      window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+
+    if (silenceCheckRef.current) {
+      window.cancelAnimationFrame(silenceCheckRef.current);
+      silenceCheckRef.current = null;
+    }
+
+    if (audioContextRef.current) {
+      void audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+
+    recordingStartedSpeakingRef.current = false;
+  }
+
+  async function openSession() {
 
   async function openSession() {
     if (sessionOpen) return;
@@ -477,16 +516,16 @@ export default function AIVoicePage() {
     setActionMessage("Voice session opened.");
   }
 
-  async function endSession() {
+    async function endSession() {
     if (!sessionOpen) return;
+
+    clearSilenceDetection();
 
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
     }
 
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
+    stopCurrentAudio();
 
     if (sessionId) {
       await supabase
@@ -545,7 +584,7 @@ export default function AIVoicePage() {
     }
   }
 
-  async function playText(text: string) {
+    async function playText(text: string) {
     if (!settings.voice_enabled || !settings.voice_tts_enabled) {
       setErrorMessage("Text-to-speech is disabled.");
       return;
@@ -555,6 +594,11 @@ export default function AIVoicePage() {
 
     if (!cleanText) return;
 
+    const audioToken = crypto.randomUUID();
+
+    stopCurrentAudio();
+
+    activeAudioTokenRef.current = audioToken;
     setSpeaking(true);
     setErrorMessage(null);
 
@@ -568,6 +612,8 @@ export default function AIVoicePage() {
         speed: settings.voice_speed,
       });
 
+      if (activeAudioTokenRef.current !== audioToken) return;
+
       const audioUrl = base64ToAudioUrl(result.audio_base64, result.mime_type);
       setLastAudioUrl(audioUrl);
 
@@ -575,16 +621,25 @@ export default function AIVoicePage() {
       audioRef.current = audio;
 
       audio.onended = () => {
+        if (activeAudioTokenRef.current !== audioToken) return;
+
+        activeAudioTokenRef.current = null;
         setSpeaking(false);
       };
 
       audio.onerror = () => {
+        if (activeAudioTokenRef.current !== audioToken) return;
+
+        activeAudioTokenRef.current = null;
         setSpeaking(false);
         setErrorMessage("Audio playback failed.");
       };
 
       await audio.play();
     } catch (error) {
+      if (activeAudioTokenRef.current !== audioToken) return;
+
+      activeAudioTokenRef.current = null;
       setSpeaking(false);
       setErrorMessage(
         error instanceof Error ? error.message : "Text-to-speech failed."
@@ -661,6 +716,63 @@ export default function AIVoicePage() {
     }
   }
 
+   function startSilenceDetection(stream: MediaStream) {
+    clearSilenceDetection();
+
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as typeof window & { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+
+    if (!AudioContextClass) return;
+
+    const audioContext = new AudioContextClass();
+    const analyser = audioContext.createAnalyser();
+    const microphone = audioContext.createMediaStreamSource(stream);
+    const dataArray = new Uint8Array(analyser.fftSize);
+
+    analyser.fftSize = 2048;
+    microphone.connect(analyser);
+    audioContextRef.current = audioContext;
+
+    const speechThreshold = 18;
+    const silenceDelayMs = 1300;
+
+    const checkVolume = () => {
+      analyser.getByteTimeDomainData(dataArray);
+
+      const averageVolume =
+        dataArray.reduce((sum, value) => sum + Math.abs(value - 128), 0) /
+        dataArray.length;
+
+      if (averageVolume > speechThreshold) {
+        recordingStartedSpeakingRef.current = true;
+
+        if (silenceTimerRef.current) {
+          window.clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
+      }
+
+      if (
+        recordingStartedSpeakingRef.current &&
+        averageVolume <= speechThreshold &&
+        !silenceTimerRef.current
+      ) {
+        silenceTimerRef.current = window.setTimeout(() => {
+          if (mediaRecorderRef.current?.state === "recording") {
+            mediaRecorderRef.current.stop();
+            setRecording(false);
+          }
+        }, silenceDelayMs);
+      }
+
+      silenceCheckRef.current = window.requestAnimationFrame(checkVolume);
+    };
+
+    silenceCheckRef.current = window.requestAnimationFrame(checkVolume);
+  }
+
   async function startRecording() {
     if (!sessionOpen) {
       setErrorMessage("Open a session before recording.");
@@ -677,6 +789,8 @@ export default function AIVoicePage() {
       return;
     }
 
+    stopCurrentAudio();
+
     setErrorMessage(null);
     setActionMessage(null);
 
@@ -692,6 +806,7 @@ export default function AIVoicePage() {
       };
 
       recorder.onstop = () => {
+        clearSilenceDetection();
         stream.getTracks().forEach((track) => track.stop());
         void transcribeRecordedAudio(recorder.mimeType || "audio/webm");
       };
@@ -699,7 +814,9 @@ export default function AIVoicePage() {
       mediaRecorderRef.current = recorder;
       recorder.start();
       setRecording(true);
+      startSilenceDetection(stream);
     } catch (error) {
+      clearSilenceDetection();
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to start recording."
       );
@@ -707,6 +824,8 @@ export default function AIVoicePage() {
   }
 
   function stopRecording() {
+    clearSilenceDetection();
+
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
       setRecording(false);

@@ -157,8 +157,10 @@ export default function AICoreSettingsPage() {
   const [settings, setSettings] = useState<AISettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [blockedTopicsText, setBlockedTopicsText] = useState("");
+  const [allowedTopicsText, setAllowedTopicsText] = useState("");
 
   const enabledCount = useMemo(
     () =>
@@ -210,20 +212,34 @@ export default function AICoreSettingsPage() {
       }
     }
 
-    setSettings(nextSettings);
+        setSettings(nextSettings);
+    setBlockedTopicsText(nextSettings.blocked_topics.join(", "));
+    setAllowedTopicsText(nextSettings.allowed_topics.join(", "));
     setLoading(false);
   }
 
-  async function saveSettings() {
+    async function saveSettings() {
     setSaving(true);
     setErrorMessage(null);
     setActionMessage(null);
 
-    for (const key of Object.keys(settings) as SettingKey[]) {
+    const settingsToSave: AISettings = {
+      ...settings,
+      blocked_topics: blockedTopicsText
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+      allowed_topics: allowedTopicsText
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    };
+
+    for (const key of Object.keys(settingsToSave) as SettingKey[]) {
       const { error } = await supabase
         .from("ai_settings")
         .update({
-          setting_value: { value: settings[key] },
+          setting_value: { value: settingsToSave[key] },
           updated_at: new Date().toISOString(),
         })
         .eq("setting_key", key);
@@ -235,8 +251,7 @@ export default function AICoreSettingsPage() {
       }
     }
 
-    await loadSettings();
-
+    setSettings(settingsToSave);
     setActionMessage("Saved successfully.");
     setSaving(false);
   }
@@ -491,15 +506,23 @@ export default function AICoreSettingsPage() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => void saveSettings()}
-              disabled={saving || loading}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500 px-5 py-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Save className="h-4 w-4" />
-              {saving ? "Saving..." : "Save Core Settings"}
-            </button>
+                       <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => void saveSettings()}
+                disabled={saving || loading}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500 px-5 py-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" />
+                {saving ? "Saving..." : "Save Core Settings"}
+              </button>
+
+              {actionMessage && (
+                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-center text-sm font-semibold text-emerald-200">
+                  {actionMessage}
+                </div>
+              )}
+            </div>
 
                         <div className="rounded-[28px] border border-red-400/20 bg-red-500/10 p-5">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-red-300">
@@ -511,28 +534,18 @@ export default function AICoreSettingsPage() {
 
                 <div>
                   <label className="text-xs text-slate-400">Blocked Topics (comma separated)</label>
-                  <input
-                    value={settings.blocked_topics.join(", ")}
-                    onChange={(e) =>
-                      updateSetting(
-                        "blocked_topics",
-                        e.target.value.split(",").map((v) => v.trim()).filter(Boolean)
-                      )
-                    }
+                                   <input
+                    value={blockedTopicsText}
+                    onChange={(e) => setBlockedTopicsText(e.target.value)}
                     className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
                   />
                 </div>
 
                 <div>
                   <label className="text-xs text-slate-400">Allowed Topics (comma separated)</label>
-                  <input
-                    value={settings.allowed_topics.join(", ")}
-                    onChange={(e) =>
-                      updateSetting(
-                        "allowed_topics",
-                        e.target.value.split(",").map((v) => v.trim()).filter(Boolean)
-                      )
-                    }
+                                   <input
+                    value={allowedTopicsText}
+                    onChange={(e) => setAllowedTopicsText(e.target.value)}
                     className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
                   />
                 </div>

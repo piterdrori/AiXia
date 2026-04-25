@@ -205,12 +205,14 @@ const studioModules: StudioModule[] = [
     status: "live",
     group: "Runtime",
   },
-  {
+   {
     id: "voice",
     label: "Voice",
-    description: "Future TTS/STT control layer for speaking with the assistant.",
+    description:
+      "Live TTS/STT control layer for speaking, listening, sessions, and avatar testing.",
+    route: "/ai-management/voice",
     icon: Mic,
-    status: "draft",
+    status: "live",
     group: "Experience",
   },
   {

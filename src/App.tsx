@@ -889,6 +889,17 @@ function AppRoutes() {
     </ProtectedRoute>
   }
 />
+
+<Route
+  path="/ai-management/state-of-mind"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <AIStateOfMindPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
            <Route
         path="/finance"
         element={

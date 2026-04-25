@@ -561,8 +561,8 @@ export default function AIVoicePage() {
         setAvatarState("listening");
       }
 
-      if (eventType === "input_audio_buffer.speech_stopped") {
-        setRealtimeMicrophoneEnabled(false);
+            if (eventType === "input_audio_buffer.speech_stopped") {
+        setRealtimeMicrophoneEnabled(true);
         setAvatarState("thinking");
       }
 

@@ -3,18 +3,14 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Bot,
-  CheckCircle2,
   CircleStop,
   Mic,
-  MicOff,
-  Play,
   Radio,
   RefreshCcw,
   Save,
   Send,
   ToggleLeft,
   ToggleRight,
-  Volume2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { askAI } from "@/lib/ai/aiRouter";
@@ -164,38 +160,6 @@ const voiceStyles = [
   "executive",
 ];
 
-const interactionModes: Array<{
-  value: InteractionMode;
-  label: string;
-  description: string;
-}> = [
-  {
-    value: "text",
-    label: "Type Only",
-    description: "Use chat text without voice playback.",
-  },
-  {
-    value: "voice",
-    label: "Voice Only",
-    description: "Use microphone and spoken responses.",
-  },
-  {
-    value: "avatar",
-    label: "Avatar Only",
-    description: "Use visual assistant animation without voice.",
-  },
-  {
-    value: "voice-avatar",
-    label: "Voice + Avatar",
-    description: "Use speech input, spoken output, and animation.",
-  },
-  {
-    value: "complete",
-    label: "Complete Mode",
-    description: "Use text, voice, and avatar together.",
-  },
-];
-
 function createMessageId() {
   return crypto.randomUUID();
 }
@@ -269,16 +233,15 @@ export default function AIVoicePage() {
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionOpen, setSessionOpen] = useState(false);
-  const [interactionMode, setInteractionMode] =
-    useState<InteractionMode>("complete");
+    const [interactionMode] = useState<InteractionMode>("complete");
   const [avatarState, setAvatarState] = useState<AvatarState>("offline");
 
-  const [messages, setMessages] = useState<Message[]>([
+      const [messages, setMessages] = useState<Message[]>([
     {
       id: createMessageId(),
       role: "assistant",
       content:
-        "Voice session is ready. Open a session, then type or speak to test AiXia Assistant.",
+        "Voice Testing Studio is ready. Start Conversation to test realtime voice, or use the text box for typed testing.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -304,16 +267,12 @@ export default function AIVoicePage() {
 
   const activeVoiceStatus = settings.voice_enabled && sessionOpen;
 
-  const voiceSummary = useMemo(() => {
-    if (!settings.voice_enabled) return "Voice module is disabled.";
-    if (!sessionOpen) return "Voice is configured. Open a session to use it.";
+    const voiceSummary = useMemo(() => {
+    if (!settings.voice_enabled) return "Realtime voice is disabled.";
+    if (!sessionOpen) return "Realtime voice is ready. Start a conversation to test it.";
 
-    return `Session active using ${settings.voice_provider} / ${settings.voice_name}. Mode: ${
-      interactionModes.find((mode) => mode.value === interactionMode)?.label ??
-      "Complete Mode"
-    }.`;
+    return `Realtime conversation active using ${settings.voice_provider} / ${settings.voice_name}.`;
   }, [
-    interactionMode,
     sessionOpen,
     settings.voice_enabled,
     settings.voice_name,
@@ -469,7 +428,7 @@ export default function AIVoicePage() {
       },
     });
 
-    setActionMessage("Voice settings saved.");
+    setActionMessage("Realtime settings saved.");
     setSavingSettings(false);
   }
 
@@ -604,12 +563,12 @@ export default function AIVoicePage() {
     if (realtimeOpen || realtimeConnecting) return;
 
     if (!settings.voice_enabled) {
-      setErrorMessage("Voice Module is disabled.");
+      setErrorMessage("Realtime Voice is disabled.");
       return;
     }
 
     if (!settings.voice_stt_enabled || !settings.voice_tts_enabled) {
-      setErrorMessage("Realtime Mode needs both Voice to Text and Text to Voice enabled.");
+      setErrorMessage("Realtime Voice must be enabled before starting a conversation.");
       return;
     }
 
@@ -653,20 +612,20 @@ export default function AIVoicePage() {
       setProvider("openai-realtime");
       setModel(realtimeSession.model);
 
-      setMessages((current) => [
+            setMessages((current) => [
         ...current,
         {
           id: createMessageId(),
           role: "assistant",
           content:
-            "Realtime voice session is active. Speak naturally. AiXia will detect when you stop talking and reply by voice.",
+            "Realtime voice is connected. Speak naturally and AiXia will reply by voice.",
           provider: "openai-realtime",
           model: realtimeSession.model,
           router_layer: "realtime",
         },
       ]);
 
-      setActionMessage("Realtime voice session started.");
+      setActionMessage("Realtime conversation started.");
     } catch (error) {
       closeRealtimeConnection();
       setAvatarState(sessionOpen ? "idle" : "offline");
@@ -679,7 +638,7 @@ export default function AIVoicePage() {
   function stopRealtimeSession() {
     closeRealtimeConnection();
     setAvatarState(sessionOpen ? "idle" : "offline");
-    setActionMessage("Realtime voice session stopped.");
+    setActionMessage("Realtime conversation stopped.");
   }
 
   async function openSession() {
@@ -708,12 +667,12 @@ export default function AIVoicePage() {
     setSessionId(nextSessionId);
     setSessionOpen(true);
     setAvatarState("idle");
-    setMessages([
+       setMessages([
       {
         id: createMessageId(),
         role: "assistant",
         content:
-          "Session opened. You can type, speak, play assistant voice, or test the avatar animation.",
+          "Realtime conversation is open. Speak naturally, or type a test message in the text box.",
       },
     ]);
 
@@ -728,7 +687,7 @@ export default function AIVoicePage() {
       },
     });
 
-    setActionMessage("Voice session opened.");
+    setActionMessage("Realtime conversation opened.");
   }
 
      async function endSession() {
@@ -773,7 +732,7 @@ export default function AIVoicePage() {
     setTranscribing(false);
     setProvider("");
     setModel("");
-    setActionMessage("Voice session ended.");
+    setActionMessage("Realtime conversation ended.");
   }
 
   async function saveConversationMessage(message: Message) {
@@ -910,7 +869,7 @@ export default function AIVoicePage() {
     if (!cleanInput || sending) return;
 
     if (!sessionOpen) {
-      setErrorMessage("Open a session before sending a message.");
+      setErrorMessage("Start a conversation before sending a typed test message.");
       return;
     }
 
@@ -1196,38 +1155,49 @@ export default function AIVoicePage() {
               </button>
 
               <div className="space-y-3">
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+                               <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Radio className="h-3.5 w-3.5" />
-                  Voice + Avatar Studio
+                  Realtime Voice Testing
                 </div>
 
                 <div>
                   <h1 className="text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                    Voice Control
+                    Voice Testing Studio
                   </h1>
-                  <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                    Control speech-to-text, text-to-speech, animated avatar behavior,
-                    and live test sessions for AiXia Assistant.
+                                   <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                    Test realtime conversation, avatar animation states, typed
+                    messages, connection status, debug events, and voice settings
+                    for AiXia Assistant.
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-4 xl:min-w-[760px]">
+                        <div className="grid gap-3 sm:grid-cols-4 xl:min-w-[760px]">
               <MetricCard
-                label="Voice"
+                label="Realtime"
                 value={formatPercent(settings.voice_enabled)}
                 tone={settings.voice_enabled ? "emerald" : "rose"}
               />
               <MetricCard
-                label="TTS"
-                value={formatPercent(settings.voice_tts_enabled)}
-                tone={settings.voice_tts_enabled ? "cyan" : "slate"}
+                label="Connection"
+                value={realtimeOpen ? "LIVE" : "OFF"}
+                tone={realtimeOpen ? "emerald" : "slate"}
               />
               <MetricCard
-                label="STT"
-                value={formatPercent(settings.voice_stt_enabled)}
-                tone={settings.voice_stt_enabled ? "violet" : "slate"}
+                label="Avatar"
+                value={getAvatarStateLabel(avatarState)}
+                tone={
+                  avatarState === "speaking"
+                    ? "cyan"
+                    : avatarState === "listening"
+                      ? "violet"
+                      : avatarState === "thinking"
+                        ? "rose"
+                        : sessionOpen
+                          ? "emerald"
+                          : "slate"
+                }
               />
               <MetricCard
                 label="Session"
@@ -1260,59 +1230,37 @@ export default function AIVoicePage() {
               <div className="flex flex-col gap-6 border-b border-white/10 p-6 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <div className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                    Live Session
+                    Realtime Test Session
                   </div>
                   <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white">
                     {voiceSummary}
                   </h2>
                 </div>
 
-                               <div className="flex flex-wrap items-center gap-3">
+                                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => void openSession()}
-                    disabled={sessionOpen || loadingSettings}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300/60 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    Open Session
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={
-                      realtimeOpen
-                        ? stopRealtimeSession
-                        : () => void startRealtimeSession()
+                    onClick={() => void startRealtimeSession()}
+                    disabled={
+                      realtimeOpen ||
+                      realtimeConnecting ||
+                      !settings.voice_enabled ||
+                      loadingSettings
                     }
-                    disabled={realtimeConnecting || !settings.voice_enabled}
-                    className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                      realtimeOpen
-                        ? "border-rose-400/30 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20"
-                        : "border-cyan-400/30 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20"
-                    }`}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500/10 px-5 py-3 text-sm font-semibold text-cyan-200 transition hover:border-cyan-300/60 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {realtimeOpen ? (
-                      <>
-                        <MicOff className="h-4 w-4" />
-                        Stop Realtime
-                      </>
-                    ) : (
-                      <>
-                        <Mic className="h-4 w-4" />
-                        {realtimeConnecting ? "Connecting..." : "Start Realtime"}
-                      </>
-                    )}
+                    <Mic className="h-4 w-4" />
+                    {realtimeConnecting ? "Connecting..." : "Start Conversation"}
                   </button>
 
                   <button
                     type="button"
                     onClick={() => void endSession()}
-                    disabled={!sessionOpen}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200 transition hover:border-rose-300/60 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!sessionOpen && !realtimeOpen}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-5 py-3 text-sm font-semibold text-rose-200 transition hover:border-rose-300/60 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <CircleStop className="h-4 w-4" />
-                    End Session
+                    End Conversation
                   </button>
                 </div>
               </div>
@@ -1376,14 +1324,14 @@ export default function AIVoicePage() {
                           </div>
                         </div>
                       </>
-                    ) : (
+                                        ) : (
                       <div className="relative rounded-[30px] border border-white/10 bg-white/[0.04] p-8 text-center">
                         <Bot className="mx-auto h-14 w-14 text-slate-500" />
                         <div className="mt-4 text-sm font-semibold text-white">
-                          Avatar Disabled In This Mode
+                          Avatar Preview Offline
                         </div>
                         <p className="mt-2 text-sm leading-6 text-slate-500">
-                          Select Avatar, Voice + Avatar, or Complete Mode.
+                          Start Conversation to activate realtime avatar state testing.
                         </p>
                       </div>
                     )}
@@ -1391,30 +1339,17 @@ export default function AIVoicePage() {
                 </div>
 
                 <div className="flex min-h-[620px] flex-col">
-                  <div className="grid gap-3 border-b border-white/10 p-5 md:grid-cols-5">
-                    {interactionModes.map((mode) => {
-                      const active = interactionMode === mode.value;
-
-                      return (
-                        <button
-                          key={mode.value}
-                          type="button"
-                          onClick={() => setInteractionMode(mode.value)}
-                          className={`rounded-2xl border px-3 py-3 text-left transition ${
-                            active
-                              ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-100"
-                              : "border-white/10 bg-white/[0.035] text-slate-400 hover:border-white/20 hover:text-white"
-                          }`}
-                        >
-                          <div className="text-xs font-semibold">
-                            {mode.label}
-                          </div>
-                          <div className="mt-1 line-clamp-2 text-[11px] leading-4 opacity-70">
-                            {mode.description}
-                          </div>
-                        </button>
-                      );
-                    })}
+                                   <div className="border-b border-white/10 p-5">
+                    <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3">
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                        Realtime Testing Mode
+                      </div>
+                                            <p className="mt-2 text-sm leading-6 text-slate-400">
+                        Start Conversation opens the test session, activates
+                        realtime voice, and tracks the avatar state during the
+                        conversation.
+                      </p>
+                    </div>
                   </div>
 
                   <div
@@ -1449,19 +1384,7 @@ export default function AIVoicePage() {
                             </div>
                           ) : null}
 
-                        {message.role === "assistant" &&
-                          message.content &&
-                          settings.voice_tts_enabled &&
-                          !realtimeOpen ? (
-                            <button
-                              type="button"
-                              onClick={() => void playText(message.content)}
-                              className="mt-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1.5 text-[11px] font-semibold text-cyan-200 transition hover:border-cyan-300/50"
-                            >
-                              <Volume2 className="h-3.5 w-3.5" />
-                              Play Voice
-                            </button>
-                          ) : null}
+                         {null}
                         </div>
                       </div>
                     ))}
@@ -1489,12 +1412,12 @@ export default function AIVoicePage() {
                           tone="violet"
                         />
                         <StatusPill
-                          label="Transcript"
+                          label="Last Transcript"
                           value={lastTranscript || "-"}
                           tone="emerald"
                         />
                         <StatusPill
-                          label="Realtime"
+                          label="Realtime Status"
                           value={realtimeOpen ? "ON" : "OFF"}
                           tone={realtimeOpen ? "emerald" : "cyan"}
                         />
@@ -1504,7 +1427,7 @@ export default function AIVoicePage() {
                     {realtimeEvents.length > 0 ? (
                       <div className="mb-4 rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
                         <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/70">
-                          Realtime Events
+                          Debug Events
                         </div>
                         <div className="mt-2 flex flex-wrap gap-2">
                           {realtimeEvents.map((eventName, eventIndex) => (
@@ -1524,71 +1447,15 @@ export default function AIVoicePage() {
                         value={input}
                         onChange={(event) => setInput(event.target.value)}
                         onKeyDown={handleInputKeyDown}
-                        placeholder="Type your message... Enter sends, Shift + Enter adds a new line."
+                        placeholder="Type a test message... Enter sends, Shift + Enter adds a new line."
                         className="min-h-[96px] w-full resize-none rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/40"
                       />
 
-                      <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                                                        onClick={
-                              recording
-                                ? stopRecording
-                                : () => void startContinuousVoiceSession()
-                            }
-                          disabled={
-                              realtimeOpen ||
-                              !sessionOpen ||
-                              !settings.voice_enabled ||
-                              !settings.voice_stt_enabled ||
-                              !modeUsesStt ||
-                              transcribing
-                            }
-                            className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                              recording
-                                ? "border-rose-400/40 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20"
-                                : "border-violet-400/30 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20"
-                            }`}
-                          >
-                            {recording ? (
-                              <>
-                                <MicOff className="h-4 w-4" />
-                                Stop Voice Session
-                              </>
-                            ) : (
-                              <>
-                                <Mic className="h-4 w-4" />
-                                Start Voice Session
-                              </>
-                            )}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => void handleStandaloneSpeak()}
-                          disabled={
-                              realtimeOpen ||
-                              !sessionOpen ||
-                              !settings.voice_enabled ||
-                              !settings.voice_tts_enabled ||
-                              !input.trim() ||
-                              speaking
-                            }
-                            className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <Play className="h-4 w-4" />
-                            Text to Voice
-                          </button>
-
-                          {lastAudioUrl ? (
-                            <audio
-                              controls
-                              src={lastAudioUrl}
-                              className="h-10 max-w-[240px]"
-                            />
-                          ) : null}
-                        </div>
+                                            <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                                <p className="text-xs leading-5 text-slate-500">
+                          Typed testing stays available here. Realtime voice is
+                          controlled only by Start Conversation / End Conversation.
+                        </p>
 
                         <button
                           type="button"
@@ -1608,10 +1475,10 @@ export default function AIVoicePage() {
           </div>
 
           <aside className="flex flex-col gap-6">
-            <Panel
+                       <Panel
               eyebrow="Runtime Controls"
-              title="Voice Engine"
-              description="Enable voice features and choose how the assistant speaks and listens."
+              title="Realtime Engine"
+              description="Enable the realtime test conversation for microphone input, voice output, and avatar state testing."
               action={
                 <button
                   type="button"
@@ -1626,37 +1493,25 @@ export default function AIVoicePage() {
                 </button>
               }
             >
-              <div className="grid gap-3">
+                            <div className="grid gap-3">
                 <ToggleRow
                   icon={Radio}
-                  label="Voice Module"
-                  description="Main switch for all voice and avatar runtime testing."
+                  label="Realtime Voice"
+                  description="Main switch for the realtime test conversation. Microphone input and voice output are controlled together."
                   checked={settings.voice_enabled}
-                  onChange={(value) => updateSetting("voice_enabled", value)}
-                />
-
-                <ToggleRow
-                  icon={Volume2}
-                  label="Text to Voice"
-                  description="Allow the assistant to generate spoken audio."
-                  checked={settings.voice_tts_enabled}
-                  onChange={(value) => updateSetting("voice_tts_enabled", value)}
-                />
-
-                <ToggleRow
-                  icon={Mic}
-                  label="Voice to Text"
-                  description="Allow microphone input and transcription."
-                  checked={settings.voice_stt_enabled}
-                  onChange={(value) => updateSetting("voice_stt_enabled", value)}
+                  onChange={(value) => {
+                    updateSetting("voice_enabled", value);
+                    updateSetting("voice_tts_enabled", value);
+                    updateSetting("voice_stt_enabled", value);
+                  }}
                 />
               </div>
             </Panel>
 
-            <Panel
-              eyebrow="Voice Identity"
+                        <Panel
+              eyebrow="Realtime Identity"
               title="Provider + Voice"
-              description="Choose provider, models, speaking style, and voice identity."
+              description="Choose the realtime provider, voice identity, and speaking style for test conversations."
             >
               <div className="grid gap-4">
                 <SelectField
@@ -1689,24 +1544,24 @@ export default function AIVoicePage() {
                   onChange={(value) => updateSetting("voice_style", value)}
                 />
 
-                <TextField
-                  label="TTS Model"
+                                <TextField
+                  label="Realtime Voice Model"
                   value={settings.voice_tts_model}
                   onChange={(value) => updateSetting("voice_tts_model", value)}
                 />
 
                 <TextField
-                  label="STT Model"
+                  label="Realtime Transcription Model"
                   value={settings.voice_stt_model}
                   onChange={(value) => updateSetting("voice_stt_model", value)}
                 />
               </div>
             </Panel>
 
-            <Panel
-              eyebrow="Voice Tuning"
+                       <Panel
+              eyebrow="Realtime Tuning"
               title="Speech Controls"
-              description="Fine tune voice behavior. Some controls are provider-ready for future expansion."
+              description="Fine tune realtime voice speed, clarity, and provider-ready voice behavior."
             >
               <div className="grid gap-4">
                 {voiceSliders.map((slider) => {
@@ -1754,10 +1609,10 @@ export default function AIVoicePage() {
               </div>
             </Panel>
 
-            <Panel
-              eyebrow="Admin Notes"
-              title="Voice Notes"
-              description="Optional internal notes for voice behavior and future provider setup."
+                        <Panel
+              eyebrow="Realtime Notes"
+              title="Conversation Notes"
+              description="Optional internal notes that are injected into realtime test conversation instructions."
             >
               <div className="grid gap-4">
                 <textarea
@@ -1766,7 +1621,7 @@ export default function AIVoicePage() {
                     updateSetting("voice_notes", event.target.value)
                   }
                   rows={5}
-                  placeholder="Example: Use a calm professional voice for investor demos..."
+                  placeholder="Example: Keep realtime replies short, direct, and suitable for dashboard testing..."
                   className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/40"
                 />
 
@@ -1777,7 +1632,7 @@ export default function AIVoicePage() {
                   className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500 px-5 py-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" />
-                  {savingSettings ? "Saving..." : "Save Voice Settings"}
+                  {savingSettings ? "Saving..." : "Save Realtime Settings"}
                 </button>
               </div>
             </Panel>

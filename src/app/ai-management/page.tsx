@@ -1,935 +1,667 @@
 import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
-import { useMemo, useState, useRef, useEffect, type ElementType } from "react";
+import { useEffect, useMemo, useState, type ElementType } from "react";
 import {
   Activity,
+  ArrowRight,
   Brain,
+  Bot,
   Database,
   FileCheck2,
   Gauge,
   Mic,
   MessageSquareText,
+  RefreshCcw,
   Shield,
   Sparkles,
-  Upload,
-  Volume2,
   Wand2,
-  Send,
-  RotateCcw,
-  ThumbsDown,
-  ThumbsUp,
+  Waves,
 } from "lucide-react";
 
-type StudioSectionId =
-  | "overview"
+type StudioModuleId =
   | "character"
-  | "knowledge"
+  | "state-of-mind"
+  | "guardrails"
   | "core-settings"
+  | "knowledge"
   | "approved"
   | "cache"
   | "memory"
-  | "guardrails"
-  | "voice"
-  | "state-of-mind"
   | "activity"
-  | "publish";
+  | "voice"
+  | "animation";
 
-type StudioNavItem = {
-  id: StudioSectionId;
+type StudioModule = {
+  id: StudioModuleId;
   label: string;
+  description: string;
+  route?: string;
   icon: ElementType;
-  hint: string;
+  status: "live" | "ready" | "draft";
+  group: "Behavior" | "Knowledge" | "Runtime" | "Experience";
 };
 
-type OverviewMetric = {
-  label: string;
-  value: string;
-  sublabel: string;
+type StudioStats = {
+  approvedAnswers: number;
+  cachedAnswers: number;
+  knowledgeItems: number;
+  sessions: number;
+  guardrailLogs: number;
 };
 
-const studioNavItems: StudioNavItem[] = [
-  {
-    id: "overview",
-    label: "AI Studio Overview",
-    icon: Sparkles,
-    hint: "Live system overview",
-  },
+type ActivityLog = {
+  id: string;
+  action_type: string;
+  entity_type: string | null;
+  details: Record<string, unknown> | null;
+  created_at: string;
+};
+
+const defaultStats: StudioStats = {
+  approvedAnswers: 0,
+  cachedAnswers: 0,
+  knowledgeItems: 0,
+  sessions: 0,
+  guardrailLogs: 0,
+};
+
+const studioModules: StudioModule[] = [
   {
     id: "character",
     label: "Character / Identity",
+    description:
+      "Stable AI identity, role, mission, personality, and communication baseline.",
+    route: "/ai-management/character",
     icon: Wand2,
-    hint: "Core AI identity",
-  },
-  {
-    id: "knowledge",
-    label: "Knowledge Bank",
-    icon: Database,
-    hint: "Knowledge sources",
-  },
-  {
-    id: "core-settings",
-    label: "Core AI Settings",
-    icon: Gauge,
-    hint: "Runtime controls",
-  },
-  {
-    id: "approved",
-    label: "Approved Answers",
-    icon: FileCheck2,
-    hint: "Controlled answers",
-  },
-  {
-    id: "cache",
-    label: "Cache Review",
-    icon: Upload,
-    hint: "Reusable AI memory",
-  },
-  {
-    id: "memory",
-    label: "Memory",
-    icon: Brain,
-    hint: "Context and recall",
-  },
-  {
-    id: "guardrails",
-    label: "Guardrails",
-    icon: Shield,
-    hint: "Allowed behavior",
-  },
-  {
-    id: "voice",
-    label: "Voice",
-    icon: Mic,
-    hint: "TTS / STT controls",
+    status: "live",
+    group: "Behavior",
   },
   {
     id: "state-of-mind",
     label: "State of Mind",
+    description:
+      "Optional temporary behavior overlay for mood, posture, urgency, and diagnostic style.",
+    route: "/ai-management/state-of-mind",
     icon: Activity,
-    hint: "Tone and behavior",
+    status: "live",
+    group: "Behavior",
+  },
+  {
+    id: "guardrails",
+    label: "Guardrails",
+    description:
+      "Single source of truth for visible business guardrails and refusal controls.",
+    route: "/ai-management/guardrails",
+    icon: Shield,
+    status: "live",
+    group: "Behavior",
+  },
+  {
+    id: "core-settings",
+    label: "Core AI Settings",
+    description:
+      "Runtime engine controls: model, temperature, cache, semantic matching, learning, and diagnostics.",
+    route: "/ai-management/core-settings",
+    icon: Gauge,
+    status: "live",
+    group: "Runtime",
+  },
+  {
+    id: "knowledge",
+    label: "Knowledge Bank",
+    description:
+      "Active platform knowledge, manual knowledge items, and GitHub knowledge sources.",
+    route: "/ai-management/knowledge",
+    icon: Database,
+    status: "live",
+    group: "Knowledge",
+  },
+  {
+    id: "approved",
+    label: "Approved Answers",
+    description:
+      "Exact controlled answers that override cache and generated AI fallback.",
+    route: "/ai-management/approved-answers",
+    icon: FileCheck2,
+    status: "live",
+    group: "Knowledge",
+  },
+  {
+    id: "cache",
+    label: "Cache Review",
+    description:
+      "Review reusable answers, block bad cache, clean duplicates, and promote good responses.",
+    route: "/ai-management/cache-review",
+    icon: Sparkles,
+    status: "live",
+    group: "Knowledge",
+  },
+  {
+    id: "memory",
+    label: "Memory / Sessions",
+    description:
+      "Conversation sessions, message history, feedback, summaries, and AI quality insights.",
+    route: "/ai-management/memory",
+    icon: Brain,
+    status: "live",
+    group: "Runtime",
   },
   {
     id: "activity",
     label: "Activity & Logs",
+    description:
+      "Audit router actions, cache events, approved-answer changes, and control-panel updates.",
+    route: "/ai-management/activity",
     icon: MessageSquareText,
-    hint: "System actions",
+    status: "live",
+    group: "Runtime",
   },
   {
-    id: "publish",
-    label: "Publish / Deploy",
-    icon: Volume2,
-    hint: "Release control",
+    id: "voice",
+    label: "Voice",
+    description:
+      "Future TTS/STT control layer for speaking with the assistant.",
+    icon: Mic,
+    status: "draft",
+    group: "Experience",
+  },
+  {
+    id: "animation",
+    label: "Animation / Avatar",
+    description:
+      "Future visual assistant layer: orb, waveform, avatar, robot, hologram, or mascot.",
+    icon: Waves,
+    status: "draft",
+    group: "Experience",
   },
 ];
 
-const overviewMetrics: OverviewMetric[] = [
-  {
-    label: "Approved Answers",
-    value: "12",
-    sublabel: "Controlled outputs live",
-  },
-  {
-    label: "Cached Answers",
-    value: "48",
-    sublabel: "Reusable low-cost replies",
-  },
-  {
-    label: "Knowledge Items",
-    value: "26",
-    sublabel: "GitHub + manual sources",
-  },
-  {
-    label: "Voice Assets",
-    value: "3",
-    sublabel: "Prepared for TTS / STT",
-  },
-];
-
-type PreviewDebugCandidate = {
-  id?: string;
-  question?: string;
-  similarity?: number;
-  rank_score?: number;
-  usage_count?: number;
-  quality_score?: number;
-};
-
-type PreviewDebug = {
-  reason?: string;
-  layer?: string;
-  note?: string;
-  threshold?: number;
-  totalCache?: number;
-  avgUsage?: number;
-  character_enabled?: boolean;
-  state_of_mind_enabled?: boolean;
-  state_mode?: string;
-  guardrail_master_enabled?: boolean;
-  weak_answer_guard_enabled?: boolean;
-  weak_answer_strictness?: number;
-  min_openai_length?: number;
-  cache_guard_enabled?: boolean;
-  auto_learning_guard_enabled?: boolean;
-  selected?: PreviewDebugCandidate;
-  candidates?: PreviewDebugCandidate[];
-};
-
-type PreviewMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  provider?: string;
-  similarity?: number;
-  matchedQuestion?: string;
-  sourceQuestion?: string;
-  debug?: PreviewDebug;
-  feedback?: "liked" | "disliked";
-};
-
-function getSectionDescription(section: StudioSectionId) {
-  switch (section) {
-    case "overview":
-      return "Global status, knowledge health, cache control, and studio readiness.";
-    case "character":
-      return "Define AI identity, speaking style, personality, and behavior baseline.";
-    case "knowledge":
-      return "Manage GitHub knowledge, manual knowledge items, and future uploads.";
-    case "core-settings":
-      return "Control model behavior, refresh logic, runtime policies, and AI configuration.";
-    case "approved":
-      return "Manage exact controlled answers that override cache and AI generation.";
-    case "cache":
-      return "Inspect, clean, block, edit, and promote cached AI answers.";
-    case "memory":
-      return "Review future context memory and long-lived recall systems.";
-    case "guardrails":
-      return "Define what the AI can say, cannot say, and how it should behave safely.";
-    case "voice":
-      return "Configure future TTS, STT, voice assets, and speech pipelines.";
-    case "state-of-mind":
-      return "Tune response mood, confidence, and future behavioral overlays.";
-    case "activity":
-      return "Audit AI changes, promotions, cache actions, and system events.";
-    case "publish":
-      return "Review readiness, push AI updates live, and manage deployment control.";
-    default:
-      return "";
-  }
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }
 
-function renderCenterContent(section: StudioSectionId) {
-  if (section === "overview") {
-    return (
-      <div className="space-y-6">
-        <div className="grid gap-4 xl:grid-cols-4 md:grid-cols-2">
-          {overviewMetrics.map((metric) => (
-            <div
-              key={metric.label}
-              className="rounded-[24px] border border-white/10 bg-white/[0.035] p-5 backdrop-blur-xl"
-            >
-              <div className="space-y-2">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-cyan-200/80">
-                  {metric.label}
-                </div>
-                <div className="text-3xl font-semibold tracking-tight text-white">
-                  {metric.value}
-                </div>
-                <div className="text-sm text-white/50">{metric.sublabel}</div>
-              </div>
-            </div>
-          ))}
-        </div>
+function formatDetails(details: Record<string, unknown> | null) {
+  if (!details) return "No details";
 
-        <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
-          <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div className="space-y-1">
-                <h2 className="text-lg font-semibold text-white">
-                  Studio Runtime Flow
-                </h2>
-                <p className="text-sm text-white/55">
-                  Current response order and control logic.
-                </p>
-              </div>
+  const keys = Object.keys(details);
 
-              <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300">
-                Healthy
-              </div>
-            </div>
+  if (keys.length === 0) return "No details";
 
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {[
-                "Approved Answers",
-                "Cache Review",
-                "GitHub Knowledge",
-                "AI Fallback",
-              ].map((item, index) => (
-                <div
-                  key={item}
-                  className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"
-                >
-                  <div className="mb-2 text-[11px] uppercase tracking-[0.22em] text-white/35">
-                    Layer {index + 1}
-                  </div>
-                  <div className="text-sm font-medium text-white">{item}</div>
-                </div>
-              ))}
-            </div>
-          </div>
+  return keys
+    .slice(0, 3)
+    .map((key) => `${key}: ${String(details[key])}`)
+    .join(" · ");
+}
 
-          <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-            <div className="space-y-1">
-              <h2 className="text-lg font-semibold text-white">
-                Next Build Priorities
-              </h2>
-              <p className="text-sm text-white/55">
-                First modules to wire after the shell is approved.
-              </p>
-            </div>
+async function getCount(table: string, filters?: (query: any) => any) {
+  let query = supabase.from(table).select("id", {
+    count: "exact",
+    head: true,
+  });
 
-            <div className="mt-4 space-y-3">
-              {[
-                "Knowledge Bank",
-                "Core AI Settings",
-                "Approved Answers",
-                "Cache Review",
-              ].map((item) => (
-                <div
-                  key={item}
-                  className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/80"
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  if (filters) {
+    query = filters(query);
   }
 
-  return (
-    <div className="rounded-[28px] border border-dashed border-cyan-400/20 bg-black/20 p-8">
-      <div className="space-y-2">
-        <div className="w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200">
-          Coming Next
-        </div>
-        <h2 className="text-xl font-semibold text-white">
-          {studioNavItems.find((item) => item.id === section)?.label}
-        </h2>
-        <p className="max-w-2xl text-sm leading-6 text-white/55">
-          {getSectionDescription(section)}
-        </p>
-      </div>
-    </div>
-  );
+  const { count } = await query;
+
+  return count ?? 0;
 }
 
 export default function AIManagementPage() {
   const navigate = useNavigate();
-  const [activeSection, setActiveSection] =
-    useState<StudioSectionId>("overview");
-  const [previewInput, setPreviewInput] = useState("");
-  const [previewMessages, setPreviewMessages] =
-  useState<PreviewMessage[]>([]);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
 
-  const activeNav = useMemo(
-    () => studioNavItems.find((item) => item.id === activeSection),
-    [activeSection]
+  const [stats, setStats] = useState<StudioStats>(defaultStats);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const liveModules = useMemo(
+    () => studioModules.filter((module) => module.status === "live").length,
+    []
   );
+
+  const draftModules = useMemo(
+    () => studioModules.filter((module) => module.status === "draft").length,
+    []
+  );
+
+  const groupedModules = useMemo(() => {
+    const groups: Array<StudioModule["group"]> = [
+      "Behavior",
+      "Knowledge",
+      "Runtime",
+      "Experience",
+    ];
+
+    return groups.map((group) => ({
+      group,
+      modules: studioModules.filter((module) => module.group === group),
+    }));
+  }, []);
 
   useEffect(() => {
-  if (!messagesEndRef.current) return;
+    void loadStudioData();
+  }, []);
 
-  messagesEndRef.current.scrollTo({
-    top: messagesEndRef.current.scrollHeight,
-    behavior: "smooth",
-  });
-}, [previewMessages, previewLoading]);
+  async function loadStudioData() {
+    setLoading(true);
+    setErrorMessage(null);
 
-  async function sendPreviewMessage() {
-    const prompt = previewInput.trim();
+    try {
+      const [
+        approvedAnswers,
+        cachedAnswers,
+        knowledgeItems,
+        sessions,
+        guardrailLogs,
+      ] = await Promise.all([
+        getCount("ai_approved_answers", (query) => query.eq("is_active", true)),
+        getCount("ai_qa_cache", (query) => query.eq("is_blocked", false)),
+        getCount("ai_knowledge_items", (query) =>
+          query.eq("is_active", true).eq("status", "active")
+        ),
+        getCount("ai_conversation_sessions"),
+        getCount("ai_admin_activity_logs", (query) =>
+          query.in("action_type", [
+            "router_guardrail_blocked",
+            "router_guardrail_scope_rejected",
+            "router_force_refusal",
+            "router_controlled_refusal",
+          ])
+        ),
+      ]);
 
-    if (!prompt || previewLoading) return;
+      setStats({
+        approvedAnswers,
+        cachedAnswers,
+        knowledgeItems,
+        sessions,
+        guardrailLogs,
+      });
 
-    const userMessageId = crypto.randomUUID();
-    const assistantMessageId = crypto.randomUUID();
+      const { data, error } = await supabase
+        .from("ai_admin_activity_logs")
+        .select("id, action_type, entity_type, details, created_at")
+        .order("created_at", { ascending: false })
+        .limit(8);
 
-    setPreviewInput("");
-    setPreviewError(null);
-    setPreviewLoading(true);
+      if (error) {
+        throw new Error(error.message);
+      }
 
-    setPreviewMessages((current) => [
-      ...current,
-      {
-        id: userMessageId,
-        role: "user",
-        content: prompt,
-      },
-    ]);
-
-    const { data, error } = await supabase.functions.invoke("ai-router", {
-      body: { prompt },
-    });
-
-    if (error) {
-      setPreviewError(error.message);
-      setPreviewLoading(false);
-      return;
+      setActivityLogs((data ?? []) as ActivityLog[]);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to load AI Studio data."
+      );
+    } finally {
+      setLoading(false);
     }
-
-    setPreviewMessages((current) => [
-      ...current,
-      {
-        id: assistantMessageId,
-        role: "assistant",
-        content: data?.text ?? "No response returned.",
-        provider: data?.provider,
-        similarity: data?.similarity,
-        matchedQuestion: data?.matched_question,
-        sourceQuestion: prompt,
-        debug: data?.debug,
-      },
-    ]);
-
-    setPreviewLoading(false);
   }
-
-  function startNewPreviewChat() {
-    setPreviewMessages([]);
-    setPreviewError(null);
-    setPreviewLoading(false);
-    setPreviewInput("");
-    setPreviewError(null);
-  }
-
-async function approvePreviewReply(message: PreviewMessage) {
-  if (!message.sourceQuestion || message.role !== "assistant") return;
-
-  const { error } = await supabase.functions.invoke("ai-feedback", {
-    body: {
-      question: message.matchedQuestion ?? message.sourceQuestion,
-      answer: message.content,
-      feedback: "liked",
-    },
-  });
-
-  if (error) {
-    setPreviewError(error.message);
-    return;
-  }
-
-  setPreviewMessages((current) =>
-    current.map((item) =>
-      item.id === message.id ? { ...item, feedback: "liked" } : item
-    )
-  );
-}
-
-async function rejectPreviewReply(message: PreviewMessage) {
-  if (!message.sourceQuestion || message.role !== "assistant") return;
-
-  const { error } = await supabase.functions.invoke("ai-feedback", {
-    body: {
-      question: message.matchedQuestion ?? message.sourceQuestion,
-      answer: message.content,
-      feedback: "disliked",
-    },
-  });
-
-  if (error) {
-    setPreviewError(error.message);
-    return;
-  }
-
-  setPreviewMessages((current) =>
-    current.map((item) =>
-      item.id === message.id ? { ...item, feedback: "disliked" } : item
-    )
-  );
-}
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)_340px]">
-      <aside className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-xl">
-        <div className="border-b border-white/10 px-5 py-5">
-          <div className="space-y-1">
-            <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/90">
-              AI Studio
+    <div className="min-h-screen bg-[#05070d] px-6 py-6 text-white">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+        <header className="overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-5">
+              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+                <Bot className="h-3.5 w-3.5" />
+                AI Control Center
+              </div>
+
+              <div>
+                <h1 className="text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                  AI Studio
+                </h1>
+                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                  Manage the live AiXia assistant from one clean control center. Each module has one clear job:
+                  behavior, knowledge, runtime, logs, voice, or avatar experience.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <StatusPill label="Live settings" value="Immediate" tone="emerald" />
+                <StatusPill label="Publish layer" value="Not needed" tone="slate" />
+                <StatusPill label="Draft modules" value={String(draftModules)} tone="amber" />
+              </div>
             </div>
-            <h1 className="text-xl font-semibold tracking-tight text-white">
-              Control Surface
-            </h1>
-            <p className="text-sm text-white/50">
-              Configure the full AI system.
-            </p>
+
+            <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[620px]">
+              <MetricCard label="Live Modules" value={String(liveModules)} tone="cyan" />
+              <MetricCard label="Draft Modules" value={String(draftModules)} tone="amber" />
+              <MetricCard
+                label="Status"
+                value={loading ? "Loading" : "Ready"}
+                tone={loading ? "amber" : "emerald"}
+              />
+            </div>
           </div>
-        </div>
+        </header>
 
-               <div className="flex flex-col">
-          <nav className="px-4 py-4">
-            <div className="space-y-2">
-              {studioNavItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = item.id === activeSection;
+        {errorMessage ? (
+          <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+            {errorMessage}
+          </div>
+        ) : null}
 
-                return (
-                                    <button
-                    key={item.id}
-                    onClick={() => {
-                    if (item.id === "knowledge") {
-  navigate("/ai-management/knowledge");
-  return;
-}
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <StatCard
+            label="Approved Answers"
+            value={String(stats.approvedAnswers)}
+            description="Active exact controlled answers"
+            icon={FileCheck2}
+            tone="emerald"
+          />
+          <StatCard
+            label="Cache"
+            value={String(stats.cachedAnswers)}
+            description="Reusable non-blocked replies"
+            icon={Sparkles}
+            tone="cyan"
+          />
+          <StatCard
+            label="Knowledge"
+            value={String(stats.knowledgeItems)}
+            description="Active knowledge items"
+            icon={Database}
+            tone="violet"
+          />
+          <StatCard
+            label="Sessions"
+            value={String(stats.sessions)}
+            description="Collected AI conversations"
+            icon={Brain}
+            tone="amber"
+          />
+          <StatCard
+            label="Guardrail Logs"
+            value={String(stats.guardrailLogs)}
+            description="Visible guard decisions"
+            icon={Shield}
+            tone="rose"
+          />
+        </section>
 
-if (item.id === "cache") {
-  navigate("/ai-management/cache-review");
-  return;
-}
-
-if (item.id === "approved") {
-  navigate("/ai-management/approved-answers");
-  return;
-}
-
-if (item.id === "core-settings") {
-  navigate("/ai-management/core-settings");
-  return;
-}
-
-if (item.id === "activity") {
-  navigate("/ai-management/activity");
-  return;
-}
-
-if (item.id === "guardrails") {
-  navigate("/ai-management/guardrails");
-  return;
-}
-
-if (item.id === "memory") {
-  navigate("/ai-management/memory");
-  return;
-}
-
-if (item.id === "character") {
-  navigate("/ai-management/character");
-  return;
-}
-
-if (item.id === "state-of-mind") {
-  navigate("/ai-management/state-of-mind");
-  return;
-}
-
-                      setActiveSection(item.id);
-                    }}
-                    className={`w-full rounded-[22px] border px-4 py-3 text-left transition-all duration-300 ${
-                      isActive
-                        ? "border-cyan-400/20 bg-cyan-500/10 shadow-[0_0_0_1px_rgba(34,211,238,0.08)]"
-                        : "border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.04]"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={`mt-0.5 rounded-xl p-2 ${
-                          isActive
-                            ? "bg-cyan-500/15 text-cyan-200"
-                            : "bg-white/[0.04] text-white/50"
-                        }`}
-                      >
-                        <Icon className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <div
-                          className={`text-sm font-medium ${
-                            isActive ? "text-white" : "text-white/78"
-                          }`}
-                        >
-                          {item.label}
-                        </div>
-                        <div className="mt-1 text-xs text-white/40">
-                          {item.hint}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </nav>
-
-          <div className="shrink-0 border-t border-white/10 p-4">
-            <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-500/10 text-sm font-semibold text-cyan-200">
-                  PD
-                </div>
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-white">
-                    Piter Drori
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="flex flex-col gap-6">
+            {groupedModules.map((group) => (
+              <div
+                key={group.group}
+                className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl"
+              >
+                <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                  <div>
+                    <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      {group.group}
+                    </h2>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {getGroupDescription(group.group)}
+                    </p>
                   </div>
-                  <div className="text-xs text-white/45">AI Studio Admin</div>
+                </div>
+
+                <div className="grid gap-4 p-5 md:grid-cols-2">
+                  {group.modules.map((module) => (
+                    <ModuleCard
+                      key={module.id}
+                      module={module}
+                      onOpen={() => {
+                        if (module.route) {
+                          navigate(module.route);
+                        }
+                      }}
+                    />
+                  ))}
                 </div>
               </div>
+            ))}
+          </div>
 
-              <div className="mt-4 rounded-2xl border border-emerald-400/15 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
-                All systems operational
+          <aside className="flex flex-col gap-6">
+            <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                <div>
+                  <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Recent AI Activity
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Latest control-panel and router events.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void loadStudioData()}
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-white/20 hover:text-white"
+                >
+                  <RefreshCcw className="h-4 w-4" />
+                  Refresh
+                </button>
+              </div>
+
+              <div className="max-h-[520px] overflow-y-auto">
+                {activityLogs.length === 0 ? (
+                  <div className="p-5 text-sm text-slate-500">
+                    No AI activity yet.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-white/5">
+                    {activityLogs.map((log) => (
+                      <div key={log.id} className="px-5 py-4">
+                        <div className="text-sm font-semibold text-white">
+                          {log.action_type}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-600">
+                          {log.entity_type ?? "system"} · {formatDate(log.created_at)}
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-slate-400">
+                          {formatDetails(log.details)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        </div>
-      </aside>
 
-      <section className="min-w-0 overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-xl">
-        <div className="border-b border-white/10 px-6 py-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-2">
-              <div className="w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200">
-                {activeNav?.label ?? "AI Studio"}
+            <div className="rounded-[30px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)] p-5">
+              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-200">
+                <Waves className="h-3.5 w-3.5" />
+                Coming Experience Layer
               </div>
 
-              <h2 className="text-2xl font-semibold tracking-tight text-white">
-                {activeNav?.label ?? "AI Studio"}
+              <h2 className="mt-4 text-xl font-semibold text-white">
+                Animation / Avatar
               </h2>
-
-              <p className="max-w-3xl text-sm leading-6 text-white/55">
-                {getSectionDescription(activeSection)}
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                This replaces Publish / Deploy. You will choose the visual AI assistant people talk to:
+                orb, waveform, avatar, robot, hologram, or mascot.
               </p>
-            </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <button className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/70 transition-all duration-300 hover:border-white/20 hover:bg-white/[0.08] hover:text-white">
-                Preview AI
-              </button>
-
-              <button className="rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 transition-all duration-300 hover:bg-cyan-400">
-                Save Changes
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="px-6 py-6">
-          {renderCenterContent(activeSection)}
-        </div>
-      </section>
-
-      <aside className="flex min-h-[calc(100vh-165px)] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-xl">
-        <div className="border-b border-white/10 px-5 py-5">
-          <div className="space-y-1">
-            <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/90">
-              AI Preview
-            </div>
-            <h2 className="text-xl font-semibold tracking-tight text-white">
-              Live Runtime View
-            </h2>
-            <p className="text-sm text-white/50">
-              Preview identity, response style, and chat behavior.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
-          <div className="rounded-[28px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)] p-4">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="rounded-full border border-emerald-400/15 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300">
-                Connected
-              </div>
-
-              <div className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-white/55">
-                Preview Mode
-              </div>
-            </div>
-
-            <div className="flex flex-col items-center justify-center gap-4 py-3">
-              <div className="relative flex h-32 w-32 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-500/10">
-                <div className="absolute inset-0 rounded-full bg-cyan-400/10 blur-2xl" />
-                <div className="relative z-10 text-3xl font-semibold text-cyan-100">
-                  AIX
-                </div>
-              </div>
-
-              <button className="rounded-2xl border border-white/10 bg-black/30 px-5 py-2.5 text-sm text-white transition-all duration-300 hover:border-white/20 hover:bg-white/[0.08]">
-                Start voice preview
-              </button>
-            </div>
-          </div>
-
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-black/20">
-            <div className="border-b border-white/10 px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
-  <div className="text-sm font-medium text-white">AI Test Console</div>
-
-  <button
-    onClick={startNewPreviewChat}
-    className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] px-2 py-1 text-xs text-white/60 hover:bg-white/[0.08] hover:text-white"
-  >
-    <RotateCcw className="h-3 w-3" />
-    New
-  </button>
-</div>
-              <div className="text-xs text-white/45">
-                Live test against ai-router.
-              </div>
-            </div>
-
-           <div className="flex min-h-0 flex-1 flex-col">
-  <div
-    ref={messagesEndRef}
-    className="h-[420px] space-y-3 overflow-y-auto px-4 py-4 overscroll-contain scroll-smooth"
-  >
-                {previewMessages.map((message, index) => (
-                  <div
-                    key={`${message.role}-${index}`}
-                    className={`flex ${
-                      message.role === "user" ? "justify-end" : "justify-start"
-                    }`}
-                  >
+              <div className="mt-5 grid gap-3">
+                {["Orb", "Waveform", "Face Avatar", "Robot", "Hologram", "Mascot"].map(
+                  (item) => (
                     <div
-                      className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6 ${
-                        message.role === "user"
-                          ? "bg-cyan-500/15 text-cyan-100"
-                          : "border border-white/10 bg-white/[0.04] text-white/80"
-                      }`}
+                      key={item}
+                      className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-slate-300"
                     >
-                      {message.content}
-                      {message.role === "assistant" && (
-  <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-white/45">
-    {message.provider && (
-      <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">
-        {message.provider}
-      </span>
-    )}
-
-    {typeof message.similarity === "number" && (
-      <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 text-cyan-200">
-        sim {message.similarity.toFixed(3)}
-      </span>
-    )}
-
-    {message.matchedQuestion && (
-      <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">
-        matched cache
-      </span>
-    )}
-
-    {message.debug && (
-  <div className="mt-2 w-full rounded-2xl border border-white/10 bg-black/25 p-3">
-    <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-cyan-200/80">
-      Router Debug
-    </div>
-
-    <div className="grid gap-2 text-[11px] text-white/55">
-      {message.debug.reason && (
-        <div>
-          <span className="text-white/35">Reason:</span>{" "}
-          {message.debug.reason}
-        </div>
-      )}
-
-      {message.debug.layer && (
-        <div>
-          <span className="text-white/35">Layer:</span>{" "}
-          {message.debug.layer}
-        </div>
-      )}
-
-      {typeof message.debug.threshold === "number" && (
-        <div>
-          <span className="text-white/35">Threshold:</span>{" "}
-          {message.debug.threshold.toFixed(3)}
-        </div>
-      )}
-
-           {typeof message.debug.totalCache === "number" && (
-        <div>
-          <span className="text-white/35">Total cache:</span>{" "}
-          {message.debug.totalCache}
-        </div>
-      )}
-
-      {typeof message.debug.character_enabled === "boolean" && (
-        <div>
-          <span className="text-white/35">Character:</span>{" "}
-          {message.debug.character_enabled ? "enabled" : "disabled"}
-        </div>
-      )}
-
-      {typeof message.debug.state_of_mind_enabled === "boolean" && (
-        <div>
-          <span className="text-white/35">State of Mind:</span>{" "}
-          {message.debug.state_of_mind_enabled ? "enabled" : "disabled"}
-        </div>
-      )}
-
-      {message.debug.state_mode && (
-        <div>
-          <span className="text-white/35">State mode:</span>{" "}
-          {message.debug.state_mode}
-        </div>
-      )}
-
-           {message.debug.note && (
-        <div>
-          <span className="text-white/35">Note:</span>{" "}
-          {message.debug.note}
-        </div>
-      )}
-
-      {typeof message.debug.guardrail_master_enabled === "boolean" && (
-        <div>
-          <span className="text-white/35">Guardrails:</span>{" "}
-          {message.debug.guardrail_master_enabled ? "enabled" : "disabled"}
-        </div>
-      )}
-
-      {typeof message.debug.weak_answer_guard_enabled === "boolean" && (
-        <div>
-          <span className="text-white/35">Weak Answer Guard:</span>{" "}
-          {message.debug.weak_answer_guard_enabled ? "enabled" : "disabled"}
-        </div>
-      )}
-
-      {typeof message.debug.weak_answer_strictness === "number" && (
-        <div>
-          <span className="text-white/35">Weak Strictness:</span>{" "}
-          {message.debug.weak_answer_strictness}
-        </div>
-      )}
-
-      {typeof message.debug.min_openai_length === "number" && (
-        <div>
-          <span className="text-white/35">Min Answer Length:</span>{" "}
-          {message.debug.min_openai_length}
-        </div>
-      )}
-
-      {typeof message.debug.cache_guard_enabled === "boolean" && (
-        <div>
-          <span className="text-white/35">Cache Guard:</span>{" "}
-          {message.debug.cache_guard_enabled ? "enabled" : "disabled"}
-        </div>
-      )}
-
-      {typeof message.debug.auto_learning_guard_enabled === "boolean" && (
-        <div>
-          <span className="text-white/35">Auto-Learning Guard:</span>{" "}
-          {message.debug.auto_learning_guard_enabled ? "enabled" : "disabled"}
-        </div>
-      )}
-
-      {message.debug.selected && (
-        <div className="rounded-xl border border-cyan-400/15 bg-cyan-500/10 p-2 text-cyan-100/80">
-          <div className="text-[11px] text-cyan-200">Selected</div>
-          <div className="mt-1">{message.debug.selected.question}</div>
-          <div className="mt-1 text-cyan-100/55">
-            sim{" "}
-            {typeof message.debug.selected.similarity === "number"
-              ? message.debug.selected.similarity.toFixed(3)
-              : "n/a"}{" "}
-            · rank{" "}
-            {typeof message.debug.selected.rank_score === "number"
-              ? message.debug.selected.rank_score.toFixed(3)
-              : "n/a"}{" "}
-            · usage {message.debug.selected.usage_count ?? 0} · quality{" "}
-            {message.debug.selected.quality_score ?? 0}
-          </div>
-        </div>
-      )}
-
-      {message.debug.candidates && message.debug.candidates.length > 0 && (
-        <div className="space-y-1">
-          <div className="text-[11px] text-white/35">Candidates</div>
-          {message.debug.candidates.map((candidate, candidateIndex) => (
-            <div
-              key={candidate.id ?? `${candidate.question}-${candidateIndex}`}
-              className="rounded-xl border border-white/10 bg-white/[0.03] p-2"
-            >
-              <div className="line-clamp-1">{candidate.question}</div>
-              <div className="mt-1 text-white/35">
-                sim{" "}
-                {typeof candidate.similarity === "number"
-                  ? candidate.similarity.toFixed(3)
-                  : "n/a"}{" "}
-                · rank{" "}
-                {typeof candidate.rank_score === "number"
-                  ? candidate.rank_score.toFixed(3)
-                  : "n/a"}{" "}
-                · usage {candidate.usage_count ?? 0} · quality{" "}
-                {candidate.quality_score ?? 0}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  </div>
-)}
-    
-    
-    {message.sourceQuestion && (
-      <>
-        <button
-          onClick={() => void approvePreviewReply(message)}
-          disabled={message.feedback === "liked"}
-          className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-300 disabled:opacity-50"
-        >
-          <ThumbsUp className="inline h-3 w-3" /> Like
-        </button>
-
-        <button
-          onClick={() => void rejectPreviewReply(message)}
-          disabled={message.feedback === "disliked"}
-          className="rounded-full border border-rose-400/20 bg-rose-500/10 px-2 py-0.5 text-rose-300 disabled:opacity-50"
-        >
-          <ThumbsDown className="inline h-3 w-3" /> Bad
-        </button>
-      </>
-    )}
-  </div>
-)}
+                      {item}
                     </div>
-                  </div>
-                ))}
+                  )
+                )}
               </div>
-
-              <div className="border-t border-white/10 p-4">
-  {previewError && (
-    <div className="mb-3 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
-      {previewError}
-    </div>
-  )}
-
-  <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
-    <input
-      value={previewInput}
-      onChange={(event) => setPreviewInput(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          void sendPreviewMessage();
-        }
-      }}
-      placeholder="Test the live AI router..."
-      className="min-w-0 flex-1 bg-transparent text-sm text-white/80 outline-none placeholder:text-white/35"
-    />
-
-    <button
-      onClick={() => void sendPreviewMessage()}
-      disabled={previewLoading || !previewInput.trim()}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-500 text-slate-950 transition hover:bg-cyan-400 disabled:opacity-50"
-    >
-      <Send className="h-4 w-4" />
-    </button>
-  </div>
-</div>
             </div>
+          </aside>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function getGroupDescription(group: StudioModule["group"]) {
+  if (group === "Behavior") {
+    return "Controls how the assistant behaves, speaks, refuses, and adapts.";
+  }
+
+  if (group === "Knowledge") {
+    return "Controls what the assistant knows, reuses, and answers exactly.";
+  }
+
+  if (group === "Runtime") {
+    return "Controls engine settings, sessions, diagnostics, and audit history.";
+  }
+
+  return "Controls voice, avatar, and the user-facing assistant experience.";
+}
+
+function StatusPill({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "emerald" | "amber" | "slate";
+}) {
+  const toneClass =
+    tone === "emerald"
+      ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+      : tone === "amber"
+        ? "border-amber-400/20 bg-amber-500/10 text-amber-200"
+        : "border-slate-400/20 bg-slate-500/10 text-slate-300";
+
+  return (
+    <div className={`rounded-full border px-3 py-1 text-xs ${toneClass}`}>
+      <span className="text-white/45">{label}:</span>{" "}
+      <span className="font-semibold">{value}</span>
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "cyan" | "emerald" | "amber";
+}) {
+  const toneClass =
+    tone === "cyan"
+      ? "text-cyan-200"
+      : tone === "emerald"
+        ? "text-emerald-200"
+        : "text-amber-200";
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+      <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+        {label}
+      </p>
+      <p className={`mt-2 text-3xl font-semibold ${toneClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  description,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: string;
+  description: string;
+  icon: ElementType;
+  tone: "emerald" | "cyan" | "violet" | "amber" | "rose";
+}) {
+  const toneClass =
+    tone === "emerald"
+      ? "border-emerald-400/15 bg-emerald-500/10 text-emerald-200"
+      : tone === "cyan"
+        ? "border-cyan-400/15 bg-cyan-500/10 text-cyan-200"
+        : tone === "violet"
+          ? "border-violet-400/15 bg-violet-500/10 text-violet-200"
+          : tone === "amber"
+            ? "border-amber-400/15 bg-amber-500/10 text-amber-200"
+            : "border-rose-400/15 bg-rose-500/10 text-rose-200";
+
+  return (
+    <div className="rounded-[26px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+            {label}
+          </div>
+          <div className="mt-3 text-3xl font-semibold text-white">{value}</div>
+          <div className="mt-2 text-sm leading-5 text-slate-500">
+            {description}
           </div>
         </div>
-      </aside>
+
+        <div className={`rounded-2xl border p-3 ${toneClass}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
     </div>
+  );
+}
+
+function ModuleCard({
+  module,
+  onOpen,
+}: {
+  module: StudioModule;
+  onOpen: () => void;
+}) {
+  const Icon = module.icon;
+
+  const statusClass =
+    module.status === "live"
+      ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+      : module.status === "ready"
+        ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
+        : "border-amber-400/20 bg-amber-500/10 text-amber-200";
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      disabled={!module.route}
+      className="group flex min-h-[170px] flex-col justify-between rounded-[26px] border border-white/10 bg-black/20 p-5 text-left transition hover:border-cyan-400/25 hover:bg-white/[0.055] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:border-white/10 disabled:hover:bg-black/20"
+    >
+      <div>
+        <div className="flex items-start justify-between gap-4">
+          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+            <Icon className="h-5 w-5" />
+          </div>
+
+          <div className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${statusClass}`}>
+            {module.status}
+          </div>
+        </div>
+
+        <div className="mt-4 text-base font-semibold text-white">
+          {module.label}
+        </div>
+        <p className="mt-2 text-sm leading-6 text-slate-400">
+          {module.description}
+        </p>
+      </div>
+
+      <div className="mt-5 flex items-center justify-between text-sm text-cyan-200">
+        <span>{module.route ? "Open module" : "Planned module"}</span>
+        <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+      </div>
+    </button>
   );
 }

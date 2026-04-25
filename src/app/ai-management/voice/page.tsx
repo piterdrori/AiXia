@@ -188,6 +188,8 @@ export default function AIVoicePage() {
   const navigate = useNavigate();
   const realtimeConnectionRef = useRef<RealtimeConnection | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const userTranscriptDraftsRef = useRef<Record<string, string>>({});
+  const assistantTranscriptDraftsRef = useRef<Record<string, string>>({});
 
   const [settings, setSettings] = useState<VoiceSettings>(defaultVoiceSettings);
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -357,14 +359,66 @@ export default function AIVoicePage() {
     }));
   }
 
-   function closeRealtimeConnection() {
+     function closeRealtimeConnection() {
     if (realtimeConnectionRef.current) {
       realtimeConnectionRef.current.close();
       realtimeConnectionRef.current = null;
     }
 
+    userTranscriptDraftsRef.current = {};
+    assistantTranscriptDraftsRef.current = {};
     setRealtimeOpen(false);
     setRealtimeConnecting(false);
+  }
+
+  function upsertRealtimeMessage({
+    id,
+    role,
+    content,
+    provider: messageProvider,
+    model: messageModel,
+    routerLayer,
+  }: {
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    provider?: string;
+    model?: string;
+    routerLayer?: string;
+  }) {
+    const cleanContent = content.trim();
+
+    if (!cleanContent) return;
+
+    setMessages((current) => {
+      const existingIndex = current.findIndex((message) => message.id === id);
+
+      if (existingIndex >= 0) {
+        return current.map((message, index) =>
+          index === existingIndex
+            ? {
+                ...message,
+                content: cleanContent,
+                provider: messageProvider ?? message.provider,
+                model: messageModel ?? message.model,
+                router_layer: routerLayer ?? message.router_layer,
+              }
+            : message
+        );
+      }
+
+      return [
+        ...current,
+        {
+          id,
+          role,
+          content: cleanContent,
+          provider: messageProvider,
+          model: messageModel,
+          router_layer: routerLayer,
+        },
+      ];
+    });
   }
 
   function setRealtimeMicrophoneEnabled(enabled: boolean) {
@@ -377,7 +431,7 @@ export default function AIVoicePage() {
     });
   }
 
-  function handleRealtimeEvent(event: MessageEvent) {
+   function handleRealtimeEvent(event: MessageEvent) {
     const rawMessage = String(event.data ?? "");
 
     if (!rawMessage) return;
@@ -385,14 +439,30 @@ export default function AIVoicePage() {
     try {
       const parsed = JSON.parse(rawMessage) as {
         type?: string;
+        item_id?: string;
+        response_id?: string;
         transcript?: string;
+        text?: string;
         delta?: string;
         item?: {
+          id?: string;
           role?: string;
           content?: Array<{
             type?: string;
             transcript?: string;
             text?: string;
+          }>;
+        };
+        response?: {
+          id?: string;
+          output?: Array<{
+            id?: string;
+            role?: string;
+            content?: Array<{
+              type?: string;
+              transcript?: string;
+              text?: string;
+            }>;
           }>;
         };
       };
@@ -402,9 +472,19 @@ export default function AIVoicePage() {
       if (
         eventType === "input_audio_buffer.speech_started" ||
         eventType === "input_audio_buffer.speech_stopped" ||
+        eventType === "conversation.item.input_audio_transcription.delta" ||
+        eventType === "conversation.item.input_audio_transcription.completed" ||
         eventType === "response.created" ||
         eventType === "response.audio.delta" ||
         eventType === "response.audio.done" ||
+        eventType === "response.output_audio.delta" ||
+        eventType === "response.output_audio.done" ||
+        eventType === "response.audio_transcript.delta" ||
+        eventType === "response.audio_transcript.done" ||
+        eventType === "response.output_audio_transcript.delta" ||
+        eventType === "response.output_audio_transcript.done" ||
+        eventType === "response.output_text.delta" ||
+        eventType === "response.output_text.done" ||
         eventType === "response.done"
       ) {
         setRealtimeEvents((current) => [eventType, ...current].slice(0, 8));
@@ -419,34 +499,140 @@ export default function AIVoicePage() {
         setAvatarState("thinking");
       }
 
+      if (eventType === "conversation.item.input_audio_transcription.delta") {
+        const itemId = parsed.item_id ?? "active-user-transcript";
+        const nextText = `${userTranscriptDraftsRef.current[itemId] ?? ""}${
+          parsed.delta ?? ""
+        }`;
+
+        userTranscriptDraftsRef.current[itemId] = nextText;
+        setLastTranscript(nextText);
+
+        upsertRealtimeMessage({
+          id: `realtime-user-${itemId}`,
+          role: "user",
+          content: nextText,
+          provider: "openai-realtime",
+          model,
+          routerLayer: "realtime-transcript",
+        });
+      }
+
+      if (
+        eventType === "conversation.item.input_audio_transcription.completed"
+      ) {
+        const itemId = parsed.item_id ?? "active-user-transcript";
+        const completedText =
+          parsed.transcript ?? userTranscriptDraftsRef.current[itemId] ?? "";
+
+        userTranscriptDraftsRef.current[itemId] = completedText;
+        setLastTranscript(completedText);
+
+        upsertRealtimeMessage({
+          id: `realtime-user-${itemId}`,
+          role: "user",
+          content: completedText,
+          provider: "openai-realtime",
+          model,
+          routerLayer: "realtime-transcript",
+        });
+      }
+
       if (eventType === "response.created") {
         setRealtimeMicrophoneEnabled(false);
         setAvatarState("thinking");
       }
 
-      if (eventType === "response.audio.delta") {
+      if (
+        eventType === "response.audio.delta" ||
+        eventType === "response.output_audio.delta"
+      ) {
         setRealtimeMicrophoneEnabled(false);
         setAvatarState("speaking");
       }
 
       if (
-        eventType === "response.audio.done" ||
-        eventType === "response.done"
+        eventType === "response.audio_transcript.delta" ||
+        eventType === "response.output_audio_transcript.delta" ||
+        eventType === "response.output_text.delta"
       ) {
+        const responseId = parsed.response_id ?? "active-assistant-response";
+        const nextText = `${
+          assistantTranscriptDraftsRef.current[responseId] ?? ""
+        }${parsed.delta ?? ""}`;
+
+        assistantTranscriptDraftsRef.current[responseId] = nextText;
+
+        upsertRealtimeMessage({
+          id: `realtime-assistant-${responseId}`,
+          role: "assistant",
+          content: nextText,
+          provider: "openai-realtime",
+          model,
+          routerLayer: "realtime",
+        });
+      }
+
+      if (
+        eventType === "response.audio_transcript.done" ||
+        eventType === "response.output_audio_transcript.done" ||
+        eventType === "response.output_text.done"
+      ) {
+        const responseId = parsed.response_id ?? "active-assistant-response";
+        const completedText =
+          parsed.transcript ??
+          parsed.text ??
+          assistantTranscriptDraftsRef.current[responseId] ??
+          "";
+
+        assistantTranscriptDraftsRef.current[responseId] = completedText;
+
+        upsertRealtimeMessage({
+          id: `realtime-assistant-${responseId}`,
+          role: "assistant",
+          content: completedText,
+          provider: "openai-realtime",
+          model,
+          routerLayer: "realtime",
+        });
+      }
+
+      if (eventType === "response.done") {
+        const responseId =
+          parsed.response?.id ?? parsed.response_id ?? "active-assistant-response";
+
+        const completedText =
+          parsed.response?.output
+            ?.flatMap((outputItem) => outputItem.content ?? [])
+            .map((contentItem) => contentItem.transcript ?? contentItem.text ?? "")
+            .join(" ")
+            .trim() ||
+          assistantTranscriptDraftsRef.current[responseId] ||
+          "";
+
+        if (completedText) {
+          assistantTranscriptDraftsRef.current[responseId] = completedText;
+
+          upsertRealtimeMessage({
+            id: `realtime-assistant-${responseId}`,
+            role: "assistant",
+            content: completedText,
+            provider: "openai-realtime",
+            model,
+            routerLayer: "realtime",
+          });
+        }
+
         setRealtimeMicrophoneEnabled(true);
         setAvatarState("idle");
       }
 
-      const transcript =
-        parsed.transcript ??
-        parsed.delta ??
-        parsed.item?.content?.find((contentItem) => contentItem.transcript)
-          ?.transcript ??
-        parsed.item?.content?.find((contentItem) => contentItem.text)?.text ??
-        "";
-
-      if (transcript.trim()) {
-        setLastTranscript(transcript.trim());
+      if (
+        eventType === "response.audio.done" ||
+        eventType === "response.output_audio.done"
+      ) {
+        setRealtimeMicrophoneEnabled(true);
+        setAvatarState("idle");
       }
     } catch {
       setRealtimeEvents((current) =>
@@ -487,6 +673,8 @@ export default function AIVoicePage() {
       return;
     }
 
+    userTranscriptDraftsRef.current = {};
+    assistantTranscriptDraftsRef.current = {};
     setRealtimeConnecting(true);
     setErrorMessage(null);
     setActionMessage(null);

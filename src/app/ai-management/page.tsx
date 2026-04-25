@@ -164,6 +164,12 @@ type PreviewDebug = {
   character_enabled?: boolean;
   state_of_mind_enabled?: boolean;
   state_mode?: string;
+  guardrail_master_enabled?: boolean;
+  weak_answer_guard_enabled?: boolean;
+  weak_answer_strictness?: number;
+  min_openai_length?: number;
+  cache_guard_enabled?: boolean;
+  auto_learning_guard_enabled?: boolean;
   selected?: PreviewDebugCandidate;
   candidates?: PreviewDebugCandidate[];
 };
@@ -767,10 +773,52 @@ if (item.id === "state-of-mind") {
         </div>
       )}
 
-      {message.debug.note && (
+           {message.debug.note && (
         <div>
           <span className="text-white/35">Note:</span>{" "}
           {message.debug.note}
+        </div>
+      )}
+
+      {typeof message.debug.guardrail_master_enabled === "boolean" && (
+        <div>
+          <span className="text-white/35">Guardrails:</span>{" "}
+          {message.debug.guardrail_master_enabled ? "enabled" : "disabled"}
+        </div>
+      )}
+
+      {typeof message.debug.weak_answer_guard_enabled === "boolean" && (
+        <div>
+          <span className="text-white/35">Weak Answer Guard:</span>{" "}
+          {message.debug.weak_answer_guard_enabled ? "enabled" : "disabled"}
+        </div>
+      )}
+
+      {typeof message.debug.weak_answer_strictness === "number" && (
+        <div>
+          <span className="text-white/35">Weak Strictness:</span>{" "}
+          {message.debug.weak_answer_strictness}
+        </div>
+      )}
+
+      {typeof message.debug.min_openai_length === "number" && (
+        <div>
+          <span className="text-white/35">Min Answer Length:</span>{" "}
+          {message.debug.min_openai_length}
+        </div>
+      )}
+
+      {typeof message.debug.cache_guard_enabled === "boolean" && (
+        <div>
+          <span className="text-white/35">Cache Guard:</span>{" "}
+          {message.debug.cache_guard_enabled ? "enabled" : "disabled"}
+        </div>
+      )}
+
+      {typeof message.debug.auto_learning_guard_enabled === "boolean" && (
+        <div>
+          <span className="text-white/35">Auto-Learning Guard:</span>{" "}
+          {message.debug.auto_learning_guard_enabled ? "enabled" : "disabled"}
         </div>
       )}
 

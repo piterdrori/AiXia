@@ -237,7 +237,7 @@ export default function AICoreSettingsPage() {
 
     await loadSettings();
 
-    setActionMessage("Core AI settings saved.");
+    setActionMessage("Saved successfully.");
     setSaving(false);
   }
 

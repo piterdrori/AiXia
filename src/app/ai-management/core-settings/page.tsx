@@ -284,15 +284,21 @@ export default function AICoreSettingsPage() {
       return;
     }
 
-    await supabase.from("ai_admin_activity_logs").insert({
-      action_type: "setting_updated",
-      entity_type: "ai_setting",
-      entity_id: null,
-      details: {
-        setting: key,
-        value,
-      },
-    });
+       const { error: logError } = await supabase
+      .from("ai_admin_activity_logs")
+      .insert({
+        action_type: "setting_updated",
+        entity_type: "ai_setting",
+        entity_id: null,
+        details: {
+          setting: key,
+          value,
+        },
+      });
+
+    if (logError) {
+      console.error("AI LOG INSERT ERROR:", logError);
+    }
 
     setActionMessage(`${key} saved successfully.`);
   }   

@@ -1347,10 +1347,10 @@ export default function AIVoicePage() {
           </div>
         )}
 
-        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
-          <div className="grid min-h-[760px] overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.20),rgba(2,6,23,0.94)_42%,rgba(2,6,23,0.99))] shadow-2xl shadow-cyan-950/20 2xl:grid-cols-[440px_minmax(0,1fr)]">
-            <div className="border-b border-white/10 bg-black/10 p-5 2xl:border-b-0 2xl:border-r">
-              <div className="relative flex h-full min-h-[560px] flex-col overflow-hidden rounded-[30px] border border-cyan-400/20 bg-black/30">
+        <section className="grid gap-5">
+          <div className="grid min-h-[720px] overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.20),rgba(2,6,23,0.94)_42%,rgba(2,6,23,0.99))] shadow-2xl shadow-cyan-950/20 xl:grid-cols-[380px_minmax(0,1fr)]">
+            <div className="border-b border-white/10 bg-black/10 p-5 xl:border-b-0 xl:border-r">
+              <div className="relative flex h-full min-h-[520px] flex-col overflow-hidden rounded-[30px] border border-cyan-400/20 bg-black/30">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_28%,rgba(34,211,238,0.24),transparent_45%),radial-gradient(circle_at_50%_72%,rgba(139,92,246,0.16),transparent_46%)]" />
                 <div className="absolute left-1/2 top-16 h-72 w-72 -translate-x-1/2 rounded-full border border-cyan-400/10" />
                 <div className="absolute left-1/2 top-28 h-52 w-52 -translate-x-1/2 rounded-full border border-cyan-400/20" />
@@ -1496,7 +1496,7 @@ export default function AIVoicePage() {
                 </div>
               </div>
 
-              <div className="grid min-h-0 flex-1 gap-0 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_260px] gap-0">
                 <div className="flex min-h-0 flex-col">
                   <div
                     ref={chatScrollRef}
@@ -1570,16 +1570,16 @@ export default function AIVoicePage() {
                   </div>
                 </div>
 
-                <div className="min-h-0 border-t border-white/10 bg-black/10 p-5 xl:border-l xl:border-t-0">
-                  <div className="flex h-full min-h-[360px] flex-col rounded-[26px] border border-white/10 bg-black/25">
+                <div className="min-h-0 border-t border-white/10 bg-black/10 p-5">
+                  <div className="flex h-full min-h-0 flex-col rounded-[26px] border border-white/10 bg-black/25">
                     <div className="border-b border-white/10 px-4 py-3">
                       <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-200">
                         Live Transcript
                       </div>
                     </div>
 
-                    <div className="grid min-h-0 flex-1 grid-rows-2">
-                      <div className="min-h-0 overflow-y-auto border-b border-white/10 p-4">
+                    <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-2">
+                      <div className="min-h-0 overflow-y-auto border-b border-white/10 p-4 md:border-b-0 md:border-r">
                         <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                           User Speech
                         </div>
@@ -1603,7 +1603,7 @@ export default function AIVoicePage() {
             </div>
           </div>
 
-                    <aside className="flex max-h-[calc(100vh-150px)] flex-col gap-5 overflow-y-auto pr-1">
+          <aside className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
             <Panel
               eyebrow="Runtime Controls"
               title="Realtime Engine"

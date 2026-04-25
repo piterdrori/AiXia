@@ -527,7 +527,7 @@ export default function AIVoicePage() {
     setModel("");
 
     try {
-      const result = await askAI(cleanQuestion);
+      const result = await askAI(cleanQuestion, { mode: "voice" });
 
       const assistantMessage: Message = {
         id: `realtime-router-answer-${itemId}`,

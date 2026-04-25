@@ -438,7 +438,9 @@ export default function AICoreSettingsPage() {
                       {key === "response_mode" ? (
                         <select
                           value={String(value)}
-                          onChange={(e) => updateSetting(key, e.target.value)}
+                                                    onChange={(e) => {
+                            void updateSettingAndSave(key, e.target.value);
+                          }}
                           className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white"
                         >
                           <option value="strict">Strict</option>
@@ -448,7 +450,9 @@ export default function AICoreSettingsPage() {
                       ) : key === "knowledge_strictness" ? (
                         <select
                           value={String(value)}
-                          onChange={(e) => updateSetting(key, e.target.value)}
+                                                    onChange={(e) => {
+                            void updateSettingAndSave(key, e.target.value);
+                          }}
                           className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white"
                         >
                           <option value="strict">Strict</option>
@@ -482,6 +486,9 @@ export default function AICoreSettingsPage() {
                           max={definition.max}
                           step={definition.step}
                           value={Number(value)}
+                                                    onBlur={(event) => {
+                            void updateSettingAndSave(key, Number(event.target.value));
+                          }}
                           onChange={(event) =>
                             updateSetting(key, Number(event.target.value))
                           }
@@ -590,7 +597,10 @@ export default function AICoreSettingsPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-white">Force Refusal</span>
                   <button
-                    onClick={() => updateSetting("force_refusal", !settings.force_refusal)}
+                                        onClick={() => {
+                      const nextValue = !settingsRef.current.force_refusal;
+                      void updateSettingAndSave("force_refusal", nextValue);
+                    }}
                     className={`px-4 py-2 rounded-xl ${
                       settings.force_refusal ? "bg-red-500/20 text-red-200" : "bg-white/10"
                     }`}
@@ -603,7 +613,9 @@ export default function AICoreSettingsPage() {
                   <label className="text-xs text-slate-400">Response Tone</label>
                   <select
                     value={settings.response_tone}
-                    onChange={(e) => updateSetting("response_tone", e.target.value)}
+                                        onChange={(e) => {
+                      void updateSettingAndSave("response_tone", e.target.value);
+                    }}
                     className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
                   >
                     <option value="professional">Professional</option>

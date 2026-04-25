@@ -457,7 +457,22 @@ export default function AIKnowledgeBankPage() {
             throw new Error(error.message);
           }
 
-          setActionMessage("Knowledge item created.");
+          await supabase.from("ai_admin_activity_logs").insert({
+  action_type: editorMode === "create" ? "knowledge_created" : "knowledge_updated",
+  entity_type: "knowledge",
+  entity_id: editingItemId ?? null,
+  details: {
+    title: editorForm.title,
+    source_type: editorForm.source_type,
+    status: editorForm.status,
+  },
+});
+
+setActionMessage(
+  editorMode === "create"
+    ? "Knowledge item created."
+    : "Knowledge item updated."
+);
         }
       } else {
         if (selectedItem?.origin === "github" && selectedItem.github_path) {
@@ -499,7 +514,22 @@ export default function AIKnowledgeBankPage() {
             throw new Error(error.message);
           }
 
-          setActionMessage("Knowledge item updated.");
+          await supabase.from("ai_admin_activity_logs").insert({
+  action_type: editorMode === "create" ? "knowledge_created" : "knowledge_updated",
+  entity_type: "knowledge",
+  entity_id: editingItemId ?? null,
+  details: {
+    title: editorForm.title,
+    source_type: editorForm.source_type,
+    status: editorForm.status,
+  },
+});
+
+setActionMessage(
+  editorMode === "create"
+    ? "Knowledge item created."
+    : "Knowledge item updated."
+);
         }
       }
 
@@ -534,9 +564,18 @@ export default function AIKnowledgeBankPage() {
       return;
     }
 
-    setActionMessage(
-      nextIsActive ? "Knowledge item activated." : "Knowledge item deactivated."
-    );
+    await supabase.from("ai_admin_activity_logs").insert({
+  action_type: "knowledge_toggled",
+  entity_type: "knowledge",
+  entity_id: item.id,
+  details: {
+    is_active: nextIsActive,
+  },
+});
+
+setActionMessage(
+  nextIsActive ? "Knowledge item activated." : "Knowledge item deactivated."
+);
     await loadKnowledgeItems(true);
   }
 
@@ -558,7 +597,16 @@ export default function AIKnowledgeBankPage() {
       return;
     }
 
-    setActionMessage("Knowledge item archived.");
+    await supabase.from("ai_admin_activity_logs").insert({
+  action_type: "knowledge_archived",
+  entity_type: "knowledge",
+  entity_id: item.id,
+  details: {
+    status: "archived",
+  },
+});
+
+setActionMessage("Knowledge item archived.");
     await loadKnowledgeItems(true);
   }
 
@@ -595,7 +643,16 @@ export default function AIKnowledgeBankPage() {
         setSelectedItemId(null);
       }
 
-      setActionMessage("Knowledge item deleted.");
+      await supabase.from("ai_admin_activity_logs").insert({
+  action_type: "knowledge_deleted",
+  entity_type: "knowledge",
+  entity_id: item.id,
+  details: {
+    title: item.title,
+  },
+});
+
+setActionMessage("Knowledge item deleted.");
       await loadKnowledgeItems(true);
     } catch (error) {
       setPageError(error instanceof Error ? error.message : "Delete failed");
@@ -628,7 +685,16 @@ export default function AIKnowledgeBankPage() {
         fileInputRef.current.value = "";
       }
 
-      setActionMessage("File uploaded to GitHub knowledge bank.");
+      await supabase.from("ai_admin_activity_logs").insert({
+  action_type: "knowledge_uploaded",
+  entity_type: "knowledge",
+  entity_id: null,
+  details: {
+    file_name: file.name,
+  },
+});
+
+setActionMessage("File uploaded to GitHub knowledge bank.");
       await loadKnowledgeItems(true);
     } catch (error) {
       setPageError(

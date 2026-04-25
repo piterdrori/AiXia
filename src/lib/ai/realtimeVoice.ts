@@ -4,6 +4,10 @@ export type RealtimeVoiceSessionRequest = {
   model?: string;
   voice?: string;
   instructions?: string;
+  threshold?: number;
+  prefix_padding_ms?: number;
+  silence_duration_ms?: number;
+  idle_timeout_ms?: number | null;
 };
 
 export type RealtimeVoiceSessionResult = {
@@ -35,12 +39,16 @@ export async function createRealtimeVoiceSession(
   const { data, error } = await supabase.functions.invoke(
     "ai-realtime-session",
     {
-      body: {
+    body: {
         model: request.model ?? "gpt-realtime-mini",
         voice: request.voice ?? "marin",
         instructions:
           request.instructions ??
           "You are AiXia Assistant. Reply fast, short, and clearly.",
+        threshold: request.threshold,
+        prefix_padding_ms: request.prefix_padding_ms,
+        silence_duration_ms: request.silence_duration_ms,
+        idle_timeout_ms: request.idle_timeout_ms,
       },
     }
   );

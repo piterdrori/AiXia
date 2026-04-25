@@ -758,9 +758,9 @@ export default function AIKnowledgeBankPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-6 py-6 text-white">
-      <div className="mx-auto grid w-full max-w-[1600px] gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-        <section className="overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.045] shadow-2xl shadow-black/30 backdrop-blur-xl">
+        <div className="h-[calc(100vh-64px)] overflow-hidden bg-[#05070d] px-6 py-6 text-white">
+      <div className="mx-auto grid h-full w-full max-w-[1600px] gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.045] shadow-2xl shadow-black/30 backdrop-blur-xl">
           <div className="border-b border-white/10 px-6 py-6">
             <button
               type="button"
@@ -924,7 +924,7 @@ export default function AIKnowledgeBankPage() {
             </div>
           </div>
 
-          <div className="px-6 py-6">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-6">
             {loading ? (
               <div className="grid gap-3">
                 {[1, 2, 3, 4].map((row) => (
@@ -1227,7 +1227,7 @@ function KnowledgeReviewPanel({
 }) {
   if (!selectedItem) {
     return (
-      <aside className="overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+            <aside className="min-h-0 overflow-y-auto overscroll-contain rounded-[32px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
         <div className="flex h-full min-h-[520px] items-center justify-center p-6 text-center text-sm text-slate-500">
           Select knowledge to review what the assistant can use.
         </div>
@@ -1242,8 +1242,8 @@ function KnowledgeReviewPanel({
         ? FileCode2
         : FileText;
 
-  return (
-    <aside className="overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+    return (
+    <aside className="min-h-0 overflow-y-auto overscroll-contain rounded-[32px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
       <div className="border-b border-white/10 px-5 py-5">
         <div className="text-[11px] uppercase tracking-[0.22em] text-cyan-200/90">
           Selected Knowledge

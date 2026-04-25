@@ -287,6 +287,20 @@ if (duplicateExists) {
         return;
       }
 
+            await supabase.from("ai_admin_activity_logs").insert({
+        action_type: "approved_created",
+        entity_type: "approved_answer",
+        entity_id: (data as ApprovedAnswerRow).id,
+        details: {
+          question: trimmedQuestion,
+          normalized_question: normalizeQuestion(trimmedQuestion),
+          category: form.category.trim() || null,
+          priority,
+          confidence_score: confidenceScore,
+          is_active: form.is_active,
+        },
+      });
+
       setAnswers((current) =>
         [...current, data as ApprovedAnswerRow].sort(
           (first, second) => first.priority - second.priority
@@ -319,6 +333,20 @@ if (duplicateExists) {
       setSaving(false);
       return;
     }
+
+        await supabase.from("ai_admin_activity_logs").insert({
+      action_type: "approved_updated",
+      entity_type: "approved_answer",
+      entity_id: selectedAnswer.id,
+      details: {
+        question: trimmedQuestion,
+        normalized_question: normalizeQuestion(trimmedQuestion),
+        category: form.category.trim() || null,
+        priority,
+        confidence_score: confidenceScore,
+        is_active: form.is_active,
+      },
+    });
 
     setAnswers((current) =>
       current
@@ -399,6 +427,20 @@ if (duplicateExists) {
     return;
   }
 
+   await supabase.from("ai_admin_activity_logs").insert({
+    action_type: "approved_version_replaced",
+    entity_type: "approved_answer",
+    entity_id: (newRow as ApprovedAnswerRow).id,
+    details: {
+      old_answer_id: selectedAnswer.id,
+      new_answer_id: (newRow as ApprovedAnswerRow).id,
+      question: trimmedQuestion,
+      normalized_question: normalizeQuestion(trimmedQuestion),
+      previous_version: selectedAnswer.approved_version ?? 1,
+      new_version: newVersion,
+    },
+  });
+
   await loadApprovedAnswers();
 
   setSelectedId((newRow as ApprovedAnswerRow).id);
@@ -426,6 +468,19 @@ if (duplicateExists) {
       setSaving(false);
       return;
     }
+
+       await supabase.from("ai_admin_activity_logs").insert({
+      action_type: (data as ApprovedAnswerRow).is_active
+        ? "approved_activated"
+        : "approved_deactivated",
+      entity_type: "approved_answer",
+      entity_id: answer.id,
+      details: {
+        question: answer.question,
+        normalized_question: answer.normalized_question,
+        is_active: (data as ApprovedAnswerRow).is_active,
+      },
+    });
 
     setAnswers((current) =>
       current.map((currentAnswer) =>

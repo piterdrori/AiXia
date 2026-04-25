@@ -82,7 +82,7 @@ const defaultVoiceSettings: VoiceSettings = {
   voice_tts_model: "gpt-4o-mini-tts",
   voice_name: "alloy",
   voice_style: "professional",
-  voice_speed: 1,
+  voice_speed: 1.25,
   voice_pitch: 50,
   voice_stability: 70,
   voice_clarity: 80,
@@ -247,7 +247,8 @@ function formatPercent(value: boolean) {
 export default function AIVoicePage() {
   const navigate = useNavigate();
     const audioRef = useRef<HTMLAudioElement | null>(null);
-  const activeAudioTokenRef = useRef<string | null>(null);
+    const activeAudioTokenRef = useRef<string | null>(null);
+  const continuousVoiceSessionRef = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const recordingStartedSpeakingRef = useRef(false);
@@ -514,9 +515,10 @@ export default function AIVoicePage() {
     setActionMessage("Voice session opened.");
   }
 
-    async function endSession() {
+      async function endSession() {
     if (!sessionOpen) return;
 
+    continuousVoiceSessionRef.current = false;
     clearSilenceDetection();
 
     if (mediaRecorderRef.current?.state === "recording") {
@@ -618,11 +620,31 @@ export default function AIVoicePage() {
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
 
-      audio.onended = () => {
+            audio.onended = () => {
         if (activeAudioTokenRef.current !== audioToken) return;
 
         activeAudioTokenRef.current = null;
         setSpeaking(false);
+
+        if (
+          continuousVoiceSessionRef.current &&
+          sessionOpen &&
+          modeUsesStt &&
+          settings.voice_enabled &&
+          settings.voice_stt_enabled
+        ) {
+          window.setTimeout(() => {
+            if (
+              continuousVoiceSessionRef.current &&
+              sessionOpen &&
+              !recording &&
+              !sending &&
+              !transcribing
+            ) {
+              void startRecording();
+            }
+          }, 450);
+        }
       };
 
       audio.onerror = () => {
@@ -631,6 +653,26 @@ export default function AIVoicePage() {
         activeAudioTokenRef.current = null;
         setSpeaking(false);
         setErrorMessage("Audio playback failed.");
+
+        if (
+          continuousVoiceSessionRef.current &&
+          sessionOpen &&
+          modeUsesStt &&
+          settings.voice_enabled &&
+          settings.voice_stt_enabled
+        ) {
+          window.setTimeout(() => {
+            if (
+              continuousVoiceSessionRef.current &&
+              sessionOpen &&
+              !recording &&
+              !sending &&
+              !transcribing
+            ) {
+              void startRecording();
+            }
+          }, 700);
+        }
       };
 
       await audio.play();
@@ -733,8 +775,8 @@ export default function AIVoicePage() {
     microphone.connect(analyser);
     audioContextRef.current = audioContext;
 
-    const speechThreshold = 18;
-    const silenceDelayMs = 1300;
+    const speechThreshold = 14;
+    const silenceDelayMs = 3000;
 
     const checkVolume = () => {
       analyser.getByteTimeDomainData(dataArray);
@@ -771,7 +813,7 @@ export default function AIVoicePage() {
     silenceCheckRef.current = window.requestAnimationFrame(checkVolume);
   }
 
-  async function startRecording() {
+    async function startRecording() {
     if (!sessionOpen) {
       setErrorMessage("Open a session before recording.");
       return;
@@ -815,13 +857,20 @@ export default function AIVoicePage() {
       startSilenceDetection(stream);
     } catch (error) {
       clearSilenceDetection();
+      setRecording(false);
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to start recording."
       );
     }
   }
 
+  async function startContinuousVoiceSession() {
+    continuousVoiceSessionRef.current = true;
+    await startRecording();
+  }
+
   function stopRecording() {
+    continuousVoiceSessionRef.current = false;
     clearSilenceDetection();
 
     if (mediaRecorderRef.current?.state === "recording") {
@@ -855,12 +904,30 @@ export default function AIVoicePage() {
 
       setLastTranscript(result.text);
 
-      if (result.text.trim()) {
+            if (result.text.trim()) {
         if (interactionMode === "voice" || interactionMode === "voice-avatar" || interactionMode === "complete") {
           await handleSend(result.text);
         } else {
           setInput(result.text);
         }
+      } else if (
+        continuousVoiceSessionRef.current &&
+        sessionOpen &&
+        modeUsesStt &&
+        settings.voice_enabled &&
+        settings.voice_stt_enabled
+      ) {
+        window.setTimeout(() => {
+          if (
+            continuousVoiceSessionRef.current &&
+            sessionOpen &&
+            !recording &&
+            !sending &&
+            !transcribing
+          ) {
+            void startRecording();
+          }
+        }, 700);
       }
     } catch (error) {
       setErrorMessage(
@@ -1192,10 +1259,10 @@ export default function AIVoicePage() {
                         <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
-                            onClick={
+                                                        onClick={
                               recording
                                 ? stopRecording
-                                : () => void startRecording()
+                                : () => void startContinuousVoiceSession()
                             }
                             disabled={
                               !sessionOpen ||
@@ -1213,12 +1280,12 @@ export default function AIVoicePage() {
                             {recording ? (
                               <>
                                 <MicOff className="h-4 w-4" />
-                                Stop Recording
+                                Stop Voice Session
                               </>
                             ) : (
                               <>
                                 <Mic className="h-4 w-4" />
-                                Speak
+                                Start Voice Session
                               </>
                             )}
                           </button>

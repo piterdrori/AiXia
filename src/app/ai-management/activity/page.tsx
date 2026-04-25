@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   Activity,
   AlertCircle,
+  ArrowLeft,
   Brain,
   Database,
   FileCheck2,
@@ -28,8 +28,11 @@ type LogSection = {
   title: string;
   description: string;
   icon: typeof Activity;
+  tone: "cyan" | "emerald" | "violet" | "amber" | "rose" | "slate";
   logs: AILog[];
 };
+
+type LogTone = LogSection["tone"];
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", {
@@ -51,7 +54,64 @@ function formatDetails(details: Record<string, unknown>) {
     .join(" · ");
 }
 
-function renderLogRows(logs: AILog[]) {
+function toneClasses(tone: LogTone) {
+  if (tone === "emerald") {
+    return {
+      icon: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+      chip: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+      line: "bg-emerald-400/40",
+    };
+  }
+
+  if (tone === "violet") {
+    return {
+      icon: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+      chip: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+      line: "bg-violet-400/40",
+    };
+  }
+
+  if (tone === "amber") {
+    return {
+      icon: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+      chip: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+      line: "bg-amber-400/40",
+    };
+  }
+
+  if (tone === "rose") {
+    return {
+      icon: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+      chip: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+      line: "bg-rose-400/40",
+    };
+  }
+
+  if (tone === "slate") {
+    return {
+      icon: "border-white/10 bg-white/[0.05] text-slate-300",
+      chip: "border-white/10 bg-white/[0.05] text-slate-300",
+      line: "bg-slate-400/35",
+    };
+  }
+
+  return {
+    icon: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+    chip: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+    line: "bg-cyan-400/40",
+  };
+}
+
+function compactAction(value: string) {
+  return value
+    .replaceAll("_", " ")
+    .replaceAll(".", " · ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function renderLogRows(logs: AILog[], tone: LogTone) {
+  const toneClass = toneClasses(tone);
+
   if (logs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
@@ -59,9 +119,9 @@ function renderLogRows(logs: AILog[]) {
           <AlertCircle className="h-5 w-5" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-white">No activity found</h3>
+          <h3 className="text-sm font-semibold text-white">No activity yet</h3>
           <p className="mt-1 text-xs text-slate-500">
-            This section does not have logs yet.
+            This stream has no records.
           </p>
         </div>
       </div>
@@ -69,42 +129,42 @@ function renderLogRows(logs: AILog[]) {
   }
 
   return (
-    <div className="divide-y divide-white/5">
-      {logs.map((log) => (
-        <div
-          key={log.id}
-          className="grid gap-4 px-5 py-4 transition hover:bg-white/[0.025] lg:grid-cols-[190px_1fr_170px]"
-        >
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-cyan-200/70">
-              Action
-            </div>
-            <div className="mt-1 text-sm font-semibold text-white">
-              {log.action_type}
-            </div>
-            <div className="mt-1 text-xs text-slate-600">{log.entity_type}</div>
-          </div>
+    <div className="relative">
+      <div className={`absolute bottom-6 left-[31px] top-6 w-px ${toneClass.line}`} />
 
-          <div>
-            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-slate-600">
-              <Database className="h-3.5 w-3.5" />
-              Details
-            </div>
-            <div className="mt-1 text-sm leading-6 text-slate-300">
-              {formatDetails(log.details)}
-            </div>
-            {log.entity_id && (
-              <div className="mt-1 text-xs text-slate-600">
-                ID: {log.entity_id}
+      <div className="space-y-3 p-4">
+        {logs.map((log) => (
+          <div
+            key={log.id}
+            className="relative grid gap-4 rounded-[22px] border border-white/10 bg-white/[0.035] p-4 transition hover:border-white/15 hover:bg-white/[0.055] lg:grid-cols-[minmax(0,1fr)_180px]"
+          >
+            <div className={`absolute left-[-1px] top-6 h-3 w-3 rounded-full border ${toneClass.chip}`} />
+
+            <div className="min-w-0 pl-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`rounded-full border px-2.5 py-1 text-[11px] ${toneClass.chip}`}>
+                  {log.entity_type || "system"}
+                </span>
+                <span className="text-xs text-slate-600">
+                  {log.entity_id ? `ID: ${log.entity_id}` : "No entity ID"}
+                </span>
               </div>
-            )}
-          </div>
 
-          <div className="text-sm text-slate-500 lg:text-right">
-            {formatDate(log.created_at)}
+              <div className="mt-3 text-sm font-semibold text-white">
+                {compactAction(log.action_type)}
+              </div>
+
+              <div className="mt-2 text-sm leading-6 text-slate-400">
+                {formatDetails(log.details)}
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-500 lg:text-right">
+              {formatDate(log.created_at)}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
@@ -182,56 +242,64 @@ export default function AIActivityLogsPage() {
 
     return [
       {
-        id: "core-settings",
-        title: "Core Settings Logs",
-        description: "Runtime setting changes and AI behavior controls.",
-        icon: Gauge,
-        logs: coreSettingsLogs,
-      },
-      {
-        id: "knowledge",
-        title: "Knowledge Logs",
-        description: "Knowledge create, update, archive, upload, and delete actions.",
-        icon: Database,
-        logs: knowledgeLogs,
-      },
-      {
-        id: "cache",
-        title: "Cache Logs",
-        description: "Cache review, feedback, promotion, and cleanup actions.",
-        icon: Brain,
-        logs: cacheLogs,
-      },
-      {
-        id: "approved",
-        title: "Approved Answers Logs",
-        description: "Approved answer creation, edits, promotion, and removal.",
-        icon: FileCheck2,
-        logs: approvedLogs,
-      },
-      {
-        id: "guardrails",
-        title: "Guardrails Logs",
-        description: "Blocked topics, allowed-scope rejections, and safety actions.",
-        icon: Shield,
-        logs: guardrailLogs,
-      },
-      {
         id: "router",
-        title: "Router / System Logs",
-        description: "Router decisions, fallback behavior, and system-level AI events.",
+        title: "Router Decisions",
+        description: "Fallbacks, routing choices, and AI response-layer events.",
         icon: Activity,
+        tone: "cyan",
         logs: routerLogs,
       },
       {
+        id: "approved",
+        title: "Approved Answers",
+        description: "Trusted answers created, changed, replaced, or removed.",
+        icon: FileCheck2,
+        tone: "emerald",
+        logs: approvedLogs,
+      },
+      {
+        id: "cache",
+        title: "Saved Replies",
+        description: "Cache review, duplicate cleanup, promotions, and feedback work.",
+        icon: Brain,
+        tone: "violet",
+        logs: cacheLogs,
+      },
+      {
+        id: "knowledge",
+        title: "Knowledge Bank",
+        description: "Knowledge creation, updates, imports, archive, and delete actions.",
+        icon: Database,
+        tone: "amber",
+        logs: knowledgeLogs,
+      },
+      {
+        id: "guardrails",
+        title: "Guardrails",
+        description: "Blocked topics, scope rejections, refusals, and visible safety controls.",
+        icon: Shield,
+        tone: "rose",
+        logs: guardrailLogs,
+      },
+      {
+        id: "settings",
+        title: "AI Settings",
+        description: "Runtime setting changes and behavior-control updates.",
+        icon: Gauge,
+        tone: "slate",
+        logs: coreSettingsLogs,
+      },
+      {
         id: "other",
-        title: "Other Logs",
-        description: "Unclassified or future AI activity records.",
+        title: "Other Activity",
+        description: "Unclassified or future AI management records.",
         icon: AlertCircle,
+        tone: "slate",
         logs: systemLogs,
       },
     ];
   }, [filteredLogs]);
+
 
   const metrics = useMemo(() => {
     const total = logs.length;
@@ -280,9 +348,9 @@ export default function AIActivityLogsPage() {
   return (
     <div className="min-h-screen bg-[#05070d] px-6 py-6 text-white">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-4">
+        <header className="overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-5">
               <button
                 type="button"
                 onClick={() => navigate("/ai-management")}
@@ -295,75 +363,48 @@ export default function AIActivityLogsPage() {
               <div className="space-y-3">
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Activity className="h-3.5 w-3.5" />
-                  Audit Layer
+                  Audit Timeline
                 </div>
 
                 <div>
-                  <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white md:text-4xl">
+                  <h1 className="text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
                     Activity & Logs
                   </h1>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                    Review AI settings changes, knowledge updates, cache actions,
-                    approved answers, guardrails, router events, and system audit history.
+                  <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                    Review what changed across AI Studio: router decisions, trusted
+                    answers, saved replies, knowledge, guardrails, settings, and system
+                    actions.
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[720px]">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  Total
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-white">
-                  {metrics.total}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  Settings
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-cyan-200">
-                  {metrics.settingsChanges}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  Knowledge
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-emerald-200">
-                  {metrics.knowledgeChanges}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  Errors
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-rose-200">
-                  {metrics.errors}
-                </p>
-              </div>
+            <div className="grid gap-3 sm:grid-cols-4 xl:min-w-[720px]">
+              <MetricCard label="Total" value={metrics.total} tone="white" />
+              <MetricCard label="Settings" value={metrics.settingsChanges} tone="cyan" />
+              <MetricCard label="Knowledge" value={metrics.knowledgeChanges} tone="emerald" />
+              <MetricCard label="Errors" value={metrics.errors} tone="rose" />
             </div>
           </div>
         </header>
 
-        {errorMessage && (
+        {errorMessage ? (
           <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
             {errorMessage}
           </div>
-        )}
+        ) : null}
 
-        <section className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-          <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+          <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                Activity Control
+              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200/80">
+                Search & Refresh
+              </div>
+              <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">
+                Activity Streams
               </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Latest 200 AI admin activity records, grouped by module.
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                Latest 200 AI admin activity records, grouped by the area they affect.
               </p>
             </div>
 
@@ -384,56 +425,91 @@ export default function AIActivityLogsPage() {
                 disabled={loading}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:text-white disabled:opacity-50"
               >
-                <RefreshCcw className="h-4 w-4" />
+                <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 Refresh
               </button>
             </div>
           </div>
 
           {loading ? (
-            <div className="p-8 text-sm text-slate-400">
-              Loading activity logs...
+            <div className="grid gap-3 p-5">
+              {[1, 2, 3].map((row) => (
+                <div
+                  key={row}
+                  className="h-28 animate-pulse rounded-[26px] border border-white/10 bg-white/[0.03]"
+                />
+              ))}
             </div>
           ) : (
             <div className="grid gap-5 p-5">
-              {sections.map((section) => {
-                const Icon = section.icon;
-
-                return (
-                  <div
-                    key={section.id}
-                    className="overflow-hidden rounded-[26px] border border-white/10 bg-black/20"
-                  >
-                    <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="flex items-start gap-3">
-                        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                          <Icon className="h-5 w-5" />
-                        </div>
-
-                        <div>
-                          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
-                            {section.title}
-                          </div>
-                          <div className="mt-1 text-xs text-slate-500">
-                            {section.description}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white/70">
-                        {section.logs.length} logs
-                      </div>
-                    </div>
-
-                    <div className="max-h-[420px] overflow-y-auto">
-                      {renderLogRows(section.logs)}
-                    </div>
-                  </div>
-                );
-              })}
+              {sections.map((section) => (
+                <ActivityStream key={section.id} section={section} />
+              ))}
             </div>
           )}
         </section>
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "white" | "cyan" | "emerald" | "rose";
+}) {
+  const toneClass =
+    tone === "cyan"
+      ? "text-cyan-200"
+      : tone === "emerald"
+        ? "text-emerald-200"
+        : tone === "rose"
+          ? "text-rose-200"
+          : "text-white";
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+      <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+        {label}
+      </p>
+      <p className={`mt-2 text-3xl font-semibold ${toneClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function ActivityStream({ section }: { section: LogSection }) {
+  const Icon = section.icon;
+  const toneClass = toneClasses(section.tone);
+
+  return (
+    <div className="overflow-hidden rounded-[28px] border border-white/10 bg-black/20">
+      <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-3">
+          <div className={`rounded-2xl border p-3 ${toneClass.icon}`}>
+            <Icon className="h-5 w-5" />
+          </div>
+
+          <div>
+            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">
+              {section.title}
+            </div>
+            <div className="mt-1 text-xs text-slate-500">
+              {section.description}
+            </div>
+          </div>
+        </div>
+
+        <div className={`rounded-full border px-3 py-1 text-xs font-semibold ${toneClass.chip}`}>
+          {section.logs.length} logs
+        </div>
+      </div>
+
+      <div className="max-h-[420px] overflow-y-auto overscroll-contain">
+        {renderLogRows(section.logs, section.tone)}
       </div>
     </div>
   );

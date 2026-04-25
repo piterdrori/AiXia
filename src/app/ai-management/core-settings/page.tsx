@@ -201,22 +201,27 @@ export default function AICoreSettingsPage() {
       return;
     }
 
+    if (!data || data.length === 0) {
+      setErrorMessage("AI settings could not be loaded from the database.");
+      setLoading(false);
+      return;
+    }
+
     const nextSettings = { ...defaultSettings };
 
-    for (const row of data ?? []) {
+    for (const row of data) {
       const key = row.setting_key as SettingKey;
 
-            if (key in nextSettings) {
+      if (key in nextSettings) {
         (nextSettings as Record<string, unknown>)[key] =
           row.setting_value?.value ?? nextSettings[key];
       }
     }
 
-        setSettings(nextSettings);
+    setSettings(nextSettings);
     setBlockedTopicsText(nextSettings.blocked_topics.join(", "));
     setAllowedTopicsText(nextSettings.allowed_topics.join(", "));
     setLoading(false);
-  }
 
      async function saveSettings() {
     setSaving(true);
@@ -236,24 +241,16 @@ export default function AICoreSettingsPage() {
     };
 
     for (const key of Object.keys(settingsToSave) as SettingKey[]) {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("ai_settings")
         .update({
           setting_value: { value: settingsToSave[key] },
           updated_at: new Date().toISOString(),
         })
-        .eq("setting_key", key)
-        .select("setting_key")
-        .maybeSingle();
+        .eq("setting_key", key);
 
       if (error) {
         setErrorMessage(error.message);
-        setSaving(false);
-        return;
-      }
-
-      if (!data) {
-        setErrorMessage(`Setting was not saved: ${key}`);
         setSaving(false);
         return;
       }
@@ -261,7 +258,8 @@ export default function AICoreSettingsPage() {
 
     const { data, error } = await supabase
       .from("ai_settings")
-      .select("setting_key, setting_value");
+      .select("setting_key, setting_value")
+      .order("setting_key", { ascending: true });
 
     if (error) {
       setErrorMessage(error.message);

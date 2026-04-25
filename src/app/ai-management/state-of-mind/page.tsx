@@ -5,14 +5,11 @@ import {
   AlertTriangle,
   ArrowLeft,
   Brain,
-  CheckCircle2,
-  Gauge,
   RefreshCcw,
   Save,
   Sparkles,
   ToggleLeft,
   ToggleRight,
-  Wand2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 

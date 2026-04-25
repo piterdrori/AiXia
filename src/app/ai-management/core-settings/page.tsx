@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -154,7 +154,8 @@ function formatSettingValue(value: number | boolean | string | string[]) {
 export default function AICoreSettingsPage() {
   const navigate = useNavigate();
 
-  const [settings, setSettings] = useState<AISettings>(defaultSettings);
+    const [settings, setSettings] = useState<AISettings>(defaultSettings);
+  const settingsRef = useRef<AISettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -218,6 +219,7 @@ export default function AICoreSettingsPage() {
       }
     }
 
+        settingsRef.current = nextSettings;
     setSettings(nextSettings);
     setBlockedTopicsText(nextSettings.blocked_topics.join(", "));
     setAllowedTopicsText(nextSettings.allowed_topics.join(", "));
@@ -229,8 +231,8 @@ export default function AICoreSettingsPage() {
     setErrorMessage(null);
     setActionMessage(null);
 
-    const settingsToSave: AISettings = {
-      ...settings,
+        const settingsToSave: AISettings = {
+      ...settingsRef.current,
       blocked_topics: blockedTopicsText
         .split(",")
         .map((value) => value.trim())
@@ -260,14 +262,17 @@ export default function AICoreSettingsPage() {
     setSaving(false);
   }
 
-     function updateSetting(
+      function updateSetting(
     key: SettingKey,
     value: number | boolean | string | string[]
   ) {
-    setSettings((current) => ({
-      ...current,
+    const nextSettings = {
+      ...settingsRef.current,
       [key]: value,
-    }));
+    } as AISettings;
+
+    settingsRef.current = nextSettings;
+    setSettings(nextSettings);
   }
 
   return (

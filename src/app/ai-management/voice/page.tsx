@@ -357,7 +357,7 @@ export default function AIVoicePage() {
     }));
   }
 
-  function closeRealtimeConnection() {
+   function closeRealtimeConnection() {
     if (realtimeConnectionRef.current) {
       realtimeConnectionRef.current.close();
       realtimeConnectionRef.current = null;
@@ -365,6 +365,16 @@ export default function AIVoicePage() {
 
     setRealtimeOpen(false);
     setRealtimeConnecting(false);
+  }
+
+  function setRealtimeMicrophoneEnabled(enabled: boolean) {
+    const localStream = realtimeConnectionRef.current?.localStream;
+
+    if (!localStream) return;
+
+    localStream.getAudioTracks().forEach((track) => {
+      track.enabled = enabled;
+    });
   }
 
   function handleRealtimeEvent(event: MessageEvent) {
@@ -393,6 +403,7 @@ export default function AIVoicePage() {
         eventType === "input_audio_buffer.speech_started" ||
         eventType === "input_audio_buffer.speech_stopped" ||
         eventType === "response.created" ||
+        eventType === "response.audio.delta" ||
         eventType === "response.audio.done" ||
         eventType === "response.done"
       ) {
@@ -400,18 +411,29 @@ export default function AIVoicePage() {
       }
 
       if (eventType === "input_audio_buffer.speech_started") {
+        setRealtimeMicrophoneEnabled(true);
         setAvatarState("listening");
       }
 
+      if (eventType === "input_audio_buffer.speech_stopped") {
+        setAvatarState("thinking");
+      }
+
       if (eventType === "response.created") {
+        setRealtimeMicrophoneEnabled(false);
         setAvatarState("thinking");
       }
 
       if (eventType === "response.audio.delta") {
+        setRealtimeMicrophoneEnabled(false);
         setAvatarState("speaking");
       }
 
-      if (eventType === "response.done") {
+      if (
+        eventType === "response.audio.done" ||
+        eventType === "response.done"
+      ) {
+        setRealtimeMicrophoneEnabled(true);
         setAvatarState("idle");
       }
 
@@ -427,7 +449,9 @@ export default function AIVoicePage() {
         setLastTranscript(transcript.trim());
       }
     } catch {
-      setRealtimeEvents((current) => [rawMessage.slice(0, 80), ...current].slice(0, 8));
+      setRealtimeEvents((current) =>
+        [rawMessage.slice(0, 80), ...current].slice(0, 8)
+      );
     }
   }
 
@@ -486,6 +510,7 @@ export default function AIVoicePage() {
       });
 
       realtimeConnectionRef.current = connection;
+      setRealtimeMicrophoneEnabled(true);
       setRealtimeOpen(true);
       setRealtimeConnecting(false);
       setAvatarState("idle");

@@ -59,61 +59,61 @@ const personalitySliders: SliderConfig[] = [
   {
     key: "personality_exploration",
     title: "Exploration",
-    lowLabel: "Conservative",
+    lowLabel: "Focused",
     highLabel: "Exploratory",
-    description: "Controls whether the AI stays narrow or suggests broader options.",
+    description: "Controls whether the assistant stays narrow or suggests broader options.",
   },
   {
     key: "personality_detail_level",
     title: "Detail Level",
     lowLabel: "Concise",
     highLabel: "Detailed",
-    description: "Controls how much detail the AI includes by default.",
+    description: "Controls how much explanation the assistant gives by default.",
   },
   {
     key: "personality_assertiveness",
-    title: "Assertiveness",
-    lowLabel: "Passive",
+    title: "Directness",
+    lowLabel: "Soft",
     highLabel: "Direct",
-    description: "Controls how strongly the AI gives recommendations.",
+    description: "Controls how clearly the assistant recommends the next action.",
   },
   {
     key: "personality_warmth",
     title: "Warmth",
     lowLabel: "Neutral",
     highLabel: "Supportive",
-    description: "Controls how friendly and human the AI feels.",
+    description: "Controls how friendly and human the assistant feels.",
   },
   {
     key: "personality_emotionality",
     title: "Emotionality",
     lowLabel: "Calm",
     highLabel: "Expressive",
-    description: "Controls emotional language. Lower is better for enterprise use.",
+    description: "Controls emotional language. Lower values fit enterprise work better.",
   },
 ];
 
 const behaviorSliders: SliderConfig[] = [
   {
     key: "behavior_strictness",
-    title: "Strictness",
+    title: "Rule Strictness",
     lowLabel: "Flexible",
     highLabel: "Strict",
-    description: "Controls how carefully the AI follows rules and approved scope.",
+    description: "Controls how strongly the assistant follows business rules and approved scope.",
   },
   {
     key: "execution_focus",
     title: "Execution Focus",
     lowLabel: "Explains",
     highLabel: "Executes",
-    description: "Controls whether the AI focuses on action steps over theory.",
+    description: "Controls whether the assistant focuses on action instead of theory.",
   },
   {
     key: "verbosity_level",
-    title: "Verbosity",
+    title: "Answer Length",
     lowLabel: "Short",
     highLabel: "Long",
-    description: "Controls default answer length.",
+    description: "Controls the default response length.",
   },
 ];
 
@@ -124,6 +124,31 @@ function getNumberValue(value: string | number) {
 function getSliderValue(settings: CharacterSettings, key: keyof CharacterSettings) {
   const value = settings[key];
   return typeof value === "number" ? value : 0;
+}
+
+function getBehaviorSummary(settings: CharacterSettings) {
+  const focus =
+    settings.execution_focus >= 75
+      ? "execution-first"
+      : settings.execution_focus <= 35
+        ? "explanation-first"
+        : "balanced";
+
+  const strictness =
+    settings.behavior_strictness >= 70
+      ? "strict with rules"
+      : settings.behavior_strictness <= 35
+        ? "flexible with rules"
+        : "balanced with rules";
+
+  const length =
+    settings.verbosity_level >= 70
+      ? "detailed"
+      : settings.verbosity_level <= 35
+        ? "concise"
+        : "balanced";
+
+  return { focus, strictness, length };
 }
 
 export default function AICharacterPage() {
@@ -161,6 +186,11 @@ export default function AICharacterPage() {
 
     return Math.round(total / behaviorSliders.length);
   }, [settings]);
+
+  const behaviorSummary = useMemo(
+    () => getBehaviorSummary(settings),
+    [settings]
+  );
 
   useEffect(() => {
     void loadSettings();
@@ -256,9 +286,9 @@ export default function AICharacterPage() {
   return (
     <div className="min-h-screen bg-[#05070d] px-6 py-6 text-white">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-4">
+        <header className="overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-5">
               <button
                 type="button"
                 onClick={() => navigate("/ai-management")}
@@ -271,25 +301,25 @@ export default function AICharacterPage() {
               <div className="space-y-3">
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Wand2 className="h-3.5 w-3.5" />
-                  Character Control Layer
+                  Assistant Behavior
                 </div>
 
                 <div>
-                  <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white md:text-4xl">
+                  <h1 className="text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
                     Character / Identity
                   </h1>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                    Define the AI identity, mission, communication personality, and execution behavior.
-                    Memory collects sessions. Approved Answers control exact Q&A. This page controls general behavior.
+                  <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                    Set the assistant&apos;s name, role, mission, tone, and work style.
+                    This controls general behavior, not exact answers or memory.
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[620px]">
-              <MetricCard label="Identity" value={`${identityCompleteness}%`} />
-              <MetricCard label="Personality" value={`${averagePersonality}%`} />
-              <MetricCard label="Behavior" value={`${averageBehavior}%`} />
+            <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[620px]">
+              <MetricCard label="Identity" value={`${identityCompleteness}%`} tone="cyan" />
+              <MetricCard label="Personality" value={`${averagePersonality}%`} tone="violet" />
+              <MetricCard label="Behavior" value={`${averageBehavior}%`} tone="emerald" />
             </div>
           </div>
         </header>
@@ -314,95 +344,92 @@ export default function AICharacterPage() {
           <PurposeCard
             icon={Brain}
             title="Identity"
-            description="Name, role, and mission. This tells the router who the assistant is."
+            description="Name, role, and mission. This defines who the assistant is."
+            tone="cyan"
           />
 
           <PurposeCard
             icon={SlidersHorizontal}
             title="Personality"
-            description="Enterprise-safe behavior scales inspired by personality controls."
+            description="Communication style, detail level, directness, warmth, and emotional tone."
+            tone="violet"
           />
 
           <PurposeCard
             icon={Shield}
-            title="Execution Behavior"
-            description="Strictness, action focus, confidence style, and output formatting."
+            title="Work Behavior"
+            description="Rule strictness, execution focus, answer length, and output style."
+            tone="emerald"
           />
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_440px]">
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_440px]">
           <div className="flex flex-col gap-6">
-            <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-                <div>
-                  <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Identity Foundation
-                  </h2>
-                  <p className="mt-1 text-xs text-slate-500">
-                    The stable definition of who the AI is and what it should do.
-                  </p>
-                </div>
-
+            <Panel
+              eyebrow="Identity Foundation"
+              title="Assistant Profile"
+              description="The stable definition of who the assistant is and what it should help with."
+              action={
                 <button
                   type="button"
                   onClick={() => void loadSettings()}
                   className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-white/20 hover:text-white"
                 >
-                  <RefreshCcw className="h-4 w-4" />
+                  <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                   Refresh
                 </button>
-              </div>
-
-              <div className="grid gap-4 p-5">
+              }
+            >
+              <div className="grid gap-4">
                 <TextField
-                  label="AI Name"
+                  label="Assistant Name"
                   value={settings.ai_name}
                   placeholder="AiXia Assistant"
                   onChange={(value) => updateTextSetting("ai_name", value)}
                 />
 
                 <TextField
-                  label="AI Role"
+                  label="Assistant Role"
                   value={settings.ai_role}
                   placeholder="Internal enterprise assistant"
                   onChange={(value) => updateTextSetting("ai_role", value)}
                 />
 
                 <TextAreaField
-                  label="AI Mission"
+                  label="Assistant Mission"
                   value={settings.ai_mission}
                   placeholder="Describe what the assistant should help with..."
                   onChange={(value) => updateTextSetting("ai_mission", value)}
                 />
               </div>
-            </div>
+            </Panel>
 
             <SliderPanel
-              title="Personality Sliders"
-              description="General communication behavior. These are not exact answers and not session memory."
+              title="Personality"
+              description="General communication behavior. This does not override approved answers."
               sliders={personalitySliders}
               settings={settings}
               onChange={updateNumberSetting}
+              tone="violet"
             />
 
             <SliderPanel
-              title="Execution Behavior"
-              description="Operational behavior for business workflows and admin execution."
+              title="Work Behavior"
+              description="Execution behavior for business workflows, admin work, and structured tasks."
               sliders={behaviorSliders}
               settings={settings}
               onChange={updateNumberSetting}
+              tone="emerald"
             />
           </div>
 
           <aside className="flex flex-col gap-6">
-            <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Output Style
-                </h2>
-              </div>
-
-              <div className="grid gap-4 p-5">
+            <Panel
+              eyebrow="Output Style"
+              title="Response Defaults"
+              description="How the assistant should sound when no exact approved answer is used."
+            >
+              <div className="grid gap-4">
                 <SelectField
                   label="Confidence Style"
                   value={settings.confidence_style}
@@ -426,7 +453,8 @@ export default function AICharacterPage() {
                 />
 
                 <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 py-3 text-sm leading-6 text-cyan-100/80">
-                  This page controls general behavior. It should later feed into the AI router system prompt.
+                  These settings should feed into the router prompt as the assistant&apos;s
+                  default behavior layer.
                 </div>
 
                 <button
@@ -439,19 +467,31 @@ export default function AICharacterPage() {
                   {saving ? "Saving..." : "Save Character"}
                 </button>
               </div>
-            </div>
+            </Panel>
 
-            <div className="rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <div className="rounded-[30px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)] p-5">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
                 <Sparkles className="h-4 w-4" />
                 Behavior Preview
               </div>
 
               <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-4 text-sm leading-6 text-slate-300">
-                I am {settings.ai_name}. My role is {settings.ai_role}. I should be{" "}
-                {settings.execution_focus >= 75 ? "execution-focused" : "explanatory"},{" "}
-                {settings.behavior_strictness >= 70 ? "strict with rules" : "flexible with interpretation"}, and{" "}
-                {settings.verbosity_level >= 70 ? "detailed" : settings.verbosity_level <= 35 ? "concise" : "balanced"}.
+                I am <span className="font-semibold text-white">{settings.ai_name}</span>.
+                My role is{" "}
+                <span className="font-semibold text-white">{settings.ai_role}</span>.
+                I should be{" "}
+                <span className="font-semibold text-cyan-100">
+                  {behaviorSummary.focus}
+                </span>
+                ,{" "}
+                <span className="font-semibold text-cyan-100">
+                  {behaviorSummary.strictness}
+                </span>
+                , and{" "}
+                <span className="font-semibold text-cyan-100">
+                  {behaviorSummary.length}
+                </span>
+                .
               </div>
             </div>
           </aside>
@@ -461,13 +501,28 @@ export default function AICharacterPage() {
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function MetricCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "cyan" | "violet" | "emerald";
+}) {
+  const toneClass =
+    tone === "emerald"
+      ? "text-emerald-200"
+      : tone === "violet"
+        ? "text-violet-200"
+        : "text-cyan-200";
+
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
       <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
         {label}
       </p>
-      <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
+      <p className={`mt-2 text-3xl font-semibold ${toneClass}`}>{value}</p>
     </div>
   );
 }
@@ -476,15 +531,24 @@ function PurposeCard({
   icon: Icon,
   title,
   description,
+  tone,
 }: {
   icon: typeof Brain;
   title: string;
   description: string;
+  tone: "cyan" | "violet" | "emerald";
 }) {
+  const toneClass =
+    tone === "emerald"
+      ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+      : tone === "violet"
+        ? "border-violet-400/20 bg-violet-500/10 text-violet-200"
+        : "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
+
   return (
-    <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
+    <div className="rounded-[26px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
       <div className="flex items-start gap-3">
-        <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-cyan-200">
+        <div className={`rounded-2xl border p-3 ${toneClass}`}>
           <Icon className="h-5 w-5" />
         </div>
 
@@ -495,6 +559,42 @@ function PurposeCard({
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function Panel({
+  eyebrow,
+  title,
+  description,
+  action,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200/80">
+            {eyebrow}
+          </div>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">
+            {title}
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-slate-500">
+            {description}
+          </p>
+        </div>
+
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
+
+      <div className="p-5">{children}</div>
     </div>
   );
 }
@@ -512,14 +612,14 @@ function TextField({
 }) {
   return (
     <label className="flex flex-col gap-2">
-      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
         {label}
       </span>
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white focus:border-cyan-400/40 focus:outline-none"
+        className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/40"
       />
     </label>
   );
@@ -538,7 +638,7 @@ function TextAreaField({
 }) {
   return (
     <label className="flex flex-col gap-2">
-      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
         {label}
       </span>
       <textarea
@@ -546,7 +646,7 @@ function TextAreaField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white focus:border-cyan-400/40 focus:outline-none"
+        className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/40"
       />
     </label>
   );
@@ -565,13 +665,13 @@ function SelectField({
 }) {
   return (
     <label className="flex flex-col gap-2">
-      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
         {label}
       </span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white focus:border-cyan-400/40 focus:outline-none"
+        className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/40"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -589,20 +689,29 @@ function SliderPanel({
   sliders,
   settings,
   onChange,
+  tone,
 }: {
   title: string;
   description: string;
   sliders: SliderConfig[];
   settings: CharacterSettings;
   onChange: (key: keyof CharacterSettings, value: string) => void;
+  tone: "violet" | "emerald";
 }) {
+  const toneClass =
+    tone === "emerald"
+      ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+      : "border-violet-400/20 bg-violet-500/10 text-violet-200";
+
   return (
-    <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+    <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
       <div className="border-b border-white/10 px-5 py-4">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+        <div className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${toneClass}`}>
           {title}
-        </h2>
-        <p className="mt-1 text-xs text-slate-500">{description}</p>
+        </div>
+        <p className="mt-3 text-sm leading-6 text-slate-500">
+          {description}
+        </p>
       </div>
 
       <div className="grid gap-5 p-5">
@@ -612,7 +721,7 @@ function SliderPanel({
           return (
             <div
               key={slider.key}
-              className="rounded-2xl border border-white/10 bg-black/20 p-4"
+              className="rounded-[24px] border border-white/10 bg-black/20 p-4"
             >
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
@@ -624,7 +733,7 @@ function SliderPanel({
                   </div>
                 </div>
 
-                <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-sm font-semibold text-cyan-200">
+                <div className={`rounded-full border px-3 py-1 text-sm font-semibold ${toneClass}`}>
                   {value}
                 </div>
               </div>

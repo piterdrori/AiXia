@@ -426,7 +426,7 @@ export default function AIVoicePage() {
     setSavingSettings(false);
   }
 
-    function updateSetting(key: keyof VoiceSettings, value: string | number | boolean) {
+     function updateSetting(key: keyof VoiceSettings, value: string | number | boolean) {
     setSettings((current) => ({
       ...current,
       [key]: value,
@@ -464,8 +464,6 @@ export default function AIVoicePage() {
 
     recordingStartedSpeakingRef.current = false;
   }
-
-  async function openSession() {
 
   async function openSession() {
     if (sessionOpen) return;

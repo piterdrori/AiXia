@@ -127,6 +127,7 @@ import AIGuardrailsPage from "@/app/ai-management/guardrails/page";
 import AIMemoryPage from "@/app/ai-management/memory/page";
 import AICharacterPage from "@/app/ai-management/character/page";
 import AIStateOfMindPage from "@/app/ai-management/state-of-mind/page";
+import AIVoicePage from "@/app/ai-management/voice/page";
 
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -896,6 +897,17 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <AIStateOfMindPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+      <Route
+  path="/ai-management/voice"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <AIVoicePage />
       </DashboardLayout>
     </ProtectedRoute>
   }

@@ -125,6 +125,7 @@ import AICoreSettingsPage from "@/app/ai-management/core-settings/page";
 import AIActivityLogsPage from "@/app/ai-management/activity/page";
 import AIGuardrailsPage from "@/app/ai-management/guardrails/page";
 import AIMemoryPage from "@/app/ai-management/memory/page";
+import AICharacterPage from "@/app/ai-management/character/page";
 
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -877,6 +878,16 @@ function AppRoutes() {
   }
 />
 
+<Route
+  path="/ai-management/character"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <AICharacterPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
            <Route
         path="/finance"
         element={

@@ -122,6 +122,7 @@ import AIManagementPage from "@/app/ai-management/page";
 import AICacheReviewPage from "@/app/ai-management/cache-review/page";
 import AIApprovedAnswersPage from "@/app/ai-management/approved-answers/page";
 import AICoreSettingsPage from "@/app/ai-management/core-settings/page";
+import AIActivityLogsPage from "@/app/ai-management/activity/page";
 
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -830,12 +831,23 @@ function AppRoutes() {
   }
 />
 
-      <Route
+          <Route
   path="/ai-management/core-settings"
   element={
     <ProtectedRoute>
       <DashboardLayout>
         <AICoreSettingsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/ai-management/activity"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <AIActivityLogsPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

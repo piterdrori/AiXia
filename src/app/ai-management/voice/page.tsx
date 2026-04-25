@@ -3,10 +3,8 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Bot,
-  Brain,
   CheckCircle2,
   CircleStop,
-  Headphones,
   Mic,
   MicOff,
   Play,
@@ -14,13 +12,9 @@ import {
   RefreshCcw,
   Save,
   Send,
-  SlidersHorizontal,
-  Sparkles,
   ToggleLeft,
   ToggleRight,
   Volume2,
-  Wand2,
-  XCircle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { askAI } from "@/lib/ai/aiRouter";

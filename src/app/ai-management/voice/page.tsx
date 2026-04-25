@@ -24,6 +24,11 @@ import {
   speakText,
   transcribeAudio,
 } from "@/lib/ai/voice";
+import {
+  connectRealtimeVoice,
+  createRealtimeVoiceSession,
+  type RealtimeConnection,
+} from "@/lib/ai/realtimeVoice";
 
 type VoiceSettings = {
   voice_enabled: boolean;
@@ -245,9 +250,10 @@ function formatPercent(value: boolean) {
 }
 
 export default function AIVoicePage() {
-  const navigate = useNavigate();
-    const audioRef = useRef<HTMLAudioElement | null>(null);
-    const activeAudioTokenRef = useRef<string | null>(null);
+    const navigate = useNavigate();
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const activeAudioTokenRef = useRef<string | null>(null);
+  const realtimeConnectionRef = useRef<RealtimeConnection | null>(null);
   const continuousVoiceSessionRef = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -284,8 +290,11 @@ export default function AIVoicePage() {
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
 
-  const [lastTranscript, setLastTranscript] = useState("");
+    const [lastTranscript, setLastTranscript] = useState("");
   const [lastAudioUrl, setLastAudioUrl] = useState("");
+  const [realtimeOpen, setRealtimeOpen] = useState(false);
+  const [realtimeConnecting, setRealtimeConnecting] = useState(false);
+  const [realtimeEvents, setRealtimeEvents] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
@@ -311,8 +320,45 @@ export default function AIVoicePage() {
     settings.voice_provider,
   ]);
 
-  useEffect(() => {
+     useEffect(() => {
     void loadSettings();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      continuousVoiceSessionRef.current = false;
+
+      if (realtimeConnectionRef.current) {
+        realtimeConnectionRef.current.close();
+        realtimeConnectionRef.current = null;
+      }
+
+      if (mediaRecorderRef.current?.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
+
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        audioRef.current.src = "";
+        audioRef.current = null;
+      }
+
+      if (silenceTimerRef.current) {
+        window.clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+
+      if (silenceCheckRef.current) {
+        window.cancelAnimationFrame(silenceCheckRef.current);
+        silenceCheckRef.current = null;
+      }
+
+      if (audioContextRef.current) {
+        void audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -447,7 +493,7 @@ export default function AIVoicePage() {
     setSpeaking(false);
   }
 
-  function clearSilenceDetection() {
+    function clearSilenceDetection() {
     if (silenceTimerRef.current) {
       window.clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
@@ -464,6 +510,176 @@ export default function AIVoicePage() {
     }
 
     recordingStartedSpeakingRef.current = false;
+  }
+
+  function closeRealtimeConnection() {
+    if (realtimeConnectionRef.current) {
+      realtimeConnectionRef.current.close();
+      realtimeConnectionRef.current = null;
+    }
+
+    setRealtimeOpen(false);
+    setRealtimeConnecting(false);
+  }
+
+  function handleRealtimeEvent(event: MessageEvent) {
+    const rawMessage = String(event.data ?? "");
+
+    if (!rawMessage) return;
+
+    try {
+      const parsed = JSON.parse(rawMessage) as {
+        type?: string;
+        transcript?: string;
+        delta?: string;
+        item?: {
+          role?: string;
+          content?: Array<{
+            type?: string;
+            transcript?: string;
+            text?: string;
+          }>;
+        };
+      };
+
+      const eventType = parsed.type ?? "realtime.event";
+
+      if (
+        eventType === "input_audio_buffer.speech_started" ||
+        eventType === "input_audio_buffer.speech_stopped" ||
+        eventType === "response.created" ||
+        eventType === "response.audio.done" ||
+        eventType === "response.done"
+      ) {
+        setRealtimeEvents((current) => [eventType, ...current].slice(0, 8));
+      }
+
+      if (eventType === "input_audio_buffer.speech_started") {
+        setAvatarState("listening");
+      }
+
+      if (eventType === "response.created") {
+        setAvatarState("thinking");
+      }
+
+      if (eventType === "response.audio.delta") {
+        setAvatarState("speaking");
+      }
+
+      if (eventType === "response.done") {
+        setAvatarState("idle");
+      }
+
+      const transcript =
+        parsed.transcript ??
+        parsed.delta ??
+        parsed.item?.content?.find((contentItem) => contentItem.transcript)
+          ?.transcript ??
+        parsed.item?.content?.find((contentItem) => contentItem.text)?.text ??
+        "";
+
+      if (transcript.trim()) {
+        setLastTranscript(transcript.trim());
+      }
+    } catch {
+      setRealtimeEvents((current) => [rawMessage.slice(0, 80), ...current].slice(0, 8));
+    }
+  }
+
+  function buildRealtimeInstructions() {
+    return [
+      "You are AiXia Assistant.",
+      "Reply immediately, clearly, and briefly.",
+      "Use short practical answers unless the user asks for detail.",
+      "You are inside the AiXia enterprise system.",
+      "Help with workflows, projects, tasks, finance, operations, and internal work.",
+      "Do not over-explain.",
+      settings.voice_notes ? `Admin voice notes: ${settings.voice_notes}` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  async function startRealtimeSession() {
+    if (realtimeOpen || realtimeConnecting) return;
+
+    if (!settings.voice_enabled) {
+      setErrorMessage("Voice Module is disabled.");
+      return;
+    }
+
+    if (!settings.voice_stt_enabled || !settings.voice_tts_enabled) {
+      setErrorMessage("Realtime Mode needs both Voice to Text and Text to Voice enabled.");
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setErrorMessage("Microphone access is not supported in this browser.");
+      return;
+    }
+
+    setRealtimeConnecting(true);
+    setErrorMessage(null);
+    setActionMessage(null);
+    setRealtimeEvents([]);
+    stopCurrentAudio();
+    clearSilenceDetection();
+
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+
+    try {
+      if (!sessionOpen) {
+        await openSession();
+      }
+
+      const realtimeSession = await createRealtimeVoiceSession({
+        model: "gpt-realtime-mini",
+        voice: "marin",
+        instructions: buildRealtimeInstructions(),
+      });
+
+      const connection = await connectRealtimeVoice({
+        clientSecret: realtimeSession.client_secret,
+        model: realtimeSession.model,
+        onDataMessage: handleRealtimeEvent,
+      });
+
+      realtimeConnectionRef.current = connection;
+      setRealtimeOpen(true);
+      setRealtimeConnecting(false);
+      setAvatarState("idle");
+      setProvider("openai-realtime");
+      setModel(realtimeSession.model);
+
+      setMessages((current) => [
+        ...current,
+        {
+          id: createMessageId(),
+          role: "assistant",
+          content:
+            "Realtime voice session is active. Speak naturally. AiXia will detect when you stop talking and reply by voice.",
+          provider: "openai-realtime",
+          model: realtimeSession.model,
+          router_layer: "realtime",
+        },
+      ]);
+
+      setActionMessage("Realtime voice session started.");
+    } catch (error) {
+      closeRealtimeConnection();
+      setAvatarState(sessionOpen ? "idle" : "offline");
+      setErrorMessage(
+        error instanceof Error ? error.message : "Realtime session failed."
+      );
+    }
+  }
+
+  function stopRealtimeSession() {
+    closeRealtimeConnection();
+    setAvatarState(sessionOpen ? "idle" : "offline");
+    setActionMessage("Realtime voice session stopped.");
   }
 
   async function openSession() {
@@ -515,10 +731,11 @@ export default function AIVoicePage() {
     setActionMessage("Voice session opened.");
   }
 
-      async function endSession() {
+     async function endSession() {
     if (!sessionOpen) return;
 
     continuousVoiceSessionRef.current = false;
+    closeRealtimeConnection();
     clearSilenceDetection();
 
     if (mediaRecorderRef.current?.state === "recording") {
@@ -735,7 +952,12 @@ export default function AIVoicePage() {
 
       await saveConversationMessage(assistantMessage);
 
-            if (modeUsesTts && settings.voice_enabled && settings.voice_tts_enabled) {
+               if (
+        !realtimeOpen &&
+        modeUsesTts &&
+        settings.voice_enabled &&
+        settings.voice_tts_enabled
+      ) {
         void playText(assistantMessage.content);
       }
     } catch (error) {
@@ -1045,7 +1267,7 @@ export default function AIVoicePage() {
                   </h2>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
+                               <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
                     onClick={() => void openSession()}
@@ -1054,6 +1276,33 @@ export default function AIVoicePage() {
                   >
                     <CheckCircle2 className="h-4 w-4" />
                     Open Session
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={
+                      realtimeOpen
+                        ? stopRealtimeSession
+                        : () => void startRealtimeSession()
+                    }
+                    disabled={realtimeConnecting || !settings.voice_enabled}
+                    className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                      realtimeOpen
+                        ? "border-rose-400/30 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20"
+                        : "border-cyan-400/30 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20"
+                    }`}
+                  >
+                    {realtimeOpen ? (
+                      <>
+                        <MicOff className="h-4 w-4" />
+                        Stop Realtime
+                      </>
+                    ) : (
+                      <>
+                        <Mic className="h-4 w-4" />
+                        {realtimeConnecting ? "Connecting..." : "Start Realtime"}
+                      </>
+                    )}
                   </button>
 
                   <button
@@ -1200,9 +1449,10 @@ export default function AIVoicePage() {
                             </div>
                           ) : null}
 
-                          {message.role === "assistant" &&
+                        {message.role === "assistant" &&
                           message.content &&
-                          settings.voice_tts_enabled ? (
+                          settings.voice_tts_enabled &&
+                          !realtimeOpen ? (
                             <button
                               type="button"
                               onClick={() => void playText(message.content)}
@@ -1225,9 +1475,9 @@ export default function AIVoicePage() {
                     )}
                   </div>
 
-                                    <div className="border-t border-white/10 p-5">
-                    {(provider || model || lastTranscript) && (
-                      <div className="mb-4 grid gap-3 md:grid-cols-3">
+                                           <div className="border-t border-white/10 p-5">
+                    {(provider || model || lastTranscript || realtimeOpen) && (
+                      <div className="mb-4 grid gap-3 md:grid-cols-4">
                         <StatusPill
                           label="Provider"
                           value={provider || "-"}
@@ -1243,8 +1493,31 @@ export default function AIVoicePage() {
                           value={lastTranscript || "-"}
                           tone="emerald"
                         />
+                        <StatusPill
+                          label="Realtime"
+                          value={realtimeOpen ? "ON" : "OFF"}
+                          tone={realtimeOpen ? "emerald" : "cyan"}
+                        />
                       </div>
                     )}
+
+                    {realtimeEvents.length > 0 ? (
+                      <div className="mb-4 rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/70">
+                          Realtime Events
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {realtimeEvents.map((eventName, eventIndex) => (
+                            <span
+                              key={`${eventName}-${eventIndex}`}
+                              className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-slate-300"
+                            >
+                              {eventName}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
 
                     <div className="rounded-[26px] border border-white/10 bg-black/25 p-3">
                       <textarea
@@ -1264,7 +1537,8 @@ export default function AIVoicePage() {
                                 ? stopRecording
                                 : () => void startContinuousVoiceSession()
                             }
-                            disabled={
+                          disabled={
+                              realtimeOpen ||
                               !sessionOpen ||
                               !settings.voice_enabled ||
                               !settings.voice_stt_enabled ||
@@ -1293,7 +1567,8 @@ export default function AIVoicePage() {
                           <button
                             type="button"
                             onClick={() => void handleStandaloneSpeak()}
-                            disabled={
+                          disabled={
+                              realtimeOpen ||
                               !sessionOpen ||
                               !settings.voice_enabled ||
                               !settings.voice_tts_enabled ||

@@ -267,9 +267,15 @@ export default function AICoreSettingsPage() {
       return;
     }
 
+       if (!data || data.length === 0) {
+      setErrorMessage("Saved, but settings could not be reloaded from the database.");
+      setSaving(false);
+      return;
+    }
+
     const nextSettings = { ...defaultSettings };
 
-    for (const row of data ?? []) {
+    for (const row of data) {
       const key = row.setting_key as SettingKey;
 
       if (key in nextSettings) {
@@ -281,7 +287,9 @@ export default function AICoreSettingsPage() {
     setSettings(nextSettings);
     setBlockedTopicsText(nextSettings.blocked_topics.join(", "));
     setAllowedTopicsText(nextSettings.allowed_topics.join(", "));
-    setActionMessage("Saved successfully. Settings are now stored in the database.");
+    setActionMessage(
+      `Saved successfully. Loaded ${data.length} settings from database.`
+    );
     setSaving(false);
   }
 

@@ -693,7 +693,7 @@ export default function AIMemoryPage() {
                 </div>
               ) : (
                 <div className="grid gap-4 p-5">
-                  <div className="grid gap-3 sm:grid-cols-4">
+                                    <div className="grid gap-3 sm:grid-cols-4">
                     <HealthMetric
                       icon={CheckCircle2}
                       label="Score"
@@ -718,6 +718,17 @@ export default function AIMemoryPage() {
                       value={String(selectedHealth.refusalCount)}
                       tone="text-amber-200"
                     />
+                  </div>
+
+                  <div className="rounded-[24px] border border-purple-400/15 bg-purple-500/10 px-5 py-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-purple-200/80">
+                      Session Summary
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-purple-50/85">
+                      {selectedSession.summary?.trim()
+                        ? selectedSession.summary
+                        : "No summary yet. Click Analyze to generate a short session summary."}
+                    </p>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-4">

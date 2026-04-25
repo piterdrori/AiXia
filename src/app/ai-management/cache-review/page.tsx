@@ -471,6 +471,17 @@ useEffect(() => {
       return;
     }
 
+        await supabase.from("ai_admin_activity_logs").insert({
+      action_type: "cache_updated",
+      entity_type: "cache",
+      entity_id: editorItemId,
+      details: {
+        question: payload.question,
+        provider: payload.provider,
+        is_blocked: payload.is_blocked,
+      },
+    });
+
     setEditorOpen(false);
     resetEditor();
     setActionMessage("Cache item updated.");
@@ -497,6 +508,16 @@ useEffect(() => {
       return;
     }
 
+        await supabase.from("ai_admin_activity_logs").insert({
+      action_type: nextBlocked ? "cache_blocked" : "cache_unblocked",
+      entity_type: "cache",
+      entity_id: item.id,
+      details: {
+        question: item.question,
+        is_blocked: nextBlocked,
+      },
+    });
+
     setActionMessage(
       nextBlocked ? "Cache item blocked." : "Cache item unblocked."
     );
@@ -522,6 +543,15 @@ useEffect(() => {
       setPageError(error.message);
       return;
     }
+
+        await supabase.from("ai_admin_activity_logs").insert({
+      action_type: "cache_deleted",
+      entity_type: "cache",
+      entity_id: item.id,
+      details: {
+        question: item.question,
+      },
+    });
 
     if (selectedItemId === item.id) {
       setSelectedItemId(null);
@@ -558,6 +588,16 @@ useEffect(() => {
       setPageError(error.message);
       return;
     }
+
+        await supabase.from("ai_admin_activity_logs").insert({
+      action_type: "cache_duplicates_cleaned",
+      entity_type: "cache",
+      entity_id: selectedItem.id,
+      details: {
+        normalized_question: selectedItem.normalized_question,
+        cleaned_count: duplicateIds.length,
+      },
+    });
 
     setActionMessage(`Auto-cleaned ${duplicateIds.length} duplicate cache row(s).`);
     await loadCacheItems(true);
@@ -922,11 +962,24 @@ async function autoPromoteBestClusters() {
         })
         .eq("id", existingId);
 
+            if (!updateError) {
+        await supabase.from("ai_admin_activity_logs").insert({
+          action_type: "cache_promoted",
+          entity_type: "cache",
+          entity_id: item.id,
+          details: {
+            question: item.question,
+            normalized_question: normalized,
+            replaced_existing: true,
+          },
+        });
+      }
+
       setPromoting(false);
       return !updateError;
     }
 
-    const { error } = await supabase
+        const { error } = await supabase
       .from("ai_approved_answers")
       .insert({
         question: item.question,
@@ -939,6 +992,18 @@ async function autoPromoteBestClusters() {
         approved_version: 1,
         source_cache_id: item.id,
       });
+
+    if (!error) {
+      await supabase.from("ai_admin_activity_logs").insert({
+        action_type: "cache_promoted",
+        entity_type: "cache",
+        entity_id: item.id,
+        details: {
+          question: item.question,
+          normalized_question: normalized,
+        },
+      });
+    }
 
     setPromoting(false);
     return !error;

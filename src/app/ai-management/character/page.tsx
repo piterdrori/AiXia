@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Brain,
-  Gauge,
   RefreshCcw,
   Save,
   Shield,

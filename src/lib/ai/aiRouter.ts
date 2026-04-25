@@ -1,10 +1,32 @@
 import { supabase } from "@/lib/supabase";
 
+export type AskAIDebugCandidate = {
+  id?: string;
+  question?: string;
+  similarity?: number;
+  rank_score?: number;
+  usage_count?: number;
+  quality_score?: number;
+};
+
+export type AskAIDebug = {
+  reason?: string;
+  layer?: string;
+  threshold?: number;
+  totalCache?: number;
+  avgUsage?: number;
+  selected?: AskAIDebugCandidate;
+  candidates?: AskAIDebugCandidate[];
+};
+
 export type AskAIResult = {
   success: boolean;
   text: string;
   provider?: string;
   model?: string;
+  similarity?: number;
+  matched_question?: string;
+  debug?: AskAIDebug;
 };
 
 export async function askAI(prompt: string): Promise<AskAIResult> {
@@ -31,5 +53,8 @@ export async function askAI(prompt: string): Promise<AskAIResult> {
     text: data.text,
     provider: data.provider,
     model: data.model,
+    similarity: data.similarity,
+    matched_question: data.matched_question,
+    debug: data.debug,
   };
 }

@@ -5,7 +5,6 @@ import {
   Brain,
   Database,
   Gauge,
-  RefreshCcw,
   Save,
   ServerCog,
   ShieldCheck,

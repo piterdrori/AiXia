@@ -510,6 +510,11 @@ if (item.id === "character") {
   return;
 }
 
+if (item.id === "state-of-mind") {
+  navigate("/ai-management/state-of-mind");
+  return;
+}
+
                       setActiveSection(item.id);
                     }}
                     className={`w-full rounded-[22px] border px-4 py-3 text-left transition-all duration-300 ${

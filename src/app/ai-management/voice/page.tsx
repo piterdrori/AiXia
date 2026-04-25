@@ -79,10 +79,10 @@ const defaultVoiceSettings: VoiceSettings = {
   voice_stt_enabled: true,
   voice_provider: "openai",
   voice_stt_model: "gpt-4o-mini-transcribe",
-  voice_tts_model: "gpt-4o-mini-tts",
+  voice_tts_model: "tts-1",
   voice_name: "alloy",
   voice_style: "professional",
-  voice_speed: 1.25,
+  voice_speed: 1.35,
   voice_pitch: 50,
   voice_stability: 70,
   voice_clarity: 80,
@@ -735,8 +735,8 @@ export default function AIVoicePage() {
 
       await saveConversationMessage(assistantMessage);
 
-      if (modeUsesTts && settings.voice_enabled && settings.voice_tts_enabled) {
-        await playText(assistantMessage.content);
+            if (modeUsesTts && settings.voice_enabled && settings.voice_tts_enabled) {
+        void playText(assistantMessage.content);
       }
     } catch (error) {
       const errorMessage: Message = {

@@ -15,12 +15,6 @@ import {
 import { supabase } from "@/lib/supabase";
 import { askAI } from "@/lib/ai/aiRouter";
 import {
-  base64ToAudioUrl,
-  blobToBase64,
-  speakText,
-  transcribeAudio,
-} from "@/lib/ai/voice";
-import {
   connectRealtimeVoice,
   createRealtimeVoiceSession,
   type RealtimeConnection,
@@ -54,14 +48,13 @@ type Message = {
   similarity?: number;
 };
 
-type InteractionMode =
-  | "text"
-  | "voice"
-  | "avatar"
-  | "voice-avatar"
-  | "complete";
-
-type AvatarState = "offline" | "idle" | "listening" | "thinking" | "speaking";
+type AvatarState =
+  | "offline"
+  | "idle"
+  | "listening"
+  | "thinking"
+  | "speaking"
+  | "paused";
 
 type VoiceSlider = {
   key: keyof VoiceSettings;
@@ -178,53 +171,22 @@ function resolveRouterLayer(provider?: string, debugLayer?: string) {
   return provider;
 }
 
-function buildVoiceInstructions(settings: VoiceSettings) {
-  const clarity =
-    settings.voice_clarity >= 75
-      ? "very clear and easy to understand"
-      : settings.voice_clarity <= 35
-        ? "soft and relaxed"
-        : "clear and natural";
-
-  return `Speak in a ${settings.voice_style} enterprise assistant voice. Keep the delivery ${clarity}.`;
-}
-
 function getAvatarStateLabel(state: AvatarState) {
   if (state === "offline") return "Offline";
+  if (state === "idle") return "Idle";
   if (state === "listening") return "Listening";
   if (state === "thinking") return "Thinking";
   if (state === "speaking") return "Speaking";
-  return "Ready";
+  if (state === "paused") return "Paused";
+  return "Idle";
 }
-
-function getModeUsesTts(mode: InteractionMode) {
-  return mode === "voice" || mode === "voice-avatar" || mode === "complete";
-}
-
-function getModeUsesStt(mode: InteractionMode) {
-  return mode === "voice" || mode === "voice-avatar" || mode === "complete";
-}
-
-function getModeUsesAvatar(mode: InteractionMode) {
-  return mode === "avatar" || mode === "voice-avatar" || mode === "complete";
-}
-
 function formatPercent(value: boolean) {
   return value ? "ON" : "OFF";
 }
 
 export default function AIVoicePage() {
-    const navigate = useNavigate();
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const activeAudioTokenRef = useRef<string | null>(null);
+  const navigate = useNavigate();
   const realtimeConnectionRef = useRef<RealtimeConnection | null>(null);
-  const continuousVoiceSessionRef = useRef(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordedChunksRef = useRef<Blob[]>([]);
-  const recordingStartedSpeakingRef = useRef(false);
-  const silenceTimerRef = useRef<number | null>(null);
-  const silenceCheckRef = useRef<number | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
   const [settings, setSettings] = useState<VoiceSettings>(defaultVoiceSettings);
@@ -233,10 +195,10 @@ export default function AIVoicePage() {
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionOpen, setSessionOpen] = useState(false);
-    const [interactionMode] = useState<InteractionMode>("complete");
+  const interactionMode = "complete";
   const [avatarState, setAvatarState] = useState<AvatarState>("offline");
 
-      const [messages, setMessages] = useState<Message[]>([
+  const [messages, setMessages] = useState<Message[]>([
     {
       id: createMessageId(),
       role: "assistant",
@@ -244,26 +206,18 @@ export default function AIVoicePage() {
         "Voice Testing Studio is ready. Start Conversation to test realtime voice, or use the text box for typed testing.",
     },
   ]);
+
   const [input, setInput] = useState("");
   const [provider, setProvider] = useState("");
   const [model, setModel] = useState("");
 
   const [sending, setSending] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
-
-    const [lastTranscript, setLastTranscript] = useState("");
-  const [lastAudioUrl, setLastAudioUrl] = useState("");
+  const [lastTranscript, setLastTranscript] = useState("");
   const [realtimeOpen, setRealtimeOpen] = useState(false);
   const [realtimeConnecting, setRealtimeConnecting] = useState(false);
   const [realtimeEvents, setRealtimeEvents] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
-
-  const modeUsesTts = getModeUsesTts(interactionMode);
-  const modeUsesStt = getModeUsesStt(interactionMode);
-  const modeUsesAvatar = getModeUsesAvatar(interactionMode);
 
   const activeVoiceStatus = settings.voice_enabled && sessionOpen;
 
@@ -279,43 +233,15 @@ export default function AIVoicePage() {
     settings.voice_provider,
   ]);
 
-     useEffect(() => {
+  useEffect(() => {
     void loadSettings();
   }, []);
 
   useEffect(() => {
     return () => {
-      continuousVoiceSessionRef.current = false;
-
       if (realtimeConnectionRef.current) {
         realtimeConnectionRef.current.close();
         realtimeConnectionRef.current = null;
-      }
-
-      if (mediaRecorderRef.current?.state === "recording") {
-        mediaRecorderRef.current.stop();
-      }
-
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-        audioRef.current.src = "";
-        audioRef.current = null;
-      }
-
-      if (silenceTimerRef.current) {
-        window.clearTimeout(silenceTimerRef.current);
-        silenceTimerRef.current = null;
-      }
-
-      if (silenceCheckRef.current) {
-        window.cancelAnimationFrame(silenceCheckRef.current);
-        silenceCheckRef.current = null;
-      }
-
-      if (audioContextRef.current) {
-        void audioContextRef.current.close();
-        audioContextRef.current = null;
       }
     };
   }, []);
@@ -325,31 +251,23 @@ export default function AIVoicePage() {
       top: chatScrollRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, sending, transcribing]);
+  }, [messages, sending]);
 
-  useEffect(() => {
+     useEffect(() => {
     if (!sessionOpen) {
       setAvatarState("offline");
       return;
     }
 
-    if (recording) {
-      setAvatarState("listening");
-      return;
-    }
-
-    if (sending || transcribing) {
+    if (sending) {
       setAvatarState("thinking");
       return;
     }
 
-    if (speaking) {
-      setAvatarState("speaking");
-      return;
+    if (!realtimeOpen) {
+      setAvatarState("idle");
     }
-
-    setAvatarState("idle");
-  }, [recording, sending, sessionOpen, speaking, transcribing]);
+  }, [realtimeOpen, sending, sessionOpen]);
 
   async function loadSettings() {
     setLoadingSettings(true);
@@ -432,43 +350,11 @@ export default function AIVoicePage() {
     setSavingSettings(false);
   }
 
-     function updateSetting(key: keyof VoiceSettings, value: string | number | boolean) {
+       function updateSetting(key: keyof VoiceSettings, value: string | number | boolean) {
     setSettings((current) => ({
       ...current,
       [key]: value,
     }));
-  }
-
-  function stopCurrentAudio() {
-    activeAudioTokenRef.current = null;
-
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current.src = "";
-      audioRef.current = null;
-    }
-
-    setSpeaking(false);
-  }
-
-    function clearSilenceDetection() {
-    if (silenceTimerRef.current) {
-      window.clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-
-    if (silenceCheckRef.current) {
-      window.cancelAnimationFrame(silenceCheckRef.current);
-      silenceCheckRef.current = null;
-    }
-
-    if (audioContextRef.current) {
-      void audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-
-    recordingStartedSpeakingRef.current = false;
   }
 
   function closeRealtimeConnection() {
@@ -581,12 +467,6 @@ export default function AIVoicePage() {
     setErrorMessage(null);
     setActionMessage(null);
     setRealtimeEvents([]);
-    stopCurrentAudio();
-    clearSilenceDetection();
-
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.stop();
-    }
 
     try {
       if (!sessionOpen) {
@@ -612,7 +492,7 @@ export default function AIVoicePage() {
       setProvider("openai-realtime");
       setModel(realtimeSession.model);
 
-            setMessages((current) => [
+      setMessages((current) => [
         ...current,
         {
           id: createMessageId(),
@@ -633,12 +513,6 @@ export default function AIVoicePage() {
         error instanceof Error ? error.message : "Realtime session failed."
       );
     }
-  }
-
-  function stopRealtimeSession() {
-    closeRealtimeConnection();
-    setAvatarState(sessionOpen ? "idle" : "offline");
-    setActionMessage("Realtime conversation stopped.");
   }
 
   async function openSession() {
@@ -690,18 +564,10 @@ export default function AIVoicePage() {
     setActionMessage("Realtime conversation opened.");
   }
 
-     async function endSession() {
+  async function endSession() {
     if (!sessionOpen) return;
 
-    continuousVoiceSessionRef.current = false;
     closeRealtimeConnection();
-    clearSilenceDetection();
-
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.stop();
-    }
-
-    stopCurrentAudio();
 
     if (sessionId) {
       await supabase
@@ -726,10 +592,7 @@ export default function AIVoicePage() {
     setSessionId(null);
     setSessionOpen(false);
     setAvatarState("offline");
-    setRecording(false);
-    setSpeaking(false);
     setSending(false);
-    setTranscribing(false);
     setProvider("");
     setModel("");
     setActionMessage("Realtime conversation ended.");
@@ -757,109 +620,6 @@ export default function AIVoicePage() {
 
     if (error) {
       console.error("Voice conversation save error:", error);
-    }
-  }
-
-    async function playText(text: string) {
-    if (!settings.voice_enabled || !settings.voice_tts_enabled) {
-      setErrorMessage("Text-to-speech is disabled.");
-      return;
-    }
-
-    const cleanText = text.trim();
-
-    if (!cleanText) return;
-
-    const audioToken = crypto.randomUUID();
-
-    stopCurrentAudio();
-
-    activeAudioTokenRef.current = audioToken;
-    setSpeaking(true);
-    setErrorMessage(null);
-
-    try {
-      const result = await speakText({
-        text: cleanText,
-        model: settings.voice_tts_model,
-        voice: settings.voice_name,
-        instructions: buildVoiceInstructions(settings),
-        response_format: "mp3",
-        speed: settings.voice_speed,
-      });
-
-      if (activeAudioTokenRef.current !== audioToken) return;
-
-      const audioUrl = base64ToAudioUrl(result.audio_base64, result.mime_type);
-      setLastAudioUrl(audioUrl);
-
-      const audio = new Audio(audioUrl);
-      audioRef.current = audio;
-
-            audio.onended = () => {
-        if (activeAudioTokenRef.current !== audioToken) return;
-
-        activeAudioTokenRef.current = null;
-        setSpeaking(false);
-
-        if (
-          continuousVoiceSessionRef.current &&
-          sessionOpen &&
-          modeUsesStt &&
-          settings.voice_enabled &&
-          settings.voice_stt_enabled
-        ) {
-          window.setTimeout(() => {
-            if (
-              continuousVoiceSessionRef.current &&
-              sessionOpen &&
-              !recording &&
-              !sending &&
-              !transcribing
-            ) {
-              void startRecording();
-            }
-          }, 450);
-        }
-      };
-
-      audio.onerror = () => {
-        if (activeAudioTokenRef.current !== audioToken) return;
-
-        activeAudioTokenRef.current = null;
-        setSpeaking(false);
-        setErrorMessage("Audio playback failed.");
-
-        if (
-          continuousVoiceSessionRef.current &&
-          sessionOpen &&
-          modeUsesStt &&
-          settings.voice_enabled &&
-          settings.voice_stt_enabled
-        ) {
-          window.setTimeout(() => {
-            if (
-              continuousVoiceSessionRef.current &&
-              sessionOpen &&
-              !recording &&
-              !sending &&
-              !transcribing
-            ) {
-              void startRecording();
-            }
-          }, 700);
-        }
-      };
-
-      await audio.play();
-    } catch (error) {
-      if (activeAudioTokenRef.current !== audioToken) return;
-
-      activeAudioTokenRef.current = null;
-      setSpeaking(false);
-      setErrorMessage(
-        error instanceof Error ? error.message : "Text-to-speech failed."
-      );
     }
   }
 
@@ -910,15 +670,6 @@ export default function AIVoicePage() {
       setModel(result.model || "");
 
       await saveConversationMessage(assistantMessage);
-
-               if (
-        !realtimeOpen &&
-        modeUsesTts &&
-        settings.voice_enabled &&
-        settings.voice_tts_enabled
-      ) {
-        void playText(assistantMessage.content);
-      }
     } catch (error) {
       const errorMessage: Message = {
         id: createMessageId(),
@@ -935,199 +686,6 @@ export default function AIVoicePage() {
     } finally {
       setSending(false);
     }
-  }
-
-   function startSilenceDetection(stream: MediaStream) {
-    clearSilenceDetection();
-
-    const AudioContextClass =
-      window.AudioContext ||
-      (window as typeof window & { webkitAudioContext?: typeof AudioContext })
-        .webkitAudioContext;
-
-    if (!AudioContextClass) return;
-
-    const audioContext = new AudioContextClass();
-    const analyser = audioContext.createAnalyser();
-    const microphone = audioContext.createMediaStreamSource(stream);
-    const dataArray = new Uint8Array(analyser.fftSize);
-
-    analyser.fftSize = 2048;
-    microphone.connect(analyser);
-    audioContextRef.current = audioContext;
-
-    const speechThreshold = 14;
-    const silenceDelayMs = 3000;
-
-    const checkVolume = () => {
-      analyser.getByteTimeDomainData(dataArray);
-
-      const averageVolume =
-        dataArray.reduce((sum, value) => sum + Math.abs(value - 128), 0) /
-        dataArray.length;
-
-      if (averageVolume > speechThreshold) {
-        recordingStartedSpeakingRef.current = true;
-
-        if (silenceTimerRef.current) {
-          window.clearTimeout(silenceTimerRef.current);
-          silenceTimerRef.current = null;
-        }
-      }
-
-      if (
-        recordingStartedSpeakingRef.current &&
-        averageVolume <= speechThreshold &&
-        !silenceTimerRef.current
-      ) {
-        silenceTimerRef.current = window.setTimeout(() => {
-          if (mediaRecorderRef.current?.state === "recording") {
-            mediaRecorderRef.current.stop();
-            setRecording(false);
-          }
-        }, silenceDelayMs);
-      }
-
-      silenceCheckRef.current = window.requestAnimationFrame(checkVolume);
-    };
-
-    silenceCheckRef.current = window.requestAnimationFrame(checkVolume);
-  }
-
-    async function startRecording() {
-    if (!sessionOpen) {
-      setErrorMessage("Open a session before recording.");
-      return;
-    }
-
-    if (!settings.voice_enabled || !settings.voice_stt_enabled) {
-      setErrorMessage("Speech-to-text is disabled.");
-      return;
-    }
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setErrorMessage("Microphone recording is not supported in this browser.");
-      return;
-    }
-
-    stopCurrentAudio();
-
-    setErrorMessage(null);
-    setActionMessage(null);
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      recordedChunksRef.current = [];
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          recordedChunksRef.current.push(event.data);
-        }
-      };
-
-      recorder.onstop = () => {
-        clearSilenceDetection();
-        stream.getTracks().forEach((track) => track.stop());
-        void transcribeRecordedAudio(recorder.mimeType || "audio/webm");
-      };
-
-      mediaRecorderRef.current = recorder;
-      recorder.start();
-      setRecording(true);
-      startSilenceDetection(stream);
-    } catch (error) {
-      clearSilenceDetection();
-      setRecording(false);
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to start recording."
-      );
-    }
-  }
-
-  async function startContinuousVoiceSession() {
-    continuousVoiceSessionRef.current = true;
-    await startRecording();
-  }
-
-  function stopRecording() {
-    continuousVoiceSessionRef.current = false;
-    clearSilenceDetection();
-
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.stop();
-      setRecording(false);
-    }
-  }
-
-  async function transcribeRecordedAudio(mimeType: string) {
-    const audioBlob = new Blob(recordedChunksRef.current, {
-      type: mimeType,
-    });
-
-    if (audioBlob.size === 0) {
-      setErrorMessage("No audio was recorded.");
-      return;
-    }
-
-    setTranscribing(true);
-    setErrorMessage(null);
-
-    try {
-      const audioBase64 = await blobToBase64(audioBlob);
-
-      const result = await transcribeAudio({
-        audio_base64: audioBase64,
-        mime_type: mimeType,
-        filename: "voice-studio-recording.webm",
-        model: settings.voice_stt_model,
-      });
-
-      setLastTranscript(result.text);
-
-            if (result.text.trim()) {
-        if (interactionMode === "voice" || interactionMode === "voice-avatar" || interactionMode === "complete") {
-          await handleSend(result.text);
-        } else {
-          setInput(result.text);
-        }
-      } else if (
-        continuousVoiceSessionRef.current &&
-        sessionOpen &&
-        modeUsesStt &&
-        settings.voice_enabled &&
-        settings.voice_stt_enabled
-      ) {
-        window.setTimeout(() => {
-          if (
-            continuousVoiceSessionRef.current &&
-            sessionOpen &&
-            !recording &&
-            !sending &&
-            !transcribing
-          ) {
-            void startRecording();
-          }
-        }, 700);
-      }
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Speech-to-text failed."
-      );
-    } finally {
-      setTranscribing(false);
-    }
-  }
-
-  async function handleStandaloneSpeak() {
-    const cleanInput = input.trim();
-
-    if (!cleanInput) {
-      setErrorMessage("Type text first before playing voice.");
-      return;
-    }
-
-    await playText(cleanInput);
   }
 
   function handleInputKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -1224,249 +782,216 @@ export default function AIVoicePage() {
           </div>
         )}
 
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_440px]">
-          <div className="flex flex-col gap-6">
-            <div className="overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.22),rgba(2,6,23,0.92)_46%,rgba(2,6,23,0.98))] shadow-2xl shadow-cyan-950/20">
-              <div className="flex flex-col gap-6 border-b border-white/10 p-6 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <div className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                    Realtime Test Session
-                  </div>
-                  <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white">
-                    {voiceSummary}
-                  </h2>
+                <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.20),rgba(2,6,23,0.94)_42%,rgba(2,6,23,0.99))] shadow-2xl shadow-cyan-950/20">
+            <div className="flex flex-col gap-5 border-b border-white/10 p-6 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+                  Realtime Test Session
                 </div>
+                <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white">
+                  {voiceSummary}
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                  One focused testing workspace for realtime voice, avatar state,
+                  typed messages, transcript visibility, and debug events.
+                </p>
+              </div>
 
-                                 <div className="flex flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => void startRealtimeSession()}
-                    disabled={
-                      realtimeOpen ||
-                      realtimeConnecting ||
-                      !settings.voice_enabled ||
-                      loadingSettings
-                    }
-                    className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500/10 px-5 py-3 text-sm font-semibold text-cyan-200 transition hover:border-cyan-300/60 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Mic className="h-4 w-4" />
-                    {realtimeConnecting ? "Connecting..." : "Start Conversation"}
-                  </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => void startRealtimeSession()}
+                  disabled={
+                    realtimeOpen ||
+                    realtimeConnecting ||
+                    !settings.voice_enabled ||
+                    loadingSettings
+                  }
+                  className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500/10 px-5 py-3 text-sm font-semibold text-cyan-200 transition hover:border-cyan-300/60 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Mic className="h-4 w-4" />
+                  {realtimeConnecting ? "Connecting..." : "Start Conversation"}
+                </button>
 
-                  <button
-                    type="button"
-                    onClick={() => void endSession()}
-                    disabled={!sessionOpen && !realtimeOpen}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-5 py-3 text-sm font-semibold text-rose-200 transition hover:border-rose-300/60 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <CircleStop className="h-4 w-4" />
-                    End Conversation
-                  </button>
+                <button
+                  type="button"
+                  onClick={() => void endSession()}
+                  disabled={!sessionOpen && !realtimeOpen}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-5 py-3 text-sm font-semibold text-rose-200 transition hover:border-rose-300/60 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <CircleStop className="h-4 w-4" />
+                  End Conversation
+                </button>
+              </div>
+            </div>
+
+            <div className="grid min-h-[720px] gap-0 2xl:grid-cols-[460px_minmax(0,1fr)]">
+              <div className="border-b border-white/10 bg-black/10 p-6 2xl:border-b-0 2xl:border-r">
+                <div className="relative flex min-h-[640px] flex-col overflow-hidden rounded-[34px] border border-cyan-400/20 bg-black/30">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_28%,rgba(34,211,238,0.24),transparent_45%),radial-gradient(circle_at_50%_72%,rgba(139,92,246,0.16),transparent_46%)]" />
+                  <div className="absolute left-1/2 top-16 h-72 w-72 -translate-x-1/2 rounded-full border border-cyan-400/10" />
+                  <div className="absolute left-1/2 top-28 h-52 w-52 -translate-x-1/2 rounded-full border border-cyan-400/20" />
+
+                  <div className="relative flex flex-1 flex-col items-center justify-center px-6 py-10 text-center">
+                    <div
+                      className={`absolute h-64 w-64 rounded-full blur-3xl transition-all duration-700 ${
+                        avatarState === "speaking"
+                          ? "scale-110 bg-cyan-400/35"
+                          : avatarState === "listening"
+                            ? "scale-105 bg-violet-400/30"
+                            : avatarState === "thinking"
+                              ? "scale-100 bg-amber-400/25"
+                              : sessionOpen
+                                ? "scale-95 bg-cyan-500/20"
+                                : "scale-90 bg-slate-500/10"
+                      }`}
+                    />
+
+                    <div
+                      className={`relative flex h-48 w-48 items-center justify-center rounded-full border bg-black/55 shadow-2xl transition-all duration-700 ${
+                        avatarState === "speaking"
+                          ? "border-cyan-300/70 shadow-cyan-400/30"
+                          : avatarState === "listening"
+                            ? "border-violet-300/60 shadow-violet-400/25"
+                            : avatarState === "thinking"
+                              ? "border-amber-300/50 shadow-amber-400/20"
+                              : sessionOpen
+                                ? "border-cyan-400/35 shadow-cyan-500/10"
+                                : "border-white/10 shadow-black/20"
+                      }`}
+                    >
+                      <div
+                        className={`absolute inset-4 rounded-full border border-white/10 ${
+                          activeVoiceStatus ? "animate-pulse" : ""
+                        }`}
+                      />
+                      <Bot className="h-20 w-20 text-cyan-100" />
+                    </div>
+
+                                        <div className="mt-8 inline-flex rounded-full border border-white/10 bg-black/35 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Avatar Active
+                    </div>
+
+                    <h3 className="mt-4 text-3xl font-semibold tracking-tight text-white">
+                      {getAvatarStateLabel(avatarState)}
+                    </h3>
+                    <p className="mt-3 max-w-xs text-sm leading-6 text-slate-500">
+                      The avatar reflects the realtime test state: ready,
+                      listening, thinking, or speaking.
+                    </p>
+                  </div>
+
+                  <div className="relative border-t border-white/10 bg-black/25 p-5">
+                    <div className="grid grid-cols-2 gap-3">
+                      <StatusPill
+                        label="Connection"
+                        value={realtimeOpen ? "LIVE" : "OFF"}
+                        tone={realtimeOpen ? "emerald" : "cyan"}
+                      />
+                      <StatusPill
+                        label="Session"
+                        value={sessionOpen ? "OPEN" : "CLOSED"}
+                        tone={sessionOpen ? "emerald" : "cyan"}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid gap-0 lg:grid-cols-[420px_minmax(0,1fr)]">
-                <div className="border-b border-white/10 p-6 lg:border-b-0 lg:border-r">
-                  <div className="relative mx-auto flex aspect-square max-w-[360px] items-center justify-center overflow-hidden rounded-[38px] border border-cyan-400/20 bg-black/30">
-                    <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(34,211,238,0.18),transparent_58%)]" />
-                    <div className="absolute inset-10 rounded-full border border-cyan-400/10" />
-                    <div className="absolute inset-20 rounded-full border border-cyan-400/20" />
-
-                    {modeUsesAvatar ? (
-                      <>
-                        <div
-                          className={`absolute h-52 w-52 rounded-full blur-2xl transition-all duration-700 ${
-                            avatarState === "speaking"
-                              ? "bg-cyan-400/35 scale-110"
-                              : avatarState === "listening"
-                                ? "bg-violet-400/30 scale-105"
-                                : avatarState === "thinking"
-                                  ? "bg-amber-400/25 scale-100"
-                                  : "bg-cyan-500/20 scale-95"
-                          }`}
-                        />
-
-                        <div
-                          className={`relative flex h-40 w-40 items-center justify-center rounded-full border bg-black/50 shadow-2xl transition-all duration-700 ${
-                            avatarState === "speaking"
-                              ? "border-cyan-300/70 shadow-cyan-400/30"
-                              : avatarState === "listening"
-                                ? "border-violet-300/60 shadow-violet-400/25"
-                                : avatarState === "thinking"
-                                  ? "border-amber-300/50 shadow-amber-400/20"
-                                  : "border-cyan-400/30 shadow-cyan-500/10"
-                          }`}
-                        >
-                          <div
-                            className={`absolute inset-3 rounded-full border border-white/10 ${
-                              activeVoiceStatus ? "animate-pulse" : ""
-                            }`}
-                          />
-                          <Bot className="h-16 w-16 text-cyan-100" />
-                        </div>
-
-                        <div className="absolute bottom-5 left-5 right-5 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 backdrop-blur-xl">
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                                Avatar State
-                              </div>
-                              <div className="mt-1 text-sm font-semibold text-white">
-                                {getAvatarStateLabel(avatarState)}
-                              </div>
-                            </div>
-
-                            <div
-                              className={`h-3 w-3 rounded-full ${
-                                sessionOpen ? "bg-emerald-400" : "bg-rose-400"
-                              }`}
-                            />
-                          </div>
-                        </div>
-                      </>
-                                        ) : (
-                      <div className="relative rounded-[30px] border border-white/10 bg-white/[0.04] p-8 text-center">
-                        <Bot className="mx-auto h-14 w-14 text-slate-500" />
-                        <div className="mt-4 text-sm font-semibold text-white">
-                          Avatar Preview Offline
-                        </div>
-                        <p className="mt-2 text-sm leading-6 text-slate-500">
-                          Start Conversation to activate realtime avatar state testing.
-                        </p>
-                      </div>
-                    )}
+              <div className="flex min-h-[720px] flex-col">
+                <div className="border-b border-white/10 p-5">
+                  <div className="grid gap-3 lg:grid-cols-4">
+                    <StatusPill
+                      label="Provider"
+                      value={provider || "-"}
+                      tone="cyan"
+                    />
+                    <StatusPill
+                      label="Model"
+                      value={model || "-"}
+                      tone="violet"
+                    />
+                    <StatusPill
+                      label="Last Transcript"
+                      value={lastTranscript || "-"}
+                      tone="emerald"
+                    />
+                    <StatusPill
+                      label="Realtime Status"
+                      value={realtimeOpen ? "ON" : "OFF"}
+                      tone={realtimeOpen ? "emerald" : "cyan"}
+                    />
                   </div>
                 </div>
 
-                <div className="flex min-h-[620px] flex-col">
-                                   <div className="border-b border-white/10 p-5">
-                    <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3">
-                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                        Realtime Testing Mode
-                      </div>
-                                            <p className="mt-2 text-sm leading-6 text-slate-400">
-                        Start Conversation opens the test session, activates
-                        realtime voice, and tracks the avatar state during the
-                        conversation.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div
-                    ref={chatScrollRef}
-                    className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5"
-                  >
-                    {messages.map((message) => (
+                <div
+                  ref={chatScrollRef}
+                  className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5"
+                >
+                  {messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${
+                        message.role === "user" ? "justify-end" : "justify-start"
+                      }`}
+                    >
                       <div
-                        key={message.id}
-                        className={`flex ${
+                        className={`max-w-[86%] rounded-[24px] px-4 py-3 text-sm leading-6 ${
                           message.role === "user"
-                            ? "justify-end"
-                            : "justify-start"
+                            ? "bg-cyan-500 text-slate-950"
+                            : "border border-white/10 bg-white/[0.055] text-white/85"
                         }`}
                       >
-                        <div
-                          className={`max-w-[86%] rounded-[24px] px-4 py-3 text-sm leading-6 ${
-                            message.role === "user"
-                              ? "bg-cyan-500 text-slate-950"
-                              : "border border-white/10 bg-white/[0.055] text-white/85"
-                          }`}
-                        >
-                          {message.content}
+                        {message.content}
 
-                          {message.role === "assistant" && message.provider ? (
-                            <div className="mt-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-white/45">
-                              {message.provider}
-                              {message.model ? ` · ${message.model}` : ""}
-                              {message.router_layer
-                                ? ` · ${message.router_layer}`
-                                : ""}
-                            </div>
-                          ) : null}
-
-                         {null}
-                        </div>
+                        {message.role === "assistant" && message.provider ? (
+                          <div className="mt-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-white/45">
+                            {message.provider}
+                            {message.model ? ` · ${message.model}` : ""}
+                            {message.router_layer
+                              ? ` · ${message.router_layer}`
+                              : ""}
+                          </div>
+                        ) : null}
                       </div>
-                    ))}
+                    </div>
+                  ))}
 
-                    {(sending || transcribing) && (
-                      <div className="flex justify-start">
-                        <div className="rounded-[24px] border border-white/10 bg-white/[0.055] px-4 py-3 text-sm text-white/60">
-                          {transcribing ? "Transcribing voice..." : "Thinking..."}
-                        </div>
+                                    {sending && (
+                    <div className="flex justify-start">
+                      <div className="rounded-[24px] border border-white/10 bg-white/[0.055] px-4 py-3 text-sm text-white/60">
+                        Thinking...
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
+                </div>
 
-                                           <div className="border-t border-white/10 p-5">
-                    {(provider || model || lastTranscript || realtimeOpen) && (
-                      <div className="mb-4 grid gap-3 md:grid-cols-4">
-                        <StatusPill
-                          label="Provider"
-                          value={provider || "-"}
-                          tone="cyan"
-                        />
-                        <StatusPill
-                          label="Model"
-                          value={model || "-"}
-                          tone="violet"
-                        />
-                        <StatusPill
-                          label="Last Transcript"
-                          value={lastTranscript || "-"}
-                          tone="emerald"
-                        />
-                        <StatusPill
-                          label="Realtime Status"
-                          value={realtimeOpen ? "ON" : "OFF"}
-                          tone={realtimeOpen ? "emerald" : "cyan"}
-                        />
-                      </div>
-                    )}
+                <div className="border-t border-white/10 p-5">
+                  <div className="rounded-[26px] border border-white/10 bg-black/25 p-3">
+                    <textarea
+                      value={input}
+                      onChange={(event) => setInput(event.target.value)}
+                      onKeyDown={handleInputKeyDown}
+                      placeholder="Type a test message... Enter sends, Shift + Enter adds a new line."
+                      className="min-h-[104px] w-full resize-none rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/40"
+                    />
 
-                    {realtimeEvents.length > 0 ? (
-                      <div className="mb-4 rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/70">
-                          Debug Events
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {realtimeEvents.map((eventName, eventIndex) => (
-                            <span
-                              key={`${eventName}-${eventIndex}`}
-                              className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-slate-300"
-                            >
-                              {eventName}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
+                    <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <p className="text-xs leading-5 text-slate-500">
+                        Typed testing stays available here. Realtime voice is
+                        controlled only by Start Conversation / End Conversation.
+                      </p>
 
-                    <div className="rounded-[26px] border border-white/10 bg-black/25 p-3">
-                      <textarea
-                        value={input}
-                        onChange={(event) => setInput(event.target.value)}
-                        onKeyDown={handleInputKeyDown}
-                        placeholder="Type a test message... Enter sends, Shift + Enter adds a new line."
-                        className="min-h-[96px] w-full resize-none rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/40"
-                      />
-
-                                            <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                                                <p className="text-xs leading-5 text-slate-500">
-                          Typed testing stays available here. Realtime voice is
-                          controlled only by Start Conversation / End Conversation.
-                        </p>
-
-                        <button
-                          type="button"
-                          onClick={() => void handleSend()}
-                          disabled={!sessionOpen || sending || !input.trim()}
-                          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <Send className="h-4 w-4" />
-                          {sending ? "Sending..." : "Send"}
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleSend()}
+                        disabled={!sessionOpen || sending || !input.trim()}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Send className="h-4 w-4" />
+                        {sending ? "Sending..." : "Send"}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1475,7 +1000,7 @@ export default function AIVoicePage() {
           </div>
 
           <aside className="flex flex-col gap-6">
-                       <Panel
+            <Panel
               eyebrow="Runtime Controls"
               title="Realtime Engine"
               description="Enable the realtime test conversation for microphone input, voice output, and avatar state testing."
@@ -1493,7 +1018,7 @@ export default function AIVoicePage() {
                 </button>
               }
             >
-                            <div className="grid gap-3">
+              <div className="grid gap-3">
                 <ToggleRow
                   icon={Radio}
                   label="Realtime Voice"
@@ -1508,7 +1033,7 @@ export default function AIVoicePage() {
               </div>
             </Panel>
 
-                        <Panel
+            <Panel
               eyebrow="Realtime Identity"
               title="Provider + Voice"
               description="Choose the realtime provider, voice identity, and speaking style for test conversations."
@@ -1544,7 +1069,7 @@ export default function AIVoicePage() {
                   onChange={(value) => updateSetting("voice_style", value)}
                 />
 
-                                <TextField
+                <TextField
                   label="Realtime Voice Model"
                   value={settings.voice_tts_model}
                   onChange={(value) => updateSetting("voice_tts_model", value)}
@@ -1558,7 +1083,54 @@ export default function AIVoicePage() {
               </div>
             </Panel>
 
-                       <Panel
+            <Panel
+              eyebrow="Knowledge + Router"
+              title="Answer Source"
+              description="Shows whether typed test answers are coming from cache, approved answers, knowledge, or model fallback."
+            >
+              <div className="grid gap-3">
+                <StatusPill
+                  label="Provider"
+                  value={provider || "-"}
+                  tone="cyan"
+                />
+                <StatusPill
+                  label="Model"
+                  value={model || "-"}
+                  tone="violet"
+                />
+                <StatusPill
+                  label="Last Transcript"
+                  value={lastTranscript || "-"}
+                  tone="emerald"
+                />
+              </div>
+            </Panel>
+
+            <Panel
+              eyebrow="Debug"
+              title="Realtime Events"
+              description="Live event trail from the realtime connection."
+            >
+              {realtimeEvents.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {realtimeEvents.map((eventName, eventIndex) => (
+                    <span
+                      key={`${eventName}-${eventIndex}`}
+                      className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-slate-300"
+                    >
+                      {eventName}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-500">
+                  Debug events will appear after Start Conversation connects.
+                </div>
+              )}
+            </Panel>
+
+            <Panel
               eyebrow="Realtime Tuning"
               title="Speech Controls"
               description="Fine tune realtime voice speed, clarity, and provider-ready voice behavior."
@@ -1609,7 +1181,7 @@ export default function AIVoicePage() {
               </div>
             </Panel>
 
-                        <Panel
+            <Panel
               eyebrow="Realtime Notes"
               title="Conversation Notes"
               description="Optional internal notes that are injected into realtime test conversation instructions."

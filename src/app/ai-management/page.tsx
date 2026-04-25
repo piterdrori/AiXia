@@ -500,7 +500,10 @@ if (item.id === "guardrails") {
   return;
 }
 
-                      setActiveSection(item.id);
+if (item.id === "memory") {
+  navigate("/ai-management/memory");
+  return;
+}
 
                       setActiveSection(item.id);
                     }}

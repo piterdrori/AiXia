@@ -1348,7 +1348,7 @@ export default function AIVoicePage() {
         )}
 
         <section className="grid gap-5">
-          <div className="grid min-h-[720px] overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.20),rgba(2,6,23,0.94)_42%,rgba(2,6,23,0.99))] shadow-2xl shadow-cyan-950/20 xl:grid-cols-[380px_minmax(0,1fr)]">
+          <div className="grid h-[760px] overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.20),rgba(2,6,23,0.94)_42%,rgba(2,6,23,0.99))] shadow-2xl shadow-cyan-950/20 xl:grid-cols-[380px_minmax(0,1fr)]">
             <div className="border-b border-white/10 bg-black/10 p-5 xl:border-b-0 xl:border-r">
               <div className="relative flex h-full min-h-[520px] flex-col overflow-hidden rounded-[30px] border border-cyan-400/20 bg-black/30">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_28%,rgba(34,211,238,0.24),transparent_45%),radial-gradient(circle_at_50%_72%,rgba(139,92,246,0.16),transparent_46%)]" />
@@ -1431,7 +1431,7 @@ export default function AIVoicePage() {
               </div>
             </div>
 
-            <div className="flex min-h-[760px] min-w-0 flex-col">
+            <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
               <div className="border-b border-white/10 p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
@@ -1496,11 +1496,11 @@ export default function AIVoicePage() {
                 </div>
               </div>
 
-              <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_260px] gap-0">
-                <div className="flex min-h-0 flex-col">
+              <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_250px] gap-0 overflow-hidden">
+                <div className="flex min-h-0 flex-col overflow-hidden">
                   <div
                     ref={chatScrollRef}
-                    className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5"
+                    className="h-full min-h-0 space-y-4 overflow-y-auto px-5 py-5"
                   >
                     {messages.map((message) => (
                       <div
@@ -1540,14 +1540,14 @@ export default function AIVoicePage() {
                     )}
                   </div>
 
-                  <div className="border-t border-white/10 p-5">
+                  <div className="shrink-0 border-t border-white/10 p-5">
                     <div className="rounded-[26px] border border-white/10 bg-black/25 p-3">
                       <textarea
                         value={input}
                         onChange={(event) => setInput(event.target.value)}
                         onKeyDown={handleInputKeyDown}
                         placeholder="Type a test message... Enter sends, Shift + Enter adds a new line."
-                        className="min-h-[104px] w-full resize-none rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/40"
+                        className="h-[84px] w-full resize-none rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/40"
                       />
 
                       <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -1570,7 +1570,7 @@ export default function AIVoicePage() {
                   </div>
                 </div>
 
-                <div className="min-h-0 border-t border-white/10 bg-black/10 p-5">
+                <div className="min-h-0 overflow-hidden border-t border-white/10 bg-black/10 p-5">
                   <div className="flex h-full min-h-0 flex-col rounded-[26px] border border-white/10 bg-black/25">
                     <div className="border-b border-white/10 px-4 py-3">
                       <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-200">

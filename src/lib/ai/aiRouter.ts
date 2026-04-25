@@ -29,7 +29,14 @@ export type AskAIResult = {
   debug?: AskAIDebug;
 };
 
-export async function askAI(prompt: string): Promise<AskAIResult> {
+export type AskAIOptions = {
+  mode?: "text" | "voice";
+};
+
+export async function askAI(
+  prompt: string,
+  options: AskAIOptions = {}
+): Promise<AskAIResult> {
   const cleanPrompt = prompt.trim();
 
   if (!cleanPrompt) {
@@ -37,7 +44,10 @@ export async function askAI(prompt: string): Promise<AskAIResult> {
   }
 
   const { data, error } = await supabase.functions.invoke("ai-router", {
-    body: { prompt: cleanPrompt },
+    body: {
+      prompt: cleanPrompt,
+      mode: options.mode ?? "text",
+    },
   });
 
   if (error) {

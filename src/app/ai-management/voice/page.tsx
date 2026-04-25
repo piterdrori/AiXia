@@ -186,11 +186,12 @@ function formatPercent(value: boolean) {
 
 export default function AIVoicePage() {
   const navigate = useNavigate();
-    const realtimeConnectionRef = useRef<RealtimeConnection | null>(null);
+  const realtimeConnectionRef = useRef<RealtimeConnection | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const userTranscriptDraftsRef = useRef<Record<string, string>>({});
   const assistantTranscriptDraftsRef = useRef<Record<string, string>>({});
   const routedRealtimeQuestionsRef = useRef<Set<string>>(new Set());
+  const speakingSafetyTimerRef = useRef<number | null>(null);
 
   const [settings, setSettings] = useState<VoiceSettings>(defaultVoiceSettings);
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -242,6 +243,11 @@ export default function AIVoicePage() {
 
   useEffect(() => {
     return () => {
+      if (speakingSafetyTimerRef.current) {
+        window.clearTimeout(speakingSafetyTimerRef.current);
+        speakingSafetyTimerRef.current = null;
+      }
+
       if (realtimeConnectionRef.current) {
         realtimeConnectionRef.current.close();
         realtimeConnectionRef.current = null;
@@ -256,7 +262,7 @@ export default function AIVoicePage() {
     });
   }, [messages, sending]);
 
-     useEffect(() => {
+  useEffect(() => {
     if (!sessionOpen) {
       setAvatarState("offline");
       return;
@@ -353,14 +359,19 @@ export default function AIVoicePage() {
     setSavingSettings(false);
   }
 
-       function updateSetting(key: keyof VoiceSettings, value: string | number | boolean) {
+  function updateSetting(key: keyof VoiceSettings, value: string | number | boolean) {
     setSettings((current) => ({
       ...current,
       [key]: value,
     }));
   }
 
-     function closeRealtimeConnection() {
+  function closeRealtimeConnection() {
+    if (speakingSafetyTimerRef.current) {
+      window.clearTimeout(speakingSafetyTimerRef.current);
+      speakingSafetyTimerRef.current = null;
+    }
+
     if (realtimeConnectionRef.current) {
       realtimeConnectionRef.current.close();
       realtimeConnectionRef.current = null;
@@ -433,11 +444,25 @@ export default function AIVoicePage() {
     });
   }
 
-     function speakRouterAnswerWithRealtime(answer: string) {
+   function speakRouterAnswerWithRealtime(answer: string) {
     const cleanAnswer = answer.trim();
     const dataChannel = realtimeConnectionRef.current?.dataChannel;
 
-    if (!cleanAnswer || !dataChannel || dataChannel.readyState !== "open") {
+    if (speakingSafetyTimerRef.current) {
+      window.clearTimeout(speakingSafetyTimerRef.current);
+      speakingSafetyTimerRef.current = null;
+    }
+
+    if (!cleanAnswer) {
+      setRealtimeMicrophoneEnabled(true);
+      setAvatarState("idle");
+      return;
+    }
+
+    if (!dataChannel || dataChannel.readyState !== "open") {
+      setErrorMessage(
+        "Realtime speaker is not connected. The router answer is shown as text, but voice playback could not start."
+      );
       setRealtimeMicrophoneEnabled(true);
       setAvatarState("idle");
       return;
@@ -445,30 +470,47 @@ export default function AIVoicePage() {
 
     setRealtimeMicrophoneEnabled(false);
     setAvatarState("speaking");
+    setErrorMessage(null);
 
-    dataChannel.send(
-      JSON.stringify({
-        type: "response.create",
-        response: {
-          output_modalities: ["audio"],
-          instructions: [
-            "You are only the voice speaker for AiXia Assistant.",
-            "Do not add new facts.",
-            "Do not answer differently.",
-            "Do not summarize.",
-            "Speak exactly this answer in a clear professional voice:",
-            cleanAnswer,
-          ].join("\n"),
-        },
-      })
-    );
+    try {
+      dataChannel.send(
+        JSON.stringify({
+          type: "response.create",
+          response: {
+            output_modalities: ["audio"],
+            instructions: [
+              "You are only the voice speaker for AiXia Assistant.",
+              "Do not add new facts.",
+              "Do not answer differently.",
+              "Do not summarize.",
+              "Speak exactly this answer in a clear professional voice:",
+              cleanAnswer,
+            ].join("\n"),
+          },
+        })
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Realtime speaker failed to start voice playback."
+      );
+      setRealtimeMicrophoneEnabled(true);
+      setAvatarState("idle");
+      return;
+    }
 
-    window.setTimeout(() => {
+    speakingSafetyTimerRef.current = window.setTimeout(() => {
       if (realtimeConnectionRef.current) {
+        setErrorMessage(
+          "Realtime voice playback did not report completion. Microphone was restored automatically."
+        );
         setRealtimeMicrophoneEnabled(true);
         setAvatarState("idle");
       }
-    }, 12000);
+
+      speakingSafetyTimerRef.current = null;
+    }, 30000);
   }
 
   async function handleRealtimeRouterAnswer(question: string, itemId: string) {
@@ -532,19 +574,24 @@ export default function AIVoicePage() {
       setAvatarState("idle");
     }
   }
-
-     function handleRealtimeEvent(event: MessageEvent) {
+ 
+  function handleRealtimeEvent(event: MessageEvent) {
     const rawMessage = String(event.data ?? "");
 
     if (!rawMessage) return;
 
     try {
-      const parsed = JSON.parse(rawMessage) as {
+    const parsed = JSON.parse(rawMessage) as {
         type?: string;
         item_id?: string;
         response_id?: string;
         transcript?: string;
         delta?: string;
+        error?: {
+          message?: string;
+          type?: string;
+          code?: string;
+        };
       };
 
       const eventType = parsed.type ?? "realtime.event";
@@ -559,17 +606,32 @@ export default function AIVoicePage() {
         eventType === "response.audio.done" ||
         eventType === "response.output_audio.delta" ||
         eventType === "response.output_audio.done" ||
-        eventType === "response.done"
+        eventType === "response.done" ||
+        eventType === "error"
       ) {
         setRealtimeEvents((current) => [eventType, ...current].slice(0, 8));
       }
 
-      if (eventType === "input_audio_buffer.speech_started") {
+          if (eventType === "input_audio_buffer.speech_started") {
         setRealtimeMicrophoneEnabled(true);
         setAvatarState("listening");
       }
 
-            if (eventType === "input_audio_buffer.speech_stopped") {
+      if (eventType === "error") {
+        if (speakingSafetyTimerRef.current) {
+          window.clearTimeout(speakingSafetyTimerRef.current);
+          speakingSafetyTimerRef.current = null;
+        }
+
+        setErrorMessage(
+          parsed.error?.message || "Realtime voice returned an error."
+        );
+        setRealtimeMicrophoneEnabled(true);
+        setAvatarState("idle");
+        return;
+      }
+
+      if (eventType === "input_audio_buffer.speech_stopped") {
         setRealtimeMicrophoneEnabled(true);
         setAvatarState("thinking");
       }
@@ -638,11 +700,16 @@ export default function AIVoicePage() {
         setAvatarState("speaking");
       }
 
-      if (
+     if (
         eventType === "response.audio.done" ||
         eventType === "response.output_audio.done" ||
         eventType === "response.done"
       ) {
+        if (speakingSafetyTimerRef.current) {
+          window.clearTimeout(speakingSafetyTimerRef.current);
+          speakingSafetyTimerRef.current = null;
+        }
+
         setRealtimeMicrophoneEnabled(true);
         setAvatarState("idle");
       }
@@ -685,7 +752,7 @@ export default function AIVoicePage() {
       return;
     }
 
-        userTranscriptDraftsRef.current = {};
+    userTranscriptDraftsRef.current = {};
     assistantTranscriptDraftsRef.current = {};
     routedRealtimeQuestionsRef.current.clear();
     setRealtimeConnecting(true);
@@ -718,7 +785,7 @@ export default function AIVoicePage() {
       setProvider("openai-realtime");
       setModel(realtimeSession.model);
 
-            setMessages((current) => [
+      setMessages((current) => [
         ...current,
         {
           id: createMessageId(),
@@ -767,7 +834,7 @@ export default function AIVoicePage() {
     setSessionId(nextSessionId);
     setSessionOpen(true);
     setAvatarState("idle");
-       setMessages([
+    setMessages([
       {
         id: createMessageId(),
         role: "assistant",
@@ -938,8 +1005,8 @@ export default function AIVoicePage() {
                 AI Studio
               </button>
 
-              <div className="space-y-3">
-                               <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+               <div className="space-y-3">
+                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Radio className="h-3.5 w-3.5" />
                   Realtime Voice Testing
                 </div>
@@ -948,7 +1015,7 @@ export default function AIVoicePage() {
                   <h1 className="text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
                     Voice Testing Studio
                   </h1>
-                                   <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                  <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
                     Test realtime conversation, avatar animation states, typed
                     messages, connection status, debug events, and voice settings
                     for AiXia Assistant.
@@ -1296,7 +1363,7 @@ export default function AIVoicePage() {
                 />
 
                 <TextField
-                  label="Realtime Voice Model"
+                  label="Legacy TTS Model"
                   value={settings.voice_tts_model}
                   onChange={(value) => updateSetting("voice_tts_model", value)}
                 />

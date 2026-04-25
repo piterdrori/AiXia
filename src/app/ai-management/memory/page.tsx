@@ -2,100 +2,75 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
-  BookOpen,
   Brain,
-  Building2,
   CheckCircle2,
   Database,
-  Plus,
+  MessageSquareText,
   RefreshCcw,
-  Save,
   Search,
-  Settings2,
-  ToggleLeft,
-  ToggleRight,
-  Trash2,
+  ShieldAlert,
+  Sparkles,
+  ThumbsDown,
+  ThumbsUp,
   Wand2,
   XCircle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-type MemoryItem = {
+type AISession = {
   id: string;
-  memory_key: string;
-  memory_value: string;
-  category: string | null;
-  scope: string;
-  is_active: boolean;
-  priority: number;
-  metadata: Record<string, unknown>;
+  title: string | null;
+  source: string;
+  status: string;
+  quality_score: number | null;
+  summary: string | null;
+  insights: Record<string, unknown>;
+  started_at: string;
+  ended_at: string | null;
   created_at: string;
   updated_at: string;
 };
 
-type MemoryForm = {
-  memory_key: string;
-  memory_value: string;
-  category: string;
-  scope: string;
-  priority: string;
-  is_active: boolean;
+type AIMessage = {
+  id: string;
+  session_id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  provider: string | null;
+  model: string | null;
+  router_layer: string | null;
+  router_reason: string | null;
+  matched_question: string | null;
+  similarity: number | null;
+  feedback: "liked" | "disliked" | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
 };
 
-const emptyForm: MemoryForm = {
-  memory_key: "",
-  memory_value: "",
-  category: "",
-  scope: "global",
-  priority: "100",
-  is_active: true,
-};
-
-const memoryPresets: Array<{
+type SessionInsight = {
+  id: string;
+  session_id: string;
+  insight_type: string;
+  severity: string;
   title: string;
   description: string;
-  form: MemoryForm;
-}> = [
-  {
-    title: "Business Context",
-    description: "Store stable company or product facts the AI should reuse.",
-    form: {
-      memory_key: "business_context",
-      memory_value:
-        "AiXia is an internal enterprise platform with finance, projects, tasks, employees, AI management, and operational modules.",
-      category: "business-context",
-      scope: "global",
-      priority: "10",
-      is_active: true,
-    },
-  },
-  {
-    title: "Working Style",
-    description: "Store how the AI should work with the admin/operator.",
-    form: {
-      memory_key: "working_style",
-      memory_value:
-        "Use short execution-focused answers. For code changes, provide exact full remove-and-replace blocks. Avoid vague anchors and unnecessary explanation.",
-      category: "behavior",
-      scope: "global",
-      priority: "10",
-      is_active: true,
-    },
-  },
-  {
-    title: "System Architecture",
-    description: "Store technical rules that should guide future AI reasoning.",
-    form: {
-      memory_key: "system_architecture",
-      memory_value:
-        "AiXia follows a DB-first and server-first architecture. Supabase owns business logic, RLS, triggers, and RPCs. Frontend should orchestrate and display, not replace backend rules.",
-      category: "system-rule",
-      scope: "global",
-      priority: "10",
-      is_active: true,
-    },
-  },
-];
+  recommended_action: string | null;
+  metadata: Record<string, unknown>;
+  is_resolved: boolean;
+  created_at: string;
+};
+
+type SessionHealth = {
+  score: number;
+  likedCount: number;
+  dislikedCount: number;
+  errorCount: number;
+  refusalCount: number;
+  approvedCount: number;
+  cacheCount: number;
+  openAiCount: number;
+  messageCount: number;
+};
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", {
@@ -107,107 +82,218 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
-function formatCategory(value: string | null) {
-  return value?.trim() ? value : "Uncategorized";
+function normalizeText(value: string | null | undefined) {
+  return (value ?? "").toLowerCase().trim();
+}
+
+function calculateSessionHealth(messages: AIMessage[]): SessionHealth {
+  const assistantMessages = messages.filter((message) => message.role === "assistant");
+
+  const likedCount = assistantMessages.filter(
+    (message) => message.feedback === "liked"
+  ).length;
+
+  const dislikedCount = assistantMessages.filter(
+    (message) => message.feedback === "disliked"
+  ).length;
+
+  const errorCount = assistantMessages.filter(
+    (message) =>
+      message.router_layer === "error" ||
+      message.provider === "client-error" ||
+      normalizeText(message.content).includes("edge function returned")
+  ).length;
+
+  const refusalCount = assistantMessages.filter((message) => {
+    const content = normalizeText(message.content);
+    return (
+      content.includes("i do not have an approved answer") ||
+      content.includes("outside allowed scope") ||
+      content.includes("not allowed")
+    );
+  }).length;
+
+  const approvedCount = assistantMessages.filter(
+    (message) => message.router_layer === "approved"
+  ).length;
+
+  const cacheCount = assistantMessages.filter(
+    (message) =>
+      message.router_layer === "exact-cache" ||
+      message.router_layer === "semantic-cache" ||
+      message.provider === "cache" ||
+      message.provider === "semantic-cache"
+  ).length;
+
+  const openAiCount = assistantMessages.filter(
+    (message) => message.router_layer === "openai"
+  ).length;
+
+  let score = 100;
+  score -= dislikedCount * 20;
+  score -= errorCount * 25;
+  score -= refusalCount * 12;
+  score += likedCount * 8;
+  score += approvedCount * 5;
+  score += cacheCount * 3;
+
+  if (assistantMessages.length === 0) {
+    score = 0;
+  }
+
+  return {
+    score: Math.max(0, Math.min(100, score)),
+    likedCount,
+    dislikedCount,
+    errorCount,
+    refusalCount,
+    approvedCount,
+    cacheCount,
+    openAiCount,
+    messageCount: messages.length,
+  };
+}
+
+function getHealthLabel(score: number) {
+  if (score >= 85) return "Strong";
+  if (score >= 65) return "Needs Review";
+  if (score >= 40) return "Weak";
+  return "Critical";
+}
+
+function getHealthTone(score: number) {
+  if (score >= 85) return "text-emerald-200";
+  if (score >= 65) return "text-amber-200";
+  if (score >= 40) return "text-orange-200";
+  return "text-rose-200";
+}
+
+function getSessionTitle(session: AISession) {
+  return session.title?.trim() || "Untitled AI Session";
 }
 
 export default function AIMemoryPage() {
   const navigate = useNavigate();
 
-  const [items, setItems] = useState<MemoryItem[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [form, setForm] = useState<MemoryForm>(emptyForm);
+  const [sessions, setSessions] = useState<AISession[]>([]);
+  const [messages, setMessages] = useState<AIMessage[]>([]);
+  const [insights, setInsights] = useState<SessionInsight[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] =
-    useState<"all" | "active" | "inactive">("all");
-  const [scopeFilter, setScopeFilter] = useState("all");
-  const [isCreating, setIsCreating] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "ended">(
+    "all"
+  );
+  const [qualityFilter, setQualityFilter] = useState<
+    "all" | "strong" | "review" | "weak"
+  >("all");
+
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
-  const selectedItem = useMemo(
-    () => items.find((item) => item.id === selectedId) ?? null,
-    [items, selectedId]
+  const selectedSession = useMemo(
+    () => sessions.find((session) => session.id === selectedSessionId) ?? null,
+    [selectedSessionId, sessions]
   );
 
-  const scopes = useMemo(() => {
-    const uniqueScopes = new Set(
-      items.map((item) => item.scope).filter(Boolean)
-    );
+  const selectedHealth = useMemo(
+    () => calculateSessionHealth(messages),
+    [messages]
+  );
 
-    return Array.from(uniqueScopes).sort((a, b) => a.localeCompare(b));
-  }, [items]);
+  const sessionsWithHealth = useMemo(() => {
+    return sessions.map((session) => {
+      const sessionMessages =
+        session.id === selectedSessionId ? messages : [];
 
-  const filteredItems = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
+      const score =
+        typeof session.quality_score === "number"
+          ? session.quality_score
+          : session.id === selectedSessionId
+            ? calculateSessionHealth(sessionMessages).score
+            : null;
 
-    return items.filter((item) => {
+      return {
+        session,
+        score,
+      };
+    });
+  }, [messages, selectedSessionId, sessions]);
+
+  const filteredSessions = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return sessionsWithHealth.filter(({ session, score }) => {
       const matchesSearch =
-        !normalizedSearch ||
-        item.memory_key.toLowerCase().includes(normalizedSearch) ||
-        item.memory_value.toLowerCase().includes(normalizedSearch) ||
-        (item.category ?? "").toLowerCase().includes(normalizedSearch) ||
-        item.scope.toLowerCase().includes(normalizedSearch);
+        !query ||
+        getSessionTitle(session).toLowerCase().includes(query) ||
+        session.source.toLowerCase().includes(query) ||
+        session.status.toLowerCase().includes(query);
 
       const matchesStatus =
-        statusFilter === "all" ||
-        (statusFilter === "active" && item.is_active) ||
-        (statusFilter === "inactive" && !item.is_active);
+        statusFilter === "all" || session.status === statusFilter;
 
-      const matchesScope = scopeFilter === "all" || item.scope === scopeFilter;
+      const normalizedScore = score ?? 100;
 
-      return matchesSearch && matchesStatus && matchesScope;
+      const matchesQuality =
+        qualityFilter === "all" ||
+        (qualityFilter === "strong" && normalizedScore >= 85) ||
+        (qualityFilter === "review" &&
+          normalizedScore >= 65 &&
+          normalizedScore < 85) ||
+        (qualityFilter === "weak" && normalizedScore < 65);
+
+      return matchesSearch && matchesStatus && matchesQuality;
     });
-  }, [items, scopeFilter, search, statusFilter]);
+  }, [qualityFilter, search, sessionsWithHealth, statusFilter]);
 
-  const activeCount = useMemo(
-    () => items.filter((item) => item.is_active).length,
-    [items]
+  const metrics = useMemo(() => {
+    const total = sessions.length;
+    const active = sessions.filter((session) => session.status === "active").length;
+    const ended = sessions.filter((session) => session.status === "ended").length;
+    const reviewed = sessions.filter(
+      (session) => typeof session.quality_score === "number"
+    ).length;
+
+    return {
+      total,
+      active,
+      ended,
+      reviewed,
+    };
+  }, [sessions]);
+
+  const selectedUserMessages = useMemo(
+    () => messages.filter((message) => message.role === "user"),
+    [messages]
   );
 
-  const inactiveCount = items.length - activeCount;
-
-  const globalCount = useMemo(
-    () => items.filter((item) => item.scope === "global").length,
-    [items]
-  );
-
-  const highPriorityCount = useMemo(
-    () => items.filter((item) => item.priority <= 10).length,
-    [items]
+  const selectedAssistantMessages = useMemo(
+    () => messages.filter((message) => message.role === "assistant"),
+    [messages]
   );
 
   useEffect(() => {
-    void loadMemoryItems();
+    void loadSessions();
   }, []);
 
   useEffect(() => {
-    if (!selectedItem || isCreating) return;
+    if (!selectedSessionId) return;
+    void loadSessionDetails(selectedSessionId);
+  }, [selectedSessionId]);
 
-    setForm({
-      memory_key: selectedItem.memory_key,
-      memory_value: selectedItem.memory_value,
-      category: selectedItem.category ?? "",
-      scope: selectedItem.scope,
-      priority: String(selectedItem.priority),
-      is_active: selectedItem.is_active,
-    });
-  }, [isCreating, selectedItem]);
-
-  async function loadMemoryItems() {
+  async function loadSessions() {
     setLoading(true);
     setErrorMessage(null);
 
     const { data, error } = await supabase
-      .from("ai_memory_items")
+      .from("ai_conversation_sessions")
       .select(
-        "id, memory_key, memory_value, category, scope, is_active, priority, metadata, created_at, updated_at"
+        "id, title, source, status, quality_score, summary, insights, started_at, ended_at, created_at, updated_at"
       )
-      .order("priority", { ascending: true })
-      .order("updated_at", { ascending: false });
+      .order("started_at", { ascending: false })
+      .limit(100);
 
     if (error) {
       setErrorMessage(error.message);
@@ -215,253 +301,278 @@ export default function AIMemoryPage() {
       return;
     }
 
-    const rows = (data ?? []) as MemoryItem[];
-    setItems(rows);
+    const rows = (data ?? []) as AISession[];
 
-    if (!selectedId && rows.length > 0) {
-      setSelectedId(rows[0].id);
+    setSessions(rows);
+
+    if (!selectedSessionId && rows.length > 0) {
+      setSelectedSessionId(rows[0].id);
     }
 
     setLoading(false);
   }
 
-  function startCreate() {
-    setIsCreating(true);
-    setSelectedId(null);
-    setForm(emptyForm);
+  async function loadSessionDetails(sessionId: string) {
+    setLoadingMessages(true);
     setErrorMessage(null);
-    setActionMessage(null);
-  }
 
-  function selectItem(item: MemoryItem) {
-    setIsCreating(false);
-    setSelectedId(item.id);
-    setErrorMessage(null);
-    setActionMessage(null);
-  }
+    const [{ data: messageData, error: messageError }, { data: insightData }] =
+      await Promise.all([
+        supabase
+          .from("ai_conversation_messages")
+          .select(
+            "id, session_id, role, content, provider, model, router_layer, router_reason, matched_question, similarity, feedback, metadata, created_at"
+          )
+          .eq("session_id", sessionId)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("ai_session_insights")
+          .select(
+            "id, session_id, insight_type, severity, title, description, recommended_action, metadata, is_resolved, created_at"
+          )
+          .eq("session_id", sessionId)
+          .order("created_at", { ascending: false }),
+      ]);
 
-  function applyPreset(preset: MemoryForm) {
-    setIsCreating(true);
-    setSelectedId(null);
-    setForm({ ...preset });
-    setErrorMessage(null);
-    setActionMessage(null);
-  }
-
-  async function saveMemoryItem() {
-    const memoryKey = form.memory_key.trim();
-    const memoryValue = form.memory_value.trim();
-    const priority = Number(form.priority);
-
-    if (!memoryKey || !memoryValue) {
-      setErrorMessage("Context name and context/instruction are required.");
+    if (messageError) {
+      setErrorMessage(messageError.message);
+      setLoadingMessages(false);
       return;
     }
 
-    if (!Number.isInteger(priority) || priority < 1) {
-      setErrorMessage("Priority must be a positive whole number.");
-      return;
-    }
+    setMessages((messageData ?? []) as AIMessage[]);
+    setInsights((insightData ?? []) as SessionInsight[]);
+    setLoadingMessages(false);
+  }
 
-    setSaving(true);
-    setErrorMessage(null);
-    setActionMessage(null);
+  async function analyzeSelectedSession() {
+    if (!selectedSession) return;
 
-    const payload = {
-      memory_key: memoryKey,
-      memory_value: memoryValue,
-      category: form.category.trim() || null,
-      scope: form.scope.trim() || "global",
-      priority,
-      is_active: form.is_active,
-      updated_at: new Date().toISOString(),
-    };
+    const health = calculateSessionHealth(messages);
 
-    if (isCreating) {
-      const { data, error } = await supabase
-        .from("ai_memory_items")
-        .insert(payload)
-        .select(
-          "id, memory_key, memory_value, category, scope, is_active, priority, metadata, created_at, updated_at"
-        )
-        .single();
+    const generatedInsights: Array<{
+      insight_type: string;
+      severity: string;
+      title: string;
+      description: string;
+      recommended_action: string;
+      metadata: Record<string, unknown>;
+    }> = [];
 
-      if (error) {
-        setErrorMessage(error.message);
-        setSaving(false);
-        return;
-      }
-
-      await supabase.from("ai_admin_activity_logs").insert({
-        action_type: "memory_created",
-        entity_type: "memory",
-        entity_id: (data as MemoryItem).id,
-        details: {
-          memory_key: memoryKey,
-          category: payload.category,
-          scope: payload.scope,
-          priority,
-          is_active: form.is_active,
+    if (health.errorCount > 0) {
+      generatedInsights.push({
+        insight_type: "router_error",
+        severity: "critical",
+        title: "Router or client error detected",
+        description:
+          "This session contains one or more assistant responses that failed through the client or Edge Function path.",
+        recommended_action:
+          "Review router logs and fix the failing provider, Edge Function, or client-side request path.",
+        metadata: {
+          error_count: health.errorCount,
         },
       });
+    }
 
-      setItems((current) =>
-        [...current, data as MemoryItem].sort(
-          (first, second) => first.priority - second.priority
-        )
+    if (health.dislikedCount > 0) {
+      generatedInsights.push({
+        insight_type: "negative_feedback",
+        severity: "warning",
+        title: "Negative feedback received",
+        description:
+          "The user marked one or more assistant responses as bad. This indicates the response may need an approved answer, better knowledge, or a router rule.",
+        recommended_action:
+          "Review disliked messages and decide whether to create an approved answer, update knowledge, or adjust guardrails.",
+        metadata: {
+          disliked_count: health.dislikedCount,
+        },
+      });
+    }
+
+    if (health.refusalCount > 0) {
+      generatedInsights.push({
+        insight_type: "refusal_review",
+        severity: "warning",
+        title: "Refusal or no-answer response detected",
+        description:
+          "The assistant refused or returned no approved answer during this session.",
+        recommended_action:
+          "If the request is valid, create an approved answer or add supporting knowledge. If invalid, keep guardrails as-is.",
+        metadata: {
+          refusal_count: health.refusalCount,
+        },
+      });
+    }
+
+    if (health.openAiCount > health.approvedCount + health.cacheCount) {
+      generatedInsights.push({
+        insight_type: "approval_candidate",
+        severity: "info",
+        title: "OpenAI fallback used often",
+        description:
+          "This session relied more on OpenAI fallback than approved answers or cache.",
+        recommended_action:
+          "Promote repeated stable responses into Approved Answers or Cache Review.",
+        metadata: {
+          openai_count: health.openAiCount,
+          approved_count: health.approvedCount,
+          cache_count: health.cacheCount,
+        },
+      });
+    }
+
+    if (generatedInsights.length === 0) {
+      generatedInsights.push({
+        insight_type: "healthy_session",
+        severity: "info",
+        title: "Session looks healthy",
+        description:
+          "No major errors, refusals, or negative feedback were detected in this session.",
+        recommended_action:
+          "No immediate action needed. Continue monitoring future sessions.",
+        metadata: {
+          score: health.score,
+        },
+      });
+    }
+
+    await supabase
+      .from("ai_session_insights")
+      .delete()
+      .eq("session_id", selectedSession.id);
+
+    const { error: insertError } = await supabase
+      .from("ai_session_insights")
+      .insert(
+        generatedInsights.map((insight) => ({
+          session_id: selectedSession.id,
+          ...insight,
+        }))
       );
-      setSelectedId((data as MemoryItem).id);
-      setIsCreating(false);
-      setActionMessage("Context memory created.");
-      setSaving(false);
+
+    if (insertError) {
+      setErrorMessage(insertError.message);
       return;
     }
 
-      if (!selectedItem) {
-      setErrorMessage("No context memory selected.");
-      setSaving(false);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("ai_memory_items")
-      .update(payload)
-      .eq("id", selectedItem.id)
-      .select(
-        "id, memory_key, memory_value, category, scope, is_active, priority, metadata, created_at, updated_at"
-      )
-      .single();
-
-    if (error) {
-      setErrorMessage(error.message);
-      setSaving(false);
-      return;
-    }
-
-    await supabase.from("ai_admin_activity_logs").insert({
-      action_type: "memory_updated",
-      entity_type: "memory",
-      entity_id: selectedItem.id,
-      details: {
-        memory_key: memoryKey,
-        category: payload.category,
-        scope: payload.scope,
-        priority,
-        is_active: form.is_active,
-      },
-    });
-
-    setItems((current) =>
-      current
-        .map((item) =>
-          item.id === selectedItem.id ? (data as MemoryItem) : item
-        )
-        .sort((first, second) => first.priority - second.priority)
-    );
-    setSelectedId((data as MemoryItem).id);
-    setActionMessage("Context memory updated.");
-    setSaving(false);
-  }
-
-  async function toggleActive(item: MemoryItem) {
-    setSaving(true);
-    setErrorMessage(null);
-    setActionMessage(null);
-
-    const nextActive = !item.is_active;
-
-    const { data, error } = await supabase
-      .from("ai_memory_items")
+    const { error: updateError } = await supabase
+      .from("ai_conversation_sessions")
       .update({
-        is_active: nextActive,
+        quality_score: health.score,
+        summary: buildSessionSummary(messages, health),
+        insights: {
+          score: health.score,
+          liked_count: health.likedCount,
+          disliked_count: health.dislikedCount,
+          error_count: health.errorCount,
+          refusal_count: health.refusalCount,
+          approved_count: health.approvedCount,
+          cache_count: health.cacheCount,
+          openai_count: health.openAiCount,
+          message_count: health.messageCount,
+        },
         updated_at: new Date().toISOString(),
       })
-      .eq("id", item.id)
-      .select(
-        "id, memory_key, memory_value, category, scope, is_active, priority, metadata, created_at, updated_at"
-      )
-      .single();
+      .eq("id", selectedSession.id);
 
-    if (error) {
-      setErrorMessage(error.message);
-      setSaving(false);
+    if (updateError) {
+      setErrorMessage(updateError.message);
       return;
     }
 
     await supabase.from("ai_admin_activity_logs").insert({
-      action_type: nextActive ? "memory_activated" : "memory_deactivated",
+      action_type: "ai_session_analyzed",
       entity_type: "memory",
-      entity_id: item.id,
+      entity_id: selectedSession.id,
       details: {
-        memory_key: item.memory_key,
-        scope: item.scope,
-        is_active: nextActive,
+        quality_score: health.score,
+        insight_count: generatedInsights.length,
+        title: getSessionTitle(selectedSession),
       },
     });
 
-    setItems((current) =>
-      current.map((currentItem) =>
-        currentItem.id === item.id ? (data as MemoryItem) : currentItem
-      )
-    );
-    setSelectedId((data as MemoryItem).id);
-    setActionMessage(
-      nextActive ? "Context memory activated." : "Context memory deactivated."
-    );
-    setSaving(false);
+    await loadSessions();
+    await loadSessionDetails(selectedSession.id);
   }
 
-  async function deleteMemoryItem(item: MemoryItem) {
+  function buildSessionSummary(sessionMessages: AIMessage[], health: SessionHealth) {
+    const userQuestions = sessionMessages
+      .filter((message) => message.role === "user")
+      .map((message) => message.content)
+      .slice(0, 5);
+
+    if (userQuestions.length === 0) {
+      return "No user questions were recorded in this session.";
+    }
+
+    return `Session included ${userQuestions.length} user question(s). Quality score: ${health.score}/100. Main questions: ${userQuestions.join(" | ")}`;
+  }
+
+  async function endSelectedSession() {
+    if (!selectedSession) return;
+
+    const { error } = await supabase
+      .from("ai_conversation_sessions")
+      .update({
+        status: "ended",
+        ended_at: selectedSession.ended_at ?? new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", selectedSession.id);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    await supabase.from("ai_admin_activity_logs").insert({
+      action_type: "ai_session_ended",
+      entity_type: "memory",
+      entity_id: selectedSession.id,
+      details: {
+        title: getSessionTitle(selectedSession),
+        source: selectedSession.source,
+      },
+    });
+
+    await loadSessions();
+    await loadSessionDetails(selectedSession.id);
+  }
+
+  async function deleteSelectedSession() {
+    if (!selectedSession) return;
+
     const confirmed = window.confirm(
-      `Delete context memory "${item.memory_key}" permanently?`
+      `Delete session "${getSessionTitle(selectedSession)}" permanently?`
     );
 
     if (!confirmed) return;
 
-    setSaving(true);
-    setErrorMessage(null);
-    setActionMessage(null);
-
     const { error } = await supabase
-      .from("ai_memory_items")
+      .from("ai_conversation_sessions")
       .delete()
-      .eq("id", item.id);
+      .eq("id", selectedSession.id);
 
     if (error) {
       setErrorMessage(error.message);
-      setSaving(false);
       return;
     }
 
     await supabase.from("ai_admin_activity_logs").insert({
-      action_type: "memory_deleted",
+      action_type: "ai_session_deleted",
       entity_type: "memory",
-      entity_id: item.id,
+      entity_id: selectedSession.id,
       details: {
-        memory_key: item.memory_key,
-        scope: item.scope,
+        title: getSessionTitle(selectedSession),
+        source: selectedSession.source,
       },
     });
 
-    setItems((current) =>
-      current.filter((currentItem) => currentItem.id !== item.id)
-    );
-
-    if (selectedId === item.id) {
-      setSelectedId(null);
-      setIsCreating(false);
-      setForm(emptyForm);
-    }
-
-    setActionMessage("Context memory deleted.");
-    setSaving(false);
+    setSelectedSessionId(null);
+    setMessages([]);
+    setInsights([]);
+    await loadSessions();
   }
-
-  const pageTitle = isCreating
-    ? "Create Context Memory"
-    : selectedItem
-      ? "Context Memory Inspector"
-      : "Context Memory Inspector";
 
   return (
     <div className="min-h-screen bg-[#05070d] px-6 py-6 text-white">
@@ -481,412 +592,483 @@ export default function AIMemoryPage() {
               <div className="space-y-3">
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-purple-400/20 bg-purple-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-purple-200">
                   <Brain className="h-3.5 w-3.5" />
-                  Context Memory Layer
+                  Session Intelligence Layer
                 </div>
 
                 <div>
                   <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white md:text-4xl">
-                    Context Memory
+                    Memory / Session Intelligence
                   </h1>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                    Store reusable AI context that is not an answer: company facts, working rules, system architecture, design direction, and long-term behavior instructions.
+                    Review real AI conversations, router behavior, feedback, refusals, errors, and quality signals collected from the floating AI assistant.
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[720px]">
-              <MetricCard label="Active" value={String(activeCount)} tone="emerald" />
-              <MetricCard label="Inactive" value={String(inactiveCount)} tone="amber" />
-              <MetricCard label="Global" value={String(globalCount)} tone="cyan" />
-              <MetricCard label="High Priority" value={String(highPriorityCount)} tone="white" />
+              <MetricCard label="Sessions" value={String(metrics.total)} tone="white" />
+              <MetricCard label="Active" value={String(metrics.active)} tone="emerald" />
+              <MetricCard label="Ended" value={String(metrics.ended)} tone="cyan" />
+              <MetricCard label="Reviewed" value={String(metrics.reviewed)} tone="amber" />
             </div>
           </div>
         </header>
 
-        <section className="grid gap-4 md:grid-cols-3">
-          <PurposeCard
-            icon={Building2}
-            title="Business Context"
-            description="Reusable facts about AiXia, company structure, product scope, and operating model."
-          />
+        {errorMessage ? (
+          <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+            {errorMessage}
+          </div>
+        ) : null}
 
+                <section className="grid gap-4 md:grid-cols-3">
           <PurposeCard
-            icon={Settings2}
-            title="System Rules"
-            description="Architecture rules, workflow rules, and execution preferences that should guide future AI behavior."
+            icon={MessageSquareText}
+            title="Conversation Capture"
+            description="Collects real AI sessions from the floating assistant, including user messages, assistant replies, provider, model, and router path."
           />
 
           <PurposeCard
             icon={Wand2}
-            title="Behavior Memory"
-            description="How the AI should speak, format instructions, handle code changes, and work with the operator."
+            title="Quality Analysis"
+            description="Scores each session based on feedback, refusals, errors, approved-answer use, cache use, and OpenAI fallback use."
+          />
+
+          <PurposeCard
+            icon={Sparkles}
+            title="Improvement Signals"
+            description="Identifies missing approved answers, weak knowledge coverage, negative feedback, and router problems."
           />
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-          <div className="flex flex-col gap-4">
-            <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Context Memories
-                    </h2>
-                    <p className="mt-1 text-xs text-slate-500">
-                      These are reusable context instructions, not exact Q&A answers.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void loadMemoryItems()}
-                      className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-white/20 hover:text-white"
-                    >
-                      <RefreshCcw className="h-4 w-4" />
-                      Refresh
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={startCreate}
-                      className="inline-flex items-center gap-2 rounded-xl border border-purple-400/30 bg-purple-500/10 px-3 py-2 text-xs font-semibold text-purple-200 transition hover:border-purple-300/60 hover:bg-purple-500/20"
-                    >
-                      <Plus className="h-4 w-4" />
-                      New
-                    </button>
-                  </div>
+        <section className="grid gap-6 lg:grid-cols-[minmax(420px,0.9fr)_minmax(0,1.1fr)]">
+          <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+            <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Captured Sessions
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Sessions collected from the real floating AI assistant.
+                  </p>
                 </div>
 
-                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                    <input
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                      placeholder="Search context name, instruction, category, applies-to..."
-                      className="w-full rounded-xl border border-white/10 bg-white/[0.05] px-9 py-2 text-sm text-white placeholder:text-slate-500 focus:border-purple-400/40 focus:outline-none"
-                    />
-                  </div>
+                <button
+                  type="button"
+                  onClick={() => void loadSessions()}
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-white/20 hover:text-white"
+                >
+                  <RefreshCcw className="h-4 w-4" />
+                  Refresh
+                </button>
+              </div>
 
-                                    <select
-                    value={statusFilter}
-                    onChange={(event) =>
-                      setStatusFilter(event.target.value as "all" | "active" | "inactive")
-                    }
-                    className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs text-slate-300 focus:border-purple-400/40 focus:outline-none"
-                  >
-                    <option value="all">All Status</option>
-                    <option value="active">Active Only</option>
-                    <option value="inactive">Inactive Only</option>
-                  </select>
-
-                  <select
-                    value={scopeFilter}
-                    onChange={(event) => setScopeFilter(event.target.value)}
-                    className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs text-slate-300 focus:border-purple-400/40 focus:outline-none"
-                  >
-                    <option value="all">All Applies-To</option>
-                    {scopes.map((scope) => (
-                      <option key={scope} value={scope}>
-                        {scope}
-                      </option>
-                    ))}
-                  </select>
+              <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto_auto]">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search session title, source, status..."
+                    className="w-full rounded-xl border border-white/10 bg-white/[0.05] px-9 py-2 text-sm text-white placeholder:text-slate-500 focus:border-purple-400/40 focus:outline-none"
+                  />
                 </div>
+
+                <select
+                  value={statusFilter}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as "all" | "active" | "ended")
+                  }
+                  className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs text-slate-300 focus:border-purple-400/40 focus:outline-none"
+                >
+                  <option value="all">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="ended">Ended</option>
+                </select>
+
+                <select
+                  value={qualityFilter}
+                  onChange={(event) =>
+                    setQualityFilter(
+                      event.target.value as "all" | "strong" | "review" | "weak"
+                    )
+                  }
+                  className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs text-slate-300 focus:border-purple-400/40 focus:outline-none"
+                >
+                  <option value="all">All Quality</option>
+                  <option value="strong">Strong</option>
+                  <option value="review">Needs Review</option>
+                  <option value="weak">Weak / Critical</option>
+                </select>
               </div>
+            </div>
 
-              <div className="max-h-[620px] overflow-y-auto">
-                {loading ? (
-                  <div className="px-5 py-6 text-sm text-slate-400">
-                    Loading context memories...
-                  </div>
-                ) : filteredItems.length === 0 ? (
-                  <div className="px-5 py-6 text-sm text-slate-500">
-                    No context memories found.
-                  </div>
-                ) : (
-                  <div className="divide-y divide-white/5">
-                    {filteredItems.map((item) => {
-                      const isSelected = item.id === selectedId && !isCreating;
+            <div className="max-h-[720px] overflow-y-auto">
+              {loading ? (
+                <div className="px-5 py-6 text-sm text-slate-400">
+                  Loading sessions...
+                </div>
+              ) : filteredSessions.length === 0 ? (
+                <div className="px-5 py-6 text-sm text-slate-500">
+                  No sessions found.
+                </div>
+              ) : (
+                <div className="divide-y divide-white/5">
+                  {filteredSessions.map(({ session, score }) => {
+                    const isSelected = session.id === selectedSessionId;
+                    const displayScore = score ?? session.quality_score ?? null;
 
-                      return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => selectItem(item)}
-                          className={`w-full px-5 py-4 text-left transition ${
-                            isSelected ? "bg-purple-500/10" : "hover:bg-white/[0.04]"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="space-y-1">
-                              <p className="text-sm font-semibold text-white">
-                                {item.memory_key}
+                    return (
+                      <button
+                        key={session.id}
+                        type="button"
+                        onClick={() => setSelectedSessionId(session.id)}
+                        className={`w-full px-5 py-4 text-left transition ${
+                          isSelected ? "bg-purple-500/10" : "hover:bg-white/[0.04]"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 space-y-1">
+                            <p className="truncate text-sm font-semibold text-white">
+                              {getSessionTitle(session)}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {session.source} • {session.status} • {formatDate(session.started_at)}
+                            </p>
+                            {session.summary ? (
+                              <p className="line-clamp-2 text-sm leading-6 text-slate-400">
+                                {session.summary}
                               </p>
-                              <p className="line-clamp-2 text-sm text-slate-400">
-                                {item.memory_value}
+                            ) : (
+                              <p className="text-sm text-slate-600">
+                                Not analyzed yet.
                               </p>
-                              <p className="text-xs text-slate-500">
-                                {formatCategory(item.category)} • applies to {item.scope} • Priority {item.priority}
-                              </p>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              {item.is_active ? (
-                                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                              ) : (
-                                <XCircle className="h-4 w-4 text-amber-400" />
-                              )}
-                            </div>
+                            )}
                           </div>
 
-                          <div className="mt-2 text-[11px] text-slate-600">
-                            Updated {formatDate(item.updated_at)}
+                          <div className="shrink-0 text-right">
+                            {displayScore === null ? (
+                              <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-400">
+                                New
+                              </div>
+                            ) : (
+                              <>
+                                <div className={`text-lg font-semibold ${getHealthTone(displayScore)}`}>
+                                  {displayScore}
+                                </div>
+                                <div className="text-[10px] uppercase tracking-[0.16em] text-slate-600">
+                                  {getHealthLabel(displayScore)}
+                                </div>
+                              </>
+                            )}
                           </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex min-w-0 flex-col gap-4">
             <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  {pageTitle}
-                </h2>
-              </div>
-
-              <div className="flex flex-col gap-4 px-5 py-5">
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                    Context Name
-                  </label>
-                  <input
-                    value={form.memory_key}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        memory_key: event.target.value,
-                      }))
-                    }
-                    placeholder="business_context, working_style, system_architecture"
-                    className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white focus:border-purple-400/40 focus:outline-none"
-                  />
+              <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Session Inspector
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {selectedSession
+                      ? getSessionTitle(selectedSession)
+                      : "Select a session to inspect."}
+                  </p>
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                    Context / Instruction
-                  </label>
-                  <textarea
-                    rows={7}
-                    value={form.memory_value}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        memory_value: event.target.value,
-                      }))
-                    }
-                    placeholder="Describe the reusable context, rule, or behavior instruction this AI should keep..."
-                    className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white focus:border-purple-400/40 focus:outline-none"
-                  />
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                      Memory Category
-                    </label>
-                    <input
-                      value={form.category}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          category: event.target.value,
-                        }))
-                      }
-                      placeholder="business-context, behavior, system-rule"
-                      className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white focus:border-purple-400/40 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                      Applies To
-                    </label>
-                    <input
-                      value={form.scope}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          scope: event.target.value,
-                        }))
-                      }
-                      placeholder="global, finance, ai-management"
-                      className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white focus:border-purple-400/40 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                      Priority
-                    </label>
-                    <input
-                      type="number"
-                      value={form.priority}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          priority: event.target.value,
-                        }))
-                      }
-                      className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white focus:border-purple-400/40 focus:outline-none"
-                    />
-                  </div>
-
-                  <label className="flex items-end gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={form.is_active}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          is_active: event.target.checked,
-                        }))
-                      }
-                      className="mb-1 h-4 w-4 rounded border-white/20 bg-white/10"
-                    />
-                    Active context memory
-                  </label>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    <Database className="h-4 w-4" />
-                    Runtime Details
-                  </div>
-
-                  <div className="mt-4 grid gap-3 text-xs text-slate-400 sm:grid-cols-2">
-                    <DetailCell label="Status" value={form.is_active ? "Active" : "Inactive"} />
-                    <DetailCell label="Applies To" value={form.scope || "global"} />
-                    <DetailCell
-                      label="Created"
-                      value={selectedItem ? formatDate(selectedItem.created_at) : "Not created yet"}
-                    />
-                    <DetailCell
-                      label="Updated"
-                      value={selectedItem ? formatDate(selectedItem.updated_at) : "Not created yet"}
-                    />
-                  </div>
-                </div>
-
-                {errorMessage ? (
-                  <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                    {errorMessage}
-                  </div>
-                ) : null}
-
-                {actionMessage ? (
-                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                    {actionMessage}
-                  </div>
-                ) : null}
-
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={() => void saveMemoryItem()}
-                    disabled={saving}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-purple-400/30 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-purple-100 transition hover:border-purple-300/60 hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Save className="h-4 w-4" />
-                    {saving ? "Saving..." : isCreating ? "Create Context Memory" : "Save Changes"}
-                  </button>
-
-                  {selectedItem ? (
+                {selectedSession ? (
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => void toggleActive(selectedItem)}
-                      disabled={saving}
-                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => void analyzeSelectedSession()}
+                      className="inline-flex items-center gap-2 rounded-xl border border-purple-400/30 bg-purple-500/10 px-3 py-2 text-xs font-semibold text-purple-200 transition hover:border-purple-300/60 hover:bg-purple-500/20"
                     >
-                      {selectedItem.is_active ? (
-                        <>
-                          <ToggleLeft className="h-4 w-4 text-amber-300" />
-                          Deactivate
-                        </>
-                      ) : (
-                        <>
-                          <ToggleRight className="h-4 w-4 text-emerald-300" />
-                          Activate
-                        </>
-                      )}
+                      <Sparkles className="h-4 w-4" />
+                      Analyze
                     </button>
-                  ) : null}
-                </div>
 
-                                {selectedItem ? (
-                  <button
-                    type="button"
-                    onClick={() => void deleteMemoryItem(selectedItem)}
-                    disabled={saving}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete Context Memory
-                  </button>
+                    {selectedSession.status !== "ended" ? (
+                      <button
+                        type="button"
+                        onClick={() => void endSelectedSession()}
+                        className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-white/20 hover:text-white"
+                      >
+                        End
+                      </button>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => void deleteSelectedSession()}
+                      className="inline-flex items-center gap-2 rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 ) : null}
               </div>
-            </div>
 
-            <div className="rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                <Brain className="h-4 w-4" />
-                Why Context Memory Exists
-              </div>
+              {!selectedSession ? (
+                <div className="px-5 py-10 text-sm text-slate-500">
+                  No session selected.
+                </div>
+              ) : loadingMessages ? (
+                <div className="px-5 py-10 text-sm text-slate-400">
+                  Loading session details...
+                </div>
+              ) : (
+                <div className="grid gap-4 p-5">
+                  <div className="grid gap-3 sm:grid-cols-4">
+                    <HealthMetric
+                      icon={CheckCircle2}
+                      label="Score"
+                      value={`${selectedHealth.score}/100`}
+                      tone={getHealthTone(selectedHealth.score)}
+                    />
+                    <HealthMetric
+                      icon={ThumbsUp}
+                      label="Liked"
+                      value={String(selectedHealth.likedCount)}
+                      tone="text-emerald-200"
+                    />
+                    <HealthMetric
+                      icon={ThumbsDown}
+                      label="Bad"
+                      value={String(selectedHealth.dislikedCount)}
+                      tone="text-rose-200"
+                    />
+                    <HealthMetric
+                      icon={ShieldAlert}
+                      label="Refusals"
+                      value={String(selectedHealth.refusalCount)}
+                      tone="text-amber-200"
+                    />
+                  </div>
 
-              <p className="mt-3 text-sm leading-6 text-slate-400">
-                Approved Answers are exact question-and-answer overrides. Context Memory is different:
-                it stores reusable background instructions that help the AI understand AiXia, your working style,
-                business rules, system architecture, and long-term preferences.
-              </p>
+                  <div className="grid gap-3 sm:grid-cols-4">
+                    <HealthMetric
+                      icon={Database}
+                      label="Approved"
+                      value={String(selectedHealth.approvedCount)}
+                      tone="text-cyan-200"
+                    />
+                    <HealthMetric
+                      icon={Database}
+                      label="Cache"
+                      value={String(selectedHealth.cacheCount)}
+                      tone="text-emerald-200"
+                    />
+                    <HealthMetric
+                      icon={Brain}
+                      label="OpenAI"
+                      value={String(selectedHealth.openAiCount)}
+                      tone="text-purple-200"
+                    />
+                    <HealthMetric
+                      icon={XCircle}
+                      label="Errors"
+                      value={String(selectedHealth.errorCount)}
+                      tone="text-rose-200"
+                    />
+                  </div>
 
-              <div className="mt-4 rounded-2xl border border-purple-400/15 bg-purple-500/10 px-4 py-3 text-sm leading-6 text-purple-100/80">
-                Memory should not store temporary chat details, secrets, passwords, tokens, or private personal data.
-              </div>
-            </div>
-
-            <div className="rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                <BookOpen className="h-4 w-4" />
-                Quick Memory Templates
-              </div>
-
-              <div className="mt-4 grid gap-3">
-                {memoryPresets.map((preset) => (
-                  <button
-                    key={preset.title}
-                    type="button"
-                    onClick={() => applyPreset(preset.form)}
-                    className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-left transition hover:border-purple-400/30 hover:bg-purple-500/10"
-                  >
-                    <div className="text-sm font-semibold text-white">
-                      {preset.title}
+                                    <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/20">
+                    <div className="border-b border-white/10 px-4 py-3">
+                      <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Conversation Transcript
+                      </h3>
                     </div>
-                    <div className="mt-1 text-sm leading-6 text-slate-400">
-                      {preset.description}
+
+                    <div className="max-h-[420px] space-y-3 overflow-y-auto p-4">
+                      {messages.length === 0 ? (
+                        <div className="text-sm text-slate-500">
+                          No messages recorded for this session.
+                        </div>
+                      ) : (
+                        messages.map((message) => (
+                          <div
+                            key={message.id}
+                            className={`flex ${
+                              message.role === "user" ? "justify-end" : "justify-start"
+                            }`}
+                          >
+                            <div
+                              className={`max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-6 ${
+                                message.role === "user"
+                                  ? "bg-cyan-500/15 text-cyan-100"
+                                  : "border border-white/10 bg-white/[0.04] text-white/85"
+                              }`}
+                            >
+                              <div>{message.content}</div>
+
+                              {message.role === "assistant" ? (
+                                <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-white/45">
+                                  {message.provider ? (
+                                    <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">
+                                      {message.provider}
+                                    </span>
+                                  ) : null}
+
+                                  {message.router_layer ? (
+                                    <span className="rounded-full border border-purple-400/20 bg-purple-500/10 px-2 py-0.5 text-purple-200">
+                                      {message.router_layer}
+                                    </span>
+                                  ) : null}
+
+                                  {message.router_reason ? (
+                                    <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5">
+                                      {message.router_reason}
+                                    </span>
+                                  ) : null}
+
+                                  {message.feedback ? (
+                                    <span
+                                      className={`rounded-full border px-2 py-0.5 ${
+                                        message.feedback === "liked"
+                                          ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-300"
+                                          : "border-rose-400/20 bg-rose-500/10 text-rose-300"
+                                      }`}
+                                    >
+                                      {message.feedback}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
-                  </button>
-                ))}
-              </div>
+                  </div>
+
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/20">
+                      <div className="border-b border-white/10 px-4 py-3">
+                        <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          User Questions
+                        </h3>
+                      </div>
+
+                      <div className="max-h-[260px] overflow-y-auto p-4">
+                        {selectedUserMessages.length === 0 ? (
+                          <div className="text-sm text-slate-500">
+                            No user messages.
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {selectedUserMessages.map((message) => (
+                              <div
+                                key={message.id}
+                                className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 py-3 text-sm leading-6 text-cyan-100/90"
+                              >
+                                {message.content}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/20">
+                      <div className="border-b border-white/10 px-4 py-3">
+                        <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Assistant Answers
+                        </h3>
+                      </div>
+
+                      <div className="max-h-[260px] overflow-y-auto p-4">
+                        {selectedAssistantMessages.length === 0 ? (
+                          <div className="text-sm text-slate-500">
+                            No assistant messages.
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {selectedAssistantMessages.map((message) => (
+                              <div
+                                key={message.id}
+                                className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm leading-6 text-slate-300"
+                              >
+                                <div>{message.content}</div>
+                                <div className="mt-2 text-[10px] text-slate-600">
+                                  {message.provider ?? "n/a"} •{" "}
+                                  {message.router_layer ?? "no layer"} •{" "}
+                                  {message.feedback ?? "no feedback"}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/20">
+                    <div className="border-b border-white/10 px-4 py-3">
+                      <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        AI Session Insights
+                      </h3>
+                    </div>
+
+                    <div className="max-h-[320px] overflow-y-auto p-4">
+                      {insights.length === 0 ? (
+                        <div className="text-sm leading-6 text-slate-500">
+                          No insights yet. Click Analyze to generate quality signals for this session.
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {insights.map((insight) => (
+                            <div
+                              key={insight.id}
+                              className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <div className="text-sm font-semibold text-white">
+                                    {insight.title}
+                                  </div>
+                                  <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-600">
+                                    {insight.insight_type} • {insight.severity}
+                                  </div>
+                                </div>
+
+                                {insight.is_resolved ? (
+                                  <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-300">
+                                    resolved
+                                  </span>
+                                ) : (
+                                  <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-300">
+                                    open
+                                  </span>
+                                )}
+                              </div>
+
+                              <p className="mt-3 text-sm leading-6 text-slate-400">
+                                {insight.description}
+                              </p>
+
+                              {insight.recommended_action ? (
+                                <div className="mt-3 rounded-xl border border-purple-400/15 bg-purple-500/10 px-3 py-2 text-sm leading-6 text-purple-100/80">
+                                  {insight.recommended_action}
+                                </div>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -950,11 +1132,24 @@ function PurposeCard({
   );
 }
 
-function DetailCell({ label, value }: { label: string; value: string }) {
+function HealthMetric({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: typeof Brain;
+  label: string;
+  value: string;
+  tone: string;
+}) {
   return (
-    <div>
-      <p className="text-slate-500">{label}</p>
-      <p className="mt-1 break-words text-slate-200">{value}</p>
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-slate-500">
+        <Icon className="h-4 w-4" />
+        {label}
+      </div>
+      <div className={`mt-2 text-2xl font-semibold ${tone}`}>{value}</div>
     </div>
   );
 }

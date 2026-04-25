@@ -262,7 +262,32 @@ export default function AICoreSettingsPage() {
     setSaving(false);
   }
 
-      function updateSetting(
+    async function updateSettingAndSave(
+    key: SettingKey,
+    value: number | boolean | string | string[]
+  ) {
+    const nextSettings = {
+      ...settingsRef.current,
+      [key]: value,
+    } as AISettings;
+
+    settingsRef.current = nextSettings;
+    setSettings(nextSettings);
+
+    const { error } = await supabase.rpc("ai_update_setting", {
+      p_setting_key: key,
+      p_setting_value: { value },
+    });
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    setActionMessage(`${key} saved successfully.`);
+  }   
+  
+  function updateSetting(
     key: SettingKey,
     value: number | boolean | string | string[]
   ) {
@@ -434,8 +459,8 @@ export default function AICoreSettingsPage() {
                         <button
                           type="button"
                                                     onClick={() => {
-                            const nextValue = !Boolean(settings[key]);
-                            updateSetting(key, nextValue);
+                            const nextValue = !Boolean(settingsRef.current[key]);
+                            void updateSettingAndSave(key, nextValue);
                           }}
                           className={`inline-flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
                             value

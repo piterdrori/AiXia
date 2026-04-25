@@ -217,6 +217,33 @@ function riskLabel(risk: string) {
   }
 }
 
+function getPromotionBlockReason(item: CacheItem) {
+  const quality = scoreCacheQuality(item);
+  const risk = inferCacheRisk(item);
+
+  if (Boolean(item.is_blocked)) {
+    return "This cache item is blocked. Unblock it before promoting.";
+  }
+
+  if (risk !== "healthy") {
+    return `This cache item is not healthy. Current risk: ${riskLabel(risk)}.`;
+  }
+
+  if (quality < 75) {
+    return `This cache item quality is too low. Current quality: ${quality}/100. Required: 75/100.`;
+  }
+
+  if ((item.quality_score ?? 0) < 1) {
+    return `This cache item quality score is too low. Current DB quality score: ${item.quality_score ?? 0}. Required: 1.`;
+  }
+
+  if ((item.usage_count ?? 0) < 3) {
+    return `This cache item does not have enough usage. Current usage: ${item.usage_count ?? 0}. Required: 3.`;
+  }
+
+  return null;
+}
+
 function toEditorState(item: CacheItem): CacheEditorState {
   return {
     question: item.question ?? "",
@@ -898,16 +925,17 @@ async function autoPromoteBestClusters() {
 }
   
     async function promoteToApproved(item: CacheItem): Promise<boolean> {
-    const quality = scoreCacheQuality(item);
-    const risk = inferCacheRisk(item);
+    const blockReason = getPromotionBlockReason(item);
 
-    if (Boolean(item.is_blocked)) return false;
-    if (risk !== "healthy") return false;
-    if (quality < 75 || (item.quality_score ?? 0) < 1 || (item.usage_count ?? 0) < 3) {
+    if (blockReason) {
+      setPageError(blockReason);
+      setActionMessage(null);
       return false;
     }
 
     setPromoting(true);
+    setPageError(null);
+    setActionMessage(null);
 
     const normalized = item.normalized_question || normalizeQuestion(item.question);
 
@@ -917,7 +945,8 @@ async function autoPromoteBestClusters() {
       .eq("normalized_question", normalized)
       .limit(1);
 
-    if (existingError) {
+        if (existingError) {
+      setPageError(existingError.message);
       setPromoting(false);
       return false;
     }
@@ -949,7 +978,8 @@ async function autoPromoteBestClusters() {
         .select("id")
         .single();
 
-      if (insertError || !newRow) {
+            if (insertError || !newRow) {
+        setPageError(insertError?.message ?? "Failed to promote cache item.");
         setPromoting(false);
         return false;
       }
@@ -975,8 +1005,15 @@ async function autoPromoteBestClusters() {
         });
       }
 
+            if (updateError) {
+        setPageError(updateError.message);
+        setPromoting(false);
+        return false;
+      }
+
+      setActionMessage("Cache item promoted to approved answers.");
       setPromoting(false);
-      return !updateError;
+      return true;
     }
 
         const { error } = await supabase
@@ -1005,8 +1042,15 @@ async function autoPromoteBestClusters() {
       });
     }
 
+        if (error) {
+      setPageError(error.message);
+      setPromoting(false);
+      return false;
+    }
+
+    setActionMessage("Cache item promoted to approved answers.");
     setPromoting(false);
-    return !error;
+    return true;
   }
   
   const duplicates = selectedItem

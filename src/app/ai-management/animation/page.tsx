@@ -1137,6 +1137,7 @@ function AnimationPreview({
   if (settings.zegoEnabled) {
     return (
       <div className="relative flex h-[300px] items-center justify-center overflow-hidden rounded-[22px] border border-amber-400/20 bg-black/25">
+        <NativeAnimationStyles />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.18),transparent_48%)]" />
         <div className="relative w-[min(330px,calc(100%-28px))] rounded-[24px] border border-amber-400/20 bg-black/45 p-5 text-center backdrop-blur-xl">
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-amber-400/30 bg-amber-500/10 text-amber-200">
@@ -1144,7 +1145,7 @@ function AnimationPreview({
           </div>
           <h3 className="mt-4 text-xl font-semibold text-white">ZEGO Enabled</h3>
           <p className="mt-2 text-xs leading-5 text-slate-400">
-            Visible only for Phase 3. No API calls, streams, secrets, or billing.
+            Visible only for Phase 4. No API calls, streams, secrets, or billing.
           </p>
         </div>
       </div>
@@ -1154,9 +1155,10 @@ function AnimationPreview({
   if (settings.mode === "uploaded_asset") {
     return (
       <div className="relative flex h-[300px] items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25">
+        <NativeAnimationStyles />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.16),transparent_48%)]" />
         <AssetPreview asset={selectedAsset} large />
-         {settings.showStatusText ? (
+        {settings.showStatusText ? (
           <div className="absolute bottom-4 left-4 right-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-3 text-center backdrop-blur-xl">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/70">
               Uploaded Asset Preview
@@ -1180,19 +1182,54 @@ function AnimationPreview({
           ? "rgba(167,139,250,0.7)"
           : "rgba(34,211,238,0.75)";
 
+  const isSilent =
+    settings.previewState === "idle" ||
+    settings.previewState === "paused" ||
+    settings.previewState === "error";
+
+  const motionDuration = `${Math.max(
+    0.85,
+    4.2 - (settings.motionSpeed / 100) * 3
+  ).toFixed(2)}s`;
+
+  const mouthHeight =
+    settings.previewState === "speaking"
+      ? Math.max(10, Math.round(6 + settings.intensity / 6))
+      : settings.previewState === "listening"
+        ? 7
+        : settings.previewState === "thinking"
+          ? 4
+          : 2;
+
+  const previewStyle = {
+    "--aixia-motion-duration": motionDuration,
+    "--aixia-glow-opacity": String(Math.max(0.18, settings.glowStrength / 100)),
+    "--aixia-pulse-scale": String(1 + settings.pulseStrength / 900),
+    "--aixia-mouth-height": `${mouthHeight}px`,
+    "--aixia-motion-opacity": isSilent ? "0.45" : "1",
+  } as CSSProperties;
+
   return (
-    <div className="relative flex h-[300px] items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25">
+    <div
+      className="aixia-native-preview relative flex h-[300px] items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25"
+      data-state={settings.previewState}
+      data-mode={settings.mode}
+      style={previewStyle}
+    >
+      <NativeAnimationStyles />
+
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_32%,rgba(34,211,238,0.20),transparent_44%),radial-gradient(circle_at_50%_74%,rgba(139,92,246,0.14),transparent_48%)]" />
 
       {settings.showParticles ? (
-        <div className="absolute inset-0 opacity-60">
-          {Array.from({ length: 14 }).map((_, index) => (
+        <div className="aixia-particle-layer absolute inset-0 opacity-60">
+          {Array.from({ length: 18 }).map((_, index) => (
             <span
               key={index}
-              className="absolute h-1.5 w-1.5 rounded-full bg-cyan-200/40"
+              className="aixia-particle absolute h-1.5 w-1.5 rounded-full bg-cyan-200/40"
               style={{
                 left: `${8 + ((index * 19) % 84)}%`,
                 top: `${10 + ((index * 31) % 78)}%`,
+                animationDelay: `${index * 0.12}s`,
               }}
             />
           ))}
@@ -1200,32 +1237,60 @@ function AnimationPreview({
       ) : null}
 
       <div
-        className="absolute h-56 w-56 rounded-full blur-3xl"
+        className="aixia-glow absolute h-56 w-56 rounded-full blur-3xl"
         style={{
-          opacity: Math.max(0.18, settings.glowStrength / 100),
           background: glow,
         }}
       />
 
-      <div className="relative flex h-44 w-44 items-center justify-center rounded-full border border-cyan-300/60 bg-black/55 text-cyan-100 shadow-2xl shadow-cyan-400/30">
-        <div className="absolute inset-4 animate-pulse rounded-full border border-white/10" />
-        <div className="absolute inset-8 rounded-full border border-white/10" />
+      <div className="aixia-avatar-shell relative flex h-44 w-44 items-center justify-center rounded-full border border-cyan-300/60 bg-black/55 text-cyan-100 shadow-2xl shadow-cyan-400/30">
+        <div className="aixia-ring aixia-ring-outer absolute inset-4 rounded-full border border-white/10" />
+        <div className="aixia-ring aixia-ring-inner absolute inset-8 rounded-full border border-white/10" />
+        <div className="aixia-scanner absolute inset-2 rounded-full border border-cyan-300/0" />
 
-        {settings.mode === "waveform" ? <WaveformPreview active={settings.showWaveform} /> : null}
-        {settings.mode === "robot" ? <RobotPreview lipSyncEnabled={settings.lipSyncEnabled} /> : null}
-        {settings.mode === "hologram" ? (
-          <MonitorPlay className="h-16 w-16 text-cyan-200" />
+        {settings.mode === "waveform" ? (
+          <WaveformPreview
+            active={settings.showWaveform}
+            state={settings.previewState}
+            motionSpeed={settings.motionSpeed}
+          />
         ) : null}
-        {settings.mode === "mascot" ? <Smile className="h-16 w-16 text-cyan-200" /> : null}
+
+        {settings.mode === "robot" ? (
+          <RobotPreview
+            lipSyncEnabled={settings.lipSyncEnabled}
+            state={settings.previewState}
+          />
+        ) : null}
+
+        {settings.mode === "hologram" ? (
+          <div className="aixia-hologram flex flex-col items-center gap-2">
+            <MonitorPlay className="h-14 w-14 text-cyan-200" />
+            <span className="h-1 w-20 rounded-full bg-cyan-200/50" />
+          </div>
+        ) : null}
+
+        {settings.mode === "mascot" ? (
+          <div className="aixia-mascot-face flex flex-col items-center gap-2">
+            <div className="flex gap-5">
+              <span className="aixia-blink-eye h-3 w-3 rounded-full bg-cyan-100" />
+              <span className="aixia-blink-eye h-3 w-3 rounded-full bg-cyan-100" />
+            </div>
+            <div className="aixia-mouth rounded-full bg-cyan-100" />
+          </div>
+        ) : null}
+
         {settings.mode === "orb" ? (
-          <div className="h-20 w-20 rounded-full border border-cyan-300/30 bg-cyan-400/20 shadow-2xl shadow-cyan-400/20" />
+          <div className="aixia-orb-core relative flex h-24 w-24 items-center justify-center rounded-full border border-cyan-300/30 bg-cyan-400/20 shadow-2xl shadow-cyan-400/20">
+            <div className="aixia-orb-mouth absolute bottom-7 h-1.5 w-10 rounded-full bg-cyan-100/80" />
+          </div>
         ) : null}
       </div>
 
       {settings.showStatusText ? (
         <div className="absolute bottom-4 left-4 right-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-3 text-center backdrop-blur-xl">
           <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/70">
-            Preview State
+            Native Animation State
           </div>
           <div className="mt-1 text-xl font-semibold text-emerald-100">
             {getStateLabel(settings.previewState)}
@@ -1236,6 +1301,157 @@ function AnimationPreview({
   );
 }
 
+function NativeAnimationStyles() {
+  return (
+    <style>
+      {`
+        @keyframes aixia-breathe {
+          0%, 100% { transform: scale(1); opacity: 0.82; }
+          50% { transform: scale(var(--aixia-pulse-scale)); opacity: 1; }
+        }
+
+        @keyframes aixia-speaking {
+          0%, 100% { transform: scale(1) translateY(0); }
+          25% { transform: scale(1.045) translateY(-2px); }
+          50% { transform: scale(1.015) translateY(1px); }
+          75% { transform: scale(1.06) translateY(-1px); }
+        }
+
+        @keyframes aixia-listening {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.035); }
+        }
+
+        @keyframes aixia-thinking {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
+        @keyframes aixia-floating {
+          0%, 100% { transform: translateY(0); opacity: 0.35; }
+          50% { transform: translateY(-8px); opacity: 0.9; }
+        }
+
+        @keyframes aixia-wave {
+          0%, 100% { transform: scaleY(0.42); opacity: 0.55; }
+          50% { transform: scaleY(1); opacity: 1; }
+        }
+
+        @keyframes aixia-mouth {
+          0%, 100% { height: 3px; width: 28px; opacity: 0.75; }
+          35% { height: var(--aixia-mouth-height); width: 34px; opacity: 1; }
+          70% { height: 5px; width: 24px; opacity: 0.9; }
+        }
+
+        @keyframes aixia-blink {
+          0%, 88%, 100% { transform: scaleY(1); }
+          92%, 96% { transform: scaleY(0.12); }
+        }
+
+        @keyframes aixia-error {
+          0%, 100% { opacity: 1; filter: saturate(1); }
+          50% { opacity: 0.55; filter: saturate(1.8); }
+        }
+
+        .aixia-native-preview .aixia-glow {
+          opacity: var(--aixia-glow-opacity);
+        }
+
+        .aixia-native-preview .aixia-avatar-shell {
+          animation: aixia-breathe var(--aixia-motion-duration) ease-in-out infinite;
+        }
+
+        .aixia-native-preview[data-state="listening"] .aixia-avatar-shell {
+          animation: aixia-listening calc(var(--aixia-motion-duration) * 0.55) ease-in-out infinite;
+        }
+
+        .aixia-native-preview[data-state="speaking"] .aixia-avatar-shell {
+          animation: aixia-speaking calc(var(--aixia-motion-duration) * 0.42) ease-in-out infinite;
+        }
+
+        .aixia-native-preview[data-state="thinking"] .aixia-scanner {
+          border-color: rgba(251, 191, 36, 0.45);
+          border-top-color: rgba(34, 211, 238, 0.95);
+          animation: aixia-thinking calc(var(--aixia-motion-duration) * 0.75) linear infinite;
+        }
+
+        .aixia-native-preview[data-state="paused"] .aixia-avatar-shell {
+          animation-play-state: paused;
+          opacity: 0.65;
+        }
+
+        .aixia-native-preview[data-state="error"] .aixia-avatar-shell {
+          border-color: rgba(251, 113, 133, 0.75);
+          color: rgb(255, 205, 214);
+          animation: aixia-error 1.1s ease-in-out infinite;
+        }
+
+        .aixia-native-preview[data-state="error"] .aixia-glow {
+          background: rgba(251, 113, 133, 0.7) !important;
+        }
+
+        .aixia-native-preview[data-state="speaking"] .aixia-mouth,
+        .aixia-native-preview[data-state="speaking"] .aixia-orb-mouth {
+          animation: aixia-mouth 0.38s ease-in-out infinite;
+        }
+
+        .aixia-native-preview[data-state="listening"] .aixia-mouth,
+        .aixia-native-preview[data-state="listening"] .aixia-orb-mouth {
+          animation: aixia-mouth 0.75s ease-in-out infinite;
+        }
+
+        .aixia-native-preview[data-state="idle"] .aixia-mouth,
+        .aixia-native-preview[data-state="paused"] .aixia-mouth,
+        .aixia-native-preview[data-state="error"] .aixia-mouth,
+        .aixia-native-preview[data-state="idle"] .aixia-orb-mouth,
+        .aixia-native-preview[data-state="paused"] .aixia-orb-mouth,
+        .aixia-native-preview[data-state="error"] .aixia-orb-mouth {
+          height: 2px;
+          width: 24px;
+          opacity: 0.55;
+        }
+
+        .aixia-blink-eye {
+          transform-origin: center;
+          animation: aixia-blink 4.2s ease-in-out infinite;
+        }
+
+        .aixia-native-preview[data-state="speaking"] .aixia-blink-eye {
+          animation-duration: 3.2s;
+        }
+
+        .aixia-particle {
+          animation: aixia-floating calc(var(--aixia-motion-duration) * 1.2) ease-in-out infinite;
+          opacity: var(--aixia-motion-opacity);
+        }
+
+        .aixia-wave-bar {
+          transform-origin: center;
+          animation: aixia-wave var(--aixia-wave-duration) ease-in-out infinite;
+        }
+
+        .aixia-native-preview[data-state="idle"] .aixia-wave-bar,
+        .aixia-native-preview[data-state="paused"] .aixia-wave-bar {
+          animation-play-state: paused;
+          transform: scaleY(0.35);
+          opacity: 0.45;
+        }
+
+        .aixia-native-preview[data-state="error"] .aixia-wave-bar {
+          background: rgba(251, 113, 133, 0.8);
+        }
+
+        .aixia-hologram {
+          animation: aixia-breathe var(--aixia-motion-duration) ease-in-out infinite;
+        }
+
+        .aixia-orb-core {
+          animation: aixia-breathe calc(var(--aixia-motion-duration) * 0.8) ease-in-out infinite;
+        }
+      `}
+    </style>
+  );
+}
 function AssetPreview({
   asset,
   large = false,

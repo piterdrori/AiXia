@@ -3,15 +3,11 @@ import type { CSSProperties, ElementType, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
-  Archive,
   Bot,
   Box,
   Brain,
   CheckCircle2,
   CircleDot,
-  Cuboid,
-  FileJson,
-  Image,
   Lock,
   MessageCircle,
   Mic2,
@@ -24,9 +20,7 @@ import {
   Sparkles,
   ToggleLeft,
   ToggleRight,
-  Trash2,
   Upload,
-  Video,
   Waves,
   Zap,
 } from "lucide-react";

@@ -31,14 +31,10 @@ export type AiAvatarFaceLandmarks = {
 
 let faceLandmarkerPromise: Promise<FaceLandmarker> | null = null;
 
-const WASM_BASE_URLS = [
-  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm",
-  "https://unpkg.com/@mediapipe/tasks-vision@0.10.22/wasm",
-];
+const WASM_BASE_URLS = ["/mediapipe/wasm"];
 
 const FACE_LANDMARKER_MODEL_URLS = [
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task",
+  "/mediapipe/models/face_landmarker.task",
 ];
 
 function getUnknownErrorMessage(error: unknown) {

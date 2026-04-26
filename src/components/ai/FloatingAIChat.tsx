@@ -4,13 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   Bot,
-  CircleDot,
   Mic,
   MonitorPlay,
   Power,
   Radio,
   SendHorizontal,
-  Smile,
   Sparkles,
   Square,
   X,

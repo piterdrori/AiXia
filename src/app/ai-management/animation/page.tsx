@@ -99,9 +99,12 @@ type AvatarAsset = {
   created_at: string;
 };
 
+type AvatarPackSignedUrls = Partial<Record<AvatarPackLayerKey, string>>;
+
 type AvatarAssetWithUrl = AvatarAsset & {
   signedUrl: string | null;
   avatarPackBaseSignedUrl: string | null;
+  avatarPackLayerSignedUrls: AvatarPackSignedUrls;
 };
 
 const AVATAR_BUCKET = "ai-avatar-assets";
@@ -569,10 +572,11 @@ export default function AIAnimationPage() {
           .from(AVATAR_BUCKET)
           .createSignedUrl(asset.storage_path, 60 * 60);
 
-        const assetWithSourceUrl: AvatarAssetWithUrl = {
+                const assetWithSourceUrl: AvatarAssetWithUrl = {
           ...asset,
           signedUrl: signedData?.signedUrl ?? null,
           avatarPackBaseSignedUrl: null,
+          avatarPackLayerSignedUrls: {},
         };
 
         const manifest = getAssetAvatarPackManifest(assetWithSourceUrl);
@@ -581,13 +585,24 @@ export default function AIAnimationPage() {
           return assetWithSourceUrl;
         }
 
-        const { data: baseSignedData } = await supabase.storage
-          .from(AVATAR_BUCKET)
-          .createSignedUrl(manifest.layers.base_avatar.storage_path, 60 * 60);
+        const signedLayers: AvatarPackSignedUrls = {};
+
+        await Promise.all(
+          Object.entries(manifest.layers).map(async ([layerKey, layer]) => {
+            const { data: layerSignedData } = await supabase.storage
+              .from(AVATAR_BUCKET)
+              .createSignedUrl(layer.storage_path, 60 * 60);
+
+            if (layerSignedData?.signedUrl) {
+              signedLayers[layerKey as AvatarPackLayerKey] = layerSignedData.signedUrl;
+            }
+          })
+        );
 
         return {
           ...assetWithSourceUrl,
-          avatarPackBaseSignedUrl: baseSignedData?.signedUrl ?? null,
+          avatarPackBaseSignedUrl: signedLayers.base_avatar ?? null,
+          avatarPackLayerSignedUrls: signedLayers,
         };
       })
     );
@@ -1399,10 +1414,18 @@ function AnimationPreview({
     "--aixia-motion-opacity": isSilent ? "0.45" : "1",
   } as CSSProperties;
 
-    if (settings.mode === "uploaded_asset") {
+  if (settings.mode === "uploaded_asset") {
     const avatarPackStatus = getAvatarPackStatus(selectedAsset);
-    const isPrepared =
-      avatarPackStatus === "face_detected" || avatarPackStatus === "avatar_pack_ready";
+    const isRuntimeReady =
+      avatarPackStatus === "avatar_pack_ready" &&
+      Boolean(selectedAsset?.avatarPackLayerSignedUrls.base_avatar) &&
+      Boolean(selectedAsset?.avatarPackLayerSignedUrls.eyes_open) &&
+      Boolean(selectedAsset?.avatarPackLayerSignedUrls.eyes_closed) &&
+      Boolean(selectedAsset?.avatarPackLayerSignedUrls.mouth_rest) &&
+      Boolean(selectedAsset?.avatarPackLayerSignedUrls.mouth_small) &&
+      Boolean(selectedAsset?.avatarPackLayerSignedUrls.mouth_medium) &&
+      Boolean(selectedAsset?.avatarPackLayerSignedUrls.mouth_open) &&
+      Boolean(selectedAsset?.avatarPackLayerSignedUrls.mouth_round);
 
     return (
       <div
@@ -1414,30 +1437,38 @@ function AnimationPreview({
         <NativeAnimationStyles />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.16),transparent_48%)]" />
 
-        <div className="relative z-10 h-full w-full">
-          <AssetPreview asset={selectedAsset} large />
-        </div>
+        {isRuntimeReady && selectedAsset ? (
+          <AvatarPackRuntime
+            asset={selectedAsset}
+            state={settings.previewState}
+            lipSyncEnabled={settings.lipSyncEnabled}
+          />
+        ) : (
+          <div className="relative z-10 h-full w-full">
+            <AssetPreview asset={selectedAsset} large />
+          </div>
+        )}
 
         <div className="pointer-events-none absolute left-4 top-4 z-20 rounded-full border border-white/10 bg-black/55 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-200 backdrop-blur-xl">
-          {getAvatarPackStatusLabel(selectedAsset)}
+          {isRuntimeReady ? "Runtime avatar active" : getAvatarPackStatusLabel(selectedAsset)}
         </div>
 
-        {!isPrepared ? (
+        {!isRuntimeReady ? (
           <div className="absolute inset-x-4 bottom-4 z-30 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-5 py-3 text-center backdrop-blur-xl">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-100/70">
-              Avatar Pack Not Prepared
+              Runtime Not Ready
             </div>
             <div className="mt-1 text-sm font-semibold text-amber-100">
-              Click Prepare Avatar Pack to enable the talking-avatar pipeline.
+              Click Prepare Avatar Pack to generate usable eye and mouth layers.
             </div>
           </div>
         ) : (
           <div className="absolute inset-x-4 bottom-4 z-30 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-3 text-center backdrop-blur-xl">
-           <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/70">
-              Avatar Pack Ready
+            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/70">
+              Avatar Runtime Active
             </div>
             <div className="mt-1 text-sm font-semibold text-emerald-100">
-              Prepared avatar layers are generated and ready for runtime.
+              Preloaded sprite layers are driving eyes, mouth, and motion.
             </div>
           </div>
         )}
@@ -1596,6 +1627,33 @@ function NativeAnimationStyles() {
           75% { transform: scale(1.045) translateY(-1px); filter: saturate(1.2); }
         }
 
+        @keyframes aixia-avatar-pack-idle {
+          0%, 100% { transform: translateY(0) scale(1); filter: saturate(1); }
+          50% { transform: translateY(-3px) scale(1.012); filter: saturate(1.06); }
+        }
+
+        @keyframes aixia-avatar-pack-speaking {
+          0%, 100% { transform: translateY(0) scale(1.01); filter: saturate(1.08); }
+          25% { transform: translateY(-3px) scale(1.025); filter: saturate(1.16); }
+          50% { transform: translateY(1px) scale(1.012); filter: saturate(1.1); }
+          75% { transform: translateY(-2px) scale(1.03); filter: saturate(1.18); }
+        }
+
+        @keyframes aixia-avatar-pack-thinking {
+          0%, 100% { transform: rotate(-0.8deg) scale(1.005); }
+          50% { transform: rotate(0.8deg) scale(1.015); }
+        }
+
+        @keyframes aixia-avatar-pack-blink-layer {
+          0%, 86%, 100% { opacity: 0; }
+          90%, 94% { opacity: 1; }
+        }
+
+        @keyframes aixia-avatar-pack-mouth-pulse {
+          0%, 100% { opacity: 0.72; transform: scaleY(0.88); }
+          45% { opacity: 1; transform: scaleY(1.04); }
+        }
+
         @keyframes aixia-error {
           0%, 100% { opacity: 1; filter: saturate(1); }
           50% { opacity: 0.55; filter: saturate(1.8); }
@@ -1635,6 +1693,50 @@ function NativeAnimationStyles() {
           border-color: rgba(251, 191, 36, 0.45);
           border-top-color: rgba(34, 211, 238, 0.95);
           animation: aixia-thinking calc(var(--aixia-motion-duration) * 0.75) linear infinite;
+        }
+
+        .aixia-native-preview .aixia-avatar-pack-stage {
+          animation: aixia-avatar-pack-idle var(--aixia-motion-duration) ease-in-out infinite;
+          transform-origin: center center;
+        }
+
+        .aixia-native-preview[data-state="listening"] .aixia-avatar-pack-stage {
+          animation: aixia-avatar-pack-idle calc(var(--aixia-motion-duration) * 0.7) ease-in-out infinite;
+        }
+
+        .aixia-native-preview[data-state="speaking"] .aixia-avatar-pack-stage {
+          animation: aixia-avatar-pack-speaking calc(var(--aixia-motion-duration) * 0.42) ease-in-out infinite;
+        }
+
+        .aixia-native-preview[data-state="thinking"] .aixia-avatar-pack-stage {
+          animation: aixia-avatar-pack-thinking calc(var(--aixia-motion-duration) * 0.7) ease-in-out infinite;
+        }
+
+        .aixia-native-preview[data-state="paused"] .aixia-avatar-pack-stage {
+          animation-play-state: paused;
+          opacity: 0.72;
+        }
+
+        .aixia-native-preview[data-state="error"] .aixia-avatar-pack-stage {
+          animation: aixia-error 1.1s ease-in-out infinite;
+        }
+
+        .aixia-avatar-pack-blink {
+          opacity: 0;
+          animation: aixia-avatar-pack-blink-layer 4.2s ease-in-out infinite;
+        }
+
+        .aixia-native-preview[data-state="speaking"] .aixia-avatar-pack-blink {
+          animation-duration: 3.2s;
+        }
+
+        .aixia-avatar-pack-mouth {
+          transform-origin: center center;
+        }
+
+        .aixia-native-preview[data-state="speaking"] .aixia-avatar-pack-mouth,
+        .aixia-native-preview[data-state="listening"] .aixia-avatar-pack-mouth {
+          animation: aixia-avatar-pack-mouth-pulse 0.34s ease-in-out infinite;
         }
 
         .aixia-native-preview[data-state="paused"] .aixia-avatar-shell,
@@ -1721,6 +1823,83 @@ function NativeAnimationStyles() {
     </style>
   );
 }
+function getRuntimeMouthLayer(
+  state: AnimationState,
+  lipSyncEnabled: boolean
+): AvatarPackLayerKey {
+  if (!lipSyncEnabled) return "mouth_rest";
+  if (state === "speaking") return "mouth_open";
+  if (state === "listening") return "mouth_medium";
+  if (state === "thinking") return "mouth_small";
+  return "mouth_rest";
+}
+
+function AvatarPackRuntime({
+  asset,
+  state,
+  lipSyncEnabled,
+}: {
+  asset: AvatarAssetWithUrl;
+  state: AnimationState;
+  lipSyncEnabled: boolean;
+}) {
+  const layers = asset.avatarPackLayerSignedUrls;
+  const mouthLayer = getRuntimeMouthLayer(state, lipSyncEnabled);
+  const shouldShowClosedEyes = state === "paused" || state === "thinking";
+
+  return (
+    <div className="aixia-avatar-pack-runtime relative z-10 flex h-full w-full items-center justify-center">
+      <div className="aixia-avatar-pack-stage relative h-[260px] w-[260px] overflow-hidden rounded-[32px] border border-cyan-300/20 bg-black/35 shadow-2xl shadow-cyan-400/20">
+        {layers.base_avatar ? (
+          <img
+            src={layers.base_avatar}
+            alt={`${asset.name} base avatar`}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : null}
+
+        {layers.eyes_open ? (
+          <img
+            src={layers.eyes_open}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : null}
+
+        {shouldShowClosedEyes && layers.eyes_closed ? (
+          <img
+            src={layers.eyes_closed}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : null}
+
+        {state !== "paused" && layers.eyes_closed ? (
+          <img
+            src={layers.eyes_closed}
+            alt=""
+            aria-hidden="true"
+            className="aixia-avatar-pack-blink absolute inset-0 h-full w-full object-cover"
+          />
+        ) : null}
+
+        {layers[mouthLayer] ? (
+          <img
+            src={layers[mouthLayer]}
+            alt=""
+            aria-hidden="true"
+            className="aixia-avatar-pack-mouth absolute inset-0 h-full w-full object-cover"
+          />
+        ) : null}
+
+        <div className="pointer-events-none absolute inset-0 rounded-[32px] ring-1 ring-white/10" />
+      </div>
+    </div>
+  );
+}
+
 function AssetPreview({
   asset,
   large = false,

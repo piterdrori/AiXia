@@ -70,28 +70,51 @@ function createCanvas() {
 
 function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          reject(new Error("Failed to create avatar pack image."));
-          return;
-        }
+    try {
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Failed to create avatar pack PNG layer from canvas."));
+            return;
+          }
 
-        resolve(blob);
-      },
-      "image/png",
-      0.96
-    );
+          resolve(blob);
+        },
+        "image/png",
+        0.96
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Canvas export failed during avatar pack generation.";
+
+      reject(new Error(message));
+    }
   });
 }
 
 async function loadImage(imageUrl: string) {
+  const response = await fetch(imageUrl);
+
+  if (!response.ok) {
+    throw new Error(`Avatar source image failed to load: ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
   const image = document.createElement("img");
-  image.crossOrigin = "anonymous";
-  image.decoding = "async";
-  image.src = imageUrl;
-  await image.decode();
-  return image;
+
+  try {
+    image.decoding = "async";
+    image.src = objectUrl;
+    await image.decode();
+    return image;
+  } finally {
+    window.setTimeout(() => {
+      URL.revokeObjectURL(objectUrl);
+    }, 1000);
+  }
 }
 
 function getCropFromLandmarks(landmarks: AiAvatarFaceLandmarks) {

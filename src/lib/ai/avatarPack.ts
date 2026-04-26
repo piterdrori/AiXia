@@ -139,7 +139,7 @@ function getCropFromLandmarks(landmarks: AiAvatarFaceLandmarks) {
   const centerX = faceBox.x + faceBox.width / 2;
   const centerY = faceBox.y + faceBox.height / 2;
 
-  const rawSize = Math.max(faceBox.width, faceBox.height) * 1.72;
+  const rawSize = Math.max(faceBox.width, faceBox.height) * 1.75;
   const size = clamp(rawSize, 0.36, 1);
 
   const x = clamp(centerX - size / 2, 0, 1 - size);
@@ -158,36 +158,34 @@ function mapPointToAvatarCanvas(
   };
 }
 
-function drawCleanAvatarMask(context: CanvasRenderingContext2D) {
-  const centerX = AVATAR_CANVAS_SIZE / 2;
-  const centerY = AVATAR_CANVAS_SIZE / 2;
-  const radiusX = AVATAR_CANVAS_SIZE * 0.43;
-  const radiusY = AVATAR_CANVAS_SIZE * 0.49;
+function removeLightBackground(canvas: HTMLCanvasElement) {
+  const context = canvas.getContext("2d");
 
-  context.beginPath();
-  context.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
-  context.clip();
-}
+  if (!context) {
+    throw new Error("Canvas is not available.");
+  }
 
-function drawSoftAvatarFrame(context: CanvasRenderingContext2D) {
-  const centerX = AVATAR_CANVAS_SIZE / 2;
-  const centerY = AVATAR_CANVAS_SIZE / 2;
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
 
-  const vignette = context.createRadialGradient(
-    centerX,
-    centerY,
-    AVATAR_CANVAS_SIZE * 0.18,
-    centerX,
-    centerY,
-    AVATAR_CANVAS_SIZE * 0.52
-  );
+  for (let index = 0; index < data.length; index += 4) {
+    const red = data[index];
+    const green = data[index + 1];
+    const blue = data[index + 2];
 
-  vignette.addColorStop(0, "rgba(0,0,0,0)");
-  vignette.addColorStop(0.72, "rgba(0,0,0,0.04)");
-  vignette.addColorStop(1, "rgba(0,0,0,0.42)");
+    const max = Math.max(red, green, blue);
+    const min = Math.min(red, green, blue);
+    const colorSpread = max - min;
+    const isWhiteBackground = red > 220 && green > 220 && blue > 220 && colorSpread < 42;
+    const isNearWhiteBackground = red > 238 && green > 238 && blue > 238;
 
-  context.fillStyle = vignette;
-  context.fillRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE);
+    if (isWhiteBackground || isNearWhiteBackground) {
+      const fade = clamp((255 - max) / 35, 0, 1);
+      data[index + 3] = Math.round(data[index + 3] * fade);
+    }
+  }
+
+  context.putImageData(imageData, 0, 0);
 }
 
 function drawBaseAvatar(
@@ -204,9 +202,6 @@ function drawBaseAvatar(
 
   context.clearRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE);
 
-  context.save();
-  drawCleanAvatarMask(context);
-
   context.drawImage(
     image,
     crop.x * landmarks.imageWidth,
@@ -219,8 +214,7 @@ function drawBaseAvatar(
     AVATAR_CANVAS_SIZE
   );
 
-  drawSoftAvatarFrame(context);
-  context.restore();
+  removeLightBackground(canvas);
 
   return canvas;
 }

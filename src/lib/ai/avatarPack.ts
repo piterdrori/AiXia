@@ -68,6 +68,13 @@ function createCanvas() {
   return canvas;
 }
 
+function waitForImageLoad(image: HTMLImageElement): Promise<void> {
+  return new Promise((resolve, reject) => {
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error("Avatar source image failed to decode in the browser."));
+  });
+}
+
 function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
     try {
@@ -102,18 +109,23 @@ async function loadImage(imageUrl: string) {
   }
 
   const blob = await response.blob();
+
+  if (!blob.type.startsWith("image/")) {
+    throw new Error(`Avatar pack expected an image file, but received ${blob.type || "unknown file type"}.`);
+  }
+
   const objectUrl = URL.createObjectURL(blob);
   const image = document.createElement("img");
 
   try {
     image.decoding = "async";
     image.src = objectUrl;
-    await image.decode();
+
+    await waitForImageLoad(image);
+
     return image;
   } finally {
-    window.setTimeout(() => {
-      URL.revokeObjectURL(objectUrl);
-    }, 1000);
+    URL.revokeObjectURL(objectUrl);
   }
 }
 

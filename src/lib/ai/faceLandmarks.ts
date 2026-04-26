@@ -31,11 +31,30 @@ export type AiAvatarFaceLandmarks = {
 
 let faceLandmarkerPromise: Promise<FaceLandmarker> | null = null;
 
-const WASM_BASE_URL =
-  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm";
+const WASM_BASE_URLS = [
+  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm",
+  "https://unpkg.com/@mediapipe/tasks-vision@0.10.22/wasm",
+];
 
-const FACE_LANDMARKER_MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+const FACE_LANDMARKER_MODEL_URLS = [
+  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task",
+];
+
+function getUnknownErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+
+  try {
+    const json = JSON.stringify(error);
+
+    if (json && json !== "{}") return json;
+  } catch {
+    // Ignore stringify failure.
+  }
+
+  return "The browser blocked or failed to load the MediaPipe WASM/model asset.";
+}
 
 function averagePoint(points: NormalizedLandmark[]): FacePoint {
   const total = points.reduce(
@@ -83,36 +102,39 @@ function getFaceBox(points: NormalizedLandmark[]) {
 async function getFaceLandmarker() {
   if (!faceLandmarkerPromise) {
     faceLandmarkerPromise = (async () => {
-      try {
-        const vision = await FilesetResolver.forVisionTasks(WASM_BASE_URL);
+      const errors: string[] = [];
 
-        return await FaceLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: FACE_LANDMARKER_MODEL_URL,
-            delegate: "CPU",
-          },
-          runningMode: "IMAGE",
-          numFaces: 1,
-          minFaceDetectionConfidence: 0.5,
-          minFacePresenceConfidence: 0.5,
-          minTrackingConfidence: 0.5,
-          outputFaceBlendshapes: true,
-          outputFacialTransformationMatrixes: true,
-        });
-      } catch (error) {
-        faceLandmarkerPromise = null;
+      for (const wasmBaseUrl of WASM_BASE_URLS) {
+        for (const modelUrl of FACE_LANDMARKER_MODEL_URLS) {
+          try {
+            const vision = await FilesetResolver.forVisionTasks(wasmBaseUrl);
 
-        const message =
-          error instanceof Error
-            ? error.message
-            : typeof error === "string"
-              ? error
-              : JSON.stringify(error);
-
-        throw new Error(
-          `MediaPipe Face Landmarker failed to initialize. ${message || "Unknown browser initialization error."}`
-        );
+            return await FaceLandmarker.createFromOptions(vision, {
+              baseOptions: {
+                modelAssetPath: modelUrl,
+                delegate: "CPU",
+              },
+              runningMode: "IMAGE",
+              numFaces: 1,
+              minFaceDetectionConfidence: 0.5,
+              minFacePresenceConfidence: 0.5,
+              minTrackingConfidence: 0.5,
+              outputFaceBlendshapes: false,
+              outputFacialTransformationMatrixes: false,
+            });
+          } catch (error) {
+            errors.push(
+              `WASM: ${wasmBaseUrl} | MODEL: ${modelUrl} | ERROR: ${getUnknownErrorMessage(error)}`
+            );
+          }
+        }
       }
+
+      faceLandmarkerPromise = null;
+
+      throw new Error(
+        `MediaPipe Face Landmarker failed to initialize after all fallbacks. ${errors.join(" || ")}`
+      );
     })();
   }
 

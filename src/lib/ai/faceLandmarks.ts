@@ -152,15 +152,28 @@ export async function detectFaceLandmarksFromImageElement(
 export async function detectFaceLandmarksFromImageUrl(
   imageUrl: string
 ): Promise<AiAvatarFaceLandmarks | null> {
+  const response = await fetch(imageUrl);
+
+  if (!response.ok) {
+    throw new Error(`Face detection image failed to load: ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
   const imageElement = document.createElement("img");
 
-  imageElement.crossOrigin = "anonymous";
-  imageElement.decoding = "async";
-  imageElement.src = imageUrl;
+  try {
+    imageElement.decoding = "async";
+    imageElement.src = objectUrl;
 
-  await imageElement.decode();
+    await imageElement.decode();
 
-  return detectFaceLandmarksFromImageElement(imageElement);
+    return detectFaceLandmarksFromImageElement(imageElement);
+  } finally {
+    window.setTimeout(() => {
+      URL.revokeObjectURL(objectUrl);
+    }, 1000);
+  }
 }
 
 export function isAiAvatarFaceLandmarks(

@@ -31,6 +31,10 @@ import {
   Zap,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import {
+  detectFaceLandmarksFromImageUrl,
+  isAiAvatarFaceLandmarks,
+} from "@/lib/ai/faceLandmarks";
 
 type AnimationEngine = "internal" | "zego";
 type AnimationMode =
@@ -337,6 +341,32 @@ function formatFileSize(size: number) {
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function getAssetFaceLandmarks(asset: AvatarAssetWithUrl | null) {
+  const landmarks = asset?.metadata?.face_landmarks;
+
+  if (isAiAvatarFaceLandmarks(landmarks)) {
+    return landmarks;
+  }
+
+  return null;
+}
+
+function getLandmarkPositionStyle(point: { x: number; y: number }): CSSProperties {
+  return {
+    left: `${point.x * 100}%`,
+    top: `${point.y * 100}%`,
+    transform: "translate(-50%, -50%)",
+  };
+}
+
+function getFallbackPositionStyle(left: string, top: string): CSSProperties {
+  return {
+    left,
+    top,
+    transform: "translate(-50%, -50%)",
+  };
+}
+
 export default function AIAnimationPage() {
   const navigate = useNavigate();
   const [settings, setSettings] = useState<AnimationSettings>(defaultSettings);
@@ -348,6 +378,7 @@ export default function AIAnimationPage() {
   const [assets, setAssets] = useState<AvatarAssetWithUrl[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(true);
   const [uploadingAsset, setUploadingAsset] = useState(false);
+  const [detectingAssetId, setDetectingAssetId] = useState<string | null>(null);
 
   const currentMode = useMemo(
     () => modes.find((mode) => mode.id === settings.mode) ?? modes[0],
@@ -762,7 +793,7 @@ export default function AIAnimationPage() {
     setSavedMessage("Avatar asset archived.");
   }
 
-  async function deleteAsset(asset: AvatarAssetWithUrl) {
+   async function deleteAsset(asset: AvatarAssetWithUrl) {
     setSavedMessage(null);
     setErrorMessage(null);
 
@@ -799,6 +830,66 @@ export default function AIAnimationPage() {
 
     await loadAssets();
     setSavedMessage("Avatar asset deleted.");
+  }
+
+  async function detectFaceForAsset(asset: AvatarAssetWithUrl) {
+    setSavedMessage(null);
+    setErrorMessage(null);
+
+    if (!asset.signedUrl) {
+      setErrorMessage("Signed asset URL is not available yet. Refresh and try again.");
+      return;
+    }
+
+    if (asset.asset_type !== "image" && asset.asset_type !== "gif") {
+      setErrorMessage("Face detection is available only for image and GIF avatar assets.");
+      return;
+    }
+
+    setDetectingAssetId(asset.id);
+
+    const landmarks = await detectFaceLandmarksFromImageUrl(asset.signedUrl);
+
+    if (!landmarks) {
+      setDetectingAssetId(null);
+      setErrorMessage("No face detected in this asset. Use a clear front-facing image.");
+      return;
+    }
+
+    const nextMetadata = {
+      ...(asset.metadata ?? {}),
+      face_landmarks: landmarks,
+    };
+
+    const { error } = await supabase
+      .from("ai_avatar_assets")
+      .update({
+        metadata: nextMetadata,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", asset.id);
+
+    if (error) {
+      setDetectingAssetId(null);
+      setErrorMessage(error.message);
+      return;
+    }
+
+    await supabase.from("ai_admin_activity_logs").insert({
+      action_type: "animation_asset_face_landmarks_detected",
+      entity_type: "ai_avatar_asset",
+      entity_id: asset.id,
+      details: {
+        asset_name: asset.name,
+        asset_type: asset.asset_type,
+        face_landmarks_source: landmarks.source,
+        face_box: landmarks.faceBox,
+      },
+    });
+
+    await loadAssets();
+    setDetectingAssetId(null);
+    setSavedMessage("Face detected. Eyes and mouth overlay will now use real landmarks.");
   }
 
     return (
@@ -1066,11 +1157,13 @@ export default function AIAnimationPage() {
                 ) : (
                   <div className="grid gap-3 md:grid-cols-2">
                     {assets.map((asset) => (
-                      <AssetCard
+                    <AssetCard
                         key={asset.id}
                         asset={asset}
                         selected={selectedAsset?.id === asset.id}
+                        detecting={detectingAssetId === asset.id}
                         onSelect={() => void selectAsset(asset)}
+                        onDetectFace={() => void detectFaceForAsset(asset)}
                         onArchive={() => void archiveAsset(asset)}
                         onDelete={() => void deleteAsset(asset)}
                       />
@@ -1152,26 +1245,6 @@ function AnimationPreview({
     );
   }
 
-  if (settings.mode === "uploaded_asset") {
-    return (
-      <div className="relative flex h-[300px] items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25">
-        <NativeAnimationStyles />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.16),transparent_48%)]" />
-        <AssetPreview asset={selectedAsset} large />
-        {settings.showStatusText ? (
-          <div className="absolute bottom-4 left-4 right-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-3 text-center backdrop-blur-xl">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/70">
-              Uploaded Asset Preview
-            </div>
-            <div className="mt-1 text-xl font-semibold text-emerald-100">
-              Active Avatar Asset
-            </div>
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
   const tone = getStateTone(settings.previewState);
   const glow =
     tone === "rose"
@@ -1208,6 +1281,78 @@ function AnimationPreview({
     "--aixia-mouth-height": `${mouthHeight}px`,
     "--aixia-motion-opacity": isSilent ? "0.45" : "1",
   } as CSSProperties;
+
+  if (settings.mode === "uploaded_asset") {
+    const landmarks = getAssetFaceLandmarks(selectedAsset);
+    const canUseFaceOverlay =
+      selectedAsset?.asset_type === "image" || selectedAsset?.asset_type === "gif";
+
+    return (
+      <div
+        className="aixia-native-preview relative flex h-[300px] items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25"
+        data-state={settings.previewState}
+        data-mode={settings.mode}
+        style={previewStyle}
+      >
+        <NativeAnimationStyles />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.16),transparent_48%)]" />
+
+        <div className="aixia-uploaded-motion relative z-10 h-full w-full">
+          <AssetPreview asset={selectedAsset} large />
+        </div>
+
+        {canUseFaceOverlay ? (
+          <div className="pointer-events-none absolute inset-0 z-20">
+            <span
+              className="aixia-blink-eye absolute h-2.5 w-2.5 rounded-full bg-cyan-100 shadow-[0_0_14px_rgba(165,243,252,0.75)]"
+              style={
+                landmarks
+                  ? getLandmarkPositionStyle(landmarks.leftEye)
+                  : getFallbackPositionStyle("43%", "38%")
+              }
+            />
+            <span
+              className="aixia-blink-eye absolute h-2.5 w-2.5 rounded-full bg-cyan-100 shadow-[0_0_14px_rgba(165,243,252,0.75)]"
+              style={
+                landmarks
+                  ? getLandmarkPositionStyle(landmarks.rightEye)
+                  : getFallbackPositionStyle("57%", "38%")
+              }
+            />
+
+            {settings.lipSyncEnabled ? (
+              <div
+                className="aixia-uploaded-mouth aixia-mouth absolute rounded-full bg-cyan-100/90 shadow-[0_0_16px_rgba(165,243,252,0.75)]"
+                style={
+                  landmarks
+                    ? {
+                        ...getLandmarkPositionStyle(landmarks.mouth),
+                        width: `${Math.max(20, landmarks.mouthWidth * 100)}%`,
+                      }
+                    : getFallbackPositionStyle("50%", "56%")
+                }
+              />
+            ) : null}
+
+            <div className="absolute left-4 top-4 rounded-full border border-cyan-400/20 bg-black/45 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100 backdrop-blur-xl">
+              {landmarks ? "Face landmarks active" : "Center overlay fallback"}
+            </div>
+          </div>
+        ) : null}
+
+        {settings.showStatusText ? (
+          <div className="absolute bottom-4 left-4 right-4 z-30 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-3 text-center backdrop-blur-xl">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/70">
+              Uploaded Asset Local Animation
+            </div>
+            <div className="mt-1 text-xl font-semibold text-emerald-100">
+              {getStateLabel(settings.previewState)}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -1271,12 +1416,12 @@ function AnimationPreview({
         ) : null}
 
         {settings.mode === "mascot" ? (
-          <div className="aixia-mascot-face flex flex-col items-center gap-2">
-            <div className="flex gap-5">
+          <div className="aixia-mascot-face flex h-24 w-24 flex-col items-center justify-center rounded-full border border-cyan-300/25 bg-cyan-400/10 shadow-2xl shadow-cyan-400/10">
+            <div className="flex gap-7">
               <span className="aixia-blink-eye h-3 w-3 rounded-full bg-cyan-100" />
               <span className="aixia-blink-eye h-3 w-3 rounded-full bg-cyan-100" />
             </div>
-            <div className="aixia-mouth rounded-full bg-cyan-100" />
+            <div className="aixia-mouth mt-5 rounded-full bg-cyan-100" />
           </div>
         ) : null}
 
@@ -1348,6 +1493,18 @@ function NativeAnimationStyles() {
           92%, 96% { transform: scaleY(0.12); }
         }
 
+        @keyframes aixia-uploaded-breathe {
+          0%, 100% { transform: scale(1) translateY(0); filter: saturate(1); }
+          50% { transform: scale(1.025) translateY(-2px); filter: saturate(1.08); }
+        }
+
+        @keyframes aixia-uploaded-speaking {
+          0%, 100% { transform: scale(1.01) translateY(0); filter: saturate(1.05); }
+          25% { transform: scale(1.035) translateY(-2px); filter: saturate(1.16); }
+          50% { transform: scale(1.02) translateY(1px); filter: saturate(1.1); }
+          75% { transform: scale(1.045) translateY(-1px); filter: saturate(1.2); }
+        }
+
         @keyframes aixia-error {
           0%, 100% { opacity: 1; filter: saturate(1); }
           50% { opacity: 0.55; filter: saturate(1.8); }
@@ -1357,16 +1514,30 @@ function NativeAnimationStyles() {
           opacity: var(--aixia-glow-opacity);
         }
 
-        .aixia-native-preview .aixia-avatar-shell {
+        .aixia-native-preview .aixia-avatar-shell,
+        .aixia-native-preview .aixia-uploaded-motion {
           animation: aixia-breathe var(--aixia-motion-duration) ease-in-out infinite;
+        }
+
+        .aixia-native-preview .aixia-uploaded-motion {
+          animation-name: aixia-uploaded-breathe;
+          transform-origin: center center;
         }
 
         .aixia-native-preview[data-state="listening"] .aixia-avatar-shell {
           animation: aixia-listening calc(var(--aixia-motion-duration) * 0.55) ease-in-out infinite;
         }
 
+        .aixia-native-preview[data-state="listening"] .aixia-uploaded-motion {
+          animation: aixia-uploaded-breathe calc(var(--aixia-motion-duration) * 0.65) ease-in-out infinite;
+        }
+
         .aixia-native-preview[data-state="speaking"] .aixia-avatar-shell {
           animation: aixia-speaking calc(var(--aixia-motion-duration) * 0.42) ease-in-out infinite;
+        }
+
+        .aixia-native-preview[data-state="speaking"] .aixia-uploaded-motion {
+          animation: aixia-uploaded-speaking calc(var(--aixia-motion-duration) * 0.38) ease-in-out infinite;
         }
 
         .aixia-native-preview[data-state="thinking"] .aixia-scanner {
@@ -1375,12 +1546,14 @@ function NativeAnimationStyles() {
           animation: aixia-thinking calc(var(--aixia-motion-duration) * 0.75) linear infinite;
         }
 
-        .aixia-native-preview[data-state="paused"] .aixia-avatar-shell {
+        .aixia-native-preview[data-state="paused"] .aixia-avatar-shell,
+        .aixia-native-preview[data-state="paused"] .aixia-uploaded-motion {
           animation-play-state: paused;
           opacity: 0.65;
         }
 
-        .aixia-native-preview[data-state="error"] .aixia-avatar-shell {
+        .aixia-native-preview[data-state="error"] .aixia-avatar-shell,
+        .aixia-native-preview[data-state="error"] .aixia-uploaded-motion {
           border-color: rgba(251, 113, 133, 0.75);
           color: rgb(255, 205, 214);
           animation: aixia-error 1.1s ease-in-out infinite;
@@ -1391,12 +1564,14 @@ function NativeAnimationStyles() {
         }
 
         .aixia-native-preview[data-state="speaking"] .aixia-mouth,
-        .aixia-native-preview[data-state="speaking"] .aixia-orb-mouth {
+        .aixia-native-preview[data-state="speaking"] .aixia-orb-mouth,
+        .aixia-native-preview[data-state="speaking"] .aixia-uploaded-mouth {
           animation: aixia-mouth 0.38s ease-in-out infinite;
         }
 
         .aixia-native-preview[data-state="listening"] .aixia-mouth,
-        .aixia-native-preview[data-state="listening"] .aixia-orb-mouth {
+        .aixia-native-preview[data-state="listening"] .aixia-orb-mouth,
+        .aixia-native-preview[data-state="listening"] .aixia-uploaded-mouth {
           animation: aixia-mouth 0.75s ease-in-out infinite;
         }
 
@@ -1405,7 +1580,10 @@ function NativeAnimationStyles() {
         .aixia-native-preview[data-state="error"] .aixia-mouth,
         .aixia-native-preview[data-state="idle"] .aixia-orb-mouth,
         .aixia-native-preview[data-state="paused"] .aixia-orb-mouth,
-        .aixia-native-preview[data-state="error"] .aixia-orb-mouth {
+        .aixia-native-preview[data-state="error"] .aixia-orb-mouth,
+        .aixia-native-preview[data-state="idle"] .aixia-uploaded-mouth,
+        .aixia-native-preview[data-state="paused"] .aixia-uploaded-mouth,
+        .aixia-native-preview[data-state="error"] .aixia-uploaded-mouth {
           height: 2px;
           width: 24px;
           opacity: 0.55;
@@ -1545,13 +1723,17 @@ function AssetPreview({
 function AssetCard({
   asset,
   selected,
+  detecting,
   onSelect,
+  onDetectFace,
   onArchive,
   onDelete,
 }: {
   asset: AvatarAssetWithUrl;
   selected: boolean;
+  detecting: boolean;
   onSelect: () => void;
+  onDetectFace: () => void;
   onArchive: () => void;
   onDelete: () => void;
 }) {
@@ -1563,6 +1745,9 @@ function AssetCard({
         : asset.asset_type === "lottie"
           ? FileJson
           : Cuboid;
+
+  const hasFaceLandmarks = Boolean(getAssetFaceLandmarks(asset));
+  const canDetectFace = asset.asset_type === "image" || asset.asset_type === "gif";
 
   return (
     <div
@@ -1600,13 +1785,26 @@ function AssetCard({
           {asset.asset_type} · {formatFileSize(asset.file_size_bytes)}
         </div>
 
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="mt-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+          {hasFaceLandmarks ? "Face landmarks detected" : "No face landmarks"}
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={onSelect}
             className="inline-flex items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-2 py-2 text-xs font-semibold text-cyan-200 transition hover:border-cyan-300/50"
           >
             {selected ? "Active" : "Use"}
+          </button>
+
+          <button
+            type="button"
+            onClick={onDetectFace}
+            disabled={!canDetectFace || detecting}
+            className="inline-flex items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-2 py-2 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300/50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {detecting ? "Detecting..." : "Detect Face"}
           </button>
 
           <button
@@ -1680,23 +1878,22 @@ function RobotPreview({
   const mouthClass =
     lipSyncEnabled && (state === "speaking" || state === "listening")
       ? "aixia-mouth"
-      : "";
+      : "h-1.5 w-8";
 
   return (
     <div className="flex flex-col items-center">
-      <div className="relative flex h-20 w-20 items-center justify-center">
-        <Bot className="h-16 w-16" />
-        <div className="absolute left-1/2 top-[31px] flex -translate-x-1/2 gap-4">
-          <span className="aixia-blink-eye h-2 w-2 rounded-full bg-cyan-100" />
-          <span className="aixia-blink-eye h-2 w-2 rounded-full bg-cyan-100" />
-        </div>
-      </div>
+      <div className="relative flex h-24 w-24 items-center justify-center rounded-[24px] border border-cyan-300/25 bg-cyan-400/10 shadow-2xl shadow-cyan-400/10">
+        <Bot className="absolute inset-0 m-auto h-16 w-16 opacity-90" />
 
-      <div
-        className={`mt-1 rounded-full bg-cyan-100 transition-all ${
-          mouthClass || "h-1 w-7"
-        }`}
-      />
+        <div className="absolute left-1/2 top-[38px] flex -translate-x-1/2 gap-5">
+          <span className="aixia-blink-eye h-2.5 w-2.5 rounded-full bg-cyan-100" />
+          <span className="aixia-blink-eye h-2.5 w-2.5 rounded-full bg-cyan-100" />
+        </div>
+
+        <div
+          className={`absolute left-1/2 top-[59px] -translate-x-1/2 rounded-full bg-cyan-100 transition-all ${mouthClass}`}
+        />
+      </div>
     </div>
   );
 }

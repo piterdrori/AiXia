@@ -19,7 +19,7 @@ type Message = {
   feedback?: "liked" | "disliked";
 };
 
-type ChatMode = "text" | "speech_to_text" | "face_to_face";
+type ChatMode = "text" | "voice_text" | "face_to_face";
 
 type AvatarState =
   | "idle"
@@ -62,7 +62,7 @@ type AvatarPackRuntimeAsset = {
 type AvatarAssetRow = {
   id: string;
   name: string;
-  bucket_id: string;
+  bucket_id: string | null;
   status: "active" | "archived" | "deleted";
   is_selected: boolean;
   metadata: Record<string, unknown> | null;
@@ -206,7 +206,7 @@ export default function FloatingAIChat() {
   const [mode, setMode] = useState<ChatMode>("text");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [input, setInput] = useState("");
-  const [interimTranscript, setInterimTranscript] = useState("");
+  const [liveTranscript, setLiveTranscript] = useState("");
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const [provider, setProvider] = useState("");
@@ -223,11 +223,13 @@ export default function FloatingAIChat() {
     {
       id: createMessageId(),
       role: "assistant",
-      content: "Hello. I am connected to the AiXia AI system. How can I help you?",
+      content: "Hello. Ask me anything.",
     },
   ]);
 
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const finalTranscriptRef = useRef("");
+  const silenceTimerRef = useRef<number | null>(null);
   const modeRef = useRef<ChatMode>("text");
   const openRef = useRef(false);
   const loadingRef = useRef(false);
@@ -236,6 +238,12 @@ export default function FloatingAIChat() {
     () => Boolean(getSpeechRecognitionConstructor()),
     []
   );
+
+  const faceToFaceReady =
+    voiceSettings.voice_enabled &&
+    voiceSettings.voice_stt_enabled &&
+    voiceSettings.voice_tts_enabled &&
+    Boolean(runtimeAvatar);
 
   useEffect(() => {
     modeRef.current = mode;
@@ -253,10 +261,32 @@ export default function FloatingAIChat() {
     void loadRuntimeControls();
 
     return () => {
+      clearSilenceTimer();
       stopListening();
       stopVoiceOutput();
     };
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    void loadRuntimeControls();
+
+    const intervalId = window.setInterval(() => {
+      void loadRuntimeControls();
+    }, 3500);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [open]);
+
+  function clearSilenceTimer() {
+    if (silenceTimerRef.current) {
+      window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  }
 
   async function loadRuntimeControls() {
     const settingKeys = [
@@ -478,7 +508,8 @@ export default function FloatingAIChat() {
 
     setMessages(nextMessages);
     setInput("");
-    setInterimTranscript("");
+    setLiveTranscript("");
+    setStatusMessage("");
     setLoading(true);
     setProvider("");
     setModel("");
@@ -555,39 +586,30 @@ export default function FloatingAIChat() {
     void handleSend();
   }
 
-  function setTextMode() {
+  function switchToTextMode() {
+    clearSilenceTimer();
     stopListening();
     stopVoiceOutput();
     setMode("text");
     setAvatarState("idle");
     setStatusMessage("");
+    setLiveTranscript("");
   }
 
-  function toggleSpeechToTextMode() {
+  function startVoiceText() {
+    clearSilenceTimer();
     stopVoiceOutput();
-
-    if (mode === "speech_to_text" && listening) {
-      stopListening();
-      setMode("text");
-      return;
-    }
-
-    setMode("speech_to_text");
-    void startListening("speech_to_text");
+    setMode("voice_text");
+    void startListening("voice_text");
   }
 
-  function toggleFaceToFaceMode() {
-    if (mode === "face_to_face") {
-      stopListening();
-      stopVoiceOutput();
-      setMode("text");
-      setAvatarState("idle");
-      setStatusMessage("");
-      return;
-    }
-
+  function startFaceToFace() {
+    clearSilenceTimer();
+    stopVoiceOutput();
     setMode("face_to_face");
-    setAvatarState("listening");
+    setStatusMessage("");
+    setLiveTranscript("");
+    void loadRuntimeControls();
     void startListening("face_to_face");
   }
 
@@ -604,19 +626,28 @@ export default function FloatingAIChat() {
       return;
     }
 
+    if (nextMode === "face_to_face" && !faceToFaceReady) {
+      setStatusMessage(
+        "Face-to-face needs Voice enabled, STT enabled, TTS enabled, and a prepared active avatar pack."
+      );
+      setAvatarState("error");
+      return;
+    }
+
     stopListening();
+    finalTranscriptRef.current = "";
 
     const RecognitionConstructor = getSpeechRecognitionConstructor();
     if (!RecognitionConstructor) return;
 
     const recognition = new RecognitionConstructor();
-    recognition.continuous = nextMode === "face_to_face";
+    recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = "en-US";
 
     recognition.onresult = (event) => {
       let finalTranscript = "";
-      let interim = "";
+      let interimTranscript = "";
 
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const result = event.results[index];
@@ -625,31 +656,30 @@ export default function FloatingAIChat() {
         if (result.isFinal) {
           finalTranscript += transcript;
         } else {
-          interim += transcript;
+          interimTranscript += transcript;
         }
       }
 
-      if (interim) {
-        setInterimTranscript(interim);
+      if (finalTranscript.trim()) {
+        finalTranscriptRef.current = `${finalTranscriptRef.current} ${finalTranscript}`.trim();
       }
 
-      const cleanFinalTranscript = finalTranscript.trim();
+      setLiveTranscript(interimTranscript || finalTranscriptRef.current);
 
-      if (!cleanFinalTranscript) return;
+      clearSilenceTimer();
 
-      setInterimTranscript("");
+      silenceTimerRef.current = window.setTimeout(() => {
+        const cleanTranscript = finalTranscriptRef.current.trim();
 
-      if (modeRef.current === "face_to_face") {
+        if (!cleanTranscript) return;
+
         stopListening();
-        void handleSend(cleanFinalTranscript, "face_to_face");
-      } else {
-        setInput((current) =>
-          `${current}${current.trim() ? " " : ""}${cleanFinalTranscript}`.trim()
-        );
-      }
+        void handleSend(cleanTranscript, nextMode);
+      }, 900);
     };
 
     recognition.onerror = (event) => {
+      clearSilenceTimer();
       setListening(false);
       setStatusMessage(`Microphone error: ${event.error}`);
       setAvatarState("error");
@@ -657,9 +687,18 @@ export default function FloatingAIChat() {
 
     recognition.onend = () => {
       setListening(false);
+      clearSilenceTimer();
 
-      if (modeRef.current === "face_to_face" && !loadingRef.current) {
+      const cleanTranscript = finalTranscriptRef.current.trim();
+
+      if (cleanTranscript && !loadingRef.current) {
+        void handleSend(cleanTranscript, nextMode);
+        return;
+      }
+
+      if (nextMode === "face_to_face" && !loadingRef.current) {
         setAvatarState("idle");
+        setStatusMessage("Tap Start to talk again.");
       }
     };
 
@@ -668,12 +707,12 @@ export default function FloatingAIChat() {
     try {
       recognition.start();
       setListening(true);
+      setAvatarState(nextMode === "face_to_face" ? "listening" : "idle");
       setStatusMessage(
         nextMode === "face_to_face"
-          ? "Face-to-face mode is listening."
-          : "Microphone is listening. Speak and your text will appear in the box."
+          ? "Listening..."
+          : "Listening. I will send automatically when you finish."
       );
-      setAvatarState(nextMode === "face_to_face" ? "listening" : "idle");
     } catch (error) {
       setListening(false);
       setStatusMessage(
@@ -700,13 +739,13 @@ export default function FloatingAIChat() {
   function speakAssistantMessage(text: string) {
     if (typeof window === "undefined" || !window.speechSynthesis) {
       setAvatarState("idle");
-      setStatusMessage("Text response received. Browser speech output is unavailable.");
+      setStatusMessage("Browser speech output is unavailable.");
       return;
     }
 
     if (!voiceSettings.voice_tts_enabled) {
       setAvatarState("idle");
-      setStatusMessage("Text response received. TTS is disabled in AI Management → Voice.");
+      setStatusMessage("TTS is disabled in AI Management → Voice.");
       return;
     }
 
@@ -727,7 +766,7 @@ export default function FloatingAIChat() {
 
     utterance.onstart = () => {
       setAvatarState("speaking");
-      setStatusMessage("AiXia is speaking.");
+      setStatusMessage("Speaking...");
     };
 
     utterance.onend = () => {
@@ -753,7 +792,8 @@ export default function FloatingAIChat() {
     }
   }
 
-  async function startNewSession() {
+  async function endSession() {
+    clearSilenceTimer();
     stopListening();
     stopVoiceOutput();
 
@@ -766,13 +806,23 @@ export default function FloatingAIChat() {
           updated_at: new Date().toISOString(),
         })
         .eq("id", sessionId);
+
+      await supabase.from("ai_admin_activity_logs").insert({
+        action_type: "ai_session_ended",
+        entity_type: "memory",
+        entity_id: sessionId,
+        details: {
+          source: "floating_ai_chat",
+          mode,
+        },
+      });
     }
 
     setSessionId(null);
     setProvider("");
     setModel("");
     setInput("");
-    setInterimTranscript("");
+    setLiveTranscript("");
     setMode("text");
     setAvatarState("idle");
     setStatusMessage("");
@@ -780,8 +830,7 @@ export default function FloatingAIChat() {
       {
         id: createMessageId(),
         role: "assistant",
-        content:
-          "New AiXia chat started. I am ready in text mode by default.",
+        content: "Session ended. Start a new message when you are ready.",
       },
     ]);
   }
@@ -817,139 +866,48 @@ export default function FloatingAIChat() {
     });
   }
 
-  const modeLabel =
-    mode === "face_to_face"
-      ? "Face to Face"
-      : mode === "speech_to_text"
-        ? "Speech to Text"
-        : "Text Chat";
-
-  const canUseFaceToFace =
-    voiceSettings.voice_enabled &&
-    voiceSettings.voice_stt_enabled &&
-    voiceSettings.voice_tts_enabled &&
-    runtimeAvatar;
+  const lastAssistantMessage = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant");
 
   return (
     <>
-      {open && (
-        <div className="fixed bottom-24 right-6 z-[100] flex h-[720px] w-[430px] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#050914]/95 shadow-2xl shadow-cyan-950/30 backdrop-blur-2xl">
-          <div className="border-b border-white/10 bg-white/[0.025] px-5 py-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-2">
-                <div className="w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[10px] uppercase tracking-[0.24em] text-cyan-200">
-                  AiXia Assistant
-                </div>
-                <div>
-                  <div className="text-base font-semibold text-white">
-                    Controlled Chat Interface
-                  </div>
-                  <div className="mt-1 text-xs leading-5 text-white/50">
-                    Mode: <span className="text-cyan-200">{modeLabel}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => void startNewSession()}
-                  className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/70 transition-all duration-300 hover:border-white/20 hover:text-white"
-                >
-                  New
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    stopListening();
-                    stopVoiceOutput();
-                    setOpen(false);
-                  }}
-                  className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/70 transition-all duration-300 hover:border-white/20 hover:text-white"
-                >
-                  Close
-                </button>
+      {open && mode !== "face_to_face" && (
+        <div className="fixed bottom-24 right-6 z-[100] flex h-[680px] w-[420px] flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[#070b14]/95 shadow-2xl shadow-black/40 backdrop-blur-2xl">
+          <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-white">AiXia Assistant</div>
+              <div className="mt-1 text-xs text-white/45">
+                Controlled by AI Management
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={setTextMode}
-                className={`rounded-2xl border px-3 py-2 text-xs transition-all duration-300 ${
-                  mode === "text"
-                    ? "border-cyan-400/40 bg-cyan-500/15 text-cyan-100"
-                    : "border-white/10 bg-white/[0.035] text-white/55 hover:border-white/20 hover:text-white"
-                }`}
+                onClick={() => void endSession()}
+                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/60 transition-all duration-300 hover:border-rose-400/30 hover:text-rose-200"
               >
-                Text
+                End Session
               </button>
 
               <button
                 type="button"
-                onClick={toggleSpeechToTextMode}
-                className={`rounded-2xl border px-3 py-2 text-xs transition-all duration-300 ${
-                  mode === "speech_to_text"
-                    ? "border-cyan-400/40 bg-cyan-500/15 text-cyan-100"
-                    : "border-white/10 bg-white/[0.035] text-white/55 hover:border-white/20 hover:text-white"
-                }`}
+                onClick={() => {
+                  clearSilenceTimer();
+                  stopListening();
+                  stopVoiceOutput();
+                  setOpen(false);
+                }}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-sm text-white/60 transition-all duration-300 hover:border-white/20 hover:text-white"
+                aria-label="Close chat"
               >
-                {listening && mode === "speech_to_text" ? "Stop Mic" : "Mic"}
-              </button>
-
-              <button
-                type="button"
-                onClick={toggleFaceToFaceMode}
-                className={`rounded-2xl border px-3 py-2 text-xs transition-all duration-300 ${
-                  mode === "face_to_face"
-                    ? "border-fuchsia-400/40 bg-fuchsia-500/15 text-fuchsia-100"
-                    : "border-white/10 bg-white/[0.035] text-white/55 hover:border-white/20 hover:text-white"
-                }`}
-              >
-                Face to Face
+                ×
               </button>
             </div>
           </div>
 
-          {mode === "face_to_face" && (
-            <div className="border-b border-white/10 bg-black/15 px-5 py-4">
-              <div className="h-[230px] overflow-hidden rounded-[26px] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.16),_rgba(15,23,42,0.42)_45%,_rgba(0,0,0,0.24))]">
-                {runtimeAvatar ? (
-                  <AvatarPackRuntime
-                    asset={runtimeAvatar}
-                    state={avatarState}
-                    lipSyncEnabled={
-                      animationSettings.lipSyncEnabled &&
-                      animationSettings.voiceReactiveEnabled
-                    }
-                  />
-                ) : (
-                  <div className="flex h-full flex-col items-center justify-center px-8 text-center">
-                    <div className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-amber-200">
-                      Avatar Pack Required
-                    </div>
-                    <div className="mt-3 text-sm font-semibold text-white">
-                      Prepare an avatar pack first
-                    </div>
-                    <div className="mt-2 text-xs leading-5 text-white/45">
-                      Go to AI Management → Animation, upload an avatar image,
-                      and click Prepare Avatar Pack.
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {!canUseFaceToFace && (
-                <div className="mt-3 rounded-2xl border border-amber-400/15 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100/80">
-                  Face-to-face mode needs Voice enabled, STT enabled, TTS enabled,
-                  and a prepared active avatar pack.
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+          <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5">
             {messages.map((message) => (
               <div
                 key={message.id}
@@ -958,19 +916,18 @@ export default function FloatingAIChat() {
                 }`}
               >
                 <div
-                  className={`max-w-[86%] rounded-2xl px-4 py-3 text-sm leading-6 ${
+                  className={`max-w-[86%] rounded-[22px] px-4 py-3 text-sm leading-6 ${
                     message.role === "user"
-                      ? "bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-950/25"
+                      ? "bg-white text-slate-950"
                       : "border border-white/10 bg-white/[0.045] text-white/85"
                   }`}
                 >
                   <div className="whitespace-pre-wrap">{message.content}</div>
 
                   {message.role === "assistant" && message.provider && (
-                    <div className="mt-2 border-t border-white/10 pt-2 text-[10px] text-white/40">
-                      {message.provider}
+                    <div className="mt-2 border-t border-white/10 pt-2 text-[10px] text-white/35">
+                      {message.router_layer || message.provider}
                       {message.model ? ` · ${message.model}` : ""}
-                      {message.router_layer ? ` · ${message.router_layer}` : ""}
                     </div>
                   )}
 
@@ -980,16 +937,16 @@ export default function FloatingAIChat() {
                         type="button"
                         onClick={() => void updateFeedback(message, "liked")}
                         disabled={message.feedback === "liked"}
-                        className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300 disabled:opacity-50"
+                        className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/50 transition-all duration-300 hover:text-emerald-200 disabled:opacity-50"
                       >
-                        Like
+                        Good
                       </button>
 
                       <button
                         type="button"
                         onClick={() => void updateFeedback(message, "disliked")}
                         disabled={message.feedback === "disliked"}
-                        className="rounded-full border border-rose-400/20 bg-rose-500/10 px-2 py-0.5 text-[10px] text-rose-300 disabled:opacity-50"
+                        className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/50 transition-all duration-300 hover:text-rose-200 disabled:opacity-50"
                       >
                         Bad
                       </button>
@@ -1001,73 +958,188 @@ export default function FloatingAIChat() {
 
             {loading && (
               <div className="flex justify-start">
-                <div className="max-w-[86%] rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm text-white/60">
+                <div className="rounded-[22px] border border-white/10 bg-white/[0.045] px-4 py-3 text-sm text-white/50">
                   Thinking...
                 </div>
               </div>
             )}
           </div>
 
-          <div className="border-t border-white/10 bg-white/[0.025] px-4 py-4">
-            {(provider || model || statusMessage || interimTranscript) && (
-              <div className="mb-3 space-y-2">
-                {(provider || model) && (
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] text-white/60">
-                    Provider:{" "}
-                    <span className="text-white/85">{provider || "-"}</span>
-                    {" · "}
-                    Model: <span className="text-white/85">{model || "-"}</span>
-                  </div>
-                )}
-
-                {(statusMessage || interimTranscript) && (
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-3 py-2 text-[11px] leading-5 text-cyan-100/80">
-                    {interimTranscript || statusMessage}
-                  </div>
-                )}
+          <div className="border-t border-white/10 px-4 py-4">
+            {(statusMessage || liveTranscript) && (
+              <div className="mb-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs leading-5 text-white/55">
+                {liveTranscript || statusMessage}
               </div>
             )}
 
-            <div className="space-y-3">
+            <div className="rounded-[26px] border border-white/10 bg-black/25 p-2">
               <textarea
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={handleInputKeyDown}
-                placeholder={
-                  mode === "face_to_face"
-                    ? "Speak or type here..."
-                    : "Type your question..."
-                }
-                className="min-h-[96px] w-full resize-none rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm leading-6 text-white outline-none transition-all duration-300 placeholder:text-white/30 focus:border-cyan-400/40"
+                placeholder="Message AiXia..."
+                className="min-h-[76px] w-full resize-none bg-transparent px-3 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/30"
               />
 
-              <div className="grid grid-cols-[44px_1fr] gap-3">
-                <button
-                  type="button"
-                  onClick={toggleSpeechToTextMode}
-                  disabled={!speechSupported || loading}
-                  className={`rounded-2xl border text-sm transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 ${
-                    listening
-                      ? "border-rose-400/30 bg-rose-500/15 text-rose-200"
-                      : "border-white/10 bg-white/[0.04] text-white/70 hover:border-cyan-400/30 hover:text-cyan-100"
-                  }`}
-                  aria-label="Toggle microphone"
-                >
-                  {listening ? "■" : "🎙"}
-                </button>
+              <div className="flex items-center justify-between gap-3 px-1 pb-1">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={startVoiceText}
+                    disabled={!speechSupported || loading}
+                    className={`flex h-10 w-10 items-center justify-center rounded-full border text-sm transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 ${
+                      listening
+                        ? "border-rose-400/30 bg-rose-500/15 text-rose-100"
+                        : "border-white/10 bg-white/[0.04] text-white/65 hover:border-white/20 hover:text-white"
+                    }`}
+                    aria-label="Start speech to text"
+                  >
+                    {listening ? "■" : "●"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={startFaceToFace}
+                    disabled={loading}
+                    className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-medium text-white/65 transition-all duration-300 hover:border-cyan-400/30 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Talk face to face
+                  </button>
+                </div>
 
                 <button
                   type="button"
                   onClick={() => void handleSend()}
                   disabled={loading || !input.trim()}
-                  className="rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-slate-950 transition-all duration-300 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-sm font-semibold text-slate-950 transition-all duration-300 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  aria-label="Send message"
                 >
-                  {loading ? "Thinking..." : "Send"}
+                  ↑
                 </button>
               </div>
+            </div>
 
-              <div className="text-center text-[10px] text-white/35">
-                Press Enter to send · Shift + Enter for a new line
+            <div className="mt-2 text-center text-[10px] text-white/30">
+              Enter to send · Shift + Enter for new line
+            </div>
+          </div>
+        </div>
+      )}
+
+      {open && mode === "face_to_face" && (
+        <div className="fixed inset-4 z-[100] flex overflow-hidden rounded-[36px] border border-white/10 bg-[#05070d]/95 shadow-2xl shadow-black/50 backdrop-blur-2xl">
+          <div className="relative flex flex-1 flex-col">
+            <div className="absolute left-6 top-6 z-20 flex items-center gap-3">
+              <div className="rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-xs font-medium text-white/70 backdrop-blur-xl">
+                {listening
+                  ? "Listening"
+                  : loading
+                    ? "Thinking"
+                    : avatarState === "speaking"
+                      ? "Speaking"
+                      : "Face to Face"}
+              </div>
+
+              {runtimeAvatar && (
+                <div className="rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-xs text-white/45 backdrop-blur-xl">
+                  {runtimeAvatar.name}
+                </div>
+              )}
+            </div>
+
+            <div className="absolute right-6 top-6 z-20 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={switchToTextMode}
+                className="rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-xs font-medium text-white/65 backdrop-blur-xl transition-all duration-300 hover:border-white/20 hover:text-white"
+              >
+                Back to chat
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void endSession()}
+                className="rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-xs font-medium text-white/65 backdrop-blur-xl transition-all duration-300 hover:border-rose-400/30 hover:text-rose-200"
+              >
+                End Session
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  clearSilenceTimer();
+                  stopListening();
+                  stopVoiceOutput();
+                  setOpen(false);
+                }}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-sm text-white/65 backdrop-blur-xl transition-all duration-300 hover:border-white/20 hover:text-white"
+                aria-label="Close face to face"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex flex-1 items-center justify-center bg-[radial-gradient(circle_at_center,_rgba(34,211,238,0.16),_rgba(10,15,25,0.7)_42%,_rgba(0,0,0,0.86)_100%)] p-8">
+              {runtimeAvatar ? (
+                <div className="h-[min(78vh,680px)] w-[min(78vh,680px)]">
+                  <AvatarPackRuntime
+                    asset={runtimeAvatar}
+                    state={avatarState}
+                    lipSyncEnabled={
+                      animationSettings.lipSyncEnabled &&
+                      animationSettings.voiceReactiveEnabled
+                    }
+                  />
+                </div>
+              ) : (
+                <div className="max-w-md rounded-[30px] border border-amber-400/20 bg-amber-500/10 p-8 text-center">
+                  <div className="text-sm font-semibold text-amber-100">
+                    No prepared avatar pack
+                  </div>
+                  <div className="mt-3 text-sm leading-6 text-amber-100/65">
+                    Go to AI Management → Animation, select the avatar you want,
+                    and prepare the avatar pack. The chat refreshes the active
+                    avatar automatically while open.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="absolute bottom-6 left-1/2 z-20 w-[min(680px,calc(100%-48px))] -translate-x-1/2">
+              <div className="rounded-[28px] border border-white/10 bg-black/45 p-4 shadow-2xl backdrop-blur-xl">
+                <div className="min-h-[24px] text-center text-sm leading-6 text-white/70">
+                  {liveTranscript ||
+                    statusMessage ||
+                    lastAssistantMessage?.content ||
+                    "Start speaking when you are ready."}
+                </div>
+
+                <div className="mt-4 flex items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void startListening("face_to_face")}
+                    disabled={listening || loading || !faceToFaceReady}
+                    className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-lg font-semibold text-slate-950 transition-all duration-300 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Start face to face listening"
+                  >
+                    ●
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearSilenceTimer();
+                      stopListening();
+                      stopVoiceOutput();
+                      setAvatarState("paused");
+                      setStatusMessage("Paused");
+                    }}
+                    className="flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-lg text-white/70 transition-all duration-300 hover:border-white/20 hover:text-white"
+                    aria-label="Pause face to face"
+                  >
+                    ■
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1080,10 +1152,10 @@ export default function FloatingAIChat() {
           setOpen((current) => !current);
           void loadRuntimeControls();
         }}
-        className="fixed bottom-6 right-6 z-[101] flex h-16 w-16 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-500 text-slate-950 shadow-2xl shadow-cyan-950/30 transition-all duration-300 hover:scale-105 hover:bg-cyan-400"
+        className="fixed bottom-6 right-6 z-[101] flex h-16 w-16 items-center justify-center rounded-full border border-white/10 bg-white text-slate-950 shadow-2xl shadow-black/40 transition-all duration-300 hover:scale-105 hover:bg-cyan-100"
         aria-label="Open AI Assistant"
       >
-        <span className="text-xl font-semibold">AI</span>
+        <span className="text-lg font-semibold">AI</span>
       </button>
     </>
   );

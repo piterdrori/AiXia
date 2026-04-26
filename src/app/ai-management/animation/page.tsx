@@ -351,20 +351,30 @@ function getAssetFaceLandmarks(asset: AvatarAssetWithUrl | null) {
   return null;
 }
 
-function getLandmarkPositionStyle(point: { x: number; y: number }): CSSProperties {
-  return {
-    left: `${point.x * 100}%`,
-    top: `${point.y * 100}%`,
-    transform: "translate(-50%, -50%)",
-  };
+function getAvatarPackStatus(asset: AvatarAssetWithUrl | null) {
+  const status = asset?.metadata?.avatar_pack_status;
+
+  if (
+    status === "raw_uploaded" ||
+    status === "face_detected" ||
+    status === "avatar_pack_ready"
+  ) {
+    return status;
+  }
+
+  if (getAssetFaceLandmarks(asset)) {
+    return "face_detected";
+  }
+
+  return "raw_uploaded";
 }
 
-function getFallbackPositionStyle(left: string, top: string): CSSProperties {
-  return {
-    left,
-    top,
-    transform: "translate(-50%, -50%)",
-  };
+function getAvatarPackStatusLabel(asset: AvatarAssetWithUrl | null) {
+  const status = getAvatarPackStatus(asset);
+
+  if (status === "avatar_pack_ready") return "Avatar pack ready";
+  if (status === "face_detected") return "Face prepared";
+  return "Raw upload";
 }
 
 export default function AIAnimationPage() {
@@ -832,7 +842,7 @@ export default function AIAnimationPage() {
     setSavedMessage("Avatar asset deleted.");
   }
 
-  async function detectFaceForAsset(asset: AvatarAssetWithUrl) {
+  async function prepareAvatarPackForAsset(asset: AvatarAssetWithUrl) {
     setSavedMessage(null);
     setErrorMessage(null);
 
@@ -842,54 +852,72 @@ export default function AIAnimationPage() {
     }
 
     if (asset.asset_type !== "image" && asset.asset_type !== "gif") {
-      setErrorMessage("Face detection is available only for image and GIF avatar assets.");
+      setErrorMessage("Avatar pack preparation is available only for image and GIF assets.");
       return;
     }
 
     setDetectingAssetId(asset.id);
 
-    const landmarks = await detectFaceLandmarksFromImageUrl(asset.signedUrl);
+    try {
+      const landmarks = await detectFaceLandmarksFromImageUrl(asset.signedUrl);
 
-    if (!landmarks) {
+      if (!landmarks) {
+        setErrorMessage("No face detected. Use a clear front-facing image.");
+        return;
+      }
+
+      const nextMetadata = {
+        ...(asset.metadata ?? {}),
+        avatar_pack_status: "face_detected",
+        avatar_pack_version: 1,
+        avatar_pack_preparation: {
+          source: "mediapipe_face_landmarker",
+          prepared_at: new Date().toISOString(),
+          runtime_strategy: "preloaded_sprite_layers",
+          runtime_mediapipe: false,
+          visible_overlay: false,
+          next_step: "generate_avatar_pack_layers",
+        },
+        face_landmarks: landmarks,
+      };
+
+      const { error } = await supabase
+        .from("ai_avatar_assets")
+        .update({
+          metadata: nextMetadata,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", asset.id);
+
+      if (error) {
+        setErrorMessage(error.message);
+        return;
+      }
+
+      await supabase.from("ai_admin_activity_logs").insert({
+        action_type: "animation_avatar_pack_prepared",
+        entity_type: "ai_avatar_asset",
+        entity_id: asset.id,
+        details: {
+          asset_name: asset.name,
+          asset_type: asset.asset_type,
+          avatar_pack_status: "face_detected",
+          face_landmarks_source: landmarks.source,
+          face_box: landmarks.faceBox,
+          runtime_mediapipe: false,
+          visible_overlay: false,
+        },
+      });
+
+      await loadAssets();
+      setSavedMessage("Avatar pack preparation saved. Next phase will generate the usable mouth and eye sprite layers.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Avatar pack preparation failed.";
+      setErrorMessage(message);
+    } finally {
       setDetectingAssetId(null);
-      setErrorMessage("No face detected in this asset. Use a clear front-facing image.");
-      return;
     }
-
-    const nextMetadata = {
-      ...(asset.metadata ?? {}),
-      face_landmarks: landmarks,
-    };
-
-    const { error } = await supabase
-      .from("ai_avatar_assets")
-      .update({
-        metadata: nextMetadata,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", asset.id);
-
-    if (error) {
-      setDetectingAssetId(null);
-      setErrorMessage(error.message);
-      return;
-    }
-
-    await supabase.from("ai_admin_activity_logs").insert({
-      action_type: "animation_asset_face_landmarks_detected",
-      entity_type: "ai_avatar_asset",
-      entity_id: asset.id,
-      details: {
-        asset_name: asset.name,
-        asset_type: asset.asset_type,
-        face_landmarks_source: landmarks.source,
-        face_box: landmarks.faceBox,
-      },
-    });
-
-    await loadAssets();
-    setDetectingAssetId(null);
-    setSavedMessage("Face detected. Eyes and mouth overlay will now use real landmarks.");
   }
 
     return (
@@ -1157,13 +1185,13 @@ export default function AIAnimationPage() {
                 ) : (
                   <div className="grid gap-3 md:grid-cols-2">
                     {assets.map((asset) => (
-                    <AssetCard
+                      <AssetCard
                         key={asset.id}
                         asset={asset}
                         selected={selectedAsset?.id === asset.id}
                         detecting={detectingAssetId === asset.id}
                         onSelect={() => void selectAsset(asset)}
-                        onDetectFace={() => void detectFaceForAsset(asset)}
+                        onPrepareAvatarPack={() => void prepareAvatarPackForAsset(asset)}
                         onArchive={() => void archiveAsset(asset)}
                         onDelete={() => void deleteAsset(asset)}
                       />
@@ -1282,10 +1310,10 @@ function AnimationPreview({
     "--aixia-motion-opacity": isSilent ? "0.45" : "1",
   } as CSSProperties;
 
-  if (settings.mode === "uploaded_asset") {
-    const landmarks = getAssetFaceLandmarks(selectedAsset);
-    const canUseFaceOverlay =
-      selectedAsset?.asset_type === "image" || selectedAsset?.asset_type === "gif";
+    if (settings.mode === "uploaded_asset") {
+    const avatarPackStatus = getAvatarPackStatus(selectedAsset);
+    const isPrepared =
+      avatarPackStatus === "face_detected" || avatarPackStatus === "avatar_pack_ready";
 
     return (
       <div
@@ -1297,59 +1325,33 @@ function AnimationPreview({
         <NativeAnimationStyles />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.16),transparent_48%)]" />
 
-        <div className="aixia-uploaded-motion relative z-10 h-full w-full">
+        <div className="relative z-10 h-full w-full">
           <AssetPreview asset={selectedAsset} large />
         </div>
 
-        {canUseFaceOverlay ? (
-          <div className="pointer-events-none absolute inset-0 z-20">
-            <span
-              className="aixia-blink-eye absolute h-2.5 w-2.5 rounded-full bg-cyan-100 shadow-[0_0_14px_rgba(165,243,252,0.75)]"
-              style={
-                landmarks
-                  ? getLandmarkPositionStyle(landmarks.leftEye)
-                  : getFallbackPositionStyle("43%", "38%")
-              }
-            />
-            <span
-              className="aixia-blink-eye absolute h-2.5 w-2.5 rounded-full bg-cyan-100 shadow-[0_0_14px_rgba(165,243,252,0.75)]"
-              style={
-                landmarks
-                  ? getLandmarkPositionStyle(landmarks.rightEye)
-                  : getFallbackPositionStyle("57%", "38%")
-              }
-            />
+        <div className="pointer-events-none absolute left-4 top-4 z-20 rounded-full border border-white/10 bg-black/55 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-200 backdrop-blur-xl">
+          {getAvatarPackStatusLabel(selectedAsset)}
+        </div>
 
-            {settings.lipSyncEnabled ? (
-              <div
-                className="aixia-uploaded-mouth aixia-mouth absolute rounded-full bg-cyan-100/90 shadow-[0_0_16px_rgba(165,243,252,0.75)]"
-                style={
-                  landmarks
-                    ? {
-                        ...getLandmarkPositionStyle(landmarks.mouth),
-                        width: `${Math.max(20, landmarks.mouthWidth * 100)}%`,
-                      }
-                    : getFallbackPositionStyle("50%", "56%")
-                }
-              />
-            ) : null}
-
-            <div className="absolute left-4 top-4 rounded-full border border-cyan-400/20 bg-black/45 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100 backdrop-blur-xl">
-              {landmarks ? "Face landmarks active" : "Center overlay fallback"}
+        {!isPrepared ? (
+          <div className="absolute inset-x-4 bottom-4 z-30 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-5 py-3 text-center backdrop-blur-xl">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-100/70">
+              Avatar Pack Not Prepared
+            </div>
+            <div className="mt-1 text-sm font-semibold text-amber-100">
+              Click Prepare Avatar Pack to enable the talking-avatar pipeline.
             </div>
           </div>
-        ) : null}
-
-        {settings.showStatusText ? (
-          <div className="absolute bottom-4 left-4 right-4 z-30 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-3 text-center backdrop-blur-xl">
+        ) : (
+          <div className="absolute inset-x-4 bottom-4 z-30 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-3 text-center backdrop-blur-xl">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/70">
-              Uploaded Asset Local Animation
+              Avatar Pack Foundation Ready
             </div>
-            <div className="mt-1 text-xl font-semibold text-emerald-100">
-              {getStateLabel(settings.previewState)}
+            <div className="mt-1 text-sm font-semibold text-emerald-100">
+              Face alignment is saved. Sprite generation comes next.
             </div>
           </div>
-        ) : null}
+        )}
       </div>
     );
   }
@@ -1725,7 +1727,7 @@ function AssetCard({
   selected,
   detecting,
   onSelect,
-  onDetectFace,
+  onPrepareAvatarPack,
   onArchive,
   onDelete,
 }: {
@@ -1733,7 +1735,7 @@ function AssetCard({
   selected: boolean;
   detecting: boolean;
   onSelect: () => void;
-  onDetectFace: () => void;
+  onPrepareAvatarPack: () => void;
   onArchive: () => void;
   onDelete: () => void;
 }) {
@@ -1746,8 +1748,8 @@ function AssetCard({
           ? FileJson
           : Cuboid;
 
-  const hasFaceLandmarks = Boolean(getAssetFaceLandmarks(asset));
-  const canDetectFace = asset.asset_type === "image" || asset.asset_type === "gif";
+  const avatarPackStatus = getAvatarPackStatus(asset);
+  const canPrepareAvatarPack = asset.asset_type === "image" || asset.asset_type === "gif";
 
   return (
     <div
@@ -1785,8 +1787,12 @@ function AssetCard({
           {asset.asset_type} · {formatFileSize(asset.file_size_bytes)}
         </div>
 
-        <div className="mt-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-          {hasFaceLandmarks ? "Face landmarks detected" : "No face landmarks"}
+       <div className="mt-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+          {avatarPackStatus === "avatar_pack_ready"
+            ? "Avatar pack ready"
+            : avatarPackStatus === "face_detected"
+              ? "Avatar pack foundation ready"
+              : "Raw upload — prepare needed"}
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1798,13 +1804,13 @@ function AssetCard({
             {selected ? "Active" : "Use"}
           </button>
 
-          <button
+        <button
             type="button"
-            onClick={onDetectFace}
-            disabled={!canDetectFace || detecting}
+            onClick={onPrepareAvatarPack}
+            disabled={!canPrepareAvatarPack || detecting}
             className="inline-flex items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-2 py-2 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300/50 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {detecting ? "Detecting..." : "Detect Face"}
+            {detecting ? "Preparing..." : "Prepare Avatar Pack"}
           </button>
 
           <button

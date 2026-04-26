@@ -71,7 +71,8 @@ function createCanvas() {
 function waitForImageLoad(image: HTMLImageElement): Promise<void> {
   return new Promise((resolve, reject) => {
     image.onload = () => resolve();
-    image.onerror = () => reject(new Error("Avatar source image failed to decode in the browser."));
+    image.onerror = () =>
+      reject(new Error("Avatar source image failed to decode in the browser."));
   });
 }
 
@@ -111,7 +112,11 @@ async function loadImage(imageUrl: string) {
   const blob = await response.blob();
 
   if (!blob.type.startsWith("image/")) {
-    throw new Error(`Avatar pack expected an image file, but received ${blob.type || "unknown file type"}.`);
+    throw new Error(
+      `Avatar pack expected an image file, but received ${
+        blob.type || "unknown file type"
+      }.`
+    );
   }
 
   const objectUrl = URL.createObjectURL(blob);
@@ -192,32 +197,23 @@ function drawBaseAvatar(
 }
 
 function createTransparentLayer() {
-  return createCanvas();
-}
-
-function drawEyeClosedLayer(
-  leftEye: FacePoint,
-  rightEye: FacePoint
-) {
-  const canvas = createTransparentLayer();
+  const canvas = createCanvas();
   const context = canvas.getContext("2d");
 
   if (!context) {
     throw new Error("Canvas is not available.");
   }
 
-  context.strokeStyle = "rgba(255,255,255,0.82)";
-  context.lineWidth = 10;
-  context.lineCap = "round";
-
-  for (const eye of [leftEye, rightEye]) {
-    context.beginPath();
-    context.moveTo(eye.x - 28, eye.y);
-    context.quadraticCurveTo(eye.x, eye.y + 10, eye.x + 28, eye.y);
-    context.stroke();
-  }
+  context.clearRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE);
 
   return canvas;
+}
+
+function drawEyeClosedLayer(leftEye: FacePoint, rightEye: FacePoint) {
+  void leftEye;
+  void rightEye;
+
+  return createTransparentLayer();
 }
 
 function drawMouthLayer(
@@ -225,42 +221,11 @@ function drawMouthLayer(
   mouthWidth: number,
   shape: "rest" | "small" | "medium" | "open" | "round"
 ) {
-  const canvas = createTransparentLayer();
-  const context = canvas.getContext("2d");
+  void mouth;
+  void mouthWidth;
+  void shape;
 
-  if (!context) {
-    throw new Error("Canvas is not available.");
-  }
-
-  const width = clamp(mouthWidth * AVATAR_CANVAS_SIZE * 0.9, 34, 130);
-  const heightByShape = {
-    rest: 6,
-    small: 14,
-    medium: 26,
-    open: 46,
-    round: 38,
-  };
-
-  const height = heightByShape[shape];
-
-  context.fillStyle = "rgba(5,7,13,0.72)";
-  context.strokeStyle = "rgba(255,255,255,0.28)";
-  context.lineWidth = 3;
-
-  context.beginPath();
-  context.ellipse(
-    mouth.x,
-    mouth.y + 12,
-    shape === "round" ? height * 0.62 : width / 2,
-    height / 2,
-    0,
-    0,
-    Math.PI * 2
-  );
-  context.fill();
-  context.stroke();
-
-  return canvas;
+  return createTransparentLayer();
 }
 
 async function makeLayer(

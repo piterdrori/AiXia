@@ -250,8 +250,8 @@ export default function AIAnimationPage() {
           </div>
         ) : null}
 
-        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
-          <div className="overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.20),rgba(2,6,23,0.94)_42%,rgba(2,6,23,0.99))] shadow-2xl shadow-cyan-950/20">
+         <section className="grid gap-5 xl:grid-cols-[minmax(0,720px)_minmax(420px,1fr)] 2xl:grid-cols-[minmax(0,760px)_minmax(520px,1fr)]">
+          <div className="self-start overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.20),rgba(2,6,23,0.94)_42%,rgba(2,6,23,0.99))] shadow-2xl shadow-cyan-950/20">
             <div className="border-b border-white/10 px-5 py-4 md:px-6">
               <div className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                 Phase 1 Foundation
@@ -297,7 +297,7 @@ export default function AIAnimationPage() {
             </div>
           </div>
 
-          <aside className="grid gap-5">
+          <aside className="grid content-start gap-5 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
             <Panel
               eyebrow="Engine"
               title="Avatar Engine"
@@ -324,7 +324,8 @@ export default function AIAnimationPage() {
               </div>
             </Panel>
 
-            <Panel
+           <Panel
+              className="lg:col-span-2 xl:col-span-1 2xl:col-span-2"
               eyebrow={settings.zegoEnabled ? "ZEGO Planned" : "Internal Controls"}
               title={
                 settings.zegoEnabled
@@ -483,7 +484,7 @@ export default function AIAnimationPage() {
 function AnimationPreview({ settings }: { settings: AnimationSettings }) {
   if (settings.zegoEnabled) {
     return (
-      <div className="relative flex h-full min-h-[680px] w-full items-center justify-center overflow-hidden rounded-[30px] border border-amber-400/20 bg-black/25">
+      <div className="relative flex h-[520px] w-full items-center justify-center overflow-hidden rounded-[30px] border border-amber-400/20 bg-black/25">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(251,191,36,0.18),transparent_42%),radial-gradient(circle_at_50%_70%,rgba(6,182,212,0.12),transparent_46%)]" />
         <div className="relative flex w-[min(620px,calc(100%-48px))] flex-col items-center rounded-[30px] border border-amber-400/20 bg-black/45 p-8 text-center backdrop-blur-xl">
           <div className="flex h-28 w-28 items-center justify-center rounded-full border border-amber-400/30 bg-amber-500/10 text-amber-200 shadow-2xl shadow-amber-400/20">
@@ -541,7 +542,7 @@ function AnimationPreview({ settings }: { settings: AnimationSettings }) {
               : "border-emerald-300/50 text-emerald-100 shadow-emerald-400/20";
 
   return (
-    <div className="relative flex h-full min-h-[680px] w-full items-center justify-center overflow-hidden rounded-[30px] border border-white/10 bg-black/25">
+    <div className="relative flex h-[520px] w-full items-center justify-center overflow-hidden rounded-[30px] border border-white/10 bg-black/25">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(34,211,238,0.20),transparent_42%),radial-gradient(circle_at_50%_70%,rgba(139,92,246,0.16),transparent_46%)]" />
 
       {settings.showParticles ? (
@@ -848,14 +849,16 @@ function Panel({
   title,
   description,
   children,
+  className = "",
 }: {
   eyebrow: string;
   title: string;
   description: string;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+    <div className={`overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl ${className}`}>
       <div className="border-b border-white/10 px-5 py-4">
         <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200/80">
           {eyebrow}

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
   "dev": "vite",
+  "prebuild": "node scripts/prepare-mediapipe-assets.cjs",
   "build": "tsc -b && vite build",
   "lint": "eslint .",
   "preview": "vite preview"

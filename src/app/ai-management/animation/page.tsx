@@ -1630,14 +1630,40 @@ function AssetCard({
   );
 }
 
-function WaveformPreview({ active }: { active: boolean }) {
+function WaveformPreview({
+  active,
+  state,
+  motionSpeed,
+}: {
+  active: boolean;
+  state: AnimationState;
+  motionSpeed: number;
+}) {
+  const stateMultiplier =
+    state === "speaking"
+      ? 0.42
+      : state === "listening"
+        ? 0.58
+        : state === "thinking"
+          ? 0.82
+          : 1.2;
+
+  const duration = Math.max(
+    0.32,
+    (1.3 - (motionSpeed / 100) * 0.75) * stateMultiplier
+  );
+
   return (
     <div className="flex h-20 items-center gap-2">
-      {Array.from({ length: 7 }).map((_, index) => (
+      {Array.from({ length: 9 }).map((_, index) => (
         <span
           key={index}
-          className="w-2 rounded-full bg-cyan-200/80"
-          style={{ height: active ? `${22 + ((index * 17) % 46)}px` : "22px" }}
+          className="aixia-wave-bar w-2 rounded-full bg-cyan-200/80"
+          style={{
+            height: active ? `${20 + ((index * 17) % 52)}px` : "22px",
+            animationDelay: `${index * 0.07}s`,
+            "--aixia-wave-duration": `${duration}s`,
+          } as CSSProperties}
         />
       ))}
     </div>

@@ -250,110 +250,50 @@ export default function AIAnimationPage() {
           </div>
         ) : null}
 
-        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
-          <div className="grid min-h-[760px] overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.20),rgba(2,6,23,0.94)_42%,rgba(2,6,23,0.99))] shadow-2xl shadow-cyan-950/20 xl:grid-cols-[minmax(0,1fr)_420px]">
-            <div className="flex min-h-0 items-center justify-center p-6">
-              <AnimationPreview settings={settings} />
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
+          <div className="overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.20),rgba(2,6,23,0.94)_42%,rgba(2,6,23,0.99))] shadow-2xl shadow-cyan-950/20">
+            <div className="border-b border-white/10 px-5 py-4 md:px-6">
+              <div className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+                Phase 1 Foundation
+              </div>
+              <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight text-white">
+                    {settings.zegoEnabled
+                      ? "ZEGO Digital Human preview mode"
+                      : `${currentMode.label} internal avatar preview`}
+                  </h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                    {settings.zegoEnabled
+                      ? "ZEGO is enabled in the UI, but the API connection is not active yet. No external API calls are made in Phase 1."
+                      : currentMode.description}
+                  </p>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[250px]">
+                  <button
+                    type="button"
+                    onClick={resetSettings}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.045] px-5 py-3 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:text-white"
+                  >
+                    <RefreshCcw className="h-4 w-4" />
+                    Reset
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={saveSettings}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                  >
+                    <Save className="h-4 w-4" />
+                    Save Preview
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div className="flex min-h-0 flex-col border-t border-white/10 bg-black/10 xl:border-l xl:border-t-0">
-              <div className="border-b border-white/10 p-5">
-                <div className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  Phase 1 Foundation
-                </div>
-                <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white">
-                  {settings.zegoEnabled
-                    ? "ZEGO Digital Human preview mode"
-                    : `${currentMode.label} internal avatar preview`}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  {settings.zegoEnabled
-                    ? "ZEGO is enabled in the UI, but the API connection is not active yet. No external API calls are made in Phase 1."
-                    : currentMode.description}
-                </p>
-              </div>
-
-              <div className="min-h-0 flex-1 overflow-y-auto p-5">
-                {settings.zegoEnabled ? (
-                  <ZegoPlannedPanel />
-                ) : (
-                  <div className="grid gap-4">
-                    <ControlSlider
-                      label="Intensity"
-                      value={settings.intensity}
-                      onChange={(value) => updateSetting("intensity", value)}
-                    />
-                    <ControlSlider
-                      label="Motion Speed"
-                      value={settings.motionSpeed}
-                      onChange={(value) => updateSetting("motionSpeed", value)}
-                    />
-                    <ControlSlider
-                      label="Glow Strength"
-                      value={settings.glowStrength}
-                      onChange={(value) => updateSetting("glowStrength", value)}
-                    />
-                    <ControlSlider
-                      label="Pulse Strength"
-                      value={settings.pulseStrength}
-                      onChange={(value) => updateSetting("pulseStrength", value)}
-                    />
-
-                    <ToggleControl
-                      label="Particles"
-                      description="Decorative motion particles for internal avatar styles."
-                      checked={settings.showParticles}
-                      onChange={(value) => updateSetting("showParticles", value)}
-                    />
-                    <ToggleControl
-                      label="Waveform"
-                      description="Shows internal waveform-style motion where relevant."
-                      checked={settings.showWaveform}
-                      onChange={(value) => updateSetting("showWaveform", value)}
-                    />
-                    <ToggleControl
-                      label="Status Text"
-                      description="Shows the current preview state below the avatar."
-                      checked={settings.showStatusText}
-                      onChange={(value) => updateSetting("showStatusText", value)}
-                    />
-                    <ToggleControl
-                      label="Native Basic Lip-Sync"
-                      description="Phase 4 will connect this to audio amplitude and mouth movement."
-                      checked={settings.lipSyncEnabled}
-                      onChange={(value) => updateSetting("lipSyncEnabled", value)}
-                    />
-                    <ToggleControl
-                      label="Voice-Reactive Motion"
-                      description="Phase 4 will connect this to mic/output audio levels."
-                      checked={settings.voiceReactiveEnabled}
-                      onChange={(value) =>
-                        updateSetting("voiceReactiveEnabled", value)
-                      }
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="grid gap-3 border-t border-white/10 p-5 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={resetSettings}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.045] px-5 py-3 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:text-white"
-                >
-                  <RefreshCcw className="h-4 w-4" />
-                  Reset
-                </button>
-
-                <button
-                  type="button"
-                  onClick={saveSettings}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
-                >
-                  <Save className="h-4 w-4" />
-                  Save Preview
-                </button>
-              </div>
+            <div className="p-4 md:p-6">
+              <AnimationPreview settings={settings} />
             </div>
           </div>
 
@@ -382,6 +322,80 @@ export default function AIAnimationPage() {
                   onClick={() => setZegoEnabled(!settings.zegoEnabled)}
                 />
               </div>
+            </Panel>
+
+            <Panel
+              eyebrow={settings.zegoEnabled ? "ZEGO Planned" : "Internal Controls"}
+              title={
+                settings.zegoEnabled
+                  ? "ZEGO Configuration Preview"
+                  : "Internal Motion Controls"
+              }
+              description={
+                settings.zegoEnabled
+                  ? "ZEGO is visible for planning only. The controls below are informational until credentials and backend integration are ready."
+                  : "These controls shape the internal animation preview for Phase 1."
+              }
+            >
+              {settings.zegoEnabled ? (
+                <ZegoPlannedPanel />
+              ) : (
+                <div className="grid gap-4">
+                  <ControlSlider
+                    label="Intensity"
+                    value={settings.intensity}
+                    onChange={(value) => updateSetting("intensity", value)}
+                  />
+                  <ControlSlider
+                    label="Motion Speed"
+                    value={settings.motionSpeed}
+                    onChange={(value) => updateSetting("motionSpeed", value)}
+                  />
+                  <ControlSlider
+                    label="Glow Strength"
+                    value={settings.glowStrength}
+                    onChange={(value) => updateSetting("glowStrength", value)}
+                  />
+                  <ControlSlider
+                    label="Pulse Strength"
+                    value={settings.pulseStrength}
+                    onChange={(value) => updateSetting("pulseStrength", value)}
+                  />
+
+                  <ToggleControl
+                    label="Particles"
+                    description="Decorative motion particles for internal avatar styles."
+                    checked={settings.showParticles}
+                    onChange={(value) => updateSetting("showParticles", value)}
+                  />
+                  <ToggleControl
+                    label="Waveform"
+                    description="Shows internal waveform-style motion where relevant."
+                    checked={settings.showWaveform}
+                    onChange={(value) => updateSetting("showWaveform", value)}
+                  />
+                  <ToggleControl
+                    label="Status Text"
+                    description="Shows the current preview state below the avatar."
+                    checked={settings.showStatusText}
+                    onChange={(value) => updateSetting("showStatusText", value)}
+                  />
+                  <ToggleControl
+                    label="Native Basic Lip-Sync"
+                    description="Phase 4 will connect this to audio amplitude and mouth movement."
+                    checked={settings.lipSyncEnabled}
+                    onChange={(value) => updateSetting("lipSyncEnabled", value)}
+                  />
+                  <ToggleControl
+                    label="Voice-Reactive Motion"
+                    description="Phase 4 will connect this to mic/output audio levels."
+                    checked={settings.voiceReactiveEnabled}
+                    onChange={(value) =>
+                      updateSetting("voiceReactiveEnabled", value)
+                    }
+                  />
+                </div>
+              )}
             </Panel>
 
             <Panel
@@ -469,7 +483,7 @@ export default function AIAnimationPage() {
 function AnimationPreview({ settings }: { settings: AnimationSettings }) {
   if (settings.zegoEnabled) {
     return (
-      <div className="relative flex h-full min-h-[640px] w-full items-center justify-center overflow-hidden rounded-[30px] border border-amber-400/20 bg-black/25">
+      <div className="relative flex h-full min-h-[680px] w-full items-center justify-center overflow-hidden rounded-[30px] border border-amber-400/20 bg-black/25">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(251,191,36,0.18),transparent_42%),radial-gradient(circle_at_50%_70%,rgba(6,182,212,0.12),transparent_46%)]" />
         <div className="relative flex w-[min(620px,calc(100%-48px))] flex-col items-center rounded-[30px] border border-amber-400/20 bg-black/45 p-8 text-center backdrop-blur-xl">
           <div className="flex h-28 w-28 items-center justify-center rounded-full border border-amber-400/30 bg-amber-500/10 text-amber-200 shadow-2xl shadow-amber-400/20">
@@ -527,7 +541,7 @@ function AnimationPreview({ settings }: { settings: AnimationSettings }) {
               : "border-emerald-300/50 text-emerald-100 shadow-emerald-400/20";
 
   return (
-    <div className="relative flex h-full min-h-[640px] w-full items-center justify-center overflow-hidden rounded-[30px] border border-white/10 bg-black/25">
+    <div className="relative flex h-full min-h-[680px] w-full items-center justify-center overflow-hidden rounded-[30px] border border-white/10 bg-black/25">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(34,211,238,0.20),transparent_42%),radial-gradient(circle_at_50%_70%,rgba(139,92,246,0.16),transparent_46%)]" />
 
       {settings.showParticles ? (

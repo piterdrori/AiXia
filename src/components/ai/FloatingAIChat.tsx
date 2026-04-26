@@ -10,8 +10,6 @@ type Message = {
   id: string;
   role: "user" | "assistant";
   content: string;
-  provider?: string;
-  model?: string;
   router_layer?: string;
   router_reason?: string;
   matched_question?: string;

@@ -1268,154 +1268,226 @@ function NativeChatAnimation({
   const isSpeaking = state === "speaking" && lipSyncEnabled;
   const isListening = state === "listening";
   const isThinking = state === "thinking";
+  const isSilent = state === "idle" || state === "paused" || state === "error";
+
+  const mouthHeight =
+    state === "speaking"
+      ? 18
+      : state === "listening"
+        ? 7
+        : state === "thinking"
+          ? 4
+          : 2;
 
   return (
     <div
-      className="aixia-chat-native-stage relative flex h-[min(72vh,640px)] w-[min(72vh,640px)] items-center justify-center overflow-hidden rounded-[42px] border border-cyan-400/15 bg-white/[0.035] shadow-2xl shadow-cyan-950/30 backdrop-blur-xl"
+      className="aixia-native-preview relative flex h-[min(72vh,640px)] w-[min(72vh,640px)] items-center justify-center overflow-hidden rounded-[42px] border border-white/10 bg-black/25 shadow-2xl shadow-cyan-950/30 backdrop-blur-xl"
       data-state={state}
       data-mode={mode}
+      style={
+        {
+          "--aixia-motion-duration": "2.4s",
+          "--aixia-glow-opacity": "0.76",
+          "--aixia-pulse-scale": "1.07",
+          "--aixia-mouth-height": `${mouthHeight}px`,
+          "--aixia-motion-opacity": isSilent ? "0.45" : "1",
+        } as React.CSSProperties
+      }
     >
       <style>{`
-        .aixia-chat-native-stage .native-orbit {
-          animation: aixia-chat-orbit 8s linear infinite;
+        @keyframes aixia-breathe {
+          0%, 100% { transform: scale(1); opacity: 0.82; }
+          50% { transform: scale(var(--aixia-pulse-scale)); opacity: 1; }
         }
 
-        .aixia-chat-native-stage .native-core {
-          animation: aixia-chat-float 4s ease-in-out infinite;
+        @keyframes aixia-speaking {
+          0%, 100% { transform: scale(1) translateY(0); }
+          25% { transform: scale(1.045) translateY(-2px); }
+          50% { transform: scale(1.015) translateY(1px); }
+          75% { transform: scale(1.06) translateY(-1px); }
         }
 
-        .aixia-chat-native-stage[data-state="speaking"] .native-core,
-        .aixia-chat-native-stage[data-state="listening"] .native-core {
-          animation-duration: 2.2s;
+        @keyframes aixia-listening {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.035); }
         }
 
-        .aixia-chat-native-stage[data-state="thinking"] .native-orbit {
-          animation-duration: 3.2s;
+        @keyframes aixia-thinking {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
 
-        .aixia-chat-native-stage .native-mouth {
-          height: 4px;
-          transition: all 260ms ease;
+        @keyframes aixia-floating {
+          0%, 100% { transform: translateY(0); opacity: 0.35; }
+          50% { transform: translateY(-8px); opacity: 0.9; }
         }
 
-        .aixia-chat-native-stage[data-state="speaking"] .native-mouth {
-          height: 18px;
-          border-radius: 999px;
-          animation: aixia-chat-mouth 360ms ease-in-out infinite alternate;
+        @keyframes aixia-wave {
+          0%, 100% { transform: scaleY(0.42); opacity: 0.55; }
+          50% { transform: scaleY(1); opacity: 1; }
         }
 
-        .aixia-chat-native-stage[data-state="listening"] .native-mouth {
-          height: 8px;
+        @keyframes aixia-mouth {
+          0%, 100% { height: 3px; width: 28px; opacity: 0.75; }
+          35% { height: var(--aixia-mouth-height); width: 34px; opacity: 1; }
+          70% { height: 5px; width: 24px; opacity: 0.9; }
         }
 
-        .aixia-chat-native-stage .native-wave-bar {
-          animation: aixia-chat-wave 900ms ease-in-out infinite;
+        @keyframes aixia-blink {
+          0%, 88%, 100% { transform: scaleY(1); }
+          92%, 96% { transform: scaleY(0.12); }
+        }
+
+        .aixia-native-preview .aixia-glow {
+          opacity: var(--aixia-glow-opacity);
+          animation: aixia-breathe var(--aixia-motion-duration) ease-in-out infinite;
+        }
+
+        .aixia-native-preview .aixia-avatar-shell {
+          opacity: var(--aixia-motion-opacity);
+          animation: aixia-breathe var(--aixia-motion-duration) ease-in-out infinite;
+        }
+
+        .aixia-native-preview[data-state="speaking"] .aixia-avatar-shell {
+          animation: aixia-speaking 1.15s ease-in-out infinite;
+        }
+
+        .aixia-native-preview[data-state="listening"] .aixia-avatar-shell {
+          animation: aixia-listening 1.35s ease-in-out infinite;
+        }
+
+        .aixia-native-preview[data-state="thinking"] .aixia-ring-outer,
+        .aixia-native-preview[data-state="thinking"] .aixia-ring-inner {
+          animation: aixia-thinking 3.2s linear infinite;
+        }
+
+        .aixia-native-preview .aixia-particle {
+          animation: aixia-floating 2.8s ease-in-out infinite;
+        }
+
+        .aixia-native-preview .aixia-wave-bar {
+          animation: aixia-wave 0.9s ease-in-out infinite;
           transform-origin: center bottom;
         }
 
-        .aixia-chat-native-stage .native-wave-bar:nth-child(2) {
+        .aixia-native-preview .aixia-wave-bar:nth-child(2) {
           animation-delay: 120ms;
         }
 
-        .aixia-chat-native-stage .native-wave-bar:nth-child(3) {
+        .aixia-native-preview .aixia-wave-bar:nth-child(3) {
           animation-delay: 240ms;
         }
 
-        .aixia-chat-native-stage .native-wave-bar:nth-child(4) {
+        .aixia-native-preview .aixia-wave-bar:nth-child(4) {
           animation-delay: 360ms;
         }
 
-        .aixia-chat-native-stage .native-wave-bar:nth-child(5) {
+        .aixia-native-preview .aixia-wave-bar:nth-child(5) {
           animation-delay: 480ms;
         }
 
-        .aixia-chat-native-stage[data-state="idle"] .native-wave-bar,
-        .aixia-chat-native-stage[data-state="paused"] .native-wave-bar {
+        .aixia-native-preview .aixia-mouth,
+        .aixia-native-preview .aixia-orb-mouth {
+          height: 3px;
+          width: 28px;
+          transition: all 260ms ease;
+        }
+
+        .aixia-native-preview[data-state="speaking"] .aixia-mouth,
+        .aixia-native-preview[data-state="speaking"] .aixia-orb-mouth {
+          animation: aixia-mouth 420ms ease-in-out infinite;
+        }
+
+        .aixia-native-preview .aixia-blink-eye {
+          animation: aixia-blink 4.5s ease-in-out infinite;
+          transform-origin: center;
+        }
+
+        .aixia-native-preview[data-state="idle"] .aixia-wave-bar,
+        .aixia-native-preview[data-state="paused"] .aixia-wave-bar {
           animation-play-state: paused;
           opacity: 0.45;
         }
-
-        @keyframes aixia-chat-float {
-          0%, 100% { transform: translateY(0) scale(1); }
-          50% { transform: translateY(-12px) scale(1.015); }
-        }
-
-        @keyframes aixia-chat-orbit {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-
-        @keyframes aixia-chat-mouth {
-          from { transform: scaleY(0.55); opacity: 0.76; }
-          to { transform: scaleY(1.2); opacity: 1; }
-        }
-
-        @keyframes aixia-chat-wave {
-          0%, 100% { transform: scaleY(0.28); }
-          50% { transform: scaleY(1); }
-        }
       `}</style>
 
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.20),transparent_34%),radial-gradient(circle_at_center,rgba(139,92,246,0.12),transparent_58%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_32%,rgba(34,211,238,0.20),transparent_44%),radial-gradient(circle_at_50%_74%,rgba(139,92,246,0.14),transparent_48%)]" />
 
-      <div className="absolute inset-10 rounded-full border border-cyan-300/10" />
-      <div className="absolute inset-20 rounded-full border border-cyan-300/10" />
-      <div className="absolute inset-32 rounded-full border border-violet-300/10" />
-
-      <div className="native-orbit absolute h-[76%] w-[76%] rounded-full border border-dashed border-cyan-300/12">
-        <span className="absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 rounded-full bg-cyan-200/70 shadow-lg shadow-cyan-400/40" />
-        <span className="absolute bottom-0 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-violet-200/60 shadow-lg shadow-violet-400/40" />
+      <div className="aixia-particle-layer absolute inset-0 opacity-60">
+        {Array.from({ length: 18 }).map((_, index) => (
+          <span
+            key={index}
+            className="aixia-particle absolute h-1.5 w-1.5 rounded-full bg-cyan-200/40"
+            style={{
+              left: `${8 + ((index * 19) % 84)}%`,
+              top: `${10 + ((index * 31) % 78)}%`,
+              animationDelay: `${index * 0.12}s`,
+            }}
+          />
+        ))}
       </div>
 
-      {mode === "waveform" ? (
-        <div className="native-core relative z-10 flex h-72 w-72 items-center justify-center rounded-[38px] border border-cyan-300/20 bg-cyan-500/10 shadow-2xl shadow-cyan-950/40 backdrop-blur-xl">
-          <div className="flex h-36 items-center gap-3">
-            {[44, 76, 108, 76, 44].map((height, index) => (
+      <div className="aixia-glow absolute h-72 w-72 rounded-full bg-cyan-400 blur-3xl" />
+
+      <div className="aixia-avatar-shell relative flex h-56 w-56 items-center justify-center rounded-full border border-cyan-300/60 bg-black/55 text-cyan-100 shadow-2xl shadow-cyan-400/30">
+        <div className="aixia-ring aixia-ring-outer absolute inset-4 rounded-full border border-white/10" />
+        <div className="aixia-ring aixia-ring-inner absolute inset-8 rounded-full border border-white/10" />
+        <div className="aixia-scanner absolute inset-2 rounded-full border border-cyan-300/0" />
+
+        {mode === "waveform" ? (
+          <div className="flex h-28 items-center gap-2.5">
+            {[32, 58, 88, 58, 32].map((height, index) => (
               <span
                 key={index}
-                className="native-wave-bar w-5 rounded-full bg-cyan-200/80 shadow-lg shadow-cyan-400/30"
+                className="aixia-wave-bar w-4 rounded-full bg-cyan-100/80 shadow-lg shadow-cyan-400/30"
                 style={{ height }}
               />
             ))}
           </div>
-        </div>
-      ) : mode === "robot" ? (
-        <div className="native-core relative z-10 flex h-72 w-72 flex-col items-center justify-center rounded-[42px] border border-cyan-300/20 bg-gradient-to-br from-cyan-500/15 to-violet-500/10 shadow-2xl shadow-cyan-950/40 backdrop-blur-xl">
-          <Bot className="h-20 w-20 text-cyan-100" />
-          <div className="mt-6 flex gap-4">
-            <span className="h-4 w-4 rounded-full bg-cyan-100 shadow-lg shadow-cyan-400/40" />
-            <span className="h-4 w-4 rounded-full bg-cyan-100 shadow-lg shadow-cyan-400/40" />
-          </div>
-          <div className="native-mouth mt-6 w-16 rounded-full bg-cyan-100/85" />
-        </div>
-      ) : mode === "hologram" ? (
-        <div className="native-core relative z-10 flex h-80 w-80 flex-col items-center justify-center rounded-[44px] border border-violet-300/20 bg-violet-500/10 shadow-2xl shadow-violet-950/40 backdrop-blur-xl">
-          <MonitorPlay className="h-20 w-20 text-violet-100" />
-          <div className="mt-6 grid w-44 gap-2">
-            <span className="h-2 rounded-full bg-violet-100/70" />
-            <span className="h-2 rounded-full bg-cyan-100/50" />
-            <span className="h-2 rounded-full bg-violet-100/35" />
-          </div>
-          <div className="native-mouth mt-6 w-16 rounded-full bg-violet-100/80" />
-        </div>
-      ) : mode === "mascot" ? (
-        <div className="native-core relative z-10 flex h-72 w-72 flex-col items-center justify-center rounded-full border border-emerald-300/20 bg-gradient-to-br from-emerald-500/15 via-cyan-500/10 to-violet-500/10 shadow-2xl shadow-cyan-950/40 backdrop-blur-xl">
-          <Smile className="h-24 w-24 text-emerald-100" />
-          <div className="native-mouth mt-4 w-16 rounded-full bg-emerald-100/80" />
-        </div>
-      ) : (
-        <div className="native-core relative z-10 flex h-72 w-72 flex-col items-center justify-center rounded-full border border-cyan-300/20 bg-gradient-to-br from-cyan-500/20 to-violet-500/10 shadow-2xl shadow-cyan-950/40 backdrop-blur-xl">
-          <CircleDot className="h-24 w-24 text-cyan-100" />
-          <div className="native-mouth mt-4 w-16 rounded-full bg-cyan-100/80" />
-        </div>
-      )}
+        ) : null}
 
-      <div className="absolute bottom-8 left-1/2 z-20 -translate-x-1/2 rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3 text-center backdrop-blur-xl">
-        <div className="flex items-center justify-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-100/60">
+        {mode === "robot" ? (
+          <div className="flex flex-col items-center justify-center">
+            <Bot className="h-16 w-16 text-cyan-200" />
+            <div className="mt-5 flex gap-5">
+              <span className="h-3 w-3 rounded-full bg-cyan-100 shadow-lg shadow-cyan-400/40" />
+              <span className="h-3 w-3 rounded-full bg-cyan-100 shadow-lg shadow-cyan-400/40" />
+            </div>
+            <div className="aixia-mouth mt-5 rounded-full bg-cyan-100/85" />
+          </div>
+        ) : null}
+
+        {mode === "hologram" ? (
+          <div className="aixia-hologram flex flex-col items-center gap-2">
+            <MonitorPlay className="h-16 w-16 text-cyan-200" />
+            <span className="h-1 w-24 rounded-full bg-cyan-200/50" />
+            <span className="h-1 w-16 rounded-full bg-violet-200/35" />
+          </div>
+        ) : null}
+
+        {mode === "mascot" ? (
+          <div className="aixia-mascot-face flex h-32 w-32 flex-col items-center justify-center rounded-full border border-cyan-300/25 bg-cyan-400/10 shadow-2xl shadow-cyan-400/10">
+            <div className="flex gap-8">
+              <span className="aixia-blink-eye h-3.5 w-3.5 rounded-full bg-cyan-100" />
+              <span className="aixia-blink-eye h-3.5 w-3.5 rounded-full bg-cyan-100" />
+            </div>
+            <div className="aixia-mouth mt-6 rounded-full bg-cyan-100" />
+          </div>
+        ) : null}
+
+        {mode === "orb" ? (
+          <div className="aixia-orb-core relative flex h-32 w-32 items-center justify-center rounded-full border border-cyan-300/30 bg-cyan-400/20 shadow-2xl shadow-cyan-400/20">
+            <div className="h-4 w-4 rounded-full bg-cyan-100/90 shadow-lg shadow-cyan-300/40" />
+            <div className="aixia-orb-mouth absolute bottom-9 rounded-full bg-cyan-100/80" />
+          </div>
+        ) : null}
+      </div>
+
+      <div className="absolute bottom-8 left-1/2 z-20 -translate-x-1/2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-6 py-3 text-center backdrop-blur-xl">
+        <div className="flex items-center justify-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/70">
           <Radio className="h-3.5 w-3.5" />
           Native Animation State
         </div>
-        <div className="mt-1 text-lg font-semibold text-white">
+        <div className="mt-1 text-xl font-semibold text-emerald-100">
           {isListening
             ? "Listening"
             : isThinking

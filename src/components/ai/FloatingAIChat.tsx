@@ -13,7 +13,6 @@ import {
   Smile,
   Sparkles,
   Square,
-  Waves,
   X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";

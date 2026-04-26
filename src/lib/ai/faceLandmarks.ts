@@ -56,6 +56,13 @@ function distance(a: FacePoint, b: FacePoint) {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
 
+function waitForImageLoad(image: HTMLImageElement): Promise<void> {
+  return new Promise((resolve, reject) => {
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error("Face detection image failed to decode in the browser."));
+  });
+}
+
 function getFaceBox(points: NormalizedLandmark[]) {
   const xs = points.map((point) => point.x);
   const ys = points.map((point) => point.y);
@@ -159,6 +166,11 @@ export async function detectFaceLandmarksFromImageUrl(
   }
 
   const blob = await response.blob();
+
+  if (!blob.type.startsWith("image/")) {
+    throw new Error(`Face detection expected an image file, but received ${blob.type || "unknown file type"}.`);
+  }
+
   const objectUrl = URL.createObjectURL(blob);
   const imageElement = document.createElement("img");
 
@@ -166,13 +178,11 @@ export async function detectFaceLandmarksFromImageUrl(
     imageElement.decoding = "async";
     imageElement.src = objectUrl;
 
-    await imageElement.decode();
+    await waitForImageLoad(imageElement);
 
     return detectFaceLandmarksFromImageElement(imageElement);
   } finally {
-    window.setTimeout(() => {
-      URL.revokeObjectURL(objectUrl);
-    }, 1000);
+    URL.revokeObjectURL(objectUrl);
   }
 }
 

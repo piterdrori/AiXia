@@ -272,6 +272,8 @@ export default function FloatingAIChat() {
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const finalTranscriptRef = useRef("");
   const silenceTimerRef = useRef<number | null>(null);
+  const messagesViewportRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const modeRef = useRef<ChatMode>("text");
   const openRef = useRef(false);
   const loadingRef = useRef(false);
@@ -295,9 +297,24 @@ export default function FloatingAIChat() {
     openRef.current = open;
   }, [open]);
 
-  useEffect(() => {
+    useEffect(() => {
     loadingRef.current = loading;
   }, [loading]);
+
+  useEffect(() => {
+    if (!open || mode === "face_to_face") return;
+
+    const scrollFrame = window.requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(scrollFrame);
+    };
+  }, [messages, loading, open, mode]);
 
   useEffect(() => {
     void loadRuntimeControls();
@@ -308,7 +325,7 @@ export default function FloatingAIChat() {
       stopVoiceOutput();
     };
   }, []);
-
+  
   useEffect(() => {
     if (!open) return;
 
@@ -980,7 +997,10 @@ export default function FloatingAIChat() {
             </div>
           </div>
 
-          <div className="flex-1 space-y-4 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_35%)] px-4 py-5">
+                   <div
+            ref={messagesViewportRef}
+            className="flex-1 space-y-4 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_35%)] px-4 py-5"
+          >
             {messages.map((message) => (
               <div
                 key={message.id}
@@ -1036,8 +1056,9 @@ export default function FloatingAIChat() {
                 </div>
               </div>
             )}
-          </div>
 
+            <div ref={messagesEndRef} />
+          </div>
           <div className="border-t border-white/10 bg-[#070b14]/92 px-4 py-4">
             {(statusMessage || liveTranscript) && (
               <div className="mb-3 rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-3 py-2 text-xs leading-5 text-cyan-100/75">

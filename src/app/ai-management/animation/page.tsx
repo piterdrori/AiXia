@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { ElementType, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -6,14 +7,19 @@ import {
   CheckCircle2,
   CircleDot,
   Gauge,
+  Lock,
   MonitorPlay,
+  Power,
   RefreshCcw,
   Save,
+  Sparkles,
   ToggleLeft,
   ToggleRight,
   Waves,
+  Zap,
 } from "lucide-react";
-import type { ElementType } from "react";
+
+type AnimationEngine = "internal" | "zego";
 
 type AnimationMode = "orb" | "waveform" | "robot" | "hologram" | "mascot";
 
@@ -22,11 +28,14 @@ type AnimationState =
   | "listening"
   | "thinking"
   | "speaking"
-  | "paused";
+  | "paused"
+  | "error";
 
 type AnimationSettings = {
+  engine: AnimationEngine;
+  zegoEnabled: boolean;
   mode: AnimationMode;
-  state: AnimationState;
+  previewState: AnimationState;
   intensity: number;
   motionSpeed: number;
   glowStrength: number;
@@ -34,11 +43,15 @@ type AnimationSettings = {
   showParticles: boolean;
   showWaveform: boolean;
   showStatusText: boolean;
+  lipSyncEnabled: boolean;
+  voiceReactiveEnabled: boolean;
 };
 
 const defaultSettings: AnimationSettings = {
+  engine: "internal",
+  zegoEnabled: false,
   mode: "orb",
-  state: "idle",
+  previewState: "idle",
   intensity: 72,
   motionSpeed: 58,
   glowStrength: 76,
@@ -46,9 +59,11 @@ const defaultSettings: AnimationSettings = {
   showParticles: true,
   showWaveform: true,
   showStatusText: true,
+  lipSyncEnabled: true,
+  voiceReactiveEnabled: true,
 };
 
-const modes: Array<{
+const internalModes: Array<{
   id: AnimationMode;
   label: string;
   description: string;
@@ -56,7 +71,7 @@ const modes: Array<{
   {
     id: "orb",
     label: "Orb",
-    description: "Premium glowing AI orb for clean enterprise experience.",
+    description: "Premium glowing AiXia orb for clean enterprise experience.",
   },
   {
     id: "waveform",
@@ -76,11 +91,11 @@ const modes: Array<{
   {
     id: "mascot",
     label: "Mascot",
-    description: "Brandable character direction for future customer-facing UI.",
+    description: "Brandable character direction for future company UI.",
   },
 ];
 
-const states: Array<{
+const runtimeStates: Array<{
   id: AnimationState;
   label: string;
   description: string;
@@ -93,34 +108,40 @@ const states: Array<{
   {
     id: "listening",
     label: "Listening",
-    description: "Microphone is active and user is speaking.",
+    description: "Microphone is active and the user is speaking.",
   },
   {
     id: "thinking",
     label: "Thinking",
-    description: "Ai-router is preparing an answer.",
+    description: "AiXia router is preparing the answer.",
   },
   {
     id: "speaking",
     label: "Speaking",
-    description: "AiXia is replying with voice/audio.",
+    description: "AiXia is replying with voice or avatar speech.",
   },
   {
     id: "paused",
     label: "Paused",
     description: "Conversation is paused or inactive.",
   },
+  {
+    id: "error",
+    label: "Error / Disconnected",
+    description: "Realtime, avatar, or external provider is disconnected.",
+  },
 ];
 
 function getStateLabel(state: AnimationState) {
-  return states.find((item) => item.id === state)?.label ?? "Idle";
+  return runtimeStates.find((item) => item.id === state)?.label ?? "Idle";
 }
 
 function getStateTone(state: AnimationState) {
   if (state === "listening") return "violet";
   if (state === "thinking") return "amber";
   if (state === "speaking") return "cyan";
-  if (state === "paused") return "rose";
+  if (state === "paused") return "slate";
+  if (state === "error") return "rose";
   return "emerald";
 }
 
@@ -130,9 +151,11 @@ export default function AIAnimationPage() {
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
 
   const currentMode = useMemo(
-    () => modes.find((mode) => mode.id === settings.mode) ?? modes[0],
+    () => internalModes.find((mode) => mode.id === settings.mode) ?? internalModes[0],
     [settings.mode]
   );
+
+  const activeEngineLabel = settings.zegoEnabled ? "ZEGO Digital Human" : "Internal AiXia";
 
   function updateSetting<K extends keyof AnimationSettings>(
     key: K,
@@ -145,14 +168,23 @@ export default function AIAnimationPage() {
     }));
   }
 
+  function setZegoEnabled(enabled: boolean) {
+    setSavedMessage(null);
+    setSettings((current) => ({
+      ...current,
+      zegoEnabled: enabled,
+      engine: enabled ? "zego" : "internal",
+    }));
+  }
+
   function resetSettings() {
     setSettings(defaultSettings);
-    setSavedMessage("Animation settings reset to default preview.");
+    setSavedMessage("Animation page reset to the default internal AiXia engine.");
   }
 
   function saveSettings() {
     setSavedMessage(
-      "Animation settings saved locally for this preview. Backend persistence comes next."
+      "Phase 1 preview saved locally. Backend settings persistence comes in Phase 2."
     );
   }
 
@@ -181,9 +213,10 @@ export default function AIAnimationPage() {
                   Animation Studio
                 </h1>
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Design the visual assistant layer for AiXia: orb, waveform,
-                  robot, hologram, or mascot. This page controls how the avatar
-                  looks in idle, listening, thinking, speaking, and paused states.
+                  Controls the visual assistant layer for AiXia. The internal
+                  AiXia animation engine is the default. ZEGO Digital Human is an
+                  optional external avatar engine that can be enabled later when
+                  API credentials are ready.
                 </p>
               </div>
             </div>
@@ -191,15 +224,15 @@ export default function AIAnimationPage() {
             <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[620px]">
               <MetricCard
                 icon={MonitorPlay}
-                label="Mode"
-                value={currentMode.label}
-                tone="cyan"
+                label="Active Engine"
+                value={activeEngineLabel}
+                tone={settings.zegoEnabled ? "amber" : "cyan"}
               />
               <MetricCard
                 icon={CircleDot}
-                label="State"
-                value={getStateLabel(settings.state)}
-                tone={getStateTone(settings.state)}
+                label="Preview State"
+                value={getStateLabel(settings.previewState)}
+                tone={getStateTone(settings.previewState)}
               />
               <MetricCard
                 icon={Gauge}
@@ -226,69 +259,80 @@ export default function AIAnimationPage() {
             <div className="flex min-h-0 flex-col border-t border-white/10 bg-black/10 xl:border-l xl:border-t-0">
               <div className="border-b border-white/10 p-5">
                 <div className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  Live Preview Controls
+                  Phase 1 Foundation
                 </div>
                 <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white">
-                  {currentMode.label} avatar preview
+                  {settings.zegoEnabled
+                    ? "ZEGO Digital Human preview mode"
+                    : `${currentMode.label} internal avatar preview`}
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
-                  {currentMode.description}
+                  {settings.zegoEnabled
+                    ? "ZEGO is enabled in the UI, but the API connection is not active yet. No external API calls are made in Phase 1."
+                    : currentMode.description}
                 </p>
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto p-5">
-                <div className="grid gap-4">
-                  <ControlSlider
-                    label="Intensity"
-                    value={settings.intensity}
-                    onChange={(value: number) =>
-                      updateSetting("intensity", value)
-                    }
-                  />
-                  <ControlSlider
-                    label="Motion Speed"
-                    value={settings.motionSpeed}
-                    onChange={(value: number) =>
-                      updateSetting("motionSpeed", value)
-                    }
-                  />
-                  <ControlSlider
-                    label="Glow Strength"
-                    value={settings.glowStrength}
-                    onChange={(value: number) =>
-                      updateSetting("glowStrength", value)
-                    }
-                  />
-                  <ControlSlider
-                    label="Pulse Strength"
-                    value={settings.pulseStrength}
-                    onChange={(value: number) =>
-                      updateSetting("pulseStrength", value)
-                    }
-                  />
+                {settings.zegoEnabled ? (
+                  <ZegoPlannedPanel />
+                ) : (
+                  <div className="grid gap-4">
+                    <ControlSlider
+                      label="Intensity"
+                      value={settings.intensity}
+                      onChange={(value) => updateSetting("intensity", value)}
+                    />
+                    <ControlSlider
+                      label="Motion Speed"
+                      value={settings.motionSpeed}
+                      onChange={(value) => updateSetting("motionSpeed", value)}
+                    />
+                    <ControlSlider
+                      label="Glow Strength"
+                      value={settings.glowStrength}
+                      onChange={(value) => updateSetting("glowStrength", value)}
+                    />
+                    <ControlSlider
+                      label="Pulse Strength"
+                      value={settings.pulseStrength}
+                      onChange={(value) => updateSetting("pulseStrength", value)}
+                    />
 
-                  <ToggleControl
-                    label="Particles"
-                    checked={settings.showParticles}
-                    onChange={(value: boolean) =>
-                      updateSetting("showParticles", value)
-                    }
-                  />
-                  <ToggleControl
-                    label="Waveform"
-                    checked={settings.showWaveform}
-                    onChange={(value: boolean) =>
-                      updateSetting("showWaveform", value)
-                    }
-                  />
-                  <ToggleControl
-                    label="Status Text"
-                    checked={settings.showStatusText}
-                    onChange={(value: boolean) =>
-                      updateSetting("showStatusText", value)
-                    }
-                  />
-                </div>
+                    <ToggleControl
+                      label="Particles"
+                      description="Decorative motion particles for internal avatar styles."
+                      checked={settings.showParticles}
+                      onChange={(value) => updateSetting("showParticles", value)}
+                    />
+                    <ToggleControl
+                      label="Waveform"
+                      description="Shows internal waveform-style motion where relevant."
+                      checked={settings.showWaveform}
+                      onChange={(value) => updateSetting("showWaveform", value)}
+                    />
+                    <ToggleControl
+                      label="Status Text"
+                      description="Shows the current preview state below the avatar."
+                      checked={settings.showStatusText}
+                      onChange={(value) => updateSetting("showStatusText", value)}
+                    />
+                    <ToggleControl
+                      label="Native Basic Lip-Sync"
+                      description="Phase 4 will connect this to audio amplitude and mouth movement."
+                      checked={settings.lipSyncEnabled}
+                      onChange={(value) => updateSetting("lipSyncEnabled", value)}
+                    />
+                    <ToggleControl
+                      label="Voice-Reactive Motion"
+                      description="Phase 4 will connect this to mic/output audio levels."
+                      checked={settings.voiceReactiveEnabled}
+                      onChange={(value) =>
+                        updateSetting("voiceReactiveEnabled", value)
+                      }
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid gap-3 border-t border-white/10 p-5 sm:grid-cols-2">
@@ -315,15 +359,42 @@ export default function AIAnimationPage() {
 
           <aside className="grid gap-5">
             <Panel
-              eyebrow="Avatar Type"
-              title="Visual Mode"
-              description="Choose the primary assistant visual style."
+              eyebrow="Engine"
+              title="Avatar Engine"
+              description="Internal AiXia is the default. ZEGO can be enabled later as the external digital human engine."
             >
               <div className="grid gap-3">
-                {modes.map((mode) => (
+                <EngineCard
+                  selected={!settings.zegoEnabled}
+                  icon={Sparkles}
+                  label="Internal AiXia Animation Engine"
+                  status="Default Active"
+                  description="Uses native AiXia visuals, motion controls, uploaded assets later, and basic native lip-sync later."
+                  onClick={() => setZegoEnabled(false)}
+                />
+
+                <EngineCard
+                  selected={settings.zegoEnabled}
+                  icon={Zap}
+                  label="ZEGO Digital Human"
+                  status={settings.zegoEnabled ? "Enabled / Not Connected" : "Off"}
+                  description="Optional external 1080P digital human engine. API integration comes later through Supabase Edge Functions."
+                  onClick={() => setZegoEnabled(!settings.zegoEnabled)}
+                />
+              </div>
+            </Panel>
+
+            <Panel
+              eyebrow="Avatar Source"
+              title="Internal Visual Mode"
+              description="Choose the internal AiXia visual style. Uploadable assets come in Phase 3."
+            >
+              <div className="grid gap-3">
+                {internalModes.map((mode) => (
                   <ChoiceCard
                     key={mode.id}
-                    selected={settings.mode === mode.id}
+                    selected={settings.mode === mode.id && !settings.zegoEnabled}
+                    disabled={settings.zegoEnabled}
                     label={mode.label}
                     description={mode.description}
                     onClick={() => updateSetting("mode", mode.id)}
@@ -333,20 +404,59 @@ export default function AIAnimationPage() {
             </Panel>
 
             <Panel
-              eyebrow="Runtime States"
-              title="Preview State"
-              description="Test how the avatar behaves in each realtime state."
+              eyebrow="Given States"
+              title="Runtime State Preview"
+              description="These states are fixed system states. Clicking only previews the visual behavior."
             >
               <div className="grid gap-3">
-                {states.map((state) => (
+                {runtimeStates.map((state) => (
                   <ChoiceCard
                     key={state.id}
-                    selected={settings.state === state.id}
+                    selected={settings.previewState === state.id}
                     label={state.label}
                     description={state.description}
-                    onClick={() => updateSetting("state", state.id)}
+                    onClick={() => updateSetting("previewState", state.id)}
                   />
                 ))}
+              </div>
+            </Panel>
+
+            <Panel
+              eyebrow="Integration Status"
+              title="What Phase 1 Includes"
+              description="This page is only the clean foundation. No backend or ZEGO calls are added yet."
+            >
+              <div className="grid gap-3">
+                <StatusLine
+                  label="Internal engine"
+                  value="Default active"
+                  tone="emerald"
+                />
+                <StatusLine
+                  label="ZEGO engine"
+                  value="OFF by default"
+                  tone="amber"
+                />
+                <StatusLine
+                  label="Backend persistence"
+                  value="Phase 2"
+                  tone="slate"
+                />
+                <StatusLine
+                  label="Asset uploads"
+                  value="Phase 3"
+                  tone="slate"
+                />
+                <StatusLine
+                  label="Native lip-sync"
+                  value="Phase 4"
+                  tone="slate"
+                />
+                <StatusLine
+                  label="Voice page connection"
+                  value="Phase 5"
+                  tone="slate"
+                />
               </div>
             </Panel>
           </aside>
@@ -357,17 +467,51 @@ export default function AIAnimationPage() {
 }
 
 function AnimationPreview({ settings }: { settings: AnimationSettings }) {
-  const stateTone = getStateTone(settings.state);
-  const pulseDuration = `${Math.max(1.2, 4 - settings.motionSpeed / 28)}s`;
+  if (settings.zegoEnabled) {
+    return (
+      <div className="relative flex h-full min-h-[640px] w-full items-center justify-center overflow-hidden rounded-[30px] border border-amber-400/20 bg-black/25">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(251,191,36,0.18),transparent_42%),radial-gradient(circle_at_50%_70%,rgba(6,182,212,0.12),transparent_46%)]" />
+        <div className="relative flex w-[min(620px,calc(100%-48px))] flex-col items-center rounded-[30px] border border-amber-400/20 bg-black/45 p-8 text-center backdrop-blur-xl">
+          <div className="flex h-28 w-28 items-center justify-center rounded-full border border-amber-400/30 bg-amber-500/10 text-amber-200 shadow-2xl shadow-amber-400/20">
+            <Lock className="h-12 w-12" />
+          </div>
+
+          <div className="mt-6 inline-flex rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-200">
+            ZEGO Digital Human
+          </div>
+
+          <h3 className="mt-4 text-3xl font-semibold tracking-tight text-white">
+            External Engine Enabled
+          </h3>
+
+          <p className="mt-3 max-w-lg text-sm leading-6 text-slate-400">
+            ZEGO mode is visible for architecture planning, but it is not connected
+            in Phase 1. No ZEGO API calls, secrets, streams, or billing are active.
+          </p>
+
+          <div className="mt-6 grid w-full gap-3 sm:grid-cols-2">
+            <StatusLine label="API calls" value="Disabled" tone="amber" />
+            <StatusLine label="Secrets" value="Not configured" tone="slate" />
+            <StatusLine label="Stream" value="Not connected" tone="slate" />
+            <StatusLine label="Billing safety" value="Planned" tone="emerald" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const stateTone = getStateTone(settings.previewState);
   const glowOpacity = Math.max(0.18, settings.glowStrength / 100);
   const scale =
-    settings.state === "speaking"
+    settings.previewState === "speaking"
       ? "scale-110"
-      : settings.state === "listening"
+      : settings.previewState === "listening"
         ? "scale-105"
-        : settings.state === "thinking"
+        : settings.previewState === "thinking"
           ? "scale-100"
-          : "scale-95";
+          : settings.previewState === "error"
+            ? "scale-95"
+            : "scale-95";
 
   const toneClass =
     stateTone === "violet"
@@ -376,9 +520,11 @@ function AnimationPreview({ settings }: { settings: AnimationSettings }) {
         ? "border-amber-300/60 text-amber-100 shadow-amber-400/25"
         : stateTone === "rose"
           ? "border-rose-300/60 text-rose-100 shadow-rose-400/25"
-          : stateTone === "cyan"
-            ? "border-cyan-300/70 text-cyan-100 shadow-cyan-400/30"
-            : "border-emerald-300/50 text-emerald-100 shadow-emerald-400/20";
+          : stateTone === "slate"
+            ? "border-slate-300/30 text-slate-100 shadow-slate-400/10"
+            : stateTone === "cyan"
+              ? "border-cyan-300/70 text-cyan-100 shadow-cyan-400/30"
+              : "border-emerald-300/50 text-emerald-100 shadow-emerald-400/20";
 
   return (
     <div className="relative flex h-full min-h-[640px] w-full items-center justify-center overflow-hidden rounded-[30px] border border-white/10 bg-black/25">
@@ -410,7 +556,9 @@ function AnimationPreview({ settings }: { settings: AnimationSettings }) {
                 ? "rgba(251,191,36,0.65)"
                 : stateTone === "rose"
                   ? "rgba(251,113,133,0.62)"
-                  : "rgba(34,211,238,0.75)",
+                  : stateTone === "slate"
+                    ? "rgba(148,163,184,0.38)"
+                    : "rgba(34,211,238,0.75)",
         }}
       />
 
@@ -418,17 +566,16 @@ function AnimationPreview({ settings }: { settings: AnimationSettings }) {
         className={`relative flex h-64 w-64 items-center justify-center rounded-full border bg-black/55 shadow-2xl transition-all duration-700 ${scale} ${toneClass}`}
       >
         <div
-          className="absolute inset-4 rounded-full border border-white/10"
-          style={{
-            animation: `pulse ${pulseDuration} ease-in-out infinite`,
-          }}
+          className={`absolute inset-4 rounded-full border border-white/10 ${
+            settings.pulseStrength > 0 ? "animate-pulse" : ""
+          }`}
         />
         <div className="absolute inset-9 rounded-full border border-white/10" />
 
         {settings.mode === "waveform" ? (
           <WaveformPreview active={settings.showWaveform} />
         ) : settings.mode === "robot" ? (
-          <Bot className="h-24 w-24" />
+          <RobotPreview lipSyncEnabled={settings.lipSyncEnabled} />
         ) : settings.mode === "hologram" ? (
           <div className="flex h-28 w-28 items-center justify-center rounded-3xl border border-cyan-300/40 bg-cyan-500/10 text-sm font-semibold uppercase tracking-[0.2em] text-cyan-100">
             Holo
@@ -448,7 +595,7 @@ function AnimationPreview({ settings }: { settings: AnimationSettings }) {
             Preview State
           </div>
           <div className="mt-2 text-2xl font-semibold text-white">
-            {getStateLabel(settings.state)}
+            {getStateLabel(settings.previewState)}
           </div>
         </div>
       ) : null}
@@ -472,6 +619,19 @@ function WaveformPreview({ active }: { active: boolean }) {
   );
 }
 
+function RobotPreview({ lipSyncEnabled }: { lipSyncEnabled: boolean }) {
+  return (
+    <div className="flex flex-col items-center">
+      <Bot className="h-20 w-20" />
+      <div
+        className={`mt-3 rounded-full bg-cyan-100 transition-all ${
+          lipSyncEnabled ? "h-2 w-10" : "h-1 w-6"
+        }`}
+      />
+    </div>
+  );
+}
+
 function MetricCard({
   icon: Icon,
   label,
@@ -481,7 +641,7 @@ function MetricCard({
   icon: ElementType;
   label: string;
   value: string;
-  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
+  tone: "cyan" | "emerald" | "amber" | "violet" | "rose" | "slate";
 }) {
   const toneClass =
     tone === "emerald"
@@ -492,7 +652,9 @@ function MetricCard({
           ? "text-violet-200"
           : tone === "rose"
             ? "text-rose-200"
-            : "text-cyan-200";
+            : tone === "slate"
+              ? "text-slate-300"
+              : "text-cyan-200";
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
@@ -542,10 +704,12 @@ function ControlSlider({
 
 function ToggleControl({
   label,
+  description,
   checked,
   onChange,
 }: {
   label: string;
+  description: string;
   checked: boolean;
   onChange: (value: boolean) => void;
 }) {
@@ -559,23 +723,85 @@ function ToggleControl({
           : "border-white/10 bg-black/20 hover:border-white/20"
       }`}
     >
-      <div className="text-sm font-semibold text-white">{label}</div>
+      <div>
+        <div className="text-sm font-semibold text-white">{label}</div>
+        <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+      </div>
+
       {checked ? (
-        <ToggleRight className="h-5 w-5 text-cyan-200" />
+        <ToggleRight className="h-5 w-5 shrink-0 text-cyan-200" />
       ) : (
-        <ToggleLeft className="h-5 w-5 text-slate-500" />
+        <ToggleLeft className="h-5 w-5 shrink-0 text-slate-500" />
       )}
+    </button>
+  );
+}
+
+function EngineCard({
+  selected,
+  icon: Icon,
+  label,
+  status,
+  description,
+  onClick,
+}: {
+  selected: boolean;
+  icon: ElementType;
+  label: string;
+  status: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-2xl border p-4 text-left transition ${
+        selected
+          ? "border-cyan-400/30 bg-cyan-500/10"
+          : "border-white/10 bg-black/20 hover:border-white/20"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div
+            className={`rounded-2xl border p-3 ${
+              selected
+                ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
+                : "border-white/10 bg-white/[0.04] text-slate-500"
+            }`}
+          >
+            <Icon className="h-5 w-5" />
+          </div>
+
+          <div>
+            <div className="text-sm font-semibold text-white">{label}</div>
+            <div className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-cyan-200/70">
+              {status}
+            </div>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              {description}
+            </p>
+          </div>
+        </div>
+
+        {selected ? (
+          <CheckCircle2 className="h-5 w-5 shrink-0 text-cyan-200" />
+        ) : null}
+      </div>
     </button>
   );
 }
 
 function ChoiceCard({
   selected,
+  disabled = false,
   label,
   description,
   onClick,
 }: {
   selected: boolean;
+  disabled?: boolean;
   label: string;
   description: string;
   onClick: () => void;
@@ -584,11 +810,12 @@ function ChoiceCard({
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={`flex items-start justify-between gap-4 rounded-2xl border p-4 text-left transition ${
         selected
           ? "border-cyan-400/30 bg-cyan-500/10"
           : "border-white/10 bg-black/20 hover:border-white/20"
-      }`}
+      } disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-white/10`}
     >
       <div>
         <div className="text-sm font-semibold text-white">{label}</div>
@@ -611,7 +838,7 @@ function Panel({
   eyebrow: string;
   title: string;
   description: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
@@ -626,6 +853,69 @@ function Panel({
       </div>
 
       <div className="p-5">{children}</div>
+    </div>
+  );
+}
+
+function ZegoPlannedPanel() {
+  return (
+    <div className="grid gap-4">
+      <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4">
+        <div className="flex items-start gap-3">
+          <Power className="mt-0.5 h-5 w-5 text-amber-200" />
+          <div>
+            <div className="text-sm font-semibold text-amber-100">
+              ZEGO is ON in the UI, but not connected yet
+            </div>
+            <p className="mt-2 text-xs leading-5 text-amber-100/70">
+              Phase 1 only prepares the page foundation. ZEGO API credentials,
+              Supabase Edge Functions, stream creation, and billing safety controls
+              will be built in later phases.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <StatusLine label="Provider" value="ZEGO 即构" tone="amber" />
+      <StatusLine label="Connection" value="Not connected" tone="slate" />
+      <StatusLine label="API calls" value="Disabled in Phase 1" tone="slate" />
+      <StatusLine label="Secrets" value="Backend only later" tone="emerald" />
+      <StatusLine
+        label="Billing mode"
+        value="Active instance time later"
+        tone="amber"
+      />
+      <StatusLine
+        label="Required later"
+        value="AppID, Server Secret, DigitalHumanId"
+        tone="slate"
+      />
+    </div>
+  );
+}
+
+function StatusLine({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "emerald" | "amber" | "slate";
+}) {
+  const toneClass =
+    tone === "emerald"
+      ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+      : tone === "amber"
+        ? "border-amber-400/20 bg-amber-500/10 text-amber-200"
+        : "border-white/10 bg-black/20 text-slate-300";
+
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${toneClass}`}>
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] opacity-70">
+        {label}
+      </div>
+      <div className="mt-1 text-sm font-semibold">{value}</div>
     </div>
   );
 }

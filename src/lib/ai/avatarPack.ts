@@ -139,11 +139,11 @@ function getCropFromLandmarks(landmarks: AiAvatarFaceLandmarks) {
   const centerX = faceBox.x + faceBox.width / 2;
   const centerY = faceBox.y + faceBox.height / 2;
 
-  const rawSize = Math.max(faceBox.width, faceBox.height) * 1.9;
-  const size = clamp(rawSize, 0.42, 1);
+  const rawSize = Math.max(faceBox.width, faceBox.height) * 1.72;
+  const size = clamp(rawSize, 0.36, 1);
 
   const x = clamp(centerX - size / 2, 0, 1 - size);
-  const y = clamp(centerY - size * 0.46, 0, 1 - size);
+  const y = clamp(centerY - size * 0.43, 0, 1 - size);
 
   return { x, y, size };
 }
@@ -156,6 +156,38 @@ function mapPointToAvatarCanvas(
     x: ((point.x - crop.x) / crop.size) * AVATAR_CANVAS_SIZE,
     y: ((point.y - crop.y) / crop.size) * AVATAR_CANVAS_SIZE,
   };
+}
+
+function drawCleanAvatarMask(context: CanvasRenderingContext2D) {
+  const centerX = AVATAR_CANVAS_SIZE / 2;
+  const centerY = AVATAR_CANVAS_SIZE / 2;
+  const radiusX = AVATAR_CANVAS_SIZE * 0.43;
+  const radiusY = AVATAR_CANVAS_SIZE * 0.49;
+
+  context.beginPath();
+  context.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+  context.clip();
+}
+
+function drawSoftAvatarFrame(context: CanvasRenderingContext2D) {
+  const centerX = AVATAR_CANVAS_SIZE / 2;
+  const centerY = AVATAR_CANVAS_SIZE / 2;
+
+  const vignette = context.createRadialGradient(
+    centerX,
+    centerY,
+    AVATAR_CANVAS_SIZE * 0.18,
+    centerX,
+    centerY,
+    AVATAR_CANVAS_SIZE * 0.52
+  );
+
+  vignette.addColorStop(0, "rgba(0,0,0,0)");
+  vignette.addColorStop(0.72, "rgba(0,0,0,0.04)");
+  vignette.addColorStop(1, "rgba(0,0,0,0.42)");
+
+  context.fillStyle = vignette;
+  context.fillRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE);
 }
 
 function drawBaseAvatar(
@@ -171,13 +203,9 @@ function drawBaseAvatar(
   }
 
   context.clearRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE);
-  context.fillStyle = "#05070d";
-  context.fillRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE);
 
   context.save();
-  context.beginPath();
-  context.roundRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE, 96);
-  context.clip();
+  drawCleanAvatarMask(context);
 
   context.drawImage(
     image,
@@ -191,6 +219,7 @@ function drawBaseAvatar(
     AVATAR_CANVAS_SIZE
   );
 
+  drawSoftAvatarFrame(context);
   context.restore();
 
   return canvas;

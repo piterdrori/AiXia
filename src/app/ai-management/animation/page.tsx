@@ -1015,15 +1015,21 @@ export default function AIAnimationPage() {
 
       await loadAssets();
       setSavedMessage("Avatar pack generated. This asset is now ready for the internal talking-avatar runtime.");
-    } catch (error) {
+       } catch (error) {
+      console.error("Avatar pack preparation failed:", error);
+
       const message =
-        error instanceof Error ? error.message : "Avatar pack preparation failed.";
-      setErrorMessage(message);
+        error instanceof Error
+          ? error.message
+          : typeof error === "string"
+            ? error
+            : JSON.stringify(error);
+
+      setErrorMessage(message || "Avatar pack preparation failed.");
     } finally {
       setDetectingAssetId(null);
     }
   }
-
     return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-5">
       <div className="mx-auto grid w-full max-w-[1540px] gap-4">

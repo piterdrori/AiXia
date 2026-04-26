@@ -83,21 +83,36 @@ function getFaceBox(points: NormalizedLandmark[]) {
 async function getFaceLandmarker() {
   if (!faceLandmarkerPromise) {
     faceLandmarkerPromise = (async () => {
-      const vision = await FilesetResolver.forVisionTasks(WASM_BASE_URL);
+      try {
+        const vision = await FilesetResolver.forVisionTasks(WASM_BASE_URL);
 
-      return FaceLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: FACE_LANDMARKER_MODEL_URL,
-          delegate: "GPU",
-        },
-        runningMode: "IMAGE",
-        numFaces: 1,
-        minFaceDetectionConfidence: 0.5,
-        minFacePresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5,
-        outputFaceBlendshapes: true,
-        outputFacialTransformationMatrixes: true,
-      });
+        return await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: FACE_LANDMARKER_MODEL_URL,
+            delegate: "CPU",
+          },
+          runningMode: "IMAGE",
+          numFaces: 1,
+          minFaceDetectionConfidence: 0.5,
+          minFacePresenceConfidence: 0.5,
+          minTrackingConfidence: 0.5,
+          outputFaceBlendshapes: true,
+          outputFacialTransformationMatrixes: true,
+        });
+      } catch (error) {
+        faceLandmarkerPromise = null;
+
+        const message =
+          error instanceof Error
+            ? error.message
+            : typeof error === "string"
+              ? error
+              : JSON.stringify(error);
+
+        throw new Error(
+          `MediaPipe Face Landmarker failed to initialize. ${message || "Unknown browser initialization error."}`
+        );
+      }
     })();
   }
 
@@ -146,14 +161,27 @@ function extractLandmarksFromResult(
 export async function detectFaceLandmarksFromImageElement(
   imageElement: HTMLImageElement
 ): Promise<AiAvatarFaceLandmarks | null> {
-  const faceLandmarker = await getFaceLandmarker();
-  const result = faceLandmarker.detect(imageElement);
+  try {
+    const faceLandmarker = await getFaceLandmarker();
+    const result = faceLandmarker.detect(imageElement);
 
-  return extractLandmarksFromResult(
-    result,
-    imageElement.naturalWidth,
-    imageElement.naturalHeight
-  );
+    return extractLandmarksFromResult(
+      result,
+      imageElement.naturalWidth,
+      imageElement.naturalHeight
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : JSON.stringify(error);
+
+    throw new Error(
+      `MediaPipe face detection failed. ${message || "Unknown detection error."}`
+    );
+  }
 }
 
 export async function detectFaceLandmarksFromImageUrl(

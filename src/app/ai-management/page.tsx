@@ -215,13 +215,14 @@ const studioModules: StudioModule[] = [
     status: "live",
     group: "Experience",
   },
-  {
+   {
     id: "animation",
     label: "Animation / Avatar",
     description:
-      "Future visual assistant layer: orb, waveform, avatar, robot, hologram, or mascot.",
+      "Visual assistant layer: orb, waveform, avatar, robot, hologram, or mascot states for AiXia.",
+    route: "/ai-management/animation",
     icon: Waves,
-    status: "draft",
+    status: "live",
     group: "Experience",
   },
 ];

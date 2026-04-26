@@ -10,6 +10,8 @@ type Message = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  provider?: string;
+  model?: string;
   router_layer?: string;
   router_reason?: string;
   matched_question?: string;
@@ -207,8 +209,6 @@ export default function FloatingAIChat() {
   const [liveTranscript, setLiveTranscript] = useState("");
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
-  const [provider, setProvider] = useState("");
-  const [model, setModel] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [avatarState, setAvatarState] = useState<AvatarState>("idle");
   const [voiceSettings, setVoiceSettings] =
@@ -509,8 +509,6 @@ export default function FloatingAIChat() {
     setLiveTranscript("");
     setStatusMessage("");
     setLoading(true);
-    setProvider("");
-    setModel("");
     setAvatarState(activeMode === "face_to_face" ? "thinking" : "idle");
 
     await saveConversationMessage({
@@ -538,8 +536,6 @@ export default function FloatingAIChat() {
       };
 
       setMessages([...nextMessages, assistantMessage]);
-      setProvider(result.provider || "");
-      setModel(result.model || "");
 
       await saveConversationMessage({
         activeSessionId,
@@ -817,8 +813,6 @@ export default function FloatingAIChat() {
     }
 
     setSessionId(null);
-    setProvider("");
-    setModel("");
     setInput("");
     setLiveTranscript("");
     setMode("text");

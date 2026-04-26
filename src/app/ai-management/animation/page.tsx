@@ -11,7 +11,6 @@ import {
   CircleDot,
   Cuboid,
   FileJson,
-  Gauge,
   Image,
   Lock,
   MessageCircle,

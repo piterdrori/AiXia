@@ -35,6 +35,13 @@ import {
   detectFaceLandmarksFromImageUrl,
   isAiAvatarFaceLandmarks,
 } from "@/lib/ai/faceLandmarks";
+import {
+  generateAvatarPackFromImageUrl,
+  isAvatarPackManifest,
+  type AvatarPackLayerKey,
+  type AvatarPackLayerManifest,
+  type AvatarPackManifest,
+} from "@/lib/ai/avatarPack";
 
 type AnimationEngine = "internal" | "zego";
 type AnimationMode =
@@ -94,6 +101,7 @@ type AvatarAsset = {
 
 type AvatarAssetWithUrl = AvatarAsset & {
   signedUrl: string | null;
+  avatarPackBaseSignedUrl: string | null;
 };
 
 const AVATAR_BUCKET = "ai-avatar-assets";
@@ -377,6 +385,24 @@ function getAvatarPackStatusLabel(asset: AvatarAssetWithUrl | null) {
   return "Raw upload";
 }
 
+function getAssetAvatarPackManifest(asset: AvatarAssetWithUrl | null) {
+  const manifest = asset?.metadata?.avatar_pack_manifest;
+
+  if (isAvatarPackManifest(manifest)) {
+    return manifest;
+  }
+
+  return null;
+}
+
+function makeAvatarPackStoragePath(
+  userId: string,
+  assetId: string,
+  layerKey: AvatarPackLayerKey
+) {
+  return `${userId}/avatar-packs/${assetId}/${layerKey}.png`;
+}
+
 export default function AIAnimationPage() {
   const navigate = useNavigate();
   const [settings, setSettings] = useState<AnimationSettings>(defaultSettings);
@@ -543,9 +569,25 @@ export default function AIAnimationPage() {
           .from(AVATAR_BUCKET)
           .createSignedUrl(asset.storage_path, 60 * 60);
 
-        return {
+        const assetWithSourceUrl: AvatarAssetWithUrl = {
           ...asset,
           signedUrl: signedData?.signedUrl ?? null,
+          avatarPackBaseSignedUrl: null,
+        };
+
+        const manifest = getAssetAvatarPackManifest(assetWithSourceUrl);
+
+        if (!manifest) {
+          return assetWithSourceUrl;
+        }
+
+        const { data: baseSignedData } = await supabase.storage
+          .from(AVATAR_BUCKET)
+          .createSignedUrl(manifest.layers.base_avatar.storage_path, 60 * 60);
+
+        return {
+          ...assetWithSourceUrl,
+          avatarPackBaseSignedUrl: baseSignedData?.signedUrl ?? null,
         };
       })
     );
@@ -856,6 +898,16 @@ export default function AIAnimationPage() {
       return;
     }
 
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setErrorMessage(userError?.message || "User session not found.");
+      return;
+    }
+
     setDetectingAssetId(asset.id);
 
     try {
@@ -866,17 +918,54 @@ export default function AIAnimationPage() {
         return;
       }
 
+      const generatedPack = await generateAvatarPackFromImageUrl({
+        imageUrl: asset.signedUrl,
+        landmarks,
+      });
+
+      const uploadedLayers: Partial<Record<AvatarPackLayerKey, AvatarPackLayerManifest>> = {};
+
+      for (const layer of generatedPack.layers) {
+        const storagePath = makeAvatarPackStoragePath(user.id, asset.id, layer.key);
+
+        const { error: uploadError } = await supabase.storage
+          .from(AVATAR_BUCKET)
+          .upload(storagePath, layer.blob, {
+            contentType: layer.contentType,
+            upsert: true,
+            cacheControl: "3600",
+          });
+
+        if (uploadError) {
+          setErrorMessage(uploadError.message);
+          return;
+        }
+
+        uploadedLayers[layer.key] = {
+          storage_path: storagePath,
+          content_type: layer.contentType,
+          width: generatedPack.manifestDraft.canvas_size.width,
+          height: generatedPack.manifestDraft.canvas_size.height,
+        };
+      }
+
+      const manifest: AvatarPackManifest = {
+        ...generatedPack.manifestDraft,
+        layers: uploadedLayers as Record<AvatarPackLayerKey, AvatarPackLayerManifest>,
+      };
+
       const nextMetadata = {
         ...(asset.metadata ?? {}),
-        avatar_pack_status: "face_detected",
+        avatar_pack_status: "avatar_pack_ready",
         avatar_pack_version: 1,
+        avatar_pack_manifest: manifest,
         avatar_pack_preparation: {
-          source: "mediapipe_face_landmarker",
+          source: "mediapipe_face_landmarker_plus_canvas_pack",
           prepared_at: new Date().toISOString(),
           runtime_strategy: "preloaded_sprite_layers",
           runtime_mediapipe: false,
           visible_overlay: false,
-          next_step: "generate_avatar_pack_layers",
+          generated_layers: Object.keys(manifest.layers),
         },
         face_landmarks: landmarks,
       };
@@ -895,22 +984,22 @@ export default function AIAnimationPage() {
       }
 
       await supabase.from("ai_admin_activity_logs").insert({
-        action_type: "animation_avatar_pack_prepared",
+        action_type: "animation_avatar_pack_generated",
         entity_type: "ai_avatar_asset",
         entity_id: asset.id,
         details: {
           asset_name: asset.name,
           asset_type: asset.asset_type,
-          avatar_pack_status: "face_detected",
-          face_landmarks_source: landmarks.source,
-          face_box: landmarks.faceBox,
+          avatar_pack_status: "avatar_pack_ready",
+          avatar_pack_generator: manifest.generator,
+          generated_layers: Object.keys(manifest.layers),
           runtime_mediapipe: false,
           visible_overlay: false,
         },
       });
 
       await loadAssets();
-      setSavedMessage("Avatar pack preparation saved. Next phase will generate the usable mouth and eye sprite layers.");
+      setSavedMessage("Avatar pack generated. This asset is now ready for the internal talking-avatar runtime.");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Avatar pack preparation failed.";
@@ -1344,11 +1433,11 @@ function AnimationPreview({
           </div>
         ) : (
           <div className="absolute inset-x-4 bottom-4 z-30 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-3 text-center backdrop-blur-xl">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/70">
-              Avatar Pack Foundation Ready
+           <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/70">
+              Avatar Pack Ready
             </div>
             <div className="mt-1 text-sm font-semibold text-emerald-100">
-              Face alignment is saved. Sprite generation comes next.
+              Prepared avatar layers are generated and ready for runtime.
             </div>
           </div>
         )}
@@ -1659,18 +1748,27 @@ function AssetPreview({
     );
   }
 
-  if (asset.asset_type === "image" || asset.asset_type === "gif") {
+   if (asset.asset_type === "image" || asset.asset_type === "gif") {
+    const preparedAvatarUrl = asset.avatarPackBaseSignedUrl ?? asset.signedUrl;
+    const isPreparedAvatar = Boolean(asset.avatarPackBaseSignedUrl);
+
     return (
       <div
-        className={`flex ${
+        className={`relative flex ${
           large ? "h-full w-full" : "h-[220px]"
         } items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25`}
       >
         <img
-          src={asset.signedUrl}
+          src={preparedAvatarUrl}
           alt={asset.name}
           className="h-full w-full object-contain"
         />
+
+        {isPreparedAvatar ? (
+          <div className="absolute left-3 top-3 rounded-full border border-emerald-400/20 bg-black/55 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-100 backdrop-blur-xl">
+            Prepared avatar
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -1810,7 +1908,7 @@ function AssetCard({
             disabled={!canPrepareAvatarPack || detecting}
             className="inline-flex items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-2 py-2 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300/50 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {detecting ? "Preparing..." : "Prepare Avatar Pack"}
+            {detecting ? "Generating..." : "Prepare Avatar Pack"}
           </button>
 
           <button

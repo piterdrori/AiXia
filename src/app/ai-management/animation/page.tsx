@@ -3,11 +3,16 @@ import type { ElementType, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
+  Archive,
   Bot,
+  Box,
   Brain,
   CheckCircle2,
   CircleDot,
+  Cuboid,
+  FileJson,
   Gauge,
+  Image,
   Lock,
   MessageCircle,
   Mic2,
@@ -20,13 +25,22 @@ import {
   Sparkles,
   ToggleLeft,
   ToggleRight,
+  Trash2,
+  Upload,
+  Video,
   Waves,
   Zap,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 type AnimationEngine = "internal" | "zego";
-type AnimationMode = "orb" | "waveform" | "robot" | "hologram" | "mascot";
+type AnimationMode =
+  | "orb"
+  | "waveform"
+  | "robot"
+  | "hologram"
+  | "mascot"
+  | "uploaded_asset";
 type AnimationState =
   | "idle"
   | "listening"
@@ -34,6 +48,8 @@ type AnimationState =
   | "speaking"
   | "paused"
   | "error";
+
+type AvatarAssetType = "image" | "gif" | "video" | "lottie" | "glb" | "gltf";
 
 type AnimationSettings = {
   engine: AnimationEngine;
@@ -49,6 +65,7 @@ type AnimationSettings = {
   showStatusText: boolean;
   lipSyncEnabled: boolean;
   voiceReactiveEnabled: boolean;
+  selectedAssetId: string;
 };
 
 type AiSettingRow = {
@@ -57,6 +74,26 @@ type AiSettingRow = {
     value?: unknown;
   } | null;
 };
+
+type AvatarAsset = {
+  id: string;
+  name: string;
+  asset_type: AvatarAssetType;
+  bucket_id: string;
+  storage_path: string;
+  mime_type: string;
+  file_size_bytes: number;
+  status: "active" | "archived" | "deleted";
+  is_selected: boolean;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+type AvatarAssetWithUrl = AvatarAsset & {
+  signedUrl: string | null;
+};
+
+const AVATAR_BUCKET = "ai-avatar-assets";
 
 const defaultSettings: AnimationSettings = {
   engine: "internal",
@@ -72,6 +109,7 @@ const defaultSettings: AnimationSettings = {
   showStatusText: true,
   lipSyncEnabled: true,
   voiceReactiveEnabled: true,
+  selectedAssetId: "",
 };
 
 const animationSettingKeys = [
@@ -88,6 +126,7 @@ const animationSettingKeys = [
   "animation_show_status_text",
   "animation_lip_sync_enabled",
   "animation_voice_reactive_enabled",
+  "animation_selected_asset_id",
 ] as const;
 
 const modes: Array<{
@@ -125,6 +164,12 @@ const modes: Array<{
     label: "Mascot",
     description: "Brand character.",
     icon: Smile,
+  },
+  {
+    id: "uploaded_asset",
+    label: "Uploaded",
+    description: "Use selected uploaded asset.",
+    icon: Upload,
   },
 ];
 
@@ -195,7 +240,8 @@ function isAnimationMode(value: unknown): value is AnimationMode {
     value === "waveform" ||
     value === "robot" ||
     value === "hologram" ||
-    value === "mascot"
+    value === "mascot" ||
+    value === "uploaded_asset"
   );
 }
 
@@ -228,6 +274,70 @@ function readBoolean(value: unknown, fallback: boolean) {
   return fallback;
 }
 
+function getAssetType(file: File): AvatarAssetType | null {
+  const cleanName = file.name.toLowerCase();
+
+  if (file.type === "image/gif" || cleanName.endsWith(".gif")) return "gif";
+  if (
+    file.type === "image/png" ||
+    file.type === "image/jpeg" ||
+    file.type === "image/webp" ||
+    cleanName.endsWith(".png") ||
+    cleanName.endsWith(".jpg") ||
+    cleanName.endsWith(".jpeg") ||
+    cleanName.endsWith(".webp")
+  ) {
+    return "image";
+  }
+
+  if (
+    file.type === "video/webm" ||
+    file.type === "video/mp4" ||
+    cleanName.endsWith(".webm") ||
+    cleanName.endsWith(".mp4")
+  ) {
+    return "video";
+  }
+
+  if (
+    file.type === "application/json" ||
+    cleanName.endsWith(".json") ||
+    cleanName.endsWith(".lottie")
+  ) {
+    return "lottie";
+  }
+
+  if (
+    file.type === "model/gltf-binary" ||
+    cleanName.endsWith(".glb")
+  ) {
+    return "glb";
+  }
+
+  if (
+    file.type === "model/gltf+json" ||
+    cleanName.endsWith(".gltf")
+  ) {
+    return "gltf";
+  }
+
+  return null;
+}
+
+function getSafeFileName(fileName: string) {
+  return fileName
+    .trim()
+    .replace(/[^a-zA-Z0-9.\-_]+/g, "-")
+    .replace(/-+/g, "-")
+    .toLowerCase();
+}
+
+function formatFileSize(size: number) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
 export default function AIAnimationPage() {
   const navigate = useNavigate();
   const [settings, setSettings] = useState<AnimationSettings>(defaultSettings);
@@ -236,15 +346,28 @@ export default function AIAnimationPage() {
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const [assets, setAssets] = useState<AvatarAssetWithUrl[]>([]);
+  const [loadingAssets, setLoadingAssets] = useState(true);
+  const [uploadingAsset, setUploadingAsset] = useState(false);
+
   const currentMode = useMemo(
     () => modes.find((mode) => mode.id === settings.mode) ?? modes[0],
     [settings.mode]
+  );
+
+  const selectedAsset = useMemo(
+    () =>
+      assets.find((asset) => asset.id === settings.selectedAssetId) ??
+      assets.find((asset) => asset.is_selected) ??
+      null,
+    [assets, settings.selectedAssetId]
   );
 
   const engineLabel = settings.zegoEnabled ? "ZEGO Digital Human" : "Internal AiXia";
 
   useEffect(() => {
     void loadSettings();
+    void loadAssets();
   }, []);
 
   function updateSetting<K extends keyof AnimationSettings>(
@@ -344,10 +467,65 @@ export default function AIAnimationPage() {
           nextSettings.voiceReactiveEnabled
         );
       }
+
+      if (row.setting_key === "animation_selected_asset_id") {
+        nextSettings.selectedAssetId =
+          typeof savedValue === "string" ? savedValue : nextSettings.selectedAssetId;
+      }
     }
 
     setSettings(nextSettings);
     setLoadingSettings(false);
+  }
+
+  async function loadAssets() {
+    setLoadingAssets(true);
+    setErrorMessage(null);
+
+    const { data, error } = await supabase
+      .from("ai_avatar_assets")
+      .select(
+        "id, name, asset_type, bucket_id, storage_path, mime_type, file_size_bytes, status, is_selected, metadata, created_at"
+      )
+      .eq("status", "active")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setErrorMessage(error.message);
+      setLoadingAssets(false);
+      return;
+    }
+
+    const rows = (data ?? []) as AvatarAsset[];
+    const rowsWithUrls = await Promise.all(
+      rows.map(async (asset) => {
+        const { data: signedData } = await supabase.storage
+          .from(AVATAR_BUCKET)
+          .createSignedUrl(asset.storage_path, 60 * 60);
+
+        return {
+          ...asset,
+          signedUrl: signedData?.signedUrl ?? null,
+        };
+      })
+    );
+
+    setAssets(rowsWithUrls);
+
+    setSettings((current) => {
+      if (current.selectedAssetId) return current;
+
+      const selectedRow = rowsWithUrls.find((asset) => asset.is_selected);
+
+      if (!selectedRow) return current;
+
+      return {
+        ...current,
+        selectedAssetId: selectedRow.id,
+      };
+    });
+
+    setLoadingAssets(false);
   }
 
   async function saveSettings() {
@@ -369,6 +547,7 @@ export default function AIAnimationPage() {
       animation_show_status_text: settings.showStatusText,
       animation_lip_sync_enabled: settings.lipSyncEnabled,
       animation_voice_reactive_enabled: settings.voiceReactiveEnabled,
+      animation_selected_asset_id: settings.selectedAssetId,
     };
 
     for (const key of animationSettingKeys) {
@@ -404,6 +583,7 @@ export default function AIAnimationPage() {
         animation_show_status_text: settings.showStatusText,
         animation_lip_sync_enabled: settings.lipSyncEnabled,
         animation_voice_reactive_enabled: settings.voiceReactiveEnabled,
+        animation_selected_asset_id: settings.selectedAssetId,
       },
     });
 
@@ -417,7 +597,212 @@ export default function AIAnimationPage() {
     setErrorMessage(null);
   }
 
-  return (
+  async function handleAssetUpload(file: File | null) {
+    if (!file || uploadingAsset) return;
+
+    setUploadingAsset(true);
+    setSavedMessage(null);
+    setErrorMessage(null);
+
+    const assetType = getAssetType(file);
+
+    if (!assetType) {
+      setErrorMessage("Unsupported file type. Use image, GIF, WebM, MP4, Lottie JSON, GLB, or GLTF.");
+      setUploadingAsset(false);
+      return;
+    }
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setErrorMessage(userError?.message || "User session not found.");
+      setUploadingAsset(false);
+      return;
+    }
+
+    const safeName = getSafeFileName(file.name);
+    const storagePath = `${user.id}/${crypto.randomUUID()}-${safeName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(AVATAR_BUCKET)
+      .upload(storagePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type || "application/octet-stream",
+      });
+
+    if (uploadError) {
+      setErrorMessage(uploadError.message);
+      setUploadingAsset(false);
+      return;
+    }
+
+    const { data: insertedAsset, error: insertError } = await supabase
+      .from("ai_avatar_assets")
+      .insert({
+        name: file.name,
+        asset_type: assetType,
+        bucket_id: AVATAR_BUCKET,
+        storage_path: storagePath,
+        mime_type: file.type || "application/octet-stream",
+        file_size_bytes: file.size,
+        status: "active",
+        is_selected: assets.length === 0,
+        metadata: {
+          original_name: file.name,
+          uploaded_from: "animation_page",
+        },
+        created_by: user.id,
+        updated_by: user.id,
+      })
+      .select("id")
+      .single();
+
+    if (insertError) {
+      await supabase.storage.from(AVATAR_BUCKET).remove([storagePath]);
+      setErrorMessage(insertError.message);
+      setUploadingAsset(false);
+      return;
+    }
+
+    const nextAssetId = String(insertedAsset.id);
+
+    if (assets.length === 0) {
+      updateSetting("selectedAssetId", nextAssetId);
+      updateSetting("mode", "uploaded_asset");
+    }
+
+    await supabase.from("ai_admin_activity_logs").insert({
+      action_type: "animation_asset_uploaded",
+      entity_type: "ai_avatar_asset",
+      entity_id: nextAssetId,
+      details: {
+        name: file.name,
+        asset_type: assetType,
+        storage_path: storagePath,
+        file_size_bytes: file.size,
+      },
+    });
+
+    setSavedMessage("Avatar asset uploaded.");
+    await loadAssets();
+    setUploadingAsset(false);
+  }
+
+  async function selectAsset(asset: AvatarAssetWithUrl) {
+    setSavedMessage(null);
+    setErrorMessage(null);
+
+    const { error } = await supabase
+      .from("ai_avatar_assets")
+      .update({
+        is_selected: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", asset.id);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    setSettings((current) => ({
+      ...current,
+      mode: "uploaded_asset",
+      selectedAssetId: asset.id,
+    }));
+
+    await supabase.rpc("ai_update_setting", {
+      p_setting_key: "animation_avatar_mode",
+      p_setting_value: {
+        value: "uploaded_asset",
+      },
+    });
+
+    await supabase.rpc("ai_update_setting", {
+      p_setting_key: "animation_selected_asset_id",
+      p_setting_value: {
+        value: asset.id,
+      },
+    });
+
+    await loadAssets();
+    setSavedMessage("Selected uploaded avatar asset.");
+  }
+
+  async function archiveAsset(asset: AvatarAssetWithUrl) {
+    setSavedMessage(null);
+    setErrorMessage(null);
+
+    const { error } = await supabase
+      .from("ai_avatar_assets")
+      .update({
+        status: "archived",
+        is_selected: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", asset.id);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    if (settings.selectedAssetId === asset.id) {
+      setSettings((current) => ({
+        ...current,
+        selectedAssetId: "",
+        mode: "orb",
+      }));
+    }
+
+    await loadAssets();
+    setSavedMessage("Avatar asset archived.");
+  }
+
+  async function deleteAsset(asset: AvatarAssetWithUrl) {
+    setSavedMessage(null);
+    setErrorMessage(null);
+
+    const { error: removeError } = await supabase.storage
+      .from(AVATAR_BUCKET)
+      .remove([asset.storage_path]);
+
+    if (removeError) {
+      setErrorMessage(removeError.message);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("ai_avatar_assets")
+      .update({
+        status: "deleted",
+        is_selected: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", asset.id);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    if (settings.selectedAssetId === asset.id) {
+      setSettings((current) => ({
+        ...current,
+        selectedAssetId: "",
+        mode: "orb",
+      }));
+    }
+
+    await loadAssets();
+    setSavedMessage("Avatar asset deleted.");
+  }
+
+    return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-5">
       <div className="mx-auto grid w-full max-w-[1540px] gap-4">
         <header className="rounded-[28px] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/30 backdrop-blur-xl">
@@ -444,7 +829,7 @@ export default function AIAnimationPage() {
               </h1>
 
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
-                Internal AiXia animation is the default. ZEGO Digital Human is an optional external engine, OFF by default, prepared for later API integration.
+                Internal AiXia animation is the default. Uploaded avatar assets are stored in the private Supabase bucket and loaded with signed URLs.
               </p>
             </div>
 
@@ -462,9 +847,9 @@ export default function AIAnimationPage() {
                 tone={getStateTone(settings.previewState)}
               />
               <MetricCard
-                icon={Gauge}
-                label="Intensity"
-                value={`${settings.intensity}%`}
+                icon={Box}
+                label="Assets"
+                value={`${assets.length}`}
                 tone="violet"
               />
             </div>
@@ -492,9 +877,9 @@ export default function AIAnimationPage() {
             <Panel
               eyebrow="Preview"
               title={settings.zegoEnabled ? "ZEGO Preview" : `${currentMode.label} Preview`}
-              description={loadingSettings ? "Loading saved animation settings..." : "Live visual preview for Phase 2."}
+              description={loadingSettings ? "Loading saved animation settings..." : "Live visual preview for Phase 3."}
             >
-              <AnimationPreview settings={settings} />
+              <AnimationPreview settings={settings} selectedAsset={selectedAsset} />
 
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <button
@@ -530,7 +915,7 @@ export default function AIAnimationPage() {
                   icon={Sparkles}
                   label="Internal AiXia Animation Engine"
                   status="Default Active"
-                  description="Native visuals, motion controls, uploaded assets later, basic native lip-sync later."
+                  description="Native visuals, motion controls, uploaded assets, and basic native lip-sync later."
                   onClick={() => setZegoEnabled(false)}
                 />
 
@@ -550,7 +935,7 @@ export default function AIAnimationPage() {
             <Panel
               eyebrow="Controls"
               title={settings.zegoEnabled ? "ZEGO Configuration Preview" : "Internal Motion Controls"}
-              description={settings.zegoEnabled ? "ZEGO is visible only. No API calls in Phase 2." : "These settings save to ai_settings."}
+              description={settings.zegoEnabled ? "ZEGO is visible only. No API calls in Phase 3." : "These settings save to ai_settings."}
             >
               {settings.zegoEnabled ? (
                 <ZegoPlannedPanel />
@@ -608,9 +993,9 @@ export default function AIAnimationPage() {
             <Panel
               eyebrow="Avatar Source"
               title="Internal Visual Mode"
-              description="Uploadable image, video, Lottie, and 3D assets come later."
+              description="Choose built-in mode or use a selected uploaded asset."
             >
-              <div className="grid grid-cols-5 gap-3">
+              <div className="grid grid-cols-6 gap-3">
                 {modes.map((mode) => (
                   <ModeCard
                     key={mode.id}
@@ -643,22 +1028,82 @@ export default function AIAnimationPage() {
                 ))}
               </div>
             </Panel>
+
+            <Panel
+              eyebrow="Asset Library"
+              title="Uploaded Avatar Assets"
+              description="Images, GIFs, videos, Lottie JSON, GLB, and GLTF are saved in the private ai-avatar-assets bucket."
+            >
+              <div className="grid gap-4">
+                <label className="flex cursor-pointer flex-col items-center justify-center rounded-[24px] border border-dashed border-cyan-400/30 bg-cyan-500/10 px-5 py-6 text-center transition hover:border-cyan-300/60 hover:bg-cyan-500/15">
+                  <Upload className="h-8 w-8 text-cyan-200" />
+                  <div className="mt-3 text-sm font-semibold text-white">
+                    {uploadingAsset ? "Uploading..." : "Upload Avatar Asset"}
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-cyan-100/70">
+                    PNG, JPG, WEBP, GIF, WEBM, MP4, Lottie JSON, GLB, GLTF
+                  </p>
+                  <input
+                    type="file"
+                    disabled={uploadingAsset}
+                    accept="image/png,image/jpeg,image/webp,image/gif,video/webm,video/mp4,application/json,.lottie,.glb,.gltf"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      event.target.value = "";
+                      void handleAssetUpload(file);
+                    }}
+                  />
+                </label>
+
+                {loadingAssets ? (
+                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-400">
+                    Loading avatar assets...
+                  </div>
+                ) : assets.length === 0 ? (
+                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-400">
+                    No uploaded assets yet.
+                  </div>
+                ) : (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {assets.map((asset) => (
+                      <AssetCard
+                        key={asset.id}
+                        asset={asset}
+                        selected={selectedAsset?.id === asset.id}
+                        onSelect={() => void selectAsset(asset)}
+                        onArchive={() => void archiveAsset(asset)}
+                        onDelete={() => void deleteAsset(asset)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Panel>
           </div>
 
           <div className="grid content-start gap-4">
             <Panel
-              eyebrow="Phase 2 Status"
+              eyebrow="Phase 3 Status"
               title="What This Includes"
-              description="Settings now load from and save to ai_settings."
+              description="Upload system + signed URL asset library."
             >
               <div className="grid gap-2">
                 <StatusLine label="Internal engine" value="Default active" tone="emerald" />
                 <StatusLine label="ZEGO engine" value="OFF by default" tone="amber" />
                 <StatusLine label="Backend persistence" value="Active" tone="emerald" />
-                <StatusLine label="Asset uploads" value="Phase 3" tone="slate" />
+                <StatusLine label="Asset uploads" value="Active" tone="emerald" />
                 <StatusLine label="Native lip-sync" value="Phase 4" tone="slate" />
                 <StatusLine label="Voice page connection" value="Phase 5" tone="slate" />
               </div>
+            </Panel>
+
+            <Panel
+              eyebrow="Selected Asset"
+              title={selectedAsset ? selectedAsset.name : "No uploaded asset selected"}
+              description={selectedAsset ? `${selectedAsset.asset_type.toUpperCase()} · ${formatFileSize(selectedAsset.file_size_bytes)}` : "Select or upload an asset to preview it."}
+            >
+              <AssetPreview asset={selectedAsset} />
             </Panel>
 
             <Panel
@@ -672,7 +1117,7 @@ export default function AIAnimationPage() {
                 <ConfigRow label="Region" value="Not configured" />
                 <ConfigRow label="Status" value="Not connected" />
                 <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200">
-                  No API calls, no streams, no billing in Phase 2.
+                  No API calls, no streams, no billing in Phase 3.
                 </div>
               </div>
             </Panel>
@@ -683,7 +1128,13 @@ export default function AIAnimationPage() {
   );
 }
 
-function AnimationPreview({ settings }: { settings: AnimationSettings }) {
+function AnimationPreview({
+  settings,
+  selectedAsset,
+}: {
+  settings: AnimationSettings;
+  selectedAsset: AvatarAssetWithUrl | null;
+}) {
   if (settings.zegoEnabled) {
     return (
       <div className="relative flex h-[300px] items-center justify-center overflow-hidden rounded-[22px] border border-amber-400/20 bg-black/25">
@@ -694,9 +1145,28 @@ function AnimationPreview({ settings }: { settings: AnimationSettings }) {
           </div>
           <h3 className="mt-4 text-xl font-semibold text-white">ZEGO Enabled</h3>
           <p className="mt-2 text-xs leading-5 text-slate-400">
-            Visible only for Phase 2. No API calls, streams, secrets, or billing.
+            Visible only for Phase 3. No API calls, streams, secrets, or billing.
           </p>
         </div>
+      </div>
+    );
+  }
+
+  if (settings.mode === "uploaded_asset") {
+    return (
+      <div className="relative flex h-[300px] items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.16),transparent_48%)]" />
+        <AssetPreview asset={selectedAsset} large />
+        {settings.showStatusText ? (
+          <div className="absolute bottom-4 left-4 right-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-3 text-center backdrop-blur-xl">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/70">
+              Uploaded Asset Preview
+            </div>
+            <div className="mt-1 text-xl font-semibold text-emerald-100">
+              {selectedAsset?.name ?? "No asset selected"}
+            </div>
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -763,6 +1233,184 @@ function AnimationPreview({ settings }: { settings: AnimationSettings }) {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function AssetPreview({
+  asset,
+  large = false,
+}: {
+  asset: AvatarAssetWithUrl | null;
+  large?: boolean;
+}) {
+  if (!asset || !asset.signedUrl) {
+    return (
+      <div
+        className={`flex ${
+          large ? "h-full w-full" : "h-[220px]"
+        } items-center justify-center rounded-[22px] border border-white/10 bg-black/25 text-center`}
+      >
+        <div>
+          <Box className="mx-auto h-10 w-10 text-slate-500" />
+          <div className="mt-3 text-sm font-semibold text-white">
+            No asset selected
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            Upload or select an avatar asset.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (asset.asset_type === "image" || asset.asset_type === "gif") {
+    return (
+      <div
+        className={`flex ${
+          large ? "h-full w-full" : "h-[220px]"
+        } items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25`}
+      >
+        <img
+          src={asset.signedUrl}
+          alt={asset.name}
+          className="h-full w-full object-contain"
+        />
+      </div>
+    );
+  }
+
+  if (asset.asset_type === "video") {
+    return (
+      <div
+        className={`flex ${
+          large ? "h-full w-full" : "h-[220px]"
+        } items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25`}
+      >
+        <video
+          src={asset.signedUrl}
+          className="h-full w-full object-contain"
+          controls={!large}
+          autoPlay={large}
+          muted
+          loop
+          playsInline
+        />
+      </div>
+    );
+  }
+
+  const Icon =
+    asset.asset_type === "lottie"
+      ? FileJson
+      : asset.asset_type === "glb" || asset.asset_type === "gltf"
+        ? Cuboid
+        : Box;
+
+  return (
+    <div
+      className={`flex ${
+        large ? "h-full w-full" : "h-[220px]"
+      } items-center justify-center rounded-[22px] border border-white/10 bg-black/25 text-center`}
+    >
+      <div>
+        <Icon className="mx-auto h-12 w-12 text-cyan-200" />
+        <div className="mt-3 text-sm font-semibold text-white">
+          {asset.asset_type.toUpperCase()} uploaded
+        </div>
+        <p className="mt-1 max-w-[260px] text-xs leading-5 text-slate-500">
+          Rendering support for this asset type is prepared in the library.
+          Full live renderer comes in the next implementation pass.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function AssetCard({
+  asset,
+  selected,
+  onSelect,
+  onArchive,
+  onDelete,
+}: {
+  asset: AvatarAssetWithUrl;
+  selected: boolean;
+  onSelect: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
+}) {
+  const Icon =
+    asset.asset_type === "image" || asset.asset_type === "gif"
+      ? Image
+      : asset.asset_type === "video"
+        ? Video
+        : asset.asset_type === "lottie"
+          ? FileJson
+          : Cuboid;
+
+  return (
+    <div
+      className={`overflow-hidden rounded-2xl border ${
+        selected
+          ? "border-emerald-400/40 bg-emerald-500/10"
+          : "border-white/10 bg-black/20"
+      }`}
+    >
+      <div className="flex h-[120px] items-center justify-center overflow-hidden border-b border-white/10 bg-black/25">
+        {asset.signedUrl && (asset.asset_type === "image" || asset.asset_type === "gif") ? (
+          <img
+            src={asset.signedUrl}
+            alt={asset.name}
+            className="h-full w-full object-cover"
+          />
+        ) : asset.signedUrl && asset.asset_type === "video" ? (
+          <video
+            src={asset.signedUrl}
+            className="h-full w-full object-cover"
+            muted
+            loop
+            playsInline
+          />
+        ) : (
+          <Icon className="h-10 w-10 text-cyan-200" />
+        )}
+      </div>
+
+      <div className="p-3">
+        <div className="line-clamp-1 text-sm font-semibold text-white">
+          {asset.name}
+        </div>
+        <div className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">
+          {asset.asset_type} · {formatFileSize(asset.file_size_bytes)}
+        </div>
+
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={onSelect}
+            className="inline-flex items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-2 py-2 text-xs font-semibold text-cyan-200 transition hover:border-cyan-300/50"
+          >
+            {selected ? "Active" : "Use"}
+          </button>
+
+          <button
+            type="button"
+            onClick={onArchive}
+            className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2 text-xs font-semibold text-slate-300 transition hover:border-white/20"
+          >
+            <Archive className="h-3.5 w-3.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={onDelete}
+            className="inline-flex items-center justify-center rounded-xl border border-rose-400/20 bg-rose-500/10 px-2 py-2 text-xs font-semibold text-rose-200 transition hover:border-rose-300/50"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -865,212 +1513,4 @@ function ToggleControl({
       )}
     </button>
   );
-}
-
-function EngineCard({
-  selected,
-  icon: Icon,
-  label,
-  status,
-  description,
-  onClick,
-}: {
-  selected: boolean;
-  icon: ElementType;
-  label: string;
-  status: string;
-  description: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-2xl border p-4 text-left transition ${
-        selected
-          ? "border-cyan-400/30 bg-cyan-500/10"
-          : "border-white/10 bg-black/20 hover:border-white/20"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div
-            className={`rounded-2xl border p-3 ${
-              selected
-                ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
-                : "border-white/10 bg-white/[0.04] text-slate-500"
-            }`}
-          >
-            <Icon className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-white">{label}</div>
-            <div className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-cyan-200/70">
-              {status}
-            </div>
-            <p className="mt-2 text-xs leading-5 text-slate-500">{description}</p>
-          </div>
-        </div>
-        {selected ? <CheckCircle2 className="h-5 w-5 shrink-0 text-cyan-200" /> : null}
-      </div>
-    </button>
-  );
-}
-
-function ModeCard({
-  selected,
-  disabled = false,
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  selected: boolean;
-  disabled?: boolean;
-  icon: ElementType;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex h-[96px] flex-col items-center justify-center gap-2 rounded-2xl border text-center transition ${
-        selected
-          ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
-          : "border-white/10 bg-black/20 text-slate-300 hover:border-white/20"
-      } disabled:cursor-not-allowed disabled:opacity-45`}
-    >
-      <Icon className="h-8 w-8" />
-      <div className="text-sm font-semibold">{label}</div>
-    </button>
-  );
-}
-
-function StateCard({
-  selected,
-  icon: Icon,
-  label,
-  description,
-  tone,
-  onClick,
-}: {
-  selected: boolean;
-  icon: ElementType;
-  label: string;
-  description: string;
-  tone: "cyan" | "emerald" | "amber" | "violet" | "rose" | "slate";
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex h-[122px] flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-center transition ${
-        selected
-          ? "border-emerald-400/40 bg-emerald-500/10"
-          : "border-white/10 bg-black/20 hover:border-white/20"
-      }`}
-    >
-      <Icon className={`h-7 w-7 ${toneColor(tone)}`} />
-      <div className="text-sm font-semibold text-white">{label}</div>
-      <div className="text-xs leading-4 text-slate-500">{description}</div>
-    </button>
-  );
-}
-
-function Panel({
-  eyebrow,
-  title,
-  description,
-  children,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="border-b border-white/10 px-5 py-4">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200/80">
-          {eyebrow}
-        </div>
-        <h2 className="mt-1 text-lg font-semibold tracking-tight text-white">{title}</h2>
-        {description ? <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p> : null}
-      </div>
-      <div className="p-4">{children}</div>
-    </div>
-  );
-}
-
-function ZegoPlannedPanel() {
-  return (
-    <div className="grid gap-3 md:grid-cols-2">
-      <div className="rounded-[20px] border border-amber-400/20 bg-amber-500/10 p-4 md:col-span-2">
-        <div className="flex items-start gap-3">
-          <Power className="mt-0.5 h-5 w-5 text-amber-200" />
-          <div>
-            <div className="text-sm font-semibold text-amber-100">
-              ZEGO is ON in the UI, but not connected yet
-            </div>
-            <p className="mt-2 text-xs leading-5 text-amber-100/70">
-              No API calls, no streams, no secrets, no billing in Phase 2.
-            </p>
-          </div>
-        </div>
-      </div>
-      <StatusLine label="Provider" value="ZEGO 即构" tone="amber" />
-      <StatusLine label="Connection" value="Not connected" tone="slate" />
-      <StatusLine label="API calls" value="Disabled" tone="slate" />
-      <StatusLine label="Secrets" value="Backend only later" tone="emerald" />
-    </div>
-  );
-}
-
-function ConfigRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex min-h-[48px] items-center justify-between gap-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm">
-      <span className="font-medium text-slate-300">{label}</span>
-      <span className="text-slate-500">{value}</span>
-      <Lock className="h-4 w-4 shrink-0 text-slate-400" />
-    </div>
-  );
-}
-
-function StatusLine({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "emerald" | "amber" | "slate";
-}) {
-  const toneClass =
-    tone === "emerald"
-      ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
-      : tone === "amber"
-        ? "border-amber-400/20 bg-amber-500/10 text-amber-200"
-        : "border-white/10 bg-black/20 text-slate-300";
-
-  return (
-    <div className={`rounded-2xl border px-4 py-3 ${toneClass}`}>
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] opacity-70">
-        {label}
-      </div>
-      <div className="mt-1 text-sm font-semibold">{value}</div>
-    </div>
-  );
-}
-
-function toneColor(
-  tone: "cyan" | "emerald" | "amber" | "violet" | "rose" | "slate"
-) {
-  if (tone === "emerald") return "text-emerald-200";
-  if (tone === "amber") return "text-amber-200";
-  if (tone === "violet") return "text-violet-200";
-  if (tone === "rose") return "text-rose-200";
-  if (tone === "slate") return "text-slate-300";
-  return "text-cyan-200";
 }

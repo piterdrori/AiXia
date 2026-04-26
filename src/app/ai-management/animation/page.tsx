@@ -42,6 +42,7 @@ import {
   type AvatarPackLayerManifest,
   type AvatarPackManifest,
 } from "@/lib/ai/avatarPack";
+import { AvatarPackRuntime } from "@/components/ai/avatar/AvatarPackRuntime";
 
 type AnimationEngine = "internal" | "zego";
 type AnimationMode =
@@ -1870,82 +1871,6 @@ function NativeAnimationStyles() {
         }
       `}
     </style>
-  );
-}
-function getRuntimeMouthLayer(
-  state: AnimationState,
-  lipSyncEnabled: boolean
-): AvatarPackLayerKey {
-  if (!lipSyncEnabled) return "mouth_rest";
-  if (state === "speaking") return "mouth_open";
-  if (state === "listening") return "mouth_medium";
-  if (state === "thinking") return "mouth_small";
-  return "mouth_rest";
-}
-
-function AvatarPackRuntime({
-  asset,
-  state,
-  lipSyncEnabled,
-}: {
-  asset: AvatarAssetWithUrl;
-  state: AnimationState;
-  lipSyncEnabled: boolean;
-}) {
-  const layers = asset.avatarPackLayerSignedUrls;
-  const mouthLayer = getRuntimeMouthLayer(state, lipSyncEnabled);
-  const shouldShowClosedEyes = state === "paused" || state === "thinking";
-
-  return (
-    <div className="aixia-avatar-pack-runtime relative z-10 flex h-full w-full items-center justify-center">
-      <div className="aixia-avatar-pack-stage relative h-[260px] w-[260px] overflow-hidden rounded-[32px] border border-cyan-300/20 bg-black/35 shadow-2xl shadow-cyan-400/20">
-        {layers.base_avatar ? (
-          <img
-            src={layers.base_avatar}
-            alt={`${asset.name} base avatar`}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        ) : null}
-
-        {layers.eyes_open ? (
-          <img
-            src={layers.eyes_open}
-            alt=""
-            aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        ) : null}
-
-        {shouldShowClosedEyes && layers.eyes_closed ? (
-          <img
-            src={layers.eyes_closed}
-            alt=""
-            aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        ) : null}
-
-        {state !== "paused" && layers.eyes_closed ? (
-          <img
-            src={layers.eyes_closed}
-            alt=""
-            aria-hidden="true"
-            className="aixia-avatar-pack-blink absolute inset-0 h-full w-full object-cover"
-          />
-        ) : null}
-
-        {layers[mouthLayer] ? (
-          <img
-            src={layers[mouthLayer]}
-            alt=""
-            aria-hidden="true"
-            className="aixia-avatar-pack-mouth absolute inset-0 h-full w-full object-cover"
-          />
-        ) : null}
-
-        <div className="pointer-events-none absolute inset-0 rounded-[32px] ring-1 ring-white/10" />
-      </div>
-    </div>
   );
 }
 

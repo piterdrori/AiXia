@@ -1156,13 +1156,13 @@ function AnimationPreview({
       <div className="relative flex h-[300px] items-center justify-center overflow-hidden rounded-[22px] border border-white/10 bg-black/25">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.16),transparent_48%)]" />
         <AssetPreview asset={selectedAsset} large />
-        {settings.showStatusText ? (
+         {settings.showStatusText ? (
           <div className="absolute bottom-4 left-4 right-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-3 text-center backdrop-blur-xl">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/70">
               Uploaded Asset Preview
             </div>
             <div className="mt-1 text-xl font-semibold text-emerald-100">
-              {selectedAsset?.name ?? "No asset selected"}
+              Active Avatar Asset
             </div>
           </div>
         ) : null}

@@ -926,17 +926,30 @@ export default function AIAnimationPage() {
     setDetectingAssetId(asset.id);
 
     try {
+      setSavedMessage("Step 1/5: Detecting face...");
+
       const landmarks = await detectFaceLandmarksFromImageUrl(asset.signedUrl);
 
       if (!landmarks) {
+        setSavedMessage(null);
         setErrorMessage("No face detected. Use a clear front-facing image.");
         return;
       }
+
+      setSavedMessage("Step 2/5: Generating avatar layers...");
 
       const generatedPack = await generateAvatarPackFromImageUrl({
         imageUrl: asset.signedUrl,
         landmarks,
       });
+
+      if (!generatedPack.layers.length) {
+        setSavedMessage(null);
+        setErrorMessage("Avatar pack generation failed: no layers were generated.");
+        return;
+      }
+
+      setSavedMessage("Step 3/5: Uploading avatar layers...");
 
       const uploadedLayers: Partial<Record<AvatarPackLayerKey, AvatarPackLayerManifest>> = {};
 
@@ -952,7 +965,8 @@ export default function AIAnimationPage() {
           });
 
         if (uploadError) {
-          setErrorMessage(uploadError.message);
+          setSavedMessage(null);
+          setErrorMessage(`Layer upload failed (${layer.key}): ${uploadError.message}`);
           return;
         }
 
@@ -963,6 +977,27 @@ export default function AIAnimationPage() {
           height: generatedPack.manifestDraft.canvas_size.height,
         };
       }
+
+      const requiredLayers: AvatarPackLayerKey[] = [
+        "base_avatar",
+        "eyes_open",
+        "eyes_closed",
+        "mouth_rest",
+        "mouth_small",
+        "mouth_medium",
+        "mouth_open",
+        "mouth_round",
+      ];
+
+      const missingLayer = requiredLayers.find((layerKey) => !uploadedLayers[layerKey]);
+
+      if (missingLayer) {
+        setSavedMessage(null);
+        setErrorMessage(`Avatar pack generation failed: missing layer ${missingLayer}.`);
+        return;
+      }
+
+      setSavedMessage("Step 4/5: Saving avatar manifest...");
 
       const manifest: AvatarPackManifest = {
         ...generatedPack.manifestDraft,
@@ -994,11 +1029,14 @@ export default function AIAnimationPage() {
         .eq("id", asset.id);
 
       if (error) {
-        setErrorMessage(error.message);
+        setSavedMessage(null);
+        setErrorMessage(`Avatar manifest save failed: ${error.message}`);
         return;
       }
 
-      await supabase.from("ai_admin_activity_logs").insert({
+      setSavedMessage("Step 5/5: Finalizing avatar pack...");
+
+      const { error: logError } = await supabase.from("ai_admin_activity_logs").insert({
         action_type: "animation_avatar_pack_generated",
         entity_type: "ai_avatar_asset",
         entity_id: asset.id,
@@ -1013,9 +1051,13 @@ export default function AIAnimationPage() {
         },
       });
 
+      if (logError) {
+        console.warn("Avatar pack generated, but activity log failed:", logError);
+      }
+
       await loadAssets();
       setSavedMessage("Avatar pack generated. This asset is now ready for the internal talking-avatar runtime.");
-       } catch (error) {
+    } catch (error) {
       console.error("Avatar pack preparation failed:", error);
 
       const message =
@@ -1025,12 +1067,13 @@ export default function AIAnimationPage() {
             ? error
             : JSON.stringify(error);
 
-      setErrorMessage(message || "Avatar pack preparation failed.");
+      setSavedMessage(null);
+      setErrorMessage(message || "Avatar pack preparation failed with an unknown error.");
     } finally {
       setDetectingAssetId(null);
     }
   }
-    return (
+  return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-5">
       <div className="mx-auto grid w-full max-w-[1540px] gap-4">
         <header className="rounded-[28px] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/30 backdrop-blur-xl">

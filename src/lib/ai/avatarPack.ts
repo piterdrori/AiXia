@@ -2,6 +2,9 @@ import type { AiAvatarFaceLandmarks, FacePoint } from "@/lib/ai/faceLandmarks";
 
 export type AvatarPackLayerKey =
   | "base_avatar"
+  | "body_avatar"
+  | "head_avatar"
+  | "neck_shadow"
   | "eyes_open"
   | "eyes_closed"
   | "mouth_rest"
@@ -176,7 +179,10 @@ function removeLightBackground(canvas: HTMLCanvasElement) {
     const max = Math.max(red, green, blue);
     const min = Math.min(red, green, blue);
     const colorSpread = max - min;
-    const isWhiteBackground = red > 220 && green > 220 && blue > 220 && colorSpread < 42;
+
+    const isWhiteBackground =
+      red > 220 && green > 220 && blue > 220 && colorSpread < 42;
+
     const isNearWhiteBackground = red > 238 && green > 238 && blue > 238;
 
     if (isWhiteBackground || isNearWhiteBackground) {
@@ -188,7 +194,7 @@ function removeLightBackground(canvas: HTMLCanvasElement) {
   context.putImageData(imageData, 0, 0);
 }
 
-function drawBaseAvatar(
+function drawPreparedImageToCanvas(
   image: HTMLImageElement,
   landmarks: AiAvatarFaceLandmarks,
   crop: { x: number; y: number; size: number }
@@ -215,6 +221,173 @@ function drawBaseAvatar(
   );
 
   removeLightBackground(canvas);
+
+  return canvas;
+}
+
+function getHeadMaskGeometry(landmarks: {
+  leftEye: FacePoint;
+  rightEye: FacePoint;
+  mouth: FacePoint;
+}) {
+  const eyeCenterX = (landmarks.leftEye.x + landmarks.rightEye.x) / 2;
+  const eyeCenterY = (landmarks.leftEye.y + landmarks.rightEye.y) / 2;
+  const eyeDistance = Math.abs(landmarks.rightEye.x - landmarks.leftEye.x);
+
+  const headCenterX = eyeCenterX;
+  const headCenterY = eyeCenterY + eyeDistance * 1.05;
+
+  return {
+    centerX: headCenterX,
+    centerY: headCenterY,
+    radiusX: clamp(eyeDistance * 2.05, 145, 250),
+    radiusY: clamp(eyeDistance * 2.75, 195, 315),
+  };
+}
+
+function clipHeadShape(
+  context: CanvasRenderingContext2D,
+  geometry: ReturnType<typeof getHeadMaskGeometry>
+) {
+  context.beginPath();
+  context.ellipse(
+    geometry.centerX,
+    geometry.centerY,
+    geometry.radiusX,
+    geometry.radiusY,
+    0,
+    0,
+    Math.PI * 2
+  );
+  context.clip();
+}
+
+function eraseHeadShape(
+  context: CanvasRenderingContext2D,
+  geometry: ReturnType<typeof getHeadMaskGeometry>
+) {
+  context.save();
+  context.globalCompositeOperation = "destination-out";
+  context.beginPath();
+  context.ellipse(
+    geometry.centerX,
+    geometry.centerY,
+    geometry.radiusX * 1.02,
+    geometry.radiusY * 1.03,
+    0,
+    0,
+    Math.PI * 2
+  );
+  context.fill();
+  context.restore();
+}
+
+function drawBaseAvatar(preparedCanvas: HTMLCanvasElement) {
+  const canvas = createCanvas();
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("Canvas is not available.");
+  }
+
+  context.clearRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE);
+  context.drawImage(preparedCanvas, 0, 0);
+
+  return canvas;
+}
+
+function drawBodyAvatar(
+  preparedCanvas: HTMLCanvasElement,
+  mappedLandmarks: {
+    leftEye: FacePoint;
+    rightEye: FacePoint;
+    mouth: FacePoint;
+  }
+) {
+  const canvas = createCanvas();
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("Canvas is not available.");
+  }
+
+  const headGeometry = getHeadMaskGeometry(mappedLandmarks);
+
+  context.clearRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE);
+  context.drawImage(preparedCanvas, 0, 0);
+
+  eraseHeadShape(context, headGeometry);
+
+  return canvas;
+}
+
+function drawHeadAvatar(
+  preparedCanvas: HTMLCanvasElement,
+  mappedLandmarks: {
+    leftEye: FacePoint;
+    rightEye: FacePoint;
+    mouth: FacePoint;
+  }
+) {
+  const canvas = createCanvas();
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("Canvas is not available.");
+  }
+
+  const headGeometry = getHeadMaskGeometry(mappedLandmarks);
+
+  context.clearRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE);
+
+  context.save();
+  clipHeadShape(context, headGeometry);
+  context.drawImage(preparedCanvas, 0, 0);
+  context.restore();
+
+  return canvas;
+}
+
+function drawNeckShadow(
+  mappedLandmarks: {
+    leftEye: FacePoint;
+    rightEye: FacePoint;
+    mouth: FacePoint;
+  }
+) {
+  const canvas = createTransparentLayer();
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("Canvas is not available.");
+  }
+
+  const headGeometry = getHeadMaskGeometry(mappedLandmarks);
+
+  const shadowGradient = context.createRadialGradient(
+    headGeometry.centerX,
+    headGeometry.centerY + headGeometry.radiusY * 0.78,
+    12,
+    headGeometry.centerX,
+    headGeometry.centerY + headGeometry.radiusY * 0.78,
+    headGeometry.radiusX * 0.72
+  );
+
+  shadowGradient.addColorStop(0, "rgba(0,0,0,0.20)");
+  shadowGradient.addColorStop(1, "rgba(0,0,0,0)");
+
+  context.fillStyle = shadowGradient;
+  context.beginPath();
+  context.ellipse(
+    headGeometry.centerX,
+    headGeometry.centerY + headGeometry.radiusY * 0.76,
+    headGeometry.radiusX * 0.65,
+    headGeometry.radiusY * 0.18,
+    0,
+    0,
+    Math.PI * 2
+  );
+  context.fill();
 
   return canvas;
 }
@@ -277,7 +450,19 @@ export async function generateAvatarPackFromImageUrl({
   const rightEye = mapPointToAvatarCanvas(landmarks.rightEye, crop);
   const mouth = mapPointToAvatarCanvas(landmarks.mouth, crop);
 
-  const baseCanvas = drawBaseAvatar(image, landmarks, crop);
+  const mappedLandmarks = {
+    leftEye,
+    rightEye,
+    mouth,
+  };
+
+  const preparedCanvas = drawPreparedImageToCanvas(image, landmarks, crop);
+
+  const baseCanvas = drawBaseAvatar(preparedCanvas);
+  const bodyCanvas = drawBodyAvatar(preparedCanvas, mappedLandmarks);
+  const headCanvas = drawHeadAvatar(preparedCanvas, mappedLandmarks);
+  const neckShadowCanvas = drawNeckShadow(mappedLandmarks);
+
   const eyesOpenCanvas = createTransparentLayer();
   const eyesClosedCanvas = drawEyeClosedLayer(leftEye, rightEye);
 
@@ -290,6 +475,9 @@ export async function generateAvatarPackFromImageUrl({
   return {
     layers: [
       await makeLayer("base_avatar", baseCanvas),
+      await makeLayer("body_avatar", bodyCanvas),
+      await makeLayer("head_avatar", headCanvas),
+      await makeLayer("neck_shadow", neckShadowCanvas),
       await makeLayer("eyes_open", eyesOpenCanvas),
       await makeLayer("eyes_closed", eyesClosedCanvas),
       await makeLayer("mouth_rest", mouthRestCanvas),

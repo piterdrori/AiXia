@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ElementType, ReactNode } from "react";
+import type { CSSProperties, ElementType, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -876,7 +876,7 @@ export default function AIAnimationPage() {
             <Panel
               eyebrow="Preview"
               title={settings.zegoEnabled ? "ZEGO Preview" : `${currentMode.label} Preview`}
-              description={loadingSettings ? "Loading saved animation settings..." : "Live visual preview for Phase 3."}
+              description={loadingSettings ? "Loading saved animation settings..." : "Live native animation preview for Phase 4."}
             >
               <AnimationPreview settings={settings} selectedAsset={selectedAsset} />
 
@@ -1092,7 +1092,7 @@ export default function AIAnimationPage() {
                 <StatusLine label="ZEGO engine" value="OFF by default" tone="amber" />
                 <StatusLine label="Backend persistence" value="Active" tone="emerald" />
                 <StatusLine label="Asset uploads" value="Active" tone="emerald" />
-                <StatusLine label="Native lip-sync" value="Phase 4" tone="slate" />
+                <StatusLine label="Native lip-sync" value="Active" tone="emerald" />
                 <StatusLine label="Voice page connection" value="Phase 5" tone="slate" />
               </div>
             </Panel>
@@ -1670,11 +1670,33 @@ function WaveformPreview({
   );
 }
 
-function RobotPreview({ lipSyncEnabled }: { lipSyncEnabled: boolean }) {
+function RobotPreview({
+  lipSyncEnabled,
+  state,
+}: {
+  lipSyncEnabled: boolean;
+  state: AnimationState;
+}) {
+  const mouthClass =
+    lipSyncEnabled && (state === "speaking" || state === "listening")
+      ? "aixia-mouth"
+      : "";
+
   return (
     <div className="flex flex-col items-center">
-      <Bot className="h-16 w-16" />
-      <div className={`mt-2 rounded-full bg-cyan-100 ${lipSyncEnabled ? "h-2 w-10" : "h-1 w-6"}`} />
+      <div className="relative flex h-20 w-20 items-center justify-center">
+        <Bot className="h-16 w-16" />
+        <div className="absolute left-1/2 top-[31px] flex -translate-x-1/2 gap-4">
+          <span className="aixia-blink-eye h-2 w-2 rounded-full bg-cyan-100" />
+          <span className="aixia-blink-eye h-2 w-2 rounded-full bg-cyan-100" />
+        </div>
+      </div>
+
+      <div
+        className={`mt-1 rounded-full bg-cyan-100 transition-all ${
+          mouthClass || "h-1 w-7"
+        }`}
+      />
     </div>
   );
 }

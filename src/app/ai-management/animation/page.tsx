@@ -5,26 +5,17 @@ import {
   Bot,
   CheckCircle2,
   CircleDot,
-  Eye,
-  Film,
   Gauge,
   MonitorPlay,
-  Orbit,
-  Pause,
-  Play,
-  Radio,
   RefreshCcw,
   Save,
-  Sparkles,
+  ToggleLeft,
+  ToggleRight,
   Waves,
 } from "lucide-react";
+import type { ElementType } from "react";
 
-type AnimationMode =
-  | "orb"
-  | "waveform"
-  | "robot"
-  | "hologram"
-  | "mascot";
+type AnimationMode = "orb" | "waveform" | "robot" | "hologram" | "mascot";
 
 type AnimationState =
   | "idle"
@@ -135,8 +126,7 @@ function getStateTone(state: AnimationState) {
 
 export default function AIAnimationPage() {
   const navigate = useNavigate();
-  const [settings, setSettings] =
-    useState<AnimationSettings>(defaultSettings);
+  const [settings, setSettings] = useState<AnimationSettings>(defaultSettings);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
 
   const currentMode = useMemo(
@@ -251,38 +241,52 @@ export default function AIAnimationPage() {
                   <ControlSlider
                     label="Intensity"
                     value={settings.intensity}
-                    onChange={(value) => updateSetting("intensity", value)}
+                    onChange={(value: number) =>
+                      updateSetting("intensity", value)
+                    }
                   />
                   <ControlSlider
                     label="Motion Speed"
                     value={settings.motionSpeed}
-                    onChange={(value) => updateSetting("motionSpeed", value)}
+                    onChange={(value: number) =>
+                      updateSetting("motionSpeed", value)
+                    }
                   />
                   <ControlSlider
                     label="Glow Strength"
                     value={settings.glowStrength}
-                    onChange={(value) => updateSetting("glowStrength", value)}
+                    onChange={(value: number) =>
+                      updateSetting("glowStrength", value)
+                    }
                   />
                   <ControlSlider
                     label="Pulse Strength"
                     value={settings.pulseStrength}
-                    onChange={(value) => updateSetting("pulseStrength", value)}
+                    onChange={(value: number) =>
+                      updateSetting("pulseStrength", value)
+                    }
                   />
 
                   <ToggleControl
                     label="Particles"
                     checked={settings.showParticles}
-                    onChange={(value) => updateSetting("showParticles", value)}
+                    onChange={(value: boolean) =>
+                      updateSetting("showParticles", value)
+                    }
                   />
                   <ToggleControl
                     label="Waveform"
                     checked={settings.showWaveform}
-                    onChange={(value) => updateSetting("showWaveform", value)}
+                    onChange={(value: boolean) =>
+                      updateSetting("showWaveform", value)
+                    }
                   />
                   <ToggleControl
                     label="Status Text"
                     checked={settings.showStatusText}
-                    onChange={(value) => updateSetting("showStatusText", value)}
+                    onChange={(value: boolean) =>
+                      updateSetting("showStatusText", value)
+                    }
                   />
                 </div>
               </div>
@@ -348,6 +352,280 @@ export default function AIAnimationPage() {
           </aside>
         </section>
       </div>
+    </div>
+  );
+}
+
+function AnimationPreview({ settings }: { settings: AnimationSettings }) {
+  const stateTone = getStateTone(settings.state);
+  const pulseDuration = `${Math.max(1.2, 4 - settings.motionSpeed / 28)}s`;
+  const glowOpacity = Math.max(0.18, settings.glowStrength / 100);
+  const scale =
+    settings.state === "speaking"
+      ? "scale-110"
+      : settings.state === "listening"
+        ? "scale-105"
+        : settings.state === "thinking"
+          ? "scale-100"
+          : "scale-95";
+
+  const toneClass =
+    stateTone === "violet"
+      ? "border-violet-300/60 text-violet-100 shadow-violet-400/25"
+      : stateTone === "amber"
+        ? "border-amber-300/60 text-amber-100 shadow-amber-400/25"
+        : stateTone === "rose"
+          ? "border-rose-300/60 text-rose-100 shadow-rose-400/25"
+          : stateTone === "cyan"
+            ? "border-cyan-300/70 text-cyan-100 shadow-cyan-400/30"
+            : "border-emerald-300/50 text-emerald-100 shadow-emerald-400/20";
+
+  return (
+    <div className="relative flex h-full min-h-[640px] w-full items-center justify-center overflow-hidden rounded-[30px] border border-white/10 bg-black/25">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(34,211,238,0.20),transparent_42%),radial-gradient(circle_at_50%_70%,rgba(139,92,246,0.16),transparent_46%)]" />
+
+      {settings.showParticles ? (
+        <div className="absolute inset-0 opacity-60">
+          {Array.from({ length: 18 }).map((_, index) => (
+            <span
+              key={index}
+              className="absolute h-1.5 w-1.5 rounded-full bg-cyan-200/40"
+              style={{
+                left: `${8 + ((index * 19) % 84)}%`,
+                top: `${10 + ((index * 31) % 78)}%`,
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      <div
+        className={`absolute h-72 w-72 rounded-full blur-3xl transition-all duration-700 ${scale}`}
+        style={{
+          opacity: glowOpacity,
+          background:
+            stateTone === "violet"
+              ? "rgba(167,139,250,0.7)"
+              : stateTone === "amber"
+                ? "rgba(251,191,36,0.65)"
+                : stateTone === "rose"
+                  ? "rgba(251,113,133,0.62)"
+                  : "rgba(34,211,238,0.75)",
+        }}
+      />
+
+      <div
+        className={`relative flex h-64 w-64 items-center justify-center rounded-full border bg-black/55 shadow-2xl transition-all duration-700 ${scale} ${toneClass}`}
+      >
+        <div
+          className="absolute inset-4 rounded-full border border-white/10"
+          style={{
+            animation: `pulse ${pulseDuration} ease-in-out infinite`,
+          }}
+        />
+        <div className="absolute inset-9 rounded-full border border-white/10" />
+
+        {settings.mode === "waveform" ? (
+          <WaveformPreview active={settings.showWaveform} />
+        ) : settings.mode === "robot" ? (
+          <Bot className="h-24 w-24" />
+        ) : settings.mode === "hologram" ? (
+          <div className="flex h-28 w-28 items-center justify-center rounded-3xl border border-cyan-300/40 bg-cyan-500/10 text-sm font-semibold uppercase tracking-[0.2em] text-cyan-100">
+            Holo
+          </div>
+        ) : settings.mode === "mascot" ? (
+          <div className="flex h-28 w-28 items-center justify-center rounded-full border border-white/20 bg-white/[0.06] text-5xl">
+            ✦
+          </div>
+        ) : (
+          <div className="h-28 w-28 rounded-full border border-cyan-300/30 bg-cyan-400/20 shadow-2xl shadow-cyan-400/20" />
+        )}
+      </div>
+
+      {settings.showStatusText ? (
+        <div className="absolute bottom-8 left-1/2 w-[min(520px,calc(100%-48px))] -translate-x-1/2 rounded-2xl border border-white/10 bg-black/35 px-5 py-4 text-center backdrop-blur-xl">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+            Preview State
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-white">
+            {getStateLabel(settings.state)}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function WaveformPreview({ active }: { active: boolean }) {
+  return (
+    <div className="flex h-28 items-center gap-2">
+      {Array.from({ length: 9 }).map((_, index) => (
+        <span
+          key={index}
+          className="w-2 rounded-full bg-cyan-200/80"
+          style={{
+            height: active ? `${28 + ((index * 17) % 70)}px` : "28px",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function MetricCard({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: ElementType;
+  label: string;
+  value: string;
+  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
+}) {
+  const toneClass =
+    tone === "emerald"
+      ? "text-emerald-200"
+      : tone === "amber"
+        ? "text-amber-200"
+        : tone === "violet"
+          ? "text-violet-200"
+          : tone === "rose"
+            ? "text-rose-200"
+            : "text-cyan-200";
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+          {label}
+        </p>
+        <Icon className={`h-4 w-4 ${toneClass}`} />
+      </div>
+      <p className={`mt-2 truncate text-3xl font-semibold ${toneClass}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function ControlSlider({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-sm font-semibold text-white">{label}</div>
+        <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-200">
+          {value}%
+        </div>
+      </div>
+
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={1}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="mt-4 w-full accent-cyan-400"
+      />
+    </div>
+  );
+}
+
+function ToggleControl({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={`flex items-center justify-between gap-4 rounded-2xl border px-4 py-3 text-left transition ${
+        checked
+          ? "border-cyan-400/30 bg-cyan-500/10"
+          : "border-white/10 bg-black/20 hover:border-white/20"
+      }`}
+    >
+      <div className="text-sm font-semibold text-white">{label}</div>
+      {checked ? (
+        <ToggleRight className="h-5 w-5 text-cyan-200" />
+      ) : (
+        <ToggleLeft className="h-5 w-5 text-slate-500" />
+      )}
+    </button>
+  );
+}
+
+function ChoiceCard({
+  selected,
+  label,
+  description,
+  onClick,
+}: {
+  selected: boolean;
+  label: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-start justify-between gap-4 rounded-2xl border p-4 text-left transition ${
+        selected
+          ? "border-cyan-400/30 bg-cyan-500/10"
+          : "border-white/10 bg-black/20 hover:border-white/20"
+      }`}
+    >
+      <div>
+        <div className="text-sm font-semibold text-white">{label}</div>
+        <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+      </div>
+
+      {selected ? (
+        <CheckCircle2 className="h-5 w-5 shrink-0 text-cyan-200" />
+      ) : null}
+    </button>
+  );
+}
+
+function Panel({
+  eyebrow,
+  title,
+  description,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <div className="border-b border-white/10 px-5 py-4">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200/80">
+          {eyebrow}
+        </div>
+        <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">
+          {title}
+        </h2>
+        <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+      </div>
+
+      <div className="p-5">{children}</div>
     </div>
   );
 }

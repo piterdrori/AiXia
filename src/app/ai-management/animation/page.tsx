@@ -1514,3 +1514,211 @@ function ToggleControl({
     </button>
   );
 }
+
+function EngineCard({
+  selected,
+  icon: Icon,
+  label,
+  status,
+  description,
+  onClick,
+}: {
+  selected: boolean;
+  icon: ElementType;
+  label: string;
+  status: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-2xl border p-4 text-left transition ${
+        selected
+          ? "border-cyan-400/30 bg-cyan-500/10"
+          : "border-white/10 bg-black/20 hover:border-white/20"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div
+            className={`rounded-2xl border p-3 ${
+              selected
+                ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
+                : "border-white/10 bg-white/[0.04] text-slate-500"
+            }`}
+          >
+            <Icon className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-sm font-semibold text-white">{label}</div>
+            <div className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-cyan-200/70">
+              {status}
+            </div>
+            <p className="mt-2 text-xs leading-5 text-slate-500">{description}</p>
+          </div>
+        </div>
+        {selected ? <CheckCircle2 className="h-5 w-5 shrink-0 text-cyan-200" /> : null}
+      </div>
+    </button>
+  );
+}
+
+function ModeCard({
+  selected,
+  disabled = false,
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  selected: boolean;
+  disabled?: boolean;
+  icon: ElementType;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex h-[96px] flex-col items-center justify-center gap-2 rounded-2xl border text-center transition ${
+        selected
+          ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
+          : "border-white/10 bg-black/20 text-slate-300 hover:border-white/20"
+      } disabled:cursor-not-allowed disabled:opacity-45`}
+    >
+      <Icon className="h-8 w-8" />
+      <div className="text-sm font-semibold">{label}</div>
+    </button>
+  );
+}
+
+function StateCard({
+  selected,
+  icon: Icon,
+  label,
+  description,
+  tone,
+  onClick,
+}: {
+  selected: boolean;
+  icon: ElementType;
+  label: string;
+  description: string;
+  tone: "cyan" | "emerald" | "amber" | "violet" | "rose" | "slate";
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex h-[122px] flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-center transition ${
+        selected
+          ? "border-emerald-400/40 bg-emerald-500/10"
+          : "border-white/10 bg-black/20 hover:border-white/20"
+      }`}
+    >
+      <Icon className={`h-7 w-7 ${toneColor(tone)}`} />
+      <div className="text-sm font-semibold text-white">{label}</div>
+      <div className="text-xs leading-4 text-slate-500">{description}</div>
+    </button>
+  );
+}
+
+function Panel({
+  eyebrow,
+  title,
+  description,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <div className="border-b border-white/10 px-5 py-4">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200/80">
+          {eyebrow}
+        </div>
+        <h2 className="mt-1 text-lg font-semibold tracking-tight text-white">{title}</h2>
+        {description ? <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p> : null}
+      </div>
+      <div className="p-4">{children}</div>
+    </div>
+  );
+}
+
+function ZegoPlannedPanel() {
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      <div className="rounded-[20px] border border-amber-400/20 bg-amber-500/10 p-4 md:col-span-2">
+        <div className="flex items-start gap-3">
+          <Power className="mt-0.5 h-5 w-5 text-amber-200" />
+          <div>
+            <div className="text-sm font-semibold text-amber-100">
+              ZEGO is ON in the UI, but not connected yet
+            </div>
+            <p className="mt-2 text-xs leading-5 text-amber-100/70">
+              No API calls, no streams, no secrets, no billing in Phase 3.
+            </p>
+          </div>
+        </div>
+      </div>
+      <StatusLine label="Provider" value="ZEGO 即构" tone="amber" />
+      <StatusLine label="Connection" value="Not connected" tone="slate" />
+      <StatusLine label="API calls" value="Disabled" tone="slate" />
+      <StatusLine label="Secrets" value="Backend only later" tone="emerald" />
+    </div>
+  );
+}
+
+function ConfigRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-h-[48px] items-center justify-between gap-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm">
+      <span className="font-medium text-slate-300">{label}</span>
+      <span className="text-slate-500">{value}</span>
+      <Lock className="h-4 w-4 shrink-0 text-slate-400" />
+    </div>
+  );
+}
+
+function StatusLine({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "emerald" | "amber" | "slate";
+}) {
+  const toneClass =
+    tone === "emerald"
+      ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+      : tone === "amber"
+        ? "border-amber-400/20 bg-amber-500/10 text-amber-200"
+        : "border-white/10 bg-black/20 text-slate-300";
+
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${toneClass}`}>
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] opacity-70">
+        {label}
+      </div>
+      <div className="mt-1 text-sm font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function toneColor(
+  tone: "cyan" | "emerald" | "amber" | "violet" | "rose" | "slate"
+) {
+  if (tone === "emerald") return "text-emerald-200";
+  if (tone === "amber") return "text-amber-200";
+  if (tone === "violet") return "text-violet-200";
+  if (tone === "rose") return "text-rose-200";
+  if (tone === "slate") return "text-slate-300";
+  return "text-cyan-200";
+}

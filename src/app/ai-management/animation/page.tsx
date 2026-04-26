@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ElementType, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -23,6 +23,7 @@ import {
   Waves,
   Zap,
 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 type AnimationEngine = "internal" | "zego";
 type AnimationMode = "orb" | "waveform" | "robot" | "hologram" | "mascot";
@@ -50,6 +51,13 @@ type AnimationSettings = {
   voiceReactiveEnabled: boolean;
 };
 
+type AiSettingRow = {
+  setting_key: string;
+  setting_value: {
+    value?: unknown;
+  } | null;
+};
+
 const defaultSettings: AnimationSettings = {
   engine: "internal",
   zegoEnabled: false,
@@ -65,6 +73,22 @@ const defaultSettings: AnimationSettings = {
   lipSyncEnabled: true,
   voiceReactiveEnabled: true,
 };
+
+const animationSettingKeys = [
+  "animation_engine",
+  "animation_zego_enabled",
+  "animation_avatar_mode",
+  "animation_default_state",
+  "animation_intensity",
+  "animation_motion_speed",
+  "animation_glow_strength",
+  "animation_pulse_strength",
+  "animation_show_particles",
+  "animation_show_waveform",
+  "animation_show_status_text",
+  "animation_lip_sync_enabled",
+  "animation_voice_reactive_enabled",
+] as const;
 
 const modes: Array<{
   id: AnimationMode;
@@ -161,10 +185,56 @@ function getStateTone(state: AnimationState) {
   return "emerald";
 }
 
+function isAnimationEngine(value: unknown): value is AnimationEngine {
+  return value === "internal" || value === "zego";
+}
+
+function isAnimationMode(value: unknown): value is AnimationMode {
+  return (
+    value === "orb" ||
+    value === "waveform" ||
+    value === "robot" ||
+    value === "hologram" ||
+    value === "mascot"
+  );
+}
+
+function isAnimationState(value: unknown): value is AnimationState {
+  return (
+    value === "idle" ||
+    value === "listening" ||
+    value === "thinking" ||
+    value === "speaking" ||
+    value === "paused" ||
+    value === "error"
+  );
+}
+
+function clampNumber(value: unknown, fallback: number) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) return fallback;
+
+  return Math.min(100, Math.max(0, numericValue));
+}
+
+function readBoolean(value: unknown, fallback: boolean) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (value === "true") return true;
+    if (value === "false") return false;
+  }
+
+  return fallback;
+}
+
 export default function AIAnimationPage() {
   const navigate = useNavigate();
   const [settings, setSettings] = useState<AnimationSettings>(defaultSettings);
+  const [loadingSettings, setLoadingSettings] = useState(true);
+  const [savingSettings, setSavingSettings] = useState(false);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const currentMode = useMemo(
     () => modes.find((mode) => mode.id === settings.mode) ?? modes[0],
@@ -173,16 +243,22 @@ export default function AIAnimationPage() {
 
   const engineLabel = settings.zegoEnabled ? "ZEGO Digital Human" : "Internal AiXia";
 
+  useEffect(() => {
+    void loadSettings();
+  }, []);
+
   function updateSetting<K extends keyof AnimationSettings>(
     key: K,
     value: AnimationSettings[K]
   ) {
     setSavedMessage(null);
+    setErrorMessage(null);
     setSettings((current) => ({ ...current, [key]: value }));
   }
 
   function setZegoEnabled(enabled: boolean) {
     setSavedMessage(null);
+    setErrorMessage(null);
     setSettings((current) => ({
       ...current,
       zegoEnabled: enabled,
@@ -190,13 +266,155 @@ export default function AIAnimationPage() {
     }));
   }
 
-  function resetSettings() {
-    setSettings(defaultSettings);
-    setSavedMessage("Animation page reset to internal AiXia engine.");
+  async function loadSettings() {
+    setLoadingSettings(true);
+    setErrorMessage(null);
+    setSavedMessage(null);
+
+    const { data, error } = await supabase
+      .from("ai_settings")
+      .select("setting_key, setting_value")
+      .in("setting_key", animationSettingKeys as unknown as string[]);
+
+    if (error) {
+      setErrorMessage(error.message);
+      setLoadingSettings(false);
+      return;
+    }
+
+    const rows = (data ?? []) as AiSettingRow[];
+    const nextSettings = { ...defaultSettings };
+
+    for (const row of rows) {
+      const savedValue = row.setting_value?.value;
+
+      if (row.setting_key === "animation_engine" && isAnimationEngine(savedValue)) {
+        nextSettings.engine = savedValue;
+        nextSettings.zegoEnabled = savedValue === "zego";
+      }
+
+      if (row.setting_key === "animation_zego_enabled") {
+        nextSettings.zegoEnabled = readBoolean(savedValue, nextSettings.zegoEnabled);
+        nextSettings.engine = nextSettings.zegoEnabled ? "zego" : "internal";
+      }
+
+      if (row.setting_key === "animation_avatar_mode" && isAnimationMode(savedValue)) {
+        nextSettings.mode = savedValue;
+      }
+
+      if (row.setting_key === "animation_default_state" && isAnimationState(savedValue)) {
+        nextSettings.previewState = savedValue;
+      }
+
+      if (row.setting_key === "animation_intensity") {
+        nextSettings.intensity = clampNumber(savedValue, nextSettings.intensity);
+      }
+
+      if (row.setting_key === "animation_motion_speed") {
+        nextSettings.motionSpeed = clampNumber(savedValue, nextSettings.motionSpeed);
+      }
+
+      if (row.setting_key === "animation_glow_strength") {
+        nextSettings.glowStrength = clampNumber(savedValue, nextSettings.glowStrength);
+      }
+
+      if (row.setting_key === "animation_pulse_strength") {
+        nextSettings.pulseStrength = clampNumber(savedValue, nextSettings.pulseStrength);
+      }
+
+      if (row.setting_key === "animation_show_particles") {
+        nextSettings.showParticles = readBoolean(savedValue, nextSettings.showParticles);
+      }
+
+      if (row.setting_key === "animation_show_waveform") {
+        nextSettings.showWaveform = readBoolean(savedValue, nextSettings.showWaveform);
+      }
+
+      if (row.setting_key === "animation_show_status_text") {
+        nextSettings.showStatusText = readBoolean(savedValue, nextSettings.showStatusText);
+      }
+
+      if (row.setting_key === "animation_lip_sync_enabled") {
+        nextSettings.lipSyncEnabled = readBoolean(savedValue, nextSettings.lipSyncEnabled);
+      }
+
+      if (row.setting_key === "animation_voice_reactive_enabled") {
+        nextSettings.voiceReactiveEnabled = readBoolean(
+          savedValue,
+          nextSettings.voiceReactiveEnabled
+        );
+      }
+    }
+
+    setSettings(nextSettings);
+    setLoadingSettings(false);
   }
 
-  function saveSettings() {
-    setSavedMessage("Phase 1 preview saved locally. Backend persistence comes in Phase 2.");
+  async function saveSettings() {
+    setSavingSettings(true);
+    setSavedMessage(null);
+    setErrorMessage(null);
+
+    const values: Record<(typeof animationSettingKeys)[number], string | number | boolean> = {
+      animation_engine: settings.engine,
+      animation_zego_enabled: settings.zegoEnabled,
+      animation_avatar_mode: settings.mode,
+      animation_default_state: settings.previewState,
+      animation_intensity: settings.intensity,
+      animation_motion_speed: settings.motionSpeed,
+      animation_glow_strength: settings.glowStrength,
+      animation_pulse_strength: settings.pulseStrength,
+      animation_show_particles: settings.showParticles,
+      animation_show_waveform: settings.showWaveform,
+      animation_show_status_text: settings.showStatusText,
+      animation_lip_sync_enabled: settings.lipSyncEnabled,
+      animation_voice_reactive_enabled: settings.voiceReactiveEnabled,
+    };
+
+    for (const key of animationSettingKeys) {
+      const { error } = await supabase.rpc("ai_update_setting", {
+        p_setting_key: key,
+        p_setting_value: {
+          value: values[key],
+        },
+      });
+
+      if (error) {
+        setErrorMessage(error.message);
+        setSavingSettings(false);
+        return;
+      }
+    }
+
+    await supabase.from("ai_admin_activity_logs").insert({
+      action_type: "animation_settings_updated",
+      entity_type: "ai_animation",
+      entity_id: null,
+      details: {
+        animation_engine: settings.engine,
+        animation_zego_enabled: settings.zegoEnabled,
+        animation_avatar_mode: settings.mode,
+        animation_default_state: settings.previewState,
+        animation_intensity: settings.intensity,
+        animation_motion_speed: settings.motionSpeed,
+        animation_glow_strength: settings.glowStrength,
+        animation_pulse_strength: settings.pulseStrength,
+        animation_show_particles: settings.showParticles,
+        animation_show_waveform: settings.showWaveform,
+        animation_show_status_text: settings.showStatusText,
+        animation_lip_sync_enabled: settings.lipSyncEnabled,
+        animation_voice_reactive_enabled: settings.voiceReactiveEnabled,
+      },
+    });
+
+    setSavedMessage("Animation settings saved to ai_settings.");
+    setSavingSettings(false);
+  }
+
+  async function resetSettings() {
+    setSettings(defaultSettings);
+    setSavedMessage(null);
+    setErrorMessage(null);
   }
 
   return (
@@ -253,26 +471,37 @@ export default function AIAnimationPage() {
           </div>
         </header>
 
-        {savedMessage ? (
-          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-            {savedMessage}
+        {(errorMessage || savedMessage) && (
+          <div className="grid gap-2">
+            {errorMessage ? (
+              <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                {errorMessage}
+              </div>
+            ) : null}
+
+            {savedMessage ? (
+              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+                {savedMessage}
+              </div>
+            ) : null}
           </div>
-        ) : null}
+        )}
 
         <section className="grid gap-4 xl:grid-cols-[390px_minmax(0,1fr)_390px] 2xl:grid-cols-[420px_minmax(0,1fr)_420px]">
           <div className="grid content-start gap-4">
             <Panel
               eyebrow="Preview"
               title={settings.zegoEnabled ? "ZEGO Preview" : `${currentMode.label} Preview`}
-              description="Live visual preview for Phase 1."
+              description={loadingSettings ? "Loading saved animation settings..." : "Live visual preview for Phase 2."}
             >
               <AnimationPreview settings={settings} />
 
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
-                  onClick={resetSettings}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.045] px-5 py-3 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:text-white"
+                  onClick={() => void resetSettings()}
+                  disabled={savingSettings || loadingSettings}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.045] px-5 py-3 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <RefreshCcw className="h-4 w-4" />
                   Reset
@@ -280,11 +509,12 @@ export default function AIAnimationPage() {
 
                 <button
                   type="button"
-                  onClick={saveSettings}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-blue-400/30 bg-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-400"
+                  onClick={() => void saveSettings()}
+                  disabled={savingSettings || loadingSettings}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-blue-400/30 bg-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" />
-                  Save Preview
+                  {savingSettings ? "Saving..." : "Save Settings"}
                 </button>
               </div>
             </Panel>
@@ -320,7 +550,7 @@ export default function AIAnimationPage() {
             <Panel
               eyebrow="Controls"
               title={settings.zegoEnabled ? "ZEGO Configuration Preview" : "Internal Motion Controls"}
-              description={settings.zegoEnabled ? "ZEGO is visible only. No API calls in Phase 1." : "Shape the internal AiXia animation preview."}
+              description={settings.zegoEnabled ? "ZEGO is visible only. No API calls in Phase 2." : "These settings save to ai_settings."}
             >
               {settings.zegoEnabled ? (
                 <ZegoPlannedPanel />
@@ -417,14 +647,14 @@ export default function AIAnimationPage() {
 
           <div className="grid content-start gap-4">
             <Panel
-              eyebrow="Phase 1 Status"
+              eyebrow="Phase 2 Status"
               title="What This Includes"
-              description="Foundation only. No backend or ZEGO calls."
+              description="Settings now load from and save to ai_settings."
             >
               <div className="grid gap-2">
                 <StatusLine label="Internal engine" value="Default active" tone="emerald" />
                 <StatusLine label="ZEGO engine" value="OFF by default" tone="amber" />
-                <StatusLine label="Backend persistence" value="Phase 2" tone="slate" />
+                <StatusLine label="Backend persistence" value="Active" tone="emerald" />
                 <StatusLine label="Asset uploads" value="Phase 3" tone="slate" />
                 <StatusLine label="Native lip-sync" value="Phase 4" tone="slate" />
                 <StatusLine label="Voice page connection" value="Phase 5" tone="slate" />
@@ -442,7 +672,7 @@ export default function AIAnimationPage() {
                 <ConfigRow label="Region" value="Not configured" />
                 <ConfigRow label="Status" value="Not connected" />
                 <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200">
-                  No API calls, no streams, no billing in Phase 1.
+                  No API calls, no streams, no billing in Phase 2.
                 </div>
               </div>
             </Panel>
@@ -464,7 +694,7 @@ function AnimationPreview({ settings }: { settings: AnimationSettings }) {
           </div>
           <h3 className="mt-4 text-xl font-semibold text-white">ZEGO Enabled</h3>
           <p className="mt-2 text-xs leading-5 text-slate-400">
-            Visible only for Phase 1. No API calls, streams, secrets, or billing.
+            Visible only for Phase 2. No API calls, streams, secrets, or billing.
           </p>
         </div>
       </div>
@@ -785,7 +1015,7 @@ function ZegoPlannedPanel() {
               ZEGO is ON in the UI, but not connected yet
             </div>
             <p className="mt-2 text-xs leading-5 text-amber-100/70">
-              No API calls, no streams, no secrets, no billing in Phase 1.
+              No API calls, no streams, no secrets, no billing in Phase 2.
             </p>
           </div>
         </div>

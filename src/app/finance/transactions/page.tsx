@@ -329,8 +329,7 @@ function getSectionToneClasses(tone: TransactionSectionTone) {
       };
     case "procurement":
       return {
-
-                border: "border-amber-400/25",
+        border: "border-amber-400/25",
         badge: "border-amber-400/20 bg-amber-500/10 text-amber-200",
         panel:
           "bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.13),rgba(255,255,255,0.045)_48%)]",
@@ -404,9 +403,9 @@ function TransactionMetric({ metric }: { metric: TransactionMetricCard }) {
 
 function FlowConnector() {
   return (
-    <div className="hidden flex-none items-center justify-center xl:flex">
-      <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.035] text-slate-500">
-        <ArrowRight className="h-4 w-4" />
+    <div className="hidden flex-none items-center justify-center px-3 xl:flex">
+      <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.025] text-white/45">
+        <ArrowRight className="h-3.5 w-3.5" />
       </div>
     </div>
   );
@@ -431,64 +430,68 @@ function TransactionFlowModule({
         if (!item.module.route) return;
         onOpen(item.module.route);
       }}
-      className={`group flex h-[184px] w-[250px] flex-none flex-col justify-between rounded-[24px] border border-white/10 bg-black/20 p-5 text-left transition ${
+      className={`group relative flex h-[236px] w-full overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.03] text-left backdrop-blur-xl transition-all duration-200 ${
         isClickable
-          ? "hover:border-cyan-400/25 hover:bg-white/[0.055]"
-          : "cursor-default opacity-75"
+          ? "hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.05]"
+          : "cursor-default opacity-90"
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 text-cyan-200">
-            <Icon className="h-5 w-5" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_48%)] opacity-80" />
+
+      <div className="relative flex h-full w-full flex-col gap-3 p-3.5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/80">
+              <Icon className="h-4 w-4" />
+            </div>
+
+            {item.sequenceLabel ? (
+              <div className="flex h-6 min-w-[1.65rem] items-center justify-center rounded-lg border border-white/10 bg-white/[0.06] px-1.5 text-[10px] font-medium text-white/70">
+                {item.sequenceLabel}
+              </div>
+            ) : null}
           </div>
 
-          {item.sequenceLabel ? (
-            <span className="rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-              {item.sequenceLabel}
+          <div className="flex items-center gap-3">
+            <span className="rounded-full border border-white/10 bg-white/[0.08] px-2.5 py-1 text-[10px] text-white/70">
+              {item.module.statusLabel}
             </span>
-          ) : null}
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-300">
-            {item.module.statusLabel}
-          </span>
-          <ArrowRight
-            className={`h-4 w-4 text-slate-500 transition ${
-              isClickable
-                ? "group-hover:translate-x-1 group-hover:text-cyan-200"
-                : ""
-            }`}
-          />
-        </div>
-      </div>
-
-      <div className="mt-4 space-y-2">
-        <div className="line-clamp-2 text-base font-semibold leading-5 text-white">
-          {title}
-        </div>
-        <div className="line-clamp-2 text-sm leading-6 text-slate-400">
-          {description}
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-2">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-600">
-            Records
-          </div>
-          <div className="mt-1 text-sm font-semibold text-white">
-            {formatCount(item.module.count)}
+            <ArrowRight
+              className={`h-4 w-4 text-white/30 transition-transform duration-200 ${
+                isClickable
+                  ? "group-hover:translate-x-1 group-hover:text-white/65"
+                  : ""
+              }`}
+            />
           </div>
         </div>
 
-        <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-2">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-600">
-            Updated
+        <div className="space-y-1.5">
+          <div className="line-clamp-2 text-[14px] font-medium leading-5 text-white">
+            {title}
           </div>
-          <div className="mt-1 truncate text-sm font-semibold text-white">
-            {item.module.lastUpdatedLabel}
+          <div className="line-clamp-3 text-[12px] leading-5 text-white/44">
+            {description}
+          </div>
+        </div>
+
+        <div className="mt-auto flex items-end justify-between gap-3 pt-1">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
+              Records
+            </div>
+            <div className="mt-1 text-[16px] font-semibold text-white">
+              {formatCount(item.module.count)}
+            </div>
+          </div>
+
+          <div className="text-right">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
+              Updated
+            </div>
+            <div className="mt-1 text-[12px] text-white/58">
+              {item.module.lastUpdatedLabel}
+            </div>
           </div>
         </div>
       </div>
@@ -504,14 +507,17 @@ function FlowRow({
   onOpen: (route: string) => void;
 }) {
   return (
-    <div className="overflow-x-auto overscroll-x-contain pb-2">
-      <div className="flex min-w-max items-stretch gap-4">
+    <div className="overflow-x-auto pb-3">
+      <div className="flex min-w-max items-stretch">
         {items.map((item, index) => (
           <div
             key={`${item.module.key}-${item.sequenceLabel ?? index}`}
-            className="flex flex-none items-stretch gap-4"
+            className="flex flex-none items-stretch"
           >
-            <TransactionFlowModule item={item} onOpen={onOpen} />
+            <div className="w-[220px] min-w-[220px] max-w-[220px] flex-none">
+              <TransactionFlowModule item={item} onOpen={onOpen} />
+            </div>
+
             {index < items.length - 1 ? <FlowConnector /> : null}
           </div>
         ))}
@@ -614,7 +620,7 @@ function TransactionsSectionCard({
             <Icon className="h-4 w-4" />
           </div>
 
-                    <div className="min-w-0">
+          <div className="min-w-0">
             <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
               {title}
             </h2>
@@ -1541,4 +1547,3 @@ export default function FinanceTransactionsPage() {
     </div>
   );
 }
-

@@ -431,11 +431,21 @@ export default function FinanceCustomerPoDetailPage() {
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   }
 
-  async function updateCustomerPoStatus(status: CustomerPoStatus) {
+  async function handleCreateProformaInvoice() {
     if (!customerPo) return;
 
-    if (status === "verified" && !hasCustomerPoFile) {
-      setError("Customer PO document must be uploaded before verification.");
+    if (customerPo.status !== "verified") {
+      setError("Customer PO must be verified before creating a proforma invoice.");
+      return;
+    }
+
+    if (!hasCustomerPoFile) {
+      setError("Customer PO document must be uploaded before creating a proforma invoice.");
+      return;
+    }
+
+    if (customerPo.proforma_invoice_id) {
+      navigate(`/finance/transactions/proforma-invoices/${customerPo.proforma_invoice_id}`);
       return;
     }
 
@@ -443,37 +453,26 @@ export default function FinanceCustomerPoDetailPage() {
       setIsSaving(true);
       setError("");
 
-      const userId = await getCurrentUserId();
+      const { data: newProformaId, error: rpcError } = await supabase.rpc(
+        "finance_create_proforma_from_client_po",
+        {
+          p_client_po_id: customerPo.id,
+        }
+      );
 
-      const timestampPatch: Partial<CustomerPoRow> = {};
+      if (rpcError) throw rpcError;
 
-      if (status === "verified") timestampPatch.verified_at = new Date().toISOString();
-      if (status === "closed") timestampPatch.closed_at = new Date().toISOString();
-      if (status === "canceled") timestampPatch.canceled_at = new Date().toISOString();
-      if (status === "archived" || status === "deleted") {
-        timestampPatch.archived_at = new Date().toISOString();
+      if (!newProformaId) {
+        throw new Error("Proforma invoice was not created.");
       }
 
-      const { error: updateError } = await supabase
-        .from("finance_client_purchase_orders")
-        .update({
-          status,
-          ...timestampPatch,
-          updated_by: userId,
-        })
-        .eq("id", customerPo.id);
-
-      if (updateError) throw updateError;
-
-      await loadCustomerPo();
-
-      if (status === "archived" || status === "deleted") {
-        navigate("/finance/transactions/customer-pos");
-      }
+      navigate(`/finance/transactions/proforma-invoices/${newProformaId}`);
     } catch (err) {
       console.error(err);
       setError(
-        err instanceof Error ? err.message : "Failed to update Customer PO."
+        err instanceof Error
+          ? err.message
+          : "Failed to create proforma invoice from Customer PO."
       );
     } finally {
       setIsSaving(false);
@@ -685,6 +684,29 @@ export default function FinanceCustomerPoDetailPage() {
                 >
                   <CheckCircle className="mr-2 h-4 w-4" />
                   Verify PO
+                </Button>
+              ) : null}
+
+              {customerPo.status === "verified" && !customerPo.proforma_invoice_id ? (
+                <Button
+                  onClick={() => void handleCreateProformaInvoice()}
+                  disabled={isSaving || !hasCustomerPoFile}
+                  className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Create Proforma Invoice
+                </Button>
+              ) : null}
+
+              {customerPo.proforma_invoice_id ? (
+                <Button
+                  onClick={() =>
+                    navigate(`/finance/transactions/proforma-invoices/${customerPo.proforma_invoice_id}`)
+                  }
+                  className="h-11 rounded-2xl border border-violet-400/20 bg-violet-500 px-4 font-semibold text-white hover:bg-violet-400"
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Open Proforma Invoice
                 </Button>
               ) : null}
 

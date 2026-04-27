@@ -665,6 +665,11 @@ export default function FinanceProformaInvoiceDetailPage() {
     [taskIdDraft, tasks]
   );
 
+  const selectedDraftCurrency = useMemo(
+    () => currencies.find((entry) => entry.id === currencyIdDraft) ?? null,
+    [currencies, currencyIdDraft]
+  );
+
   const selectedDraftPaymentTerm = useMemo(
     () => paymentTerms.find((entry) => entry.id === paymentTermsIdDraft) ?? null,
     [paymentTerms, paymentTermsIdDraft]

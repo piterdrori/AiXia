@@ -111,6 +111,23 @@ type CustomerPoSource = {
   task_id: string | null;
 };
 
+type CustomerPoLineSource = {
+  id: string;
+  client_po_id: string;
+  item_id: string | null;
+  description: string;
+  quantity: number | string | null;
+  unit_price: number | string | null;
+  discount: number | string | null;
+  sort_order: number | null;
+  unit_of_measure_id: string | null;
+  tax_code_id: string | null;
+  revenue_category_id: string | null;
+  project_id: string | null;
+  task_id: string | null;
+  status: string;
+};
+
 type ProformaItemRow = {
   localId: string;
   itemId: string;
@@ -409,23 +426,53 @@ export default function FinanceNewProformaInvoicePage() {
               .join("\n")
           );
 
-          setRows([
-            {
-              localId: crypto.randomUUID(),
-              itemId: "",
-              description: `Customer PO ${
-                typedCustomerPo.external_po_number ||
-                typedCustomerPo.client_po_number ||
-                ""
-              }`.trim(),
-              quantity: "1",
-              unitPrice: String(Number(typedCustomerPo.total_amount || 0)),
-              discount: "0",
-              taxCodeId: "",
-              unitOfMeasureId: "",
-              revenueCategoryId: "",
-            },
-          ]);
+          const { data: customerPoLinesData, error: customerPoLinesError } =
+            await supabase
+              .from("finance_client_purchase_order_line_items")
+              .select(
+                "id, client_po_id, item_id, description, quantity, unit_price, discount, sort_order, unit_of_measure_id, tax_code_id, revenue_category_id, project_id, task_id, status"
+              )
+              .eq("client_po_id", typedCustomerPo.id)
+              .eq("status", "active")
+              .order("sort_order", { ascending: true });
+
+          if (customerPoLinesError) throw customerPoLinesError;
+
+          const customerPoLines = (customerPoLinesData || []) as CustomerPoLineSource[];
+
+          if (customerPoLines.length > 0) {
+            setRows(
+              customerPoLines.map((line) => ({
+                localId: crypto.randomUUID(),
+                itemId: line.item_id || "",
+                description: line.description || "",
+                quantity: String(line.quantity ?? 1),
+                unitPrice: String(line.unit_price ?? 0),
+                discount: String(line.discount ?? 0),
+                taxCodeId: line.tax_code_id || "",
+                unitOfMeasureId: line.unit_of_measure_id || "",
+                revenueCategoryId: line.revenue_category_id || "",
+              }))
+            );
+          } else {
+            setRows([
+              {
+                localId: crypto.randomUUID(),
+                itemId: "",
+                description: `Customer PO ${
+                  typedCustomerPo.external_po_number ||
+                  typedCustomerPo.client_po_number ||
+                  ""
+                }`.trim(),
+                quantity: "1",
+                unitPrice: String(Number(typedCustomerPo.total_amount || 0)),
+                discount: "0",
+                taxCodeId: "",
+                unitOfMeasureId: "",
+                revenueCategoryId: "",
+              },
+            ]);
+          }
         }
       } else if (!companyId && (companiesResult.data || []).length === 1) {
         setCompanyId(companiesResult.data![0].id);

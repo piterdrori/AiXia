@@ -4,13 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import QuotationPrintDocument from "./QuotationPrintDocument";
 import {
-  ArrowLeft,
+  ArrowRight,
   CheckCircle,
   Printer,
   RefreshCw,
   Save,
-  Trash2,
   SquarePen,
+  Trash2,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -256,9 +256,9 @@ function formatFinanceDate(value: string | null | undefined) {
 function getQuotationStatusBadgeClasses(status: QuotationRecord["status"]) {
   switch (status) {
     case "draft":
-      return "border-white/10 bg-white/10 text-white/75";
+      return "border-slate-400/20 bg-white/[0.06] text-slate-300";
     case "issued":
-      return "border-sky-400/20 bg-sky-500/10 text-sky-200";
+      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
     case "sent":
       return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
     case "accepted":
@@ -303,6 +303,10 @@ function getQuotationStatusLabel(status: QuotationRecord["status"]) {
   }
 }
 
+function getEditableStatusLabel(canEditQuotation: boolean) {
+  return canEditQuotation ? "Editable" : "Locked";
+}
+
 export default function FinanceQuotationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -312,7 +316,6 @@ export default function FinanceQuotationDetailPage() {
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isMarkingIssued, setIsMarkingIssued] = useState(false);
   const [isMarkingSent, setIsMarkingSent] = useState(false);
   const [isMarkingAccepted, setIsMarkingAccepted] = useState(false);
   const [isMarkingRejected, setIsMarkingRejected] = useState(false);
@@ -357,33 +360,33 @@ export default function FinanceQuotationDetailPage() {
 
   const [error, setError] = useState("");
 
-const handlePrint = useCallback(() => {
-  const printContent = document.getElementById("quotation-print-root");
-  if (!printContent) return;
+  const handlePrint = useCallback(() => {
+    const printContent = document.getElementById("quotation-print-root");
+    if (!printContent) return;
 
-  const printWindow = window.open("", "_blank", "width=900,height=1200");
+    const printWindow = window.open("", "_blank", "width=900,height=1200");
 
-  if (!printWindow) return;
+    if (!printWindow) return;
 
-  printWindow.document.write(`
-    <html>
-      <head>
-        <title>Quotation</title>
-      </head>
-      <body>
-        ${printContent.innerHTML}
-      </body>
-    </html>
-  `);
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Quotation</title>
+        </head>
+        <body>
+          ${printContent.innerHTML}
+        </body>
+      </html>
+    `);
 
-  printWindow.document.close();
-  printWindow.focus();
+    printWindow.document.close();
+    printWindow.focus();
 
-  setTimeout(() => {
-    printWindow.print();
-    printWindow.close();
-  }, 300);
-}, []);
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 300);
+  }, []);
 
   const loadArchiveItems = useCallback(async () => {
     const { data, error } = await supabase
@@ -416,86 +419,85 @@ const handlePrint = useCallback(() => {
       setError("");
 
       try {
-                const [quotationResult, lineItemsResult, poResult] =
-          await Promise.all([
-            supabase
-              .from("finance_quotations")
-              .select(
-                [
-                  "id",
-                  "quotation_number",
-                  "client_id",
-                  "company_id",
-                  "issue_date",
-                  "valid_until",
-                  "status",
-                  "subtotal",
-                  "tax_amount",
-                  "discount_amount",
-                  "total_amount",
-                  "currency_id",
-                  "currency_code",
-                  "project_id",
-                  "task_id",
-                  "notes",
-                  "metadata",
-                  "created_at",
-                  "updated_at",
-                  "created_by",
-                  "updated_by",
-                  "client_name_snapshot",
-                  "client_contact_person_snapshot",
-                  "billing_address_snapshot",
-                  "client_email_snapshot",
-                  "client_phone_snapshot",
-                  "company_name_snapshot",
-                  "company_contact_person_snapshot",
-                  "company_address_snapshot",
-                  "company_email_snapshot",
-                  "company_phone_snapshot",
-                  "payment_terms_id",
-                  "payment_terms_snapshot",
-                  "shipping_terms_snapshot",
-                  "terms_and_conditions_snapshot",
-                ].join(", ")
-              )
-              .eq("id", id)
-              .maybeSingle(),
+        const [quotationResult, lineItemsResult, poResult] = await Promise.all([
+          supabase
+            .from("finance_quotations")
+            .select(
+              [
+                "id",
+                "quotation_number",
+                "client_id",
+                "company_id",
+                "issue_date",
+                "valid_until",
+                "status",
+                "subtotal",
+                "tax_amount",
+                "discount_amount",
+                "total_amount",
+                "currency_id",
+                "currency_code",
+                "project_id",
+                "task_id",
+                "notes",
+                "metadata",
+                "created_at",
+                "updated_at",
+                "created_by",
+                "updated_by",
+                "client_name_snapshot",
+                "client_contact_person_snapshot",
+                "billing_address_snapshot",
+                "client_email_snapshot",
+                "client_phone_snapshot",
+                "company_name_snapshot",
+                "company_contact_person_snapshot",
+                "company_address_snapshot",
+                "company_email_snapshot",
+                "company_phone_snapshot",
+                "payment_terms_id",
+                "payment_terms_snapshot",
+                "shipping_terms_snapshot",
+                "terms_and_conditions_snapshot",
+              ].join(", ")
+            )
+            .eq("id", id)
+            .maybeSingle(),
 
-             supabase
-              .from("finance_quotation_line_items")
-              .select(
-                [
-                  "id",
-                  "quotation_id",
-                  "item_name",
-                  "description",
-                  "quantity",
-                  "unit_price",
-                  "discount_rate",
-                  "tax_rate",
-                  "line_subtotal",
-                  "line_discount_amount",
-                  "line_tax_amount",
-                  "line_total",
-                  "sort_order",
-                ].join(", ")
-              )
-              .eq("quotation_id", id)
-              .order("sort_order", { ascending: true }),
+          supabase
+            .from("finance_quotation_line_items")
+            .select(
+              [
+                "id",
+                "quotation_id",
+                "item_name",
+                "description",
+                "quantity",
+                "unit_price",
+                "discount_rate",
+                "tax_rate",
+                "line_subtotal",
+                "line_discount_amount",
+                "line_tax_amount",
+                "line_total",
+                "sort_order",
+              ].join(", ")
+            )
+            .eq("quotation_id", id)
+            .order("sort_order", { ascending: true }),
 
-            supabase
-              .from("finance_client_purchase_orders")
-              .select(
-                "id, client_po_number, external_po_number, status, received_at, total_amount, created_at"
-              )
-              .eq("quotation_id", id)
-              .order("created_at", { ascending: false })
-              .limit(1)
-              .maybeSingle(),
+          supabase
+            .from("finance_client_purchase_orders")
+            .select(
+              "id, client_po_number, external_po_number, status, received_at, total_amount, created_at"
+            )
+            .eq("quotation_id", id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
 
-            loadArchiveItems(),
-          ]);
+          loadArchiveItems(),
+        ]);
 
         if (quotationResult.error) {
           throw quotationResult.error;
@@ -519,7 +521,10 @@ const handlePrint = useCallback(() => {
             .maybeSingle();
 
           if (paymentTermError) {
-            console.warn("Failed to load quotation payment term wording:", paymentTermError);
+            console.warn(
+              "Failed to load quotation payment term wording:",
+              paymentTermError
+            );
           }
 
           if (paymentTermData) {
@@ -557,7 +562,7 @@ const handlePrint = useCallback(() => {
             typedQuotation.terms_and_conditions_snapshot || ""
           );
 
-                    setLineItemsDraft(
+          setLineItemsDraft(
             typedLineItems.map((row) => ({
               id: row.id,
               item_id: "",
@@ -675,7 +680,8 @@ const handlePrint = useCallback(() => {
       setCompanies((companiesResult.data || []) as CompanyOption[]);
       setProjects((projectsResult.data || []) as ProjectRow[]);
       setTasks((tasksResult.data || []) as TaskRow[]);
-      setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
+
+            setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
       setItems((itemsResult.data || []) as ItemOption[]);
       setTaxCodes((taxCodesResult.data || []) as TaxCodeOption[]);
       setUnitsOfMeasure((unitsOfMeasureResult.data || []) as UnitOfMeasureOption[]);
@@ -828,10 +834,26 @@ const handlePrint = useCallback(() => {
     };
   }, [lineItemsDraft, taxCodes]);
 
+  const canEditQuotation =
+    quotation?.status === "draft" ||
+    quotation?.status === "issued" ||
+    quotation?.status === "sent" ||
+    quotation?.status === "accepted";
+
+  const canMarkSent =
+    quotation?.status === "draft" || quotation?.status === "issued";
+
+  const canMarkAccepted = quotation?.status === "sent";
+
+  const canMarkRejected =
+    quotation?.status === "draft" ||
+    quotation?.status === "issued" ||
+    quotation?.status === "sent";
+
   const financialSummary = useMemo(() => {
     if (!quotation || !totals) return null;
 
-    if (quotation.status === "draft") {
+    if (canEditQuotation) {
       return {
         subtotal: draftTotals.subtotal,
         discount: draftTotals.discount,
@@ -841,10 +863,10 @@ const handlePrint = useCallback(() => {
     }
 
     return totals;
-  }, [draftTotals, quotation, totals]);
+  }, [canEditQuotation, draftTotals, quotation, totals]);
 
   useEffect(() => {
-    if (!quotation || quotation.status !== "draft" || !selectedDraftClient) return;
+    if (!quotation || !canEditQuotation || !selectedDraftClient) return;
 
     if (selectedDraftClient.currency_code && !currencyIdDraft) {
       const matchedCurrency = currencies.find(
@@ -863,6 +885,7 @@ const handlePrint = useCallback(() => {
       setValidUntilDraft(base.toISOString().slice(0, 10));
     }
   }, [
+    canEditQuotation,
     currencies,
     currencyIdDraft,
     issueDateDraft,
@@ -872,47 +895,14 @@ const handlePrint = useCallback(() => {
   ]);
 
   useEffect(() => {
-    if (!quotation || quotation.status !== "draft") return;
+    if (!quotation || !canEditQuotation) return;
 
     const taskStillValid = filteredDraftTasks.some((task) => task.id === taskIdDraft);
 
     if (taskIdDraft && !taskStillValid) {
       setTaskIdDraft("");
     }
-  }, [filteredDraftTasks, quotation, taskIdDraft]);
-
-  const canEditDraft = quotation?.status === "draft";
-  const canMarkIssued = quotation?.status === "draft";
-  const canMarkSent = quotation?.status === "issued";
-  const canMarkAccepted = quotation?.status === "sent";
-  const canMarkRejected =
-    quotation?.status === "sent" || quotation?.status === "issued";
-
-  const handleMarkIssued = useCallback(async () => {
-    if (!quotation || !id) return;
-
-    setIsMarkingIssued(true);
-    setError("");
-
-    try {
-      const { error: updateError } = await supabase
-        .from("finance_quotations")
-        .update({
-          status: "issued",
-        })
-        .eq("id", id)
-        .eq("status", "draft");
-
-      if (updateError) throw updateError;
-
-      await loadQuotation(true);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to mark quotation as issued.");
-    } finally {
-      setIsMarkingIssued(false);
-    }
-  }, [id, loadQuotation, quotation]);
+  }, [canEditQuotation, filteredDraftTasks, quotation, taskIdDraft]);
 
   const handleMarkSent = useCallback(async () => {
     if (!quotation || !id) return;
@@ -927,7 +917,7 @@ const handlePrint = useCallback(() => {
           status: "sent",
         })
         .eq("id", id)
-        .eq("status", "issued");
+        .in("status", ["draft", "issued"]);
 
       if (updateError) throw updateError;
 
@@ -979,7 +969,7 @@ const handlePrint = useCallback(() => {
           status: "rejected",
         })
         .eq("id", id)
-        .in("status", ["issued", "sent"]);
+        .in("status", ["draft", "issued", "sent"]);
 
       if (updateError) throw updateError;
 
@@ -1052,7 +1042,7 @@ const handlePrint = useCallback(() => {
     }
   }, [id, loadArchiveItems, loadQuotation, quotation]);
 
-  const handleRestore = useCallback(
+    const handleRestore = useCallback(
     async (quotationId: string) => {
       setIsSavingDraft(true);
       setError("");
@@ -1195,7 +1185,7 @@ const handlePrint = useCallback(() => {
   }, []);
 
   const handleSaveDraftChanges = useCallback(async () => {
-    if (!quotation || !id || !canEditDraft) return;
+    if (!quotation || !id || !canEditQuotation) return;
 
     setIsSavingDraft(true);
     setError("");
@@ -1214,7 +1204,7 @@ const handlePrint = useCallback(() => {
     );
 
     if (!hasAtLeastOneValidLine) {
-      setError("Draft quotation must include at least one valid line item.");
+      setError("Quotation must include at least one valid line item.");
       setIsSavingDraft(false);
       return;
     }
@@ -1228,7 +1218,7 @@ const handlePrint = useCallback(() => {
 
     if (hasInvalidLine) {
       setError(
-        "Every draft quotation line must have a description or item name, quantity greater than 0, and unit price 0 or higher."
+        "Every quotation line must have a description or item name, quantity greater than 0, and unit price 0 or higher."
       );
       setIsSavingDraft(false);
       return;
@@ -1322,7 +1312,7 @@ const handlePrint = useCallback(() => {
           updated_by: user.id,
         })
         .eq("id", id)
-        .eq("status", "draft");
+        .in("status", ["draft", "issued", "sent", "accepted"]);
 
       if (quotationError) throw quotationError;
 
@@ -1362,7 +1352,7 @@ const handlePrint = useCallback(() => {
         const lineTax = taxableBase * (ratePercent / 100);
         const lineTotal = taxableBase + lineTax;
 
-                const payload = {
+        const payload = {
           quotation_id: id,
           item_name: row.item_name || row.description.trim() || null,
           description: row.description.trim() || null,
@@ -1377,7 +1367,7 @@ const handlePrint = useCallback(() => {
           sort_order: index + 1,
         };
 
-        if (row.id.startsWith("new_")) {
+                if (row.id.startsWith("new_")) {
           const { error: insertError } = await supabase
             .from("finance_quotation_line_items")
             .insert(payload);
@@ -1400,12 +1390,12 @@ const handlePrint = useCallback(() => {
       await loadQuotation(true);
     } catch (err) {
       console.error(err);
-      setError("Failed to save draft quotation changes.");
+      setError("Failed to save quotation changes.");
     } finally {
       setIsSavingDraft(false);
     }
   }, [
-    canEditDraft,
+    canEditQuotation,
     clientIdDraft,
     companyIdDraft,
     currencyIdDraft,
@@ -1431,11 +1421,27 @@ const handlePrint = useCallback(() => {
   ]);
 
   if (isLoading) {
-    return <div className="p-6 text-white/50">Loading quotation...</div>;
+    return (
+      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
+            Loading quotation...
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!quotation || !totals) {
-    return <div className="p-6 text-white/50">Quotation not found.</div>;
+    return (
+      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
+            Quotation not found.
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const printableCurrencyCode =
@@ -1445,195 +1451,360 @@ const handlePrint = useCallback(() => {
     (item) => item.status === archiveTab
   );
 
+  const activeSectionClass =
+    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
+
+  const innerPanelClass =
+    "rounded-[24px] border border-white/10 bg-black/20 p-4";
+
+  const fieldShellClass =
+    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
+
+  const readOnlyFieldClass =
+    "flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80";
+
+  const labelClass = "text-sm font-medium text-slate-300";
+
   return (
     <>
-      <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
-        <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
-          <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6 xl:p-7">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_35%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_24%)]" />
-            <div className="relative flex flex-col gap-6">
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                <div className="max-w-4xl space-y-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.24em] text-white/70 shadow-none">
-                      Receivables
-                    </Badge>
-                    <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                      Quotation workspace
-                    </Badge>
-                  </div>
+      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
 
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                        {quotation.quotation_number || "Quotation"}
-                      </h1>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => navigate("/finance/transactions")}
+                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/[0.08]"
+              >
+                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+                Transactions
+              </button>
 
-                      <Badge
-                        className={`rounded-full border px-3 py-1 text-xs shadow-none ${getQuotationStatusBadgeClasses(
-                          quotation.status
-                        )}`}
-                      >
-                        {getQuotationStatusLabel(quotation.status)}
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px]">
+                <div>
+                  <Badge className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                    Quotation Workspace
+                  </Badge>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <h1 className="text-3xl font-semibold tracking-[-0.035em] text-white md:text-4xl">
+                      {quotation.quotation_number || "Quotation"}
+                    </h1>
+
+                    <Badge
+                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] shadow-none ${getQuotationStatusBadgeClasses(
+                        quotation.status
+                      )}`}
+                    >
+                      {getQuotationStatusLabel(quotation.status)}
+                    </Badge>
+
+                    <Badge
+                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] shadow-none ${
+                        canEditQuotation
+                          ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+                          : "border-amber-400/20 bg-amber-500/10 text-amber-200"
+                      }`}
+                    >
+                      {getEditableStatusLabel(canEditQuotation)}
+                    </Badge>
+
+                    {linkedClientPO ? (
+                      <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200 shadow-none">
+                        Linked Client PO
                       </Badge>
+                    ) : null}
+                  </div>
 
-                      {linkedClientPO ? (
-                        <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-xs text-violet-200 shadow-none">
-                          Linked Client PO
-                        </Badge>
-                      ) : null}
-                    </div>
+                  <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                    Commercial quotation before client PO, proforma invoice,
+                    invoice, and payment. Quotations stay editable through
+                    negotiation, including accepted quotations, until they are
+                    rejected, converted, archived, or deleted.
+                  </p>
 
-                    <div className="text-sm text-white/50">
-                      Commercial offer before client PO, PI, invoice, and payment.
-                      Draft quotations are editable. Accepted quotations can move
-                      downstream into customer commitment.
-                    </div>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
+                      Editable negotiation document
+                    </span>
+                    <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                      Draft → Sent → Accepted
+                    </span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                      Auto-refresh enabled
+                    </span>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-3 xl:justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={() => navigate("/finance/transactions/quotations")}
-                    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                  >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back
-                  </Button>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Client
+                        </div>
+                        <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
+                          {selectedDraftClient?.legal_name ||
+                            selectedDraftClient?.name ||
+                            quotation.client_name_snapshot ||
+                            "—"}
+                        </div>
+                      </div>
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                        <CheckCircle className="h-4 w-4" />
+                      </div>
+                    </div>
+                    <div className="mt-3 text-xs leading-5 text-slate-500">
+                      Active commercial counterparty for this quotation.
+                    </div>
+                  </div>
 
-                  <Button
-                    variant="outline"
-                    onClick={handlePrint}
-                    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                  >
-                    <Printer className="mr-2 h-4 w-4" />
-                    Print
-                  </Button>
-
-                  {canMarkIssued ? (
-                    <Button
-                      onClick={() => void handleMarkIssued()}
-                      disabled={isMarkingIssued}
-                      className="h-11 rounded-2xl px-4"
-                    >
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                      {isMarkingIssued ? "Updating..." : "Mark as Issued"}
-                    </Button>
-                  ) : null}
-
-                  {canMarkSent ? (
-                    <Button
-                      onClick={() => void handleMarkSent()}
-                      disabled={isMarkingSent}
-                      className="h-11 rounded-2xl px-4"
-                    >
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                      {isMarkingSent ? "Updating..." : "Mark as Sent"}
-                    </Button>
-                  ) : null}
-
-                  {canMarkAccepted ? (
-                    <Button
-                      onClick={() => void handleMarkAccepted()}
-                      disabled={isMarkingAccepted}
-                      className="h-11 rounded-2xl px-4"
-                    >
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                      {isMarkingAccepted ? "Updating..." : "Mark as Accepted"}
-                    </Button>
-                  ) : null}
-
-                  {canMarkRejected ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => void handleMarkRejected()}
-                      disabled={isMarkingRejected}
-                      className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      {isMarkingRejected ? "Updating..." : "Mark as Rejected"}
-                    </Button>
-                  ) : null}
-
-                  {quotation.status !== "archived" &&
-                  quotation.status !== "deleted" ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => void handleArchive()}
-                      disabled={isArchiving}
-                      className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      {isArchiving ? "Archiving..." : "Archive"}
-                    </Button>
-                  ) : null}
-
-                  {quotation.status !== "deleted" &&
-                  quotation.status !== "converted" ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => void handleDelete()}
-                      disabled={isDeleting}
-                      className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      {isDeleting ? "Deleting..." : "Delete"}
-                    </Button>
-                  ) : null}
-
-                  <Button
-                    variant="outline"
-                    onClick={() => void loadQuotation(true)}
-                    disabled={isRefreshing}
-                    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                  >
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    {isRefreshing ? "Refreshing..." : "Refresh"}
-                  </Button>
+                  <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Total Value
+                        </div>
+                        <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
+                          {formatFinanceMoney(
+                            financialSummary?.total,
+                            printableCurrencyCode
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                        <CheckCircle className="h-4 w-4" />
+                      </div>
+                    </div>
+                    <div className="mt-3 text-xs leading-5 text-slate-500">
+                      Live value reflects editable quotation lines when open.
+                    </div>
+                  </div>
                 </div>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Button
+                  variant="outline"
+                  onClick={handlePrint}
+                  className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print
+                </Button>
+
+                {canMarkSent ? (
+                  <Button
+                    onClick={() => void handleMarkSent()}
+                    disabled={isMarkingSent}
+                    className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                  >
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    {isMarkingSent ? "Updating..." : "Mark as Sent"}
+                  </Button>
+                ) : null}
+
+                {canMarkAccepted ? (
+                  <Button
+                    onClick={() => void handleMarkAccepted()}
+                    disabled={isMarkingAccepted}
+                    className="h-11 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
+                  >
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    {isMarkingAccepted ? "Updating..." : "Mark as Accepted"}
+                  </Button>
+                ) : null}
+
+                                {canMarkRejected ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleMarkRejected()}
+                    disabled={isMarkingRejected}
+                    className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {isMarkingRejected ? "Updating..." : "Reject"}
+                  </Button>
+                ) : null}
+
+                {quotation.status !== "archived" &&
+                quotation.status !== "deleted" ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleArchive()}
+                    disabled={isArchiving}
+                    className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {isArchiving ? "Archiving..." : "Archive"}
+                  </Button>
+                ) : null}
+
+                {quotation.status !== "deleted" &&
+                quotation.status !== "converted" ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleDelete()}
+                    disabled={isDeleting}
+                    className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {isDeleting ? "Deleting..." : "Delete"}
+                  </Button>
+                ) : null}
+
+                <Button
+                  variant="outline"
+                  onClick={() => void loadQuotation(true)}
+                  disabled={isRefreshing}
+                  className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  {isRefreshing ? "Refreshing..." : "Refresh"}
+                </Button>
               </div>
             </div>
           </section>
 
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Subtotal
+                  </div>
+                  <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
+                    {formatFinanceMoney(
+                      financialSummary?.subtotal,
+                      printableCurrencyCode
+                    )}
+                  </div>
+                  <div className="mt-2 min-w-0 truncate text-sm leading-6 text-slate-400">
+                    Before discount and tax.
+                  </div>
+                </div>
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-cyan-400" />
+                </div>
+              </div>
+            </div>
+
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Discount
+                  </div>
+                  <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
+                    {formatFinanceMoney(
+                      financialSummary?.discount,
+                      printableCurrencyCode
+                    )}
+                  </div>
+                  <div className="mt-2 min-w-0 truncate text-sm leading-6 text-slate-400">
+                    Commercial adjustment.
+                  </div>
+                </div>
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />
+                </div>
+              </div>
+            </div>
+
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Tax
+                  </div>
+                  <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
+                    {formatFinanceMoney(
+                      financialSummary?.tax,
+                      printableCurrencyCode
+                    )}
+                  </div>
+                  <div className="mt-2 min-w-0 truncate text-sm leading-6 text-slate-400">
+                    Calculated from line items.
+                  </div>
+                </div>
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-violet-400" />
+                </div>
+              </div>
+            </div>
+
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Total
+                  </div>
+                  <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
+                    {formatFinanceMoney(
+                      financialSummary?.total,
+                      printableCurrencyCode
+                    )}
+                  </div>
+                  <div className="mt-2 min-w-0 truncate text-sm leading-6 text-slate-400">
+                    Current quotation value.
+                  </div>
+                </div>
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
             <div className="space-y-6">
-              <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <CardHeader className="border-b border-white/8 pb-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <CardTitle className="text-white">
-                        Document Overview
-                      </CardTitle>
-                      <CardDescription className="text-white/45">
-                        Commercial header, project references, currency, dates,
-                        and quotation lifecycle state.
-                      </CardDescription>
+              <Card className={activeSectionClass}>
+                <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                        <SquarePen className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                          Document Overview
+                        </CardTitle>
+                        <CardDescription className="mt-1 text-xs text-slate-500">
+                          Commercial header, project references, currency, dates,
+                          and quotation lifecycle state.
+                        </CardDescription>
+                      </div>
                     </div>
+                  </div>
 
-                    <div className="flex items-center gap-2">
-                      {editingOverview ? (
-                        <Button
-                          onClick={() => void handleSaveDraftChanges()}
-                          disabled={isSavingDraft}
-                          className="h-9 rounded-2xl px-3"
-                        >
-                          <Save className="mr-2 h-4 w-4" />
-                          {isSavingDraft ? "Saving..." : "Save"}
-                        </Button>
-                      ) : null}
+                  <div className="flex items-center gap-2">
+                    {editingOverview ? (
+                      <Button
+                        onClick={() => void handleSaveDraftChanges()}
+                        disabled={isSavingDraft}
+                        className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        {isSavingDraft ? "Saving..." : "Save"}
+                      </Button>
+                    ) : null}
 
-                      {canEditDraft ? (
-                        <Button
-                          variant="outline"
-                          onClick={() => setEditingOverview((current) => !current)}
-                          className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-                        >
-                          <SquarePen className="mr-2 h-4 w-4" />
-                          {editingOverview ? "Close" : "Edit"}
-                        </Button>
-                      ) : null}
-                    </div>
+                    {canEditQuotation ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => setEditingOverview((current) => !current)}
+                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                      >
+                        <SquarePen className="mr-2 h-4 w-4" />
+                        {editingOverview ? "Close" : "Edit"}
+                      </Button>
+                    ) : null}
                   </div>
                 </CardHeader>
 
@@ -1641,13 +1812,11 @@ const handlePrint = useCallback(() => {
                   {editingOverview ? (
                     <>
                       <label className="space-y-2">
-                        <div className="text-sm text-white/70">
-                          Issuing Company
-                        </div>
+                        <div className={labelClass}>Issuing Company</div>
                         <select
                           value={companyIdDraft}
                           onChange={(event) => setCompanyIdDraft(event.target.value)}
-                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          className={fieldShellClass}
                         >
                           <option value="">Select company</option>
                           {companies.map((company) => (
@@ -1659,11 +1828,11 @@ const handlePrint = useCallback(() => {
                       </label>
 
                       <label className="space-y-2">
-                        <div className="text-sm text-white/70">Client</div>
+                        <div className={labelClass}>Client</div>
                         <select
                           value={clientIdDraft}
                           onChange={(event) => setClientIdDraft(event.target.value)}
-                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          className={fieldShellClass}
                         >
                           <option value="">Select client</option>
                           {clients.map((client) => (
@@ -1674,12 +1843,12 @@ const handlePrint = useCallback(() => {
                         </select>
                       </label>
 
-                      <label className="space-y-2">
-                        <div className="text-sm text-white/70">Project</div>
+                                            <label className="space-y-2">
+                        <div className={labelClass}>Project</div>
                         <select
                           value={projectIdDraft}
                           onChange={(event) => setProjectIdDraft(event.target.value)}
-                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          className={fieldShellClass}
                         >
                           <option value="">No project</option>
                           {projects.map((projectItem) => (
@@ -1691,11 +1860,11 @@ const handlePrint = useCallback(() => {
                       </label>
 
                       <label className="space-y-2">
-                        <div className="text-sm text-white/70">Task</div>
+                        <div className={labelClass}>Task</div>
                         <select
                           value={taskIdDraft}
                           onChange={(event) => setTaskIdDraft(event.target.value)}
-                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          className={fieldShellClass}
                         >
                           <option value="">No task</option>
                           {filteredDraftTasks.map((taskItem) => (
@@ -1707,31 +1876,31 @@ const handlePrint = useCallback(() => {
                       </label>
 
                       <label className="space-y-2">
-                        <div className="text-sm text-white/70">Issue Date</div>
+                        <div className={labelClass}>Issue Date</div>
                         <input
                           type="date"
                           value={issueDateDraft}
-                          onChange={(e) => setIssueDateDraft(e.target.value)}
-                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          onChange={(event) => setIssueDateDraft(event.target.value)}
+                          className={fieldShellClass}
                         />
                       </label>
 
                       <label className="space-y-2">
-                        <div className="text-sm text-white/70">Valid Until</div>
+                        <div className={labelClass}>Valid Until</div>
                         <input
                           type="date"
                           value={validUntilDraft}
-                          onChange={(e) => setValidUntilDraft(e.target.value)}
-                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          onChange={(event) => setValidUntilDraft(event.target.value)}
+                          className={fieldShellClass}
                         />
                       </label>
 
                       <label className="space-y-2">
-                        <div className="text-sm text-white/70">Currency</div>
+                        <div className={labelClass}>Currency</div>
                         <select
                           value={currencyIdDraft}
                           onChange={(event) => setCurrencyIdDraft(event.target.value)}
-                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          className={fieldShellClass}
                         >
                           <option value="">Select currency</option>
                           {currencies.map((currency) => (
@@ -1742,8 +1911,8 @@ const handlePrint = useCallback(() => {
                         </select>
                       </label>
 
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      <div className={innerPanelClass}>
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                           Status
                         </div>
                         <div className="mt-2 text-base font-semibold text-white">
@@ -1752,19 +1921,19 @@ const handlePrint = useCallback(() => {
                       </div>
 
                       <div className="md:col-span-3">
-                        <div className="text-sm text-white/70">Notes</div>
+                        <div className={labelClass}>Notes</div>
                         <textarea
                           value={notesDraft}
-                          onChange={(e) => setNotesDraft(e.target.value)}
+                          onChange={(event) => setNotesDraft(event.target.value)}
                           rows={4}
-                          className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
+                          className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
                         />
                       </div>
                     </>
                   ) : (
                     <>
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      <div className={innerPanelClass}>
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                           Issuing Company
                         </div>
                         <div className="mt-2 text-base font-semibold text-white">
@@ -1775,8 +1944,8 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
 
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      <div className={innerPanelClass}>
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                           Client
                         </div>
                         <div className="mt-2 text-base font-semibold text-white">
@@ -1787,8 +1956,8 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
 
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      <div className={innerPanelClass}>
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                           Issue Date
                         </div>
                         <div className="mt-2 text-base font-semibold text-white">
@@ -1796,8 +1965,8 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
 
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      <div className={innerPanelClass}>
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                           Valid Until
                         </div>
                         <div className="mt-2 text-base font-semibold text-white">
@@ -1805,8 +1974,8 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
 
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      <div className={innerPanelClass}>
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                           Currency
                         </div>
                         <div className="mt-2 text-base font-semibold text-white">
@@ -1816,8 +1985,8 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
 
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      <div className={innerPanelClass}>
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                           Project
                         </div>
                         <div className="mt-2 text-base font-semibold text-white">
@@ -1825,8 +1994,8 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
 
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      <div className={innerPanelClass}>
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                           Task
                         </div>
                         <div className="mt-2 text-base font-semibold text-white">
@@ -1834,8 +2003,8 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
 
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      <div className={innerPanelClass}>
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                           Status
                         </div>
                         <div className="mt-2 text-base font-semibold text-white">
@@ -1843,11 +2012,11 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
 
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3 md:col-span-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                           Notes
                         </div>
-                        <div className="mt-2 text-sm leading-6 text-white/70">
+                        <div className="mt-2 text-sm leading-6 text-slate-300">
                           {quotation.notes || "—"}
                         </div>
                       </div>
@@ -1856,53 +2025,58 @@ const handlePrint = useCallback(() => {
                 </CardContent>
               </Card>
 
-              <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <CardHeader className="border-b border-white/8 pb-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <CardTitle className="text-white">
-                        Document Parties
-                      </CardTitle>
-                      <CardDescription className="text-white/45">
-                        Company and client identity snapshots plus quotation
-                        terms and conditions.
-                      </CardDescription>
+              <Card className={activeSectionClass}>
+                <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                        <CheckCircle className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                          Document Parties
+                        </CardTitle>
+                        <CardDescription className="mt-1 text-xs text-slate-500">
+                          Company and client identity snapshots plus quotation
+                          terms and conditions.
+                        </CardDescription>
+                      </div>
                     </div>
+                  </div>
 
-                    <div className="flex items-center gap-2">
-                      {editingParties ? (
-                        <Button
-                          onClick={() => void handleSaveDraftChanges()}
-                          disabled={isSavingDraft}
-                          className="h-9 rounded-2xl px-3"
-                        >
-                          <Save className="mr-2 h-4 w-4" />
-                          {isSavingDraft ? "Saving..." : "Save"}
-                        </Button>
-                      ) : null}
+                  <div className="flex items-center gap-2">
+                    {editingParties ? (
+                      <Button
+                        onClick={() => void handleSaveDraftChanges()}
+                        disabled={isSavingDraft}
+                        className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        {isSavingDraft ? "Saving..." : "Save"}
+                      </Button>
+                    ) : null}
 
-                      {canEditDraft ? (
-                        <Button
-                          variant="outline"
-                          onClick={() => setEditingParties((current) => !current)}
-                          className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-                        >
-                          <SquarePen className="mr-2 h-4 w-4" />
-                          {editingParties ? "Close" : "Edit"}
-                        </Button>
-                      ) : null}
-                    </div>
+                    {canEditQuotation ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => setEditingParties((current) => !current)}
+                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                      >
+                        <SquarePen className="mr-2 h-4 w-4" />
+                        {editingParties ? "Close" : "Edit"}
+                      </Button>
+                    ) : null}
                   </div>
                 </CardHeader>
 
                 <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                  <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                       Issuing Company
                     </div>
-                    <div className="mt-3 space-y-2 text-sm text-white/75">
+                    <div className="mt-3 space-y-3 text-sm text-slate-300">
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
                           Legal Name
                         </div>
                         <div className="mt-1 font-semibold text-white">
@@ -1913,7 +2087,7 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
                           Contact Person
                         </div>
                         <div className="mt-1">
@@ -1923,7 +2097,7 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
                           Email
                         </div>
                         <div className="mt-1">
@@ -1933,7 +2107,7 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
                           Phone
                         </div>
                         <div className="mt-1">
@@ -1942,8 +2116,9 @@ const handlePrint = useCallback(() => {
                             "—"}
                         </div>
                       </div>
-                      <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+
+                                            <div>
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
                           Primary Address
                         </div>
                         <div className="mt-1 leading-6">
@@ -1964,13 +2139,13 @@ const handlePrint = useCallback(() => {
                     </div>
                   </div>
 
-                  <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                       Client
                     </div>
-                    <div className="mt-3 space-y-2 text-sm text-white/75">
+                    <div className="mt-3 space-y-3 text-sm text-slate-300">
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
                           Legal Name
                         </div>
                         <div className="mt-1 font-semibold text-white">
@@ -1981,7 +2156,7 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
                           Contact Person
                         </div>
                         <div className="mt-1">
@@ -1991,7 +2166,7 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
                           Email
                         </div>
                         <div className="mt-1">
@@ -2002,7 +2177,7 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
                           Phone
                         </div>
                         <div className="mt-1">
@@ -2013,7 +2188,7 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
                           Primary Address
                         </div>
                         <div className="mt-1 leading-6">
@@ -2034,8 +2209,8 @@ const handlePrint = useCallback(() => {
                     </div>
                   </div>
 
-                  <div className="rounded-[22px] border border-white/8 bg-black/15 p-4 md:col-span-2">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                       Terms &amp; Conditions
                     </div>
 
@@ -2046,10 +2221,10 @@ const handlePrint = useCallback(() => {
                           setTermsAndConditionsDraft(event.target.value)
                         }
                         rows={7}
-                        className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white"
+                        className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
                       />
                     ) : (
-                      <div className="mt-3 whitespace-pre-line text-sm leading-6 text-white/75">
+                      <div className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
                         {quotation.terms_and_conditions_snapshot || "—"}
                       </div>
                     )}
@@ -2057,50 +2232,57 @@ const handlePrint = useCallback(() => {
                 </CardContent>
               </Card>
 
-              <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <CardHeader className="border-b border-white/8 pb-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <CardTitle className="text-white">Line Items</CardTitle>
-                      <CardDescription className="text-white/45">
-                        Draft quotations can be edited here. Issued, sent,
-                        accepted, rejected, and converted records are read-only.
-                      </CardDescription>
+              <Card className={activeSectionClass}>
+                <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                        <SquarePen className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                          Line Items
+                        </CardTitle>
+                        <CardDescription className="mt-1 text-xs text-slate-500">
+                          Quotation lines stay editable through negotiation,
+                          including accepted quotations.
+                        </CardDescription>
+                      </div>
                     </div>
+                  </div>
 
-                    <div className="flex items-center gap-2">
-                      {editingLines ? (
-                        <Button
-                          onClick={() => void handleSaveDraftChanges()}
-                          disabled={isSavingDraft}
-                          className="h-9 rounded-2xl px-3"
-                        >
-                          <Save className="mr-2 h-4 w-4" />
-                          {isSavingDraft ? "Saving..." : "Save"}
-                        </Button>
-                      ) : null}
+                  <div className="flex items-center gap-2">
+                    {editingLines ? (
+                      <Button
+                        onClick={() => void handleSaveDraftChanges()}
+                        disabled={isSavingDraft}
+                        className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        {isSavingDraft ? "Saving..." : "Save"}
+                      </Button>
+                    ) : null}
 
-                      {editingLines && canEditDraft ? (
-                        <Button
-                          variant="outline"
-                          onClick={addDraftLineItem}
-                          className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-                        >
-                          Add Row
-                        </Button>
-                      ) : null}
+                    {editingLines && canEditQuotation ? (
+                      <Button
+                        variant="outline"
+                        onClick={addDraftLineItem}
+                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                      >
+                        Add Row
+                      </Button>
+                    ) : null}
 
-                      {canEditDraft ? (
-                        <Button
-                          variant="outline"
-                          onClick={() => setEditingLines((current) => !current)}
-                          className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-                        >
-                          <SquarePen className="mr-2 h-4 w-4" />
-                          {editingLines ? "Close" : "Edit"}
-                        </Button>
-                      ) : null}
-                    </div>
+                    {canEditQuotation ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => setEditingLines((current) => !current)}
+                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                      >
+                        <SquarePen className="mr-2 h-4 w-4" />
+                        {editingLines ? "Close" : "Edit"}
+                      </Button>
+                    ) : null}
                   </div>
                 </CardHeader>
 
@@ -2115,7 +2297,8 @@ const handlePrint = useCallback(() => {
                           ? toNumber((row as EditableLineItem).discount)
                           : toNumber((row as EditableLineItem).quantity) *
                               toNumber((row as EditableLineItem).unit_price) *
-                              (toNumber((row as EditableLineItem).discount_rate) / 100)),
+                              (toNumber((row as EditableLineItem).discount_rate) /
+                                100)),
                       0
                     );
 
@@ -2134,21 +2317,21 @@ const handlePrint = useCallback(() => {
                     return (
                       <div
                         key={(row as EditableLineItem | QuotationLineItemRow).id}
-                        className="rounded-[22px] border border-white/8 bg-black/15 p-4"
+                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
                       >
                         <div className="mb-4 flex items-center justify-between gap-4">
-                          <div className="text-sm font-medium text-white">
+                          <div className="text-sm font-semibold text-white">
                             Line {index + 1}
                           </div>
 
-                          {editable && canEditDraft ? (
+                          {editable && canEditQuotation ? (
                             <Button
                               variant="outline"
                               onClick={() =>
                                 removeDraftLineItem((row as EditableLineItem).id)
                               }
                               disabled={lineItemsDraft.length === 1}
-                              className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+                              className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -2157,7 +2340,7 @@ const handlePrint = useCallback(() => {
 
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
                           <label className="space-y-2 md:col-span-3">
-                            <div className="text-sm text-white/70">Item</div>
+                            <div className={labelClass}>Item</div>
                             {editable ? (
                               <select
                                 value={(row as EditableLineItem).item_id}
@@ -2167,7 +2350,7 @@ const handlePrint = useCallback(() => {
                                     event.target.value
                                   )
                                 }
-                                className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                                className={fieldShellClass}
                               >
                                 <option value="">Select item</option>
                                 {items.map((item) => (
@@ -2177,14 +2360,14 @@ const handlePrint = useCallback(() => {
                                 ))}
                               </select>
                             ) : (
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
+                              <div className={readOnlyFieldClass}>
                                 {(row as QuotationLineItemRow).item_name || "—"}
                               </div>
                             )}
                           </label>
 
                           <label className="space-y-2 md:col-span-4">
-                            <div className="text-sm text-white/70">Description</div>
+                            <div className={labelClass}>Description</div>
                             {editable ? (
                               <input
                                 value={(row as EditableLineItem).description}
@@ -2200,17 +2383,17 @@ const handlePrint = useCallback(() => {
                                     )
                                   )
                                 }
-                                className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                                className={fieldShellClass}
                               />
                             ) : (
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
+                              <div className={readOnlyFieldClass}>
                                 {(row as QuotationLineItemRow).description || "—"}
                               </div>
                             )}
                           </label>
 
-                          <label className="space-y-2 md:col-span-1">
-                            <div className="text-sm text-white/70">Qty</div>
+                                                    <label className="space-y-2 md:col-span-1">
+                            <div className={labelClass}>Qty</div>
                             {editable ? (
                               <input
                                 value={(row as EditableLineItem).quantity}
@@ -2223,17 +2406,17 @@ const handlePrint = useCallback(() => {
                                     )
                                   )
                                 }
-                                className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                                className={fieldShellClass}
                               />
                             ) : (
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
+                              <div className={readOnlyFieldClass}>
                                 {toNumber((row as QuotationLineItemRow).quantity)}
                               </div>
                             )}
                           </label>
 
                           <label className="space-y-2 md:col-span-2">
-                            <div className="text-sm text-white/70">Unit</div>
+                            <div className={labelClass}>Unit</div>
                             {editable ? (
                               <select
                                 value={(row as EditableLineItem).unit_of_measure_id}
@@ -2249,7 +2432,7 @@ const handlePrint = useCallback(() => {
                                     )
                                   )
                                 }
-                                className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                                className={fieldShellClass}
                               >
                                 <option value="">Select unit</option>
                                 {unitsOfMeasure.map((unit) => (
@@ -2258,15 +2441,13 @@ const handlePrint = useCallback(() => {
                                   </option>
                                 ))}
                               </select>
-                                                       ) : (
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
-                                —
-                              </div>
+                            ) : (
+                              <div className={readOnlyFieldClass}>—</div>
                             )}
                           </label>
 
                           <label className="space-y-2 md:col-span-2">
-                            <div className="text-sm text-white/70">Unit Price</div>
+                            <div className={labelClass}>Unit Price</div>
                             {editable ? (
                               <input
                                 value={(row as EditableLineItem).unit_price}
@@ -2282,10 +2463,10 @@ const handlePrint = useCallback(() => {
                                     )
                                   )
                                 }
-                                className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                                className={fieldShellClass}
                               />
                             ) : (
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
+                              <div className={readOnlyFieldClass}>
                                 {formatFinanceMoney(
                                   toNumber((row as QuotationLineItemRow).unit_price),
                                   printableCurrencyCode
@@ -2295,7 +2476,7 @@ const handlePrint = useCallback(() => {
                           </label>
 
                           <label className="space-y-2 md:col-span-1">
-                            <div className="text-sm text-white/70">Discount</div>
+                            <div className={labelClass}>Discount</div>
                             {editable ? (
                               <input
                                 value={(row as EditableLineItem).discount_rate}
@@ -2312,10 +2493,10 @@ const handlePrint = useCallback(() => {
                                     )
                                   )
                                 }
-                                className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                                className={fieldShellClass}
                               />
                             ) : (
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
+                              <div className={readOnlyFieldClass}>
                                 {toNumber(
                                   (row as QuotationLineItemRow).discount_rate
                                 ).toFixed(2)}
@@ -2325,7 +2506,7 @@ const handlePrint = useCallback(() => {
                           </label>
 
                           <label className="space-y-2 md:col-span-2">
-                            <div className="text-sm text-white/70">Tax Code</div>
+                            <div className={labelClass}>Tax Code</div>
                             {editable ? (
                               <select
                                 value={(row as EditableLineItem).tax_code_id}
@@ -2347,7 +2528,7 @@ const handlePrint = useCallback(() => {
                                     )
                                   )
                                 }
-                                className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                                className={fieldShellClass}
                               >
                                 <option value="">Select tax</option>
                                 {taxCodes.map((taxCode) => (
@@ -2356,8 +2537,8 @@ const handlePrint = useCallback(() => {
                                   </option>
                                 ))}
                               </select>
-                                                       ) : (
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
+                            ) : (
+                              <div className={readOnlyFieldClass}>
                                 {toNumber(
                                   (row as QuotationLineItemRow).tax_rate
                                 ).toFixed(2)}
@@ -2367,9 +2548,7 @@ const handlePrint = useCallback(() => {
                           </label>
 
                           <label className="space-y-2 md:col-span-2">
-                            <div className="text-sm text-white/70">
-                              Revenue Category
-                            </div>
+                            <div className={labelClass}>Revenue Category</div>
                             {editable ? (
                               <select
                                 value={(row as EditableLineItem).revenue_category_id}
@@ -2385,7 +2564,7 @@ const handlePrint = useCallback(() => {
                                     )
                                   )
                                 }
-                                className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                                className={fieldShellClass}
                               >
                                 <option value="">Select category</option>
                                 {revenueCategories.map((category) => (
@@ -2394,16 +2573,14 @@ const handlePrint = useCallback(() => {
                                   </option>
                                 ))}
                               </select>
-                                                      ) : (
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
-                                —
-                              </div>
+                            ) : (
+                              <div className={readOnlyFieldClass}>—</div>
                             )}
                           </label>
 
                           <div className="space-y-2 md:col-span-2">
-                            <div className="text-sm text-white/70">Line Total</div>
-                            <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
+                            <div className={labelClass}>Line Total</div>
+                            <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
                               {formatFinanceMoney(rowTotal, printableCurrencyCode)}
                             </div>
                           </div>
@@ -2416,20 +2593,22 @@ const handlePrint = useCallback(() => {
             </div>
 
             <div className="space-y-6">
-              <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <CardHeader className="border-b border-white/8 pb-4">
-                  <CardTitle className="text-white">Financial Summary</CardTitle>
-                  <CardDescription className="text-white/45">
+              <Card className={activeSectionClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Financial Summary
+                  </CardTitle>
+                  <CardDescription className="mt-1 text-xs text-slate-500">
                     Live quotation totals and document currency view.
                   </CardDescription>
                 </CardHeader>
 
                 <CardContent className="space-y-3 p-5">
-                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                       Subtotal
                     </div>
-                    <div className="mt-2 text-lg font-semibold text-white">
+                    <div className="mt-2 text-2xl font-semibold text-white">
                       {formatFinanceMoney(
                         financialSummary?.subtotal,
                         printableCurrencyCode
@@ -2437,11 +2616,11 @@ const handlePrint = useCallback(() => {
                     </div>
                   </div>
 
-                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                       Discount
                     </div>
-                    <div className="mt-2 text-lg font-semibold text-white">
+                    <div className="mt-2 text-2xl font-semibold text-white">
                       {formatFinanceMoney(
                         financialSummary?.discount,
                         printableCurrencyCode
@@ -2449,11 +2628,11 @@ const handlePrint = useCallback(() => {
                     </div>
                   </div>
 
-                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                       Tax
                     </div>
-                    <div className="mt-2 text-lg font-semibold text-white">
+                    <div className="mt-2 text-2xl font-semibold text-white">
                       {formatFinanceMoney(
                         financialSummary?.tax,
                         printableCurrencyCode
@@ -2461,11 +2640,11 @@ const handlePrint = useCallback(() => {
                     </div>
                   </div>
 
-                  <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">
+                  <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-200/80">
                       Total
                     </div>
-                    <div className="mt-2 text-xl font-semibold text-white">
+                    <div className="mt-2 text-2xl font-semibold text-white">
                       {formatFinanceMoney(
                         financialSummary?.total,
                         printableCurrencyCode
@@ -2475,23 +2654,25 @@ const handlePrint = useCallback(() => {
                 </CardContent>
               </Card>
 
-              <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <CardHeader className="border-b border-white/8 pb-4">
-                  <CardTitle className="text-white">Linked Client PO</CardTitle>
-                  <CardDescription className="text-white/45">
+              <Card className={activeSectionClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Linked Client PO
+                  </CardTitle>
+                  <CardDescription className="mt-1 text-xs text-slate-500">
                     Downstream client purchase order created from this quotation.
                   </CardDescription>
                 </CardHeader>
 
                 <CardContent className="space-y-3 p-5">
                   {!linkedClientPO ? (
-                    <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-4 text-sm text-white/45">
+                    <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-4 text-sm text-slate-500">
                       No linked client PO yet.
                     </div>
                   ) : (
                     <>
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      <div className={innerPanelClass}>
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                           Client PO Number
                         </div>
                         <div className="mt-2 text-base font-semibold text-white">
@@ -2499,8 +2680,8 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
 
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      <div className={innerPanelClass}>
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                           External PO Number
                         </div>
                         <div className="mt-2 text-base font-semibold text-white">
@@ -2508,8 +2689,8 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
 
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      <div className={innerPanelClass}>
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                           Status
                         </div>
                         <div className="mt-2 text-base font-semibold text-white">
@@ -2517,8 +2698,8 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
 
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      <div className={innerPanelClass}>
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                           Received At
                         </div>
                         <div className="mt-2 text-base font-semibold text-white">
@@ -2526,8 +2707,8 @@ const handlePrint = useCallback(() => {
                         </div>
                       </div>
 
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      <div className={innerPanelClass}>
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                           Amount
                         </div>
                         <div className="mt-2 text-base font-semibold text-white">
@@ -2543,7 +2724,7 @@ const handlePrint = useCallback(() => {
               </Card>
 
               {error ? (
-                <div className="rounded-[20px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
                   {error}
                 </div>
               ) : null}
@@ -2555,10 +2736,10 @@ const handlePrint = useCallback(() => {
             {showArchivePopup ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
           <div className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-            <div className="flex items-center justify-between border-b border-white/8 px-6 py-5">
+            <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
               <div>
                 <div className="text-lg font-semibold text-white">Archive</div>
-                <div className="mt-1 text-sm text-white/45">
+                <div className="mt-1 text-sm text-slate-500">
                   Archived and deleted quotations removed from the active registry.
                 </div>
               </div>
@@ -2566,20 +2747,20 @@ const handlePrint = useCallback(() => {
               <button
                 type="button"
                 onClick={() => setShowArchivePopup(false)}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 hover:bg-white/10"
+                className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.08]"
               >
                 Close
               </button>
             </div>
 
-            <div className="flex items-center gap-2 border-b border-white/8 px-6 py-4">
+            <div className="flex items-center gap-2 border-b border-white/10 px-6 py-4">
               <button
                 type="button"
                 onClick={() => setArchiveTab("archived")}
                 className={`rounded-xl px-4 py-2 text-sm transition ${
                   archiveTab === "archived"
-                    ? "bg-white/10 text-white"
-                    : "text-white/55 hover:bg-white/5 hover:text-white/80"
+                    ? "bg-white/[0.08] text-white"
+                    : "text-slate-500 hover:bg-white/[0.05] hover:text-slate-300"
                 }`}
               >
                 Archived
@@ -2591,7 +2772,7 @@ const handlePrint = useCallback(() => {
                 className={`rounded-xl px-4 py-2 text-sm transition ${
                   archiveTab === "deleted"
                     ? "bg-rose-500/15 text-rose-200"
-                    : "text-white/55 hover:bg-white/5 hover:text-white/80"
+                    : "text-slate-500 hover:bg-white/[0.05] hover:text-slate-300"
                 }`}
               >
                 Deleted
@@ -2600,7 +2781,7 @@ const handlePrint = useCallback(() => {
 
             <div className="overflow-y-auto p-6">
               {visibleArchiveItems.length === 0 ? (
-                <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
+                <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-8 text-sm text-slate-500">
                   No {archiveTab} quotations found.
                 </div>
               ) : (
@@ -2608,7 +2789,7 @@ const handlePrint = useCallback(() => {
                   {visibleArchiveItems.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-4"
+                      className="flex items-start justify-between gap-4 rounded-[24px] border border-white/10 bg-white/[0.035] px-4 py-4"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -2621,17 +2802,19 @@ const handlePrint = useCallback(() => {
                               item.status
                             )}`}
                           >
-                            {getQuotationStatusLabel(item.status as QuotationRecord["status"])}
+                            {getQuotationStatusLabel(
+                              item.status as QuotationRecord["status"]
+                            )}
                           </Badge>
                         </div>
 
-                        <div className="mt-2 text-sm text-white/70">
+                        <div className="mt-2 text-sm text-slate-300">
                           {item.client_name_snapshot ||
                             item.company_name_snapshot ||
                             "—"}
                         </div>
 
-                        <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-white/45 md:grid-cols-2">
+                        <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-slate-500 md:grid-cols-2">
                           <div>
                             Total:{" "}
                             {formatFinanceMoney(
@@ -2639,9 +2822,7 @@ const handlePrint = useCallback(() => {
                               printableCurrencyCode
                             )}
                           </div>
-                          <div>
-                            Updated: {formatFinanceDate(item.updated_at)}
-                          </div>
+                          <div>Updated: {formatFinanceDate(item.updated_at)}</div>
                         </div>
                       </div>
 
@@ -2651,7 +2832,7 @@ const handlePrint = useCallback(() => {
                           onClick={() =>
                             navigate(`/finance/transactions/quotations/${item.id}`)
                           }
-                          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
+                          className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.08]"
                         >
                           Open
                         </button>
@@ -2697,3 +2878,6 @@ const handlePrint = useCallback(() => {
     </>
   );
 }
+
+
+    

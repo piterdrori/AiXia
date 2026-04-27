@@ -407,8 +407,8 @@ function FlowConnector({ className = "" }: { className?: string }) {
       className={`hidden items-center justify-center xl:flex ${className}`}
       aria-hidden="true"
     >
-      <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.035] text-slate-500">
-        <ArrowRight className="h-4 w-4" />
+      <div className="flex h-7 w-7 items-center justify-center rounded-xl border border-white/10 bg-white/[0.035] text-slate-500">
+        <ArrowRight className="h-3.5 w-3.5" />
       </div>
     </div>
   );
@@ -433,31 +433,31 @@ function TransactionFlowModule({
         if (!item.module.route) return;
         onOpen(item.module.route);
       }}
-      className={`group flex min-h-[190px] w-full flex-col justify-between rounded-[26px] border border-white/10 bg-black/20 p-5 text-left transition ${
+      className={`group flex h-[154px] w-full flex-col justify-between rounded-[20px] border border-white/10 bg-black/20 p-4 text-left transition ${
         isClickable
           ? "hover:border-cyan-400/25 hover:bg-white/[0.055]"
           : "cursor-default opacity-75"
       }`}
     >
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-            <Icon className="h-5 w-5" />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-400/15 bg-cyan-500/10 text-cyan-200">
+            <Icon className="h-4 w-4" />
           </div>
 
           {item.sequenceLabel ? (
-            <span className="rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+            <span className="rounded-full border border-white/10 bg-white/[0.045] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">
               {item.sequenceLabel}
             </span>
           ) : null}
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-300">
             {item.module.statusLabel}
           </span>
           <ArrowRight
-            className={`h-4 w-4 text-slate-500 transition ${
+            className={`h-3.5 w-3.5 text-slate-500 transition ${
               isClickable
                 ? "group-hover:translate-x-1 group-hover:text-cyan-200"
                 : ""
@@ -466,16 +466,18 @@ function TransactionFlowModule({
         </div>
       </div>
 
-      <div className="mt-5 space-y-2">
-        <div className="text-base font-semibold text-white">{title}</div>
-        <div className="line-clamp-2 text-sm leading-6 text-slate-400">
+      <div className="mt-3 space-y-1.5">
+        <div className="line-clamp-2 text-sm font-semibold leading-5 text-white">
+          {title}
+        </div>
+        <div className="line-clamp-2 text-xs leading-5 text-slate-400">
           {description}
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-2">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-600">
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-[14px] border border-white/10 bg-white/[0.035] px-2.5 py-2">
+          <div className="text-[8px] uppercase tracking-[0.14em] text-slate-600">
             Records
           </div>
           <div className="mt-1 text-sm font-semibold text-white">
@@ -483,8 +485,8 @@ function TransactionFlowModule({
           </div>
         </div>
 
-        <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-2">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-600">
+        <div className="rounded-[14px] border border-white/10 bg-white/[0.035] px-2.5 py-2">
+          <div className="text-[8px] uppercase tracking-[0.14em] text-slate-600">
             Updated
           </div>
           <div className="mt-1 truncate text-sm font-semibold text-white">
@@ -532,7 +534,7 @@ function TransactionFlowSection({
               {section.splitLabelLeft ?? "A. Reimbursements"}
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)] xl:items-stretch">
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)] xl:items-stretch">
               {leftModules.map((item, index) => (
                 <div
                   key={`${item.module.key}-${item.sequenceLabel ?? index}`}
@@ -553,7 +555,7 @@ function TransactionFlowSection({
               {section.splitLabelRight ?? "B. Payroll"}
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)] xl:items-stretch">
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)] xl:items-stretch">
               {rightModules.map((item, index) => (
                 <div
                   key={`${item.module.key}-${item.sequenceLabel ?? index}`}
@@ -575,11 +577,11 @@ function TransactionFlowSection({
 
   const gridTemplate =
     section.modules.length >= 5
-      ? "xl:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)_40px_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)_40px_minmax(0,1fr)_40px_minmax(0,1fr)_40px_minmax(0,1fr)]"
+      ? "xl:grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)_32px_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)_32px_minmax(0,1fr)_32px_minmax(0,1fr)_32px_minmax(0,1fr)]"
       : section.modules.length === 4
-        ? "xl:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)_40px_minmax(0,1fr)_40px_minmax(0,1fr)]"
+        ? "xl:grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)_32px_minmax(0,1fr)_32px_minmax(0,1fr)]"
         : section.modules.length === 2
-          ? "xl:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)]"
+          ? "xl:grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)]"
           : "xl:grid-cols-3";
 
   return (
@@ -599,7 +601,7 @@ function TransactionFlowSection({
         </div>
       </div>
 
-      <div className={`grid gap-4 p-5 ${gridTemplate} xl:items-stretch`}>
+      <div className={`grid gap-3 p-5 ${gridTemplate} xl:items-stretch`}>
         {section.modules.map((item, index) => (
           <div
             key={`${item.module.key}-${item.sequenceLabel ?? index}`}

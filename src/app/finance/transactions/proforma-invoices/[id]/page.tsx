@@ -289,7 +289,6 @@ export default function FinanceProformaInvoiceDetailPage() {
   const navigate = useNavigate();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [setIsRefreshing] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -349,9 +348,7 @@ export default function FinanceProformaInvoiceDetailPage() {
     async (refreshOnly = false) => {
       if (!id) return;
 
-      if (refreshOnly) {
-        setIsRefreshing(true);
-      } else {
+      if (!refreshOnly) {
         setIsLoading(true);
       }
 
@@ -472,9 +469,7 @@ export default function FinanceProformaInvoiceDetailPage() {
         console.error(err);
         setError("Failed to load proforma invoice.");
       } finally {
-        if (refreshOnly) {
-          setIsRefreshing(false);
-        } else {
+        if (!refreshOnly) {
           setIsLoading(false);
         }
       }

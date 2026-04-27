@@ -167,6 +167,11 @@ export default function QuotationPrintDocument({
   const bankInfo = parseBankDetails(quotation?.bank_details_snapshot);
 
   const paymentTerms = quotation?.payment_terms_snapshot || "—";
+  const paymentTermsText =
+    quotation?.payment_terms_document_text ||
+    quotation?.payment_terms_text_snapshot ||
+    quotation?.payment_terms_description ||
+    "";
 
   const shippingTerms =
     quotation?.shipping_terms_snapshot &&
@@ -595,7 +600,21 @@ export default function QuotationPrintDocument({
                         <span style={{ color: "#6b7280" }}>Payment Terms: </span>
                         <span style={{ fontWeight: 500 }}>{paymentTerms}</span>
                       </div>
-                      <div>
+
+                      {paymentTermsText ? (
+                        <div
+                          style={{
+                            marginTop: "1mm",
+                            lineHeight: 1.55,
+                            whiteSpace: "pre-wrap",
+                            color: "#374151",
+                          }}
+                        >
+                          {paymentTermsText}
+                        </div>
+                      ) : null}
+
+                      <div style={{ marginTop: paymentTermsText ? "1.2mm" : "0mm" }}>
                         <span style={{ color: "#6b7280" }}>Shipping Terms: </span>
                         <span style={{ fontWeight: 500 }}>{shippingTerms}</span>
                       </div>

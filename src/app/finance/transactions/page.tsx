@@ -1051,10 +1051,11 @@ export default function FinanceTransactionsPage() {
         title: "Customer POs",
         description:
           "Customer purchase orders received as incoming commercial commitment.",
+        route: "/finance/transactions/customer-pos",
         icon: FileText,
         count: 0,
-        statusLabel: "Later",
-        lastUpdatedLabel: "Planned",
+        statusLabel: "Live",
+        lastUpdatedLabel: "Live",
       },
       "vendor-quotations": {
         key: "vendor-quotations",

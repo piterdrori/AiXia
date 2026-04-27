@@ -80,6 +80,12 @@ type TaxCodeOption = {
   rate_percent: number;
 };
 
+type UnitOfMeasureOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
 type RevenueCategoryOption = {
   id: string;
   code: string | null;

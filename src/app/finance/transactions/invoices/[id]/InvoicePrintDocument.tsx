@@ -134,6 +134,11 @@ const dueDate =
   const bankInfo = parseBankDetails(invoice?.bank_details_snapshot);
 
   const paymentTerms = invoice?.payment_terms_snapshot || "—";
+  const paymentTermsText =
+    invoice?.payment_terms_document_text ||
+    invoice?.payment_terms_text_snapshot ||
+    invoice?.payment_terms_description ||
+    "";
     const shippingTerms =
     invoice?.shipping_terms_snapshot &&
     !invoice.shipping_terms_snapshot.match(/^[0-9a-f-]{36}$/i)
@@ -509,7 +514,22 @@ const dueDate =
                         <span style={{ color: "#6b7280" }}>Payment Terms: </span>
                         <span style={{ fontWeight: 500 }}>{paymentTerms}</span>
                       </div>
-                      <div>
+
+                      {paymentTermsText ? (
+                        <div
+                          style={{
+                            marginTop: "1mm",
+                            paddingLeft: "0mm",
+                            lineHeight: 1.55,
+                            whiteSpace: "pre-wrap",
+                            color: "#374151",
+                          }}
+                        >
+                          {paymentTermsText}
+                        </div>
+                      ) : null}
+
+                      <div style={{ marginTop: paymentTermsText ? "1.2mm" : "0mm" }}>
                         <span style={{ color: "#6b7280" }}>Shipping Terms: </span>
                         <span style={{ fontWeight: 500 }}>{shippingTerms}</span>
                       </div>

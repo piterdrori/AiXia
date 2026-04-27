@@ -36,6 +36,10 @@ type InvoiceRecord = {
   currency_code?: string | null;
   status?: string | null;
   payment_status?: string | null;
+  payment_terms_id?: string | null;
+  payment_terms_snapshot?: string | null;
+  payment_terms_document_text?: string | null;
+  terms_and_conditions_snapshot?: string | null;
   counterparty_name_snapshot?: string | null;
   client_name_snapshot?: string | null;
   client_contact_person_snapshot?: string | null;
@@ -136,26 +140,26 @@ export default function PaymentReceivedPrintDocument({
     invoiceLink?.company_address_snapshot ||
     "";
 
-const counterpartyName =
-  invoiceLink?.counterparty_name_snapshot ||
-  payment.client_name_snapshot ||
-  invoiceLink?.client_name_snapshot ||
-  "";
+  const counterpartyName =
+    invoiceLink?.counterparty_name_snapshot ||
+    payment.client_name_snapshot ||
+    invoiceLink?.client_name_snapshot ||
+    "";
 
-const counterpartyContact =
-  invoiceLink?.client_contact_person_snapshot ||
-  payment.client_contact_person_snapshot ||
-  "";
+  const counterpartyContact =
+    invoiceLink?.client_contact_person_snapshot ||
+    payment.client_contact_person_snapshot ||
+    "";
 
-const counterpartyEmail =
-  invoiceLink?.client_email_snapshot ||
-  payment.client_email_snapshot ||
-  "";
+  const counterpartyEmail =
+    invoiceLink?.client_email_snapshot ||
+    payment.client_email_snapshot ||
+    "";
 
-const counterpartyPhone =
-  invoiceLink?.client_phone_snapshot ||
-  payment.client_phone_snapshot ||
-  "";
+  const counterpartyPhone =
+    invoiceLink?.client_phone_snapshot ||
+    payment.client_phone_snapshot ||
+    "";
 
   const billingAddress =
     payment.billing_address_snapshot ||
@@ -165,6 +169,12 @@ const counterpartyPhone =
   const receiptNumber = payment.reference_number || payment.id || "Draft";
   const receiptDate = payment.payment_date || null;
   const paymentDate = payment.payment_date || null;
+
+  const paymentTerms = invoiceLink?.payment_terms_snapshot || "—";
+  const paymentTermsText =
+    invoiceLink?.payment_terms_document_text ||
+    invoiceLink?.terms_and_conditions_snapshot ||
+    "";
 
   const invoiceTotal = toNumber(invoiceLink?.total_amount);
   const invoicePaidAfter = toNumber(invoiceLink?.paid_amount);
@@ -180,13 +190,22 @@ const counterpartyPhone =
       <style>{`
         @media print {
           @page { size: A4; margin: 0; }
+
           html, body {
             background: #ffffff !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
-          body * { visibility: hidden !important; }
-          .payment-receipt-print-sheet, .payment-receipt-print-sheet * { visibility: visible !important; }
+
+          body * {
+            visibility: hidden !important;
+          }
+
+          .payment-receipt-print-sheet,
+          .payment-receipt-print-sheet * {
+            visibility: visible !important;
+          }
+
           .payment-receipt-print-sheet {
             position: absolute !important;
             left: 0 !important;
@@ -231,7 +250,13 @@ const counterpartyPhone =
             }}
           />
 
-          <div style={{ position: "relative", zIndex: 2, padding: "9mm 14mm 10mm 14mm" }}>
+          <div
+            style={{
+              position: "relative",
+              zIndex: 2,
+              padding: "9mm 14mm 10mm 14mm",
+            }}
+          >
             <div
               style={{
                 display: "grid",
@@ -273,9 +298,11 @@ const counterpartyPhone =
                   >
                     {companyName}
                   </div>
+
                   {companyContact ? <div>{companyContact}</div> : null}
                   {companyPhone ? <div>{companyPhone}</div> : null}
                   {companyEmail ? <div>{companyEmail}</div> : null}
+
                   {companyAddress ? (
                     <div
                       style={{
@@ -309,17 +336,26 @@ const counterpartyPhone =
 
                 <div style={{ fontSize: "10pt", lineHeight: 1.95 }}>
                   <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "26mm", opacity: 0.78 }}>Receipt No</span>
+                    <span style={{ width: "26mm", opacity: 0.78 }}>
+                      Receipt No
+                    </span>
                     <span style={{ fontWeight: 700 }}>{receiptNumber}</span>
                   </div>
+
                   <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "26mm", opacity: 0.78 }}>Receipt Date</span>
+                    <span style={{ width: "26mm", opacity: 0.78 }}>
+                      Receipt Date
+                    </span>
                     <span>{formatFinanceDate(receiptDate)}</span>
                   </div>
+
                   <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "26mm", opacity: 0.78 }}>Payment Date</span>
+                    <span style={{ width: "26mm", opacity: 0.78 }}>
+                      Payment Date
+                    </span>
                     <span>{formatFinanceDate(paymentDate)}</span>
                   </div>
+
                   <div style={{ display: "flex", gap: "4mm" }}>
                     <span style={{ width: "26mm", opacity: 0.78 }}>Status</span>
                     <span>{getPaymentStatusLabel(payment.status)}</span>
@@ -328,7 +364,7 @@ const counterpartyPhone =
               </div>
             </div>
 
-                       <div style={{ marginTop: "5mm", marginBottom: "7mm" }}>
+                        <div style={{ marginTop: "5mm", marginBottom: "7mm" }}>
               <div
                 style={{
                   background: "#ffffff",
@@ -351,20 +387,50 @@ const counterpartyPhone =
                 >
                   Recipient
                 </div>
-                <div style={{ fontWeight: 700, fontSize: "11pt", marginBottom: "1mm" }}>
+
+                <div
+                  style={{
+                    fontWeight: 700,
+                    fontSize: "11pt",
+                    marginBottom: "1mm",
+                  }}
+                >
                   {counterpartyName}
                 </div>
-                      {counterpartyContact ? (
-  <div>
-    {counterpartyContact}
-  </div>
-) : null}
+
+                {counterpartyContact ? (
+                  <div
+                    style={{
+                      fontSize: "8.3pt",
+                      color: "#4b5563",
+                      marginBottom: "0.8mm",
+                    }}
+                  >
+                    {counterpartyContact}
+                  </div>
+                ) : null}
+
                 {counterpartyEmail || counterpartyPhone ? (
-  <div>
-    {[counterpartyEmail, counterpartyPhone].filter(Boolean).join(" • ")}
-  </div>
-) : null}
-                <div style={{ fontSize: "8.3pt", color: "#4b5563", lineHeight: 1.55 }}>
+                  <div
+                    style={{
+                      fontSize: "8.1pt",
+                      color: "#4b5563",
+                      marginBottom: "0.8mm",
+                    }}
+                  >
+                    {[counterpartyEmail, counterpartyPhone]
+                      .filter(Boolean)
+                      .join(" • ")}
+                  </div>
+                ) : null}
+
+                <div
+                  style={{
+                    fontSize: "8.3pt",
+                    color: "#4b5563",
+                    lineHeight: 1.55,
+                  }}
+                >
                   {billingAddress}
                 </div>
               </div>
@@ -381,35 +447,86 @@ const counterpartyPhone =
               >
                 <thead>
                   <tr style={{ background: "#232323", color: "#ffffff" }}>
-                    <th style={{ width: "24%", textAlign: "left", padding: "3mm 3mm", fontWeight: 700 }}>
+                    <th
+                      style={{
+                        width: "24%",
+                        textAlign: "left",
+                        padding: "3mm 3mm",
+                        fontWeight: 700,
+                      }}
+                    >
                       Applied To Invoice
                     </th>
-                    <th style={{ width: "19%", textAlign: "right", padding: "3mm 2mm", fontWeight: 700 }}>
+                    <th
+                      style={{
+                        width: "19%",
+                        textAlign: "right",
+                        padding: "3mm 2mm",
+                        fontWeight: 700,
+                      }}
+                    >
                       Invoice Total
                     </th>
-                    <th style={{ width: "19%", textAlign: "right", padding: "3mm 2mm", fontWeight: 700 }}>
+                    <th
+                      style={{
+                        width: "19%",
+                        textAlign: "right",
+                        padding: "3mm 2mm",
+                        fontWeight: 700,
+                      }}
+                    >
                       Paid Before
                     </th>
-                    <th style={{ width: "19%", textAlign: "right", padding: "3mm 2mm", fontWeight: 700 }}>
+                    <th
+                      style={{
+                        width: "19%",
+                        textAlign: "right",
+                        padding: "3mm 2mm",
+                        fontWeight: 700,
+                      }}
+                    >
                       This Payment
                     </th>
-                    <th style={{ width: "19%", textAlign: "right", padding: "3mm 2mm", fontWeight: 700 }}>
+                    <th
+                      style={{
+                        width: "19%",
+                        textAlign: "right",
+                        padding: "3mm 2mm",
+                        fontWeight: 700,
+                      }}
+                    >
                       Balance After
                     </th>
                   </tr>
                 </thead>
+
                 <tbody>
                   <tr style={{ borderBottom: "0.5pt solid #d1d5db" }}>
                     <td style={{ padding: "4mm 3mm", verticalAlign: "top" }}>
                       <div style={{ fontWeight: 700 }}>
                         {invoiceLink?.invoice_number || "No linked invoice"}
                       </div>
-                      <div style={{ marginTop: "1mm", color: "#6b7280", fontSize: "7.5pt", lineHeight: 1.5 }}>
+
+                      <div
+                        style={{
+                          marginTop: "1mm",
+                          color: "#6b7280",
+                          fontSize: "7.5pt",
+                          lineHeight: 1.5,
+                        }}
+                      >
                         <div>Status: {getInvoiceStatusLabel(invoiceLink?.status)}</div>
-                        <div>Issue Date: {formatFinanceDate(invoiceLink?.issue_date || null)}</div>
-                        <div>Due Date: {formatFinanceDate(invoiceLink?.due_date || null)}</div>
+                        <div>
+                          Issue Date:{" "}
+                          {formatFinanceDate(invoiceLink?.issue_date || null)}
+                        </div>
+                        <div>
+                          Due Date: {formatFinanceDate(invoiceLink?.due_date || null)}
+                        </div>
+                        <div>Payment Terms: {paymentTerms}</div>
                       </div>
                     </td>
+
                     <td
                       style={{
                         padding: "4mm 2mm",
@@ -419,6 +536,7 @@ const counterpartyPhone =
                     >
                       {formatFinanceMoney(invoiceTotal, invoiceCurrency)}
                     </td>
+
                     <td
                       style={{
                         padding: "4mm 2mm",
@@ -428,6 +546,7 @@ const counterpartyPhone =
                     >
                       {formatFinanceMoney(paidBeforeThisPayment, invoiceCurrency)}
                     </td>
+
                     <td
                       style={{
                         padding: "4mm 2mm",
@@ -438,6 +557,7 @@ const counterpartyPhone =
                     >
                       {formatFinanceMoney(thisPaymentAmount, invoiceCurrency)}
                     </td>
+
                     <td
                       style={{
                         padding: "4mm 2mm",
@@ -462,7 +582,7 @@ const counterpartyPhone =
                 marginTop: "0mm",
               }}
             >
-                           <div style={{ fontSize: "8pt", color: "#374151" }}>
+              <div style={{ fontSize: "8pt", color: "#374151" }}>
                 <div
                   style={{
                     background: "#ffffff",
@@ -481,23 +601,32 @@ const counterpartyPhone =
                     >
                       Payment Details
                     </div>
+
                     <div style={{ lineHeight: 1.7 }}>
                       <div>
                         <span style={{ color: "#6b7280" }}>Reference Number: </span>
-                        <span style={{ fontWeight: 500 }}>{payment.reference_number || ""}</span>
+                        <span style={{ fontWeight: 500 }}>
+                          {payment.reference_number || ""}
+                        </span>
                       </div>
+
                       <div>
                         <span style={{ color: "#6b7280" }}>Payment Method: </span>
-                        <span style={{ fontWeight: 500 }}>{payment.payment_method_name || ""}</span>
+                        <span style={{ fontWeight: 500 }}>
+                          {payment.payment_method_name || ""}
+                        </span>
                       </div>
+
                       <div>
                         <span style={{ color: "#6b7280" }}>Payment Currency: </span>
                         <span style={{ fontWeight: 500 }}>{paymentCurrency}</span>
                       </div>
+
                       <div>
                         <span style={{ color: "#6b7280" }}>Invoice Currency: </span>
                         <span style={{ fontWeight: 500 }}>{invoiceCurrency}</span>
                       </div>
+
                       {payment.exchange_rate ? (
                         <div>
                           <span style={{ color: "#6b7280" }}>Exchange Rate: </span>
@@ -506,6 +635,7 @@ const counterpartyPhone =
                           </span>
                         </div>
                       ) : null}
+
                       {payment.exchange_rate_source ? (
                         <div>
                           <span style={{ color: "#6b7280" }}>FX Source: </span>
@@ -514,20 +644,45 @@ const counterpartyPhone =
                           </span>
                         </div>
                       ) : null}
+
                       <div>
                         <span style={{ color: "#6b7280" }}>FX Date: </span>
                         <span style={{ fontWeight: 500 }}>
                           {formatFinanceDate(payment.exchange_rate_date)}
                         </span>
                       </div>
+
                       <div>
                         <span style={{ color: "#6b7280" }}>Proof Uploaded: </span>
-                        <span style={{ fontWeight: 500 }}>{hasProof ? "Yes" : "No"}</span>
+                        <span style={{ fontWeight: 500 }}>
+                          {hasProof ? "Yes" : "No"}
+                        </span>
                       </div>
+
+                      <div style={{ marginTop: "2mm" }}>
+                        <span style={{ color: "#6b7280" }}>
+                          Linked Invoice Payment Terms:{" "}
+                        </span>
+                        <span style={{ fontWeight: 500 }}>{paymentTerms}</span>
+                      </div>
+
+                      {paymentTermsText ? (
+                        <div
+                          style={{
+                            marginTop: "1mm",
+                            lineHeight: 1.55,
+                            whiteSpace: "pre-wrap",
+                            color: "#374151",
+                          }}
+                        >
+                          {paymentTermsText}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>
               </div>
+
               <div>
                 <div
                   style={{
@@ -622,13 +777,15 @@ const counterpartyPhone =
                         marginBottom: "1.5mm",
                       }}
                     />
-                    <div style={{ fontSize: "8pt", color: "#374151" }}>Authorized Signature</div>
+                    <div style={{ fontSize: "8pt", color: "#374151" }}>
+                      Authorized Signature
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-                       <div
+            <div
               style={{
                 marginTop: "1mm",
                 paddingTop: "2mm",

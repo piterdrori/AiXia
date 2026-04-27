@@ -21,11 +21,9 @@ import {
   Receipt,
   RefreshCw,
   Settings2,
-  ShieldCheck,
   Sparkles,
   TrendingDown,
   TrendingUp,
-  Users,
   Wallet,
 } from "lucide-react";
 

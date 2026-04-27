@@ -23,8 +23,6 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
-
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 type WorkspaceKey =

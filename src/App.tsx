@@ -82,6 +82,8 @@ import FinanceUnitsOfMeasurePage from "@/app/finance/master-data/units-of-measur
 import FinanceTaxCodesPage from "@/app/finance/master-data/tax-codes/page";
 import FinanceTransactionsPage from "@/app/finance/transactions/page";
 import FinanceCustomerPosPage from "@/app/finance/transactions/customer-pos/page";
+import FinanceNewCustomerPoPage from "@/app/finance/transactions/customer-pos/new/page";
+import FinanceCustomerPoDetailPage from "@/app/finance/transactions/customer-pos/[id]/page";
 import FinanceReportsPage from "@/app/finance/reports/page";
 import FinanceSettingsPage from "@/app/finance/settings/page";
 import FinanceInvoicesPage from "@/app/finance/transactions/invoices/page";
@@ -998,6 +1000,28 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceCustomerPosPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+            <Route
+  path="/finance/transactions/customer-pos/new"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceNewCustomerPoPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+      <Route
+  path="/finance/transactions/customer-pos/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceCustomerPoDetailPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

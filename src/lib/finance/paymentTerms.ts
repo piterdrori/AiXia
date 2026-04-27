@@ -299,7 +299,10 @@ export async function permanentlyDeletePaymentTerm(
 
   if (readError) throw readError;
 
-  const { error } = await supabase.delete().from(TABLE).eq("id", id);
+  const { error } = await supabase
+    .from(TABLE)
+    .delete()
+    .eq("id", id);
 
   if (error) throw error;
 

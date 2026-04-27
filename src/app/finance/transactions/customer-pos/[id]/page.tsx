@@ -830,6 +830,17 @@ export default function FinanceCustomerPoDetailPage() {
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
+                            {customerPo.status === "draft" ? (
+                <Button
+                  onClick={() => void updateCustomerPoStatus("received")}
+                  disabled={isSaving}
+                  className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Mark as Received
+                </Button>
+              ) : null}
+
               {customerPo.status === "received" ? (
                 <Button
                   onClick={() => void updateCustomerPoStatus("verified")}

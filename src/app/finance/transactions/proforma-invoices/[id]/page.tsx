@@ -289,7 +289,7 @@ export default function FinanceProformaInvoiceDetailPage() {
   const navigate = useNavigate();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [setIsRefreshing] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);

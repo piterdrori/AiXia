@@ -410,7 +410,7 @@ export default function FinanceCustomerPoDetailPage() {
 
       if (lineItemError) throw lineItemError;
 
-      setLineItems((lineItemData || []) as CustomerPoLineItem[]);
+      setLineItems((lineItemData || []) as unknown as CustomerPoLineItem[]);
       
     } catch (err) {
       console.error(err);

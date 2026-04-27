@@ -80,9 +80,9 @@ type TaxCodeOption = {
   rate_percent: number;
 };
 
-type UnitOfMeasureOption = {
+type RevenueCategoryOption = {
   id: string;
-  code: string;
+  code: string | null;
   name: string;
 };
 
@@ -684,6 +684,11 @@ export default function FinanceNewProformaInvoicePage() {
                   <Badge className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.24em] text-white/70 shadow-none">
                     Receivables
                   </Badge>
+
+                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                    New proforma draft
+                  </Badge>
+
                   {sourceCustomerPo ? (
                     <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-emerald-200 shadow-none">
                       From Customer PO {sourceCustomerPo.client_po_number || sourceCustomerPo.external_po_number}

@@ -243,19 +243,13 @@ function isEditableNegotiationStatus(status: string) {
 export default function FinanceQuotationsPage() {
   const navigate = useNavigate();
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [, setIsRefreshing] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
   const [quotations, setQuotations] = useState<FinanceQuotationRow[]>([]);
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<Role | null>(null);
   const [permissionOverrides, setPermissionOverrides] = useState<
     Partial<Record<Permission, boolean>> | null
   >(null);
-
-  const [openMenuQuotationId, setOpenMenuQuotationId] = useState<string | null>(
-    null
-  );
-  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
 
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
   const [archiveTab, setArchiveTab] = useState<"archived" | "deleted">(
@@ -291,12 +285,8 @@ export default function FinanceQuotationsPage() {
     }
   }, []);
 
-  const loadQuotations = useCallback(async (refreshMode = false) => {
-    if (refreshMode) {
-      setIsRefreshing(true);
-    } else {
-      setIsLoading(true);
-    }
+  const loadQuotations = useCallback(async () => {
+    setIsLoading((current) => current || quotations.length === 0);
 
     try {
       const { data, error } = await supabase
@@ -340,13 +330,9 @@ export default function FinanceQuotationsPage() {
       console.error("Failed to load quotations:", error);
       setQuotations([]);
     } finally {
-      if (refreshMode) {
-        setIsRefreshing(false);
-      } else {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
-  }, []);
+  }, [quotations.length]);
 
   const loadArchivedQuotations = useCallback(async () => {
     setIsArchiveLoading(true);
@@ -402,22 +388,6 @@ export default function FinanceQuotationsPage() {
   }, [loadPermissions, loadQuotations]);
 
   useEffect(() => {
-    function handleDocumentClick(event: MouseEvent) {
-      if (!actionsMenuRef.current) return;
-
-      if (!actionsMenuRef.current.contains(event.target as Node)) {
-        setOpenMenuQuotationId(null);
-      }
-    }
-
-    document.addEventListener("mousedown", handleDocumentClick);
-
-    return () => {
-      document.removeEventListener("mousedown", handleDocumentClick);
-    };
-  }, []);
-
-  useEffect(() => {
     if (!isArchiveModalOpen) return;
     void loadArchivedQuotations();
   }, [isArchiveModalOpen, loadArchivedQuotations]);
@@ -429,7 +399,7 @@ export default function FinanceQuotationsPage() {
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_quotations" },
         () => {
-          void loadQuotations(true);
+          void loadQuotations();
           if (isArchiveModalOpen) {
             void loadArchivedQuotations();
           }
@@ -438,11 +408,19 @@ export default function FinanceQuotationsPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_quotation_line_items" },
-        () => void loadQuotations(true)
+        () => void loadQuotations()
       )
       .subscribe();
 
+    const intervalId = window.setInterval(() => {
+      void loadQuotations();
+      if (isArchiveModalOpen) {
+        void loadArchivedQuotations();
+      }
+    }, 60000);
+
     return () => {
+      window.clearInterval(intervalId);
       supabase.removeChannel(channel);
     };
   }, [isArchiveModalOpen, loadArchivedQuotations, loadQuotations]);
@@ -552,9 +530,8 @@ export default function FinanceQuotationsPage() {
       throw error;
     }
 
-    setOpenMenuQuotationId(null);
     await Promise.all([
-      loadQuotations(true),
+      loadQuotations(),
       isArchiveModalOpen ? loadArchivedQuotations() : Promise.resolve(),
     ]);
   };
@@ -569,9 +546,8 @@ export default function FinanceQuotationsPage() {
       throw error;
     }
 
-    setOpenMenuQuotationId(null);
     await Promise.all([
-      loadQuotations(true),
+      loadQuotations(),
       isArchiveModalOpen ? loadArchivedQuotations() : Promise.resolve(),
     ]);
   };
@@ -607,7 +583,7 @@ export default function FinanceQuotationsPage() {
       throw error;
     }
 
-    await Promise.all([loadQuotations(true), loadArchivedQuotations()]);
+    await Promise.all([loadQuotations(), loadArchivedQuotations()]);
   };
 
   const handleHardDelete = async (id: string) => {
@@ -620,7 +596,7 @@ export default function FinanceQuotationsPage() {
       throw error;
     }
 
-    await Promise.all([loadQuotations(true), loadArchivedQuotations()]);
+    await Promise.all([loadQuotations(), loadArchivedQuotations()]);
   };
 
   const activeSectionClass =

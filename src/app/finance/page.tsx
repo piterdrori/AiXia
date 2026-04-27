@@ -1,21 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import type { LucideIcon } from "lucide-react";
 import {
-  AlertTriangle,
-  ArrowLeft,
   ArrowRight,
   BadgeAlert,
   BriefcaseBusiness,
   CheckCircle2,
   CircleDollarSign,
   Database,
-  DollarSign,
   FileBarChart2,
-  FolderKanban,
   Landmark,
   Receipt,
-  RefreshCw,
   Settings2,
   Sparkles,
   TrendingDown,
@@ -25,7 +21,6 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
-import { Button } from "@/components/ui/button";
 
 type WorkspaceKey =
   | "master-data"
@@ -38,7 +33,7 @@ type DashboardMetricCard = {
   title: string;
   value: string;
   subtitle: string;
-  icon: typeof DollarSign;
+  icon: LucideIcon;
   tone: "emerald" | "cyan" | "amber" | "violet" | "rose";
 };
 
@@ -46,7 +41,7 @@ type WorkspaceTab = {
   key: WorkspaceKey;
   label: string;
   description: string;
-  icon: typeof FolderKanban;
+  icon: LucideIcon;
   route: string;
 };
 
@@ -223,7 +218,8 @@ const WORKSPACE_TABS: WorkspaceTab[] = [
   {
     key: "settings",
     label: "Settings",
-    description: "Chart of accounts, periods, posting rules, controls, and config.",
+    description:
+      "Chart of accounts, periods, posting rules, controls, and config.",
     icon: Settings2,
     route: "/finance/settings",
   },
@@ -443,7 +439,7 @@ function FinanceSectionCard({
 }: {
   title: string;
   description: string;
-  icon: typeof AlertTriangle;
+  icon: LucideIcon;
   children: ReactNode;
 }) {
   return (
@@ -495,7 +491,7 @@ function HeaderStatusCard({
   label: string;
   value: string;
   detail: string;
-  icon: typeof AlertTriangle;
+  icon: LucideIcon;
   tone: "emerald" | "cyan" | "amber";
 }) {
   const toneClasses = {
@@ -505,13 +501,13 @@ function HeaderStatusCard({
   }[tone];
 
   return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="flex items-center justify-between gap-3">
+    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
             {label}
           </div>
-          <div className="mt-2 truncate text-2xl font-semibold tracking-[-0.035em] text-white">
+          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
             {value}
           </div>
         </div>
@@ -639,7 +635,7 @@ export default function FinancePage() {
           .order("created_at", { ascending: false })
           .limit(12),
 
-                supabase
+        supabase
           .from("finance_reimbursements")
           .select("id", { count: "exact", head: true }),
 
@@ -909,7 +905,12 @@ export default function FinancePage() {
       )
       .subscribe();
 
+    const intervalId = window.setInterval(() => {
+      void loadDashboard();
+    }, 60000);
+
     return () => {
+      window.clearInterval(intervalId);
       supabase.removeChannel(channel);
     };
   }, [loadDashboard]);
@@ -1079,21 +1080,23 @@ export default function FinancePage() {
         <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
 
-          <div className="relative flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-            <div className="min-w-0 max-w-4xl">
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                <Sparkles className="h-3.5 w-3.5" />
-                Finance Control Center
+          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px] xl:items-stretch">
+            <div className="flex min-w-0 flex-col justify-between">
+              <div>
+                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Finance Control Center
+                </div>
+
+                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                  Finance Studio
+                </h1>
+
+                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                  A structured command layer for financial setup, operations,
+                  reporting, approvals, balances, and ledger control.
+                </p>
               </div>
-
-              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                Finance Studio
-              </h1>
-
-              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                A structured command layer for financial setup, operations,
-                reporting, approvals, balances, and ledger control.
-              </p>
 
               <div className="mt-5 flex flex-wrap gap-2">
                 <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
@@ -1103,12 +1106,12 @@ export default function FinancePage() {
                   Ledger aware
                 </div>
                 <div className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                  Data-first
+                  Auto refresh
                 </div>
               </div>
             </div>
 
-            <div className="grid w-full gap-3 sm:grid-cols-3 xl:w-[620px]">
+            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-3">
               {headerStatusCards.map((card) => (
                 <HeaderStatusCard
                   key={card.label}
@@ -1121,26 +1124,6 @@ export default function FinancePage() {
               ))}
             </div>
           </div>
-
-          <div className="relative mt-6 flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() => navigate(-1)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={() => void loadDashboard()}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Refresh
-            </Button>
-          </div>
         </header>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -1150,7 +1133,7 @@ export default function FinancePage() {
         </section>
 
         <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="space-y-6">
+          <div className="grid min-h-0 gap-6">
             <FinanceSectionCard
               title="Finance Navigation"
               description="Open setup, operations, analytics, and control modules."
@@ -1177,9 +1160,43 @@ export default function FinancePage() {
                 </div>
               )}
             </FinanceSectionCard>
+
+            <div className="overflow-hidden rounded-[30px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)]">
+              <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+                <div>
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                    Period Close Readiness
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">
+                    Monitor open balances, draft journals, approvals, and
+                    outstanding documents before locking accounting periods.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-cyan-200">
+                  <CircleDollarSign className="h-5 w-5" />
+                </div>
+              </div>
+
+              <div className="grid gap-4 p-5 md:grid-cols-3">
+                {openBalances.map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                  >
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      {item.label}
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {item.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="grid min-h-0 gap-6">
             <FinanceSectionCard
               title="Control Signals"
               description="Live finance risks and operating blockers."
@@ -1213,7 +1230,7 @@ export default function FinancePage() {
                   </p>
                 </div>
               ) : (
-                <div className="max-h-[390px] overflow-y-auto overscroll-contain rounded-[26px] border border-white/10 bg-black/20">
+                <div className="h-[430px] overflow-y-auto overscroll-contain rounded-[26px] border border-white/10 bg-black/20">
                   <div className="divide-y divide-white/5">
                     {dashboardData.recentActivity.map((item) => (
                       <button
@@ -1252,40 +1269,6 @@ export default function FinancePage() {
                 </div>
               )}
             </FinanceSectionCard>
-
-            <div className="overflow-hidden rounded-[30px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)] p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                    Period Close Readiness
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">
-                    Monitor open balances, draft journals, approvals, and
-                    outstanding documents before locking accounting periods.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-cyan-200">
-                  <CircleDollarSign className="h-5 w-5" />
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-3">
-                {openBalances.map((item) => (
-                  <div
-                    key={item.label}
-                    className="rounded-[22px] border border-white/10 bg-black/20 p-4"
-                  >
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      {item.label}
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {item.value}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         </section>
       </div>

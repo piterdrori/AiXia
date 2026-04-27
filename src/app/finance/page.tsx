@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
@@ -9,6 +10,7 @@ import {
   DollarSign,
   FileBarChart2,
   FolderKanban,
+  GripHorizontal,
   Receipt,
   RefreshCw,
   Settings2,
@@ -22,15 +24,8 @@ import {
 
 import { supabase } from "@/lib/supabase";
 
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 type WorkspaceKey =
   | "master-data"
@@ -44,7 +39,7 @@ type DashboardMetricCard = {
   value: string;
   subtitle: string;
   icon: typeof DollarSign;
-  tone: "emerald" | "blue" | "amber" | "violet" | "rose" | "cyan";
+  tone: "emerald" | "cyan" | "amber" | "violet" | "rose";
 };
 
 type WorkspaceTab = {
@@ -329,44 +324,32 @@ function getMetricToneClasses(tone: DashboardMetricCard["tone"]) {
     case "emerald":
       return {
         glow: "from-emerald-500/20 via-emerald-400/10 to-transparent",
-        iconWrap:
-          "border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_0_30px_rgba(16,185,129,0.18)]",
+        iconWrap: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
         accent: "bg-emerald-400",
-      };
-    case "blue":
-      return {
-        glow: "from-sky-500/20 via-sky-400/10 to-transparent",
-        iconWrap:
-          "border-sky-400/20 bg-sky-500/10 text-sky-300 shadow-[0_0_30px_rgba(56,189,248,0.18)]",
-        accent: "bg-sky-400",
       };
     case "amber":
       return {
         glow: "from-amber-500/20 via-amber-400/10 to-transparent",
-        iconWrap:
-          "border-amber-400/20 bg-amber-500/10 text-amber-300 shadow-[0_0_30px_rgba(245,158,11,0.18)]",
+        iconWrap: "border-amber-400/20 bg-amber-500/10 text-amber-200",
         accent: "bg-amber-400",
       };
     case "violet":
       return {
         glow: "from-violet-500/20 via-violet-400/10 to-transparent",
-        iconWrap:
-          "border-violet-400/20 bg-violet-500/10 text-violet-300 shadow-[0_0_30px_rgba(139,92,246,0.18)]",
+        iconWrap: "border-violet-400/20 bg-violet-500/10 text-violet-200",
         accent: "bg-violet-400",
       };
     case "rose":
       return {
         glow: "from-rose-500/20 via-rose-400/10 to-transparent",
-        iconWrap:
-          "border-rose-400/20 bg-rose-500/10 text-rose-300 shadow-[0_0_30px_rgba(244,63,94,0.18)]",
+        iconWrap: "border-rose-400/20 bg-rose-500/10 text-rose-200",
         accent: "bg-rose-400",
       };
     case "cyan":
     default:
       return {
         glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
-        iconWrap:
-          "border-cyan-400/20 bg-cyan-500/10 text-cyan-300 shadow-[0_0_30px_rgba(34,211,238,0.18)]",
+        iconWrap: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
         accent: "bg-cyan-400",
       };
   }
@@ -377,32 +360,35 @@ function FinanceMetricCard({ metric }: { metric: DashboardMetricCard }) {
   const tone = getMetricToneClasses(metric.tone);
 
   return (
-    <div className="group relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+    <div className="group relative min-h-[170px] overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
       <div
         className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`}
       />
-      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-white/10" />
-      <div className="relative flex h-full flex-col gap-6 p-6">
+      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-white/10" />
+
+      <div className="relative flex h-full flex-col justify-between gap-5">
         <div className="flex items-start justify-between gap-4">
-          <div className="space-y-2">
-            <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-white/45">
+          <div className="min-w-0 space-y-2">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
               {metric.title}
             </div>
-            <div className="text-3xl font-semibold tracking-tight text-white">
+            <div className="truncate text-3xl font-semibold tracking-[-0.035em] text-white">
               {metric.value}
             </div>
           </div>
 
           <div
-            className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
           >
             <Icon className="h-5 w-5" />
           </div>
         </div>
 
-        <div className="mt-auto flex items-center justify-between gap-3">
-          <div className="text-sm text-white/55">{metric.subtitle}</div>
-          <div className={`h-2 w-2 rounded-full ${tone.accent}`} />
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
+            {metric.subtitle}
+          </div>
+          <div className={`h-2 w-2 shrink-0 rounded-full ${tone.accent}`} />
         </div>
       </div>
     </div>
@@ -422,20 +408,20 @@ function FinanceTabButton({
     <button
       type="button"
       onClick={() => onOpen(tab.route)}
-      className="group relative overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] text-left backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.07]"
+      className="group flex min-h-[170px] flex-col justify-between rounded-[26px] border border-white/10 bg-black/20 p-5 text-left transition hover:border-cyan-400/25 hover:bg-white/[0.055] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:border-white/10 disabled:hover:bg-black/20"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_45%)] opacity-80" />
-      <div className="relative flex h-full flex-col gap-3 p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/80">
-            <Icon className="h-5 w-5" />
-          </div>
-          <ArrowRight className="h-4 w-4 text-white/35 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
+      <div className="flex items-start justify-between gap-4">
+        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+          <Icon className="h-5 w-5" />
         </div>
 
-        <div className="space-y-2">
-          <div className="text-base font-semibold text-white">{tab.label}</div>
-          <div className="text-sm leading-6 text-white/50">{tab.description}</div>
+        <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
+      </div>
+
+      <div className="mt-5 space-y-2">
+        <div className="text-base font-semibold text-white">{tab.label}</div>
+        <div className="text-sm leading-6 text-slate-400">
+          {tab.description}
         </div>
       </div>
     </button>
@@ -449,28 +435,36 @@ function FinanceInsightCard({
 }: {
   title: string;
   icon: typeof AlertTriangle;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <Card className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <CardHeader className="border-b border-white/8 pb-4">
-        <CardTitle className="flex items-center gap-3 text-white">
-          <div className="flex h-8 w-8 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/80">
+    <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
             <Icon className="h-4 w-4" />
           </div>
-          <span>{title}</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-5">{children}</CardContent>
-    </Card>
+
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+              {title}
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Live finance control signals.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-5">{children}</div>
+    </div>
   );
 }
 
 export default function FinancePage() {
   const navigate = useNavigate();
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
-
-    const [dashboardData, setDashboardData] =
+  const [dashboardData, setDashboardData] =
     useState<DashboardData>(EMPTY_DASHBOARD_DATA);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
   const [activityPanelHeight, setActivityPanelHeight] = useState(640);
@@ -629,7 +623,8 @@ export default function FinancePage() {
       const journals = (journalsResult.data || []) as FinanceJournalRow[];
       const periods = (periodsResult.data || []) as FinancePeriodRow[];
 
-      const cashPosition = bankAccounts.reduce(
+
+          const cashPosition = bankAccounts.reduce(
         (sum, account) => sum + toNumber(account.opening_balance),
         0
       );
@@ -720,8 +715,8 @@ export default function FinancePage() {
           createdAt: approval.created_at,
           route:
             approval.entity_type === "finance_expense"
-           ? `/finance/transactions/expenses/${approval.entity_id}`
-            : "/finance/transactions/approvals",
+              ? `/finance/transactions/expenses/${approval.entity_id}`
+              : "/finance/transactions/approvals",
         })),
         ...payrollRuns.slice(0, 3).map((run) => ({
           id: `payroll-${run.id}`,
@@ -855,7 +850,7 @@ export default function FinancePage() {
     };
   }, [loadDashboard]);
 
-   const dashboardMetricCards = useMemo<DashboardMetricCard[]>(() => {
+  const dashboardMetricCards = useMemo<DashboardMetricCard[]>(() => {
     return [
       {
         key: "cash",
@@ -879,7 +874,7 @@ export default function FinancePage() {
           dashboardData.counts.invoicesIssued
         )} invoices currently tracked`,
         icon: TrendingUp,
-        tone: "blue",
+        tone: "cyan",
       },
       {
         key: "payables",
@@ -932,37 +927,37 @@ export default function FinancePage() {
 
   const insightAlerts = useMemo(() => {
     return [
-            {
+      {
         label: "Overdue invoices",
         value: formatCount(dashboardData.alerts.overdueInvoices),
         tone:
           dashboardData.alerts.overdueInvoices > 0
-            ? "text-rose-300"
-            : "text-white/75",
+            ? "text-rose-200"
+            : "text-slate-300",
       },
       {
         label: "Overdue bills",
         value: formatCount(dashboardData.alerts.overdueBills),
         tone:
           dashboardData.alerts.overdueBills > 0
-            ? "text-amber-300"
-            : "text-white/75",
+            ? "text-amber-200"
+            : "text-slate-300",
       },
       {
         label: "Pending approvals",
         value: formatCount(dashboardData.alerts.pendingApprovals),
         tone:
           dashboardData.alerts.pendingApprovals > 0
-            ? "text-cyan-300"
-            : "text-white/75",
+            ? "text-cyan-200"
+            : "text-slate-300",
       },
       {
         label: "Draft journal blockers",
         value: formatCount(dashboardData.alerts.periodCloseBlockers),
         tone:
           dashboardData.alerts.periodCloseBlockers > 0
-            ? "text-violet-300"
-            : "text-white/75",
+            ? "text-violet-200"
+            : "text-slate-300",
       },
     ];
   }, [dashboardData]);
@@ -984,7 +979,7 @@ export default function FinancePage() {
     ];
   }, [dashboardData]);
 
-    const handleTabOpen = useCallback(
+  const handleTabOpen = useCallback(
     (route: string) => {
       navigate(route);
     },
@@ -1000,7 +995,7 @@ export default function FinancePage() {
 
     const handleMouseMove = (event: MouseEvent) => {
       const nextHeight = event.clientY - 220;
-      const clampedHeight = Math.max(250, Math.min(nextHeight, 1500));
+      const clampedHeight = Math.max(320, Math.min(nextHeight, 1200));
       setActivityPanelHeight(clampedHeight);
     };
 
@@ -1020,202 +1015,201 @@ export default function FinancePage() {
   const renderWorkspaceContent = () => {
     if (isLoadingPermissions) {
       return (
-        <Card className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-          <CardContent className="p-6 text-sm text-white/55">
-            Loading workspace permissions...
-          </CardContent>
-        </Card>
+        <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-10 text-center">
+          <div className="text-sm font-medium text-white">
+            Loading workspace permissions
+          </div>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            Finance access controls are being checked.
+          </p>
+        </div>
       );
     }
 
-        return (
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {WORKSPACE_TABS.map((tab) => (
-          <FinanceTabButton key={tab.key} tab={tab} onOpen={handleTabOpen} />
-        ))}
+    return (
+      <div className="overflow-x-auto pb-2">
+        <div className="flex min-w-max gap-4">
+          {WORKSPACE_TABS.map((tab) => (
+            <div key={tab.key} className="w-[300px] flex-shrink-0">
+              <FinanceTabButton tab={tab} onOpen={handleTabOpen} />
+            </div>
+          ))}
+        </div>
       </div>
     );
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
-      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
-        <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6 xl:p-7">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_35%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_24%)]" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-[42%] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.12),transparent_55%)] opacity-70" />
+    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+        <header className="overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 hidden" />
 
-          <div className="relative flex flex-col gap-6">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-              <div className="max-w-3xl space-y-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.24em] text-white/70 shadow-none">
-                    Finance Hub
-                  </Badge>
-
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    Live backend
-                  </Badge>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/10 bg-black/20 text-white shadow-[0_0_30px_rgba(255,255,255,0.08)]">
-                      <Sparkles className="h-5 w-5" />
-                    </div>
-
-                    <div>
-                      <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                        Finance Command Center
-                      </h1>
-                      <div className="mt-1 text-sm text-white/45">
-                        A modern overview of your live financial position,
-                        approvals, balances, activity, and ledger health.
-                      </div>
-                    </div>
-                  </div>
-
-                 <p className="max-w-2xl text-sm leading-7 text-white/55 sm:text-[15px]">
-                    Built on your real finance backend structure, this command
-                    center now routes into four clear layers: master data,
-                    transactions, reports, and settings. The goal is simple:
-                    cleaner navigation, less duplication, and a stronger
-                    enterprise finance workflow.
-                  </p>
-                </div>
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0 max-w-4xl">
+              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+                <Sparkles className="h-3.5 w-3.5" />
+                Finance Hub
               </div>
 
-              <div className="flex flex-wrap gap-3 xl:justify-end">
-                <Button
-                  variant="outline"
-                  onClick={() => navigate(-1)}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back
-                </Button>
+              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                Finance Command Center
+              </h1>
 
-                <Button
-                  variant="outline"
-                  onClick={() => void loadDashboard()}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Refresh
-                </Button>
+              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                Live financial position, approvals, balances, activity, and
+                ledger health across master data, transactions, reports, and
+                settings.
+              </p>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
+                  Live backend
+                </div>
+                <div className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                  Data-first
+                </div>
               </div>
             </div>
 
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-6">
-              {dashboardMetricCards.map((metric) => (
-                <FinanceMetricCard key={metric.key} metric={metric} />
-              ))}
-            </div>
+            <div className="flex flex-wrap gap-2 xl:justify-end">
+              <Button
+                variant="outline"
+                onClick={() => navigate(-1)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </Button>
 
-            <div className="rounded-[26px] border border-white/10 bg-black/15 p-4 backdrop-blur-xl">
-              <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-white/40">
-                    Finance Navigation
-                  </div>
-                 <div className="mt-1 text-lg font-semibold text-white">
-                    Open a Finance Module
-                  </div>
-                </div>
-
-               <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                  Dashboard, setup, operations, analytics, and control
-                </div>
-              </div>
-
-              {renderWorkspaceContent()}
+              <Button
+                variant="outline"
+                onClick={() => void loadDashboard()}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </Button>
             </div>
           </div>
+
+          <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+            {dashboardMetricCards.map((metric) => (
+              <FinanceMetricCard key={metric.key} metric={metric} />
+            ))}
+          </section>
+        </header>
+
+        <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+          <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Finance Navigation
+              </h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Open setup, operations, analytics, and control modules.
+              </p>
+            </div>
+
+            <div className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+              Dashboard layers
+            </div>
+          </div>
+
+          <div className="p-5">{renderWorkspaceContent()}</div>
         </section>
 
-                <section className="grid grid-cols-1 items-stretch gap-6 xl:grid-cols-[minmax(0,1.35fr)_420px]">
-          <div className="flex h-full flex-col">
-            <Card
-  className="flex flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl"
-  style={{ height: `${activityPanelHeight}px` }}
->
-              <CardHeader className="sticky top-0 z-10 border-b border-white/8 bg-[rgba(15,23,42,0.72)] pb-4 backdrop-blur-xl">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <CardTitle className="text-white">Recent Activity</CardTitle>
-                    <CardDescription className="text-white/45">
-                      Latest finance records, approvals, and payroll movement.
-                    </CardDescription>
-                  </div>
+        <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
+          <div
+            className="flex min-h-0 flex-col overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.045] shadow-2xl shadow-black/30 backdrop-blur-xl"
+            style={{ height: `${activityPanelHeight}px` }}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Recent Activity
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Latest finance records, approvals, and payroll movement.
+                </p>
+              </div>
 
-                  <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs text-white/70 shadow-none">
-                    Live feed
-                  </Badge>
-                </div>
-              </CardHeader>
+              <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                Live feed
+              </div>
+            </div>
 
-                                          <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-                {dashboardData.recentActivity.length === 0 ? (
-                  <div className="flex-1 p-6 text-sm text-white/50">
-                    No finance activity found yet.
-                  </div>
-                ) : (
-                  <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-                    <div className="space-y-3">
-                      {dashboardData.recentActivity.map((item, index) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => {
-                            if (!item.route) return;
-                            navigate(item.route);
-                          }}
-                          className="group flex w-full items-start justify-between gap-4 rounded-[20px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
-                        >
-                          <div className="flex min-w-0 items-start gap-4">
-                            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/75">
-                              <span className="text-xs font-semibold text-white/70">
-                                {String(index + 1).padStart(2, "0")}
-                              </span>
-                            </div>
-
-                            <div className="min-w-0 space-y-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Badge className="rounded-full border border-cyan-400/15 bg-cyan-500/10 px-2.5 py-1 text-[11px] text-cyan-200 shadow-none">
-                                  {item.type}
-                                </Badge>
-                                <div className="truncate text-sm font-medium text-white sm:text-[15px]">
-                                  {item.title}
-                                </div>
-                              </div>
-
-                              <div className="text-sm leading-6 text-white/48">
-                                {item.subtitle}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex shrink-0 items-center gap-3 pl-2">
-                            <div className="hidden text-xs text-white/30 transition-colors duration-200 group-hover:text-white/55 sm:block">
-                              {formatDateLabel(item.createdAt)}
-                            </div>
-                            <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
-                          </div>
-                        </button>
-                      ))}
+            <div className="flex min-h-0 flex-1 flex-col">
+              {dashboardData.recentActivity.length === 0 ? (
+                <div className="flex-1 p-5">
+                  <div className="flex h-full items-center justify-center rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                    <div>
+                      <div className="text-sm font-medium text-white">
+                        No finance activity found
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-slate-500">
+                        New invoices, bills, expenses, approvals, and payroll
+                        records will appear here.
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
+              ) : (
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+                  <div className="space-y-3">
+                    {dashboardData.recentActivity.map((item, index) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          if (!item.route) return;
+                          navigate(item.route);
+                        }}
+                        className="relative grid w-full gap-4 rounded-[22px] border border-white/10 bg-white/[0.035] p-4 text-left transition hover:border-white/15 hover:bg-white/[0.055] lg:grid-cols-[minmax(0,1fr)_150px]"
+                      >
+                        <div className="flex min-w-0 items-start gap-4">
+                          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-xs font-semibold text-slate-400">
+                            {String(index + 1).padStart(2, "0")}
+                          </div>
 
-                <button
-                  type="button"
-                  onMouseDown={handleActivityResizeStart}
-                  className="group flex h-6 w-full cursor-row-resize items-center justify-center border-t border-white/8 bg-white/[0.02] hover:bg-white/[0.05]"
-                  aria-label="Resize recent activity panel"
-                >
-                  <div className="h-1.5 w-24 rounded-full bg-white/15 transition-colors duration-200 group-hover:bg-cyan-300/60" />
-                </button>
-              </CardContent>
-            </Card>
+                          <div className="min-w-0">
+                            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                              <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                                {item.type}
+                              </div>
+
+                              <div className="min-w-0 truncate text-sm font-semibold text-white">
+                                {item.title}
+                              </div>
+                            </div>
+
+                            <div className="mt-2 text-sm leading-6 text-slate-400">
+                              {item.subtitle}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3 lg:justify-end">
+                          <div className="text-xs text-slate-600">
+                            {formatDateLabel(item.createdAt)}
+                          </div>
+                          <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-1" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onMouseDown={handleActivityResizeStart}
+                className="group flex h-7 w-full cursor-row-resize items-center justify-center border-t border-white/10 bg-white/[0.02] transition hover:bg-white/[0.05]"
+                aria-label="Resize recent activity panel"
+              >
+                <GripHorizontal className="h-4 w-4 text-slate-600 transition group-hover:text-cyan-200" />
+              </button>
+            </div>
           </div>
 
           <div className="space-y-6">
@@ -1224,9 +1218,9 @@ export default function FinancePage() {
                 {insightAlerts.map((item) => (
                   <div
                     key={item.label}
-                    className="flex items-center justify-between gap-3 rounded-[18px] border border-white/8 bg-black/15 px-4 py-3 transition-colors duration-200 hover:bg-white/[0.05]"
+                    className="flex items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-black/20 px-4 py-3 transition hover:bg-white/[0.045]"
                   >
-                    <div className="text-sm text-white/60">{item.label}</div>
+                    <div className="text-sm text-slate-400">{item.label}</div>
                     <div className={`text-sm font-semibold ${item.tone}`}>
                       {item.value}
                     </div>
@@ -1240,12 +1234,12 @@ export default function FinancePage() {
                 {openBalances.map((item) => (
                   <div
                     key={item.label}
-                    className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3"
+                    className="rounded-[24px] border border-white/10 bg-black/20 p-4"
                   >
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                       {item.label}
                     </div>
-                    <div className="mt-2 text-lg font-semibold text-white">
+                    <div className="mt-2 text-2xl font-semibold text-white">
                       {item.value}
                     </div>
                   </div>
@@ -1258,3 +1252,4 @@ export default function FinancePage() {
     </div>
   );
 }
+

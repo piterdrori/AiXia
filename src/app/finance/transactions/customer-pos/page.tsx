@@ -5,13 +5,13 @@ import { useNavigate } from "react-router-dom";
 import {
   Archive,
   ArrowRight,
-  CheckCircle,
+  Eye,
   FileText,
   Link2,
+  Paperclip,
   Plus,
   RotateCcw,
   Trash2,
-  X,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -66,87 +66,12 @@ type CustomerPoRow = {
   reference_number: string | null;
   posted_to_ledger: boolean;
   company_name_snapshot: string | null;
-  company_legal_name_snapshot: string | null;
-  company_contact_person_snapshot: string | null;
-  company_email_snapshot: string | null;
-  company_phone_snapshot: string | null;
-  company_address_snapshot: string | null;
   client_name_snapshot: string | null;
-  client_legal_name_snapshot: string | null;
-  client_contact_person_snapshot: string | null;
-  client_email_snapshot: string | null;
-  client_phone_snapshot: string | null;
-  billing_address_snapshot: string | null;
-  shipping_address_snapshot: string | null;
-  counterparty_type: string | null;
-  counterparty_company_id: string | null;
-  is_intercompany: boolean;
-  counterparty_name_snapshot: string | null;
-  counterparty_legal_name_snapshot: string | null;
-  counterparty_contact_person_snapshot: string | null;
-  counterparty_email_snapshot: string | null;
-  counterparty_phone_snapshot: string | null;
-};
-
-type ClientOption = {
-  id: string;
-  name: string;
-  legal_name: string | null;
-  contact_person: string | null;
-  company_email: string | null;
-  personnel_email: string | null;
-  company_phone: string | null;
-  personnel_phone: string | null;
-  country: string | null;
-  city: string | null;
-  state_province: string | null;
-  postal_code: string | null;
-  address_line_1: string | null;
-  address_line_2: string | null;
-};
-
-type CompanyOption = {
-  id: string;
-  name: string;
-  legal_name: string | null;
-  contact_person: string | null;
-  email: string | null;
-  phone: string | null;
-  country: string | null;
-  city: string | null;
-  state_province: string | null;
-  postal_code: string | null;
-  address_line_1: string | null;
-  address_line_2: string | null;
-};
-
-type CurrencyOption = {
-  id: string;
-  currency_code: string;
-  currency_name: string | null;
-};
-
-type ProjectOption = {
-  id: string;
-  name: string;
-};
-
-type TaskOption = {
-  id: string;
-  title: string;
-  project_id: string | null;
 };
 
 type QuotationOption = {
   id: string;
   quotation_number: string | null;
-  client_id: string | null;
-  company_id: string | null;
-  currency_id: string | null;
-  currency_code: string | null;
-  total_amount: number | string | null;
-  project_id: string | null;
-  task_id: string | null;
   status: string | null;
 };
 
@@ -156,36 +81,12 @@ type ProformaOption = {
   status: string | null;
 };
 
-type CustomerPoFormState = {
-  client_id: string;
-  quotation_id: string;
-  external_po_number: string;
-  company_id: string;
-  po_date: string;
-  received_date: string;
-  currency_id: string;
-  currency_code: string;
-  total_amount: string;
-  project_id: string;
-  task_id: string;
-  notes: string;
-  status: CustomerPoStatus;
-};
-
-const EMPTY_FORM: CustomerPoFormState = {
-  client_id: "",
-  quotation_id: "",
-  external_po_number: "",
-  company_id: "",
-  po_date: new Date().toISOString().slice(0, 10),
-  received_date: new Date().toISOString().slice(0, 10),
-  currency_id: "",
-  currency_code: "",
-  total_amount: "",
-  project_id: "",
-  task_id: "",
-  notes: "",
-  status: "received",
+type CustomerPoAttachment = {
+  id: string;
+  entity_id: string;
+  created_at: string | null;
+  file_name: string | null;
+  file_path: string | null;
 };
 
 function toNumber(value: number | string | null | undefined) {
@@ -213,27 +114,6 @@ function formatDate(value: string | null | undefined) {
     month: "short",
     day: "numeric",
   });
-}
-
-function makeAddressSnapshot(
-  row:
-    | ClientOption
-    | CompanyOption
-    | null
-    | undefined
-) {
-  if (!row) return null;
-
-  return [
-    row.address_line_1,
-    row.address_line_2,
-    row.city,
-    row.state_province,
-    row.postal_code,
-    row.country,
-  ]
-    .filter(Boolean)
-    .join(", ") || null;
 }
 
 function getStatusLabel(status: CustomerPoStatus) {
@@ -294,22 +174,17 @@ export default function FinanceCustomerPosPage() {
   const navigate = useNavigate();
 
   const [customerPos, setCustomerPos] = useState<CustomerPoRow[]>([]);
-  const [clients, setClients] = useState<ClientOption[]>([]);
-  const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
-  const [projects, setProjects] = useState<ProjectOption[]>([]);
-  const [tasks, setTasks] = useState<TaskOption[]>([]);
   const [quotations, setQuotations] = useState<QuotationOption[]>([]);
   const [proformas, setProformas] = useState<ProformaOption[]>([]);
+  const [attachmentsByPoId, setAttachmentsByPoId] = useState<
+    Record<string, CustomerPoAttachment[]>
+  >({});
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [showCreatePanel, setShowCreatePanel] = useState(false);
   const [showArchivePanel, setShowArchivePanel] = useState(false);
   const [archiveTab, setArchiveTab] = useState<"archived" | "deleted">("archived");
-  const [form, setForm] = useState<CustomerPoFormState>(EMPTY_FORM);
   const [error, setError] = useState("");
-
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -318,47 +193,17 @@ export default function FinanceCustomerPosPage() {
     try {
       const [
         customerPosResult,
-        clientsResult,
-        companiesResult,
-        currenciesResult,
-        projectsResult,
-        tasksResult,
         quotationsResult,
         proformasResult,
+        attachmentsResult,
       ] = await Promise.all([
         supabase
           .from("finance_client_purchase_orders")
           .select("*")
           .order("created_at", { ascending: false }),
         supabase
-          .from("finance_clients")
-          .select(
-            "id, name, legal_name, contact_person, company_email, personnel_email, company_phone, personnel_phone, country, city, state_province, postal_code, address_line_1, address_line_2"
-          )
-          .eq("status", "active")
-          .order("name", { ascending: true }),
-        supabase
-          .from("finance_companies")
-          .select(
-            "id, name, legal_name, contact_person, email, phone, country, city, state_province, postal_code, address_line_1, address_line_2"
-          )
-          .eq("status", "active")
-          .order("name", { ascending: true }),
-        supabase
-          .from("finance_currencies")
-          .select("id, currency_code, currency_name")
-          .eq("status", "active")
-          .order("currency_code", { ascending: true }),
-        supabase.from("projects").select("id, name").order("name", { ascending: true }),
-        supabase
-          .from("tasks")
-          .select("id, title, project_id")
-          .order("created_at", { ascending: false }),
-        supabase
           .from("finance_quotations")
-          .select(
-            "id, quotation_number, client_id, company_id, currency_id, currency_code, total_amount, project_id, task_id, status"
-          )
+          .select("id, quotation_number, status")
           .not("status", "in", "(archived,deleted)")
           .order("created_at", { ascending: false }),
         supabase
@@ -366,25 +211,52 @@ export default function FinanceCustomerPosPage() {
           .select("id, proforma_number, status")
           .not("status", "in", "(archived,deleted)")
           .order("created_at", { ascending: false }),
+        supabase
+          .from("finance_record_attachments")
+          .select(`
+            id,
+            entity_id,
+            created_at,
+            file_uploads (
+              file_name,
+              file_path
+            )
+          `)
+          .eq("entity_type", "finance_client_purchase_order")
+          .order("created_at", { ascending: false }),
       ]);
 
       if (customerPosResult.error) throw customerPosResult.error;
-      if (clientsResult.error) throw clientsResult.error;
-      if (companiesResult.error) throw companiesResult.error;
-      if (currenciesResult.error) throw currenciesResult.error;
-      if (projectsResult.error) throw projectsResult.error;
-      if (tasksResult.error) throw tasksResult.error;
       if (quotationsResult.error) throw quotationsResult.error;
       if (proformasResult.error) throw proformasResult.error;
+      if (attachmentsResult.error) throw attachmentsResult.error;
+
+      const mappedAttachments = ((attachmentsResult.data || []) as any[]).reduce<
+        Record<string, CustomerPoAttachment[]>
+      >((accumulator, row) => {
+        const entityId = String(row.entity_id || "");
+
+        if (!entityId) return accumulator;
+
+        if (!accumulator[entityId]) {
+          accumulator[entityId] = [];
+        }
+
+        accumulator[entityId].push({
+          id: row.id,
+          entity_id: entityId,
+          created_at: row.created_at || null,
+          file_name: row.file_uploads?.file_name || null,
+          file_path: row.file_uploads?.file_path || null,
+        });
+
+        return accumulator;
+      }, {});
 
       setCustomerPos((customerPosResult.data || []) as CustomerPoRow[]);
-      setClients((clientsResult.data || []) as ClientOption[]);
-      setCompanies((companiesResult.data || []) as CompanyOption[]);
-      setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
-      setProjects((projectsResult.data || []) as ProjectOption[]);
-      setTasks((tasksResult.data || []) as TaskOption[]);
       setQuotations((quotationsResult.data || []) as QuotationOption[]);
       setProformas((proformasResult.data || []) as ProformaOption[]);
+      setAttachmentsByPoId(mappedAttachments);
     } catch (err) {
       console.error(err);
       setError("Failed to load customer purchase orders.");
@@ -414,7 +286,7 @@ export default function FinanceCustomerPosPage() {
         {
           event: "*",
           schema: "public",
-          table: "finance_quotations",
+          table: "finance_record_attachments",
         },
         () => void loadData()
       )
@@ -429,6 +301,7 @@ export default function FinanceCustomerPosPage() {
       supabase.removeChannel(channel);
     };
   }, [loadData]);
+
 
   const activeCustomerPos = useMemo(
     () =>
@@ -448,36 +321,6 @@ export default function FinanceCustomerPosPage() {
     [customerPos]
   );
 
-  const filteredQuotations = useMemo(() => {
-    if (!form.client_id) return [];
-    return quotations.filter((quotation) => quotation.client_id === form.client_id);
-  }, [form.client_id, quotations]);
-
-  const filteredTasks = useMemo(() => {
-    if (!form.project_id) return tasks;
-    return tasks.filter((task) => task.project_id === form.project_id);
-  }, [form.project_id, tasks]);
-
-  const selectedClient = useMemo(
-    () => clients.find((client) => client.id === form.client_id) || null,
-    [clients, form.client_id]
-  );
-
-  const selectedCompany = useMemo(
-    () => companies.find((company) => company.id === form.company_id) || null,
-    [companies, form.company_id]
-  );
-
-  const selectedQuotation = useMemo(
-    () => quotations.find((quotation) => quotation.id === form.quotation_id) || null,
-    [form.quotation_id, quotations]
-  );
-
-  const selectedCurrency = useMemo(
-    () => currencies.find((currency) => currency.id === form.currency_id) || null,
-    [currencies, form.currency_id]
-  );
-
   const metrics = useMemo(() => {
     const awaitingPi = activeCustomerPos.filter(
       (row) => row.status === "received" || row.status === "verified"
@@ -493,169 +336,6 @@ export default function FinanceCustomerPosPage() {
     };
   }, [activeCustomerPos]);
 
-  function resetForm() {
-    setForm(EMPTY_FORM);
-    setError("");
-  }
-
-  function handleClientChange(clientId: string) {
-    setForm((current) => ({
-      ...current,
-      client_id: clientId,
-      quotation_id: "",
-      company_id: "",
-      currency_id: "",
-      currency_code: "",
-      total_amount: "",
-      project_id: "",
-      task_id: "",
-    }));
-  }
-
-  function handleQuotationChange(quotationId: string) {
-    const quotation = quotations.find((entry) => entry.id === quotationId);
-
-    if (!quotation) {
-      setForm((current) => ({
-        ...current,
-        quotation_id: "",
-      }));
-      return;
-    }
-
-    const matchedCurrency = currencies.find(
-      (currency) =>
-        currency.id === quotation.currency_id ||
-        currency.currency_code === quotation.currency_code
-    );
-
-    setForm((current) => ({
-      ...current,
-      quotation_id: quotation.id,
-      company_id: quotation.company_id || current.company_id,
-      currency_id: matchedCurrency?.id || current.currency_id,
-      currency_code:
-        matchedCurrency?.currency_code ||
-        quotation.currency_code ||
-        current.currency_code,
-      total_amount:
-        quotation.total_amount !== null && quotation.total_amount !== undefined
-          ? String(quotation.total_amount)
-          : current.total_amount,
-      project_id: quotation.project_id || current.project_id,
-      task_id: quotation.task_id || current.task_id,
-    }));
-  }
-
-  function handleCurrencyChange(currencyId: string) {
-    const currency = currencies.find((entry) => entry.id === currencyId);
-
-    setForm((current) => ({
-      ...current,
-      currency_id: currencyId,
-      currency_code: currency?.currency_code || "",
-    }));
-  }
-
-  async function handleCreateCustomerPo() {
-    if (!form.client_id) {
-      setError("Client is required.");
-      return;
-    }
-
-    if (!form.external_po_number.trim()) {
-      setError("Customer PO No. is required.");
-      return;
-    }
-
-    if (!form.company_id) {
-      setError("Company is required.");
-      return;
-    }
-
-    if (!form.currency_code) {
-      setError("Currency is required.");
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-      setError("");
-
-      const userId = await getCurrentUserId();
-
-      const payload = {
-        external_po_number: form.external_po_number.trim(),
-        quotation_id: form.quotation_id || null,
-        proforma_invoice_id: null,
-        client_id: form.client_id || null,
-        company_id: form.company_id || null,
-        po_date: form.po_date || null,
-        received_at: form.received_date
-          ? new Date(`${form.received_date}T00:00:00`).toISOString()
-          : new Date().toISOString(),
-        status: form.status,
-        currency_id: form.currency_id || null,
-        currency_code: form.currency_code || selectedCurrency?.currency_code || null,
-        total_amount: form.total_amount ? Number(form.total_amount) : 0,
-        notes: form.notes.trim() || null,
-        metadata: {
-          source: "customer_po_page",
-          quotation_number: selectedQuotation?.quotation_number || null,
-        },
-        created_by: userId,
-        updated_by: userId,
-        project_id: form.project_id || null,
-        task_id: form.task_id || null,
-        reference_number: form.external_po_number.trim() || null,
-        posted_to_ledger: false,
-        company_name_snapshot: selectedCompany?.legal_name || selectedCompany?.name || null,
-        company_legal_name_snapshot: selectedCompany?.legal_name || null,
-        company_contact_person_snapshot: selectedCompany?.contact_person || null,
-        company_email_snapshot: selectedCompany?.email || null,
-        company_phone_snapshot: selectedCompany?.phone || null,
-        company_address_snapshot: makeAddressSnapshot(selectedCompany),
-        client_name_snapshot: selectedClient?.legal_name || selectedClient?.name || null,
-        client_legal_name_snapshot: selectedClient?.legal_name || null,
-        client_contact_person_snapshot: selectedClient?.contact_person || null,
-        client_email_snapshot:
-          selectedClient?.company_email || selectedClient?.personnel_email || null,
-        client_phone_snapshot:
-          selectedClient?.company_phone || selectedClient?.personnel_phone || null,
-        billing_address_snapshot: makeAddressSnapshot(selectedClient),
-        shipping_address_snapshot: makeAddressSnapshot(selectedClient),
-        counterparty_type: "client",
-        counterparty_company_id: null,
-        is_intercompany: false,
-        counterparty_name_snapshot:
-          selectedClient?.legal_name || selectedClient?.name || null,
-        counterparty_legal_name_snapshot: selectedClient?.legal_name || null,
-        counterparty_contact_person_snapshot: selectedClient?.contact_person || null,
-        counterparty_email_snapshot:
-          selectedClient?.company_email || selectedClient?.personnel_email || null,
-        counterparty_phone_snapshot:
-          selectedClient?.company_phone || selectedClient?.personnel_phone || null,
-      };
-
-      const { error: insertError } = await supabase
-        .from("finance_client_purchase_orders")
-        .insert(payload);
-
-      if (insertError) throw insertError;
-
-      resetForm();
-      setShowCreatePanel(false);
-      await loadData();
-    } catch (err) {
-      console.error(err);
-      setError(
-        err instanceof Error ? err.message : "Failed to create customer PO."
-      );
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
   async function updateCustomerPoStatus(
     row: CustomerPoRow,
     status: CustomerPoStatus
@@ -668,7 +348,6 @@ export default function FinanceCustomerPosPage() {
 
       const timestampPatch: Partial<CustomerPoRow> = {};
 
-      if (status === "verified") timestampPatch.verified_at = new Date().toISOString();
       if (status === "closed") timestampPatch.closed_at = new Date().toISOString();
       if (status === "canceled") timestampPatch.canceled_at = new Date().toISOString();
       if (status === "archived" || status === "deleted") {
@@ -749,7 +428,9 @@ export default function FinanceCustomerPosPage() {
     } catch (err) {
       console.error(err);
       setError(
-        err instanceof Error ? err.message : "Failed to permanently delete customer PO."
+        err instanceof Error
+          ? err.message
+          : "Failed to permanently delete customer PO."
       );
     } finally {
       setIsSaving(false);
@@ -785,15 +466,16 @@ export default function FinanceCustomerPosPage() {
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Customer purchase orders received from clients after quotation approval and before proforma invoice creation.
+                  Customer purchase orders received from clients after quotation approval and
+                  before proforma invoice creation.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
                   <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200 shadow-none">
-                    Client-first quotation filtering
+                    List only
                   </Badge>
                   <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200 shadow-none">
-                    Auto-fill with manual override
+                    Files verified in detail page
                   </Badge>
                   <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
                     Auto-refresh
@@ -844,10 +526,7 @@ export default function FinanceCustomerPosPage() {
 
             <div className="mt-6 flex flex-wrap gap-3">
               <Button
-                onClick={() => {
-                  resetForm();
-                  setShowCreatePanel(true);
-                }}
+                onClick={() => navigate("/finance/transactions/customer-pos/new")}
                 className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 font-semibold text-slate-950 hover:bg-cyan-400"
               >
                 <Plus className="mr-2 h-4 w-4" />
@@ -891,262 +570,6 @@ export default function FinanceCustomerPosPage() {
           ))}
         </section>
 
-        {showCreatePanel ? (
-          <Card className="overflow-hidden rounded-[30px] border border-cyan-400/20 bg-white/[0.045] backdrop-blur-xl">
-            <CardHeader className="border-b border-white/10 px-5 py-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <CardTitle className="text-white">Create Customer PO</CardTitle>
-                  <CardDescription className="text-white/45">
-                    Select a client first. Linked quotations are filtered by that client. Quotation data auto-fills but remains editable.
-                  </CardDescription>
-                </div>
-
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    resetForm();
-                    setShowCreatePanel(false);
-                  }}
-                  className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardHeader>
-
-            <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Client</div>
-                <select
-                  value={form.client_id}
-                  onChange={(event) => handleClientChange(event.target.value)}
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                >
-                  <option value="">Select client</option>
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.legal_name || client.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Linked Quotation</div>
-                <select
-                  value={form.quotation_id}
-                  onChange={(event) => handleQuotationChange(event.target.value)}
-                  disabled={!form.client_id}
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
-                >
-                  <option value="">
-                    {form.client_id ? "No linked quotation" : "Select client first"}
-                  </option>
-                  {filteredQuotations.map((quotation) => (
-                    <option key={quotation.id} value={quotation.id}>
-                      {quotation.quotation_number || "Quotation"} —{" "}
-                      {formatMoney(quotation.total_amount, quotation.currency_code || "USD")}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Customer PO No.</div>
-                <input
-                  value={form.external_po_number}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      external_po_number: event.target.value,
-                    }))
-                  }
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                  placeholder="Customer document number"
-                />
-              </label>
-
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Company</div>
-                <select
-                  value={form.company_id}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      company_id: event.target.value,
-                    }))
-                  }
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                >
-                  <option value="">Select company</option>
-                  {companies.map((company) => (
-                    <option key={company.id} value={company.id}>
-                      {company.legal_name || company.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">PO Date</div>
-                <input
-                  type="date"
-                  value={form.po_date}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      po_date: event.target.value,
-                    }))
-                  }
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                />
-              </label>
-
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Received Date</div>
-                <input
-                  type="date"
-                  value={form.received_date}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      received_date: event.target.value,
-                    }))
-                  }
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                />
-              </label>
-
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Currency</div>
-                <select
-                  value={form.currency_id}
-                  onChange={(event) => handleCurrencyChange(event.target.value)}
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                >
-                  <option value="">Select currency</option>
-                  {currencies.map((currency) => (
-                    <option key={currency.id} value={currency.id}>
-                      {currency.currency_code} — {currency.currency_name || ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Total Amount</div>
-                <input
-                  type="number"
-                  value={form.total_amount}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      total_amount: event.target.value,
-                    }))
-                  }
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                  placeholder="0.00"
-                />
-              </label>
-
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Project</div>
-                <select
-                  value={form.project_id}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      project_id: event.target.value,
-                      task_id: "",
-                    }))
-                  }
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                >
-                  <option value="">No project</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Task</div>
-                <select
-                  value={form.task_id}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      task_id: event.target.value,
-                    }))
-                  }
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                >
-                  <option value="">No task</option>
-                  {filteredTasks.map((task) => (
-                    <option key={task.id} value={task.id}>
-                      {task.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Initial Status</div>
-                <select
-                  value={form.status}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      status: event.target.value as CustomerPoStatus,
-                    }))
-                  }
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                >
-                  <option value="received">Received</option>
-                  <option value="draft">Draft</option>
-                </select>
-              </label>
-
-              <div className="md:col-span-3">
-                <div className="text-sm text-white/70">Notes</div>
-                <textarea
-                  value={form.notes}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      notes: event.target.value,
-                    }))
-                  }
-                  rows={4}
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-3 md:col-span-3">
-                <Button
-                  onClick={() => void handleCreateCustomerPo()}
-                  disabled={isSaving}
-                  className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 font-semibold text-slate-950 hover:bg-cyan-400"
-                >
-                  {isSaving ? "Creating..." : "Create Customer PO"}
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={resetForm}
-                  disabled={isSaving}
-                  className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                >
-                  Reset
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
-
         <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
           <CardHeader className="border-b border-white/10 px-5 py-4">
             <CardTitle className="text-white">Customer PO Records</CardTitle>
@@ -1157,7 +580,7 @@ export default function FinanceCustomerPosPage() {
 
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1180px] border-collapse">
+              <table className="w-full min-w-[1240px] border-collapse">
                 <thead>
                   <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
                     <th className="px-5 py-4 font-semibold">Internal CPO No.</th>
@@ -1167,6 +590,7 @@ export default function FinanceCustomerPosPage() {
                     <th className="px-5 py-4 font-semibold">Linked PI</th>
                     <th className="px-5 py-4 font-semibold">PO Date</th>
                     <th className="px-5 py-4 text-right font-semibold">Total</th>
+                    <th className="px-5 py-4 font-semibold">Document</th>
                     <th className="px-5 py-4 font-semibold">Status</th>
                     <th className="px-5 py-4 text-right font-semibold">Actions</th>
                   </tr>
@@ -1175,7 +599,7 @@ export default function FinanceCustomerPosPage() {
                 <tbody className="divide-y divide-white/5">
                   {activeCustomerPos.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-5 py-14 text-center text-sm text-slate-500">
+                      <td colSpan={10} className="px-5 py-14 text-center text-sm text-slate-500">
                         No active customer POs found.
                       </td>
                     </tr>
@@ -1183,6 +607,7 @@ export default function FinanceCustomerPosPage() {
                     activeCustomerPos.map((row) => {
                       const quotation = quotations.find((entry) => entry.id === row.quotation_id);
                       const proforma = proformas.find((entry) => entry.id === row.proforma_invoice_id);
+                      const hasDocument = (attachmentsByPoId[row.id] || []).length > 0;
 
                       return (
                         <tr key={row.id} className="text-sm text-slate-300 transition hover:bg-white/[0.035]">
@@ -1208,22 +633,25 @@ export default function FinanceCustomerPosPage() {
                             {formatMoney(row.total_amount, row.currency_code || "USD")}
                           </td>
                           <td className="px-5 py-4">
+                            <div className="flex items-center gap-2 text-xs text-slate-400">
+                              <Paperclip className="h-3.5 w-3.5" />
+                              {hasDocument ? "Uploaded" : "Missing"}
+                            </div>
+                          </td>
+                          <td className="px-5 py-4">
                             <Badge className={`rounded-full border px-3 py-1 text-xs shadow-none ${getStatusBadgeClasses(row.status)}`}>
                               {getStatusLabel(row.status)}
                             </Badge>
                           </td>
                           <td className="px-5 py-4">
                             <div className="flex justify-end gap-2">
-                              {row.status === "received" ? (
-                                <Button
-                                  variant="outline"
-                                  onClick={() => void updateCustomerPoStatus(row, "verified")}
-                                  disabled={isSaving}
-                                  className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
-                                >
-                                  <CheckCircle className="h-4 w-4" />
-                                </Button>
-                              ) : null}
+                              <Button
+                                variant="outline"
+                                onClick={() => navigate(`/finance/transactions/customer-pos/${row.id}`)}
+                                className="h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
 
                               <Button
                                 variant="outline"

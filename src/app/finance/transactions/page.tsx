@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -431,39 +431,39 @@ function TransactionModuleButton({
         if (!module.route) return;
         onOpen(module.route);
       }}
-      className={`group flex min-h-[138px] w-full flex-col justify-between rounded-[22px] border border-white/10 bg-black/20 p-4 text-left transition ${
+      className={`group flex min-h-[126px] w-full flex-col justify-between rounded-[22px] border border-white/10 bg-black/20 p-4 text-left transition ${
         isClickable
           ? "hover:border-cyan-400/25 hover:bg-white/[0.055]"
           : "cursor-default opacity-75"
       }`}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
           <div className="rounded-xl border border-cyan-400/15 bg-cyan-500/10 p-2.5 text-cyan-200">
             <Icon className="h-4 w-4" />
           </div>
 
           {sequenceLabel ? (
-            <span className="rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+            <span className="rounded-full border border-white/10 bg-white/[0.045] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">
               {sequenceLabel}
             </span>
           ) : null}
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-300">
             {module.statusLabel}
           </span>
           <ArrowRight
-            className={`h-4 w-4 text-slate-500 transition ${
+            className={`h-3.5 w-3.5 text-slate-500 transition ${
               isClickable ? "group-hover:translate-x-1 group-hover:text-cyan-200" : ""
             }`}
           />
         </div>
       </div>
 
-      <div className="mt-4 space-y-1.5">
-        <div className="text-sm font-semibold text-white">
+      <div className="mt-3 space-y-1.5">
+        <div className="truncate text-sm font-semibold text-white">
           {titleOverride ?? module.title}
         </div>
         <div className="line-clamp-2 text-xs leading-5 text-slate-400">
@@ -471,9 +471,9 @@ function TransactionModuleButton({
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-2">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-600">
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-[16px] border border-white/10 bg-white/[0.035] px-3 py-2">
+          <div className="text-[9px] uppercase tracking-[0.16em] text-slate-600">
             Records
           </div>
           <div className="mt-1 text-sm font-semibold text-white">
@@ -481,8 +481,8 @@ function TransactionModuleButton({
           </div>
         </div>
 
-        <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-2">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-600">
+        <div className="rounded-[16px] border border-white/10 bg-white/[0.035] px-3 py-2">
+          <div className="text-[9px] uppercase tracking-[0.16em] text-slate-600">
             Updated
           </div>
           <div className="mt-1 truncate text-sm font-semibold text-white">
@@ -496,9 +496,9 @@ function TransactionModuleButton({
 
 function TransactionFlowArrow() {
   return (
-    <div className="hidden xl:flex xl:items-center xl:justify-center xl:px-2">
-      <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.035] text-slate-500">
-        <ArrowRight className="h-4 w-4" />
+    <div className="hidden xl:flex xl:items-center xl:justify-center xl:px-1.5">
+      <div className="flex h-7 w-7 items-center justify-center rounded-xl border border-white/10 bg-white/[0.035] text-slate-500">
+        <ArrowRight className="h-3.5 w-3.5" />
       </div>
     </div>
   );
@@ -540,29 +540,22 @@ function TransactionSectionCard({
               {section.splitLabelLeft ?? "A. Reimbursements"}
             </div>
 
-            <div className="overflow-x-auto pb-2">
-              <div className="flex min-w-max items-stretch">
-                {leftModules.map((item, index) => (
-                  <div
-                    key={`${item.module.key}-${item.sequenceLabel ?? index}`}
-                    className="flex flex-none items-stretch"
-                  >
-                    <div className="w-[220px] flex-none">
-                      <TransactionModuleButton
-                        module={item.module}
-                        onOpen={onOpen}
-                        sequenceLabel={item.sequenceLabel}
-                        titleOverride={item.titleOverride}
-                        descriptionOverride={item.descriptionOverride}
-                      />
-                    </div>
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_28px_minmax(0,1fr)] xl:items-stretch">
+              {leftModules.map((item, index) => (
+                <React.Fragment key={`${item.module.key}-${item.sequenceLabel ?? index}`}>
+                  <TransactionModuleButton
+                    module={item.module}
+                    onOpen={onOpen}
+                    sequenceLabel={item.sequenceLabel}
+                    titleOverride={item.titleOverride}
+                    descriptionOverride={item.descriptionOverride}
+                  />
 
-                    {index < leftModules.length - 1 ? (
-                      <TransactionFlowArrow />
-                    ) : null}
-                  </div>
-                ))}
-              </div>
+                  {index < leftModules.length - 1 ? (
+                    <TransactionFlowArrow />
+                  ) : null}
+                </React.Fragment>
+              ))}
             </div>
           </div>
 
@@ -571,29 +564,22 @@ function TransactionSectionCard({
               {section.splitLabelRight ?? "B. Payroll"}
             </div>
 
-            <div className="overflow-x-auto pb-2">
-              <div className="flex min-w-max items-stretch">
-                {rightModules.map((item, index) => (
-                  <div
-                    key={`${item.module.key}-${item.sequenceLabel ?? index}`}
-                    className="flex flex-none items-stretch"
-                  >
-                    <div className="w-[220px] flex-none">
-                      <TransactionModuleButton
-                        module={item.module}
-                        onOpen={onOpen}
-                        sequenceLabel={item.sequenceLabel}
-                        titleOverride={item.titleOverride}
-                        descriptionOverride={item.descriptionOverride}
-                      />
-                    </div>
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_28px_minmax(0,1fr)] xl:items-stretch">
+              {rightModules.map((item, index) => (
+                <React.Fragment key={`${item.module.key}-${item.sequenceLabel ?? index}`}>
+                  <TransactionModuleButton
+                    module={item.module}
+                    onOpen={onOpen}
+                    sequenceLabel={item.sequenceLabel}
+                    titleOverride={item.titleOverride}
+                    descriptionOverride={item.descriptionOverride}
+                  />
 
-                    {index < rightModules.length - 1 ? (
-                      <TransactionFlowArrow />
-                    ) : null}
-                  </div>
-                ))}
-              </div>
+                  {index < rightModules.length - 1 ? (
+                    <TransactionFlowArrow />
+                  ) : null}
+                </React.Fragment>
+              ))}
             </div>
           </div>
         </div>
@@ -620,29 +606,30 @@ function TransactionSectionCard({
 
       <div className="p-5">
         {section.layout === "flow" ? (
-          <div className="overflow-x-auto pb-2">
-            <div className="flex min-w-max items-stretch">
-              {section.modules.map((item, index) => (
-                <div
-                  key={`${item.module.key}-${item.sequenceLabel ?? index}`}
-                  className="flex flex-none items-stretch"
-                >
-                  <div className="w-[260px] flex-none">
-                    <TransactionModuleButton
-                      module={item.module}
-                      onOpen={onOpen}
-                      sequenceLabel={item.sequenceLabel}
-                      titleOverride={item.titleOverride}
-                      descriptionOverride={item.descriptionOverride}
-                    />
-                  </div>
+          <div
+            className={
+              section.modules.length === 5
+                ? "grid gap-3 xl:grid-cols-[minmax(0,1fr)_28px_minmax(0,1fr)_28px_minmax(0,1fr)_28px_minmax(0,1fr)_28px_minmax(0,1fr)] xl:items-stretch"
+                : section.modules.length === 4
+                  ? "grid gap-3 xl:grid-cols-[minmax(0,1fr)_28px_minmax(0,1fr)_28px_minmax(0,1fr)_28px_minmax(0,1fr)] xl:items-stretch"
+                  : "grid gap-3 xl:grid-cols-[minmax(0,1fr)_28px_minmax(0,1fr)] xl:items-stretch"
+            }
+          >
+            {section.modules.map((item, index) => (
+              <React.Fragment key={`${item.module.key}-${item.sequenceLabel ?? index}`}>
+                <TransactionModuleButton
+                  module={item.module}
+                  onOpen={onOpen}
+                  sequenceLabel={item.sequenceLabel}
+                  titleOverride={item.titleOverride}
+                  descriptionOverride={item.descriptionOverride}
+                />
 
-                  {index < section.modules.length - 1 ? (
-                    <TransactionFlowArrow />
-                  ) : null}
-                </div>
-              ))}
-            </div>
+                {index < section.modules.length - 1 ? (
+                  <TransactionFlowArrow />
+                ) : null}
+              </React.Fragment>
+            ))}
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

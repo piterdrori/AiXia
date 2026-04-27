@@ -479,7 +479,6 @@ export default function FinanceNewCustomerPoPage() {
     }
 
     const lines = (data || []) as QuotationLineOption[];
-    setQuotationLines(lines);
 
     if (lines.length > 0) {
       setLineDrafts(

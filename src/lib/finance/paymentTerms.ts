@@ -166,6 +166,18 @@ function buildPayload(input: PaymentTermUpsertInput, userId: string | null) {
   };
 }
 
+async function clearOtherDefaultPaymentTerms(currentId?: string) {
+  let query = supabase.from(TABLE).update({ is_default: false }).eq("is_default", true);
+
+  if (currentId) {
+    query = query.neq("id", currentId);
+  }
+
+  const { error } = await query;
+
+  if (error) throw error;
+}
+
 export async function getPaymentTerms(): Promise<FinancePaymentTermRow[]> {
   const { data, error } = await supabase
     .from(TABLE)
@@ -181,6 +193,10 @@ export async function createPaymentTerm(
   input: PaymentTermUpsertInput
 ): Promise<FinancePaymentTermRow> {
   const userId = await getCurrentUserId();
+
+  if (input.is_default) {
+    await clearOtherDefaultPaymentTerms();
+  }
 
   const payload = {
     ...buildPayload(input, userId),
@@ -211,6 +227,10 @@ export async function updatePaymentTerm(
   input: PaymentTermUpsertInput
 ): Promise<FinancePaymentTermRow> {
   const userId = await getCurrentUserId();
+
+  if (input.is_default) {
+    await clearOtherDefaultPaymentTerms(id);
+  }
 
   const payload = buildPayload(input, userId);
 
@@ -299,10 +319,7 @@ export async function permanentlyDeletePaymentTerm(
 
   if (readError) throw readError;
 
-  const { error } = await supabase
-    .from(TABLE)
-    .delete()
-    .eq("id", id);
+  const { error } = await supabase.from(TABLE).delete().eq("id", id);
 
   if (error) throw error;
 

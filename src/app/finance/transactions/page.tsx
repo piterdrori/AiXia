@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon, LucideProps } from "lucide-react";
 import {
   ArrowRight,
   BadgeAlert,
@@ -53,6 +53,13 @@ type TransactionModuleCard = {
   lastUpdatedLabel: string;
 };
 
+type TransactionFlowItem = {
+  module: TransactionModuleCard;
+  sequenceLabel?: string;
+  titleOverride?: string;
+  descriptionOverride?: string;
+};
+
 type TransactionSectionTone =
   | "incoming"
   | "procurement"
@@ -60,12 +67,19 @@ type TransactionSectionTone =
   | "internal"
   | "control";
 
-type TransactionModuleGroup = {
-  key: string;
+type TransactionSection = {
+  key:
+    | "incoming"
+    | "procurement"
+    | "operating-expenses"
+    | "internal-flows"
+    | "control";
   title: string;
   subtitle: string;
   tone: TransactionSectionTone;
-  modules: TransactionModuleCard[];
+  modules: TransactionFlowItem[];
+  splitLabelLeft?: string;
+  splitLabelRight?: string;
 };
 
 type FinanceInvoiceRow = {
@@ -305,48 +319,43 @@ function getMetricToneClasses(tone: TransactionMetricCard["tone"]) {
   }
 }
 
-function getGroupToneClasses(tone: TransactionSectionTone) {
+function getSectionToneClasses(tone: TransactionSectionTone) {
   switch (tone) {
     case "incoming":
       return {
-        border: "border-emerald-400/20",
+        border: "border-emerald-400/25",
         badge: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-        iconWrap: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
         panel:
-          "bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.12),rgba(255,255,255,0.045)_42%)]",
+          "bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.13),rgba(255,255,255,0.045)_48%)]",
       };
     case "procurement":
       return {
-        border: "border-amber-400/20",
+        border: "border-amber-400/25",
         badge: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-        iconWrap: "border-amber-400/20 bg-amber-500/10 text-amber-200",
         panel:
-          "bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.12),rgba(255,255,255,0.045)_42%)]",
+          "bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.13),rgba(255,255,255,0.045)_48%)]",
       };
     case "expense":
       return {
-        border: "border-cyan-400/20",
+        border: "border-cyan-400/25",
         badge: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-        iconWrap: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
         panel:
-          "bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.12),rgba(255,255,255,0.045)_42%)]",
+          "bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.13),rgba(255,255,255,0.045)_48%)]",
       };
     case "internal":
       return {
-        border: "border-violet-400/20",
+        border: "border-violet-400/25",
         badge: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-        iconWrap: "border-violet-400/20 bg-violet-500/10 text-violet-200",
         panel:
-          "bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.12),rgba(255,255,255,0.045)_42%)]",
+          "bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.13),rgba(255,255,255,0.045)_48%)]",
       };
     case "control":
     default:
       return {
-        border: "border-rose-400/20",
+        border: "border-rose-400/25",
         badge: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-        iconWrap: "border-rose-400/20 bg-rose-500/10 text-rose-200",
         panel:
-          "bg-[radial-gradient(circle_at_top_left,rgba(244,63,94,0.12),rgba(255,255,255,0.045)_42%)]",
+          "bg-[radial-gradient(circle_at_top_left,rgba(244,63,94,0.13),rgba(255,255,255,0.045)_48%)]",
       };
   }
 }
@@ -393,71 +402,94 @@ function TransactionMetric({ metric }: { metric: TransactionMetricCard }) {
   );
 }
 
-function TransactionModuleButton({
-  module,
+function FlowConnector({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`hidden items-center justify-center xl:flex ${className}`}
+      aria-hidden="true"
+    >
+      <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.035] text-slate-500">
+        <ArrowRight className="h-4 w-4" />
+      </div>
+    </div>
+  );
+}
+
+function TransactionFlowModule({
+  item,
   onOpen,
 }: {
-  module: TransactionModuleCard;
+  item: TransactionFlowItem;
   onOpen: (route: string) => void;
 }) {
-  const Icon = module.icon;
-  const isClickable = Boolean(module.route);
+  const Icon = item.module.icon;
+  const isClickable = Boolean(item.module.route);
+  const title = item.titleOverride ?? item.module.title;
+  const description = item.descriptionOverride ?? item.module.description;
 
   return (
     <button
       type="button"
       onClick={() => {
-        if (!module.route) return;
-        onOpen(module.route);
+        if (!item.module.route) return;
+        onOpen(item.module.route);
       }}
-      className={`group flex min-h-[158px] w-full flex-col justify-between rounded-[24px] border border-white/10 bg-black/20 p-4 text-left transition ${
+      className={`group flex min-h-[190px] w-full flex-col justify-between rounded-[26px] border border-white/10 bg-black/20 p-5 text-left transition ${
         isClickable
           ? "hover:border-cyan-400/25 hover:bg-white/[0.055]"
-          : "cursor-default opacity-70"
+          : "cursor-default opacity-75"
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-          <Icon className="h-5 w-5" />
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+            <Icon className="h-5 w-5" />
+          </div>
+
+          {item.sequenceLabel ? (
+            <span className="rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+              {item.sequenceLabel}
+            </span>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-300">
-            {module.statusLabel}
+          <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+            {item.module.statusLabel}
           </span>
           <ArrowRight
             className={`h-4 w-4 text-slate-500 transition ${
-              isClickable ? "group-hover:translate-x-1 group-hover:text-cyan-200" : ""
+              isClickable
+                ? "group-hover:translate-x-1 group-hover:text-cyan-200"
+                : ""
             }`}
           />
         </div>
       </div>
 
-      <div className="mt-4 space-y-1.5">
-        <div className="truncate text-sm font-semibold text-white">
-          {module.title}
-        </div>
-        <div className="line-clamp-2 text-xs leading-5 text-slate-400">
-          {module.description}
+      <div className="mt-5 space-y-2">
+        <div className="text-base font-semibold text-white">{title}</div>
+        <div className="line-clamp-2 text-sm leading-6 text-slate-400">
+          {description}
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <div className="rounded-[16px] border border-white/10 bg-white/[0.035] px-3 py-2">
-          <div className="text-[9px] uppercase tracking-[0.16em] text-slate-600">
+      <div className="mt-5 grid grid-cols-2 gap-3">
+        <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-2">
+          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-600">
             Records
           </div>
           <div className="mt-1 text-sm font-semibold text-white">
-            {formatCount(module.count)}
+            {formatCount(item.module.count)}
           </div>
         </div>
 
-        <div className="rounded-[16px] border border-white/10 bg-white/[0.035] px-3 py-2">
-          <div className="text-[9px] uppercase tracking-[0.16em] text-slate-600">
+        <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-2">
+          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-600">
             Updated
           </div>
           <div className="mt-1 truncate text-sm font-semibold text-white">
-            {module.lastUpdatedLabel}
+            {item.module.lastUpdatedLabel}
           </div>
         </div>
       </div>
@@ -465,14 +497,91 @@ function TransactionModuleButton({
   );
 }
 
-function TransactionModuleGroupCard({
-  group,
+function TransactionFlowSection({
+  section,
   onOpen,
 }: {
-  group: TransactionModuleGroup;
+  section: TransactionSection;
   onOpen: (route: string) => void;
 }) {
-  const tone = getGroupToneClasses(group.tone);
+  const tone = getSectionToneClasses(section.tone);
+
+  if (section.key === "internal-flows") {
+    const leftModules = section.modules.slice(0, 2);
+    const rightModules = section.modules.slice(2);
+
+    return (
+      <section
+        className={`overflow-hidden rounded-[30px] border ${tone.border} ${tone.panel} backdrop-blur-xl`}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+          <div>
+            <div
+              className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] ${tone.badge}`}
+            >
+              {section.title}
+            </div>
+            <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
+              {section.subtitle}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-6 p-5 xl:grid-cols-2">
+          <div className="min-w-0">
+            <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+              {section.splitLabelLeft ?? "A. Reimbursements"}
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)] xl:items-stretch">
+              {leftModules.map((item, index) => (
+                <div
+                  key={`${item.module.key}-${item.sequenceLabel ?? index}`}
+                  className="contents"
+                >
+                  <TransactionFlowModule item={item} onOpen={onOpen} />
+
+                  {index < leftModules.length - 1 ? (
+                    <FlowConnector />
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="min-w-0 border-t border-white/10 pt-6 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
+            <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+              {section.splitLabelRight ?? "B. Payroll"}
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)] xl:items-stretch">
+              {rightModules.map((item, index) => (
+                <div
+                  key={`${item.module.key}-${item.sequenceLabel ?? index}`}
+                  className="contents"
+                >
+                  <TransactionFlowModule item={item} onOpen={onOpen} />
+
+                  {index < rightModules.length - 1 ? (
+                    <FlowConnector />
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const gridTemplate =
+    section.modules.length >= 5
+      ? "xl:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)_40px_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)_40px_minmax(0,1fr)_40px_minmax(0,1fr)_40px_minmax(0,1fr)]"
+      : section.modules.length === 4
+        ? "xl:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)_40px_minmax(0,1fr)_40px_minmax(0,1fr)]"
+        : section.modules.length === 2
+          ? "xl:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)]"
+          : "xl:grid-cols-3";
 
   return (
     <section
@@ -483,24 +592,25 @@ function TransactionModuleGroupCard({
           <div
             className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] ${tone.badge}`}
           >
-            {group.title}
+            {section.title}
           </div>
           <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
-            {group.subtitle}
+            {section.subtitle}
           </p>
         </div>
       </div>
 
-      <div className="p-5">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {group.modules.map((module) => (
-            <TransactionModuleButton
-              key={module.key}
-              module={module}
-              onOpen={onOpen}
-            />
-          ))}
-        </div>
+      <div className={`grid gap-4 p-5 ${gridTemplate} xl:items-stretch`}>
+        {section.modules.map((item, index) => (
+          <div
+            key={`${item.module.key}-${item.sequenceLabel ?? index}`}
+            className="contents"
+          >
+            <TransactionFlowModule item={item} onOpen={onOpen} />
+
+            {index < section.modules.length - 1 ? <FlowConnector /> : null}
+          </div>
+        ))}
       </div>
     </section>
   );
@@ -686,7 +796,7 @@ export default function FinanceTransactionsPage() {
         safeCount("finance_purchase_orders"),
       ]);
 
-      const invoices = (invoicesResult.data || []) as FinanceInvoiceRow[];
+          const invoices = (invoicesResult.data || []) as FinanceInvoiceRow[];
       const bills = (billsResult.data || []) as FinanceBillRow[];
       const expenses = (expensesResult.data || []) as FinanceExpenseRow[];
       const reimbursements = (reimbursementsResult.data ||
@@ -831,7 +941,6 @@ export default function FinanceTransactionsPage() {
       setIsLoading(false);
     }
   }, []);
-
 
   useEffect(() => {
     void loadTransactionsData();
@@ -1062,9 +1171,9 @@ export default function FinanceTransactionsPage() {
       },
       "purchase-orders": {
         key: "purchase-orders",
-        title: "Purchase Orders",
+        title: "Purchase Order",
         description:
-          "Supplier purchase orders and outbound procurement commitments.",
+          "Issued supplier purchase order and outbound procurement commitment.",
         route: "/finance/transactions/purchase-orders",
         icon: FileText,
         count: data.counts.purchaseOrders,
@@ -1086,54 +1195,102 @@ export default function FinanceTransactionsPage() {
     [data]
   );
 
-  const moduleGroups = useMemo<TransactionModuleGroup[]>(() => {
+  const transactionSections = useMemo<TransactionSection[]>(() => {
     return [
       {
-        key: "money-in",
-        title: "Money In",
+        key: "incoming",
+        title: "Incoming Money Flow",
         subtitle:
-          "Customer-facing receivable workflow from offer and proforma to invoice and collection.",
+          "Customer-side receivable flow from quotation and customer commitment through proforma, final invoice, and payment collection.",
         tone: "incoming",
         modules: [
-          allModuleCards.quotations,
-          allModuleCards["customer-pos"],
-          allModuleCards["proforma-invoices"],
-          allModuleCards.invoices,
-          allModuleCards["payments-received"],
+          { module: allModuleCards.quotations, sequenceLabel: "01" },
+          { module: allModuleCards["customer-pos"], sequenceLabel: "02" },
+          { module: allModuleCards["proforma-invoices"], sequenceLabel: "03" },
+          { module: allModuleCards.invoices, sequenceLabel: "04" },
+          { module: allModuleCards["payments-received"], sequenceLabel: "05" },
         ],
       },
       {
-        key: "supplier-procurement",
-        title: "Supplier Procurement",
+        key: "procurement",
+        title: "Supplier Procurement Flow",
         subtitle:
-          "Supplier quotation, purchase order, vendor invoice, and outgoing settlement.",
+          "Supplier quotation, purchase order, vendor PI or invoice, and outgoing payment settlement.",
         tone: "procurement",
         modules: [
-          allModuleCards["vendor-quotations"],
-          allModuleCards["purchase-orders"],
-          allModuleCards.bills,
-          allModuleCards["payments-made"],
+          { module: allModuleCards["vendor-quotations"], sequenceLabel: "01" },
+          { module: allModuleCards["purchase-orders"], sequenceLabel: "02" },
+          {
+            module: allModuleCards.bills,
+            sequenceLabel: "03",
+            titleOverride: "Vendor PI / Invoice",
+          },
+          {
+            module: allModuleCards["payments-made"],
+            sequenceLabel: "04",
+            titleOverride: "Payment Made",
+          },
         ],
       },
       {
         key: "operating-expenses",
-        title: "Operating Expenses",
+        title: "Operating Expenses Flow",
         subtitle:
-          "Direct company expense recording and outgoing payment settlement.",
+          "Direct company operating expenses and their outgoing payment settlement.",
         tone: "expense",
-        modules: [allModuleCards.expenses, allModuleCards["payments-made"]],
+        modules: [
+          {
+            module: allModuleCards.expenses,
+            sequenceLabel: "01",
+            titleOverride: "Expense",
+            descriptionOverride: "Company expense recorded.",
+          },
+          {
+            module: allModuleCards["payments-made"],
+            sequenceLabel: "02",
+            titleOverride: "Payment Made",
+            descriptionOverride: "Payment made for expense.",
+          },
+        ],
       },
       {
-        key: "internal-finance",
-        title: "Internal Finance",
+        key: "internal-flows",
+        title: "Internal Finance Flows",
         subtitle:
-          "Reimbursements, payroll runs, employee obligations, and related payments.",
+          "Internal obligations, reimbursements, payroll runs, and employee-related payments.",
         tone: "internal",
+        splitLabelLeft: "A. Reimbursements",
+        splitLabelRight: "B. Payroll",
         modules: [
-          allModuleCards.reimbursements,
-          allModuleCards.payroll,
-          allModuleCards["payments-made"],
+          {
+            module: allModuleCards.reimbursements,
+            sequenceLabel: "01",
+            titleOverride: "Reimbursement",
+          },
+          {
+            module: allModuleCards["payments-made"],
+            sequenceLabel: "02",
+            titleOverride: "Payment Made",
+          },
+          {
+            module: allModuleCards.payroll,
+            sequenceLabel: "01",
+            titleOverride: "Payroll",
+          },
+          {
+            module: allModuleCards["payments-made"],
+            sequenceLabel: "02",
+            titleOverride: "Payment Made",
+          },
         ],
+      },
+      {
+        key: "control",
+        title: "Control & Other",
+        subtitle:
+          "Workflow control, approvals, and cross-process transaction management.",
+        tone: "control",
+        modules: [{ module: allModuleCards.approvals, sequenceLabel: "01" }],
       },
     ];
   }, [allModuleCards]);
@@ -1214,7 +1371,7 @@ export default function FinanceTransactionsPage() {
                   Live backend
                 </div>
                 <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                  Operations layer
+                  Full page flow
                 </div>
                 <div className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
                   Auto refresh
@@ -1245,21 +1402,13 @@ export default function FinanceTransactionsPage() {
 
         <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="grid min-h-0 gap-6">
-            <TransactionsSectionCard
-              title="Transaction Navigation"
-              description="Open transaction modules without horizontal scrolling or compressed flow cards."
-              icon={Database}
-            >
-              <div className="max-h-[760px] space-y-5 overflow-y-auto overscroll-contain pr-1">
-                {moduleGroups.map((group) => (
-                  <TransactionModuleGroupCard
-                    key={group.key}
-                    group={group}
-                    onOpen={openRoute}
-                  />
-                ))}
-              </div>
-            </TransactionsSectionCard>
+            {transactionSections.map((section) => (
+              <TransactionFlowSection
+                key={section.key}
+                section={section}
+                onOpen={openRoute}
+              />
+            ))}
 
             <div className="overflow-hidden rounded-[30px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)]">
               <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
@@ -1298,7 +1447,7 @@ export default function FinanceTransactionsPage() {
             </div>
           </div>
 
-          <div className="grid min-h-0 gap-6">
+          <div className="sticky top-6 grid min-h-0 gap-6 self-start">
             <TransactionsSectionCard
               title="Control Signals"
               description="Live transaction risks and operating blockers."

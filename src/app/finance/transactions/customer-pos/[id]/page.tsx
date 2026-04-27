@@ -11,6 +11,7 @@ import {
   Paperclip,
   RotateCcw,
   Save,
+  SquarePen,
   Trash2,
   Upload,
   X,
@@ -116,6 +117,14 @@ type CustomerPoAttachment = {
   mime_type: string | null;
 };
 
+type CustomerPoEditDraft = {
+  external_po_number: string;
+  po_date: string;
+  received_date: string;
+  total_amount: string;
+  notes: string;
+};
+
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -141,6 +150,15 @@ function formatDate(value: string | null | undefined) {
     month: "short",
     day: "numeric",
   });
+}
+
+function getDateInputValue(value: string | null | undefined) {
+  if (!value) return "";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+
+  return parsed.toISOString().slice(0, 10);
 }
 
 function getStatusLabel(status: CustomerPoStatus) {
@@ -209,6 +227,15 @@ export default function FinanceCustomerPoDetailPage() {
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const [editDraft, setEditDraft] = useState<CustomerPoEditDraft>({
+    external_po_number: "",
+    po_date: "",
+    received_date: "",
+    total_amount: "",
+    notes: "",
+  });
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -232,6 +259,19 @@ export default function FinanceCustomerPoDetailPage() {
       const typedPo = (poData || null) as CustomerPoRow | null;
       setCustomerPo(typedPo);
 
+      if (typedPo) {
+        setEditDraft({
+          external_po_number: typedPo.external_po_number || "",
+          po_date: getDateInputValue(typedPo.po_date),
+          received_date: getDateInputValue(typedPo.received_at),
+          total_amount:
+            typedPo.total_amount !== null && typedPo.total_amount !== undefined
+              ? String(typedPo.total_amount)
+              : "",
+          notes: typedPo.notes || "",
+        });
+      }
+
       if (typedPo?.quotation_id) {
         const { data: quotationData, error: quotationError } = await supabase
           .from("finance_quotations")
@@ -245,7 +285,8 @@ export default function FinanceCustomerPoDetailPage() {
         setQuotation(null);
       }
 
-      if (typedPo?.proforma_invoice_id) {
+
+          if (typedPo?.proforma_invoice_id) {
         const { data: proformaData, error: proformaError } = await supabase
           .from("finance_proforma_invoices")
           .select("id, proforma_number, status, total_amount, currency_code")
@@ -336,6 +377,21 @@ export default function FinanceCustomerPoDetailPage() {
 
   const hasCustomerPoFile = attachments.length > 0;
 
+  function resetEditDraft() {
+    if (!customerPo) return;
+
+    setEditDraft({
+      external_po_number: customerPo.external_po_number || "",
+      po_date: getDateInputValue(customerPo.po_date),
+      received_date: getDateInputValue(customerPo.received_at),
+      total_amount:
+        customerPo.total_amount !== null && customerPo.total_amount !== undefined
+          ? String(customerPo.total_amount)
+          : "",
+      notes: customerPo.notes || "",
+    });
+  }
+
   function handleDropFile(fileList: FileList | null) {
     const file = fileList?.[0] || null;
     if (!file) return;
@@ -377,7 +433,7 @@ export default function FinanceCustomerPoDetailPage() {
           file_name: selectedFile.name,
           file_path: storagePath,
           file_size: selectedFile.size,
-          mime_type: selectedFile.type || null,
+          mime_type: selectedFile.type || "application/octet-stream",
           entity_type: "finance_client_purchase_order",
         })
         .select("id")
@@ -431,6 +487,55 @@ export default function FinanceCustomerPoDetailPage() {
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   }
 
+  async function updateCustomerPoStatus(status: CustomerPoStatus) {
+    if (!customerPo) return;
+
+    if (status === "verified" && !hasCustomerPoFile) {
+      setError("Customer PO document must be uploaded before verification.");
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setError("");
+
+      const userId = await getCurrentUserId();
+
+      const timestampPatch: Partial<CustomerPoRow> = {};
+
+      if (status === "verified") timestampPatch.verified_at = new Date().toISOString();
+      if (status === "closed") timestampPatch.closed_at = new Date().toISOString();
+      if (status === "canceled") timestampPatch.canceled_at = new Date().toISOString();
+      if (status === "archived" || status === "deleted") {
+        timestampPatch.archived_at = new Date().toISOString();
+      }
+
+      const { error: updateError } = await supabase
+        .from("finance_client_purchase_orders")
+        .update({
+          status,
+          ...timestampPatch,
+          updated_by: userId,
+        })
+        .eq("id", customerPo.id);
+
+      if (updateError) throw updateError;
+
+      await loadCustomerPo();
+
+      if (status === "archived" || status === "deleted") {
+        navigate("/finance/transactions/customer-pos");
+      }
+    } catch (err) {
+      console.error(err);
+      setError(
+        err instanceof Error ? err.message : "Failed to update Customer PO."
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function handleCreateProformaInvoice() {
     if (!customerPo) return;
 
@@ -473,6 +578,55 @@ export default function FinanceCustomerPoDetailPage() {
         err instanceof Error
           ? err.message
           : "Failed to create proforma invoice from Customer PO."
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleSaveDetailsEdit() {
+    if (!customerPo) return;
+
+    if (!editDraft.external_po_number.trim()) {
+      setError("Customer PO No. is required.");
+      return;
+    }
+
+    if (!editDraft.total_amount || Number(editDraft.total_amount) <= 0) {
+      setError("Total amount must be greater than 0.");
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setError("");
+
+      const userId = await getCurrentUserId();
+
+      const { error: updateError } = await supabase
+        .from("finance_client_purchase_orders")
+        .update({
+          external_po_number: editDraft.external_po_number.trim(),
+          reference_number: editDraft.external_po_number.trim(),
+          po_date: editDraft.po_date || null,
+          received_at: editDraft.received_date
+            ? new Date(`${editDraft.received_date}T00:00:00`).toISOString()
+            : null,
+          total_amount: Number(editDraft.total_amount),
+          notes: editDraft.notes.trim() || null,
+          updated_by: userId,
+        })
+        .eq("id", customerPo.id)
+        .not("status", "in", "(archived,deleted,linked_to_pi)");
+
+      if (updateError) throw updateError;
+
+      setIsEditingDetails(false);
+      await loadCustomerPo();
+    } catch (err) {
+      console.error(err);
+      setError(
+        err instanceof Error ? err.message : "Failed to update Customer PO details."
       );
     } finally {
       setIsSaving(false);
@@ -567,6 +721,11 @@ export default function FinanceCustomerPoDetailPage() {
       </div>
     );
   }
+
+  const canEditDetails =
+    customerPo.status !== "archived" &&
+    customerPo.status !== "deleted" &&
+    customerPo.status !== "linked_to_pi";
 
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
@@ -687,7 +846,7 @@ export default function FinanceCustomerPoDetailPage() {
                 </Button>
               ) : null}
 
-              {customerPo.status === "verified" && !customerPo.proforma_invoice_id ? (
+                            {customerPo.status === "verified" && !customerPo.proforma_invoice_id ? (
                 <Button
                   onClick={() => void handleCreateProformaInvoice()}
                   disabled={isSaving || !hasCustomerPoFile}
@@ -761,14 +920,55 @@ export default function FinanceCustomerPoDetailPage() {
           </div>
         </header>
 
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_420px]">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_420px]">
           <div className="space-y-6">
             <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-white">Document Overview</CardTitle>
-                <CardDescription className="text-white/45">
-                  Customer PO commercial details and source links.
-                </CardDescription>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-white">Document Overview</CardTitle>
+                    <CardDescription className="text-white/45">
+                      Customer PO commercial details and source links.
+                    </CardDescription>
+                  </div>
+
+                  {canEditDetails ? (
+                    <div className="flex items-center gap-2">
+                      {isEditingDetails ? (
+                        <>
+                          <Button
+                            onClick={() => void handleSaveDetailsEdit()}
+                            disabled={isSaving}
+                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
+                          >
+                            <Save className="mr-2 h-4 w-4" />
+                            {isSaving ? "Saving..." : "Save"}
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setIsEditingDetails(false);
+                              resetEditDraft();
+                            }}
+                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsEditingDetails(true)}
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                        >
+                          <SquarePen className="mr-2 h-4 w-4" />
+                          Edit
+                        </Button>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
               </CardHeader>
 
               <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
@@ -785,9 +985,22 @@ export default function FinanceCustomerPoDetailPage() {
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Customer PO No.
                   </div>
-                  <div className="mt-2 text-base font-semibold text-white">
-                    {customerPo.external_po_number || "—"}
-                  </div>
+                  {isEditingDetails ? (
+                    <input
+                      value={editDraft.external_po_number}
+                      onChange={(event) =>
+                        setEditDraft((current) => ({
+                          ...current,
+                          external_po_number: event.target.value,
+                        }))
+                      }
+                      className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"
+                    />
+                  ) : (
+                    <div className="mt-2 text-base font-semibold text-white">
+                      {customerPo.external_po_number || "—"}
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
@@ -827,18 +1040,46 @@ export default function FinanceCustomerPoDetailPage() {
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     PO Date
                   </div>
-                  <div className="mt-2 text-base font-semibold text-white">
-                    {formatDate(customerPo.po_date)}
-                  </div>
+                  {isEditingDetails ? (
+                    <input
+                      type="date"
+                      value={editDraft.po_date}
+                      onChange={(event) =>
+                        setEditDraft((current) => ({
+                          ...current,
+                          po_date: event.target.value,
+                        }))
+                      }
+                      className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"
+                    />
+                  ) : (
+                    <div className="mt-2 text-base font-semibold text-white">
+                      {formatDate(customerPo.po_date)}
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Received
                   </div>
-                  <div className="mt-2 text-base font-semibold text-white">
-                    {formatDate(customerPo.received_at)}
-                  </div>
+                  {isEditingDetails ? (
+                    <input
+                      type="date"
+                      value={editDraft.received_date}
+                      onChange={(event) =>
+                        setEditDraft((current) => ({
+                          ...current,
+                          received_date: event.target.value,
+                        }))
+                      }
+                      className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"
+                    />
+                  ) : (
+                    <div className="mt-2 text-base font-semibold text-white">
+                      {formatDate(customerPo.received_at)}
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
@@ -854,18 +1095,46 @@ export default function FinanceCustomerPoDetailPage() {
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Total
                   </div>
-                  <div className="mt-2 text-base font-semibold text-white">
-                    {formatMoney(customerPo.total_amount, customerPo.currency_code || "USD")}
-                  </div>
+                  {isEditingDetails ? (
+                    <input
+                      type="number"
+                      value={editDraft.total_amount}
+                      onChange={(event) =>
+                        setEditDraft((current) => ({
+                          ...current,
+                          total_amount: event.target.value,
+                        }))
+                      }
+                      className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"
+                    />
+                  ) : (
+                    <div className="mt-2 text-base font-semibold text-white">
+                      {formatMoney(customerPo.total_amount, customerPo.currency_code || "USD")}
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 md:col-span-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
                     Notes
                   </div>
-                  <div className="mt-2 text-sm leading-6 text-white/70">
-                    {customerPo.notes || "—"}
-                  </div>
+                  {isEditingDetails ? (
+                    <textarea
+                      value={editDraft.notes}
+                      onChange={(event) =>
+                        setEditDraft((current) => ({
+                          ...current,
+                          notes: event.target.value,
+                        }))
+                      }
+                      rows={4}
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-sm text-white outline-none"
+                    />
+                  ) : (
+                    <div className="mt-2 text-sm leading-6 text-white/70">
+                      {customerPo.notes || "—"}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1051,6 +1320,7 @@ export default function FinanceCustomerPoDetailPage() {
               <CardContent className="space-y-3 p-5 text-sm leading-6 text-slate-400">
                 <div>• Customer PO file is required before verification.</div>
                 <div>• Verification is disabled until at least one document exists.</div>
+                <div>• Create Proforma Invoice is available only after verification.</div>
                 <div>• Archive keeps the record recoverable.</div>
                 <div>• Delete moves the record to deleted state.</div>
                 <div>• Hard delete is only available from deleted state.</div>

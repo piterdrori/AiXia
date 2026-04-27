@@ -739,7 +739,7 @@ export default function FinanceQuotationsPage() {
                   </Badge>
 
                   <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Quotation List
+                    Quotation Registry
                   </CardTitle>
 
                   <CardDescription className="max-w-2xl text-xs text-slate-500">
@@ -760,143 +760,161 @@ export default function FinanceQuotationsPage() {
               </div>
             </CardHeader>
 
-            <CardContent className="p-5">
-              {isLoading ? (
-                <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-8 text-sm text-slate-500">
-                  Loading quotations...
-                </div>
-              ) : filteredQuotations.length === 0 ? (
-                <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-8 text-sm text-slate-500">
-                  No quotations found.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {filteredQuotations.map((quotation) => {
-                    const currency = quotation.currency_code || "USD";
-                    const isEditable = isEditableNegotiationStatus(
-                      quotation.status
-                    );
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1240px] border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                      <th className="px-5 py-4 font-semibold">Quotation No.</th>
+                      <th className="px-5 py-4 font-semibold">Client</th>
+                      <th className="px-5 py-4 font-semibold">Company</th>
+                      <th className="px-5 py-4 font-semibold">Issue Date</th>
+                      <th className="px-5 py-4 font-semibold">Valid Until</th>
+                      <th className="px-5 py-4 text-right font-semibold">Total</th>
+                      <th className="px-5 py-4 font-semibold">Status</th>
+                      <th className="px-5 py-4 font-semibold">Editability</th>
+                      <th className="px-5 py-4 font-semibold">Updated</th>
+                      <th className="px-5 py-4 text-right font-semibold">Actions</th>
+                    </tr>
+                  </thead>
 
-                    return (
-                      <button
-                        key={quotation.id}
-                        type="button"
-                        onClick={() =>
-                          navigate(
-                            `/finance/transactions/quotations/${quotation.id}`
-                          )
-                        }
-                        className="group relative flex w-full items-start justify-between gap-4 rounded-[24px] border border-white/10 bg-white/[0.035] px-5 py-5 text-left transition-all duration-200 hover:border-white/20 hover:bg-white/[0.055]"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-base font-semibold text-white">
+                  <tbody className="divide-y divide-white/5">
+                    {isLoading ? (
+                      <tr>
+                        <td
+                          colSpan={10}
+                          className="px-5 py-14 text-center text-sm text-slate-500"
+                        >
+                          Loading quotations...
+                        </td>
+                      </tr>
+                    ) : filteredQuotations.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={10}
+                          className="px-5 py-14 text-center text-sm text-slate-500"
+                        >
+                          No quotations found.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredQuotations.map((quotation) => {
+                        const currency = quotation.currency_code || "USD";
+                        const isEditable = isEditableNegotiationStatus(
+                          quotation.status
+                        );
+
+                        return (
+                          <tr
+                            key={quotation.id}
+                            className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
+                          >
+                            <td className="px-5 py-4 font-semibold text-white">
                               {quotation.quotation_number || "Quotation"}
-                            </div>
+                            </td>
 
-                            <Badge
-                              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] shadow-none ${getQuotationStatusBadgeClasses(
-                                quotation.status
-                              )}`}
-                            >
-                              {getQuotationStatusLabel(quotation.status)}
-                            </Badge>
+                            <td className="px-5 py-4">
+                              {quotation.client_name_snapshot || "—"}
+                            </td>
 
-                            {isEditable ? (
-                              <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200 shadow-none">
-                                Editable
-                              </Badge>
-                            ) : null}
-                          </div>
+                            <td className="px-5 py-4">
+                              {quotation.company_name_snapshot || "—"}
+                            </td>
 
-                          <div className="mt-2 text-sm text-slate-300">
-                            {quotation.client_name_snapshot ||
-                              quotation.company_name_snapshot ||
-                              "—"}
-                          </div>
+                            <td className="px-5 py-4">
+                              {formatFinanceDate(quotation.issue_date)}
+                            </td>
 
-                          <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-slate-500 md:grid-cols-4">
-                            <div>
-                              Issue: {formatFinanceDate(quotation.issue_date)}
-                            </div>
-                            <div>
-                              Valid: {formatFinanceDate(quotation.valid_until)}
-                            </div>
-                            <div>
-                              Total:{" "}
+                            <td className="px-5 py-4">
+                              {formatFinanceDate(quotation.valid_until)}
+                            </td>
+
+                            <td className="px-5 py-4 text-right font-semibold text-white">
                               {formatFinanceMoney(
                                 quotation.total_amount,
                                 currency
                               )}
-                            </div>
-                            <div>
-                              Updated: {formatFinanceDate(quotation.updated_at)}
-                            </div>
-                          </div>
-                        </div>
+                            </td>
 
-                        <div className="relative flex shrink-0 items-center gap-2">
-                          <div className="text-sm font-medium text-slate-300">
-                            Open
-                          </div>
-
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setOpenMenuQuotationId(
-                                openMenuQuotationId === quotation.id
-                                  ? null
-                                  : quotation.id
-                              );
-                            }}
-                            className="h-9 w-9 rounded-xl text-slate-300 hover:bg-white/[0.08] hover:text-white"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-
-                          {openMenuQuotationId === quotation.id ? (
-                            <div
-                              ref={actionsMenuRef}
-                              onClick={(event) => event.stopPropagation()}
-                              className="absolute right-0 top-10 z-50 w-44 rounded-2xl border border-white/10 bg-[#090d16]/95 p-2 shadow-2xl shadow-black/40 backdrop-blur-xl"
-                            >
-                              <button
-                                type="button"
-                                className="w-full rounded-xl px-3 py-2 text-left text-sm text-slate-300 hover:bg-white/[0.08] hover:text-white"
-                                onClick={() => void handleArchive(quotation.id)}
+                            <td className="px-5 py-4">
+                              <Badge
+                                className={`rounded-full border px-3 py-1 text-xs shadow-none ${getQuotationStatusBadgeClasses(
+                                  quotation.status
+                                )}`}
                               >
-                                Archive
-                              </button>
+                                {getQuotationStatusLabel(quotation.status)}
+                              </Badge>
+                            </td>
 
-                              <button
-                                type="button"
-                                className="w-full rounded-xl px-3 py-2 text-left text-sm text-rose-300 hover:bg-rose-500/10"
-                                onClick={() => void handleDelete(quotation.id)}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          ) : null}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                            <td className="px-5 py-4">
+                              {isEditable ? (
+                                <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-200 shadow-none">
+                                  Editable
+                                </Badge>
+                              ) : (
+                                <Badge className="rounded-full border border-slate-400/20 bg-white/[0.06] px-3 py-1 text-xs text-slate-300 shadow-none">
+                                  Locked
+                                </Badge>
+                              )}
+                            </td>
+
+                            <td className="px-5 py-4">
+                              {formatFinanceDate(quotation.updated_at)}
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  onClick={() =>
+                                    navigate(
+                                      `/finance/transactions/quotations/${quotation.id}`
+                                    )
+                                  }
+                                  className="h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+
+                                <Button
+                                  variant="outline"
+                                  onClick={() => void handleArchive(quotation.id)}
+                                  className="h-9 rounded-2xl border-amber-400/20 bg-amber-500/10 px-3 text-amber-200 hover:bg-amber-500/20"
+                                >
+                                  <Archive className="h-4 w-4" />
+                                </Button>
+
+                                <Button
+                                  variant="outline"
+                                  onClick={() => void handleDelete(quotation.id)}
+                                  className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </CardContent>
           </Card>
         </section>
 
-                {isArchiveModalOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+        {isArchiveModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
             <div className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
               <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
                 <div>
-                  <div className="text-lg font-semibold text-white">Archive</div>
+                  <div className="text-lg font-semibold text-white">
+                    Quotation Archive
+                  </div>
                   <div className="mt-1 text-sm text-slate-500">
-                    Archived and deleted quotations removed from the active registry.
+                    Archived records can be restored. Deleted records can be
+                    restored or permanently deleted.
                   </div>
                 </div>
 
@@ -915,8 +933,8 @@ export default function FinanceQuotationsPage() {
                   onClick={() => setArchiveTab("archived")}
                   className={`rounded-xl px-4 py-2 text-sm transition ${
                     archiveTab === "archived"
-                      ? "bg-white/[0.08] text-white"
-                      : "text-slate-500 hover:bg-white/[0.05] hover:text-slate-300"
+                      ? "bg-white/10 text-white"
+                      : "text-white/55 hover:bg-white/5 hover:text-white/80"
                   }`}
                 >
                   Archived
@@ -928,105 +946,128 @@ export default function FinanceQuotationsPage() {
                   className={`rounded-xl px-4 py-2 text-sm transition ${
                     archiveTab === "deleted"
                       ? "bg-rose-500/15 text-rose-200"
-                      : "text-slate-500 hover:bg-white/[0.05] hover:text-slate-300"
+                      : "text-white/55 hover:bg-white/5 hover:text-white/80"
                   }`}
                 >
                   Deleted
                 </button>
               </div>
 
-              {isArchiveLoading ? (
-                <div className="p-6 text-sm text-slate-500">Loading...</div>
-              ) : (
-                <div className="overflow-y-auto p-6">
-                  {visibleArchivedQuotations.length === 0 ? (
-                    <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-8 text-sm text-slate-500">
-                      No {archiveTab} quotations found.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {visibleArchivedQuotations.map((quotation) => (
-                        <button
-                          key={quotation.id}
-                          type="button"
-                          onClick={() =>
-                            navigate(
-                              `/finance/transactions/quotations/${quotation.id}`
-                            )
-                          }
-                          className="group relative flex w-full items-start justify-between gap-4 rounded-[24px] border border-white/10 bg-white/[0.035] px-5 py-4 text-left transition-all hover:border-white/20 hover:bg-white/[0.055]"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="text-base font-semibold text-white">
-                                {quotation.quotation_number || "Quotation"}
-                              </div>
+              <div className="overflow-y-auto p-6">
+                {isArchiveLoading ? (
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-8 text-sm text-slate-500">
+                    Loading archived quotations...
+                  </div>
+                ) : visibleArchivedQuotations.length === 0 ? (
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-8 text-sm text-slate-500">
+                    No {archiveTab} quotations found.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-[24px] border border-white/10">
+                    <table className="w-full min-w-[1100px] border-collapse">
+                      <thead>
+                        <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                          <th className="px-5 py-4 font-semibold">
+                            Quotation No.
+                          </th>
+                          <th className="px-5 py-4 font-semibold">Client</th>
+                          <th className="px-5 py-4 font-semibold">
+                            Issue Date
+                          </th>
+                          <th className="px-5 py-4 text-right font-semibold">
+                            Total
+                          </th>
+                          <th className="px-5 py-4 font-semibold">Status</th>
+                          <th className="px-5 py-4 font-semibold">Updated</th>
+                          <th className="px-5 py-4 text-right font-semibold">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
 
+                      <tbody className="divide-y divide-white/5">
+                        {visibleArchivedQuotations.map((quotation) => (
+                          <tr
+                            key={quotation.id}
+                            className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
+                          >
+                            <td className="px-5 py-4 font-semibold text-white">
+                              {quotation.quotation_number || "Quotation"}
+                            </td>
+
+                            <td className="px-5 py-4">
+                              {quotation.client_name_snapshot ||
+                                quotation.company_name_snapshot ||
+                                "—"}
+                            </td>
+
+                            <td className="px-5 py-4">
+                              {formatFinanceDate(quotation.issue_date)}
+                            </td>
+
+                            <td className="px-5 py-4 text-right font-semibold text-white">
+                              {formatFinanceMoney(
+                                quotation.total_amount,
+                                quotation.currency_code || "USD"
+                              )}
+                            </td>
+
+                            <td className="px-5 py-4">
                               <Badge
-                                className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] shadow-none ${getQuotationStatusBadgeClasses(
+                                className={`rounded-full border px-3 py-1 text-xs shadow-none ${getQuotationStatusBadgeClasses(
                                   quotation.status
                                 )}`}
                               >
                                 {getQuotationStatusLabel(quotation.status)}
                               </Badge>
-                            </div>
+                            </td>
 
-                            <div className="mt-2 text-sm text-slate-300">
-                              {quotation.client_name_snapshot ||
-                                quotation.company_name_snapshot ||
-                                "—"}
-                            </div>
+                            <td className="px-5 py-4">
+                              {formatFinanceDate(quotation.updated_at)}
+                            </td>
 
-                            <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-slate-500 md:grid-cols-3">
-                              <div>
-                                Issue: {formatFinanceDate(quotation.issue_date)}
+                            <td className="px-5 py-4">
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  onClick={() =>
+                                    navigate(
+                                      `/finance/transactions/quotations/${quotation.id}`
+                                    )
+                                  }
+                                  className="h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+
+                                <Button
+                                  variant="outline"
+                                  onClick={() => void handleRestore(quotation.id)}
+                                  className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+                                >
+                                  <RotateCcw className="h-4 w-4" />
+                                </Button>
+
+                                {archiveTab === "deleted" ? (
+                                  <Button
+                                    variant="outline"
+                                    onClick={() =>
+                                      void handleHardDelete(quotation.id)
+                                    }
+                                    className="h-9 rounded-2xl border-rose-500/30 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                ) : null}
                               </div>
-                              <div>
-                                Total:{" "}
-                                {formatFinanceMoney(
-                                  quotation.total_amount,
-                                  quotation.currency_code || "USD"
-                                )}
-                              </div>
-                              <div>
-                                Updated: {formatFinanceDate(quotation.updated_at)}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex shrink-0 items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void handleRestore(quotation.id);
-                              }}
-                              className="rounded-xl text-emerald-200 hover:bg-emerald-500/10 hover:text-emerald-100"
-                            >
-                              Restore
-                            </Button>
-
-                            {archiveTab === "deleted" ? (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void handleHardDelete(quotation.id);
-                                }}
-                                className="rounded-xl text-rose-300 hover:bg-rose-500/10 hover:text-rose-200"
-                              >
-                                Hard Delete
-                              </Button>
-                            ) : null}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ) : null}

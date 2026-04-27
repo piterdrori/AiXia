@@ -817,6 +817,15 @@ export default function FinanceMasterDataPage() {
           <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px] xl:items-stretch">
             <div className="flex min-w-0 flex-col justify-between">
               <div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/finance")}
+                  className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+                >
+                  <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+                  Finance
+                </button>
+
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Sparkles className="h-3.5 w-3.5" />
                   Master Data Control Center

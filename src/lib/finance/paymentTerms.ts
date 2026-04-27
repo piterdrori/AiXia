@@ -5,6 +5,44 @@ const TABLE = "finance_payment_terms";
 
 export type FinancePaymentTermStatus = "active" | "inactive" | "archived";
 
+export type FinancePaymentTermType =
+  | "net"
+  | "immediate"
+  | "deposit_balance"
+  | "milestone"
+  | "custom";
+
+export type FinancePaymentTermDueBasis =
+  | "invoice_date"
+  | "issue_date"
+  | "delivery_date"
+  | "shipment_date"
+  | "custom";
+
+export type FinancePaymentTermDepositType = "percentage" | "fixed_amount";
+
+export type FinancePaymentTermDepositDueBasis =
+  | "immediate"
+  | "before_production"
+  | "before_shipment"
+  | "before_delivery"
+  | "custom_days";
+
+export type FinancePaymentTermBalanceDueBasis =
+  | "invoice_date"
+  | "delivery_date"
+  | "shipment_date"
+  | "after_deposit"
+  | "before_shipment"
+  | "custom_days";
+
+export type FinancePaymentTermAppliesTo =
+  | "quotation"
+  | "proforma_invoice"
+  | "invoice"
+  | "bill"
+  | "all";
+
 export type FinancePaymentTermRow = {
   id: string;
   code: string;
@@ -14,6 +52,21 @@ export type FinancePaymentTermRow = {
   is_default: boolean;
   notes: string | null;
   metadata: Record<string, unknown>;
+  term_type: FinancePaymentTermType;
+  due_basis: FinancePaymentTermDueBasis;
+  requires_deposit: boolean;
+  deposit_type: FinancePaymentTermDepositType | null;
+  deposit_percentage: number | null;
+  deposit_amount: number | null;
+  deposit_due_basis: FinancePaymentTermDepositDueBasis | null;
+  deposit_due_days: number | null;
+  balance_due_basis: FinancePaymentTermBalanceDueBasis | null;
+  balance_due_days: number | null;
+  allow_partial_payments: boolean;
+  requires_approval: boolean;
+  applies_to: FinancePaymentTermAppliesTo[];
+  document_label: string | null;
+  document_terms_text: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -27,6 +80,21 @@ export type PaymentTermUpsertInput = {
   status: FinancePaymentTermStatus;
   is_default: boolean;
   notes?: string | null;
+  term_type: FinancePaymentTermType;
+  due_basis: FinancePaymentTermDueBasis;
+  requires_deposit: boolean;
+  deposit_type?: FinancePaymentTermDepositType | null;
+  deposit_percentage?: number | null;
+  deposit_amount?: number | null;
+  deposit_due_basis?: FinancePaymentTermDepositDueBasis | null;
+  deposit_due_days?: number | null;
+  balance_due_basis?: FinancePaymentTermBalanceDueBasis | null;
+  balance_due_days?: number | null;
+  allow_partial_payments: boolean;
+  requires_approval: boolean;
+  applies_to: FinancePaymentTermAppliesTo[];
+  document_label?: string | null;
+  document_terms_text?: string | null;
 };
 
 async function getCurrentUserId() {
@@ -43,6 +111,59 @@ function normalizeCode(value: string) {
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
+}
+
+function normalizeNullableText(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function normalizeNullableNumber(value?: number | null) {
+  if (typeof value !== "number") return null;
+  if (!Number.isFinite(value)) return null;
+  return value;
+}
+
+function buildPayload(input: PaymentTermUpsertInput, userId: string | null) {
+  const requiresDeposit = input.requires_deposit;
+  const depositType = requiresDeposit ? input.deposit_type ?? null : null;
+  const depositPercentage =
+    requiresDeposit && depositType === "percentage"
+      ? normalizeNullableNumber(input.deposit_percentage)
+      : null;
+  const depositAmount =
+    requiresDeposit && depositType === "fixed_amount"
+      ? normalizeNullableNumber(input.deposit_amount)
+      : null;
+
+  return {
+    code: normalizeCode(input.code),
+    name: input.name.trim(),
+    due_days: input.due_days,
+    status: input.status,
+    is_default: input.is_default,
+    notes: normalizeNullableText(input.notes),
+    term_type: input.term_type,
+    due_basis: input.due_basis,
+    requires_deposit: requiresDeposit,
+    deposit_type: depositType,
+    deposit_percentage: depositPercentage,
+    deposit_amount: depositAmount,
+    deposit_due_basis: requiresDeposit ? input.deposit_due_basis ?? null : null,
+    deposit_due_days: requiresDeposit
+      ? normalizeNullableNumber(input.deposit_due_days)
+      : null,
+    balance_due_basis: input.balance_due_basis ?? "invoice_date",
+    balance_due_days: normalizeNullableNumber(input.balance_due_days),
+    allow_partial_payments: input.allow_partial_payments,
+    requires_approval: input.requires_approval,
+    applies_to: input.applies_to.length
+      ? input.applies_to
+      : ["quotation", "proforma_invoice", "invoice"],
+    document_label: normalizeNullableText(input.document_label) ?? input.name.trim(),
+    document_terms_text: normalizeNullableText(input.document_terms_text),
+    updated_by: userId,
+  };
 }
 
 export async function getPaymentTerms(): Promise<FinancePaymentTermRow[]> {
@@ -62,15 +183,9 @@ export async function createPaymentTerm(
   const userId = await getCurrentUserId();
 
   const payload = {
-    code: normalizeCode(input.code),
-    name: input.name.trim(),
-    due_days: input.due_days,
-    status: input.status,
-    is_default: input.is_default,
-    notes: input.notes?.trim() || null,
+    ...buildPayload(input, userId),
     metadata: {},
     created_by: userId,
-    updated_by: userId,
   };
 
   const { data, error } = await supabase
@@ -97,15 +212,7 @@ export async function updatePaymentTerm(
 ): Promise<FinancePaymentTermRow> {
   const userId = await getCurrentUserId();
 
-  const payload = {
-    code: normalizeCode(input.code),
-    name: input.name.trim(),
-    due_days: input.due_days,
-    status: input.status,
-    is_default: input.is_default,
-    notes: input.notes?.trim() || null,
-    updated_by: userId,
-  };
+  const payload = buildPayload(input, userId);
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -192,10 +299,7 @@ export async function permanentlyDeletePaymentTerm(
 
   if (readError) throw readError;
 
-  const { error } = await supabase
-    .from(TABLE)
-    .delete()
-    .eq("id", id);
+  const { error } = await supabase.delete().from(TABLE).eq("id", id);
 
   if (error) throw error;
 

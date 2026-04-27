@@ -539,8 +539,8 @@ export default function FinanceCustomerPoDetailPage() {
   async function handleCreateProformaInvoice() {
     if (!customerPo) return;
 
-    if (customerPo.status !== "verified") {
-      setError("Customer PO must be verified before creating a proforma invoice.");
+    if (customerPo.status !== "received") {
+      setError("Customer PO must be marked as received before creating a proforma invoice.");
       return;
     }
 
@@ -774,8 +774,7 @@ export default function FinanceCustomerPoDetailPage() {
                 </div>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Customer PO received from the client. Verification is blocked until the
-                  customer document is uploaded.
+                  Customer PO received from the client. Create the proforma invoice after the PO is marked as received and the customer document is uploaded.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
@@ -841,26 +840,15 @@ export default function FinanceCustomerPoDetailPage() {
                 </Button>
               ) : null}
 
-              {customerPo.status === "received" ? (
-                <Button
-                  onClick={() => void updateCustomerPoStatus("verified")}
-                  disabled={isSaving || !hasCustomerPoFile}
-                  title={
-                    hasCustomerPoFile
-                      ? "Verify Customer PO"
-                      : "Upload Customer PO document before verification"
-                  }
-                  className="h-11 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Verify PO
-                </Button>
-              ) : null}
-
-                            {customerPo.status === "verified" && !customerPo.proforma_invoice_id ? (
+              {customerPo.status === "received" && !customerPo.proforma_invoice_id ? (
                 <Button
                   onClick={() => void handleCreateProformaInvoice()}
                   disabled={isSaving || !hasCustomerPoFile}
+                  title={
+                    hasCustomerPoFile
+                      ? "Create Proforma Invoice"
+                      : "Upload Customer PO document before creating a proforma invoice"
+                  }
                   className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <FileText className="mr-2 h-4 w-4" />
@@ -1329,9 +1317,9 @@ export default function FinanceCustomerPoDetailPage() {
               </CardHeader>
 
               <CardContent className="space-y-3 p-5 text-sm leading-6 text-slate-400">
-                <div>• Customer PO file is required before verification.</div>
-                <div>• Verification is disabled until at least one document exists.</div>
-                <div>• Create Proforma Invoice is available only after verification.</div>
+                <div>• Customer PO file is required before creating a proforma invoice.</div>
+                <div>• Draft records must be marked as received first.</div>
+                <div>• Create Proforma Invoice is available after received status and file upload.</div>
                 <div>• Archive keeps the record recoverable.</div>
                 <div>• Delete moves the record to deleted state.</div>
                 <div>• Hard delete is only available from deleted state.</div>

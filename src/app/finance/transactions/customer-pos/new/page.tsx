@@ -90,11 +90,14 @@ type QuotationLineOption = {
   id: string;
   quotation_id: string;
   item_id: string | null;
-  description: string | null;
   item_name: string | null;
+  description: string | null;
   quantity: number | string | null;
   unit_price: number | string | null;
-  discount: number | string | null;
+  tax_rate: number | string | null;
+  discount_rate: number | string | null;
+  line_discount_amount: number | string | null;
+  line_total: number | string | null;
   tax_code_id: string | null;
   unit_of_measure_id: string | null;
   revenue_category_id: string | null;
@@ -467,7 +470,7 @@ export default function FinanceNewCustomerPoPage() {
     const { data, error: linesError } = await supabase
       .from("finance_quotation_line_items")
       .select(
-        "id, quotation_id, item_id, description, item_name, quantity, unit_price, discount, tax_code_id, unit_of_measure_id, revenue_category_id"
+        "id, quotation_id, item_id, item_name, description, quantity, unit_price, tax_rate, discount_rate, line_discount_amount, line_total, tax_code_id, unit_of_measure_id, revenue_category_id"
       )
       .eq("quotation_id", quotation.id)
       .order("sort_order", { ascending: true });
@@ -488,7 +491,7 @@ export default function FinanceNewCustomerPoPage() {
           description: line.description || line.item_name || "",
           quantity: String(line.quantity ?? 1),
           unit_price: String(line.unit_price ?? 0),
-          discount: String(line.discount ?? 0),
+          discount: String(line.line_discount_amount ?? 0),
           tax_code_id: line.tax_code_id || "",
           unit_of_measure_id: line.unit_of_measure_id || "",
           revenue_category_id: line.revenue_category_id || "",

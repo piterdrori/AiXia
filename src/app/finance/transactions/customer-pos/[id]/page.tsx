@@ -117,6 +117,41 @@ type CustomerPoAttachment = {
   mime_type: string | null;
 };
 
+type CustomerPoLineItem = {
+  id: string;
+  client_po_id: string;
+  item_id: string | null;
+  description: string;
+  quantity: number | string | null;
+  unit_price: number | string | null;
+  discount: number | string | null;
+  line_total: number | string | null;
+  sort_order: number | null;
+  unit_of_measure_id: string | null;
+  tax_code_id: string | null;
+  revenue_category_id: string | null;
+  project_id: string | null;
+  task_id: string | null;
+  status: string;
+  notes: string | null;
+  item?: {
+    name: string | null;
+  } | null;
+  finance_units_of_measure?: {
+    code: string | null;
+    name: string | null;
+  } | null;
+  finance_tax_codes?: {
+    code: string | null;
+    name: string | null;
+    rate_percent: number | string | null;
+  } | null;
+  finance_revenue_categories?: {
+    code: string | null;
+    name: string | null;
+  } | null;
+};
+
 type CustomerPoEditDraft = {
   external_po_number: string;
   po_date: string;
@@ -224,6 +259,7 @@ export default function FinanceCustomerPoDetailPage() {
   const [quotation, setQuotation] = useState<QuotationOption | null>(null);
   const [proforma, setProforma] = useState<ProformaOption | null>(null);
   const [attachments, setAttachments] = useState<CustomerPoAttachment[]>([]);
+  const [lineItems, setLineItems] = useState<CustomerPoLineItem[]>([]);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -331,6 +367,51 @@ export default function FinanceCustomerPoDetailPage() {
       );
 
       setAttachments(mappedAttachments);
+
+      const { data: lineItemData, error: lineItemError } = await supabase
+        .from("finance_client_purchase_order_line_items")
+        .select(`
+          id,
+          client_po_id,
+          item_id,
+          description,
+          quantity,
+          unit_price,
+          discount,
+          line_total,
+          sort_order,
+          unit_of_measure_id,
+          tax_code_id,
+          revenue_category_id,
+          project_id,
+          task_id,
+          status,
+          notes,
+          item:finance_items (
+            name
+          ),
+          finance_units_of_measure (
+            code,
+            name
+          ),
+          finance_tax_codes (
+            code,
+            name,
+            rate_percent
+          ),
+          finance_revenue_categories (
+            code,
+            name
+          )
+        `)
+        .eq("client_po_id", id)
+        .neq("status", "deleted")
+        .order("sort_order", { ascending: true });
+
+      if (lineItemError) throw lineItemError;
+
+      setLineItems((lineItemData || []) as CustomerPoLineItem[]);
+      
     } catch (err) {
       console.error(err);
       setError("Failed to load Customer PO.");
@@ -368,6 +449,19 @@ export default function FinanceCustomerPoDetailPage() {
         },
         () => void loadCustomerPo()
       )
+      
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_client_purchase_order_line_items",
+          filter: `client_po_id=eq.${id}`,
+        },
+        () => void loadCustomerPo()
+      )
+
+      
       .subscribe();
 
     return () => {
@@ -376,6 +470,23 @@ export default function FinanceCustomerPoDetailPage() {
   }, [id, loadCustomerPo]);
 
   const hasCustomerPoFile = attachments.length > 0;
+
+    const lineSubtotal = lineItems.reduce(
+    (sum, line) => sum + toNumber(line.quantity) * toNumber(line.unit_price),
+    0
+  );
+
+  const lineDiscount = lineItems.reduce(
+    (sum, line) => sum + toNumber(line.discount),
+    0
+  );
+
+  const lineTotal = lineItems.reduce(
+    (sum, line) => sum + toNumber(line.line_total),
+    0
+  );
+
+  const lineTax = Math.max(lineTotal - (lineSubtotal - lineDiscount), 0);
 
   function resetEditDraft() {
     if (!customerPo) return;
@@ -1108,6 +1219,166 @@ export default function FinanceCustomerPoDetailPage() {
                     </div>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+
+                        <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <CardTitle className="text-white">Customer PO Line Items</CardTitle>
+                <CardDescription className="text-white/45">
+                  Item-level details saved against this customer purchase order.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-4 p-5">
+                {lineItems.length === 0 ? (
+                  <div className="rounded-[22px] border border-white/10 bg-black/20 px-4 py-6 text-sm text-white/50">
+                    No Customer PO line items found.
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-3">
+                      {lineItems.map((line, index) => (
+                        <div
+                          key={line.id}
+                          className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                        >
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200 shadow-none">
+                                  Line {index + 1}
+                                </Badge>
+
+                                {line.item?.name ? (
+                                  <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
+                                    {line.item.name}
+                                  </Badge>
+                                ) : null}
+                              </div>
+
+                              <div className="mt-3 text-base font-semibold text-white">
+                                {line.description || "Untitled line"}
+                              </div>
+
+                              <div className="mt-2 flex flex-wrap gap-2 text-xs text-white/45">
+                                <span>
+                                  Qty:{" "}
+                                  <span className="text-white/70">
+                                    {toNumber(line.quantity)}
+                                  </span>
+                                </span>
+                                <span>•</span>
+                                <span>
+                                  Unit:{" "}
+                                  <span className="text-white/70">
+                                    {line.finance_units_of_measure?.code ||
+                                      line.finance_units_of_measure?.name ||
+                                      "—"}
+                                  </span>
+                                </span>
+                                <span>•</span>
+                                <span>
+                                  Tax:{" "}
+                                  <span className="text-white/70">
+                                    {line.finance_tax_codes?.name ||
+                                      line.finance_tax_codes?.code ||
+                                      "—"}
+                                  </span>
+                                </span>
+                                <span>•</span>
+                                <span>
+                                  Revenue:{" "}
+                                  <span className="text-white/70">
+                                    {line.finance_revenue_categories?.name ||
+                                      line.finance_revenue_categories?.code ||
+                                      "—"}
+                                  </span>
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[420px]">
+                              <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-3">
+                                <div className="text-[10px] uppercase tracking-[0.16em] text-white/35">
+                                  Unit Price
+                                </div>
+                                <div className="mt-2 text-sm font-semibold text-white">
+                                  {formatMoney(line.unit_price, customerPo.currency_code || "USD")}
+                                </div>
+                              </div>
+
+                              <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-3">
+                                <div className="text-[10px] uppercase tracking-[0.16em] text-white/35">
+                                  Discount
+                                </div>
+                                <div className="mt-2 text-sm font-semibold text-white">
+                                  {formatMoney(line.discount, customerPo.currency_code || "USD")}
+                                </div>
+                              </div>
+
+                              <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-3">
+                                <div className="text-[10px] uppercase tracking-[0.16em] text-white/35">
+                                  Quantity
+                                </div>
+                                <div className="mt-2 text-sm font-semibold text-white">
+                                  {toNumber(line.quantity)}
+                                </div>
+                              </div>
+
+                              <div className="rounded-[18px] border border-cyan-400/15 bg-cyan-500/10 px-3 py-3">
+                                <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-100/60">
+                                  Line Total
+                                </div>
+                                <div className="mt-2 text-sm font-semibold text-white">
+                                  {formatMoney(line.line_total, customerPo.currency_code || "USD")}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                      <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
+                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                          Subtotal
+                        </div>
+                        <div className="mt-2 text-base font-semibold text-white">
+                          {formatMoney(lineSubtotal, customerPo.currency_code || "USD")}
+                        </div>
+                      </div>
+
+                      <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
+                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                          Discount
+                        </div>
+                        <div className="mt-2 text-base font-semibold text-white">
+                          {formatMoney(lineDiscount, customerPo.currency_code || "USD")}
+                        </div>
+                      </div>
+
+                      <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
+                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                          Tax
+                        </div>
+                        <div className="mt-2 text-base font-semibold text-white">
+                          {formatMoney(lineTax, customerPo.currency_code || "USD")}
+                        </div>
+                      </div>
+
+                      <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
+                        <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/60">
+                          Total
+                        </div>
+                        <div className="mt-2 text-base font-semibold text-white">
+                          {formatMoney(lineTotal, customerPo.currency_code || "USD")}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 

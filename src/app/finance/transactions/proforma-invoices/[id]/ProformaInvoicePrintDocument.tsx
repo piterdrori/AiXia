@@ -18,6 +18,7 @@ function parseBankDetails(details: string | null | undefined) {
 
   try {
     const parsed = JSON.parse(details);
+
     return {
       beneficiary: parsed?.beneficiary_name || "",
       bank: parsed?.bank_name || "",
@@ -34,7 +35,9 @@ function parseBankDetails(details: string | null | undefined) {
       const line = normalized
         .split("\n")
         .map((entry) => entry.trim())
-        .find((entry) => entry.toLowerCase().startsWith(`${label.toLowerCase()}:`));
+        .find((entry) =>
+          entry.toLowerCase().startsWith(`${label.toLowerCase()}:`)
+        );
 
       return line ? line.slice(label.length + 1).trim() : "";
     };
@@ -65,13 +68,12 @@ export default function ProformaInvoicePrintDocument({
   company,
   client,
 }: Props) {
-  
   const currency =
     proforma?.currency_code ||
     proforma?.metadata?.currency_code ||
     "USD";
 
-    const companyName =
+  const companyName =
     proforma?.company_name_snapshot ||
     company?.legal_name ||
     company?.name ||
@@ -159,19 +161,24 @@ export default function ProformaInvoicePrintDocument({
     proforma?.billing_address ||
     "—";
 
-  const proformaNumber =
-    proforma?.proforma_number || "Draft";
-
-  const issueDate =
-    proforma?.issue_date || null;
-
-  const validUntil =
-    proforma?.valid_until || null;
+  const proformaNumber = proforma?.proforma_number || "Draft";
+  const issueDate = proforma?.issue_date || null;
+  const validUntil = proforma?.valid_until || null;
 
   const bankInfo = parseBankDetails(proforma?.bank_details_snapshot);
 
   const paymentTerms =
-    proforma?.payment_terms_snapshot || "—";
+    proforma?.payment_terms_snapshot ||
+    proforma?.payment_terms_label ||
+    proforma?.payment_term_name ||
+    "—";
+
+  const paymentTermsText =
+    proforma?.payment_terms_document_text ||
+    proforma?.payment_terms_text_snapshot ||
+    proforma?.payment_terms_description ||
+    proforma?.payment_terms_text ||
+    "";
 
   const shippingTerms =
     proforma?.shipping_terms_snapshot &&
@@ -193,13 +200,23 @@ export default function ProformaInvoicePrintDocument({
       <style>{`
         @media print {
           @page { size: A4; margin: 0; }
-          html, body {
+
+          html,
+          body {
             background: #ffffff !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
-          body * { visibility: hidden !important; }
-          .proforma-print-sheet, .proforma-print-sheet * { visibility: visible !important; }
+
+          body * {
+            visibility: hidden !important;
+          }
+
+          .proforma-print-sheet,
+          .proforma-print-sheet * {
+            visibility: visible !important;
+          }
+
           .proforma-print-sheet {
             position: absolute !important;
             left: 0 !important;
@@ -244,7 +261,13 @@ export default function ProformaInvoicePrintDocument({
             }}
           />
 
-          <div style={{ position: "relative", zIndex: 2, padding: "9mm 14mm 10mm 14mm" }}>
+          <div
+            style={{
+              position: "relative",
+              zIndex: 2,
+              padding: "9mm 14mm 10mm 14mm",
+            }}
+          >
             <div
               style={{
                 display: "grid",
@@ -290,6 +313,7 @@ export default function ProformaInvoicePrintDocument({
                   {companyContact ? <div>{companyContact}</div> : null}
                   {companyPhone ? <div>{companyPhone}</div> : null}
                   {companyEmail ? <div>{companyEmail}</div> : null}
+
                   {companyAddress ? (
                     <div
                       style={{
@@ -307,7 +331,7 @@ export default function ProformaInvoicePrintDocument({
                 </div>
               </div>
 
-              <div style={{ paddingTop: "2mm", textAlign: "left" }}>
+                            <div style={{ paddingTop: "2mm", textAlign: "left" }}>
                 <div
                   style={{
                     fontSize: "31pt",
@@ -323,17 +347,26 @@ export default function ProformaInvoicePrintDocument({
 
                 <div style={{ fontSize: "10pt", lineHeight: 1.95 }}>
                   <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "30mm", opacity: 0.78 }}>Proforma No</span>
+                    <span style={{ width: "30mm", opacity: 0.78 }}>
+                      Proforma No
+                    </span>
                     <span style={{ fontWeight: 700 }}>{proformaNumber}</span>
                   </div>
+
                   <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "30mm", opacity: 0.78 }}>Issue Date</span>
+                    <span style={{ width: "30mm", opacity: 0.78 }}>
+                      Issue Date
+                    </span>
                     <span>{formatFinanceDate(issueDate)}</span>
                   </div>
+
                   <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "30mm", opacity: 0.78 }}>Valid Until</span>
+                    <span style={{ width: "30mm", opacity: 0.78 }}>
+                      Valid Until
+                    </span>
                     <span>{formatFinanceDate(validUntil)}</span>
                   </div>
+
                   <div style={{ display: "flex", gap: "4mm" }}>
                     <span style={{ width: "30mm", opacity: 0.78 }}>Status</span>
                     <span>{String(proforma?.status || "—")}</span>
@@ -342,8 +375,7 @@ export default function ProformaInvoicePrintDocument({
               </div>
             </div>
 
-
-                        <div style={{ marginTop: "5mm", marginBottom: "7mm" }}>
+            <div style={{ marginTop: "5mm", marginBottom: "7mm" }}>
               <div
                 style={{
                   background: "#ffffff",
@@ -366,20 +398,48 @@ export default function ProformaInvoicePrintDocument({
                 >
                   Recipient
                 </div>
-                <div style={{ fontWeight: 700, fontSize: "11pt", marginBottom: "1mm" }}>
+
+                <div
+                  style={{
+                    fontWeight: 700,
+                    fontSize: "11pt",
+                    marginBottom: "1mm",
+                  }}
+                >
                   {counterpartyName}
                 </div>
+
                 {counterpartyContact ? (
-                  <div style={{ fontSize: "8.3pt", color: "#4b5563", marginBottom: "0.8mm" }}>
+                  <div
+                    style={{
+                      fontSize: "8.3pt",
+                      color: "#4b5563",
+                      marginBottom: "0.8mm",
+                    }}
+                  >
                     {counterpartyContact}
                   </div>
                 ) : null}
+
                 {counterpartyEmail || counterpartyPhone ? (
-                  <div style={{ fontSize: "8.1pt", color: "#4b5563", marginBottom: "0.8mm" }}>
+                  <div
+                    style={{
+                      fontSize: "8.1pt",
+                      color: "#4b5563",
+                      marginBottom: "0.8mm",
+                    }}
+                  >
                     {[counterpartyEmail, counterpartyPhone].filter(Boolean).join(" • ")}
                   </div>
                 ) : null}
-                <div style={{ fontSize: "8.3pt", color: "#4b5563", lineHeight: 1.55 }}>
+
+                <div
+                  style={{
+                    fontSize: "8.3pt",
+                    color: "#4b5563",
+                    lineHeight: 1.55,
+                  }}
+                >
                   {billingAddress}
                 </div>
               </div>
@@ -448,6 +508,7 @@ export default function ProformaInvoicePrintDocument({
                     </th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {visibleRows.map((item, index) => {
                     const unitPrice = Number(item.unitPrice ?? item.unit_price ?? 0);
@@ -459,11 +520,20 @@ export default function ProformaInvoicePrintDocument({
                       Math.max(quantity * unitPrice - discount, 0);
 
                     return (
-                      <tr key={item.id || index} style={{ borderBottom: "0.5pt solid #d1d5db" }}>
-                        <td style={{ padding: "3mm 2mm", textAlign: "center" }}>{index + 1}</td>
-                        <td style={{ padding: "3mm 3mm", verticalAlign: "top" }}>
-                          <div style={{ fontWeight: 500 }}>{item.description || "—"}</div>
+                      <tr
+                        key={item.id || index}
+                        style={{ borderBottom: "0.5pt solid #d1d5db" }}
+                      >
+                        <td style={{ padding: "3mm 2mm", textAlign: "center" }}>
+                          {index + 1}
                         </td>
+
+                        <td style={{ padding: "3mm 3mm", verticalAlign: "top" }}>
+                          <div style={{ fontWeight: 500 }}>
+                            {item.description || "—"}
+                          </div>
+                        </td>
+
                         <td
                           style={{
                             padding: "3mm 2mm",
@@ -473,6 +543,7 @@ export default function ProformaInvoicePrintDocument({
                         >
                           {formatFinanceMoney(unitPrice, currency)}
                         </td>
+
                         <td
                           style={{
                             padding: "3mm 2mm",
@@ -482,6 +553,7 @@ export default function ProformaInvoicePrintDocument({
                         >
                           {quantity}
                         </td>
+
                         <td
                           style={{
                             padding: "3mm 2mm",
@@ -497,7 +569,10 @@ export default function ProformaInvoicePrintDocument({
                   })}
 
                   {Array.from({ length: fillerRows }).map((_, index) => (
-                    <tr key={`filler-${index}`} style={{ borderBottom: "0.5pt solid #d1d5db" }}>
+                    <tr
+                      key={`filler-${index}`}
+                      style={{ borderBottom: "0.5pt solid #d1d5db" }}
+                    >
                       <td style={{ height: "7mm", padding: "0 2mm" }} />
                       <td style={{ height: "7mm", padding: "0 3mm" }} />
                       <td style={{ height: "7mm", padding: "0 2mm" }} />
@@ -537,15 +612,31 @@ export default function ProformaInvoicePrintDocument({
                     >
                       Payment and Shipping Terms
                     </div>
+
                     <div style={{ lineHeight: 1.7 }}>
                       <div>
                         <span style={{ color: "#6b7280" }}>Payment Terms: </span>
                         <span style={{ fontWeight: 500 }}>{paymentTerms}</span>
                       </div>
-                      <div>
+
+                      {paymentTermsText ? (
+                        <div
+                          style={{
+                            marginTop: "1mm",
+                            lineHeight: 1.55,
+                            whiteSpace: "pre-wrap",
+                            color: "#374151",
+                          }}
+                        >
+                          {paymentTermsText}
+                        </div>
+                      ) : null}
+
+                      <div style={{ marginTop: paymentTermsText ? "1.2mm" : "0mm" }}>
                         <span style={{ color: "#6b7280" }}>Shipping Terms: </span>
                         <span style={{ fontWeight: 500 }}>{shippingTerms}</span>
                       </div>
+
                       <div>
                         <span style={{ color: "#6b7280" }}>Currency: </span>
                         <span style={{ fontWeight: 500 }}>{currency}</span>
@@ -570,41 +661,67 @@ export default function ProformaInvoicePrintDocument({
                         {bankInfo.beneficiary ? (
                           <div>
                             <span style={{ color: "#6b7280" }}>Beneficiary: </span>
-                            <span style={{ fontWeight: 600 }}>{bankInfo.beneficiary}</span>
+                            <span style={{ fontWeight: 600 }}>
+                              {bankInfo.beneficiary}
+                            </span>
                           </div>
                         ) : null}
+
                         {bankInfo.bank ? (
                           <div>
-                            <span style={{ color: "#6b7280" }}>Beneficiary Bank Name: </span>
+                            <span style={{ color: "#6b7280" }}>
+                              Beneficiary Bank Name:{" "}
+                            </span>
                             <span>{bankInfo.bank}</span>
                           </div>
                         ) : null}
+
                         {bankInfo.bankAddress ? (
                           <div>
-                            <span style={{ color: "#6b7280" }}>Beneficiary Bank Address: </span>
+                            <span style={{ color: "#6b7280" }}>
+                              Beneficiary Bank Address:{" "}
+                            </span>
                             <span>{bankInfo.bankAddress}</span>
                           </div>
                         ) : null}
+
                         {bankInfo.accountNumber ? (
                           <div>
                             <span style={{ color: "#6b7280" }}>Bank Account: </span>
-                            <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                            <span
+                              style={{
+                                fontFamily: "monospace",
+                                fontWeight: 600,
+                              }}
+                            >
                               {bankInfo.accountNumber}
                             </span>
                           </div>
                         ) : null}
+
                         {bankInfo.swift ? (
                           <div>
                             <span style={{ color: "#6b7280" }}>SWIFT Code: </span>
-                            <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                            <span
+                              style={{
+                                fontFamily: "monospace",
+                                fontWeight: 600,
+                              }}
+                            >
                               {bankInfo.swift}
                             </span>
                           </div>
                         ) : null}
+
                         {bankInfo.iban ? (
                           <div>
                             <span style={{ color: "#6b7280" }}>IBAN: </span>
-                            <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                            <span
+                              style={{
+                                fontFamily: "monospace",
+                                fontWeight: 600,
+                              }}
+                            >
                               {bankInfo.iban}
                             </span>
                           </div>
@@ -617,8 +734,7 @@ export default function ProformaInvoicePrintDocument({
                 </div>
               </div>
 
-
-                            <div>
+              <div>
                 <div
                   style={{
                     background: "#ffffff",
@@ -712,7 +828,10 @@ export default function ProformaInvoicePrintDocument({
                         marginBottom: "1.5mm",
                       }}
                     />
-                    <div style={{ fontSize: "8pt", color: "#374151" }}>Authorized Signature</div>
+
+                    <div style={{ fontSize: "8pt", color: "#374151" }}>
+                      Authorized Signature
+                    </div>
                   </div>
                 </div>
               </div>
@@ -769,7 +888,3 @@ export default function ProformaInvoicePrintDocument({
     </>
   );
 }
-
-
-
-            

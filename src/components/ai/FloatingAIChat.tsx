@@ -613,11 +613,28 @@ export default function FloatingAIChat() {
         activeMode,
       });
 
-      if (activeMode === "face_to_face") {
+          if (activeMode === "face_to_face") {
         speakAssistantMessage(assistantMessage.content);
+      } else if (activeMode === "voice_text") {
+        setAvatarState("idle");
+        setStatusMessage(
+          "Voice mode is active. Speak again or tap the mic to stop."
+        );
+
+        window.setTimeout(() => {
+          if (
+            openRef.current &&
+            modeRef.current === "voice_text" &&
+            !loadingRef.current &&
+            !recognitionRef.current
+          ) {
+            void startListening("voice_text");
+          }
+        }, 450);
       } else {
         setAvatarState("idle");
       }
+      
     } catch (error) {
       const errorMessage: Message = {
         id: createMessageId(),
@@ -661,9 +678,23 @@ export default function FloatingAIChat() {
   }
 
   function startVoiceText() {
+    if (modeRef.current === "voice_text") {
+      clearSilenceTimer();
+      stopListening();
+      stopVoiceOutput();
+      setMode("text");
+      setAvatarState("idle");
+      setStatusMessage("Voice mode stopped.");
+      setLiveTranscript("");
+      return;
+    }
+
     clearSilenceTimer();
     stopVoiceOutput();
     setMode("voice_text");
+    setStatusMessage(
+      "Voice mode is active. Speak naturally. Tap the mic again to stop."
+    );
     void startListening("voice_text");
   }
 
@@ -754,12 +785,37 @@ export default function FloatingAIChat() {
 
     recognition.onend = () => {
       setListening(false);
+      recognitionRef.current = null;
       clearSilenceTimer();
 
       const cleanTranscript = finalTranscriptRef.current.trim();
 
       if (cleanTranscript && !loadingRef.current) {
         void handleSend(cleanTranscript, nextMode);
+        return;
+      }
+
+      if (
+        nextMode === "voice_text" &&
+        openRef.current &&
+        modeRef.current === "voice_text"
+      ) {
+        setAvatarState("idle");
+        setStatusMessage(
+          "Voice mode is active. Speak again or tap the mic to stop."
+        );
+
+        window.setTimeout(() => {
+          if (
+            openRef.current &&
+            modeRef.current === "voice_text" &&
+            !loadingRef.current &&
+            !recognitionRef.current
+          ) {
+            void startListening("voice_text");
+          }
+        }, 450);
+
         return;
       }
 
@@ -964,8 +1020,9 @@ export default function FloatingAIChat() {
                 <button
                   type="button"
                   onClick={() => void endSession()}
-                  className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5 text-xs text-slate-300 transition-all duration-300 hover:border-rose-400/30 hover:bg-rose-500/10 hover:text-rose-200"
+                  className="inline-flex items-center gap-2 rounded-full border border-rose-300/25 bg-gradient-to-r from-rose-500/20 to-amber-500/15 px-4 py-2 text-xs font-semibold text-rose-100 shadow-lg shadow-rose-950/25 transition-all duration-300 hover:border-rose-300/40 hover:from-rose-500/30 hover:to-amber-500/20 hover:text-white"
                 >
+                  <Power className="h-3.5 w-3.5" />
                   End Session
                 </button>
 
@@ -1078,15 +1135,23 @@ export default function FloatingAIChat() {
                   <button
                     type="button"
                     onClick={startVoiceText}
-                    disabled={!speechSupported || loading}
+                    disabled={!speechSupported || (loading && mode !== "voice_text")}
                     className={`flex h-10 w-10 items-center justify-center rounded-full border transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 ${
-                      listening
-                        ? "border-rose-400/30 bg-rose-500/15 text-rose-100"
+                      mode === "voice_text"
+                        ? "border-cyan-300/40 bg-cyan-500/15 text-cyan-50 shadow-lg shadow-cyan-950/20"
                         : "border-white/10 bg-black/20 text-slate-300 hover:border-cyan-400/30 hover:bg-cyan-500/10 hover:text-cyan-100"
                     }`}
-                    aria-label="Start speech to text"
+                    aria-label={
+                      mode === "voice_text"
+                        ? "Stop speech to text"
+                        : "Start speech to text"
+                    }
                   >
-                    {listening ? <Square className="h-3.5 w-3.5" /> : <Mic className="h-4 w-4" />}
+                    {mode === "voice_text" ? (
+                      <Square className="h-3.5 w-3.5" />
+                    ) : (
+                      <Mic className="h-4 w-4" />
+                    )}
                   </button>
 
                   <button
@@ -1154,8 +1219,9 @@ export default function FloatingAIChat() {
               <button
                 type="button"
                 onClick={() => void endSession()}
-                className="rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs font-semibold text-slate-300 backdrop-blur-xl transition-all duration-300 hover:border-rose-400/30 hover:bg-rose-500/10 hover:text-rose-200"
+                className="inline-flex items-center gap-2 rounded-full border border-rose-300/25 bg-gradient-to-r from-rose-500/20 to-amber-500/15 px-4 py-2 text-xs font-semibold text-rose-100 shadow-lg shadow-rose-950/25 backdrop-blur-xl transition-all duration-300 hover:border-rose-300/40 hover:from-rose-500/30 hover:to-amber-500/20 hover:text-white"
               >
+                <Power className="h-3.5 w-3.5" />
                 End Session
               </button>
 
@@ -1262,8 +1328,14 @@ export default function FloatingAIChat() {
 
       <button
         type="button"
-        onClick={() => {
-          setOpen((current) => !current);
+        onClick={async () => {
+          if (openRef.current) {
+            await endSession();
+            setOpen(false);
+            return;
+          }
+
+          setOpen(true);
           void loadRuntimeControls();
         }}
         className="fixed bottom-6 right-6 z-[101] flex h-16 w-16 items-center justify-center rounded-full border border-cyan-300/30 bg-cyan-400 text-slate-950 shadow-2xl shadow-cyan-950/40 transition-all duration-300 hover:scale-105 hover:bg-cyan-300"
@@ -1495,7 +1567,7 @@ function NativeChatAnimation({
 
         {mode === "orb" ? (
           <div className="aixia-orb-core relative flex h-32 w-32 items-center justify-center rounded-full border border-cyan-300/30 bg-cyan-400/20 shadow-2xl shadow-cyan-400/20">
-            <div className="h-4 w-4 rounded-full bg-cyan-100/90 shadow-lg shadow-cyan-300/40" />
+            <div className="absolute inset-5 rounded-full border border-cyan-100/10" />
             <div className="aixia-orb-mouth absolute bottom-9 rounded-full bg-cyan-100/80" />
           </div>
         ) : null}

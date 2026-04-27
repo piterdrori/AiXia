@@ -6,24 +6,21 @@ import {
   ArrowLeft,
   ArrowRight,
   BadgeAlert,
-  BarChart3,
   BriefcaseBusiness,
-  Building2,
   CheckCircle2,
   CircleDollarSign,
-  ClipboardList,
   Database,
   DollarSign,
   FileBarChart2,
   FolderKanban,
   Landmark,
-  LayoutDashboard,
   Receipt,
   RefreshCw,
   Settings2,
   Sparkles,
   TrendingDown,
   TrendingUp,
+  Users,
   Wallet,
 } from "lucide-react";
 
@@ -51,7 +48,6 @@ type WorkspaceTab = {
   description: string;
   icon: typeof FolderKanban;
   route: string;
-  group: "setup" | "operations" | "intelligence";
 };
 
 type FinanceInvoiceRow = {
@@ -206,17 +202,8 @@ const WORKSPACE_TABS: WorkspaceTab[] = [
     key: "master-data",
     label: "Master Data",
     description: "Clients, vendors, banks, terms, tax codes, units, and items.",
-    icon: Database,
+    icon: Users,
     route: "/finance/master-data",
-    group: "setup",
-  },
-  {
-    key: "settings",
-    label: "Settings",
-    description: "Chart of accounts, periods, posting rules, and controls.",
-    icon: Settings2,
-    route: "/finance/settings",
-    group: "setup",
   },
   {
     key: "transactions",
@@ -225,7 +212,6 @@ const WORKSPACE_TABS: WorkspaceTab[] = [
       "Invoices, bills, proforma invoices, expenses, payments, approvals, and payroll.",
     icon: Receipt,
     route: "/finance/transactions",
-    group: "operations",
   },
   {
     key: "reports",
@@ -233,7 +219,13 @@ const WORKSPACE_TABS: WorkspaceTab[] = [
     description: "Time-based and project-based analytics with export support.",
     icon: FileBarChart2,
     route: "/finance/reports",
-    group: "intelligence",
+  },
+  {
+    key: "settings",
+    label: "Settings",
+    description: "Chart of accounts, periods, posting rules, controls, and config.",
+    icon: Settings2,
+    route: "/finance/settings",
   },
 ];
 
@@ -1074,14 +1066,6 @@ export default function FinancePage() {
     ];
   }, [dashboardData]);
 
-  const groupedWorkspaceTabs = useMemo(() => {
-    return {
-      setup: WORKSPACE_TABS.filter((tab) => tab.group === "setup"),
-      operations: WORKSPACE_TABS.filter((tab) => tab.group === "operations"),
-      intelligence: WORKSPACE_TABS.filter((tab) => tab.group === "intelligence"),
-    };
-  }, []);
-
   const handleTabOpen = useCallback(
     (route: string) => {
       navigate(route);
@@ -1168,8 +1152,8 @@ export default function FinancePage() {
         <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="space-y-6">
             <FinanceSectionCard
-              title="Setup Layer"
-              description="Foundation records and finance configuration."
+              title="Finance Navigation"
+              description="Open setup, operations, analytics, and control modules."
               icon={Database}
             >
               {isLoadingPermissions ? (
@@ -1183,7 +1167,7 @@ export default function FinancePage() {
                 </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2">
-                  {groupedWorkspaceTabs.setup.map((tab) => (
+                  {WORKSPACE_TABS.map((tab) => (
                     <FinanceModuleCard
                       key={tab.key}
                       tab={tab}
@@ -1192,66 +1176,6 @@ export default function FinancePage() {
                   ))}
                 </div>
               )}
-            </FinanceSectionCard>
-
-            <FinanceSectionCard
-              title="Operations Layer"
-              description="Daily finance execution and transaction workflows."
-              icon={LayoutDashboard}
-            >
-              <div className="grid gap-4 md:grid-cols-2">
-                {groupedWorkspaceTabs.operations.map((tab) => (
-                  <FinanceModuleCard
-                    key={tab.key}
-                    tab={tab}
-                    onOpen={handleTabOpen}
-                  />
-                ))}
-
-                <div className="rounded-[26px] border border-white/10 bg-black/20 p-5">
-                  <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 p-3 text-amber-200">
-                    <ClipboardList className="h-5 w-5" />
-                  </div>
-
-                  <div className="mt-5 text-base font-semibold text-white">
-                    Approval Queue
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">
-                    {formatCount(dashboardData.alerts.pendingApprovals)} pending
-                    finance actions require review.
-                  </p>
-                </div>
-              </div>
-            </FinanceSectionCard>
-
-            <FinanceSectionCard
-              title="Intelligence Layer"
-              description="Finance analytics, reporting, and ledger visibility."
-              icon={BarChart3}
-            >
-              <div className="grid gap-4 md:grid-cols-2">
-                {groupedWorkspaceTabs.intelligence.map((tab) => (
-                  <FinanceModuleCard
-                    key={tab.key}
-                    tab={tab}
-                    onOpen={handleTabOpen}
-                  />
-                ))}
-
-                <div className="rounded-[26px] border border-white/10 bg-black/20 p-5">
-                  <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-                    <Building2 className="h-5 w-5" />
-                  </div>
-
-                  <div className="mt-5 text-base font-semibold text-white">
-                    Ledger Preview
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">
-                    {formatCount(dashboardData.ledgerPreview.length)} active
-                    balance rows available for review.
-                  </p>
-                </div>
-              </div>
             </FinanceSectionCard>
           </div>
 

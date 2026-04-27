@@ -6,11 +6,18 @@ import {
   ArrowLeft,
   ArrowRight,
   BadgeAlert,
+  BarChart3,
   BriefcaseBusiness,
+  Building2,
+  CheckCircle2,
+  CircleDollarSign,
+  ClipboardList,
+  Database,
   DollarSign,
   FileBarChart2,
   FolderKanban,
-  GripHorizontal,
+  Landmark,
+  LayoutDashboard,
   Receipt,
   RefreshCw,
   Settings2,
@@ -46,6 +53,7 @@ type WorkspaceTab = {
   description: string;
   icon: typeof FolderKanban;
   route: string;
+  group: "setup" | "operations" | "intelligence";
 };
 
 type FinanceInvoiceRow = {
@@ -199,31 +207,35 @@ const WORKSPACE_TABS: WorkspaceTab[] = [
   {
     key: "master-data",
     label: "Master Data",
-    description: "Clients, vendors, banks, terms, tax codes, units, items",
-    icon: Users,
+    description: "Clients, vendors, banks, terms, tax codes, units, and items.",
+    icon: Database,
     route: "/finance/master-data",
+    group: "setup",
+  },
+  {
+    key: "settings",
+    label: "Settings",
+    description: "Chart of accounts, periods, posting rules, and controls.",
+    icon: Settings2,
+    route: "/finance/settings",
+    group: "setup",
   },
   {
     key: "transactions",
     label: "Transactions",
     description:
-      "Invoices, bills, proforma invoices, expenses, payments, approvals, payroll",
+      "Invoices, bills, proforma invoices, expenses, payments, approvals, and payroll.",
     icon: Receipt,
     route: "/finance/transactions",
+    group: "operations",
   },
   {
     key: "reports",
     label: "Reports",
-    description: "Time-based and project-based analytics with export support",
+    description: "Time-based and project-based analytics with export support.",
     icon: FileBarChart2,
     route: "/finance/reports",
-  },
-  {
-    key: "settings",
-    label: "Settings",
-    description: "Chart of accounts, periods, posting rules, controls, config",
-    icon: Settings2,
-    route: "/finance/settings",
+    group: "intelligence",
   },
 ];
 
@@ -324,24 +336,28 @@ function getMetricToneClasses(tone: DashboardMetricCard["tone"]) {
         glow: "from-emerald-500/20 via-emerald-400/10 to-transparent",
         iconWrap: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
         accent: "bg-emerald-400",
+        value: "text-emerald-100",
       };
     case "amber":
       return {
         glow: "from-amber-500/20 via-amber-400/10 to-transparent",
         iconWrap: "border-amber-400/20 bg-amber-500/10 text-amber-200",
         accent: "bg-amber-400",
+        value: "text-amber-100",
       };
     case "violet":
       return {
         glow: "from-violet-500/20 via-violet-400/10 to-transparent",
         iconWrap: "border-violet-400/20 bg-violet-500/10 text-violet-200",
         accent: "bg-violet-400",
+        value: "text-violet-100",
       };
     case "rose":
       return {
         glow: "from-rose-500/20 via-rose-400/10 to-transparent",
         iconWrap: "border-rose-400/20 bg-rose-500/10 text-rose-200",
         accent: "bg-rose-400",
+        value: "text-rose-100",
       };
     case "cyan":
     default:
@@ -349,6 +365,7 @@ function getMetricToneClasses(tone: DashboardMetricCard["tone"]) {
         glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
         iconWrap: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
         accent: "bg-cyan-400",
+        value: "text-cyan-100",
       };
   }
 }
@@ -358,7 +375,7 @@ function FinanceMetricCard({ metric }: { metric: DashboardMetricCard }) {
   const tone = getMetricToneClasses(metric.tone);
 
   return (
-    <div className="group relative min-h-[170px] overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+    <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
       <div
         className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`}
       />
@@ -366,11 +383,13 @@ function FinanceMetricCard({ metric }: { metric: DashboardMetricCard }) {
 
       <div className="relative flex h-full flex-col justify-between gap-5">
         <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 space-y-2">
+          <div className="min-w-0">
             <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
               {metric.title}
             </div>
-            <div className="truncate text-3xl font-semibold tracking-[-0.035em] text-white">
+            <div
+              className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${tone.value}`}
+            >
               {metric.value}
             </div>
           </div>
@@ -393,7 +412,7 @@ function FinanceMetricCard({ metric }: { metric: DashboardMetricCard }) {
   );
 }
 
-function FinanceTabButton({
+function FinanceModuleCard({
   tab,
   onOpen,
 }: {
@@ -406,7 +425,7 @@ function FinanceTabButton({
     <button
       type="button"
       onClick={() => onOpen(tab.route)}
-      className="group flex min-h-[170px] flex-col justify-between rounded-[26px] border border-white/10 bg-black/20 p-5 text-left transition hover:border-cyan-400/25 hover:bg-white/[0.055] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:border-white/10 disabled:hover:bg-black/20"
+      className="group flex min-h-[168px] flex-col justify-between rounded-[26px] border border-white/10 bg-black/20 p-5 text-left transition hover:border-cyan-400/25 hover:bg-white/[0.055]"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
@@ -426,17 +445,19 @@ function FinanceTabButton({
   );
 }
 
-function FinanceInsightCard({
+function FinanceSectionCard({
   title,
+  description,
   icon: Icon,
   children,
 }: {
   title: string;
+  description: string;
   icon: typeof AlertTriangle;
   children: ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
       <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
@@ -447,14 +468,72 @@ function FinanceInsightCard({
             <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
               {title}
             </h2>
-            <p className="mt-1 text-xs text-slate-500">
-              Live finance control signals.
-            </p>
+            <p className="mt-1 text-xs text-slate-500">{description}</p>
           </div>
         </div>
       </div>
 
       <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
+function FinanceSignalCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 transition hover:bg-white/[0.045]">
+      <div className="text-sm text-slate-400">{label}</div>
+      <div className={`text-sm font-semibold ${tone}`}>{value}</div>
+    </div>
+  );
+}
+
+function HeaderStatusCard({
+  label,
+  value,
+  detail,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: typeof AlertTriangle;
+  tone: "emerald" | "cyan" | "amber";
+}) {
+  const toneClasses = {
+    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+  }[tone];
+
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            {label}
+          </div>
+          <div className="mt-2 truncate text-2xl font-semibold tracking-[-0.035em] text-white">
+            {value}
+          </div>
+        </div>
+
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+
+      <div className="mt-3 text-xs leading-5 text-slate-500">{detail}</div>
     </div>
   );
 }
@@ -465,8 +544,6 @@ export default function FinancePage() {
   const [dashboardData, setDashboardData] =
     useState<DashboardData>(EMPTY_DASHBOARD_DATA);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
-  const [activityPanelHeight, setActivityPanelHeight] = useState(640);
-  const [isResizingActivity, setIsResizingActivity] = useState(false);
 
   const loadPermissions = useCallback(async () => {
     setIsLoadingPermissions(true);
@@ -572,7 +649,7 @@ export default function FinancePage() {
           .order("created_at", { ascending: false })
           .limit(12),
 
-        supabase
+                supabase
           .from("finance_reimbursements")
           .select("id", { count: "exact", head: true }),
 
@@ -621,8 +698,7 @@ export default function FinancePage() {
       const journals = (journalsResult.data || []) as FinanceJournalRow[];
       const periods = (periodsResult.data || []) as FinancePeriodRow[];
 
-
-          const cashPosition = bankAccounts.reduce(
+      const cashPosition = bankAccounts.reduce(
         (sum, account) => sum + toNumber(account.opening_balance),
         0
       );
@@ -910,15 +986,38 @@ export default function FinancePage() {
         icon: BriefcaseBusiness,
         tone: "violet",
       },
+    ];
+  }, [dashboardData, isLoadingDashboard]);
+
+  const headerStatusCards = useMemo(() => {
+    return [
       {
-        key: "approvals",
-        title: "Approvals",
-        value: isLoadingDashboard
-          ? "—"
-          : formatCount(dashboardData.alerts.pendingApprovals),
-        subtitle: "Pending approval actions",
-        icon: ShieldCheck,
-        tone: "cyan",
+        label: "System Status",
+        value: isLoadingDashboard ? "Loading" : "Live",
+        detail: "Realtime finance dashboard subscriptions are active.",
+        icon: CheckCircle2,
+        tone: "emerald" as const,
+      },
+      {
+        label: "Open Period",
+        value: dashboardData.periods.currentOpenPeriodName || "No period",
+        detail: `${formatCount(dashboardData.periods.open)} open • ${formatCount(
+          dashboardData.periods.locked
+        )} locked`,
+        icon: Landmark,
+        tone: "cyan" as const,
+      },
+      {
+        label: "Control Alerts",
+        value: formatCount(
+          dashboardData.alerts.overdueInvoices +
+            dashboardData.alerts.overdueBills +
+            dashboardData.alerts.pendingApprovals +
+            dashboardData.alerts.periodCloseBlockers
+        ),
+        detail: "Overdue, approval, and period close signals.",
+        icon: BadgeAlert,
+        tone: "amber" as const,
       },
     ];
   }, [dashboardData, isLoadingDashboard]);
@@ -977,6 +1076,14 @@ export default function FinancePage() {
     ];
   }, [dashboardData]);
 
+  const groupedWorkspaceTabs = useMemo(() => {
+    return {
+      setup: WORKSPACE_TABS.filter((tab) => tab.group === "setup"),
+      operations: WORKSPACE_TABS.filter((tab) => tab.group === "operations"),
+      intelligence: WORKSPACE_TABS.filter((tab) => tab.group === "intelligence"),
+    };
+  }, []);
+
   const handleTabOpen = useCallback(
     (route: string) => {
       navigate(route);
@@ -984,85 +1091,34 @@ export default function FinancePage() {
     [navigate]
   );
 
-  const handleActivityResizeStart = useCallback(() => {
-    setIsResizingActivity(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isResizingActivity) return;
-
-    const handleMouseMove = (event: MouseEvent) => {
-      const nextHeight = event.clientY - 220;
-      const clampedHeight = Math.max(320, Math.min(nextHeight, 1200));
-      setActivityPanelHeight(clampedHeight);
-    };
-
-    const handleMouseUp = () => {
-      setIsResizingActivity(false);
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isResizingActivity]);
-
-  const renderWorkspaceContent = () => {
-    if (isLoadingPermissions) {
-      return (
-        <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-10 text-center">
-          <div className="text-sm font-medium text-white">
-            Loading workspace permissions
-          </div>
-          <p className="mt-2 text-sm leading-6 text-slate-500">
-            Finance access controls are being checked.
-          </p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="overflow-x-auto pb-2">
-        <div className="flex min-w-max gap-4">
-          {WORKSPACE_TABS.map((tab) => (
-            <div key={tab.key} className="w-[300px] flex-shrink-0">
-              <FinanceTabButton tab={tab} onOpen={handleTabOpen} />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 hidden" />
+        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
 
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+          <div className="relative flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0 max-w-4xl">
               <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                 <Sparkles className="h-3.5 w-3.5" />
-                Finance Hub
+                Finance Control Center
               </div>
 
               <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                Finance Command Center
+                Finance Studio
               </h1>
 
               <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                Live financial position, approvals, balances, activity, and
-                ledger health across master data, transactions, reports, and
-                settings.
+                A structured command layer for financial setup, operations,
+                reporting, approvals, balances, and ledger control.
               </p>
 
               <div className="mt-5 flex flex-wrap gap-2">
                 <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
                   Live backend
+                </div>
+                <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                  Ledger aware
                 </div>
                 <div className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
                   Data-first
@@ -1070,92 +1126,174 @@ export default function FinancePage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 xl:justify-end">
-              <Button
-                variant="outline"
-                onClick={() => navigate(-1)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back
-              </Button>
-
-              <Button
-                variant="outline"
-                onClick={() => void loadDashboard()}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Refresh
-              </Button>
+            <div className="grid w-full gap-3 sm:grid-cols-3 xl:w-[620px]">
+              {headerStatusCards.map((card) => (
+                <HeaderStatusCard
+                  key={card.label}
+                  label={card.label}
+                  value={card.value}
+                  detail={card.detail}
+                  icon={card.icon}
+                  tone={card.tone}
+                />
+              ))}
             </div>
           </div>
 
-          <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-            {dashboardMetricCards.map((metric) => (
-              <FinanceMetricCard key={metric.key} metric={metric} />
-            ))}
-          </section>
+          <div className="relative mt-6 flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate(-1)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={() => void loadDashboard()}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
         </header>
 
-        <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-          <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                Finance Navigation
-              </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Open setup, operations, analytics, and control modules.
-              </p>
-            </div>
-
-            <div className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-              Dashboard layers
-            </div>
-          </div>
-
-          <div className="p-5">{renderWorkspaceContent()}</div>
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {dashboardMetricCards.map((metric) => (
+            <FinanceMetricCard key={metric.key} metric={metric} />
+          ))}
         </section>
 
         <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div
-            className="flex min-h-0 flex-col overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.045] shadow-2xl shadow-black/30 backdrop-blur-xl"
-            style={{ height: `${activityPanelHeight}px` }}
-          >
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-              <div>
-                <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Recent Activity
-                </h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  Latest finance records, approvals, and payroll movement.
-                </p>
-              </div>
-
-              <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                Live feed
-              </div>
-            </div>
-
-            <div className="flex min-h-0 flex-1 flex-col">
-              {dashboardData.recentActivity.length === 0 ? (
-                <div className="flex-1 p-5">
-                  <div className="flex h-full items-center justify-center rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                    <div>
-                      <div className="text-sm font-medium text-white">
-                        No finance activity found
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-slate-500">
-                        New invoices, bills, expenses, approvals, and payroll
-                        records will appear here.
-                      </p>
-                    </div>
+          <div className="space-y-6">
+            <FinanceSectionCard
+              title="Setup Layer"
+              description="Foundation records and finance configuration."
+              icon={Database}
+            >
+              {isLoadingPermissions ? (
+                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-10 text-center">
+                  <div className="text-sm font-medium text-white">
+                    Loading workspace permissions
                   </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Finance access controls are being checked.
+                  </p>
                 </div>
               ) : (
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
-                  <div className="space-y-3">
-                    {dashboardData.recentActivity.map((item, index) => (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {groupedWorkspaceTabs.setup.map((tab) => (
+                    <FinanceModuleCard
+                      key={tab.key}
+                      tab={tab}
+                      onOpen={handleTabOpen}
+                    />
+                  ))}
+                </div>
+              )}
+            </FinanceSectionCard>
+
+            <FinanceSectionCard
+              title="Operations Layer"
+              description="Daily finance execution and transaction workflows."
+              icon={LayoutDashboard}
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                {groupedWorkspaceTabs.operations.map((tab) => (
+                  <FinanceModuleCard
+                    key={tab.key}
+                    tab={tab}
+                    onOpen={handleTabOpen}
+                  />
+                ))}
+
+                <div className="rounded-[26px] border border-white/10 bg-black/20 p-5">
+                  <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 p-3 text-amber-200">
+                    <ClipboardList className="h-5 w-5" />
+                  </div>
+
+                  <div className="mt-5 text-base font-semibold text-white">
+                    Approval Queue
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    {formatCount(dashboardData.alerts.pendingApprovals)} pending
+                    finance actions require review.
+                  </p>
+                </div>
+              </div>
+            </FinanceSectionCard>
+
+            <FinanceSectionCard
+              title="Intelligence Layer"
+              description="Finance analytics, reporting, and ledger visibility."
+              icon={BarChart3}
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                {groupedWorkspaceTabs.intelligence.map((tab) => (
+                  <FinanceModuleCard
+                    key={tab.key}
+                    tab={tab}
+                    onOpen={handleTabOpen}
+                  />
+                ))}
+
+                <div className="rounded-[26px] border border-white/10 bg-black/20 p-5">
+                  <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
+                    <Building2 className="h-5 w-5" />
+                  </div>
+
+                  <div className="mt-5 text-base font-semibold text-white">
+                    Ledger Preview
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    {formatCount(dashboardData.ledgerPreview.length)} active
+                    balance rows available for review.
+                  </p>
+                </div>
+              </div>
+            </FinanceSectionCard>
+          </div>
+
+          <div className="space-y-6">
+            <FinanceSectionCard
+              title="Control Signals"
+              description="Live finance risks and operating blockers."
+              icon={BadgeAlert}
+            >
+              <div className="space-y-3">
+                {insightAlerts.map((item) => (
+                  <FinanceSignalCard
+                    key={item.label}
+                    label={item.label}
+                    value={item.value}
+                    tone={item.tone}
+                  />
+                ))}
+              </div>
+            </FinanceSectionCard>
+
+            <FinanceSectionCard
+              title="Recent Activity"
+              description="Latest finance movement across records."
+              icon={Receipt}
+            >
+              {dashboardData.recentActivity.length === 0 ? (
+                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                  <div className="text-sm font-medium text-white">
+                    No finance activity found
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    New invoices, bills, expenses, approvals, and payroll
+                    records will appear here.
+                  </p>
+                </div>
+              ) : (
+                <div className="max-h-[390px] overflow-y-auto overscroll-contain rounded-[26px] border border-white/10 bg-black/20">
+                  <div className="divide-y divide-white/5">
+                    {dashboardData.recentActivity.map((item) => (
                       <button
                         key={item.id}
                         type="button"
@@ -1163,76 +1301,58 @@ export default function FinancePage() {
                           if (!item.route) return;
                           navigate(item.route);
                         }}
-                        className="relative grid w-full gap-4 rounded-[22px] border border-white/10 bg-white/[0.035] p-4 text-left transition hover:border-white/15 hover:bg-white/[0.055] lg:grid-cols-[minmax(0,1fr)_150px]"
+                        className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-white/[0.045]"
                       >
-                        <div className="flex min-w-0 items-start gap-4">
-                          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-xs font-semibold text-slate-400">
-                            {String(index + 1).padStart(2, "0")}
+                        <div className="min-w-0">
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                              {item.type}
+                            </span>
+                            <span className="truncate text-sm font-semibold text-white">
+                              {item.title}
+                            </span>
                           </div>
 
-                          <div className="min-w-0">
-                            <div className="flex min-w-0 flex-wrap items-center gap-2">
-                              <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                                {item.type}
-                              </div>
-
-                              <div className="min-w-0 truncate text-sm font-semibold text-white">
-                                {item.title}
-                              </div>
-                            </div>
-
-                            <div className="mt-2 text-sm leading-6 text-slate-400">
-                              {item.subtitle}
-                            </div>
+                          <div className="mt-2 line-clamp-1 text-sm text-slate-400">
+                            {item.subtitle}
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between gap-3 lg:justify-end">
+                        <div className="flex shrink-0 items-center gap-3">
                           <div className="text-xs text-slate-600">
                             {formatDateLabel(item.createdAt)}
                           </div>
-                          <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-1" />
+                          <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
                         </div>
                       </button>
                     ))}
                   </div>
                 </div>
               )}
+            </FinanceSectionCard>
 
-              <button
-                type="button"
-                onMouseDown={handleActivityResizeStart}
-                className="group flex h-7 w-full cursor-row-resize items-center justify-center border-t border-white/10 bg-white/[0.02] transition hover:bg-white/[0.05]"
-                aria-label="Resize recent activity panel"
-              >
-                <GripHorizontal className="h-4 w-4 text-slate-600 transition group-hover:text-cyan-200" />
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <FinanceInsightCard title="Alerts" icon={BadgeAlert}>
-              <div className="space-y-3">
-                {insightAlerts.map((item) => (
-                  <div
-                    key={item.label}
-                    className="flex items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-black/20 px-4 py-3 transition hover:bg-white/[0.045]"
-                  >
-                    <div className="text-sm text-slate-400">{item.label}</div>
-                    <div className={`text-sm font-semibold ${item.tone}`}>
-                      {item.value}
-                    </div>
+            <div className="overflow-hidden rounded-[30px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)] p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                    Period Close Readiness
                   </div>
-                ))}
-              </div>
-            </FinanceInsightCard>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    Monitor open balances, draft journals, approvals, and
+                    outstanding documents before locking accounting periods.
+                  </p>
+                </div>
 
-            <FinanceInsightCard title="Open Balances" icon={AlertTriangle}>
-              <div className="space-y-3">
+                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-cyan-200">
+                  <CircleDollarSign className="h-5 w-5" />
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3">
                 {openBalances.map((item) => (
                   <div
                     key={item.label}
-                    className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                    className="rounded-[22px] border border-white/10 bg-black/20 p-4"
                   >
                     <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                       {item.label}
@@ -1243,11 +1363,10 @@ export default function FinancePage() {
                   </div>
                 ))}
               </div>
-            </FinanceInsightCard>
+            </div>
           </div>
         </section>
       </div>
     </div>
   );
 }
-

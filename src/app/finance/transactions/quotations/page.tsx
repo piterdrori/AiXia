@@ -241,7 +241,7 @@ export default function FinanceQuotationsPage() {
   const navigate = useNavigate();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [, setIsRefreshing] = useState(false);
   const [quotations, setQuotations] = useState<FinanceQuotationRow[]>([]);
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<Role | null>(null);

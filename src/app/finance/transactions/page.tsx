@@ -1,30 +1,37 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { LucideIcon } from "lucide-react";
 import {
+  ArrowLeft,
   ArrowRight,
   BadgeAlert,
   BriefcaseBusiness,
   CreditCard,
-  Database,
   FileText,
   Receipt,
+  RefreshCw,
   ShieldCheck,
-  Sparkles,
-  TrendingDown,
-  TrendingUp,
   Wallet,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 type TransactionMetricCard = {
   key: string;
   title: string;
   value: string;
   subtitle: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "violet" | "rose";
+  icon: typeof Wallet;
+  tone: "emerald" | "blue" | "amber" | "violet" | "rose" | "cyan";
 };
 
 type TransactionModuleKey =
@@ -47,10 +54,17 @@ type TransactionModuleCard = {
   title: string;
   description: string;
   route?: string;
-  icon: LucideIcon;
+  icon: typeof Receipt;
   count: number;
   statusLabel: string;
   lastUpdatedLabel: string;
+};
+
+type TransactionSectionModule = {
+  module: TransactionModuleCard;
+  sequenceLabel?: string;
+  titleOverride?: string;
+  descriptionOverride?: string;
 };
 
 type TransactionSectionTone =
@@ -60,12 +74,21 @@ type TransactionSectionTone =
   | "internal"
   | "control";
 
-type TransactionModuleGroup = {
-  key: string;
+type TransactionSection = {
+  key:
+    | "incoming"
+    | "procurement"
+    | "operating-expenses"
+    | "internal-flows"
+    | "control";
   title: string;
   subtitle: string;
   tone: TransactionSectionTone;
-  modules: TransactionModuleCard[];
+  modules: TransactionSectionModule[];
+  columns?: "3" | "4" | "5";
+  layout?: "flow" | "grid";
+  splitLabelLeft?: string;
+  splitLabelRight?: string;
 };
 
 type FinanceInvoiceRow = {
@@ -175,10 +198,6 @@ type TransactionsPageData = {
   recentActivity: RecentTransactionItem[];
 };
 
-type CountResult = {
-  count?: number | null;
-};
-
 const EMPTY_TRANSACTIONS_DATA: TransactionsPageData = {
   counts: {
     invoices: 0,
@@ -248,145 +267,168 @@ function isOverdue(dueDate: string | null, balanceDue: number) {
   return due < now;
 }
 
-function getCount(result: CountResult) {
-  return result.count ?? 0;
-}
-
-async function safeCount(tableName: string): Promise<CountResult> {
-  try {
-    const result = await supabase
-      .from(tableName)
-      .select("id", { count: "exact", head: true });
-
-    return { count: result.count ?? 0 };
-  } catch {
-    return { count: 0 };
-  }
-}
-
-function getMetricToneClasses(tone: TransactionMetricCard["tone"]) {
+function getToneClasses(
+  tone: TransactionMetricCard["tone"]
+): {
+  glow: string;
+  iconWrap: string;
+  accent: string;
+} {
   switch (tone) {
     case "emerald":
       return {
         glow: "from-emerald-500/20 via-emerald-400/10 to-transparent",
-        iconWrap: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+        iconWrap:
+          "border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_0_30px_rgba(16,185,129,0.18)]",
         accent: "bg-emerald-400",
-        value: "text-emerald-100",
+      };
+    case "blue":
+      return {
+        glow: "from-sky-500/20 via-sky-400/10 to-transparent",
+        iconWrap:
+          "border-sky-400/20 bg-sky-500/10 text-sky-300 shadow-[0_0_30px_rgba(56,189,248,0.18)]",
+        accent: "bg-sky-400",
       };
     case "amber":
       return {
         glow: "from-amber-500/20 via-amber-400/10 to-transparent",
-        iconWrap: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+        iconWrap:
+          "border-amber-400/20 bg-amber-500/10 text-amber-300 shadow-[0_0_30px_rgba(245,158,11,0.18)]",
         accent: "bg-amber-400",
-        value: "text-amber-100",
       };
     case "violet":
       return {
         glow: "from-violet-500/20 via-violet-400/10 to-transparent",
-        iconWrap: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+        iconWrap:
+          "border-violet-400/20 bg-violet-500/10 text-violet-300 shadow-[0_0_30px_rgba(139,92,246,0.18)]",
         accent: "bg-violet-400",
-        value: "text-violet-100",
       };
     case "rose":
       return {
         glow: "from-rose-500/20 via-rose-400/10 to-transparent",
-        iconWrap: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+        iconWrap:
+          "border-rose-400/20 bg-rose-500/10 text-rose-300 shadow-[0_0_30px_rgba(244,63,94,0.18)]",
         accent: "bg-rose-400",
-        value: "text-rose-100",
       };
     case "cyan":
     default:
       return {
         glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
-        iconWrap: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+        iconWrap:
+          "border-cyan-400/20 bg-cyan-500/10 text-cyan-300 shadow-[0_0_30px_rgba(34,211,238,0.18)]",
         accent: "bg-cyan-400",
-        value: "text-cyan-100",
       };
   }
 }
 
-function getGroupToneClasses(tone: TransactionSectionTone) {
+function getSectionToneClasses(tone: TransactionSectionTone): {
+  border: string;
+  badge: string;
+  iconWrap: string;
+  title: string;
+  panel: string;
+} {
   switch (tone) {
     case "incoming":
       return {
-        border: "border-emerald-400/20",
-        badge: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-        iconWrap: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+        border: "border-emerald-400/30",
+        badge:
+          "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+        iconWrap:
+          "border-emerald-400/25 bg-emerald-500/10 text-emerald-300",
+        title: "text-emerald-300",
         panel:
-          "bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.12),rgba(255,255,255,0.045)_42%)]",
+          "bg-[linear-gradient(180deg,rgba(16,185,129,0.08),rgba(255,255,255,0.02))]",
       };
     case "procurement":
       return {
-        border: "border-amber-400/20",
+        border: "border-amber-400/30",
         badge: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-        iconWrap: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+        iconWrap:
+          "border-amber-400/25 bg-amber-500/10 text-amber-300",
+        title: "text-amber-300",
         panel:
-          "bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.12),rgba(255,255,255,0.045)_42%)]",
+          "bg-[linear-gradient(180deg,rgba(245,158,11,0.08),rgba(255,255,255,0.02))]",
       };
     case "expense":
       return {
-        border: "border-cyan-400/20",
-        badge: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-        iconWrap: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+        border: "border-sky-400/30",
+        badge: "border-sky-400/20 bg-sky-500/10 text-sky-200",
+        iconWrap: "border-sky-400/25 bg-sky-500/10 text-sky-300",
+        title: "text-sky-300",
         panel:
-          "bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.12),rgba(255,255,255,0.045)_42%)]",
+          "bg-[linear-gradient(180deg,rgba(56,189,248,0.08),rgba(255,255,255,0.02))]",
       };
     case "internal":
       return {
-        border: "border-violet-400/20",
-        badge: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-        iconWrap: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+        border: "border-violet-400/30",
+        badge:
+          "border-violet-400/20 bg-violet-500/10 text-violet-200",
+        iconWrap:
+          "border-violet-400/25 bg-violet-500/10 text-violet-300",
+        title: "text-violet-300",
         panel:
-          "bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.12),rgba(255,255,255,0.045)_42%)]",
+          "bg-[linear-gradient(180deg,rgba(139,92,246,0.08),rgba(255,255,255,0.02))]",
       };
     case "control":
     default:
       return {
-        border: "border-rose-400/20",
-        badge: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-        iconWrap: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+        border: "border-cyan-400/30",
+        badge: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+        iconWrap: "border-cyan-400/25 bg-cyan-500/10 text-cyan-300",
+        title: "text-cyan-300",
         panel:
-          "bg-[radial-gradient(circle_at_top_left,rgba(244,63,94,0.12),rgba(255,255,255,0.045)_42%)]",
+          "bg-[linear-gradient(180deg,rgba(34,211,238,0.08),rgba(255,255,255,0.02))]",
       };
   }
 }
 
-function TransactionMetric({ metric }: { metric: TransactionMetricCard }) {
+function getSectionGridClass(columns: TransactionSection["columns"] = "3") {
+  switch (columns) {
+    case "5":
+      return "grid grid-cols-1 gap-5 xl:grid-cols-5";
+    case "4":
+      return "grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4";
+    case "3":
+    default:
+      return "grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3";
+  }
+}
+
+function TransactionMetric({
+  metric,
+}: {
+  metric: TransactionMetricCard;
+}) {
   const Icon = metric.icon;
-  const tone = getMetricToneClasses(metric.tone);
+  const tone = getToneClasses(metric.tone);
 
   return (
-    <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+    <div className="group relative overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
       <div
         className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`}
       />
-      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-white/10" />
-
-      <div className="relative flex h-full flex-col justify-between gap-5">
+      <div className="relative flex h-full flex-col gap-5 p-5">
         <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+          <div className="space-y-2">
+            <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-white/45">
               {metric.title}
             </div>
-            <div
-              className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${tone.value}`}
-            >
+            <div className="text-3xl font-semibold tracking-tight text-white">
               {metric.value}
             </div>
           </div>
 
           <div
-            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
+            className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
           >
             <Icon className="h-5 w-5" />
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
-            {metric.subtitle}
-          </div>
-          <div className={`h-2 w-2 shrink-0 rounded-full ${tone.accent}`} />
+        <div className="mt-auto flex items-center justify-between gap-3">
+          <div className="text-sm text-white/55">{metric.subtitle}</div>
+          <div className={`h-2 w-2 rounded-full ${tone.accent}`} />
         </div>
       </div>
     </div>
@@ -396,68 +438,87 @@ function TransactionMetric({ metric }: { metric: TransactionMetricCard }) {
 function TransactionModuleButton({
   module,
   onOpen,
+  sequenceLabel,
+  titleOverride,
+  descriptionOverride,
 }: {
   module: TransactionModuleCard;
   onOpen: (route: string) => void;
+  sequenceLabel?: string;
+  titleOverride?: string;
+  descriptionOverride?: string;
 }) {
   const Icon = module.icon;
   const isClickable = Boolean(module.route);
 
-  return (
+   return (
     <button
       type="button"
       onClick={() => {
         if (!module.route) return;
         onOpen(module.route);
       }}
-      className={`group flex min-h-[158px] w-full flex-col justify-between rounded-[24px] border border-white/10 bg-black/20 p-4 text-left transition ${
+      className={`group relative flex h-full min-h-[236px] w-full overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.03] text-left backdrop-blur-xl transition-all duration-200 ${
         isClickable
-          ? "hover:border-cyan-400/25 hover:bg-white/[0.055]"
-          : "cursor-default opacity-70"
+          ? "hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.05]"
+          : "cursor-default opacity-90"
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-          <Icon className="h-5 w-5" />
-        </div>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_48%)] opacity-80" />
 
-        <div className="flex shrink-0 items-center gap-2">
-          <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-300">
-            {module.statusLabel}
-          </span>
-          <ArrowRight
-            className={`h-4 w-4 text-slate-500 transition ${
-              isClickable ? "group-hover:translate-x-1 group-hover:text-cyan-200" : ""
-            }`}
-          />
-        </div>
-      </div>
+      <div className="relative flex h-full w-full flex-col gap-3 p-3.5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/80">
+              <Icon className="h-4 w-4" />
+            </div>
 
-      <div className="mt-4 space-y-1.5">
-        <div className="truncate text-sm font-semibold text-white">
-          {module.title}
-        </div>
-        <div className="line-clamp-2 text-xs leading-5 text-slate-400">
-          {module.description}
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <div className="rounded-[16px] border border-white/10 bg-white/[0.035] px-3 py-2">
-          <div className="text-[9px] uppercase tracking-[0.16em] text-slate-600">
-            Records
+            {sequenceLabel ? (
+              <div className="flex h-6 min-w-[1.65rem] items-center justify-center rounded-lg border border-white/10 bg-white/6 px-1.5 text-[10px] font-medium text-white/70">
+                {sequenceLabel}
+              </div>
+            ) : null}
           </div>
-          <div className="mt-1 text-sm font-semibold text-white">
-            {formatCount(module.count)}
+
+          <div className="flex items-center gap-3">
+            <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[10px] text-white/70 shadow-none">
+              {module.statusLabel}
+            </Badge>
+            <ArrowRight
+              className={`h-4 w-4 text-white/30 transition-transform duration-200 ${
+                isClickable
+                  ? "group-hover:translate-x-1 group-hover:text-white/65"
+                  : ""
+              }`}
+            />
           </div>
         </div>
 
-        <div className="rounded-[16px] border border-white/10 bg-white/[0.035] px-3 py-2">
-          <div className="text-[9px] uppercase tracking-[0.16em] text-slate-600">
-            Updated
+        <div className="space-y-1.5">
+          <div className="text-[14px] font-medium leading-5 text-white">
+            {titleOverride ?? module.title}
           </div>
-          <div className="mt-1 truncate text-sm font-semibold text-white">
-            {module.lastUpdatedLabel}
+          <div className="text-[12px] leading-5 text-white/44">
+            {descriptionOverride ?? module.description}
+          </div>
+        </div>
+
+        <div className="mt-auto flex items-end justify-between gap-3 pt-1">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
+              Records
+            </div>
+            <div className="mt-1 text-[16px] font-semibold text-white">
+              {formatCount(module.count)}
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
+              Updated
+            </div>
+            <div className="mt-1 text-[12px] text-white/58">
+              {module.lastUpdatedLabel}
+            </div>
           </div>
         </div>
       </div>
@@ -465,76 +526,185 @@ function TransactionModuleButton({
   );
 }
 
-function TransactionModuleGroupCard({
-  group,
+function TransactionFlowArrow() {
+  return (
+    <div className="hidden xl:flex xl:items-center xl:justify-center xl:px-0.5">
+      <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/8 bg-white/[0.025] text-white/45">
+        <ArrowRight className="h-3.5 w-3.5" />
+      </div>
+    </div>
+  );
+}
+
+function TransactionSectionCard({
+  section,
   onOpen,
 }: {
-  group: TransactionModuleGroup;
+  section: TransactionSection;
   onOpen: (route: string) => void;
 }) {
-  const tone = getGroupToneClasses(group.tone);
+  const tone = getSectionToneClasses(section.tone);
+
+  if (section.key === "internal-flows") {
+    const leftModules = section.modules.slice(0, 2);
+    const rightModules = section.modules.slice(2);
+
+    return (
+      <section
+        className={`overflow-hidden rounded-[30px] border ${tone.border} ${tone.panel} backdrop-blur-xl`}
+      >
+        <div className="border-b border-white/8 px-6 py-5 sm:px-7">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-2">
+              <Badge
+                className={`w-fit rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.22em] shadow-none ${tone.badge}`}
+              >
+                {section.title}
+              </Badge>
+
+              <div className="max-w-3xl text-sm leading-6 text-white/50">
+                {section.subtitle}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5 sm:p-6 xl:p-7">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <div className="space-y-4">
+              <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-violet-200/80">
+                {section.splitLabelLeft ?? "A. Reimbursements"}
+              </div>
+
+              <div className="overflow-x-auto pb-3">
+                <div className="flex min-w-max items-stretch">
+                  {leftModules.map((item, index) => (
+                    <div
+                      key={`${item.module.key}-${item.sequenceLabel ?? index}`}
+                      className="flex flex-none items-stretch"
+                    >
+                      <div className="w-[220px] min-w-[220px] max-w-[220px] flex-none">
+                        <TransactionModuleButton
+                          module={item.module}
+                          onOpen={onOpen}
+                          sequenceLabel={item.sequenceLabel}
+                          titleOverride={item.titleOverride}
+                          descriptionOverride={item.descriptionOverride}
+                        />
+                      </div>
+
+                      {index < leftModules.length - 1 ? (
+                        <div className="flex flex-none items-center justify-center px-3">
+                          <TransactionFlowArrow />
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 border-t border-white/8 pt-6 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
+              <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-violet-200/80">
+                {section.splitLabelRight ?? "B. Payroll"}
+              </div>
+
+              <div className="overflow-x-auto pb-3">
+                <div className="flex min-w-max items-stretch">
+                  {rightModules.map((item, index) => (
+                    <div
+                      key={`${item.module.key}-${item.sequenceLabel ?? index}`}
+                      className="flex flex-none items-stretch"
+                    >
+                      <div className="w-[220px] min-w-[220px] max-w-[220px] flex-none">
+                        <TransactionModuleButton
+                          module={item.module}
+                          onOpen={onOpen}
+                          sequenceLabel={item.sequenceLabel}
+                          titleOverride={item.titleOverride}
+                          descriptionOverride={item.descriptionOverride}
+                        />
+                      </div>
+
+                      {index < rightModules.length - 1 ? (
+                        <div className="flex flex-none items-center justify-center px-3">
+                          <TransactionFlowArrow />
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section
       className={`overflow-hidden rounded-[30px] border ${tone.border} ${tone.panel} backdrop-blur-xl`}
     >
-      <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
-        <div>
-          <div
-            className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] ${tone.badge}`}
-          >
-            {group.title}
-          </div>
-          <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
-            {group.subtitle}
-          </p>
-        </div>
-      </div>
+      <div className="border-b border-white/8 px-6 py-5 sm:px-7">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-2">
+            <Badge
+              className={`w-fit rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.22em] shadow-none ${tone.badge}`}
+            >
+              {section.title}
+            </Badge>
 
-      <div className="p-5">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {group.modules.map((module) => (
-            <TransactionModuleButton
-              key={module.key}
-              module={module}
-              onOpen={onOpen}
-            />
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function TransactionsSectionCard({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-            <Icon className="h-4 w-4" />
-          </div>
-
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-              {title}
-            </h2>
-            <p className="mt-1 text-xs text-slate-500">{description}</p>
+            <div className="max-w-3xl text-sm leading-6 text-white/50">
+              {section.subtitle}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="p-5">{children}</div>
+      <div className="p-5 sm:p-6 xl:p-7">
+        {section.layout === "flow" ? (
+          <div className="overflow-x-auto pb-3">
+            <div className="flex min-w-max items-stretch">
+              {section.modules.map((item, index) => (
+                <div
+                  key={`${item.module.key}-${item.sequenceLabel ?? index}`}
+                  className="flex flex-none items-stretch"
+                >
+                  <div className="w-[220px] min-w-[220px] max-w-[220px] flex-none">
+                    <TransactionModuleButton
+                      module={item.module}
+                      onOpen={onOpen}
+                      sequenceLabel={item.sequenceLabel}
+                      titleOverride={item.titleOverride}
+                      descriptionOverride={item.descriptionOverride}
+                    />
+                  </div>
+
+                  {index < section.modules.length - 1 ? (
+                    <div className="flex flex-none items-center justify-center px-3">
+                      <TransactionFlowArrow />
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className={getSectionGridClass(section.columns)}>
+            {section.modules.map((item, index) => (
+              <TransactionModuleButton
+                key={`${item.module.key}-${item.sequenceLabel ?? index}`}
+                module={item.module}
+                onOpen={onOpen}
+                sequenceLabel={item.sequenceLabel}
+                titleOverride={item.titleOverride}
+                descriptionOverride={item.descriptionOverride}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   );
 }
@@ -549,55 +719,12 @@ function SummaryBlock({
   subtitle: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+    <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
+      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
         {title}
       </div>
       <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
-      <div className="mt-2 text-sm leading-6 text-slate-400">{subtitle}</div>
-    </div>
-  );
-}
-
-function HeaderStatusCard({
-  label,
-  value,
-  detail,
-  icon: Icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber";
-}) {
-  const toneClasses = {
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-  }[tone];
-
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {label}
-          </div>
-          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-            {value}
-          </div>
-        </div>
-
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="mt-3 text-xs leading-5 text-slate-500">{detail}</div>
+      <div className="mt-2 text-sm text-white/50">{subtitle}</div>
     </div>
   );
 }
@@ -681,9 +808,25 @@ export default function FinanceTransactionsPage() {
           .order("created_at", { ascending: false })
           .limit(50),
 
-        safeCount("finance_proforma_invoices"),
+        (async () => {
+          try {
+            return await supabase
+              .from("finance_proforma_invoices")
+              .select("id", { count: "exact", head: true });
+          } catch {
+            return { count: 0 };
+          }
+        })(),
 
-        safeCount("finance_purchase_orders"),
+        (async () => {
+          try {
+            return await supabase
+              .from("finance_purchase_orders")
+              .select("id", { count: "exact", head: true });
+          } catch {
+            return { count: 0 };
+          }
+        })(),
       ]);
 
       const invoices = (invoicesResult.data || []) as FinanceInvoiceRow[];
@@ -800,13 +943,13 @@ export default function FinanceTransactionsPage() {
         counts: {
           invoices: invoices.length,
           bills: bills.length,
-          proformaInvoices: getCount(proformaInvoicesResult),
+          proformaInvoices: proformaInvoicesResult.count ?? 0,
           expenses: expenses.length,
           reimbursements: reimbursements.length,
           paymentsMade: paymentsMade.length,
           paymentsReceived: paymentsReceived.length,
           approvals: approvals.length,
-          purchaseOrders: getCount(purchaseOrdersResult),
+          purchaseOrders: purchaseOrdersResult.count ?? 0,
           payrollRuns: payrollRuns.length,
         },
         totals: {
@@ -881,12 +1024,7 @@ export default function FinanceTransactionsPage() {
       )
       .subscribe();
 
-    const intervalId = window.setInterval(() => {
-      void loadTransactionsData();
-    }, 60000);
-
     return () => {
-      window.clearInterval(intervalId);
       supabase.removeChannel(channel);
     };
   }, [loadTransactionsData]);
@@ -895,7 +1033,7 @@ export default function FinanceTransactionsPage() {
     return [
       {
         key: "receivables",
-        title: "Receivables",
+        title: "Total Receivables",
         value: isLoading ? "—" : `$${formatMoney(data.totals.receivables)}`,
         subtitle: `${formatCount(data.counts.invoices)} invoice records`,
         icon: Wallet,
@@ -903,7 +1041,7 @@ export default function FinanceTransactionsPage() {
       },
       {
         key: "payables",
-        title: "Payables",
+        title: "Total Payables",
         value: isLoading ? "—" : `$${formatMoney(data.totals.payables)}`,
         subtitle: `${formatCount(data.counts.bills)} bill records`,
         icon: Receipt,
@@ -913,9 +1051,11 @@ export default function FinanceTransactionsPage() {
         key: "payments-in",
         title: "Payments In",
         value: isLoading ? "—" : `$${formatMoney(data.totals.paymentsIn)}`,
-        subtitle: `${formatCount(data.counts.paymentsReceived)} incoming payments`,
+        subtitle: `${formatCount(
+          data.counts.paymentsReceived
+        )} incoming payments`,
         icon: CreditCard,
-        tone: "cyan",
+        tone: "blue",
       },
       {
         key: "payments-out",
@@ -926,21 +1066,19 @@ export default function FinanceTransactionsPage() {
         tone: "rose",
       },
       {
-        key: "approvals",
-        title: "Approvals",
+        key: "approvals-pending",
+        title: "Approvals Pending",
         value: isLoading ? "—" : formatCount(data.alerts.pendingApprovals),
         subtitle: "Cross-object approvals waiting",
         icon: ShieldCheck,
-        tone: "violet",
+        tone: "cyan",
       },
     ];
   }, [data, isLoading]);
 
-  const allModuleCards = useMemo<
-    Record<TransactionModuleKey, TransactionModuleCard>
-  >(
+  const allModuleCards = useMemo<Record<TransactionModuleKey, TransactionModuleCard>>(
     () => ({
-      quotations: {
+            quotations: {
         key: "quotations",
         title: "Quotations",
         description:
@@ -1061,9 +1199,9 @@ export default function FinanceTransactionsPage() {
       },
       "purchase-orders": {
         key: "purchase-orders",
-        title: "Purchase Orders",
+        title: "Purchase Order",
         description:
-          "Supplier purchase orders and outbound procurement commitments.",
+          "Issued supplier purchase order and outbound procurement commitment.",
         route: "/finance/transactions/purchase-orders",
         icon: FileText,
         count: data.counts.purchaseOrders,
@@ -1085,53 +1223,141 @@ export default function FinanceTransactionsPage() {
     [data]
   );
 
-  const moduleGroups = useMemo<TransactionModuleGroup[]>(() => {
+  const transactionSections = useMemo<TransactionSection[]>(() => {
     return [
       {
-        key: "money-in",
-        title: "Money In",
+        key: "incoming",
+        title: "1. Incoming (Money In)",
         subtitle:
-          "Customer-facing receivable workflow from offer and proforma to invoice and collection.",
+          "Customer-side receivable flow from quotation and customer commitment through proforma, formal invoice, and payment collection.",
         tone: "incoming",
+        columns: "5",
+        layout: "flow",
         modules: [
-          allModuleCards.quotations,
-          allModuleCards["customer-pos"],
-          allModuleCards["proforma-invoices"],
-          allModuleCards.invoices,
-          allModuleCards["payments-received"],
+          {
+            module: allModuleCards.quotations,
+            sequenceLabel: "01",
+          },
+          {
+            module: allModuleCards["customer-pos"],
+            sequenceLabel: "02",
+          },
+          {
+            module: allModuleCards["proforma-invoices"],
+            sequenceLabel: "03",
+          },
+          {
+            module: allModuleCards.invoices,
+            sequenceLabel: "04",
+          },
+          {
+            module: allModuleCards["payments-received"],
+            sequenceLabel: "05",
+          },
         ],
       },
       {
-        key: "supplier-procurement",
-        title: "Supplier Procurement",
+        key: "procurement",
+        title: "2. Outgoing · Procurement (Supplier Flow)",
         subtitle:
-          "Supplier quotation, purchase order, vendor invoice, and outgoing settlement.",
+          "Supplier quotation, purchase order, vendor PI or invoice, and outgoing payment settlement.",
         tone: "procurement",
+        columns: "4",
+        layout: "flow",
         modules: [
-          allModuleCards["vendor-quotations"],
-          allModuleCards["purchase-orders"],
-          allModuleCards.bills,
-          allModuleCards["payments-made"],
+          {
+            module: allModuleCards["vendor-quotations"],
+            sequenceLabel: "01",
+          },
+          {
+            module: allModuleCards["purchase-orders"],
+            sequenceLabel: "02",
+          },
+          {
+            module: allModuleCards.bills,
+            sequenceLabel: "03",
+            titleOverride: "Vendor PI / Invoice",
+          },
+          {
+            module: allModuleCards["payments-made"],
+            sequenceLabel: "04",
+            titleOverride: "Payment Made",
+          },
+        ],
+      },
+           {
+        key: "operating-expenses",
+        title: "3. Outgoing · Operating Expenses",
+        subtitle:
+          "Direct company operating expenses.",
+        tone: "expense",
+        columns: "3",
+        layout: "flow",
+        modules: [
+          {
+            module: allModuleCards.expenses,
+            sequenceLabel: "01",
+            titleOverride: "Expense",
+            descriptionOverride: "Company expense recorded.",
+          },
+          {
+            module: allModuleCards["payments-made"],
+            sequenceLabel: "02",
+            titleOverride: "Payment Made",
+            descriptionOverride: "Payment made for expense.",
+          },
         ],
       },
       {
-        key: "operating-expenses",
-        title: "Operating Expenses",
+        key: "internal-flows",
+        title: "4. Outgoing · Internal Flows",
         subtitle:
-          "Direct company expense recording and outgoing payment settlement.",
-        tone: "expense",
-        modules: [allModuleCards.expenses, allModuleCards["payments-made"]],
+          "Internal obligations and employee related payments.",
+        tone: "internal",
+        columns: "3",
+        layout: "flow",
+        splitLabelLeft: "A. Reimbursements",
+        splitLabelRight: "B. Payroll",
+        modules: [
+          {
+            module: allModuleCards.reimbursements,
+            sequenceLabel: "01",
+            titleOverride: "Reimbursement",
+            descriptionOverride: "Employee or internal reimbursement.",
+          },
+          {
+            module: allModuleCards["payments-made"],
+            sequenceLabel: "02",
+            titleOverride: "Payment Made",
+            descriptionOverride: "Payment made for reimbursement.",
+          },
+          {
+            module: allModuleCards.payroll,
+            sequenceLabel: "01",
+            titleOverride: "Payroll",
+            descriptionOverride: "Payroll runs and salary obligations.",
+          },
+          {
+            module: allModuleCards["payments-made"],
+            sequenceLabel: "02",
+            titleOverride: "Payment Made",
+            descriptionOverride: "Payment made for payroll.",
+          },
+        ],
       },
       {
-        key: "internal-finance",
-        title: "Internal Finance",
+        key: "control",
+        title: "5. Control & Other",
         subtitle:
-          "Reimbursements, payroll runs, employee obligations, and related payments.",
-        tone: "internal",
+          "Workflow control, approvals, and cross-process management.",
+        tone: "control",
+        columns: "3",
+        layout: "grid",
         modules: [
-          allModuleCards.reimbursements,
-          allModuleCards.payroll,
-          allModuleCards["payments-made"],
+          {
+            module: allModuleCards.approvals,
+            sequenceLabel: "01",
+          },
         ],
       },
     ];
@@ -1141,273 +1367,327 @@ export default function FinanceTransactionsPage() {
     return [...data.recentActivity];
   }, [data.recentActivity]);
 
-  const headerStatusCards = useMemo(() => {
-    return [
-      {
-        label: "System Status",
-        value: isLoading ? "Loading" : "Live",
-        detail: "Transaction hub refreshes automatically every 60 seconds.",
-        icon: ShieldCheck,
-        tone: "emerald" as const,
-      },
-      {
-        label: "Money In",
-        value: `$${formatMoney(data.totals.paymentsIn)}`,
-        detail: `${formatCount(data.counts.paymentsReceived)} incoming payments`,
-        icon: TrendingUp,
-        tone: "cyan" as const,
-      },
-      {
-        label: "Money Out",
-        value: `$${formatMoney(data.totals.paymentsOut)}`,
-        detail: `${formatCount(data.counts.paymentsMade)} outgoing payments`,
-        icon: TrendingDown,
-        tone: "amber" as const,
-      },
-    ];
-  }, [data, isLoading]);
-
   const openRoute = useCallback(
     (route: string) => {
       navigate(route);
     },
     [navigate]
   );
-
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="mx-auto flex h-full w-full max-w-[1680px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
+        <section className="relative z-10 overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.10),transparent_32%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.10),transparent_24%)]" />
 
-          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px] xl:items-stretch">
-            <div className="flex min-w-0 flex-col justify-between">
-              <div>
-                <button
-                  type="button"
-                  onClick={() => navigate("/finance")}
-                  className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-                >
-                  <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                  Finance
-                </button>
-
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Transactions Control Center
-                </div>
-
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Transactions Studio
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  A structured operations layer for incoming money, supplier
-                  procurement, operating expenses, reimbursements, payroll,
-                  payments, approvals, and transaction control.
-                </p>
+          <div className="relative flex items-center justify-between gap-4 px-5 py-5 sm:px-6 xl:px-7">
+            <div className="min-w-0">
+              <div className="inline-flex items-center rounded-full border border-cyan-400/15 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200">
+                Operations Center
               </div>
 
-              <div className="mt-5 flex flex-wrap gap-2">
-                <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                  Live backend
-                </div>
-                <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                  Operations layer
-                </div>
-                <div className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                  Auto refresh
-                </div>
+              <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                Transactions Hub
+              </h1>
+
+              <div className="mt-2 max-w-3xl text-sm text-white/45">
+                Issue, store, and manage financial documents and records. Trigger
+                events and keep the transaction layer structured around incoming,
+                outgoing, and control flows.
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-3">
-              {headerStatusCards.map((card) => (
-                <HeaderStatusCard
-                  key={card.label}
-                  label={card.label}
-                  value={card.value}
-                  detail={card.detail}
-                  icon={card.icon}
-                  tone={card.tone}
-                />
-              ))}
+            <div className="flex shrink-0 items-center gap-3">
+              <Button
+                variant="outline"
+                onClick={() => navigate("/finance")}
+                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => void loadTransactionsData()}
+                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh
+              </Button>
             </div>
           </div>
-        </header>
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {metricCards.map((metric) => (
-            <TransactionMetric key={metric.key} metric={metric} />
-          ))}
         </section>
 
-        <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="grid min-h-0 gap-6">
-            <TransactionsSectionCard
-              title="Transaction Navigation"
-              description="Open transaction modules without horizontal scrolling or compressed flow cards."
-              icon={Database}
-            >
-              <div className="max-h-[760px] space-y-5 overflow-y-auto overscroll-contain pr-1">
-                {moduleGroups.map((group) => (
-                  <TransactionModuleGroupCard
-                    key={group.key}
-                    group={group}
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px_320px]">
+          <div className="rounded-[22px] border border-emerald-400/20 bg-[linear-gradient(135deg,rgba(16,185,129,0.12),rgba(255,255,255,0.03))] px-5 py-4 backdrop-blur-xl">
+            <div className="text-sm font-medium text-white/85">
+              {isLoading
+                ? "—"
+                : `${formatCount(data.counts.paymentsReceived)} incoming payments`}
+            </div>
+          </div>
+
+          <div className="rounded-[22px] border border-rose-400/20 bg-[linear-gradient(135deg,rgba(244,63,94,0.12),rgba(255,255,255,0.03))] px-5 py-4 backdrop-blur-xl">
+            <div className="text-sm font-medium text-white/85">
+              {isLoading
+                ? "—"
+                : `${formatCount(data.counts.paymentsMade)} outgoing payments`}
+            </div>
+          </div>
+
+          <div className="rounded-[22px] border border-cyan-400/20 bg-[linear-gradient(135deg,rgba(34,211,238,0.12),rgba(255,255,255,0.03))] px-5 py-4 backdrop-blur-xl">
+            <div className="text-sm font-medium text-white/85">
+              {isLoading
+                ? "—"
+                : `${formatCount(data.alerts.pendingApprovals)} cross-object approvals waiting`}
+            </div>
+          </div>
+        </section>
+
+        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
+          <section>
+            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <CardHeader className="border-b border-white/8 pb-4">
+                <div className="space-y-2">
+                  <Badge className="w-fit rounded-full border border-cyan-400/15 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                    Cross-Object KPIs
+                  </Badge>
+                  <CardTitle className="text-white">
+                    Transaction Analytics
+                  </CardTitle>
+                  <CardDescription className="text-white/45">
+                    Clean top-level visibility before entering the detailed
+                    flows.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-4 sm:p-5 xl:p-6">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+                  {metricCards.map((metric) => (
+                    <TransactionMetric key={metric.key} metric={metric} />
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+
+                  <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_360px]">
+            <div className="flex min-h-0 flex-col gap-6">
+              {transactionSections
+                .filter(
+                  (section) =>
+                    section.key !== "internal-flows" &&
+                    section.key !== "control"
+                )
+                .map((section) => (
+                  <TransactionSectionCard
+                    key={section.key}
+                    section={section}
                     onOpen={openRoute}
                   />
                 ))}
-              </div>
-            </TransactionsSectionCard>
+            </div>
 
-            <div className="overflow-hidden rounded-[30px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)]">
-              <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                    Transaction Readiness
+            <div className="flex flex-col gap-6">
+              <Card className="h-[620px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                <CardHeader className="border-b border-white/8 pb-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <CardTitle className="text-white">
+                        Recent Activity
+                      </CardTitle>
+                      <CardDescription className="text-white/45">
+                        Latest movement across transaction objects.
+                      </CardDescription>
+                    </div>
+
+                    <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs text-white/70 shadow-none">
+                      Live feed
+                    </Badge>
                   </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-400">
-                    Monitor receivables, payables, payment movement, and pending
-                    approval pressure across the transaction layer.
-                  </p>
-                </div>
+                </CardHeader>
 
-                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-cyan-200">
-                  <Receipt className="h-5 w-5" />
-                </div>
-              </div>
+                <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+                  {recentActivity.length === 0 ? (
+                    <div className="p-6 text-sm text-white/50">
+                      No transaction activity found yet.
+                    </div>
+                  ) : (
+                    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+                      <div className="space-y-3">
+                        {recentActivity.map((item, index) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              if (!item.route) return;
+                              navigate(item.route);
+                            }}
+                            className="group flex w-full items-start justify-between gap-4 rounded-[20px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
+                          >
+                            <div className="flex min-w-0 items-start gap-4">
+                              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/75">
+                                <span className="text-xs font-semibold text-white/70">
+                                  {String(index + 1).padStart(2, "0")}
+                                </span>
+                              </div>
 
-              <div className="grid gap-4 p-5 md:grid-cols-3">
-                <SummaryBlock
-                  title="Open Receivables"
-                  value={`$${formatMoney(data.totals.receivables)}`}
-                  subtitle={`${formatCount(data.counts.invoices)} invoice records`}
-                />
-                <SummaryBlock
-                  title="Open Payables"
-                  value={`$${formatMoney(data.totals.payables)}`}
-                  subtitle={`${formatCount(data.counts.bills)} bill records`}
-                />
-                <SummaryBlock
-                  title="Pending Approvals"
-                  value={formatCount(data.alerts.pendingApprovals)}
-                  subtitle="Cross-object approvals waiting"
-                />
-              </div>
+                              <div className="min-w-0 space-y-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge className="rounded-full border border-cyan-400/15 bg-cyan-500/10 px-2.5 py-1 text-[11px] text-cyan-200 shadow-none">
+                                    {item.type}
+                                  </Badge>
+                                  <div className="truncate text-sm font-medium text-white sm:text-[15px]">
+                                    {item.title}
+                                  </div>
+                                </div>
+
+                                <div className="text-sm leading-6 text-white/48">
+                                  {item.subtitle}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex shrink-0 items-center gap-3 pl-2">
+                              <div className="hidden text-xs text-white/30 transition-colors duration-200 group-hover:text-white/55 sm:block">
+                                {formatDateLabel(item.createdAt)}
+                              </div>
+                              <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                <CardHeader className="border-b border-white/8 pb-4">
+                  <CardTitle className="flex items-center gap-3 text-white">
+                    <BadgeAlert className="h-4 w-4 text-cyan-300" />
+                    Operations Overview
+                  </CardTitle>
+                  <CardDescription className="text-white/45">
+                    Real-time overview of pressure points in the transaction
+                    layer.
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-3 p-5">
+                  <SummaryBlock
+                    title="Overdue Invoices"
+                    value={
+                      isLoading ? "—" : formatCount(data.alerts.overdueInvoices)
+                    }
+                    subtitle="Receivables requiring collection attention"
+                  />
+                  <SummaryBlock
+                    title="Overdue Bills"
+                    value={isLoading ? "—" : formatCount(data.alerts.overdueBills)}
+                    subtitle="Payables requiring payment attention"
+                  />
+                  <SummaryBlock
+                    title="Pending Approvals"
+                    value={
+                      isLoading ? "—" : formatCount(data.alerts.pendingApprovals)
+                    }
+                    subtitle="Cross-object approvals waiting for action"
+                  />
+                </CardContent>
+              </Card>
             </div>
           </div>
 
-          <div className="grid min-h-0 gap-6">
-            <TransactionsSectionCard
-              title="Control Signals"
-              description="Live transaction risks and operating blockers."
-              icon={BadgeAlert}
-            >
-              <div className="space-y-3">
-                <SummaryBlock
-                  title="Overdue Invoices"
-                  value={isLoading ? "—" : formatCount(data.alerts.overdueInvoices)}
-                  subtitle="Receivables requiring collection attention"
+          <div className="flex flex-col gap-6">
+            {transactionSections
+              .filter(
+                (section) =>
+                  section.key === "internal-flows" || section.key === "control"
+              )
+              .map((section) => (
+                <TransactionSectionCard
+                  key={section.key}
+                  section={section}
+                  onOpen={openRoute}
                 />
-                <SummaryBlock
-                  title="Overdue Bills"
-                  value={isLoading ? "—" : formatCount(data.alerts.overdueBills)}
-                  subtitle="Payables requiring payment attention"
-                />
-                <SummaryBlock
-                  title="Pending Expenses"
-                  value={isLoading ? "—" : formatCount(data.alerts.pendingExpenses)}
-                  subtitle="Expense items waiting for action"
-                />
-              </div>
-            </TransactionsSectionCard>
+              ))}
 
-            <TransactionsSectionCard
-              title="Recent Activity"
-              description="Latest movement across transaction objects."
-              icon={Receipt}
-            >
-              {recentActivity.length === 0 ? (
-                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <div className="text-sm font-medium text-white">
-                    No transaction activity found
+            <section>
+              <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                <CardHeader className="border-b border-white/8 pb-4">
+                  <CardTitle className="text-white">
+                    Object Summaries
+                  </CardTitle>
+                  <CardDescription className="text-white/45">
+                    High-level grouped summaries for the core transaction
+                    records.
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="p-5">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <SummaryBlock
+                      title="Invoices Summary"
+                      value={
+                        isLoading ? "—" : formatCount(data.counts.invoices)
+                      }
+                      subtitle={`$${formatMoney(
+                        data.totals.receivables
+                      )} open receivables`}
+                    />
+                    <SummaryBlock
+                      title="Bills Summary"
+                      value={isLoading ? "—" : formatCount(data.counts.bills)}
+                      subtitle={`$${formatMoney(
+                        data.totals.payables
+                      )} open payables`}
+                    />
+                    <SummaryBlock
+                      title="Proforma Summary"
+                      value={
+                        isLoading
+                          ? "—"
+                          : formatCount(data.counts.proformaInvoices)
+                      }
+                      subtitle="Pre-invoice workflow currently tracked"
+                    />
+                    <SummaryBlock
+                      title="Expenses Summary"
+                      value={
+                        isLoading ? "—" : formatCount(data.counts.expenses)
+                      }
+                      subtitle={`${formatCount(
+                        data.alerts.pendingExpenses
+                      )} pending expense items`}
+                    />
+                    <SummaryBlock
+                      title="Reimbursements Summary"
+                      value={
+                        isLoading
+                          ? "—"
+                          : formatCount(data.counts.reimbursements)
+                      }
+                      subtitle={`${formatCount(
+                        data.alerts.pendingReimbursements
+                      )} pending reimbursements`}
+                    />
+                    <SummaryBlock
+                      title="Payroll Summary"
+                      value={
+                        isLoading
+                          ? "—"
+                          : formatCount(data.counts.payrollRuns)
+                      }
+                      subtitle="Payroll runs currently visible"
+                    />
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    New invoices, bills, expenses, approvals, and payroll records
-                    will appear here.
-                  </p>
-                </div>
-              ) : (
-                <div className="h-[430px] overflow-y-auto overscroll-contain rounded-[26px] border border-white/10 bg-black/20">
-                  <div className="divide-y divide-white/5">
-                    {recentActivity.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => {
-                          if (!item.route) return;
-                          navigate(item.route);
-                        }}
-                        className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-white/[0.045]"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex min-w-0 flex-wrap items-center gap-2">
-                            <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                              {item.type}
-                            </span>
-                            <span className="truncate text-sm font-semibold text-white">
-                              {item.title}
-                            </span>
-                          </div>
-
-                          <div className="mt-2 line-clamp-1 text-sm text-slate-400">
-                            {item.subtitle}
-                          </div>
-                        </div>
-
-                        <div className="flex shrink-0 items-center gap-3">
-                          <div className="text-xs text-slate-600">
-                            {formatDateLabel(item.createdAt)}
-                          </div>
-                          <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </TransactionsSectionCard>
-
-            <TransactionsSectionCard
-              title="Approvals"
-              description="Cross-object transaction approvals waiting for action."
-              icon={ShieldCheck}
-            >
-              <button
-                type="button"
-                onClick={() => navigate("/finance/transactions/approvals")}
-                className="group flex w-full items-center justify-between gap-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-left transition hover:border-cyan-400/25 hover:bg-white/[0.055]"
-              >
-                <div className="flex min-w-0 items-center gap-4">
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <ShieldCheck className="h-5 w-5" />
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-white">
-                      Approvals
-                    </div>
-                    <div className="mt-1 text-xs leading-5 text-slate-400">
-                      {formatCount(data.alerts.pendingApprovals)} pending approvals
-                    </div>
-                  </div>
-                </div>
-
-                <ArrowRight className="h-4 w-4 shrink-0 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
-              </button>
-            </TransactionsSectionCard>
+                </CardContent>
+              </Card>
+            </section>
           </div>
-        </section>
+        </div>
       </div>
     </div>
   );

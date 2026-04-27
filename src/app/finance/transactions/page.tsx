@@ -329,7 +329,8 @@ function getSectionToneClasses(tone: TransactionSectionTone) {
       };
     case "procurement":
       return {
-        border: "border-amber-400/25",
+
+                border: "border-amber-400/25",
         badge: "border-amber-400/20 bg-amber-500/10 text-amber-200",
         panel:
           "bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.13),rgba(255,255,255,0.045)_48%)]",
@@ -401,14 +402,11 @@ function TransactionMetric({ metric }: { metric: TransactionMetricCard }) {
   );
 }
 
-function FlowConnector({ className = "" }: { className?: string }) {
+function FlowConnector() {
   return (
-    <div
-      className={`hidden items-center justify-center xl:flex ${className}`}
-      aria-hidden="true"
-    >
-      <div className="flex h-7 w-7 items-center justify-center rounded-xl border border-white/10 bg-white/[0.035] text-slate-500">
-        <ArrowRight className="h-3.5 w-3.5" />
+    <div className="hidden flex-none items-center justify-center xl:flex">
+      <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.035] text-slate-500">
+        <ArrowRight className="h-4 w-4" />
       </div>
     </div>
   );
@@ -433,7 +431,7 @@ function TransactionFlowModule({
         if (!item.module.route) return;
         onOpen(item.module.route);
       }}
-      className={`group flex h-[154px] w-full flex-col justify-between rounded-[20px] border border-white/10 bg-black/20 p-4 text-left transition ${
+      className={`group flex h-[184px] w-[250px] flex-none flex-col justify-between rounded-[24px] border border-white/10 bg-black/20 p-5 text-left transition ${
         isClickable
           ? "hover:border-cyan-400/25 hover:bg-white/[0.055]"
           : "cursor-default opacity-75"
@@ -441,23 +439,23 @@ function TransactionFlowModule({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-400/15 bg-cyan-500/10 text-cyan-200">
-            <Icon className="h-4 w-4" />
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 text-cyan-200">
+            <Icon className="h-5 w-5" />
           </div>
 
           {item.sequenceLabel ? (
-            <span className="rounded-full border border-white/10 bg-white/[0.045] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+            <span className="rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
               {item.sequenceLabel}
             </span>
           ) : null}
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5">
-          <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-300">
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-300">
             {item.module.statusLabel}
           </span>
           <ArrowRight
-            className={`h-3.5 w-3.5 text-slate-500 transition ${
+            className={`h-4 w-4 text-slate-500 transition ${
               isClickable
                 ? "group-hover:translate-x-1 group-hover:text-cyan-200"
                 : ""
@@ -466,18 +464,18 @@ function TransactionFlowModule({
         </div>
       </div>
 
-      <div className="mt-3 space-y-1.5">
-        <div className="line-clamp-2 text-sm font-semibold leading-5 text-white">
+      <div className="mt-4 space-y-2">
+        <div className="line-clamp-2 text-base font-semibold leading-5 text-white">
           {title}
         </div>
-        <div className="line-clamp-2 text-xs leading-5 text-slate-400">
+        <div className="line-clamp-2 text-sm leading-6 text-slate-400">
           {description}
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <div className="rounded-[14px] border border-white/10 bg-white/[0.035] px-2.5 py-2">
-          <div className="text-[8px] uppercase tracking-[0.14em] text-slate-600">
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-2">
+          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-600">
             Records
           </div>
           <div className="mt-1 text-sm font-semibold text-white">
@@ -485,8 +483,8 @@ function TransactionFlowModule({
           </div>
         </div>
 
-        <div className="rounded-[14px] border border-white/10 bg-white/[0.035] px-2.5 py-2">
-          <div className="text-[8px] uppercase tracking-[0.14em] text-slate-600">
+        <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-2">
+          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-600">
             Updated
           </div>
           <div className="mt-1 truncate text-sm font-semibold text-white">
@@ -495,6 +493,30 @@ function TransactionFlowModule({
         </div>
       </div>
     </button>
+  );
+}
+
+function FlowRow({
+  items,
+  onOpen,
+}: {
+  items: TransactionFlowItem[];
+  onOpen: (route: string) => void;
+}) {
+  return (
+    <div className="overflow-x-auto overscroll-x-contain pb-2">
+      <div className="flex min-w-max items-stretch gap-4">
+        {items.map((item, index) => (
+          <div
+            key={`${item.module.key}-${item.sequenceLabel ?? index}`}
+            className="flex flex-none items-stretch gap-4"
+          >
+            <TransactionFlowModule item={item} onOpen={onOpen} />
+            {index < items.length - 1 ? <FlowConnector /> : null}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -534,20 +556,7 @@ function TransactionFlowSection({
               {section.splitLabelLeft ?? "A. Reimbursements"}
             </div>
 
-            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)] xl:items-stretch">
-              {leftModules.map((item, index) => (
-                <div
-                  key={`${item.module.key}-${item.sequenceLabel ?? index}`}
-                  className="contents"
-                >
-                  <TransactionFlowModule item={item} onOpen={onOpen} />
-
-                  {index < leftModules.length - 1 ? (
-                    <FlowConnector />
-                  ) : null}
-                </div>
-              ))}
-            </div>
+            <FlowRow items={leftModules} onOpen={onOpen} />
           </div>
 
           <div className="min-w-0 border-t border-white/10 pt-6 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
@@ -555,34 +564,12 @@ function TransactionFlowSection({
               {section.splitLabelRight ?? "B. Payroll"}
             </div>
 
-            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)] xl:items-stretch">
-              {rightModules.map((item, index) => (
-                <div
-                  key={`${item.module.key}-${item.sequenceLabel ?? index}`}
-                  className="contents"
-                >
-                  <TransactionFlowModule item={item} onOpen={onOpen} />
-
-                  {index < rightModules.length - 1 ? (
-                    <FlowConnector />
-                  ) : null}
-                </div>
-              ))}
-            </div>
+            <FlowRow items={rightModules} onOpen={onOpen} />
           </div>
         </div>
       </section>
     );
   }
-
-  const gridTemplate =
-    section.modules.length >= 5
-      ? "xl:grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)_32px_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)_32px_minmax(0,1fr)_32px_minmax(0,1fr)_32px_minmax(0,1fr)]"
-      : section.modules.length === 4
-        ? "xl:grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)_32px_minmax(0,1fr)_32px_minmax(0,1fr)]"
-        : section.modules.length === 2
-          ? "xl:grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)]"
-          : "xl:grid-cols-3";
 
   return (
     <section
@@ -601,17 +588,8 @@ function TransactionFlowSection({
         </div>
       </div>
 
-      <div className={`grid gap-3 p-5 ${gridTemplate} xl:items-stretch`}>
-        {section.modules.map((item, index) => (
-          <div
-            key={`${item.module.key}-${item.sequenceLabel ?? index}`}
-            className="contents"
-          >
-            <TransactionFlowModule item={item} onOpen={onOpen} />
-
-            {index < section.modules.length - 1 ? <FlowConnector /> : null}
-          </div>
-        ))}
+      <div className="p-5">
+        <FlowRow items={section.modules} onOpen={onOpen} />
       </div>
     </section>
   );
@@ -636,7 +614,7 @@ function TransactionsSectionCard({
             <Icon className="h-4 w-4" />
           </div>
 
-          <div className="min-w-0">
+                    <div className="min-w-0">
             <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
               {title}
             </h2>
@@ -797,7 +775,7 @@ export default function FinanceTransactionsPage() {
         safeCount("finance_purchase_orders"),
       ]);
 
-          const invoices = (invoicesResult.data || []) as FinanceInvoiceRow[];
+      const invoices = (invoicesResult.data || []) as FinanceInvoiceRow[];
       const bills = (billsResult.data || []) as FinanceBillRow[];
       const expenses = (expensesResult.data || []) as FinanceExpenseRow[];
       const reimbursements = (reimbursementsResult.data ||
@@ -1372,7 +1350,7 @@ export default function FinanceTransactionsPage() {
                   Live backend
                 </div>
                 <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                  Full page flow
+                  Original flow sizing
                 </div>
                 <div className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
                   Auto refresh
@@ -1563,3 +1541,4 @@ export default function FinanceTransactionsPage() {
     </div>
   );
 }
+

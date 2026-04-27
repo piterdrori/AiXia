@@ -33,6 +33,7 @@ import {
   permanentlyDeletePaymentTerm,
   restorePaymentTerm,
   updatePaymentTerm,
+  type FinancePaymentTermAppliesTo,
   type FinancePaymentTermBalanceDueBasis,
   type FinancePaymentTermDepositDueBasis,
   type FinancePaymentTermRow,
@@ -526,7 +527,7 @@ export default function FinancePaymentTermsPage() {
         balance_due_days: generatedTerm.balanceDueDays,
         allow_partial_payments: form.allow_partial_payments,
         requires_approval: false,
-        applies_to: ["quotation", "proforma_invoice", "invoice"] as const,
+        applies_to: ["quotation", "proforma_invoice", "invoice"] as FinancePaymentTermAppliesTo[],
         document_label: generatedTerm.documentLabel,
         document_terms_text: generatedTerm.documentTermsText,
       };

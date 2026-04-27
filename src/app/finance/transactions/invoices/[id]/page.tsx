@@ -1582,14 +1582,47 @@ const handleRestore = useCallback(
     taskIdDraft,
     termsAndConditionsDraft,
   ]);
-    const printableInvoice = useMemo(() => {
+      const printableInvoice = useMemo(() => {
     if (!invoice) return invoice;
 
+    const resolvedPaymentTerm =
+      selectedDraftPaymentTerm ||
+      paymentTerms.find(
+        (entry) =>
+          entry.id === paymentTermsIdDraft ||
+          entry.id === (invoice as any).payment_terms_id
+      ) ||
+      null;
+
+    const resolvedShippingTerms =
+      selectedDraftShippingTermsLabel || invoice.shipping_terms_snapshot;
+
+    const resolvedPaymentTermsLabel =
+      resolvedPaymentTerm?.document_label ||
+      resolvedPaymentTerm?.name ||
+      invoice.payment_terms_snapshot ||
+      "—";
+
+    const resolvedPaymentTermsText =
+      resolvedPaymentTerm?.document_terms_text ||
+      (invoice as any).payment_terms_document_text ||
+      (invoice as any).payment_terms_text_snapshot ||
+      (invoice as any).payment_terms_description ||
+      "";
+
     if (invoice.status !== "draft") {
-      return invoice;
+      return {
+        ...invoice,
+        payment_terms_snapshot: resolvedPaymentTermsLabel,
+        payment_terms_document_text: resolvedPaymentTermsText,
+        shipping_terms_snapshot: resolvedShippingTerms,
+        terms_and_conditions_snapshot:
+          termsAndConditionsDraft || invoice.terms_and_conditions_snapshot,
+        currency_code: invoice.currency_code || "USD",
+      };
     }
 
-        const draftBankDetails =
+    const draftBankDetails =
       buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount) ||
       invoice.bank_details_snapshot;
 
@@ -1606,70 +1639,65 @@ const handleRestore = useCallback(
         selectedDraftCompany?.email || invoice.company_email_snapshot,
       company_phone_snapshot:
         selectedDraftCompany?.phone || invoice.company_phone_snapshot,
-   counterparty_name_snapshot:
-  selectedDraftClient?.legal_name ||
-  selectedDraftClient?.name ||
-  selectedDraftRecipientCompany?.legal_name ||
-  selectedDraftRecipientCompany?.name ||
-  invoice.counterparty_name_snapshot ||
-  invoice.client_name_snapshot,
-client_name_snapshot:
-  selectedDraftClient?.legal_name ||
-  selectedDraftClient?.name ||
-  invoice.client_name_snapshot,
-client_contact_person_snapshot:
-  selectedDraftClient?.contact_person ||
-  invoice.client_contact_person_snapshot,
-client_email_snapshot:
-  selectedDraftClient?.company_email ||
-  selectedDraftClient?.personnel_email ||
-  invoice.client_email_snapshot,
-client_phone_snapshot:
-  selectedDraftClient?.company_phone ||
-  selectedDraftClient?.personnel_phone ||
-  invoice.client_phone_snapshot,
-billing_address_snapshot:
-  [
-    selectedDraftClient?.address_line_1 || selectedDraftRecipientCompany?.address_line_1,
-    selectedDraftClient?.address_line_2 || selectedDraftRecipientCompany?.address_line_2,
-    selectedDraftClient?.city || selectedDraftRecipientCompany?.city,
-    selectedDraftClient?.state_province || selectedDraftRecipientCompany?.state_province,
-    selectedDraftClient?.postal_code || selectedDraftRecipientCompany?.postal_code,
-    selectedDraftClient?.country || selectedDraftRecipientCompany?.country,
-  ]
-    .filter(Boolean)
-    .join(", ") || invoice.billing_address_snapshot,
-      
-payment_terms_snapshot:
-  selectedDraftPaymentTerm?.document_label ||
-  selectedDraftPaymentTerm?.name ||
-  invoice.payment_terms_snapshot,
-payment_terms_document_text:
-  selectedDraftPaymentTerm?.document_terms_text ||
-  (invoice as any).payment_terms_document_text ||
-  null,
-shipping_terms_snapshot:
-  selectedDraftShippingTermsLabel ||
-  invoice.shipping_terms_snapshot,
-terms_and_conditions_snapshot:
-  invoice.status === "draft"
-    ? termsAndConditionsDraft || invoice.terms_and_conditions_snapshot
-    : invoice.terms_and_conditions_snapshot,
-bank_details_snapshot: draftBankDetails,
-currency_code:
-  selectedDraftCurrency?.currency_code || invoice.currency_code || "USD",
+      counterparty_name_snapshot:
+        selectedDraftClient?.legal_name ||
+        selectedDraftClient?.name ||
+        selectedDraftRecipientCompany?.legal_name ||
+        selectedDraftRecipientCompany?.name ||
+        invoice.counterparty_name_snapshot ||
+        invoice.client_name_snapshot,
+      client_name_snapshot:
+        selectedDraftClient?.legal_name ||
+        selectedDraftClient?.name ||
+        invoice.client_name_snapshot,
+      client_contact_person_snapshot:
+        selectedDraftClient?.contact_person ||
+        invoice.client_contact_person_snapshot,
+      client_email_snapshot:
+        selectedDraftClient?.company_email ||
+        selectedDraftClient?.personnel_email ||
+        invoice.client_email_snapshot,
+      client_phone_snapshot:
+        selectedDraftClient?.company_phone ||
+        selectedDraftClient?.personnel_phone ||
+        invoice.client_phone_snapshot,
+      billing_address_snapshot:
+        [
+          selectedDraftClient?.address_line_1 ||
+            selectedDraftRecipientCompany?.address_line_1,
+          selectedDraftClient?.address_line_2 ||
+            selectedDraftRecipientCompany?.address_line_2,
+          selectedDraftClient?.city || selectedDraftRecipientCompany?.city,
+          selectedDraftClient?.state_province ||
+            selectedDraftRecipientCompany?.state_province,
+          selectedDraftClient?.postal_code ||
+            selectedDraftRecipientCompany?.postal_code,
+          selectedDraftClient?.country || selectedDraftRecipientCompany?.country,
+        ]
+          .filter(Boolean)
+          .join(", ") || invoice.billing_address_snapshot,
+      payment_terms_snapshot: resolvedPaymentTermsLabel,
+      payment_terms_document_text: resolvedPaymentTermsText,
+      shipping_terms_snapshot: resolvedShippingTerms,
+      terms_and_conditions_snapshot:
+        termsAndConditionsDraft || invoice.terms_and_conditions_snapshot,
+      bank_details_snapshot: draftBankDetails,
+      currency_code:
+        selectedDraftCurrency?.currency_code || invoice.currency_code || "USD",
     };
-}, [
-  invoice,
-  selectedDraftBankAccount,
-  selectedDraftClient,
-  selectedDraftRecipientCompany,
-  selectedDraftCompany,
-  selectedDraftCurrency,
-  selectedDraftPaymentTerm,
-  selectedDraftShippingTermsLabel,
-  termsAndConditionsDraft,
-]);
+  }, [
+    invoice,
+    paymentTerms,
+    paymentTermsIdDraft,
+    selectedDraftBankAccount,
+    selectedDraftClient,
+    selectedDraftRecipientCompany,
+    selectedDraftCompany,
+    selectedDraftCurrency,
+    selectedDraftPaymentTerm,
+    selectedDraftShippingTermsLabel,
+    termsAndConditionsDraft,
+  ]);
 
   if (isLoading) {
     return <div className="p-6 text-white/50">Loading invoice...</div>;

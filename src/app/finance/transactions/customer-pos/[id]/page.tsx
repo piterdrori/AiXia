@@ -536,7 +536,7 @@ export default function FinanceCustomerPoDetailPage() {
     }
   }
 
-  async function handleCreateProformaInvoice() {
+    function handleOpenNewProformaInvoiceFromCustomerPo() {
     if (!customerPo) return;
 
     if (customerPo.status !== "received") {
@@ -554,34 +554,7 @@ export default function FinanceCustomerPoDetailPage() {
       return;
     }
 
-    try {
-      setIsSaving(true);
-      setError("");
-
-      const { data: newProformaId, error: rpcError } = await supabase.rpc(
-        "finance_create_proforma_from_client_po",
-        {
-          p_client_po_id: customerPo.id,
-        }
-      );
-
-      if (rpcError) throw rpcError;
-
-      if (!newProformaId) {
-        throw new Error("Proforma invoice was not created.");
-      }
-
-      navigate(`/finance/transactions/proforma-invoices/${newProformaId}`);
-    } catch (err) {
-      console.error(err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to create proforma invoice from Customer PO."
-      );
-    } finally {
-      setIsSaving(false);
-    }
+    navigate(`/finance/transactions/proforma-invoices/new?client_po_id=${customerPo.id}`);
   }
 
   async function handleSaveDetailsEdit() {
@@ -842,7 +815,7 @@ export default function FinanceCustomerPoDetailPage() {
 
               {customerPo.status === "received" && !customerPo.proforma_invoice_id ? (
                 <Button
-                  onClick={() => void handleCreateProformaInvoice()}
+                  onClick={() => handleOpenNewProformaInvoiceFromCustomerPo()}
                   disabled={isSaving || !hasCustomerPoFile}
                   title={
                     hasCustomerPoFile

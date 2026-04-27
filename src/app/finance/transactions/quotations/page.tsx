@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  Archive,
   ArrowRight,
+  Eye,
   FileText,
-  MoreVertical,
   Plus,
   Receipt,
+  RotateCcw,
   Search,
+  Trash2,
   Wallet,
 } from "lucide-react";
 

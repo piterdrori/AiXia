@@ -200,6 +200,8 @@ type PaymentTermOption = {
   name: string;
   due_days: number;
   is_default: boolean;
+  document_label: string | null;
+  document_terms_text: string | null;
 };
 
 type ShippingTermOption = {
@@ -606,7 +608,7 @@ const loadArchiveItems = useCallback(async () => {
           .order("created_at", { ascending: false }),
         supabase
           .from("finance_payment_terms")
-          .select("id, code, name, due_days, is_default")
+          .select("id, code, name, due_days, is_default, document_label, document_terms_text")
           .eq("status", "active")
           .order("name", { ascending: true }),
         supabase
@@ -1639,12 +1641,20 @@ billing_address_snapshot:
     .join(", ") || invoice.billing_address_snapshot,
       
 payment_terms_snapshot:
+  selectedDraftPaymentTerm?.document_label ||
   selectedDraftPaymentTerm?.name ||
   invoice.payment_terms_snapshot,
+payment_terms_document_text:
+  selectedDraftPaymentTerm?.document_terms_text ||
+  (invoice as any).payment_terms_document_text ||
+  null,
 shipping_terms_snapshot:
   selectedDraftShippingTermsLabel ||
   invoice.shipping_terms_snapshot,
       terms_and_conditions_snapshot:
+  invoice.status === "draft"
+    ? termsAndConditionsDraft || invoice.terms_and_conditions_snapshot
+    : invoice.terms_and_conditions_snapshot,
   invoice.status === "draft"
     ? termsAndConditionsDraft || invoice.terms_and_conditions_snapshot
     : invoice.terms_and_conditions_snapshot,

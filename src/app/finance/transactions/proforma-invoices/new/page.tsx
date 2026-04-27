@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -86,10 +86,23 @@ type UnitOfMeasureOption = {
   name: string;
 };
 
-type RevenueCategoryOption = {
+type CustomerPoSource = {
   id: string;
-  code: string | null;
-  name: string;
+  client_po_number: string | null;
+  external_po_number: string | null;
+  quotation_id: string | null;
+  proforma_invoice_id: string | null;
+  client_id: string | null;
+  company_id: string | null;
+  po_date: string | null;
+  received_at: string | null;
+  status: string;
+  currency_id: string | null;
+  currency_code: string | null;
+  total_amount: number | string | null;
+  notes: string | null;
+  project_id: string | null;
+  task_id: string | null;
 };
 
 type ProformaItemRow = {
@@ -134,6 +147,8 @@ function formatMoney(value: number, currencyCode = "USD") {
 
 export default function FinanceNewProformaInvoicePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const sourceClientPoId = searchParams.get("client_po_id");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -166,6 +181,8 @@ export default function FinanceNewProformaInvoicePage() {
   const [notes, setNotes] = useState("");
   const [rows, setRows] = useState<ProformaItemRow[]>([createRow()]);
   const [errorMessage, setErrorMessage] = useState("");
+  const [sourceCustomerPo, setSourceCustomerPo] =
+    useState<CustomerPoSource | null>(null);
 
   const selectedClient = useMemo(
     () => clients.find((client) => client.id === clientId) ?? null,
@@ -338,7 +355,73 @@ export default function FinanceNewProformaInvoicePage() {
         (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
       );
 
-      if (!companyId && (companiesResult.data || []).length === 1) {
+      if (sourceClientPoId) {
+        const { data: customerPoData, error: customerPoError } = await supabase
+          .from("finance_client_purchase_orders")
+          .select(
+            "id, client_po_number, external_po_number, quotation_id, proforma_invoice_id, client_id, company_id, po_date, received_at, status, currency_id, currency_code, total_amount, notes, project_id, task_id"
+          )
+          .eq("id", sourceClientPoId)
+          .maybeSingle();
+
+        if (customerPoError) throw customerPoError;
+
+        const typedCustomerPo = (customerPoData || null) as CustomerPoSource | null;
+
+        if (!typedCustomerPo) {
+          setErrorMessage("Customer PO source was not found.");
+        } else if (typedCustomerPo.status !== "received") {
+          setErrorMessage("Customer PO must be marked as received before creating a proforma invoice.");
+        } else if (typedCustomerPo.proforma_invoice_id) {
+          navigate(`/finance/transactions/proforma-invoices/${typedCustomerPo.proforma_invoice_id}`);
+          return;
+        } else {
+          setSourceCustomerPo(typedCustomerPo);
+
+          setClientId(typedCustomerPo.client_id || "");
+          setCompanyId(typedCustomerPo.company_id || "");
+          setProjectId(typedCustomerPo.project_id || "");
+          setTaskId(typedCustomerPo.task_id || "");
+          setCurrencyId(typedCustomerPo.currency_id || "");
+          setCurrencyCode(typedCustomerPo.currency_code || "USD");
+          setIssueDate(new Date().toISOString().slice(0, 10));
+
+          const validUntilDate = new Date();
+          validUntilDate.setDate(validUntilDate.getDate() + 30);
+          setValidUntil(validUntilDate.toISOString().slice(0, 10));
+
+          setNotes(
+            [
+              `Created from Customer PO: ${
+                typedCustomerPo.client_po_number ||
+                typedCustomerPo.external_po_number ||
+                typedCustomerPo.id
+              }`,
+              typedCustomerPo.notes || "",
+            ]
+              .filter(Boolean)
+              .join("\n")
+          );
+
+          setRows([
+            {
+              localId: crypto.randomUUID(),
+              itemId: "",
+              description: `Customer PO ${
+                typedCustomerPo.external_po_number ||
+                typedCustomerPo.client_po_number ||
+                ""
+              }`.trim(),
+              quantity: "1",
+              unitPrice: String(Number(typedCustomerPo.total_amount || 0)),
+              discount: "0",
+              taxCodeId: "",
+              unitOfMeasureId: "",
+              revenueCategoryId: "",
+            },
+          ]);
+        }
+      } else if (!companyId && (companiesResult.data || []).length === 1) {
         setCompanyId(companiesResult.data![0].id);
       }
     } catch (error) {
@@ -347,7 +430,7 @@ export default function FinanceNewProformaInvoicePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, navigate, sourceClientPoId]);
 
 
   useEffect(() => {
@@ -514,7 +597,11 @@ export default function FinanceNewProformaInvoicePage() {
         p_metadata: {
           currency_code: currencyCode || "USD",
           issuing_company_id: companyId,
-          creation_mode: "manual_draft",
+          creation_mode: sourceCustomerPo ? "customer_po_prefill" : "manual_draft",
+          client_po_id: sourceCustomerPo?.id || null,
+          client_po_number: sourceCustomerPo?.client_po_number || null,
+          external_po_number: sourceCustomerPo?.external_po_number || null,
+          quotation_id: sourceCustomerPo?.quotation_id || null,
         },
         p_lines: validRows.map((row) => ({
           item_id: row.itemId || null,
@@ -534,6 +621,35 @@ export default function FinanceNewProformaInvoicePage() {
       throw new Error("Proforma invoice was not created");
     }
 
+    if (sourceCustomerPo) {
+      const userId = await supabase.auth.getUser();
+
+      const { error: proformaLinkError } = await supabase
+        .from("finance_proforma_invoices")
+        .update({
+          company_id: companyId || null,
+          quotation_id: sourceCustomerPo.quotation_id || null,
+          client_po_id: sourceCustomerPo.id,
+          currency_code: currencyCode || sourceCustomerPo.currency_code || "USD",
+          updated_by: userId.data.user?.id || null,
+        })
+        .eq("id", data);
+
+      if (proformaLinkError) throw proformaLinkError;
+
+      const { error: customerPoLinkError } = await supabase
+        .from("finance_client_purchase_orders")
+        .update({
+          proforma_invoice_id: data,
+          status: "linked_to_pi",
+          linked_to_pi_at: new Date().toISOString(),
+          updated_by: userId.data.user?.id || null,
+        })
+        .eq("id", sourceCustomerPo.id);
+
+      if (customerPoLinkError) throw customerPoLinkError;
+    }
+
     navigate(`/finance/transactions/proforma-invoices/${data}`);
   } catch (error) {
     console.error("Failed to save proforma invoice draft:", error);
@@ -551,6 +667,7 @@ export default function FinanceNewProformaInvoicePage() {
   notes,
   projectId,
   rows,
+  sourceCustomerPo,
   taskId,
   validUntil,
 ]);
@@ -567,9 +684,11 @@ export default function FinanceNewProformaInvoicePage() {
                   <Badge className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.24em] text-white/70 shadow-none">
                     Receivables
                   </Badge>
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    New proforma draft
-                  </Badge>
+                  {sourceCustomerPo ? (
+                    <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-emerald-200 shadow-none">
+                      From Customer PO {sourceCustomerPo.client_po_number || sourceCustomerPo.external_po_number}
+                    </Badge>
+                  ) : null}
                 </div>
 
                 <div className="space-y-3">

@@ -3,12 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
+  ArrowRight,
   FileText,
   MoreVertical,
   Plus,
   Receipt,
-  RefreshCw,
   Search,
   Wallet,
 } from "lucide-react";
@@ -67,7 +66,7 @@ type QuotationMetricCard = {
   value: string;
   subtitle: string;
   icon: typeof Wallet;
-  tone: "blue" | "emerald" | "amber" | "rose";
+  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
 };
 
 function getToneClasses(tone: QuotationMetricCard["tone"]) {
@@ -75,31 +74,38 @@ function getToneClasses(tone: QuotationMetricCard["tone"]) {
     case "emerald":
       return {
         glow: "from-emerald-500/20 via-emerald-400/10 to-transparent",
-        iconWrap:
-          "border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_0_30px_rgba(16,185,129,0.18)]",
+        iconWrap: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+        value: "text-emerald-100",
         accent: "bg-emerald-400",
       };
     case "amber":
       return {
         glow: "from-amber-500/20 via-amber-400/10 to-transparent",
-        iconWrap:
-          "border-amber-400/20 bg-amber-500/10 text-amber-300 shadow-[0_0_30px_rgba(245,158,11,0.18)]",
+        iconWrap: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+        value: "text-amber-100",
         accent: "bg-amber-400",
+      };
+    case "violet":
+      return {
+        glow: "from-violet-500/20 via-violet-400/10 to-transparent",
+        iconWrap: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+        value: "text-violet-100",
+        accent: "bg-violet-400",
       };
     case "rose":
       return {
         glow: "from-rose-500/20 via-rose-400/10 to-transparent",
-        iconWrap:
-          "border-rose-400/20 bg-rose-500/10 text-rose-300 shadow-[0_0_30px_rgba(244,63,94,0.18)]",
+        iconWrap: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+        value: "text-rose-100",
         accent: "bg-rose-400",
       };
-    case "blue":
+    case "cyan":
     default:
       return {
-        glow: "from-sky-500/20 via-sky-400/10 to-transparent",
-        iconWrap:
-          "border-sky-400/20 bg-sky-500/10 text-sky-300 shadow-[0_0_30px_rgba(56,189,248,0.18)]",
-        accent: "bg-sky-400",
+        glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
+        iconWrap: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+        value: "text-cyan-100",
+        accent: "bg-cyan-400",
       };
   }
 }
@@ -109,31 +115,36 @@ function MetricCard({ metric }: { metric: QuotationMetricCard }) {
   const Icon = metric.icon;
 
   return (
-    <div className="group relative overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+    <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
       <div
         className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`}
       />
-      <div className="relative flex h-full flex-col gap-5 p-5">
+
+      <div className="relative flex h-full flex-col justify-between gap-5">
         <div className="flex items-start justify-between gap-4">
-          <div className="space-y-2">
-            <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-white/45">
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
               {metric.title}
             </div>
-            <div className="text-3xl font-semibold tracking-tight text-white">
+            <div
+              className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${tone.value}`}
+            >
               {metric.value}
             </div>
           </div>
 
           <div
-            className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
           >
             <Icon className="h-5 w-5" />
           </div>
         </div>
 
-        <div className="mt-auto flex items-center justify-between gap-3">
-          <div className="text-sm text-white/55">{metric.subtitle}</div>
-          <div className={`h-2 w-2 rounded-full ${tone.accent}`} />
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
+            {metric.subtitle}
+          </div>
+          <div className={`h-2 w-2 shrink-0 rounded-full ${tone.accent}`} />
         </div>
       </div>
     </div>
@@ -170,9 +181,9 @@ function formatFinanceMoney(
 function getQuotationStatusBadgeClasses(status: string) {
   switch (status) {
     case "draft":
-      return "border-white/10 bg-white/10 text-white/75";
+      return "border-slate-400/20 bg-white/[0.06] text-slate-300";
     case "issued":
-      return "border-sky-400/20 bg-sky-500/10 text-sky-200";
+      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
     case "sent":
       return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
     case "accepted":
@@ -184,7 +195,7 @@ function getQuotationStatusBadgeClasses(status: string) {
     case "converted":
       return "border-violet-400/20 bg-violet-500/10 text-violet-200";
     case "archived":
-      return "border-white/20 bg-white/5 text-white/60";
+      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
     case "deleted":
       return "border-rose-500/30 bg-rose-500/10 text-rose-300";
     default:
@@ -215,6 +226,15 @@ function getQuotationStatusLabel(status: string) {
     default:
       return status;
   }
+}
+
+function isEditableNegotiationStatus(status: string) {
+  return (
+    status === "draft" ||
+    status === "issued" ||
+    status === "sent" ||
+    status === "accepted"
+  );
 }
 
 export default function FinanceQuotationsPage() {
@@ -466,8 +486,8 @@ export default function FinanceQuotationsPage() {
     );
 
     const totalQuotations = activeQuotations.length;
-    const draftQuotations = activeQuotations.filter(
-      (row) => row.status === "draft"
+    const editableQuotations = activeQuotations.filter((row) =>
+      isEditableNegotiationStatus(row.status)
     ).length;
     const acceptedQuotations = activeQuotations.filter(
       (row) => row.status === "accepted"
@@ -490,13 +510,13 @@ export default function FinanceQuotationsPage() {
         value: totalQuotations.toLocaleString(),
         subtitle: "Commercial offer records",
         icon: FileText,
-        tone: "blue",
+        tone: "cyan",
       },
       {
-        key: "drafts",
-        title: "Draft Quotations",
-        value: draftQuotations.toLocaleString(),
-        subtitle: "Offers still being prepared",
+        key: "editable",
+        title: "Editable",
+        value: editableQuotations.toLocaleString(),
+        subtitle: "Draft, sent, accepted, and legacy issued",
         icon: Receipt,
         tone: "amber",
       },
@@ -504,7 +524,7 @@ export default function FinanceQuotationsPage() {
         key: "pipeline",
         title: "Accepted Value",
         value: formatFinanceMoney(pipelineTotal, pipelineCurrency),
-        subtitle: `${acceptedQuotations.length} accepted quotations awaiting PO`,
+        subtitle: `${acceptedQuotations.length} accepted quotations`,
         icon: Wallet,
         tone: "emerald",
       },
@@ -514,7 +534,7 @@ export default function FinanceQuotationsPage() {
         value: convertedQuotations.toLocaleString(),
         subtitle: "Moved forward into customer commitment",
         icon: Receipt,
-        tone: "rose",
+        tone: "violet",
       },
     ];
   }, [quotations]);
@@ -553,7 +573,7 @@ export default function FinanceQuotationsPage() {
     ]);
   };
 
-    const handleRestore = async (id: string) => {
+  const handleRestore = async (id: string) => {
     const { data: quotationRow, error: fetchError } = await supabase
       .from("finance_quotations")
       .select("metadata")
@@ -600,153 +620,194 @@ export default function FinanceQuotationsPage() {
     await Promise.all([loadQuotations(true), loadArchivedQuotations()]);
   };
 
+  const activeSectionClass =
+    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
+
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
-      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
-        <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6 xl:p-7">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_35%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_24%)]" />
-          <div className="relative flex flex-col gap-6">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-              <div className="max-w-3xl space-y-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.24em] text-white/70 shadow-none">
-                    Receivables
-                  </Badge>
+    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+        <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
 
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    Quotations
-                  </Badge>
-                </div>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => navigate("/finance/transactions")}
+              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/[0.08]"
+            >
+              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+              Transactions
+            </button>
 
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/10 bg-black/20 text-white shadow-[0_0_30px_rgba(255,255,255,0.08)]">
-                      <FileText className="h-5 w-5" />
-                    </div>
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px]">
+              <div>
+                <Badge className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                  Quotation Registry
+                </Badge>
 
-                    <div>
-                      <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                        Quotations
-                      </h1>
-                      <div className="mt-1 text-sm text-white/45">
-                        Commercial offers before client PO, PI, invoice, and payment.
-                      </div>
-                    </div>
+                <div className="mt-4 flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                    <FileText className="h-5 w-5" />
                   </div>
 
-                  <p className="max-w-2xl text-sm leading-7 text-white/55 sm:text-[15px]">
-                    This module tracks draft, issued, accepted, rejected, expired,
-                    and converted quotations. It is the first controlled document
-                    in the incoming flow and provides the commercial basis before
-                    customer commitment and PI issuance.
-                  </p>
+                  <div>
+                    <h1 className="text-3xl font-semibold tracking-[-0.035em] text-white md:text-4xl">
+                      Quotations
+                    </h1>
+                    <div className="mt-1 text-sm text-slate-500">
+                      Commercial offers before client PO, PI, invoice, and payment.
+                    </div>
+                  </div>
+                </div>
+
+                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                  Quotations are editable negotiation documents. The simplified
+                  workflow is Draft → Sent → Accepted, while legacy issued records
+                  remain supported and editable.
+                </p>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
+                    Accepted still editable
+                  </span>
+                  <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                    Draft → Sent → Accepted
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                    Auto-refresh enabled
+                  </span>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-3 xl:justify-end">
-                <Button
-                  variant="outline"
-                  onClick={() => navigate("/finance/transactions")}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back
-                </Button>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Active Records
+                      </div>
+                      <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
+                        {quotations.length.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <div className="mt-3 text-xs leading-5 text-slate-500">
+                    Excludes archived and deleted quotations.
+                  </div>
+                </div>
 
-                <Button
-                  variant="outline"
-                  onClick={() => void loadQuotations(true)}
-                  disabled={isRefreshing}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10 disabled:opacity-60"
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  {isRefreshing ? "Refreshing..." : "Refresh"}
-                </Button>
-
-                {canCreateQuotations ? (
-                  <Button
-                    onClick={() =>
-                      navigate("/finance/transactions/quotations/new")
-                    }
-                    className="h-11 rounded-2xl px-4"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Quotation
-                  </Button>
-                ) : null}
-
-                                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsArchiveModalOpen(true);
-                  }}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                >
-                  Archive
-                </Button>
+                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Visible Results
+                      </div>
+                      <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
+                        {filteredQuotations.length.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                      <Search className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <div className="mt-3 text-xs leading-5 text-slate-500">
+                    Filtered by quotation, client, status, company, or currency.
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {metricCards.map((metric) => (
-                <MetricCard key={metric.key} metric={metric} />
-              ))}
+            <div className="mt-6 flex flex-wrap gap-3">
+              {canCreateQuotations ? (
+                <Button
+                  onClick={() => navigate("/finance/transactions/quotations/new")}
+                  className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Quotation
+                </Button>
+              ) : null}
+
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsArchiveModalOpen(true);
+                }}
+                className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
+              >
+                Archive
+              </Button>
             </div>
           </div>
         </section>
 
-                <section>
-          <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-            <CardHeader className="border-b border-white/8 pb-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {metricCards.map((metric) => (
+            <MetricCard key={metric.key} metric={metric} />
+          ))}
+        </div>
+
+        <section>
+          <Card className={activeSectionClass}>
+            <CardHeader className="border-b border-white/10 px-5 py-4">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="space-y-2">
-                  <Badge className="w-fit rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-white/65 shadow-none">
-                    Quotation Registry
+                  <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                    Active Quotations
                   </Badge>
 
-                  <CardTitle className="text-white">
-                    Quotations List
+                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Quotation List
                   </CardTitle>
 
-                  <CardDescription className="max-w-2xl text-white/45">
-                    Manage quotations, review status, and control the full incoming commercial flow.
+                  <CardDescription className="max-w-2xl text-xs text-slate-500">
+                    Manage quotation records, open details, archive old offers,
+                    and continue negotiation even after acceptance.
                   </CardDescription>
                 </div>
 
                 <div className="relative w-full max-w-md">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                   <input
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(event) => setSearch(event.target.value)}
                     placeholder="Search quotation, client, status..."
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-10 pr-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-cyan-400/30"
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-10 pr-4 text-sm text-white outline-none placeholder:text-slate-600 transition focus:border-cyan-400/30 focus:bg-black/30"
                   />
                 </div>
               </div>
             </CardHeader>
 
-            <CardContent className="p-4 sm:p-5 xl:p-6">
+            <CardContent className="p-5">
               {isLoading ? (
-                <div className="text-white/50 text-sm">
+                <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-8 text-sm text-slate-500">
                   Loading quotations...
                 </div>
               ) : filteredQuotations.length === 0 ? (
-                <div className="text-white/50 text-sm">
-                  No quotations found
+                <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-8 text-sm text-slate-500">
+                  No quotations found.
                 </div>
               ) : (
                 <div className="space-y-3">
-                                   {filteredQuotations.map((quotation) => {
+                  {filteredQuotations.map((quotation) => {
                     const currency = quotation.currency_code || "USD";
+                    const isEditable = isEditableNegotiationStatus(
+                      quotation.status
+                    );
 
                     return (
                       <button
                         key={quotation.id}
                         type="button"
                         onClick={() =>
-                          navigate(`/finance/transactions/quotations/${quotation.id}`)
+                          navigate(
+                            `/finance/transactions/quotations/${quotation.id}`
+                          )
                         }
-                        className="group relative flex w-full items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-5 py-5 text-left transition-all duration-200 hover:border-white/20 hover:bg-white/[0.08] hover:shadow-[0_10px_40px_rgba(0,0,0,0.35)]"
+                        className="group relative flex w-full items-start justify-between gap-4 rounded-[24px] border border-white/10 bg-white/[0.035] px-5 py-5 text-left transition-all duration-200 hover:border-white/20 hover:bg-white/[0.055]"
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
@@ -755,21 +816,27 @@ export default function FinanceQuotationsPage() {
                             </div>
 
                             <Badge
-                              className={`rounded-full border px-2.5 py-1 text-[11px] ${getQuotationStatusBadgeClasses(
+                              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] shadow-none ${getQuotationStatusBadgeClasses(
                                 quotation.status
                               )}`}
                             >
                               {getQuotationStatusLabel(quotation.status)}
                             </Badge>
+
+                            {isEditable ? (
+                              <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200 shadow-none">
+                                Editable
+                              </Badge>
+                            ) : null}
                           </div>
 
-                          <div className="mt-2 text-sm text-white/70">
+                          <div className="mt-2 text-sm text-slate-300">
                             {quotation.client_name_snapshot ||
                               quotation.company_name_snapshot ||
                               "—"}
                           </div>
 
-                          <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-white/45 md:grid-cols-4">
+                          <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-slate-500 md:grid-cols-4">
                             <div>
                               Issue: {formatFinanceDate(quotation.issue_date)}
                             </div>
@@ -783,12 +850,14 @@ export default function FinanceQuotationsPage() {
                                 currency
                               )}
                             </div>
-                            <div>Status: {quotation.status}</div>
+                            <div>
+                              Updated: {formatFinanceDate(quotation.updated_at)}
+                            </div>
                           </div>
                         </div>
 
-                        <div className="relative flex items-center gap-2">
-                          <div className="text-sm font-medium text-white/80">
+                        <div className="relative flex shrink-0 items-center gap-2">
+                          <div className="text-sm font-medium text-slate-300">
                             Open
                           </div>
 
@@ -803,31 +872,34 @@ export default function FinanceQuotationsPage() {
                                   : quotation.id
                               );
                             }}
+                            className="h-9 w-9 rounded-xl text-slate-300 hover:bg-white/[0.08] hover:text-white"
                           >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
 
-                          {openMenuQuotationId === quotation.id && (
+                          {openMenuQuotationId === quotation.id ? (
                             <div
                               ref={actionsMenuRef}
                               onClick={(event) => event.stopPropagation()}
-                              className="absolute right-0 top-10 z-50 w-44 rounded-xl border border-white/10 bg-black/90 p-2 shadow-xl"
+                              className="absolute right-0 top-10 z-50 w-44 rounded-2xl border border-white/10 bg-[#090d16]/95 p-2 shadow-2xl shadow-black/40 backdrop-blur-xl"
                             >
                               <button
-                                className="w-full rounded-md px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10"
-                                onClick={() => handleArchive(quotation.id)}
+                                type="button"
+                                className="w-full rounded-xl px-3 py-2 text-left text-sm text-slate-300 hover:bg-white/[0.08] hover:text-white"
+                                onClick={() => void handleArchive(quotation.id)}
                               >
                                 Archive
                               </button>
 
                               <button
-                                className="w-full rounded-md px-3 py-2 text-left text-sm text-rose-400 hover:bg-white/10"
-                                onClick={() => handleDelete(quotation.id)}
+                                type="button"
+                                className="w-full rounded-xl px-3 py-2 text-left text-sm text-rose-300 hover:bg-rose-500/10"
+                                onClick={() => void handleDelete(quotation.id)}
                               >
                                 Delete
                               </button>
                             </div>
-                          )}
+                          ) : null}
                         </div>
                       </button>
                     );
@@ -838,14 +910,13 @@ export default function FinanceQuotationsPage() {
           </Card>
         </section>
 
-              {/* ARCHIVE MODAL */}
-        {isArchiveModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur">
+                {isArchiveModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
             <div className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-              <div className="flex items-center justify-between border-b border-white/8 px-6 py-5">
+              <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
                 <div>
                   <div className="text-lg font-semibold text-white">Archive</div>
-                  <div className="mt-1 text-sm text-white/45">
+                  <div className="mt-1 text-sm text-slate-500">
                     Archived and deleted quotations removed from the active registry.
                   </div>
                 </div>
@@ -853,20 +924,20 @@ export default function FinanceQuotationsPage() {
                 <button
                   type="button"
                   onClick={() => setIsArchiveModalOpen(false)}
-                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 hover:bg-white/10"
+                  className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.08]"
                 >
                   Close
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 border-b border-white/8 px-6 py-4">
+              <div className="flex items-center gap-2 border-b border-white/10 px-6 py-4">
                 <button
                   type="button"
                   onClick={() => setArchiveTab("archived")}
                   className={`rounded-xl px-4 py-2 text-sm transition ${
                     archiveTab === "archived"
-                      ? "bg-white/10 text-white"
-                      : "text-white/55 hover:bg-white/5 hover:text-white/80"
+                      ? "bg-white/[0.08] text-white"
+                      : "text-slate-500 hover:bg-white/[0.05] hover:text-slate-300"
                   }`}
                 >
                   Archived
@@ -878,7 +949,7 @@ export default function FinanceQuotationsPage() {
                   className={`rounded-xl px-4 py-2 text-sm transition ${
                     archiveTab === "deleted"
                       ? "bg-rose-500/15 text-rose-200"
-                      : "text-white/55 hover:bg-white/5 hover:text-white/80"
+                      : "text-slate-500 hover:bg-white/[0.05] hover:text-slate-300"
                   }`}
                 >
                   Deleted
@@ -886,69 +957,100 @@ export default function FinanceQuotationsPage() {
               </div>
 
               {isArchiveLoading ? (
-                <div className="p-6 text-sm text-white/50">Loading...</div>
+                <div className="p-6 text-sm text-slate-500">Loading...</div>
               ) : (
                 <div className="overflow-y-auto p-6">
-                  <div className="space-y-3">
-                    {visibleArchivedQuotations.map((q) => (
-                      <button
-                        key={q.id}
-                        type="button"
-                        onClick={() =>
-                          navigate(`/finance/transactions/quotations/${q.id}`)
-                        }
-                        className="group relative flex w-full items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-5 py-4 text-left transition-all hover:border-white/20 hover:bg-white/[0.08]"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <div className="text-base font-semibold text-white">
-                              {q.quotation_number}
+                  {visibleArchivedQuotations.length === 0 ? (
+                    <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-8 text-sm text-slate-500">
+                      No {archiveTab} quotations found.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {visibleArchivedQuotations.map((quotation) => (
+                        <button
+                          key={quotation.id}
+                          type="button"
+                          onClick={() =>
+                            navigate(
+                              `/finance/transactions/quotations/${quotation.id}`
+                            )
+                          }
+                          className="group relative flex w-full items-start justify-between gap-4 rounded-[24px] border border-white/10 bg-white/[0.035] px-5 py-4 text-left transition-all hover:border-white/20 hover:bg-white/[0.055]"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-base font-semibold text-white">
+                                {quotation.quotation_number || "Quotation"}
+                              </div>
+
+                              <Badge
+                                className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] shadow-none ${getQuotationStatusBadgeClasses(
+                                  quotation.status
+                                )}`}
+                              >
+                                {getQuotationStatusLabel(quotation.status)}
+                              </Badge>
                             </div>
 
-                            <Badge
-                              className={`rounded-full border px-2.5 py-1 text-[11px] ${getQuotationStatusBadgeClasses(
-                                q.status
-                              )}`}
-                            >
-                              {getQuotationStatusLabel(q.status)}
-                            </Badge>
+                            <div className="mt-2 text-sm text-slate-300">
+                              {quotation.client_name_snapshot ||
+                                quotation.company_name_snapshot ||
+                                "—"}
+                            </div>
+
+                            <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-slate-500 md:grid-cols-3">
+                              <div>
+                                Issue: {formatFinanceDate(quotation.issue_date)}
+                              </div>
+                              <div>
+                                Total:{" "}
+                                {formatFinanceMoney(
+                                  quotation.total_amount,
+                                  quotation.currency_code || "USD"
+                                )}
+                              </div>
+                              <div>
+                                Updated: {formatFinanceDate(quotation.updated_at)}
+                              </div>
+                            </div>
                           </div>
-                        </div>
 
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRestore(q.id);
-                            }}
-                          >
-                            Restore
-                          </Button>
-
-                          {archiveTab === "deleted" && (
+                          <div className="flex shrink-0 items-center gap-2">
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleHardDelete(q.id);
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleRestore(quotation.id);
                               }}
+                              className="rounded-xl text-emerald-200 hover:bg-emerald-500/10 hover:text-emerald-100"
                             >
-                              Hard Delete
+                              Restore
                             </Button>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+
+                            {archiveTab === "deleted" ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void handleHardDelete(quotation.id);
+                                }}
+                                className="rounded-xl text-rose-300 hover:bg-rose-500/10 hover:text-rose-200"
+                              >
+                                Hard Delete
+                              </Button>
+                            ) : null}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
-        )}
-
+        ) : null}
       </div>
     </div>
   );

@@ -683,91 +683,103 @@ export default function FinanceCustomerPosPage() {
         </Card>
 
         {showArchivePanel ? (
-          <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-            <CardHeader className="border-b border-white/10 px-5 py-4">
-              <CardTitle className="text-white">Archive</CardTitle>
-              <CardDescription className="text-white/45">
-                Archived records can be restored. Deleted records can be restored or permanently deleted.
-              </CardDescription>
-            </CardHeader>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
+            <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#080b12] shadow-2xl shadow-black/60">
+              <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+                <div>
+                  <div className="text-lg font-semibold text-white">Customer PO Archive</div>
+                  <div className="mt-1 text-sm text-white/45">
+                    Archived records can be restored. Deleted records can be restored or permanently deleted.
+                  </div>
+                </div>
 
-            <CardContent className="space-y-4 p-5">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setArchiveTab("archived")}
-                  className={`rounded-xl px-4 py-2 text-sm transition ${
-                    archiveTab === "archived"
-                      ? "bg-white/10 text-white"
-                      : "text-white/55 hover:bg-white/5 hover:text-white/80"
-                  }`}
+                <Button
+                  variant="outline"
+                  onClick={() => setShowArchivePanel(false)}
+                  className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
                 >
-                  Archived
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setArchiveTab("deleted")}
-                  className={`rounded-xl px-4 py-2 text-sm transition ${
-                    archiveTab === "deleted"
-                      ? "bg-rose-500/15 text-rose-200"
-                      : "text-white/55 hover:bg-white/5 hover:text-white/80"
-                  }`}
-                >
-                  Deleted
-                </button>
+                  Close
+                </Button>
               </div>
 
-              <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
-                {archiveRows.length === 0 ? (
-                  <div className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-white/45">
-                    No {archiveTab} customer POs.
-                  </div>
-                ) : (
-                  archiveRows.map((row) => (
-                    <div
-                      key={row.id}
-                      className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-3"
-                    >
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <div className="font-semibold text-white">
-                            {row.client_po_number || "Customer PO"} ·{" "}
-                            {row.external_po_number || "No customer number"}
-                          </div>
-                          <div className="mt-1 text-xs text-white/45">
-                            {row.client_name_snapshot || "—"} · {formatDate(row.updated_at)}
-                          </div>
-                        </div>
+              <div className="space-y-4 overflow-y-auto p-5">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setArchiveTab("archived")}
+                    className={`rounded-xl px-4 py-2 text-sm transition ${
+                      archiveTab === "archived"
+                        ? "bg-white/10 text-white"
+                        : "text-white/55 hover:bg-white/5 hover:text-white/80"
+                    }`}
+                  >
+                    Archived
+                  </button>
 
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            onClick={() => void handleRestore(row)}
-                            disabled={isSaving}
-                            className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                          </Button>
+                  <button
+                    type="button"
+                    onClick={() => setArchiveTab("deleted")}
+                    className={`rounded-xl px-4 py-2 text-sm transition ${
+                      archiveTab === "deleted"
+                        ? "bg-rose-500/15 text-rose-200"
+                        : "text-white/55 hover:bg-white/5 hover:text-white/80"
+                    }`}
+                  >
+                    Deleted
+                  </button>
+                </div>
 
-                          {archiveTab === "deleted" ? (
+                <div className="max-h-[560px] space-y-3 overflow-y-auto pr-1">
+                  {archiveRows.length === 0 ? (
+                    <div className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-white/45">
+                      No {archiveTab} customer POs.
+                    </div>
+                  ) : (
+                    archiveRows.map((row) => (
+                      <div
+                        key={row.id}
+                        className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-3"
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="truncate font-semibold text-white">
+                              {row.client_po_number || "Customer PO"} ·{" "}
+                              {row.external_po_number || "No customer number"}
+                            </div>
+                            <div className="mt-1 text-xs text-white/45">
+                              {row.client_name_snapshot || "—"} · {formatDate(row.updated_at)}
+                            </div>
+                          </div>
+
+                          <div className="flex shrink-0 gap-2">
                             <Button
                               variant="outline"
-                              onClick={() => void handleHardDelete(row)}
+                              onClick={() => void handleRestore(row)}
                               disabled={isSaving}
-                              className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                              className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <RotateCcw className="h-4 w-4" />
                             </Button>
-                          ) : null}
+
+                            {archiveTab === "deleted" ? (
+                              <Button
+                                variant="outline"
+                                onClick={() => void handleHardDelete(row)}
+                                disabled={isSaving}
+                                className="h-9 rounded-2xl border-rose-500/30 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         ) : null}
 
         {error ? (

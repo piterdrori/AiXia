@@ -43,10 +43,11 @@ type ProformaRecord = {
   valid_until: string | null;
   status:
     | "draft"
-    | "sent"
-    | "accepted"
+    | "issued"
+    | "confirmed"
     | "converted"
     | "archived"
+    | "canceled"
     | "deleted";
   subtotal: number | string | null;
   tax_amount: number | string | null;
@@ -260,9 +261,9 @@ function getProformaStatusBadgeClasses(status: ProformaRecord["status"]) {
   switch (status) {
     case "draft":
       return "border-white/10 bg-white/10 text-white/75";
-    case "sent":
+    case "issued":
       return "border-sky-400/20 bg-sky-500/10 text-sky-200";
-    case "accepted":
+    case "confirmed":
       return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
     case "converted":
       return "border-violet-400/20 bg-violet-500/10 text-violet-200";
@@ -279,10 +280,10 @@ function getProformaStatusLabel(status: ProformaRecord["status"]) {
   switch (status) {
     case "draft":
       return "Draft";
-    case "sent":
-      return "Sent";
-    case "accepted":
-      return "Accepted";
+    case "issued":
+      return "Issued";
+    case "confirmed":
+      return "Confirmed";
     case "converted":
       return "Converted";
     case "archived":
@@ -770,11 +771,11 @@ export default function FinanceProformaInvoiceDetailPage() {
   }, [filteredDraftTasks, proforma, taskIdDraft]);
 
   const canEditDraft = proforma?.status === "draft";
-  const canMarkSent = proforma?.status === "draft";
-  const canAccept = proforma?.status === "sent";
-  const canConvert = proforma?.status === "accepted";
+  const canMarkIssued = proforma?.status === "draft";
+  const canConfirm = proforma?.status === "issued";
+  const canConvert = proforma?.status === "confirmed";
 
-  const handleMarkSent = useCallback(async () => {
+  const handleMarkIssued = useCallback(async () => {
     if (!proforma || !id) return;
 
     setIsSavingDraft(true);
@@ -784,7 +785,7 @@ export default function FinanceProformaInvoiceDetailPage() {
       const { error: updateError } = await supabase
         .from("finance_proforma_invoices")
         .update({
-          status: "sent",
+          status: "issued",
         })
         .eq("id", id)
         .eq("status", "draft");
@@ -794,13 +795,13 @@ export default function FinanceProformaInvoiceDetailPage() {
       await loadProforma(true);
     } catch (err) {
       console.error(err);
-      setError("Failed to mark proforma invoice as sent.");
+      setError("Failed to mark proforma invoice as issued.");
     } finally {
       setIsSavingDraft(false);
     }
   }, [id, loadProforma, proforma]);
 
-  const handleAccept = useCallback(async () => {
+  const handleConfirm = useCallback(async () => {
     if (!proforma || !id) return;
 
     setIsSavingDraft(true);
@@ -810,17 +811,17 @@ export default function FinanceProformaInvoiceDetailPage() {
       const { error: updateError } = await supabase
         .from("finance_proforma_invoices")
         .update({
-          status: "accepted",
+          status: "confirmed",
         })
         .eq("id", id)
-        .eq("status", "sent");
+        .eq("status", "issued");
 
       if (updateError) throw updateError;
 
       await loadProforma(true);
     } catch (err) {
       console.error(err);
-      setError("Failed to mark proforma invoice as accepted.");
+      setError("Failed to mark proforma invoice as confirmed.");
     } finally {
       setIsSavingDraft(false);
     }
@@ -1204,7 +1205,7 @@ export default function FinanceProformaInvoiceDetailPage() {
 
                   <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
                     Commercial pre-invoice document used before formal invoice issuance. Drafts are
-                    editable. Accepted proformas can be converted into invoices.
+                    editable. Confirmed proformas can be converted into invoices.
                   </p>
 
                   <div className="mt-5 flex flex-wrap gap-2">
@@ -1269,25 +1270,25 @@ export default function FinanceProformaInvoiceDetailPage() {
                   Print
                 </Button>
 
-                {canMarkSent ? (
+                {canMarkIssued ? (
                   <Button
-                    onClick={() => void handleMarkSent()}
+                    onClick={() => void handleMarkIssued()}
                     disabled={isSavingDraft}
                     className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 font-semibold text-slate-950 hover:bg-cyan-400"
                   >
                     <CheckCircle className="mr-2 h-4 w-4" />
-                    {isSavingDraft ? "Updating..." : "Mark as Sent"}
+                    {isSavingDraft ? "Updating..." : "Mark as Issued"}
                   </Button>
                 ) : null}
 
-                                {canAccept ? (
+                {canConfirm ? (
                   <Button
-                    onClick={() => void handleAccept()}
+                    onClick={() => void handleConfirm()}
                     disabled={isSavingDraft}
                     className="h-11 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 font-semibold text-slate-950 hover:bg-emerald-400"
                   >
                     <CheckCircle className="mr-2 h-4 w-4" />
-                    {isSavingDraft ? "Updating..." : "Mark as Accepted"}
+                    {isSavingDraft ? "Updating..." : "Mark as Confirmed"}
                   </Button>
                 ) : null}
 
@@ -1799,7 +1800,7 @@ export default function FinanceProformaInvoiceDetailPage() {
                     <div>
                       <CardTitle className="text-white">Line Items</CardTitle>
                       <CardDescription className="text-white/45">
-                        Draft proforma invoices can be edited here. Sent, accepted, and converted
+                        Draft proforma invoices can be edited here. Issued, confirmed, and converted
                         records are read-only.
                       </CardDescription>
                     </div>

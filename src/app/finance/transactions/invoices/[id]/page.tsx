@@ -1651,16 +1651,13 @@ payment_terms_document_text:
 shipping_terms_snapshot:
   selectedDraftShippingTermsLabel ||
   invoice.shipping_terms_snapshot,
-      terms_and_conditions_snapshot:
+terms_and_conditions_snapshot:
   invoice.status === "draft"
     ? termsAndConditionsDraft || invoice.terms_and_conditions_snapshot
     : invoice.terms_and_conditions_snapshot,
-  invoice.status === "draft"
-    ? termsAndConditionsDraft || invoice.terms_and_conditions_snapshot
-    : invoice.terms_and_conditions_snapshot,
-      bank_details_snapshot: draftBankDetails,
-      currency_code:
-        selectedDraftCurrency?.currency_code || invoice.currency_code || "USD",
+bank_details_snapshot: draftBankDetails,
+currency_code:
+  selectedDraftCurrency?.currency_code || invoice.currency_code || "USD",
     };
 }, [
   invoice,

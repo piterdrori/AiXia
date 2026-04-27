@@ -33,11 +33,8 @@ import {
   permanentlyDeletePaymentTerm,
   restorePaymentTerm,
   updatePaymentTerm,
-  type FinancePaymentTermAppliesTo,
   type FinancePaymentTermBalanceDueBasis,
   type FinancePaymentTermDepositDueBasis,
-  type FinancePaymentTermDepositType,
-  type FinancePaymentTermDueBasis,
   type FinancePaymentTermRow,
   type FinancePaymentTermStatus,
   type FinancePaymentTermType,
@@ -51,51 +48,44 @@ type ProfilePermissionRow = {
 type StatusFilter = "all" | FinancePaymentTermStatus;
 
 type FormState = {
+  term_type: FinancePaymentTermType;
+  net_days: string;
+  deposit_percentage: string;
+  deposit_due_basis: FinancePaymentTermDepositDueBasis;
+  balance_due_basis: FinancePaymentTermBalanceDueBasis;
+  custom_label: string;
+  custom_terms_text: string;
+  allow_partial_payments: boolean;
+  is_default: boolean;
+  status: FinancePaymentTermStatus;
+  notes: string;
+};
+
+type GeneratedTerm = {
   code: string;
   name: string;
-  due_days: string;
-  status: FinancePaymentTermStatus;
-  is_default: boolean;
-  notes: string;
-  term_type: FinancePaymentTermType;
-  due_basis: FinancePaymentTermDueBasis;
-  requires_deposit: boolean;
-  deposit_type: FinancePaymentTermDepositType;
-  deposit_percentage: string;
-  deposit_amount: string;
-  deposit_due_basis: FinancePaymentTermDepositDueBasis;
-  deposit_due_days: string;
-  balance_due_basis: FinancePaymentTermBalanceDueBasis;
-  balance_due_days: string;
-  allow_partial_payments: boolean;
-  requires_approval: boolean;
-  applies_to: FinancePaymentTermAppliesTo[];
-  document_label: string;
-  document_terms_text: string;
+  dueDays: number;
+  requiresDeposit: boolean;
+  depositPercentage: number | null;
+  depositDueBasis: FinancePaymentTermDepositDueBasis | null;
+  balanceDueBasis: FinancePaymentTermBalanceDueBasis | null;
+  balanceDueDays: number | null;
+  documentLabel: string;
+  documentTermsText: string;
 };
 
 const EMPTY_FORM: FormState = {
-  code: "",
-  name: "",
-  due_days: "0",
-  status: "active",
-  is_default: false,
-  notes: "",
   term_type: "net",
-  due_basis: "invoice_date",
-  requires_deposit: false,
-  deposit_type: "percentage",
-  deposit_percentage: "",
-  deposit_amount: "",
-  deposit_due_basis: "immediate",
-  deposit_due_days: "0",
-  balance_due_basis: "invoice_date",
-  balance_due_days: "0",
+  net_days: "30",
+  deposit_percentage: "30",
+  deposit_due_basis: "before_production",
+  balance_due_basis: "before_shipment",
+  custom_label: "",
+  custom_terms_text: "",
   allow_partial_payments: true,
-  requires_approval: false,
-  applies_to: ["quotation", "proforma_invoice", "invoice"],
-  document_label: "",
-  document_terms_text: "",
+  is_default: false,
+  status: "active",
+  notes: "",
 };
 
 const TERM_TYPE_OPTIONS: Array<{
@@ -116,31 +106,13 @@ const TERM_TYPE_OPTIONS: Array<{
   {
     value: "deposit_balance",
     label: "Deposit + Balance",
-    description: "Collect a deposit first, then collect the remaining balance.",
-  },
-  {
-    value: "milestone",
-    label: "Milestone",
-    description: "Payment follows project, delivery, or production milestones.",
+    description: "Deposit first, remaining balance later.",
   },
   {
     value: "custom",
     label: "Custom",
-    description: "Use custom commercial wording for special terms.",
+    description: "Write your own payment term wording.",
   },
-];
-
-const DUE_BASIS_OPTIONS: Array<{ value: FinancePaymentTermDueBasis; label: string }> = [
-  { value: "invoice_date", label: "Invoice Date" },
-  { value: "issue_date", label: "Issue Date" },
-  { value: "delivery_date", label: "Delivery Date" },
-  { value: "shipment_date", label: "Shipment Date" },
-  { value: "custom", label: "Custom" },
-];
-
-const DEPOSIT_TYPE_OPTIONS: Array<{ value: FinancePaymentTermDepositType; label: string }> = [
-  { value: "percentage", label: "Percentage" },
-  { value: "fixed_amount", label: "Fixed Amount" },
 ];
 
 const DEPOSIT_DUE_BASIS_OPTIONS: Array<{
@@ -151,27 +123,16 @@ const DEPOSIT_DUE_BASIS_OPTIONS: Array<{
   { value: "before_production", label: "Before Production" },
   { value: "before_shipment", label: "Before Shipment" },
   { value: "before_delivery", label: "Before Delivery" },
-  { value: "custom_days", label: "Custom Days" },
 ];
 
 const BALANCE_DUE_BASIS_OPTIONS: Array<{
   value: FinancePaymentTermBalanceDueBasis;
   label: string;
 }> = [
-  { value: "invoice_date", label: "Invoice Date" },
-  { value: "delivery_date", label: "Delivery Date" },
-  { value: "shipment_date", label: "Shipment Date" },
-  { value: "after_deposit", label: "After Deposit" },
   { value: "before_shipment", label: "Before Shipment" },
-  { value: "custom_days", label: "Custom Days" },
-];
-
-const APPLIES_TO_OPTIONS: Array<{ value: FinancePaymentTermAppliesTo; label: string }> = [
-  { value: "quotation", label: "Quotation" },
-  { value: "proforma_invoice", label: "Proforma Invoice" },
-  { value: "invoice", label: "Invoice" },
-  { value: "bill", label: "Bill" },
-  { value: "all", label: "All" },
+  { value: "delivery_date", label: "On Delivery" },
+  { value: "shipment_date", label: "On Shipment" },
+  { value: "invoice_date", label: "On Invoice Date" },
 ];
 
 function formatDateLabel(value: string) {
@@ -189,14 +150,12 @@ function formatTermType(value: FinancePaymentTermType) {
   return TERM_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? value;
 }
 
-function formatBasisLabel(
-  value:
-    | FinancePaymentTermDueBasis
-    | FinancePaymentTermDepositDueBasis
-    | FinancePaymentTermBalanceDueBasis
-    | null
-) {
+function formatBasisLabel(value: string | null) {
   if (!value) return "—";
+
+  if (value === "delivery_date") return "On Delivery";
+  if (value === "shipment_date") return "On Shipment";
+  if (value === "invoice_date") return "On Invoice Date";
 
   return value
     .split("_")
@@ -204,63 +163,118 @@ function formatBasisLabel(
     .join(" ");
 }
 
-function parseOptionalNumber(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
+function normalizeGeneratedCode(value: string) {
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/%/g, "")
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
 
-  const parsed = Number(trimmed);
-  if (!Number.isFinite(parsed)) return null;
-
+function parseWholeNumber(value: string) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) return null;
   return parsed;
 }
 
-function buildSuggestedDocumentText(form: FormState) {
-  const dueDays = Number(form.due_days || 0);
-  const balanceDays = Number(form.balance_due_days || form.due_days || 0);
-  const depositValue =
-    form.deposit_type === "percentage"
-      ? `${form.deposit_percentage || "0"}%`
-      : `fixed deposit amount`;
+function parsePercentage(value: string) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed >= 100) return null;
+  return parsed;
+}
 
+function buildGeneratedTerm(form: FormState): GeneratedTerm {
   if (form.term_type === "immediate") {
-    return "Payment is due immediately.";
+    return {
+      code: "DUE_IMMEDIATELY",
+      name: "Due Immediately",
+      dueDays: 0,
+      requiresDeposit: false,
+      depositPercentage: null,
+      depositDueBasis: null,
+      balanceDueBasis: "invoice_date",
+      balanceDueDays: 0,
+      documentLabel: "Due Immediately",
+      documentTermsText: "Payment is due immediately.",
+    };
   }
 
   if (form.term_type === "net") {
-    return `Payment is due within ${dueDays} days from ${formatBasisLabel(
-      form.due_basis
-    ).toLowerCase()}.`;
+    const days = parseWholeNumber(form.net_days) ?? 0;
+
+    return {
+      code: `NET_${days}`,
+      name: `Net ${days}`,
+      dueDays: days,
+      requiresDeposit: false,
+      depositPercentage: null,
+      depositDueBasis: null,
+      balanceDueBasis: "invoice_date",
+      balanceDueDays: days,
+      documentLabel: `Net ${days}`,
+      documentTermsText:
+        days === 0
+          ? "Payment is due immediately."
+          : `Payment is due within ${days} days from invoice date.`,
+    };
   }
 
   if (form.term_type === "deposit_balance") {
-    return `${depositValue} deposit is required ${formatBasisLabel(
-      form.deposit_due_basis
-    ).toLowerCase()}. Remaining balance is due ${formatBasisLabel(
+    const depositPercentage = parsePercentage(form.deposit_percentage) ?? 0;
+    const balancePercentage = Math.max(0, 100 - depositPercentage);
+    const depositTiming = formatBasisLabel(form.deposit_due_basis).toLowerCase();
+    const balanceTiming = formatBasisLabel(form.balance_due_basis).toLowerCase();
+    const label = `${depositPercentage}% Deposit / ${balancePercentage}% ${formatBasisLabel(
       form.balance_due_basis
-    ).toLowerCase()}${
-      balanceDays > 0 ? ` within ${balanceDays} days` : ""
-    }.`;
+    )}`;
+
+    return {
+      code: normalizeGeneratedCode(label),
+      name: label,
+      dueDays: 0,
+      requiresDeposit: true,
+      depositPercentage,
+      depositDueBasis: form.deposit_due_basis,
+      balanceDueBasis: form.balance_due_basis,
+      balanceDueDays: 0,
+      documentLabel: label,
+      documentTermsText: `${depositPercentage}% deposit is required ${depositTiming}. The remaining ${balancePercentage}% balance is due ${balanceTiming}.`,
+    };
   }
 
-  return form.document_terms_text;
+  const customLabel = form.custom_label.trim() || "Custom Payment Terms";
+  const customTermsText =
+    form.custom_terms_text.trim() || "Payment terms are defined by the commercial agreement.";
+
+  return {
+    code: normalizeGeneratedCode(customLabel),
+    name: customLabel,
+    dueDays: 0,
+    requiresDeposit: false,
+    depositPercentage: null,
+    depositDueBasis: null,
+    balanceDueBasis: "invoice_date",
+    balanceDueDays: 0,
+    documentLabel: customLabel,
+    documentTermsText: customTermsText,
+  };
 }
 
 function SelectField<TValue extends string>({
   value,
   onChange,
   options,
-  className = "",
 }: {
   value: TValue;
   onChange: (value: TValue) => void;
   options: Array<{ value: TValue; label: string }>;
-  className?: string;
 }) {
   return (
     <select
       value={value}
       onChange={(event) => onChange(event.target.value as TValue)}
-      className={`h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/40 ${className}`}
+      className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/40"
     >
       {options.map((option) => (
         <option key={option.value} value={option.value} className="bg-[#101522] text-white">
@@ -323,6 +337,8 @@ export default function FinancePaymentTermsPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [error, setError] = useState("");
 
+  const generatedTerm = useMemo(() => buildGeneratedTerm(form), [form]);
+
   const loadPage = useCallback(async () => {
     setLoading(true);
 
@@ -333,8 +349,7 @@ export default function FinancePaymentTermsPage() {
 
       if (user?.id) {
         const { data: profile } = await supabase
-
-                .from("profiles")
+          .from("profiles")
           .select("role, permissions")
           .eq("user_id", user.id)
           .maybeSingle();
@@ -367,6 +382,7 @@ export default function FinancePaymentTermsPage() {
   const canCreate = !!permissions?.createFinanceRecords;
   const canEdit = !!permissions?.editFinanceRecords;
   const canArchive = !!permissions?.archiveFinanceRecords;
+
 
   const activeRows = useMemo(
     () => rows.filter((row) => row.status === "active"),
@@ -410,129 +426,80 @@ export default function FinancePaymentTermsPage() {
 
   function openEditDialog(row: FinancePaymentTermRow) {
     setEditingRow(row);
-    setForm({
-      code: row.code,
-      name: row.name,
-      due_days: String(row.due_days),
-      status: row.status,
-      is_default: row.is_default,
-      notes: row.notes ?? "",
-      term_type: row.term_type,
-      due_basis: row.due_basis,
-      requires_deposit: row.requires_deposit,
-      deposit_type: row.deposit_type ?? "percentage",
-      deposit_percentage:
-        row.deposit_percentage === null ? "" : String(row.deposit_percentage),
-      deposit_amount: row.deposit_amount === null ? "" : String(row.deposit_amount),
-      deposit_due_basis: row.deposit_due_basis ?? "immediate",
-      deposit_due_days: row.deposit_due_days === null ? "0" : String(row.deposit_due_days),
-      balance_due_basis: row.balance_due_basis ?? "invoice_date",
-      balance_due_days: row.balance_due_days === null ? String(row.due_days) : String(row.balance_due_days),
-      allow_partial_payments: row.allow_partial_payments,
-      requires_approval: row.requires_approval,
-      applies_to: row.applies_to.length
-        ? row.applies_to
-        : ["quotation", "proforma_invoice", "invoice"],
-      document_label: row.document_label ?? row.name,
-      document_terms_text: row.document_terms_text ?? "",
-    });
+
+    if (row.term_type === "immediate") {
+      setForm({
+        ...EMPTY_FORM,
+        term_type: "immediate",
+        net_days: "0",
+        is_default: row.is_default,
+        status: row.status,
+        notes: row.notes ?? "",
+        allow_partial_payments: row.allow_partial_payments,
+      });
+    } else if (row.term_type === "net") {
+      setForm({
+        ...EMPTY_FORM,
+        term_type: "net",
+        net_days: String(row.due_days),
+        is_default: row.is_default,
+        status: row.status,
+        notes: row.notes ?? "",
+        allow_partial_payments: row.allow_partial_payments,
+      });
+    } else if (row.term_type === "deposit_balance") {
+      setForm({
+        ...EMPTY_FORM,
+        term_type: "deposit_balance",
+        deposit_percentage:
+          row.deposit_percentage === null ? "30" : String(row.deposit_percentage),
+        deposit_due_basis: row.deposit_due_basis ?? "before_production",
+        balance_due_basis: row.balance_due_basis ?? "before_shipment",
+        is_default: row.is_default,
+        status: row.status,
+        notes: row.notes ?? "",
+        allow_partial_payments: row.allow_partial_payments,
+      });
+    } else {
+      setForm({
+        ...EMPTY_FORM,
+        term_type: "custom",
+        custom_label: row.document_label ?? row.name,
+        custom_terms_text: row.document_terms_text ?? "",
+        is_default: row.is_default,
+        status: row.status,
+        notes: row.notes ?? "",
+        allow_partial_payments: row.allow_partial_payments,
+      });
+    }
+
     setError("");
     setDialogOpen(true);
-  }
-
-  function updateTermType(value: FinancePaymentTermType) {
-    setForm((previous) => {
-      if (value === "immediate") {
-        return {
-          ...previous,
-          term_type: value,
-          requires_deposit: false,
-          due_days: "0",
-          balance_due_basis: "invoice_date",
-          balance_due_days: "0",
-        };
-      }
-
-      if (value === "deposit_balance") {
-        return {
-          ...previous,
-          term_type: value,
-          requires_deposit: true,
-          deposit_type: previous.deposit_type || "percentage",
-          deposit_due_basis: previous.deposit_due_basis || "immediate",
-          balance_due_basis: previous.balance_due_basis || "invoice_date",
-          balance_due_days: previous.balance_due_days || previous.due_days || "0",
-        };
-      }
-
-      return {
-        ...previous,
-        term_type: value,
-        requires_deposit: false,
-      };
-    });
-  }
-
-  function toggleAppliesTo(value: FinancePaymentTermAppliesTo) {
-    setForm((previous) => {
-      if (value === "all") {
-        return {
-          ...previous,
-          applies_to: previous.applies_to.includes("all") ? [] : ["all"],
-        };
-      }
-
-      const withoutAll = previous.applies_to.filter((item) => item !== "all");
-      const nextValues = withoutAll.includes(value)
-        ? withoutAll.filter((item) => item !== value)
-        : [...withoutAll, value];
-
-      return {
-        ...previous,
-        applies_to: nextValues,
-      };
-    });
   }
 
   async function handleSave() {
     if (!(editingRow ? canEdit : canCreate)) return;
 
-    const dueDays = Number(form.due_days);
-    const balanceDueDays = parseOptionalNumber(form.balance_due_days);
-    const depositDueDays = parseOptionalNumber(form.deposit_due_days);
-    const depositPercentage = parseOptionalNumber(form.deposit_percentage);
-    const depositAmount = parseOptionalNumber(form.deposit_amount);
+    const netDays = parseWholeNumber(form.net_days);
+    const depositPercentage = parsePercentage(form.deposit_percentage);
 
-    if (!form.code.trim() || !form.name.trim()) {
-      setError("Code and name are required.");
+    if (form.term_type === "net" && netDays === null) {
+      setError("Net days must be a whole number 0 or greater.");
       return;
     }
 
-    if (!Number.isInteger(dueDays) || dueDays < 0) {
-      setError("Due days must be a whole number 0 or greater.");
+    if (form.term_type === "deposit_balance" && depositPercentage === null) {
+      setError("Deposit percentage must be greater than 0 and less than 100.");
       return;
     }
 
-    if (
-      form.requires_deposit &&
-      form.deposit_type === "percentage" &&
-      (depositPercentage === null || depositPercentage <= 0 || depositPercentage > 100)
-    ) {
-      setError("Deposit percentage must be greater than 0 and no more than 100.");
+    if (form.term_type === "custom" && !form.custom_label.trim()) {
+      setError("Custom payment terms need a label.");
       return;
     }
 
-    if (
-      form.requires_deposit &&
-      form.deposit_type === "fixed_amount" &&
-      (depositAmount === null || depositAmount <= 0)
-    ) {
-      setError("Deposit amount must be greater than 0.");
-      return;
-    }
-
-    if (!form.applies_to.length) {
-      setError("Select at least one document type this payment term applies to.");
+    if (form.term_type === "custom" && !form.custom_terms_text.trim()) {
+      setError("Custom payment terms need document wording.");
       return;
     }
 
@@ -540,38 +507,28 @@ export default function FinancePaymentTermsPage() {
       setSaving(true);
       setError("");
 
-      const documentTermsText = form.document_terms_text.trim()
-        ? form.document_terms_text
-        : buildSuggestedDocumentText(form);
-
       const payload = {
-        code: form.code,
-        name: form.name,
-        due_days: dueDays,
+        code: generatedTerm.code,
+        name: generatedTerm.name,
+        due_days: generatedTerm.dueDays,
         status: form.status,
         is_default: form.is_default,
         notes: form.notes,
         term_type: form.term_type,
-        due_basis: form.due_basis,
-        requires_deposit: form.requires_deposit,
-        deposit_type: form.requires_deposit ? form.deposit_type : null,
-        deposit_percentage:
-          form.requires_deposit && form.deposit_type === "percentage"
-            ? depositPercentage
-            : null,
-        deposit_amount:
-          form.requires_deposit && form.deposit_type === "fixed_amount"
-            ? depositAmount
-            : null,
-        deposit_due_basis: form.requires_deposit ? form.deposit_due_basis : null,
-        deposit_due_days: form.requires_deposit ? depositDueDays : null,
-        balance_due_basis: form.balance_due_basis,
-        balance_due_days: balanceDueDays,
+        due_basis: "invoice_date" as const,
+        requires_deposit: generatedTerm.requiresDeposit,
+        deposit_type: generatedTerm.requiresDeposit ? ("percentage" as const) : null,
+        deposit_percentage: generatedTerm.depositPercentage,
+        deposit_amount: null,
+        deposit_due_basis: generatedTerm.depositDueBasis,
+        deposit_due_days: null,
+        balance_due_basis: generatedTerm.balanceDueBasis,
+        balance_due_days: generatedTerm.balanceDueDays,
         allow_partial_payments: form.allow_partial_payments,
-        requires_approval: form.requires_approval,
-        applies_to: form.applies_to,
-        document_label: form.document_label || form.name,
-        document_terms_text: documentTermsText,
+        requires_approval: false,
+        applies_to: ["quotation", "proforma_invoice", "invoice"] as const,
+        document_label: generatedTerm.documentLabel,
+        document_terms_text: generatedTerm.documentTermsText,
       };
 
       if (editingRow) {
@@ -646,9 +603,9 @@ export default function FinancePaymentTermsPage() {
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Control when payments are due, whether a deposit is required, how the balance is
-                  collected, and what commercial wording appears on quotations, proforma invoices,
-                  and invoices.
+                  Create reusable payment terms for finance documents. Invoice due dates and payment
+                  actions are handled inside the invoice flow; this page only defines the selectable
+                  commercial term and document wording.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
@@ -659,7 +616,7 @@ export default function FinancePaymentTermsPage() {
                     {depositRows.length} Deposit Terms
                   </Badge>
                   <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
-                    Auto-Refresh
+                    Auto-Generated Codes
                   </Badge>
                 </div>
               </div>
@@ -673,19 +630,19 @@ export default function FinancePaymentTermsPage() {
                     {defaultRow?.document_label ?? defaultRow?.name ?? "Not Set"}
                   </p>
                   <p className="mt-3 text-xs leading-5 text-slate-500">
-                    The default payment rule used when a document does not override terms.
+                    Default selectable payment term for finance documents.
                   </p>
                 </div>
 
                 <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Deposit Coverage
+                    Deposit Terms
                   </p>
                   <p className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
                     {depositRows.length}
                   </p>
                   <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Terms that require upfront deposit before balance collection.
+                    Terms with upfront deposit wording.
                   </p>
                 </div>
 
@@ -697,7 +654,7 @@ export default function FinancePaymentTermsPage() {
                     {rows.length}
                   </p>
                   <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Centralized commercial terms for finance documents.
+                    Reusable terms available to documents.
                   </p>
                 </div>
               </div>
@@ -712,7 +669,8 @@ export default function FinancePaymentTermsPage() {
                 Payment Term Library
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                Manage due dates, deposit rules, balance rules, and document-facing wording.
+                Choose a structure, generate the term, and reuse it on quotations, proforma invoices,
+                and invoices.
               </p>
             </div>
 
@@ -793,7 +751,11 @@ export default function FinancePaymentTermsPage() {
                         {formatTermType(row.term_type)}
                       </p>
                       <p className="mt-2 text-xs leading-5 text-slate-500">
-                        Due {row.due_days} days · {formatBasisLabel(row.due_basis)}
+                        {row.term_type === "net"
+                          ? `Net ${row.due_days}`
+                          : row.term_type === "immediate"
+                            ? "Immediate payment"
+                            : "Reusable term"}
                       </p>
                     </div>
 
@@ -804,9 +766,7 @@ export default function FinancePaymentTermsPage() {
                       {row.requires_deposit ? (
                         <>
                           <p className="mt-2 text-sm font-semibold text-emerald-100">
-                            {row.deposit_type === "percentage"
-                              ? `${row.deposit_percentage ?? 0}%`
-                              : `Fixed ${row.deposit_amount ?? 0}`}
+                            {row.deposit_percentage ?? 0}% Deposit
                           </p>
                           <p className="mt-2 text-xs leading-5 text-slate-500">
                             {formatBasisLabel(row.deposit_due_basis)}
@@ -816,7 +776,7 @@ export default function FinancePaymentTermsPage() {
                         <>
                           <p className="mt-2 text-sm font-semibold text-white">No deposit</p>
                           <p className="mt-2 text-xs leading-5 text-slate-500">
-                            Full balance term only
+                            Standard payment term
                           </p>
                         </>
                       )}
@@ -850,7 +810,7 @@ export default function FinancePaymentTermsPage() {
                         {row.status}
                       </Badge>
                       <p className="mt-2 text-xs leading-5 text-slate-500">
-                        {row.allow_partial_payments ? "Partial allowed" : "No partial payments"}
+                        {row.allow_partial_payments ? "Partial allowed" : "Full only"}
                       </p>
                     </div>
 
@@ -907,28 +867,34 @@ export default function FinancePaymentTermsPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto border-white/10 bg-[#0f1726] text-white sm:max-w-[980px]">
+        <DialogContent className="max-h-[92vh] overflow-y-auto border-white/10 bg-[#0f1726] text-white sm:max-w-[920px]">
           <DialogHeader>
             <DialogTitle>
               {editingRow ? "Edit Payment Term" : "Create Payment Term"}
             </DialogTitle>
             <DialogDescription className="text-white/45">
-              Define due-date logic, deposit requirements, balance collection, and the wording used
-              on finance documents.
+              Create a reusable master-data payment term. The code, name, and document wording are
+              generated from your selected structure.
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-5">
             <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
               <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Term Type
+                Payment Structure
               </p>
-              <div className="grid gap-3 md:grid-cols-5">
+
+              <div className="grid gap-3 md:grid-cols-4">
                 {TERM_TYPE_OPTIONS.map((option) => (
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => updateTermType(option.value)}
+                    onClick={() =>
+                      setForm((previous) => ({
+                        ...previous,
+                        term_type: option.value,
+                      }))
+                    }
                     className={`rounded-[20px] border p-3 text-left transition ${
                       form.term_type === option.value
                         ? "border-cyan-400/25 bg-cyan-500/10"
@@ -944,244 +910,189 @@ export default function FinancePaymentTermsPage() {
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <Input
-                value={form.code}
-                onChange={(event) => setForm((p) => ({ ...p, code: event.target.value }))}
-                placeholder="Code"
-                className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
-              />
-
-              <Input
-                value={form.name}
-                onChange={(event) => setForm((p) => ({ ...p, name: event.target.value }))}
-                placeholder="Name"
-                className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
-              />
-
-              <Input
-                type="number"
-                min="0"
-                step="1"
-                value={form.due_days}
-                onChange={(event) => setForm((p) => ({ ...p, due_days: event.target.value }))}
-                placeholder="Due days"
-                className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
-              />
-
-              <SelectField
-                value={form.due_basis}
-                onChange={(value) => setForm((p) => ({ ...p, due_basis: value }))}
-                options={DUE_BASIS_OPTIONS}
-              />
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-3">
-              <ToggleCard
-                checked={form.is_default}
-                title="Default Term"
-                description="Use this as the default when no term is selected."
-                onChange={(checked) => setForm((p) => ({ ...p, is_default: checked }))}
-              />
-
-              <ToggleCard
-                checked={form.allow_partial_payments}
-                title="Allow Partial Payments"
-                description="Allows documents using this term to receive partial payments."
-                onChange={(checked) =>
-                  setForm((p) => ({ ...p, allow_partial_payments: checked }))
-                }
-              />
-
-              <ToggleCard
-                checked={form.requires_approval}
-                title="Requires Approval"
-                description="Marks this term as requiring approval before use."
-                onChange={(checked) => setForm((p) => ({ ...p, requires_approval: checked }))}
-              />
-            </div>
-
-            <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Deposit Rule
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Enable this when a client must pay before production, shipment, delivery, or
-                    another balance milestone.
-                  </p>
-                </div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() =>
-                    setForm((p) => ({
-                      ...p,
-                      requires_deposit: !p.requires_deposit,
-                      term_type: !p.requires_deposit ? "deposit_balance" : "net",
-                    }))
-                  }
-                  className={`h-10 rounded-full border px-4 text-[11px] font-semibold uppercase tracking-[0.18em] ${
-                    form.requires_deposit
-                      ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
-                      : "border-white/10 bg-white/[0.04] text-slate-300"
-                  }`}
-                >
-                  {form.requires_deposit ? "Deposit Enabled" : "No Deposit"}
-                </Button>
-              </div>
-
-              {form.requires_deposit ? (
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <SelectField
-                    value={form.deposit_type}
-                    onChange={(value) => setForm((p) => ({ ...p, deposit_type: value }))}
-                    options={DEPOSIT_TYPE_OPTIONS}
-                  />
-
-                  {form.deposit_type === "percentage" ? (
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      value={form.deposit_percentage}
-                      onChange={(event) =>
-                        setForm((p) => ({ ...p, deposit_percentage: event.target.value }))
-                      }
-                      placeholder="Deposit percentage"
-                      className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
-                    />
-                  ) : (
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.deposit_amount}
-                      onChange={(event) =>
-                        setForm((p) => ({ ...p, deposit_amount: event.target.value }))
-                      }
-                      placeholder="Deposit amount"
-                      className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
-                    />
-                  )}
-
-                  <SelectField
-                    value={form.deposit_due_basis}
-                    onChange={(value) =>
-                      setForm((p) => ({ ...p, deposit_due_basis: value }))
-                    }
-                    options={DEPOSIT_DUE_BASIS_OPTIONS}
-                  />
-
-                  <Input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={form.deposit_due_days}
-                    onChange={(event) =>
-                      setForm((p) => ({ ...p, deposit_due_days: event.target.value }))
-                    }
-                    placeholder="Deposit due days"
-                    className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
-                  />
-                </div>
-              ) : null}
-            </div>
-
-            <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Balance Rule
-              </p>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <SelectField
-                  value={form.balance_due_basis}
-                  onChange={(value) => setForm((p) => ({ ...p, balance_due_basis: value }))}
-                  options={BALANCE_DUE_BASIS_OPTIONS}
-                />
+            {form.term_type === "net" ? (
+              <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Net Term
+                </p>
 
                 <Input
                   type="number"
                   min="0"
                   step="1"
-                  value={form.balance_due_days}
+                  value={form.net_days}
                   onChange={(event) =>
-                    setForm((p) => ({ ...p, balance_due_days: event.target.value }))
+                    setForm((previous) => ({
+                      ...previous,
+                      net_days: event.target.value,
+                    }))
                   }
-                  placeholder="Balance due days"
+                  placeholder="Net days, example: 30"
                   className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
                 />
               </div>
-            </div>
+            ) : null}
+
+            {form.term_type === "deposit_balance" ? (
+              <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Deposit + Balance Term
+                </p>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Input
+                    type="number"
+                    min="1"
+                    max="99"
+                    step="0.01"
+                    value={form.deposit_percentage}
+                    onChange={(event) =>
+                      setForm((previous) => ({
+                        ...previous,
+                        deposit_percentage: event.target.value,
+                      }))
+                    }
+                    placeholder="Deposit percentage"
+                    className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
+                  />
+
+                  <SelectField
+                    value={form.deposit_due_basis}
+                    onChange={(value) =>
+                      setForm((previous) => ({ ...previous, deposit_due_basis: value }))
+                    }
+                    options={DEPOSIT_DUE_BASIS_OPTIONS}
+                  />
+
+                  <SelectField
+                    value={form.balance_due_basis}
+                    onChange={(value) =>
+                      setForm((previous) => ({ ...previous, balance_due_basis: value }))
+                    }
+                    options={BALANCE_DUE_BASIS_OPTIONS}
+                  />
+                </div>
+
+                <div className="mt-4 rounded-[20px] border border-emerald-400/15 bg-emerald-500/10 p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200">
+                    Balance Auto-Calculated
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">
+                    Deposit is {parsePercentage(form.deposit_percentage) ?? 0}%. Balance is{" "}
+                    {Math.max(0, 100 - (parsePercentage(form.deposit_percentage) ?? 0))}%.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {form.term_type === "custom" ? (
+              <div className="grid gap-4 rounded-[24px] border border-white/10 bg-black/20 p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Custom Term
+                </p>
+
+                <Input
+                  value={form.custom_label}
+                  onChange={(event) =>
+                    setForm((previous) => ({
+                      ...previous,
+                      custom_label: event.target.value,
+                    }))
+                  }
+                  placeholder="Custom label, example: 30/40/30 Milestone Payments"
+                  className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
+                />
+
+                <textarea
+                  value={form.custom_terms_text}
+                  onChange={(event) =>
+                    setForm((previous) => ({
+                      ...previous,
+                      custom_terms_text: event.target.value,
+                    }))
+                  }
+                  placeholder="Document wording, example: 30% deposit, 40% before shipment, 30% after installation."
+                  className="min-h-[120px] rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-cyan-400/40"
+                />
+              </div>
+            ) : null}
 
             <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
               <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Applies To
+                Auto Preview
               </p>
 
-              <div className="flex flex-wrap gap-2">
-                {APPLIES_TO_OPTIONS.map((option) => (
-                  <Button
-                    key={option.value}
-                    type="button"
-                    variant="outline"
-                    onClick={() => toggleAppliesTo(option.value)}
-                    className={`h-10 rounded-full border-white/10 px-4 text-[11px] font-semibold uppercase tracking-[0.16em] ${
-                      form.applies_to.includes(option.value)
-                        ? "bg-cyan-500/10 text-cyan-200"
-                        : "bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
-                    }`}
-                  >
-                    {option.label}
-                  </Button>
-                ))}
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/32">
+                    Generated Code
+                  </p>
+                  <p className="mt-2 break-words text-sm font-semibold text-cyan-100">
+                    {generatedTerm.code}
+                  </p>
+                </div>
+
+                <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/32">
+                    Generated Name
+                  </p>
+                  <p className="mt-2 break-words text-sm font-semibold text-white">
+                    {generatedTerm.name}
+                  </p>
+                </div>
+
+                <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-3 md:col-span-2">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/32">
+                    Document Wording
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">
+                    {generatedTerm.documentTermsText}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="grid gap-4">
-              <Input
-                value={form.document_label}
-                onChange={(event) =>
-                  setForm((p) => ({ ...p, document_label: event.target.value }))
+            <div className="grid gap-4 md:grid-cols-2">
+              <ToggleCard
+                checked={form.is_default}
+                title="Default Term"
+                description="Use this as the default option when no term is selected."
+                onChange={(checked) =>
+                  setForm((previous) => ({ ...previous, is_default: checked }))
                 }
-                placeholder="Document label, example: 30% Deposit / 70% Before Shipment"
-                className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
               />
 
-              <textarea
-                value={form.document_terms_text}
-                onChange={(event) =>
-                  setForm((p) => ({ ...p, document_terms_text: event.target.value }))
+              <ToggleCard
+                checked={form.allow_partial_payments}
+                title="Allow Partial Payments"
+                description="Lets documents using this term receive partial payments."
+                onChange={(checked) =>
+                  setForm((previous) => ({ ...previous, allow_partial_payments: checked }))
                 }
-                placeholder="Document terms text shown on quotations, proforma invoices, and invoices..."
-                className="min-h-[120px] rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-cyan-400/40"
-              />
-
-              <Input
-                value={form.notes}
-                onChange={(event) => setForm((p) => ({ ...p, notes: event.target.value }))}
-                placeholder="Internal notes optional"
-                className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
               />
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {(["active", "inactive", "archived"] as const).map((value) => (
-                <Button
-                  key={value}
-                  type="button"
-                  variant="outline"
-                  onClick={() => setForm((p) => ({ ...p, status: value }))}
-                  className={`h-10 rounded-2xl border-white/10 px-4 text-white ${
-                    form.status === value ? "bg-white/10" : "bg-black/20 hover:bg-white/10"
-                  }`}
-                >
-                  {value}
-                </Button>
-              ))}
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input
+                value={form.notes}
+                onChange={(event) =>
+                  setForm((previous) => ({ ...previous, notes: event.target.value }))
+                }
+                placeholder="Internal notes optional"
+                className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
+              />
+
+              <SelectField
+                value={form.status}
+                onChange={(value) =>
+                  setForm((previous) => ({ ...previous, status: value }))
+                }
+                options={[
+                  { value: "active", label: "Active" },
+                  { value: "inactive", label: "Inactive" },
+                  { value: "archived", label: "Archived" },
+                ]}
+              />
             </div>
 
             {error ? <div className="text-sm text-red-400">{error}</div> : null}

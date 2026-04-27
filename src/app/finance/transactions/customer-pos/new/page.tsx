@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
+  Plus,
   Save,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -84,6 +86,49 @@ type QuotationOption = {
   status: string | null;
 };
 
+type QuotationLineOption = {
+  id: string;
+  quotation_id: string;
+  item_id: string | null;
+  description: string | null;
+  item_name: string | null;
+  quantity: number | string | null;
+  unit_price: number | string | null;
+  discount: number | string | null;
+  tax_code_id: string | null;
+  unit_of_measure_id: string | null;
+  revenue_category_id: string | null;
+};
+
+type ItemOption = {
+  id: string;
+  name: string;
+  description: string | null;
+  sales_price: number | string | null;
+  revenue_category_id: string | null;
+  tax_code_id: string | null;
+  unit_of_measure_id: string | null;
+};
+
+type TaxCodeOption = {
+  id: string;
+  code: string;
+  name: string;
+  rate_percent: number | string | null;
+};
+
+type UnitOfMeasureOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+type RevenueCategoryOption = {
+  id: string;
+  code: string | null;
+  name: string;
+};
+
 type CustomerPoFormState = {
   client_id: string;
   quotation_id: string;
@@ -93,11 +138,22 @@ type CustomerPoFormState = {
   received_date: string;
   currency_id: string;
   currency_code: string;
-  total_amount: string;
   project_id: string;
   task_id: string;
   notes: string;
   status: CustomerPoStatus;
+};
+
+type CustomerPoLineDraft = {
+  localId: string;
+  item_id: string;
+  description: string;
+  quantity: string;
+  unit_price: string;
+  discount: string;
+  tax_code_id: string;
+  unit_of_measure_id: string;
+  revenue_category_id: string;
 };
 
 const EMPTY_FORM: CustomerPoFormState = {
@@ -109,12 +165,25 @@ const EMPTY_FORM: CustomerPoFormState = {
   received_date: new Date().toISOString().slice(0, 10),
   currency_id: "",
   currency_code: "",
-  total_amount: "",
   project_id: "",
   task_id: "",
   notes: "",
   status: "received",
 };
+
+function createLineDraft(): CustomerPoLineDraft {
+  return {
+    localId: crypto.randomUUID(),
+    item_id: "",
+    description: "",
+    quantity: "1",
+    unit_price: "0",
+    discount: "0",
+    tax_code_id: "",
+    unit_of_measure_id: "",
+    revenue_category_id: "",
+  };
+}
 
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
@@ -163,8 +232,17 @@ export default function FinanceNewCustomerPoPage() {
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [tasks, setTasks] = useState<TaskOption[]>([]);
   const [quotations, setQuotations] = useState<QuotationOption[]>([]);
+  const [quotationLines, setQuotationLines] = useState<QuotationLineOption[]>([]);
+  const [items, setItems] = useState<ItemOption[]>([]);
+  const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
+  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>([]);
+  const [revenueCategories, setRevenueCategories] = useState<RevenueCategoryOption[]>([]);
 
   const [form, setForm] = useState<CustomerPoFormState>(EMPTY_FORM);
+  const [lineDrafts, setLineDrafts] = useState<CustomerPoLineDraft[]>([
+    createLineDraft(),
+  ]);
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isLoadingLookups, setIsLoadingLookups] = useState(true);
@@ -183,6 +261,10 @@ export default function FinanceNewCustomerPoPage() {
         projectsResult,
         tasksResult,
         quotationsResult,
+        itemsResult,
+        taxCodesResult,
+        unitsResult,
+        revenueCategoriesResult,
       ] = await Promise.all([
         supabase
           .from("finance_clients")
@@ -198,7 +280,9 @@ export default function FinanceNewCustomerPoPage() {
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
-        supabase
+
+
+                supabase
           .from("finance_currencies")
           .select("id, currency_code, currency_name")
           .eq("status", "active")
@@ -215,6 +299,29 @@ export default function FinanceNewCustomerPoPage() {
           )
           .not("status", "in", "(archived,deleted)")
           .order("created_at", { ascending: false }),
+        supabase
+          .from("finance_items")
+          .select(
+            "id, name, description, sales_price, revenue_category_id, tax_code_id, unit_of_measure_id"
+          )
+          .eq("status", "active")
+          .eq("is_active_for_sales", true)
+          .order("name", { ascending: true }),
+        supabase
+          .from("finance_tax_codes")
+          .select("id, code, name, rate_percent")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+        supabase
+          .from("finance_units_of_measure")
+          .select("id, code, name")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+        supabase
+          .from("finance_revenue_categories")
+          .select("id, code, name")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
       ]);
 
       if (clientsResult.error) throw clientsResult.error;
@@ -223,6 +330,10 @@ export default function FinanceNewCustomerPoPage() {
       if (projectsResult.error) throw projectsResult.error;
       if (tasksResult.error) throw tasksResult.error;
       if (quotationsResult.error) throw quotationsResult.error;
+      if (itemsResult.error) throw itemsResult.error;
+      if (taxCodesResult.error) throw taxCodesResult.error;
+      if (unitsResult.error) throw unitsResult.error;
+      if (revenueCategoriesResult.error) throw revenueCategoriesResult.error;
 
       setClients((clientsResult.data || []) as ClientOption[]);
       setCompanies((companiesResult.data || []) as CompanyOption[]);
@@ -230,6 +341,12 @@ export default function FinanceNewCustomerPoPage() {
       setProjects((projectsResult.data || []) as ProjectOption[]);
       setTasks((tasksResult.data || []) as TaskOption[]);
       setQuotations((quotationsResult.data || []) as QuotationOption[]);
+      setItems((itemsResult.data || []) as ItemOption[]);
+      setTaxCodes((taxCodesResult.data || []) as TaxCodeOption[]);
+      setUnitsOfMeasure((unitsResult.data || []) as UnitOfMeasureOption[]);
+      setRevenueCategories(
+        (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
+      );
     } catch (err) {
       console.error(err);
       setError("Failed to load Customer PO lookup data.");
@@ -272,6 +389,38 @@ export default function FinanceNewCustomerPoPage() {
     [currencies, form.currency_id]
   );
 
+  const totals = useMemo(() => {
+    const subtotal = lineDrafts.reduce(
+      (sum, row) => sum + toNumber(row.quantity) * toNumber(row.unit_price),
+      0
+    );
+
+    const discount = lineDrafts.reduce(
+      (sum, row) => sum + toNumber(row.discount),
+      0
+    );
+
+    const tax = lineDrafts.reduce((sum, row) => {
+      const base = Math.max(
+        toNumber(row.quantity) * toNumber(row.unit_price) -
+          toNumber(row.discount),
+        0
+      );
+
+      const taxCode = taxCodes.find((entry) => entry.id === row.tax_code_id);
+      if (!taxCode) return sum;
+
+      return sum + base * (toNumber(taxCode.rate_percent) / 100);
+    }, 0);
+
+    return {
+      subtotal,
+      discount,
+      tax,
+      total: Math.max(subtotal - discount + tax, 0),
+    };
+  }, [lineDrafts, taxCodes]);
+
   function handleClientChange(clientId: string) {
     setForm((current) => ({
       ...current,
@@ -280,13 +429,13 @@ export default function FinanceNewCustomerPoPage() {
       company_id: "",
       currency_id: "",
       currency_code: "",
-      total_amount: "",
       project_id: "",
       task_id: "",
     }));
+    setQuotationLines([]);
   }
 
-  function handleQuotationChange(quotationId: string) {
+  async function handleQuotationChange(quotationId: string) {
     const quotation = quotations.find((entry) => entry.id === quotationId);
 
     if (!quotation) {
@@ -294,6 +443,7 @@ export default function FinanceNewCustomerPoPage() {
         ...current,
         quotation_id: "",
       }));
+      setQuotationLines([]);
       return;
     }
 
@@ -312,13 +462,42 @@ export default function FinanceNewCustomerPoPage() {
         matchedCurrency?.currency_code ||
         quotation.currency_code ||
         current.currency_code,
-      total_amount:
-        quotation.total_amount !== null && quotation.total_amount !== undefined
-          ? String(quotation.total_amount)
-          : current.total_amount,
       project_id: quotation.project_id || current.project_id,
       task_id: quotation.task_id || current.task_id,
     }));
+
+    const { data, error: linesError } = await supabase
+      .from("finance_quotation_line_items")
+      .select(
+        "id, quotation_id, item_id, description, item_name, quantity, unit_price, discount, tax_code_id, unit_of_measure_id, revenue_category_id"
+      )
+      .eq("quotation_id", quotation.id)
+      .order("sort_order", { ascending: true });
+
+    if (linesError) {
+      console.error(linesError);
+      setError("Failed to load quotation line items.");
+      return;
+    }
+
+    const lines = (data || []) as QuotationLineOption[];
+    setQuotationLines(lines);
+
+    if (lines.length > 0) {
+      setLineDrafts(
+        lines.map((line) => ({
+          localId: crypto.randomUUID(),
+          item_id: line.item_id || "",
+          description: line.description || line.item_name || "",
+          quantity: String(line.quantity ?? 1),
+          unit_price: String(line.unit_price ?? 0),
+          discount: String(line.discount ?? 0),
+          tax_code_id: line.tax_code_id || "",
+          unit_of_measure_id: line.unit_of_measure_id || "",
+          revenue_category_id: line.revenue_category_id || "",
+        }))
+      );
+    }
   }
 
   function handleCurrencyChange(currencyId: string) {
@@ -329,6 +508,52 @@ export default function FinanceNewCustomerPoPage() {
       currency_id: currencyId,
       currency_code: currency?.currency_code || "",
     }));
+  }
+
+  function updateLine(localId: string, field: keyof CustomerPoLineDraft, value: string) {
+    setLineDrafts((current) =>
+      current.map((row) =>
+        row.localId === localId ? { ...row, [field]: value } : row
+      )
+    );
+  }
+
+  function applyItemToLine(localId: string, itemId: string) {
+    const selectedItem = items.find((item) => item.id === itemId);
+
+    setLineDrafts((current) =>
+      current.map((row) => {
+        if (row.localId !== localId) return row;
+
+        if (!selectedItem) {
+          return {
+            ...row,
+            item_id: "",
+          };
+        }
+
+        return {
+          ...row,
+          item_id: selectedItem.id,
+          description: selectedItem.description || selectedItem.name,
+          unit_price: String(selectedItem.sales_price ?? 0),
+          tax_code_id: selectedItem.tax_code_id || "",
+          unit_of_measure_id: selectedItem.unit_of_measure_id || "",
+          revenue_category_id: selectedItem.revenue_category_id || "",
+        };
+      })
+    );
+  }
+
+  function addLine() {
+    setLineDrafts((current) => [...current, createLineDraft()]);
+  }
+
+  function removeLine(localId: string) {
+    setLineDrafts((current) => {
+      if (current.length === 1) return current;
+      return current.filter((row) => row.localId !== localId);
+    });
   }
 
   function handleDropFile(fileList: FileList | null) {
@@ -357,7 +582,7 @@ export default function FinanceNewCustomerPoPage() {
         file_name: file.name,
         file_path: storagePath,
         file_size: file.size,
-        mime_type: file.type || null,
+        mime_type: file.type || "application/octet-stream",
         entity_type: "finance_client_purchase_order",
       })
       .select("id")
@@ -407,6 +632,23 @@ export default function FinanceNewCustomerPoPage() {
       return;
     }
 
+    const validLines = lineDrafts.map((line) => ({
+      ...line,
+      description: line.description.trim(),
+    }));
+
+    if (
+      validLines.some(
+        (line) =>
+          !line.description ||
+          toNumber(line.quantity) <= 0 ||
+          toNumber(line.unit_price) < 0
+      )
+    ) {
+      setError("Every Customer PO line needs a description, quantity greater than 0, and unit price 0 or higher.");
+      return;
+    }
+
     try {
       setIsSaving(true);
       setError("");
@@ -430,7 +672,7 @@ export default function FinanceNewCustomerPoPage() {
         status: form.status,
         currency_id: form.currency_id || null,
         currency_code: form.currency_code || selectedCurrency?.currency_code || null,
-        total_amount: form.total_amount ? Number(form.total_amount) : 0,
+        total_amount: totals.total,
         notes: form.notes.trim() || null,
         metadata: {
           source: "customer_po_new_page",
@@ -478,6 +720,36 @@ export default function FinanceNewCustomerPoPage() {
 
       if (insertError) throw insertError;
 
+      const linePayload = validLines.map((line, index) => ({
+        client_po_id: createdPo.id,
+        item_id: line.item_id || null,
+        description: line.description,
+        quantity: toNumber(line.quantity),
+        unit_price: toNumber(line.unit_price),
+        discount: toNumber(line.discount),
+        sort_order: index + 1,
+        unit_of_measure_id: line.unit_of_measure_id || null,
+        tax_code_id: line.tax_code_id || null,
+        revenue_category_id: line.revenue_category_id || null,
+        project_id: form.project_id || null,
+        task_id: form.task_id || null,
+        status: "active",
+        reference_number: form.external_po_number.trim() || null,
+        notes: null,
+        metadata: {
+          source: form.quotation_id ? "quotation_or_manual" : "manual",
+          quotation_id: form.quotation_id || null,
+        },
+        created_by: userId,
+        updated_by: userId,
+      }));
+
+      const { error: lineInsertError } = await supabase
+        .from("finance_client_purchase_order_line_items")
+        .insert(linePayload);
+
+      if (lineInsertError) throw lineInsertError;
+
       await uploadCustomerPoFile(createdPo.id, selectedFile, userId);
 
       navigate(`/finance/transactions/customer-pos/${createdPo.id}`);
@@ -518,8 +790,7 @@ export default function FinanceNewCustomerPoPage() {
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Create the customer purchase order record, upload the customer PO document,
-                  and link it to the customer quotation when available.
+                  Create the customer purchase order with item lines from master data, upload the customer PO document, and link it to a quotation when available.
                 </p>
               </div>
 
@@ -527,10 +798,10 @@ export default function FinanceNewCustomerPoPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Required File
+                      Calculated Total
                     </p>
                     <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                      PO document
+                      {formatMoney(totals.total, form.currency_code || "USD")}
                     </p>
                   </div>
                   <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
@@ -538,7 +809,7 @@ export default function FinanceNewCustomerPoPage() {
                   </div>
                 </div>
                 <p className="mt-3 text-xs leading-5 text-slate-500">
-                  The Customer PO record cannot be created without the customer document.
+                  Total amount is calculated from Customer PO line items.
                 </p>
               </div>
             </div>
@@ -546,230 +817,427 @@ export default function FinanceNewCustomerPoPage() {
         </header>
 
                 <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_420px]">
-          <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-            <CardHeader className="border-b border-white/10 px-5 py-4">
-              <CardTitle className="text-white">Customer PO Details</CardTitle>
-              <CardDescription className="text-white/45">
-                Client first. Linked quotations are filtered by the selected client. Quotation values auto-fill but remain editable.
-              </CardDescription>
-            </CardHeader>
+          <div className="space-y-6">
+            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <CardTitle className="text-white">Customer PO Details</CardTitle>
+                <CardDescription className="text-white/45">
+                  Client first. Linked quotations are filtered by the selected client. Quotation values auto-fill but remain editable.
+                </CardDescription>
+              </CardHeader>
 
-            <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Client</div>
-                <select
-                  value={form.client_id}
-                  onChange={(event) => handleClientChange(event.target.value)}
-                  disabled={isLoadingLookups}
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
-                >
-                  <option value="">Select client</option>
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.legal_name || client.name}
+              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Client</div>
+                  <select
+                    value={form.client_id}
+                    onChange={(event) => handleClientChange(event.target.value)}
+                    disabled={isLoadingLookups}
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
+                  >
+                    <option value="">Select client</option>
+                    {clients.map((client) => (
+                      <option key={client.id} value={client.id}>
+                        {client.legal_name || client.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Linked Quotation</div>
+                  <select
+                    value={form.quotation_id}
+                    onChange={(event) => void handleQuotationChange(event.target.value)}
+                    disabled={!form.client_id || isLoadingLookups}
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
+                  >
+                    <option value="">
+                      {form.client_id ? "No linked quotation" : "Select client first"}
                     </option>
-                  ))}
-                </select>
-              </label>
+                    {filteredQuotations.map((quotation) => (
+                      <option key={quotation.id} value={quotation.id}>
+                        {quotation.quotation_number || "Quotation"} —{" "}
+                        {formatMoney(quotation.total_amount, quotation.currency_code || "USD")}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Linked Quotation</div>
-                <select
-                  value={form.quotation_id}
-                  onChange={(event) => handleQuotationChange(event.target.value)}
-                  disabled={!form.client_id || isLoadingLookups}
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
-                >
-                  <option value="">
-                    {form.client_id ? "No linked quotation" : "Select client first"}
-                  </option>
-                  {filteredQuotations.map((quotation) => (
-                    <option key={quotation.id} value={quotation.id}>
-                      {quotation.quotation_number || "Quotation"} —{" "}
-                      {formatMoney(quotation.total_amount, quotation.currency_code || "USD")}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Customer PO No.</div>
+                  <input
+                    value={form.external_po_number}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        external_po_number: event.target.value,
+                      }))
+                    }
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                    placeholder="Customer document number"
+                  />
+                </label>
 
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Customer PO No.</div>
-                <input
-                  value={form.external_po_number}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      external_po_number: event.target.value,
-                    }))
-                  }
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                  placeholder="Customer document number"
-                />
-              </label>
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Company</div>
+                  <select
+                    value={form.company_id}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        company_id: event.target.value,
+                      }))
+                    }
+                    disabled={isLoadingLookups}
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
+                  >
+                    <option value="">Select company</option>
+                    {companies.map((company) => (
+                      <option key={company.id} value={company.id}>
+                        {company.legal_name || company.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Company</div>
-                <select
-                  value={form.company_id}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      company_id: event.target.value,
-                    }))
-                  }
-                  disabled={isLoadingLookups}
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
-                >
-                  <option value="">Select company</option>
-                  {companies.map((company) => (
-                    <option key={company.id} value={company.id}>
-                      {company.legal_name || company.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">PO Date</div>
+                  <input
+                    type="date"
+                    value={form.po_date}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        po_date: event.target.value,
+                      }))
+                    }
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                  />
+                </label>
 
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">PO Date</div>
-                <input
-                  type="date"
-                  value={form.po_date}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      po_date: event.target.value,
-                    }))
-                  }
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                />
-              </label>
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Received Date</div>
+                  <input
+                    type="date"
+                    value={form.received_date}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        received_date: event.target.value,
+                      }))
+                    }
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                  />
+                </label>
 
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Received Date</div>
-                <input
-                  type="date"
-                  value={form.received_date}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      received_date: event.target.value,
-                    }))
-                  }
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                />
-              </label>
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Currency</div>
+                  <select
+                    value={form.currency_id}
+                    onChange={(event) => handleCurrencyChange(event.target.value)}
+                    disabled={isLoadingLookups}
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
+                  >
+                    <option value="">Select currency</option>
+                    {currencies.map((currency) => (
+                      <option key={currency.id} value={currency.id}>
+                        {currency.currency_code} — {currency.currency_name || ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Currency</div>
-                <select
-                  value={form.currency_id}
-                  onChange={(event) => handleCurrencyChange(event.target.value)}
-                  disabled={isLoadingLookups}
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
-                >
-                  <option value="">Select currency</option>
-                  {currencies.map((currency) => (
-                    <option key={currency.id} value={currency.id}>
-                      {currency.currency_code} — {currency.currency_name || ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Project</div>
+                  <select
+                    value={form.project_id}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        project_id: event.target.value,
+                        task_id: "",
+                      }))
+                    }
+                    disabled={isLoadingLookups}
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
+                  >
+                    <option value="">No project</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Total Amount</div>
-                <input
-                  type="number"
-                  value={form.total_amount}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      total_amount: event.target.value,
-                    }))
-                  }
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                  placeholder="0.00"
-                />
-              </label>
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Task</div>
+                  <select
+                    value={form.task_id}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        task_id: event.target.value,
+                      }))
+                    }
+                    disabled={isLoadingLookups}
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
+                  >
+                    <option value="">No task</option>
+                    {filteredTasks.map((task) => (
+                      <option key={task.id} value={task.id}>
+                        {task.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Project</div>
-                <select
-                  value={form.project_id}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      project_id: event.target.value,
-                      task_id: "",
-                    }))
-                  }
-                  disabled={isLoadingLookups}
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
-                >
-                  <option value="">No project</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <label className="space-y-2">
+                  <div className="text-sm text-white/70">Initial Status</div>
+                  <select
+                    value={form.status}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        status: event.target.value as CustomerPoStatus,
+                      }))
+                    }
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                  >
+                    <option value="received">Received</option>
+                    <option value="draft">Draft</option>
+                  </select>
+                </label>
 
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Task</div>
-                <select
-                  value={form.task_id}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      task_id: event.target.value,
-                    }))
-                  }
-                  disabled={isLoadingLookups}
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
-                >
-                  <option value="">No task</option>
-                  {filteredTasks.map((task) => (
-                    <option key={task.id} value={task.id}>
-                      {task.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <div className="md:col-span-3">
+                  <div className="text-sm text-white/70">Notes</div>
+                  <textarea
+                    value={form.notes}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        notes: event.target.value,
+                      }))
+                    }
+                    rows={4}
+                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
+                  />
+                </div>
+              </CardContent>
+            </Card>
 
-              <label className="space-y-2">
-                <div className="text-sm text-white/70">Initial Status</div>
-                <select
-                  value={form.status}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      status: event.target.value as CustomerPoStatus,
-                    }))
-                  }
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                >
-                  <option value="received">Received</option>
-                  <option value="draft">Draft</option>
-                </select>
-              </label>
+            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <CardTitle className="text-white">Customer PO Line Items</CardTitle>
+                    <CardDescription className="text-white/45">
+                      Select items from master data or adjust copied quotation lines.
+                    </CardDescription>
+                  </div>
 
-              <div className="md:col-span-3">
-                <div className="text-sm text-white/70">Notes</div>
-                <textarea
-                  value={form.notes}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      notes: event.target.value,
-                    }))
-                  }
-                  rows={4}
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
-                />
-              </div>
-            </CardContent>
-          </Card>
+                  <Button
+                    onClick={addLine}
+                    className="h-10 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 font-semibold text-slate-950 hover:bg-cyan-400"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Line
+                  </Button>
+                </div>
+              </CardHeader>
+
+              <CardContent className="space-y-4 p-5">
+                {lineDrafts.map((line, index) => {
+                  const base = Math.max(
+                    toNumber(line.quantity) * toNumber(line.unit_price) -
+                      toNumber(line.discount),
+                    0
+                  );
+                  const taxCode = taxCodes.find(
+                    (entry) => entry.id === line.tax_code_id
+                  );
+                  const lineTotal =
+                    base + base * (toNumber(taxCode?.rate_percent) / 100);
+
+                  return (
+                    <div
+                      key={line.localId}
+                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                    >
+                      <div className="mb-4 flex items-center justify-between gap-4">
+                        <div className="text-sm font-semibold text-white">
+                          Line {index + 1}
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          onClick={() => removeLine(line.localId)}
+                          disabled={lineDrafts.length === 1}
+                          className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20 disabled:opacity-40"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+                        <label className="space-y-2 md:col-span-3">
+                          <div className="text-sm text-white/70">Item</div>
+                          <select
+                            value={line.item_id}
+                            onChange={(event) =>
+                              applyItemToLine(line.localId, event.target.value)
+                            }
+                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          >
+                            <option value="">Manual / no item</option>
+                            {items.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="space-y-2 md:col-span-4">
+                          <div className="text-sm text-white/70">Description</div>
+                          <input
+                            value={line.description}
+                            onChange={(event) =>
+                              updateLine(
+                                line.localId,
+                                "description",
+                                event.target.value
+                              )
+                            }
+                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          />
+                        </label>
+
+                        <label className="space-y-2 md:col-span-1">
+                          <div className="text-sm text-white/70">Qty</div>
+                          <input
+                            value={line.quantity}
+                            onChange={(event) =>
+                              updateLine(
+                                line.localId,
+                                "quantity",
+                                event.target.value
+                              )
+                            }
+                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          />
+                        </label>
+
+                        <label className="space-y-2 md:col-span-2">
+                          <div className="text-sm text-white/70">Unit</div>
+                          <select
+                            value={line.unit_of_measure_id}
+                            onChange={(event) =>
+                              updateLine(
+                                line.localId,
+                                "unit_of_measure_id",
+                                event.target.value
+                              )
+                            }
+                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          >
+                            <option value="">No unit</option>
+                            {unitsOfMeasure.map((unit) => (
+                              <option key={unit.id} value={unit.id}>
+                                {unit.code} — {unit.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="space-y-2 md:col-span-2">
+                          <div className="text-sm text-white/70">Unit Price</div>
+                          <input
+                            value={line.unit_price}
+                            onChange={(event) =>
+                              updateLine(
+                                line.localId,
+                                "unit_price",
+                                event.target.value
+                              )
+                            }
+                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          />
+                        </label>
+
+                        <label className="space-y-2 md:col-span-2">
+                          <div className="text-sm text-white/70">Discount</div>
+                          <input
+                            value={line.discount}
+                            onChange={(event) =>
+                              updateLine(
+                                line.localId,
+                                "discount",
+                                event.target.value
+                              )
+                            }
+                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          />
+                        </label>
+
+                        <label className="space-y-2 md:col-span-2">
+                          <div className="text-sm text-white/70">Tax Code</div>
+                          <select
+                            value={line.tax_code_id}
+                            onChange={(event) =>
+                              updateLine(
+                                line.localId,
+                                "tax_code_id",
+                                event.target.value
+                              )
+                            }
+                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          >
+                            <option value="">No tax</option>
+                            {taxCodes.map((taxCode) => (
+                              <option key={taxCode.id} value={taxCode.id}>
+                                {taxCode.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="space-y-2 md:col-span-3">
+                          <div className="text-sm text-white/70">Revenue Category</div>
+                          <select
+                            value={line.revenue_category_id}
+                            onChange={(event) =>
+                              updateLine(
+                                line.localId,
+                                "revenue_category_id",
+                                event.target.value
+                              )
+                            }
+                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                          >
+                            <option value="">No category</option>
+                            {revenueCategories.map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {category.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <div className="space-y-2 md:col-span-3">
+                          <div className="text-sm text-white/70">Line Total</div>
+                          <div className="flex h-11 items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-white">
+                            {formatMoney(lineTotal, form.currency_code || "USD")}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </div>
 
           <div className="space-y-6">
             <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
@@ -853,6 +1321,38 @@ export default function FinanceNewCustomerPoPage() {
                   </div>
                 ) : null}
 
+                <div className="space-y-3 rounded-[22px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-white/55">Subtotal</span>
+                    <span className="text-sm font-semibold text-white">
+                      {formatMoney(totals.subtotal, form.currency_code || "USD")}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-white/55">Discount</span>
+                    <span className="text-sm font-semibold text-white">
+                      {formatMoney(totals.discount, form.currency_code || "USD")}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-white/55">Tax</span>
+                    <span className="text-sm font-semibold text-white">
+                      {formatMoney(totals.tax, form.currency_code || "USD")}
+                    </span>
+                  </div>
+
+                  <div className="border-t border-white/10 pt-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-cyan-100/70">Total</span>
+                      <span className="text-lg font-semibold text-white">
+                        {formatMoney(totals.total, form.currency_code || "USD")}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
                 <Button
                   onClick={() => void handleCreateCustomerPo()}
                   disabled={isSaving || isLoadingLookups}
@@ -882,9 +1382,10 @@ export default function FinanceNewCustomerPoPage() {
                 <div>• Internal CPO No. is generated automatically.</div>
                 <div>• Customer PO No. comes from the customer document.</div>
                 <div>• Linked quotation is filtered by selected client.</div>
-                <div>• Quotation fields auto-fill but remain editable.</div>
+                <div>• Quotation lines can be copied and adjusted.</div>
+                <div>• Item lines come from Item Master or manual entry.</div>
+                <div>• Total amount is calculated from Customer PO line items.</div>
                 <div>• Customer PO document is required at creation.</div>
-                <div>• Verification is controlled from the detail page.</div>
               </CardContent>
             </Card>
           </div>

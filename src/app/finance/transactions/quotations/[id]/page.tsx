@@ -65,6 +65,10 @@ type QuotationRecord = {
   company_address_snapshot?: string | null;
   company_email_snapshot?: string | null;
   company_phone_snapshot?: string | null;
+  payment_terms_id?: string | null;
+  payment_terms_snapshot?: string | null;
+  payment_terms_document_text?: string | null;
+  shipping_terms_snapshot?: string | null;
   terms_and_conditions_snapshot?: string | null;
 };
 
@@ -449,6 +453,9 @@ const handlePrint = useCallback(() => {
                   "company_address_snapshot",
                   "company_email_snapshot",
                   "company_phone_snapshot",
+                  "payment_terms_id",
+                  "payment_terms_snapshot",
+                  "shipping_terms_snapshot",
                   "terms_and_conditions_snapshot",
                 ].join(", ")
               )
@@ -502,7 +509,33 @@ const handlePrint = useCallback(() => {
           throw poResult.error;
         }
 
-        const typedQuotation = quotationResult.data as QuotationRecord | null;
+        let typedQuotation = quotationResult.data as QuotationRecord | null;
+
+        if (typedQuotation?.payment_terms_id) {
+          const { data: paymentTermData, error: paymentTermError } = await supabase
+            .from("finance_payment_terms")
+            .select("name, document_label, document_terms_text")
+            .eq("id", typedQuotation.payment_terms_id)
+            .maybeSingle();
+
+          if (paymentTermError) {
+            console.warn("Failed to load quotation payment term wording:", paymentTermError);
+          }
+
+          if (paymentTermData) {
+            typedQuotation = {
+              ...typedQuotation,
+              payment_terms_snapshot:
+                typedQuotation.payment_terms_snapshot ||
+                paymentTermData.document_label ||
+                paymentTermData.name ||
+                null,
+              payment_terms_document_text:
+                paymentTermData.document_terms_text || null,
+            };
+          }
+        }
+
         const typedLineItems =
           (lineItemsResult.data || []) as unknown as QuotationLineItemRow[];
         const typedClientPO = (poResult.data || null) as ClientPORow | null;

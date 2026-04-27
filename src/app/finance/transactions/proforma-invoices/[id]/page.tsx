@@ -186,6 +186,16 @@ type CurrencyOption = {
   currency_name: string;
 };
 
+type PaymentTermOption = {
+  id: string;
+  code: string;
+  name: string;
+  due_days: number;
+  is_default: boolean;
+  document_label: string | null;
+  document_terms_text: string | null;
+};
+
 type ItemOption = {
   id: string;
   name: string;
@@ -306,6 +316,7 @@ export default function FinanceProformaInvoiceDetailPage() {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
+  const [paymentTerms, setPaymentTerms] = useState<PaymentTermOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
 
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
@@ -327,6 +338,7 @@ export default function FinanceProformaInvoiceDetailPage() {
   const [issueDateDraft, setIssueDateDraft] = useState("");
   const [validUntilDraft, setValidUntilDraft] = useState("");
   const [currencyIdDraft, setCurrencyIdDraft] = useState("");
+  const [paymentTermsIdDraft, setPaymentTermsIdDraft] = useState("");
   const [notesDraft, setNotesDraft] = useState("");
 
   const [lineItemsDraft, setLineItemsDraft] = useState<EditableLineItem[]>([]);
@@ -450,6 +462,7 @@ export default function FinanceProformaInvoiceDetailPage() {
         setIssueDateDraft(typedProforma.issue_date || "");
         setValidUntilDraft(typedProforma.valid_until || "");
         setCurrencyIdDraft(typedProforma.currency_id || "");
+        setPaymentTermsIdDraft(typedProforma.payment_terms_id || "");
         setNotesDraft(typedProforma.notes || "");
 
         setLineItemsDraft(
@@ -485,6 +498,7 @@ export default function FinanceProformaInvoiceDetailPage() {
         projectsResult,
         tasksResult,
         currenciesResult,
+        paymentTermsResult,
         itemsResult,
         taxCodesResult,
         unitsOfMeasureResult,
@@ -514,6 +528,11 @@ export default function FinanceProformaInvoiceDetailPage() {
           .select("id, currency_code, currency_name")
           .eq("status", "active")
           .order("currency_code", { ascending: true }),
+        supabase
+          .from("finance_payment_terms")
+          .select("id, code, name, due_days, is_default, document_label, document_terms_text")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
         supabase
           .from("finance_items")
           .select(
@@ -545,6 +564,7 @@ export default function FinanceProformaInvoiceDetailPage() {
       if (projectsResult.error) throw projectsResult.error;
       if (tasksResult.error) throw tasksResult.error;
       if (currenciesResult.error) throw currenciesResult.error;
+      if (paymentTermsResult.error) throw paymentTermsResult.error;
       if (itemsResult.error) throw itemsResult.error;
       if (taxCodesResult.error) throw taxCodesResult.error;
       if (unitsOfMeasureResult.error) throw unitsOfMeasureResult.error;
@@ -555,6 +575,7 @@ export default function FinanceProformaInvoiceDetailPage() {
       setProjects((projectsResult.data || []) as ProjectRow[]);
       setTasks((tasksResult.data || []) as TaskRow[]);
       setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
+      setPaymentTerms((paymentTermsResult.data || []) as PaymentTermOption[]);
       setItems((itemsResult.data || []) as ItemOption[]);
       setTaxCodes((taxCodesResult.data || []) as TaxCodeOption[]);
       setUnitsOfMeasure((unitsOfMeasureResult.data || []) as UnitOfMeasureOption[]);
@@ -644,9 +665,9 @@ export default function FinanceProformaInvoiceDetailPage() {
     [taskIdDraft, tasks]
   );
 
-  const selectedDraftCurrency = useMemo(
-    () => currencies.find((entry) => entry.id === currencyIdDraft) ?? null,
-    [currencies, currencyIdDraft]
+  const selectedDraftPaymentTerm = useMemo(
+    () => paymentTerms.find((entry) => entry.id === paymentTermsIdDraft) ?? null,
+    [paymentTerms, paymentTermsIdDraft]
   );
 
   const filteredDraftTasks = useMemo(() => {
@@ -1046,6 +1067,20 @@ export default function FinanceProformaInvoiceDetailPage() {
 
       if (rpcError) throw rpcError;
 
+      const { error: paymentTermsUpdateError } = await supabase
+        .from("finance_proforma_invoices")
+        .update({
+          payment_terms_id: paymentTermsIdDraft || null,
+          payment_terms_snapshot:
+            selectedDraftPaymentTerm?.document_label ||
+            selectedDraftPaymentTerm?.name ||
+            null,
+        })
+        .eq("id", id)
+        .eq("status", "draft");
+
+      if (paymentTermsUpdateError) throw paymentTermsUpdateError;
+
       setEditingOverview(false);
       setEditingParties(false);
       setEditingLines(false);
@@ -1069,6 +1104,8 @@ export default function FinanceProformaInvoiceDetailPage() {
     proforma,
     projectIdDraft,
     selectedDraftCurrency,
+    selectedDraftPaymentTerm,
+    paymentTermsIdDraft,
     taskIdDraft,
     validUntilDraft,
   ]);
@@ -1361,35 +1398,25 @@ export default function FinanceProformaInvoiceDetailPage() {
                       </label>
 
                       <label className="space-y-2">
-                        <div className="text-sm text-white/70">Project</div>
+                        <div className="text-sm text-white/70">Payment Terms</div>
                         <select
-                          value={projectIdDraft}
-                          onChange={(event) => setProjectIdDraft(event.target.value)}
+                          value={paymentTermsIdDraft}
+                          onChange={(event) => setPaymentTermsIdDraft(event.target.value)}
                           className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
                         >
-                          <option value="">No project</option>
-                          {projects.map((projectItem) => (
-                            <option key={projectItem.id} value={projectItem.id}>
-                              {projectItem.name}
+                          <option value="">No payment terms</option>
+                          {paymentTerms.map((paymentTerm) => (
+                            <option key={paymentTerm.id} value={paymentTerm.id}>
+                              {paymentTerm.document_label || paymentTerm.name}
                             </option>
                           ))}
                         </select>
-                      </label>
 
-                      <label className="space-y-2">
-                        <div className="text-sm text-white/70">Task</div>
-                        <select
-                          value={taskIdDraft}
-                          onChange={(event) => setTaskIdDraft(event.target.value)}
-                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                        >
-                          <option value="">No task</option>
-                          {filteredDraftTasks.map((taskItem) => (
-                            <option key={taskItem.id} value={taskItem.id}>
-                              {taskItem.title}
-                            </option>
-                          ))}
-                        </select>
+                        {selectedDraftPaymentTerm?.document_terms_text ? (
+                          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-xs leading-5 text-white/55">
+                            {selectedDraftPaymentTerm.document_terms_text}
+                          </div>
+                        ) : null}
                       </label>
 
                       <label className="space-y-2">
@@ -1427,6 +1454,47 @@ export default function FinanceProformaInvoiceDetailPage() {
                           ))}
                         </select>
                       </label>
+
+                      <label className="space-y-2">
+                        <div className="text-sm text-white/70">Project</div>
+                        <select
+                          value={projectIdDraft}
+                          onChange={(event) => setProjectIdDraft(event.target.value)}
+                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                        >
+                          <option value="">No project</option>
+                          {projects.map((projectItem) => (
+                            <option key={projectItem.id} value={projectItem.id}>
+                              {projectItem.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="space-y-2">
+                        <div className="text-sm text-white/70">Task</div>
+                        <select
+                          value={taskIdDraft}
+                          onChange={(event) => setTaskIdDraft(event.target.value)}
+                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                        >
+                          <option value="">No task</option>
+                          {filteredDraftTasks.map((taskItem) => (
+                            <option key={taskItem.id} value={taskItem.id}>
+                              {taskItem.title}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
+                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                          Status
+                        </div>
+                        <div className="mt-2 text-base font-semibold text-white">
+                          {getProformaStatusLabel(proforma.status)}
+                        </div>
+                      </div>
 
                       <div className="md:col-span-3">
                         <div className="text-sm text-white/70">Notes</div>

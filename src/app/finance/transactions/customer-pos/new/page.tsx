@@ -232,7 +232,6 @@ export default function FinanceNewCustomerPoPage() {
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [tasks, setTasks] = useState<TaskOption[]>([]);
   const [quotations, setQuotations] = useState<QuotationOption[]>([]);
-  const [quotationLines, setQuotationLines] = useState<QuotationLineOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
   const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>([]);
@@ -432,7 +431,6 @@ export default function FinanceNewCustomerPoPage() {
       project_id: "",
       task_id: "",
     }));
-    setQuotationLines([]);
   }
 
   async function handleQuotationChange(quotationId: string) {
@@ -443,7 +441,7 @@ export default function FinanceNewCustomerPoPage() {
         ...current,
         quotation_id: "",
       }));
-      setQuotationLines([]);
+
       return;
     }
 

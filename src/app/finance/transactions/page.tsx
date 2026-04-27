@@ -431,7 +431,7 @@ function TransactionModuleButton({
         if (!module.route) return;
         onOpen(module.route);
       }}
-      className={`group flex min-h-[178px] w-full flex-col justify-between rounded-[26px] border border-white/10 bg-black/20 p-5 text-left transition ${
+      className={`group flex min-h-[138px] w-full flex-col justify-between rounded-[22px] border border-white/10 bg-black/20 p-4 text-left transition ${
         isClickable
           ? "hover:border-cyan-400/25 hover:bg-white/[0.055]"
           : "cursor-default opacity-75"
@@ -439,8 +439,8 @@ function TransactionModuleButton({
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-2">
-          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-            <Icon className="h-5 w-5" />
+          <div className="rounded-xl border border-cyan-400/15 bg-cyan-500/10 p-2.5 text-cyan-200">
+            <Icon className="h-4 w-4" />
           </div>
 
           {sequenceLabel ? (
@@ -462,16 +462,16 @@ function TransactionModuleButton({
         </div>
       </div>
 
-      <div className="mt-5 space-y-2">
-        <div className="text-base font-semibold text-white">
+      <div className="mt-4 space-y-1.5">
+        <div className="text-sm font-semibold text-white">
           {titleOverride ?? module.title}
         </div>
-        <div className="line-clamp-2 text-sm leading-6 text-slate-400">
+        <div className="line-clamp-2 text-xs leading-5 text-slate-400">
           {descriptionOverride ?? module.description}
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
+      <div className="mt-4 grid grid-cols-2 gap-2">
         <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-2">
           <div className="text-[10px] uppercase tracking-[0.18em] text-slate-600">
             Records
@@ -547,7 +547,7 @@ function TransactionSectionCard({
                     key={`${item.module.key}-${item.sequenceLabel ?? index}`}
                     className="flex flex-none items-stretch"
                   >
-                    <div className="w-[260px] flex-none">
+                    <div className="w-[220px] flex-none">
                       <TransactionModuleButton
                         module={item.module}
                         onOpen={onOpen}
@@ -578,7 +578,7 @@ function TransactionSectionCard({
                     key={`${item.module.key}-${item.sequenceLabel ?? index}`}
                     className="flex flex-none items-stretch"
                   >
-                    <div className="w-[260px] flex-none">
+                    <div className="w-[220px] flex-none">
                       <TransactionModuleButton
                         module={item.module}
                         onOpen={onOpen}
@@ -1590,18 +1590,32 @@ export default function FinanceTransactionsPage() {
             </TransactionsSectionCard>
 
             <TransactionsSectionCard
-              title="Control & Approvals"
-              description="Workflow control and cross-process transaction management."
+              title="Approvals"
+              description="Cross-object transaction approvals waiting for action."
               icon={ShieldCheck}
             >
-              <TransactionSectionCard
-                section={
-                  transactionSections.find(
-                    (section) => section.key === "control"
-                  ) ?? transactionSections[transactionSections.length - 1]
-                }
-                onOpen={openRoute}
-              />
+              <button
+                type="button"
+                onClick={() => navigate("/finance/transactions/approvals")}
+                className="group flex w-full items-center justify-between gap-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-left transition hover:border-cyan-400/25 hover:bg-white/[0.055]"
+              >
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-white">
+                      Approvals
+                    </div>
+                    <div className="mt-1 text-xs leading-5 text-slate-400">
+                      {formatCount(data.alerts.pendingApprovals)} pending approvals
+                    </div>
+                  </div>
+                </div>
+
+                <ArrowRight className="h-4 w-4 shrink-0 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
+              </button>
             </TransactionsSectionCard>
           </div>
         </section>

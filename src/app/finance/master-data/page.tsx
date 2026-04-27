@@ -11,9 +11,9 @@ import {
   FolderKanban,
   Landmark,
   Package2,
+  Receipt,
   ShieldCheck,
   Sparkles,
-  TrendingUp,
   Users,
   WalletCards,
 } from "lucide-react";

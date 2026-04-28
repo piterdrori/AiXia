@@ -100,8 +100,6 @@ type BankAccountOption = {
   iban: string | null;
   swift_code: string | null;
   account_number: string | null;
-  identifier_type: string | null;
-  identifier_value: string | null;
   currency_code: string | null;
   is_default: boolean;
   company_id: string | null;
@@ -266,6 +264,26 @@ function getBankAddress(bank: BankAccountOption | null) {
   ]
     .filter(Boolean)
     .join(", ");
+}
+
+function getBankIdentifier(bank: BankAccountOption | null) {
+  if (!bank) return null;
+
+  if (bank.iban) {
+    return {
+      label: "IBAN",
+      value: bank.iban,
+    };
+  }
+
+  if (bank.swift_code) {
+    return {
+      label: "SWIFT",
+      value: bank.swift_code,
+    };
+  }
+
+  return null;
 }
 
 function getBankIdentifier(bank: BankAccountOption | null) {
@@ -575,11 +593,11 @@ export default function FinanceNewProformaInvoicePage() {
         supabase
           .from("finance_bank_accounts")
           .select(
-            "id, name, bank_name, beneficiary_name, iban, swift_code, account_number, identifier_type, identifier_value, currency_code, is_default, company_id, country, city, postal_code, address_line_1, address_line_2"
+            "id, name, bank_name, beneficiary_name, iban, swift_code, account_number, currency_code, is_default, company_id, country, city, postal_code, address_line_1, address_line_2"
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
-
+        
         supabase
           .from("finance_payment_methods")
           .select("id, code, name")

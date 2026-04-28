@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
-  CheckCircle,
   FileText,
   Plus,
   Save,
@@ -269,16 +268,6 @@ export default function FinanceNewQuotationPage() {
   const selectedCurrency = useMemo(
     () => currencies.find((currency) => currency.id === currencyId) ?? null,
     [currencies, currencyId]
-  );
-
-  const selectedProject = useMemo(
-    () => projects.find((project) => project.id === projectId) ?? null,
-    [projectId, projects]
-  );
-
-  const selectedTask = useMemo(
-    () => tasks.find((task) => task.id === taskId) ?? null,
-    [taskId, tasks]
   );
 
   useEffect(() => {

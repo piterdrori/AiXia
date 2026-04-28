@@ -116,6 +116,18 @@ type TaxCodeOption = {
   rate_percent: number;
 };
 
+type UnitOfMeasureOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+type RevenueCategoryOption = {
+  id: string;
+  code: string | null;
+  name: string;
+};
+
 type QuotationItemRow = {
   localId: string;
   itemId: string;
@@ -190,6 +202,12 @@ export default function FinanceNewQuotationPage() {
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
+  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>(
+    []
+  );
+  const [revenueCategories, setRevenueCategories] = useState<
+    RevenueCategoryOption[]
+  >([]);
 
   const [clientId, setClientId] = useState("");
   const [counterpartyType, setCounterpartyType] = useState<"client" | "company">(
@@ -382,6 +400,8 @@ export default function FinanceNewQuotationPage() {
         currenciesResult,
         itemsResult,
         taxCodesResult,
+        unitsOfMeasureResult,
+        revenueCategoriesResult,
       ] = await Promise.all([
         supabase
           .from("finance_clients")
@@ -451,6 +471,18 @@ export default function FinanceNewQuotationPage() {
           .select("id, code, name, rate_percent")
           .eq("status", "active")
           .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_units_of_measure")
+          .select("id, code, name")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_revenue_categories")
+          .select("id, code, name")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
       ]);
 
       if (clientsResult.error) throw clientsResult.error;
@@ -463,6 +495,8 @@ export default function FinanceNewQuotationPage() {
       if (currenciesResult.error) throw currenciesResult.error;
       if (itemsResult.error) throw itemsResult.error;
       if (taxCodesResult.error) throw taxCodesResult.error;
+      if (unitsOfMeasureResult.error) throw unitsOfMeasureResult.error;
+      if (revenueCategoriesResult.error) throw revenueCategoriesResult.error;
 
       setClients((clientsResult.data || []) as ClientOption[]);
       setCompanies((companiesResult.data || []) as CompanyOption[]);
@@ -475,6 +509,12 @@ export default function FinanceNewQuotationPage() {
       setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
       setItems((itemsResult.data || []) as ItemOption[]);
       setTaxCodes((taxCodesResult.data || []) as TaxCodeOption[]);
+      setUnitsOfMeasure(
+        (unitsOfMeasureResult.data || []) as UnitOfMeasureOption[]
+      );
+      setRevenueCategories(
+        (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
+      );
 
       if (!companyId && (companiesResult.data || []).length === 1) {
         setCompanyId(companiesResult.data![0].id);

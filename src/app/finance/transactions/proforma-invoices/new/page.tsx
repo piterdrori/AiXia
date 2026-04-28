@@ -100,6 +100,8 @@ type BankAccountOption = {
   iban: string | null;
   swift_code: string | null;
   account_number: string | null;
+  identifier_type: string | null;
+  identifier_value: string | null;
   currency_code: string | null;
   is_default: boolean;
   company_id: string | null;
@@ -223,20 +225,76 @@ function formatMoney(value: number, currencyCode = "USD") {
 }
 
 function getCompanyAddress(company: CompanyOption | null) {
-  if (!company) return "—";
+  if (!company) return "";
 
-  return (
-    [
-      company.address_line_1,
-      company.address_line_2,
-      company.city,
-      company.state_province,
-      company.postal_code,
-      company.country,
-    ]
-      .filter(Boolean)
-      .join(", ") || "—"
-  );
+  return [
+    company.address_line_1,
+    company.address_line_2,
+    company.city,
+    company.state_province,
+    company.postal_code,
+    company.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function getClientAddress(client: ClientOption | null) {
+  if (!client) return "";
+
+  return [
+    client.address_line_1,
+    client.address_line_2,
+    client.city,
+    client.state_province,
+    client.postal_code,
+    client.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function getBankAddress(bank: BankAccountOption | null) {
+  if (!bank) return "";
+
+  return [
+    bank.address_line_1,
+    bank.address_line_2,
+    bank.city,
+    bank.postal_code,
+    bank.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function getBankIdentifier(bank: BankAccountOption | null) {
+  if (!bank) return null;
+
+  if (bank.iban) {
+    return {
+      label: "IBAN",
+      value: bank.iban,
+    };
+  }
+
+  if (bank.swift_code) {
+    return {
+      label: "SWIFT",
+      value: bank.swift_code,
+    };
+  }
+
+  if (bank.identifier_value) {
+    const normalizedType = (bank.identifier_type || "").toLowerCase();
+
+    return {
+      label: normalizedType === "swift" ? "SWIFT" : "Identifier",
+      value: bank.identifier_value,
+    };
+  }
+
+  return null;
 }
 
 function getClientAddress(client: ClientOption | null) {
@@ -550,7 +608,7 @@ export default function FinanceNewProformaInvoicePage() {
         supabase
           .from("finance_bank_accounts")
           .select(
-            "id, name, bank_name, beneficiary_name, iban, swift_code, account_number, currency_code, is_default, company_id, country, city, postal_code, address_line_1, address_line_2"
+            "id, name, bank_name, beneficiary_name, iban, swift_code, account_number, identifier_type, identifier_value, currency_code, is_default, company_id, country, city, postal_code, address_line_1, address_line_2"
           )
           .eq("status", "active")
           .order("name", { ascending: true }),

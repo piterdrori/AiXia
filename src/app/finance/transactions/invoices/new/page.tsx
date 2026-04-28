@@ -116,7 +116,7 @@ type CurrencyOption = {
 
 type PaymentMethodOption = {
   id: string;
-  code: string;
+  code: string | null;
   name: string;
 };
 
@@ -305,6 +305,7 @@ export default function FinanceNewInvoicePage() {
   const [paymentTermsId, setPaymentTermsId] = useState("");
   const [shippingTermId, setShippingTermId] = useState("");
   const [bankAccountId, setBankAccountId] = useState("");
+
   const [paymentMethodId, setPaymentMethodId] = useState("");
   const [currencyId, setCurrencyId] = useState("");
 
@@ -322,7 +323,6 @@ export default function FinanceNewInvoicePage() {
     [clientId, clients]
   );
 
-
   const selectedCompany = useMemo(
     () => companies.find((company) => company.id === companyId) ?? null,
     [companies, companyId]
@@ -334,6 +334,29 @@ export default function FinanceNewInvoicePage() {
       null,
     [companies, counterpartyCompanyId]
   );
+
+  const selectedRecipient = useMemo(() => {
+    if (counterpartyType === "client") {
+      return {
+        name: selectedClient?.legal_name || selectedClient?.name || "—",
+        address: getClientAddress(selectedClient),
+        email:
+          selectedClient?.company_email || selectedClient?.personnel_email || "",
+        phone:
+          selectedClient?.company_phone || selectedClient?.personnel_phone || "",
+      };
+    }
+
+    return {
+      name:
+        selectedCounterpartyCompany?.legal_name ||
+        selectedCounterpartyCompany?.name ||
+        "—",
+      address: getCompanyAddress(selectedCounterpartyCompany),
+      email: selectedCounterpartyCompany?.email || "",
+      phone: selectedCounterpartyCompany?.phone || "",
+    };
+  }, [counterpartyType, selectedClient, selectedCounterpartyCompany]);
 
   const selectedPaymentTerm = useMemo(
     () => paymentTerms.find((term) => term.id === paymentTermsId) ?? null,
@@ -381,29 +404,6 @@ export default function FinanceNewInvoicePage() {
     () => tasks.find((task) => task.id === taskId) ?? null,
     [taskId, tasks]
   );
-
-  const selectedRecipient = useMemo(() => {
-    if (counterpartyType === "client") {
-      return {
-        name: selectedClient?.legal_name || selectedClient?.name || "—",
-        address: getClientAddress(selectedClient),
-        email:
-          selectedClient?.company_email || selectedClient?.personnel_email || "",
-        phone:
-          selectedClient?.company_phone || selectedClient?.personnel_phone || "",
-      };
-    }
-
-    return {
-      name:
-        selectedCounterpartyCompany?.legal_name ||
-        selectedCounterpartyCompany?.name ||
-        "—",
-      address: getCompanyAddress(selectedCounterpartyCompany),
-      email: selectedCounterpartyCompany?.email || "",
-      phone: selectedCounterpartyCompany?.phone || "",
-    };
-  }, [counterpartyType, selectedClient, selectedCounterpartyCompany]);
 
   const filteredTasks = useMemo(() => {
     if (!projectId) {
@@ -567,7 +567,7 @@ export default function FinanceNewInvoicePage() {
           .select("id, name")
           .order("name", { ascending: true }),
 
-        supabase
+                supabase
           .from("tasks")
           .select("id, title, project_id")
           .order("created_at", { ascending: false }),
@@ -634,7 +634,7 @@ export default function FinanceNewInvoicePage() {
           .order("name", { ascending: true }),
       ]);
 
-          if (clientsResult.error) throw clientsResult.error;
+      if (clientsResult.error) throw clientsResult.error;
       if (companiesResult.error) throw companiesResult.error;
       if (projectsResult.error) throw projectsResult.error;
       if (tasksResult.error) throw tasksResult.error;
@@ -668,6 +668,10 @@ export default function FinanceNewInvoicePage() {
         (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
       );
 
+      if (!companyId && (companiesResult.data || []).length === 1) {
+        setCompanyId(companiesResult.data![0].id);
+      }
+
       const defaultPaymentTerm =
         ((paymentTermsResult.data || []) as PaymentTermOption[]).find(
           (term) => term.is_default
@@ -680,10 +684,6 @@ export default function FinanceNewInvoicePage() {
 
       const defaultPaymentMethod =
         ((paymentMethodsResult.data || []) as PaymentMethodOption[])[0];
-
-      if (!companyId && (companiesResult.data || []).length === 1) {
-        setCompanyId(companiesResult.data![0].id);
-      }
 
       if (!paymentTermsId && defaultPaymentTerm) {
         setPaymentTermsId(defaultPaymentTerm.id);
@@ -1012,9 +1012,8 @@ export default function FinanceNewInvoicePage() {
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Create a draft invoice from master data, add commercial line
-                  items, save it, and issue it later from the invoice detail
-                  workflow.
+                  Build a draft invoice from master data, save it, then issue it
+                  later from the invoice detail page.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
@@ -1030,7 +1029,7 @@ export default function FinanceNewInvoicePage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
                 <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -1135,7 +1134,7 @@ export default function FinanceNewInvoicePage() {
             </div>
           </div>
 
-                    <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
             <div className="relative flex items-start justify-between gap-4">
               <div className="min-w-0">
@@ -1229,7 +1228,7 @@ export default function FinanceNewInvoicePage() {
                   ) : null}
                 </div>
 
-                <div className={summaryBlockClass}>
+                                <div className={summaryBlockClass}>
                   <div className={labelClass}>Recipient Type</div>
                   <select
                     value={counterpartyType}
@@ -1370,9 +1369,9 @@ export default function FinanceNewInvoicePage() {
                     className={fieldShellClass}
                   >
                     <option value="">Select bank account</option>
-                    {filteredBankAccounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.name}
+                    {filteredBankAccounts.map((bank) => (
+                      <option key={bank.id} value={bank.id}>
+                        {bank.name}
                       </option>
                     ))}
                   </select>
@@ -1414,7 +1413,7 @@ export default function FinanceNewInvoicePage() {
                   ) : null}
                 </div>
 
-                                <div className={summaryBlockClass}>
+                <div className={summaryBlockClass}>
                   <div className={labelClass}>Preferred Payment Method</div>
                   <select
                     value={paymentMethodId}
@@ -1521,7 +1520,7 @@ export default function FinanceNewInvoicePage() {
               </CardContent>
             </Card>
 
-            <Card className={activeSectionClass}>
+                        <Card className={activeSectionClass}>
               <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
                 <div>
                   <div className="flex items-center gap-3">
@@ -1555,22 +1554,24 @@ export default function FinanceNewInvoicePage() {
                     const selectedItem = items.find(
                       (item) => item.id === row.itemId
                     );
+                    const selectedTaxCode = taxCodes.find(
+                      (taxCode) => taxCode.id === row.taxCodeId
+                    );
                     const selectedUnit = unitsOfMeasure.find(
                       (unit) => unit.id === row.unitOfMeasureId
                     );
                     const selectedRevenueCategory = revenueCategories.find(
                       (category) => category.id === row.revenueCategoryId
                     );
+
                     const rowBase = Math.max(
                       toNumber(row.quantity) * toNumber(row.unitPrice) -
                         toNumber(row.discount),
                       0
                     );
-                    const rowTaxRate =
-                      taxCodes.find((entry) => entry.id === row.taxCodeId)
-                        ?.rate_percent ?? 0;
+                    const rowTaxRate = selectedTaxCode?.rate_percent ?? 0;
                     const rowTotal =
-                      rowBase + rowBase * (toNumber(rowTaxRate) / 100);
+                      rowBase + rowBase * (Number(rowTaxRate) / 100);
 
                     return (
                       <div
@@ -1729,7 +1730,7 @@ export default function FinanceNewInvoicePage() {
                             </select>
                           </label>
 
-                                                    <label className="space-y-2 md:col-span-3">
+                          <label className="space-y-2 md:col-span-3">
                             <div className={inputLabelClass}>
                               Revenue Category
                             </div>
@@ -1805,7 +1806,7 @@ export default function FinanceNewInvoicePage() {
                   ) : null}
                 </div>
 
-                <div className={summaryBlockClass}>
+                                <div className={summaryBlockClass}>
                   <div className={labelClass}>Recipient</div>
                   <div className="mt-2 text-2xl font-semibold text-white">
                     {selectedRecipient.name}

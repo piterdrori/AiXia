@@ -34,6 +34,12 @@ type ClientOption = {
   currency_code: string | null;
   payment_terms_days: number | null;
   payment_terms_id: string | null;
+  country: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
 };
 
 type CompanyOption = {
@@ -97,6 +103,11 @@ type BankAccountOption = {
   currency_code: string | null;
   is_default: boolean;
   company_id: string | null;
+  country: string | null;
+  city: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
 };
 
 type PaymentMethodOption = {
@@ -222,6 +233,39 @@ function getCompanyAddress(company: CompanyOption | null) {
       company.state_province,
       company.postal_code,
       company.country,
+    ]
+      .filter(Boolean)
+      .join(", ") || "—"
+  );
+}
+
+function getClientAddress(client: ClientOption | null) {
+  if (!client) return "—";
+
+  return (
+    [
+      client.address_line_1,
+      client.address_line_2,
+      client.city,
+      client.state_province,
+      client.postal_code,
+      client.country,
+    ]
+      .filter(Boolean)
+      .join(", ") || "—"
+  );
+}
+
+function getBankAddress(bank: BankAccountOption | null) {
+  if (!bank) return "—";
+
+  return (
+    [
+      bank.address_line_1,
+      bank.address_line_2,
+      bank.city,
+      bank.postal_code,
+      bank.country,
     ]
       .filter(Boolean)
       .join(", ") || "—"
@@ -460,7 +504,7 @@ export default function FinanceNewProformaInvoicePage() {
         supabase
           .from("finance_clients")
           .select(
-            "id, name, legal_name, company_email, personnel_email, company_phone, personnel_phone, currency_code, payment_terms_days, payment_terms_id"
+            "id, name, legal_name, company_email, personnel_email, company_phone, personnel_phone, currency_code, payment_terms_days, payment_terms_id, country, city, state_province, postal_code, address_line_1, address_line_2"
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
@@ -506,7 +550,7 @@ export default function FinanceNewProformaInvoicePage() {
         supabase
           .from("finance_bank_accounts")
           .select(
-            "id, name, bank_name, beneficiary_name, iban, swift_code, account_number, currency_code, is_default, company_id"
+            "id, name, bank_name, beneficiary_name, iban, swift_code, account_number, currency_code, is_default, company_id, country, city, postal_code, address_line_1, address_line_2"
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
@@ -1352,11 +1396,16 @@ export default function FinanceNewProformaInvoicePage() {
                             selectedBankAccount.name}
                         </div>
                         <div>{selectedBankAccount.bank_name || "—"}</div>
+                        <div>{getBankAddress(selectedBankAccount)}</div>
                         <div>
                           Account: {selectedBankAccount.account_number || "—"}
                         </div>
-                        <div>IBAN: {selectedBankAccount.iban || "—"}</div>
-                        <div>SWIFT: {selectedBankAccount.swift_code || "—"}</div>
+                        {selectedBankAccount.iban ? (
+                          <div>IBAN: {selectedBankAccount.iban}</div>
+                        ) : null}
+                        {selectedBankAccount.swift_code ? (
+                          <div>SWIFT: {selectedBankAccount.swift_code}</div>
+                        ) : null}
                         <div>
                           Currency: {selectedBankAccount.currency_code || "—"}
                         </div>

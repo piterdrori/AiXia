@@ -932,10 +932,12 @@ export default function FinanceNewProformaInvoicePage() {
             shipping_term_id: shippingTermId || null,
             shipping_term_name: selectedShippingTerm?.name || null,
             shipping_term_code: selectedShippingTerm?.code || null,
+            client_address_snapshot: getClientAddress(selectedClient),
             bank_account_id: bankAccountId || null,
             bank_account_name: selectedBankAccount?.name || null,
             bank_name: selectedBankAccount?.bank_name || null,
             beneficiary_name: selectedBankAccount?.beneficiary_name || null,
+            bank_address_snapshot: getBankAddress(selectedBankAccount),
             iban: selectedBankAccount?.iban || null,
             swift_code: selectedBankAccount?.swift_code || null,
             account_number: selectedBankAccount?.account_number || null,
@@ -995,10 +997,12 @@ export default function FinanceNewProformaInvoicePage() {
             shipping_term_id: shippingTermId || null,
             shipping_term_name: selectedShippingTerm?.name || null,
             shipping_term_code: selectedShippingTerm?.code || null,
+            client_address_snapshot: getClientAddress(selectedClient),
             bank_account_id: bankAccountId || null,
             bank_account_name: selectedBankAccount?.name || null,
             bank_name: selectedBankAccount?.bank_name || null,
             beneficiary_name: selectedBankAccount?.beneficiary_name || null,
+            bank_address_snapshot: getBankAddress(selectedBankAccount),
             iban: selectedBankAccount?.iban || null,
             swift_code: selectedBankAccount?.swift_code || null,
             account_number: selectedBankAccount?.account_number || null,
@@ -1056,6 +1060,7 @@ export default function FinanceNewProformaInvoicePage() {
     projectId,
     rows,
     selectedBankAccount,
+    selectedClient,
     selectedPaymentMethod,
     selectedPaymentTerm,
     selectedShippingTerm,
@@ -1816,6 +1821,21 @@ export default function FinanceNewProformaInvoicePage() {
                   <div className="mt-2 text-2xl font-semibold text-white">
                     {selectedClient?.legal_name || selectedClient?.name || "—"}
                   </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    <div>{getClientAddress(selectedClient)}</div>
+                    <div>
+                      Email:{" "}
+                      {selectedClient?.company_email ||
+                        selectedClient?.personnel_email ||
+                        "—"}
+                    </div>
+                    <div>
+                      Phone:{" "}
+                      {selectedClient?.company_phone ||
+                        selectedClient?.personnel_phone ||
+                        "—"}
+                    </div>
+                  </div>
                 </div>
 
                 <div className={summaryBlockClass}>
@@ -1860,11 +1880,16 @@ export default function FinanceNewProformaInvoicePage() {
                     {selectedBankAccount ? (
                       <>
                         <div>{selectedBankAccount.bank_name || "—"}</div>
+                        <div>{getBankAddress(selectedBankAccount)}</div>
                         <div>
                           Account: {selectedBankAccount.account_number || "—"}
                         </div>
-                        <div>IBAN: {selectedBankAccount.iban || "—"}</div>
-                        <div>SWIFT: {selectedBankAccount.swift_code || "—"}</div>
+                        {selectedBankAccount.iban ? (
+                          <div>IBAN: {selectedBankAccount.iban}</div>
+                        ) : null}
+                        {selectedBankAccount.swift_code ? (
+                          <div>SWIFT: {selectedBankAccount.swift_code}</div>
+                        ) : null}
                         <div>
                           Currency: {selectedBankAccount.currency_code || "—"}
                         </div>

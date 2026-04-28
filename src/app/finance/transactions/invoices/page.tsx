@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
+  Archive,
   ArrowRight,
+  Eye,
   FileText,
   Plus,
   Receipt,
-  RefreshCw,
+  RotateCcw,
   Search,
+  Trash2,
   Wallet,
-  MoreVertical,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -54,39 +55,59 @@ type InvoiceMetricCard = {
   value: string;
   subtitle: string;
   icon: typeof Wallet;
-  tone: "blue" | "emerald" | "amber" | "rose";
+  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
 };
+
+type InvoiceSortKey =
+  | "invoice_number"
+  | "client"
+  | "issue_date"
+  | "due_date"
+  | "total_amount"
+  | "balance_due"
+  | "status"
+  | "payment_status"
+  | "updated_at";
+
+type SortDirection = "asc" | "desc";
 
 function getToneClasses(tone: InvoiceMetricCard["tone"]) {
   switch (tone) {
     case "emerald":
       return {
         glow: "from-emerald-500/20 via-emerald-400/10 to-transparent",
-        iconWrap:
-          "border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_0_30px_rgba(16,185,129,0.18)]",
+        iconWrap: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+        value: "text-emerald-100",
         accent: "bg-emerald-400",
       };
     case "amber":
       return {
         glow: "from-amber-500/20 via-amber-400/10 to-transparent",
-        iconWrap:
-          "border-amber-400/20 bg-amber-500/10 text-amber-300 shadow-[0_0_30px_rgba(245,158,11,0.18)]",
+        iconWrap: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+        value: "text-amber-100",
         accent: "bg-amber-400",
+      };
+    case "violet":
+      return {
+        glow: "from-violet-500/20 via-violet-400/10 to-transparent",
+        iconWrap: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+        value: "text-violet-100",
+        accent: "bg-violet-400",
       };
     case "rose":
       return {
         glow: "from-rose-500/20 via-rose-400/10 to-transparent",
-        iconWrap:
-          "border-rose-400/20 bg-rose-500/10 text-rose-300 shadow-[0_0_30px_rgba(244,63,94,0.18)]",
+        iconWrap: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+        value: "text-rose-100",
         accent: "bg-rose-400",
       };
-    case "blue":
+    case "cyan":
     default:
       return {
-        glow: "from-sky-500/20 via-sky-400/10 to-transparent",
-        iconWrap:
-          "border-sky-400/20 bg-sky-500/10 text-sky-300 shadow-[0_0_30px_rgba(56,189,248,0.18)]",
-        accent: "bg-sky-400",
+        glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
+        iconWrap: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+        value: "text-cyan-100",
+        accent: "bg-cyan-400",
       };
   }
 }
@@ -96,31 +117,36 @@ function MetricCard({ metric }: { metric: InvoiceMetricCard }) {
   const Icon = metric.icon;
 
   return (
-    <div className="group relative overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+    <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
       <div
         className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`}
       />
-      <div className="relative flex h-full flex-col gap-5 p-5">
+
+      <div className="relative flex h-full flex-col justify-between gap-5">
         <div className="flex items-start justify-between gap-4">
-          <div className="space-y-2">
-            <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-white/45">
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
               {metric.title}
             </div>
-            <div className="text-3xl font-semibold tracking-tight text-white">
+            <div
+              className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${tone.value}`}
+            >
               {metric.value}
             </div>
           </div>
 
           <div
-            className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
           >
             <Icon className="h-5 w-5" />
           </div>
         </div>
 
-        <div className="mt-auto flex items-center justify-between gap-3">
-          <div className="text-sm text-white/55">{metric.subtitle}</div>
-          <div className={`h-2 w-2 rounded-full ${tone.accent}`} />
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
+            {metric.subtitle}
+          </div>
+          <div className={`h-2 w-2 shrink-0 rounded-full ${tone.accent}`} />
         </div>
       </div>
     </div>
@@ -130,23 +156,17 @@ function MetricCard({ metric }: { metric: InvoiceMetricCard }) {
 function getDocumentStatusBadgeClasses(status: string) {
   switch (status) {
     case "draft":
-      return "border-white/10 bg-white/10 text-white/75";
-
+      return "border-slate-400/20 bg-white/[0.06] text-slate-300";
     case "issued":
-      return "border-sky-400/20 bg-sky-500/10 text-sky-200";
-
+      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
     case "partially_paid":
       return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-
     case "paid":
       return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-
     case "archived":
-      return "border-white/20 bg-white/5 text-white/60";
-
+      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
     case "deleted":
       return "border-rose-500/30 bg-rose-500/10 text-rose-300";
-
     default:
       return "border-white/10 bg-white/10 text-white/75";
   }
@@ -171,7 +191,7 @@ function getPostingStatusBadgeClasses(status: InvoicePostingStatus) {
     return "border-violet-400/20 bg-violet-500/10 text-violet-200";
   }
 
-  return "border-white/10 bg-white/10 text-white/75";
+  return "border-slate-400/20 bg-white/[0.06] text-slate-300";
 }
 
 function getPostingStatusLabel(status: InvoicePostingStatus) {
@@ -182,11 +202,78 @@ function getOverdueBadgeClasses() {
   return "border-rose-400/20 bg-rose-500/10 text-rose-200";
 }
 
+function getInvoiceClientName(invoice: FinanceIssuedInvoiceListRow) {
+  return (
+    invoice.counterparty_name_snapshot ||
+    invoice.client_name ||
+    "Unknown"
+  );
+}
+
+function getInvoiceDisplayNumber(invoice: FinanceIssuedInvoiceListRow) {
+  return invoice.invoice_number || (invoice.status === "draft" ? "Draft Invoice" : "Invoice");
+}
+
+function getSortValue(invoice: FinanceIssuedInvoiceListRow, key: InvoiceSortKey) {
+  switch (key) {
+    case "invoice_number":
+      return getInvoiceDisplayNumber(invoice).toLowerCase();
+    case "client":
+      return getInvoiceClientName(invoice).toLowerCase();
+    case "issue_date":
+      return invoice.issue_date ? new Date(invoice.issue_date).getTime() : 0;
+    case "due_date":
+      return invoice.due_date ? new Date(invoice.due_date).getTime() : 0;
+    case "total_amount":
+      return Number(invoice.total_amount ?? 0);
+    case "balance_due":
+      return Number(invoice.balance_due ?? 0);
+    case "status":
+      return String(invoice.status || "").toLowerCase();
+    case "payment_status":
+      return String(invoice.payment_status || "").toLowerCase();
+    case "updated_at":
+      return invoice.updated_at ? new Date(invoice.updated_at).getTime() : 0;
+    default:
+      return "";
+  }
+}
+
+function SortHeader({
+  label,
+  sortKey,
+  activeSortKey,
+  sortDirection,
+  onSort,
+  align = "left",
+}: {
+  label: string;
+  sortKey: InvoiceSortKey;
+  activeSortKey: InvoiceSortKey;
+  sortDirection: SortDirection;
+  onSort: (key: InvoiceSortKey) => void;
+  align?: "left" | "right";
+}) {
+  const isActive = activeSortKey === sortKey;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(sortKey)}
+      className={`inline-flex w-full items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition hover:text-slate-300 ${
+        align === "right" ? "justify-end text-right" : "justify-start text-left"
+      } ${isActive ? "text-slate-300" : "text-slate-500"}`}
+    >
+      <span>{label}</span>
+      <span className="text-[10px]">{isActive ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</span>
+    </button>
+  );
+}
+
 export default function FinanceInvoicesPage() {
   const navigate = useNavigate();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [invoices, setInvoices] = useState<FinanceIssuedInvoiceListRow[]>([]);
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<Role | null>(null);
@@ -194,13 +281,17 @@ export default function FinanceInvoicesPage() {
     Partial<Record<Permission, boolean>> | null
   >(null);
 
-  const [openMenuInvoiceId, setOpenMenuInvoiceId] = useState<string | null>(null);
-  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
-  const [archiveTab, setArchiveTab] = useState<"archived" | "deleted">("archived");
-  const [archivedInvoices, setArchivedInvoices] = useState<FinanceIssuedInvoiceListRow[]>([]);
+  const [archiveTab, setArchiveTab] = useState<"archived" | "deleted">(
+    "archived"
+  );
+  const [archivedInvoices, setArchivedInvoices] = useState<
+    FinanceIssuedInvoiceListRow[]
+  >([]);
   const [isArchiveLoading, setIsArchiveLoading] = useState(false);
 
+  const [sortKey, setSortKey] = useState<InvoiceSortKey>("updated_at");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   const loadPermissions = useCallback(async () => {
     const {
@@ -211,7 +302,8 @@ export default function FinanceInvoicesPage() {
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("role, permissions")
+
+                                            .select("role, permissions")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -227,12 +319,8 @@ export default function FinanceInvoicesPage() {
     }
   }, []);
 
-  const loadInvoices = useCallback(async (refreshMode = false) => {
-    if (refreshMode) {
-      setIsRefreshing(true);
-    } else {
-      setIsLoading(true);
-    }
+  const loadInvoices = useCallback(async () => {
+    setIsLoading((current) => current || invoices.length === 0);
 
     try {
       const rows = await getIssuedInvoicesList();
@@ -241,62 +329,41 @@ export default function FinanceInvoicesPage() {
       console.error("Failed to load issued invoices:", error);
       setInvoices([]);
     } finally {
-      if (refreshMode) {
-        setIsRefreshing(false);
-      } else {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
-  }, []);
+  }, [invoices.length]);
 
   const loadArchivedInvoices = useCallback(async () => {
-  setIsArchiveLoading(true);
+    setIsArchiveLoading(true);
 
-  try {
-    const rows = await getIssuedInvoicesArchiveList();
-    setArchivedInvoices(rows);
-  } catch (error) {
-    console.error("Failed to load archived invoices:", error);
-    setArchivedInvoices([]);
-  } finally {
-    setIsArchiveLoading(false);
-  }
-}, []);
+    try {
+      const rows = await getIssuedInvoicesArchiveList();
+      setArchivedInvoices(rows);
+    } catch (error) {
+      console.error("Failed to load archived invoices:", error);
+      setArchivedInvoices([]);
+    } finally {
+      setIsArchiveLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     void Promise.all([loadPermissions(), loadInvoices()]);
   }, [loadInvoices, loadPermissions]);
 
- useEffect(() => {
-  function handleDocumentClick(event: MouseEvent) {
-    if (!actionsMenuRef.current) return;
-
-    if (!actionsMenuRef.current.contains(event.target as Node)) {
-      setOpenMenuInvoiceId(null);
-    }
-  }
-
-  document.addEventListener("mousedown", handleDocumentClick);
-
-  return () => {
-    document.removeEventListener("mousedown", handleDocumentClick);
-  };
-}, []);
-  
- 
   useEffect(() => {
-  if (!isArchiveModalOpen) return;
-  void loadArchivedInvoices();
-}, [isArchiveModalOpen, loadArchivedInvoices]);
-  
+    if (!isArchiveModalOpen) return;
+    void loadArchivedInvoices();
+  }, [isArchiveModalOpen, loadArchivedInvoices]);
+
   useEffect(() => {
     const channel = supabase
       .channel("finance-issued-invoices-list")
-           .on(
+      .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_invoices_issued" },
         () => {
-          void loadInvoices(true);
+          void loadInvoices();
           if (isArchiveModalOpen) {
             void loadArchivedInvoices();
           }
@@ -305,22 +372,30 @@ export default function FinanceInvoicesPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_payments_received" },
-        () => void loadInvoices(true)
+        () => void loadInvoices()
       )
       .subscribe();
 
+    const intervalId = window.setInterval(() => {
+      void loadInvoices();
+      if (isArchiveModalOpen) {
+        void loadArchivedInvoices();
+      }
+    }, 60000);
+
     return () => {
+      window.clearInterval(intervalId);
       supabase.removeChannel(channel);
     };
   }, [isArchiveModalOpen, loadArchivedInvoices, loadInvoices]);
 
-   const canCreateInvoices = useMemo(() => {
+  const canCreateInvoices = useMemo(() => {
     if (!role) return false;
     const permissions = getEffectivePermissions(role, permissionOverrides);
     return !!permissions?.createInvoices;
   }, [permissionOverrides, role]);
 
-     const handleArchive = async (id: string) => {
+  const handleArchive = async (id: string) => {
     const { error } = await supabase.rpc("finance_archive_invoice_issued", {
       p_invoice_id: id,
     });
@@ -329,30 +404,28 @@ export default function FinanceInvoicesPage() {
       throw error;
     }
 
-    setOpenMenuInvoiceId(null);
     await Promise.all([
-      loadInvoices(true),
+      loadInvoices(),
       isArchiveModalOpen ? loadArchivedInvoices() : Promise.resolve(),
     ]);
   };
 
-const handleDelete = async (id: string) => {
-  const { error } = await supabase.rpc("finance_delete_invoice_issued", {
-    p_invoice_id: id,
-  });
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.rpc("finance_delete_invoice_issued", {
+      p_invoice_id: id,
+    });
 
-  if (error) {
-    throw error;
-  }
+    if (error) {
+      throw error;
+    }
 
-  setOpenMenuInvoiceId(null);
-  await Promise.all([
-    loadInvoices(true),
-    isArchiveModalOpen ? loadArchivedInvoices() : Promise.resolve(),
-  ]);
-};
+    await Promise.all([
+      loadInvoices(),
+      isArchiveModalOpen ? loadArchivedInvoices() : Promise.resolve(),
+    ]);
+  };
 
-    const handleRestore = async (id: string) => {
+  const handleRestore = async (id: string) => {
     const { error } = await supabase.rpc("finance_restore_invoice_issued", {
       p_invoice_id: id,
     });
@@ -361,10 +434,11 @@ const handleDelete = async (id: string) => {
       throw error;
     }
 
-    await Promise.all([loadInvoices(true), loadArchivedInvoices()]);
+    await Promise.all([loadInvoices(), loadArchivedInvoices()]);
   };
-    const handleHardDelete = async (id: string) => {
-       const { error } = await supabase.rpc("finance_hard_delete_invoice_issued", {
+
+  const handleHardDelete = async (id: string) => {
+    const { error } = await supabase.rpc("finance_hard_delete_invoice_issued", {
       p_invoice_id: id,
     });
 
@@ -372,7 +446,17 @@ const handleDelete = async (id: string) => {
       throw error;
     }
 
-    await Promise.all([loadInvoices(true), loadArchivedInvoices()]);
+    await Promise.all([loadInvoices(), loadArchivedInvoices()]);
+  };
+
+  const handleSort = (key: InvoiceSortKey) => {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortKey(key);
+    setSortDirection(key === "updated_at" ? "desc" : "asc");
   };
 
   const filteredInvoices = useMemo(() => {
@@ -382,29 +466,56 @@ const handleDelete = async (id: string) => {
       return invoices;
     }
 
-   return invoices.filter((invoice) => {
-      const postingStatus = getInvoicePostingStatus(invoice as any);
-      const overdue = isInvoiceOverdue(invoice as any);
+    return invoices.filter((invoice) => {
+      const postingStatus = getInvoicePostingStatus(invoice);
+      const overdue = isInvoiceOverdue(invoice);
 
       return (
         (invoice.invoice_number || "").toLowerCase().includes(normalizedSearch) ||
-        (
- (invoice.counterparty_name_snapshot || "")
-).toLowerCase().includes(normalizedSearch) ||
+        getInvoiceClientName(invoice).toLowerCase().includes(normalizedSearch) ||
         (invoice.status || "").toLowerCase().includes(normalizedSearch) ||
         (invoice.payment_status || "").toLowerCase().includes(normalizedSearch) ||
         postingStatus.toLowerCase().includes(normalizedSearch) ||
-        (overdue ? "overdue".includes(normalizedSearch) : false)
+        (overdue ? "overdue".includes(normalizedSearch) : false) ||
+        (invoice.currency_code || "").toLowerCase().includes(normalizedSearch)
       );
     });
   }, [invoices, search]);
 
- const visibleArchivedInvoices = useMemo(() => {
-  return archivedInvoices.filter(
-    (invoice) => String(invoice.status) === archiveTab
-  );
-}, [archivedInvoices, archiveTab]);
-  
+  const sortedInvoices = useMemo(() => {
+    return [...filteredInvoices].sort((first, second) => {
+      const firstValue = getSortValue(first, sortKey);
+      const secondValue = getSortValue(second, sortKey);
+
+      if (typeof firstValue === "number" && typeof secondValue === "number") {
+        return sortDirection === "asc"
+          ? firstValue - secondValue
+          : secondValue - firstValue;
+      }
+
+      return sortDirection === "asc"
+        ? String(firstValue).localeCompare(String(secondValue))
+        : String(secondValue).localeCompare(String(firstValue));
+    });
+  }, [filteredInvoices, sortDirection, sortKey]);
+
+  const visibleArchivedInvoices = useMemo(() => {
+    return archivedInvoices.filter(
+      (invoice) => String(invoice.status) === archiveTab
+    );
+  }, [archivedInvoices, archiveTab]);
+
+  const sortedVisibleArchivedInvoices = useMemo(() => {
+    return [...visibleArchivedInvoices].sort((first, second) => {
+      const firstUpdated = first.updated_at ? new Date(first.updated_at).getTime() : 0;
+      const secondUpdated = second.updated_at
+        ? new Date(second.updated_at).getTime()
+        : 0;
+
+      return secondUpdated - firstUpdated;
+    });
+  }, [visibleArchivedInvoices]);
+
   const metricCards = useMemo<InvoiceMetricCard[]>(() => {
     const totalInvoices = invoices.length;
     const draftInvoices = invoices.filter((row) => row.status === "draft").length;
@@ -414,7 +525,8 @@ const handleDelete = async (id: string) => {
     const partialInvoices = invoices.filter(
       (row) => row.payment_status === "partial"
     );
-   const receivablesOpen = invoices.reduce(
+
+    const receivablesOpen = invoices.reduce(
       (sum, row) => sum + Number(row.balance_due ?? 0),
       0
     );
@@ -426,7 +538,7 @@ const handleDelete = async (id: string) => {
         value: totalInvoices.toLocaleString(),
         subtitle: "Outbound invoice records",
         icon: FileText,
-        tone: "blue",
+        tone: "cyan",
       },
       {
         key: "drafts",
@@ -439,7 +551,10 @@ const handleDelete = async (id: string) => {
       {
         key: "open",
         title: "Open Receivables",
-        value: formatFinanceMoney(receivablesOpen, invoices[0]?.currency_code || "USD"),
+        value: formatFinanceMoney(
+          receivablesOpen,
+          invoices[0]?.currency_code || "USD"
+        ),
         subtitle: `${unpaidInvoices.length + partialInvoices.length} invoices with balance`,
         icon: Wallet,
         tone: "emerald",
@@ -452,460 +567,609 @@ const handleDelete = async (id: string) => {
           .length.toLocaleString(),
         subtitle: "Fully collected invoices",
         icon: Receipt,
-        tone: "rose",
+        tone: "violet",
       },
     ];
   }, [invoices]);
 
+  const activeSectionClass =
+    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
+
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
-      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
-        <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6 xl:p-7">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_35%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_24%)]" />
-          <div className="relative flex flex-col gap-6">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-              <div className="max-w-3xl space-y-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.24em] text-white/70 shadow-none">
-                    Receivables
-                  </Badge>
+    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+        <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
 
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    Issued invoices
-                  </Badge>
-                </div>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => navigate("/finance/transactions")}
+              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/[0.08]"
+            >
+              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+              Transactions
+            </button>
 
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/10 bg-black/20 text-white shadow-[0_0_30px_rgba(255,255,255,0.08)]">
-                      <FileText className="h-5 w-5" />
-                    </div>
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px]">
+              <div>
+                <Badge className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                  Invoice Registry
+                </Badge>
 
-                    <div>
-                      <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                        Invoices
-                      </h1>
-                      <div className="mt-1 text-sm text-white/45">
-                        Final outbound invoices issued by your company to clients.
-                      </div>
-                    </div>
+                <div className="mt-4 flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                    <FileText className="h-5 w-5" />
                   </div>
 
-                  <p className="max-w-2xl text-sm leading-7 text-white/55 sm:text-[15px]">
-                    This module controls stored, issued, and payment-tracked receivable
-                    documents. Master data provides the source selection, while the
-                    invoice stores the commercial and financial snapshot at issuance time.
-                  </p>
+                  <div>
+                    <h1 className="text-3xl font-semibold tracking-[-0.035em] text-white md:text-4xl">
+                      Invoices
+                    </h1>
+                    <div className="mt-1 text-sm text-slate-500">
+                      Final outbound invoices issued by your company to clients.
+                    </div>
+                  </div>
+                </div>
+
+                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                  Invoices are official receivable documents. The registry keeps
+                  active invoices separate from archived and deleted records while
+                  preserving payment tracking, posting status, and document history.
+                </p>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
+                    Payment tracked
+                  </span>
+                  <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                    Draft → Issued → Paid
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                    Auto-refresh enabled
+                  </span>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-3 xl:justify-end">
-                <Button
-                  variant="outline"
-                  onClick={() => navigate("/finance/transactions")}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back
-                </Button>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Active Records
+                      </div>
+                      <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
+                        {invoices.length.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <div className="mt-3 text-xs leading-5 text-slate-500">
+                    Excludes archived and deleted invoices.
+                  </div>
+                </div>
 
-                <Button
-                  variant="outline"
-                  onClick={() => void loadInvoices(true)}
-                  disabled={isRefreshing}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10 disabled:opacity-60"
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  {isRefreshing ? "Refreshing..." : "Refresh"}
-                </Button>
-
-                {canCreateInvoices ? (
-                  <Button
-                    onClick={() => navigate("/finance/transactions/invoices/new")}
-                    className="h-11 rounded-2xl px-4"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Invoice
-                  </Button>
-                ) : null}
-
-                <Button
-  variant="outline"
-  onClick={() => {
-    setArchiveTab("archived");
-    setIsArchiveModalOpen(true);
-  }}
-  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
->
-  Archive
-</Button>
+                                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Visible Results
+                      </div>
+                      <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
+                        {sortedInvoices.length.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                      <Search className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <div className="mt-3 text-xs leading-5 text-slate-500">
+                    Filtered by invoice, client, status, payment, posting, or currency.
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {metricCards.map((metric) => (
-                <MetricCard key={metric.key} metric={metric} />
-              ))}
+            <div className="mt-6 flex flex-wrap gap-3">
+              {canCreateInvoices ? (
+                <Button
+                  onClick={() => navigate("/finance/transactions/invoices/new")}
+                  className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Invoice
+                </Button>
+              ) : null}
+
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setArchiveTab("archived");
+                  setIsArchiveModalOpen(true);
+                }}
+                className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20"
+              >
+                <Archive className="mr-2 h-4 w-4" />
+                Archive
+              </Button>
             </div>
           </div>
         </section>
 
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {metricCards.map((metric) => (
+            <MetricCard key={metric.key} metric={metric} />
+          ))}
+        </div>
+
         <section>
-          <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-            <CardHeader className="border-b border-white/8 pb-4">
+          <Card className={activeSectionClass}>
+            <CardHeader className="border-b border-white/10 px-5 py-4">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="space-y-2">
-                  <Badge className="w-fit rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-white/65 shadow-none">
-                    Invoice Registry
+                  <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                    Active Invoices
                   </Badge>
 
-                  <CardTitle className="text-white">
-                    Issued Invoices List
+                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Invoice Registry
                   </CardTitle>
 
-                  <CardDescription className="max-w-2xl text-white/45">
-                    Search and open invoice records, review document status, payment
-                    status, client, dates, and remaining balance.
+                  <CardDescription className="max-w-2xl text-xs text-slate-500">
+                    Manage active invoice records, open details, archive old
+                    invoices, delete inactive records, and track payment state.
                   </CardDescription>
                 </div>
 
                 <div className="relative w-full max-w-md">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search invoice number, client, or status"
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-10 pr-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-cyan-400/30"
+                    placeholder="Search invoice, client, status..."
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-10 pr-4 text-sm text-white outline-none placeholder:text-slate-600 transition focus:border-cyan-400/30 focus:bg-black/30"
                   />
                 </div>
               </div>
             </CardHeader>
 
-            <CardContent className="p-4 sm:p-5 xl:p-6">
-              {isLoading ? (
-                <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
-                  Loading invoices...
-                </div>
-              ) : filteredInvoices.length === 0 ? (
-                <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
-                  No invoices found.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                 {filteredInvoices.map((invoice) => {
-                    const displayState = getInvoiceDisplayState(invoice as any);
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <div className="max-h-[720px] overflow-y-auto">
+                  <table className="w-full min-w-[1240px] border-collapse">
+                    <thead>
+                      <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                          <SortHeader
+                            label="Invoice No."
+                            sortKey="invoice_number"
+                            activeSortKey={sortKey}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                          <SortHeader
+                            label="Client"
+                            sortKey="client"
+                            activeSortKey={sortKey}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                          <SortHeader
+                            label="Issue Date"
+                            sortKey="issue_date"
+                            activeSortKey={sortKey}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                          <SortHeader
+                            label="Due Date"
+                            sortKey="due_date"
+                            activeSortKey={sortKey}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
+                          <SortHeader
+                            label="Total"
+                            sortKey="total_amount"
+                            activeSortKey={sortKey}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                            align="right"
+                          />
+                        </th>
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
+                          <SortHeader
+                            label="Balance"
+                            sortKey="balance_due"
+                            activeSortKey={sortKey}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                            align="right"
+                          />
+                        </th>
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                          <SortHeader
+                            label="Status"
+                            sortKey="status"
+                            activeSortKey={sortKey}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                          <SortHeader
+                            label="Payment"
+                            sortKey="payment_status"
+                            activeSortKey={sortKey}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                          Posting
+                        </th>
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                          <SortHeader
+                            label="Updated"
+                            sortKey="updated_at"
+                            activeSortKey={sortKey}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
 
-                    return (
-                      <button
-                        key={invoice.id}
-                        type="button"
-                        onClick={() =>
-                          navigate(`/finance/transactions/invoices/${invoice.id}`)
-                        }
-                        className="group flex w-full items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-base font-semibold text-white">
-                              {invoice.invoice_number ||
-  (invoice.status === "draft"
-    ? "Draft Invoice"
-    : "Invoice")}
-                            </div>
+                    <tbody className="divide-y divide-white/5">
+                      {isLoading ? (
+                        <tr>
+                          <td
+                            colSpan={11}
+                            className="px-5 py-14 text-center text-sm text-slate-500"
+                          >
+                            Loading invoices...
+                          </td>
+                        </tr>
+                      ) : sortedInvoices.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={11}
+                            className="px-5 py-14 text-center text-sm text-slate-500"
+                          >
+                            No invoices found.
+                          </td>
+                        </tr>
+                      ) : (
+                        sortedInvoices.map((invoice) => {
+                          const displayState = getInvoiceDisplayState(invoice);
 
-                            <Badge
-                              className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getDocumentStatusBadgeClasses(
-                                invoice.status
-                              )}`}
+                          return (
+                            <tr
+                              key={invoice.id}
+                              className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
                             >
-                              {getIssuedInvoiceStatusLabel(invoice.status)}
-                            </Badge>
+                              <td className="px-5 py-4 font-semibold text-white">
+                                {getInvoiceDisplayNumber(invoice)}
+                              </td>
 
-                           {invoice.status !== "deleted" && invoice.status !== "archived" ? (
-  <Badge
-    className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getPaymentStatusBadgeClasses(
-      invoice.payment_status
-    )}`}
-  >
-    {getIssuedInvoicePaymentStatusLabel(invoice.payment_status)}
-  </Badge>
-) : null}
+                              <td className="px-5 py-4">
+                                {getInvoiceClientName(invoice)}
+                              </td>
 
-                            <Badge
-                              className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getPostingStatusBadgeClasses(
-                                displayState.postingStatus
-                              )}`}
-                            >
-                              {getPostingStatusLabel(displayState.postingStatus)}
-                            </Badge>
+                              <td className="px-5 py-4">
+                                {formatFinanceDate(invoice.issue_date)}
+                              </td>
 
-                            {displayState.isOverdue ? (
-                              <Badge
-                                className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getOverdueBadgeClasses()}`}
-                              >
-                                Overdue
-                              </Badge>
-                            ) : null}
-                          </div>
+                              <td className="px-5 py-4">
+                                {formatFinanceDate(invoice.due_date)}
+                              </td>
 
-                          <div className="mt-2 text-sm text-white/70">
-  {invoice.counterparty_name_snapshot ||
-   invoice.client_name ||
-   "Unknown"}
-</div>
+                              <td className="px-5 py-4 text-right font-semibold text-white">
+                                {formatFinanceMoney(
+                                  invoice.total_amount,
+                                  invoice.currency_code ?? "USD"
+                                )}
+                              </td>
 
-                          <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-white/45 md:grid-cols-5">
-                            <div>Issued: {formatFinanceDate(invoice.issue_date)}</div>
-                            <div>Due: {formatFinanceDate(invoice.due_date)}</div>
-                            <div>
-                              Total:{" "}
-                              {formatFinanceMoney(
-                                invoice.total_amount,
-                                invoice.currency_code ?? "USD"
-                              )}
-                            </div>
-                            <div>
-                              Paid:{" "}
-                              {formatFinanceMoney(
-                                invoice.paid_amount,
-                                invoice.currency_code ?? "USD"
-                              )}
-                            </div>
-                            <div>
-                              Balance:{" "}
-                              {formatFinanceMoney(
-                                invoice.balance_due,
-                                invoice.currency_code ?? "USD"
-                              )}
-                            </div>
-                          </div>
-                        </div>
+                              <td className="px-5 py-4 text-right font-semibold text-white">
+                                {formatFinanceMoney(
+                                  invoice.balance_due,
+                                  invoice.currency_code ?? "USD"
+                                )}
+                              </td>
 
-                        <div className="flex shrink-0 items-center gap-3 pl-2">
-  <div className="hidden text-xs text-white/30 transition-colors duration-200 group-hover:text-white/55 sm:block">
-    {formatFinanceDate(invoice.created_at)}
-  </div>
+                              <td className="px-5 py-4">
+                                <div className="flex flex-wrap gap-2">
+                                  <Badge
+                                    className={`rounded-full border px-3 py-1 text-xs shadow-none ${getDocumentStatusBadgeClasses(
+                                      invoice.status
+                                    )}`}
+                                  >
+                                    {getIssuedInvoiceStatusLabel(invoice.status)}
+                                  </Badge>
 
- {/* ACTION MENU */}
-<div
-  className="relative"
-  ref={openMenuInvoiceId === invoice.id ? actionsMenuRef : null}
->
-  <button
-    type="button"
-    onClick={(e) => {
-      e.stopPropagation();
-      setOpenMenuInvoiceId((current) =>
-        current === invoice.id ? null : invoice.id
-      );
-    }}
-    className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
-  >
-    <MoreVertical className="h-4 w-4" />
-  </button>
+                                  {displayState.isOverdue ? (
+                                    <Badge
+                                      className={`rounded-full border px-3 py-1 text-xs shadow-none ${getOverdueBadgeClasses()}`}
+                                    >
+                                      Overdue
+                                    </Badge>
+                                  ) : null}
+                                </div>
+                              </td>
 
-  {openMenuInvoiceId === invoice.id ? (
-    <div className="absolute right-0 z-50 bottom-full mb-2 w-40 overflow-hidden rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-xl">
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpenMenuInvoiceId(null);
-          navigate(`/finance/transactions/invoices/${invoice.id}?mode=edit`);
-        }}
-        className="w-full px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10"
-      >
-        Edit
-      </button>
+                              <td className="px-5 py-4">
+                                <Badge
+                                  className={`rounded-full border px-3 py-1 text-xs shadow-none ${getPaymentStatusBadgeClasses(
+                                    invoice.payment_status
+                                  )}`}
+                                >
+                                  {getIssuedInvoicePaymentStatusLabel(
+                                    invoice.payment_status
+                                  )}
+                                </Badge>
+                              </td>
 
-      {invoice.status !== "archived" && invoice.status !== "deleted" ? (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            void handleArchive(invoice.id);
-          }}
-          className="w-full px-3 py-2 text-left text-sm text-amber-300 hover:bg-white/10"
-        >
-          Archive
-        </button>
-      ) : null}
+                              <td className="px-5 py-4">
+                                <Badge
+                                  className={`rounded-full border px-3 py-1 text-xs shadow-none ${getPostingStatusBadgeClasses(
+                                    displayState.postingStatus
+                                  )}`}
+                                >
+                                  {getPostingStatusLabel(displayState.postingStatus)}
+                                </Badge>
+                              </td>
 
-      {invoice.status !== "deleted" && invoice.status !== "archived" ? (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            void handleDelete(invoice.id);
-          }}
-          className="w-full px-3 py-2 text-left text-sm text-rose-400 hover:bg-white/10"
-        >
-          Delete
-        </button>
-      ) : null}
-    </div>
-  ) : null}
-</div>
+                              <td className="px-5 py-4">
+                                {formatFinanceDate(invoice.updated_at)}
+                              </td>
 
-<ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
-</div>
-                      </button>
-                    );
-                  })}
+                              <td className="px-5 py-4">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    variant="outline"
+                                    onClick={() =>
+                                      navigate(
+                                        `/finance/transactions/invoices/${invoice.id}`
+                                      )
+                                    }
+                                    className="h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => void handleArchive(invoice.id)}
+                                    className="h-9 rounded-2xl border-amber-400/20 bg-amber-500/10 px-3 text-amber-200 hover:bg-amber-500/20"
+                                  >
+                                    <Archive className="h-4 w-4" />
+                                  </Button>
+
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => void handleDelete(invoice.id)}
+                                    className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-              )}
+              </div>
             </CardContent>
           </Card>
         </section>
-           {isArchiveModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
-          <div className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-            <div className="flex items-center justify-between border-b border-white/8 px-6 py-5">
-              <div>
-                <div className="text-lg font-semibold text-white">Archive</div>
-                <div className="mt-1 text-sm text-white/45">
-                  Archived and deleted invoices removed from the active registry.
+
+        {isArchiveModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
+            <div className="flex max-h-[85vh] w-full max-w-6xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+              <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
+                <div>
+                  <div className="text-lg font-semibold text-white">
+                    Invoice Archive
+                  </div>
+                  <div className="mt-1 text-sm text-slate-500">
+                    Archived records can be restored. Deleted records can be
+                    restored or permanently deleted.
+                  </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsArchiveModalOpen(false)}
+                  className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.08]"
+                >
+                  Close
+                </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setIsArchiveModalOpen(false)}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 hover:bg-white/10"
-              >
-                Close
-              </button>
-            </div>
+              <div className="flex items-center gap-2 border-b border-white/10 px-6 py-4">
+                <button
+                  type="button"
+                  onClick={() => setArchiveTab("archived")}
+                  className={`rounded-xl px-4 py-2 text-sm transition ${
+                    archiveTab === "archived"
+                      ? "bg-white/10 text-white"
+                      : "text-white/55 hover:bg-white/5 hover:text-white/80"
+                  }`}
+                >
+                  Archived
+                </button>
 
-            <div className="flex items-center gap-2 border-b border-white/8 px-6 py-4">
-              <button
-                type="button"
-                onClick={() => setArchiveTab("archived")}
-                className={`rounded-xl px-4 py-2 text-sm transition ${
-                  archiveTab === "archived"
-                    ? "bg-white/10 text-white"
-                    : "text-white/55 hover:bg-white/5 hover:text-white/80"
-                }`}
-              >
-                Archived
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setArchiveTab("deleted")}
+                  className={`rounded-xl px-4 py-2 text-sm transition ${
+                    archiveTab === "deleted"
+                      ? "bg-rose-500/15 text-rose-200"
+                      : "text-white/55 hover:bg-white/5 hover:text-white/80"
+                  }`}
+                >
+                  Deleted
+                </button>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => setArchiveTab("deleted")}
-                className={`rounded-xl px-4 py-2 text-sm transition ${
-                  archiveTab === "deleted"
-                    ? "bg-rose-500/15 text-rose-200"
-                    : "text-white/55 hover:bg-white/5 hover:text-white/80"
-                }`}
-              >
-                Deleted
-              </button>
-            </div>
+              <div className="overflow-y-auto p-6">
+                {isArchiveLoading ? (
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-8 text-sm text-slate-500">
+                    Loading archived invoices...
+                  </div>
+                ) : sortedVisibleArchivedInvoices.length === 0 ? (
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-8 text-sm text-slate-500">
+                    No {archiveTab} invoices found.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-[24px] border border-white/10">
+                    <div className="max-h-[720px] overflow-y-auto">
+                      <table className="w-full min-w-[1180px] border-collapse">
+                        <thead>
+                          <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Invoice No.
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Client
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Issue Date
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Due Date
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
+                              Total
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
+                              Balance
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Status
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Updated
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
 
-            <div className="overflow-y-auto p-6">
-              {isArchiveLoading ? (
-                <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
-                  Loading archive...
-                </div>
-              ) : visibleArchivedInvoices.length === 0 ? (
-                <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
-                  No {archiveTab} invoices found.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {visibleArchivedInvoices.map((invoice) => (
-                    <div
-                      key={invoice.id}
-                      className="flex items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-4"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="text-base font-semibold text-white">
-                           {invoice.invoice_number ||
-  (invoice.status === "draft"
-    ? "Draft Invoice"
-    : "Invoice")}
-                          </div>
+                        <tbody className="divide-y divide-white/5">
+                          {sortedVisibleArchivedInvoices.map((invoice) => (
+                            <tr
+                              key={invoice.id}
+                              className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
+                            >
+                              <td className="px-5 py-4 font-semibold text-white">
+                                {getInvoiceDisplayNumber(invoice)}
+                              </td>
 
-                          <Badge className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] text-white/75 shadow-none">
-                            {getIssuedInvoiceStatusLabel(invoice.status)}
-                          </Badge>
+                              <td className="px-5 py-4">
+                                {getInvoiceClientName(invoice)}
+                              </td>
 
-                          {invoice.status !== "deleted" && invoice.status !== "archived" ? (
-  <Badge
-    className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getPaymentStatusBadgeClasses(
-      invoice.payment_status
-    )}`}
-  >
-    {getIssuedInvoicePaymentStatusLabel(invoice.payment_status)}
-  </Badge>
-) : null}
-                        </div>
+                              <td className="px-5 py-4">
+                                {formatFinanceDate(invoice.issue_date)}
+                              </td>
 
-                       <div className="mt-2 text-sm text-white/70">
-  {invoice.counterparty_name_snapshot ||
-   invoice.client_name ||
-   "Unknown"}
-</div>
+                              <td className="px-5 py-4">
+                                {formatFinanceDate(invoice.due_date)}
+                              </td>
 
-                        <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-white/45 md:grid-cols-4">
-                          <div>Issued: {formatFinanceDate(invoice.issue_date)}</div>
-                          <div>Due: {formatFinanceDate(invoice.due_date)}</div>
-                          <div>
-                            Total:{" "}
-                            {formatFinanceMoney(
-                              invoice.total_amount,
-                              invoice.currency_code ?? "USD"
-                            )}
-                          </div>
-                          <div>
-                            Balance:{" "}
-                            {formatFinanceMoney(
-                              invoice.balance_due,
-                              invoice.currency_code ?? "USD"
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                              <td className="px-5 py-4 text-right font-semibold text-white">
+                                {formatFinanceMoney(
+                                  invoice.total_amount,
+                                  invoice.currency_code ?? "USD"
+                                )}
+                              </td>
 
-                                          <div className="flex shrink-0 items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            navigate(`/finance/transactions/invoices/${invoice.id}`)
-                          }
-                          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
-                        >
-                          Open
-                        </button>
+                              <td className="px-5 py-4 text-right font-semibold text-white">
+                                {formatFinanceMoney(
+                                  invoice.balance_due,
+                                  invoice.currency_code ?? "USD"
+                                )}
+                              </td>
 
-                        <button
-                          type="button"
-                          onClick={() => void handleRestore(invoice.id)}
-                          className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-500/20"
-                        >
-                          Restore
-                        </button>
+                              <td className="px-5 py-4">
+                                <Badge
+                                  className={`rounded-full border px-3 py-1 text-xs shadow-none ${getDocumentStatusBadgeClasses(
+                                    invoice.status
+                                  )}`}
+                                >
+                                  {getIssuedInvoiceStatusLabel(invoice.status)}
+                                </Badge>
+                              </td>
 
-                        {archiveTab === "deleted" ? (
-                          <button
-                            type="button"
-                            onClick={() => void handleHardDelete(invoice.id)}
-                            className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/20"
-                          >
-                            Hard Delete
-                          </button>
-                        ) : null}
-                      </div>
+                              <td className="px-5 py-4">
+                                {formatFinanceDate(invoice.updated_at)}
+                              </td>
+
+                              <td className="px-5 py-4">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    variant="outline"
+                                    onClick={() =>
+                                      navigate(
+                                        `/finance/transactions/invoices/${invoice.id}`
+                                      )
+                                    }
+                                    className="h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => void handleRestore(invoice.id)}
+                                    className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+                                  >
+                                    <RotateCcw className="h-4 w-4" />
+                                  </Button>
+
+                                  {archiveTab === "deleted" ? (
+                                    <Button
+                                      variant="outline"
+                                      onClick={() =>
+                                        void handleHardDelete(invoice.id)
+                                      }
+                                      className="h-9 rounded-2xl border-rose-500/30 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
       </div>
     </div>
   );

@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Archive,
   ArrowRight,
   CheckCircle,
+  Eye,
   FileText,
   Link2,
   Paperclip,
@@ -160,12 +161,28 @@ type CustomerPoEditDraft = {
   notes: string;
 };
 
+type LineItemSortKey =
+  | "line"
+  | "description"
+  | "item"
+  | "quantity"
+  | "unit_price"
+  | "discount"
+  | "tax"
+  | "revenue"
+  | "line_total";
+
+type SortDirection = "asc" | "desc";
+
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function formatMoney(value: number | string | null | undefined, currencyCode = "USD") {
+function formatMoney(
+  value: number | string | null | undefined,
+  currencyCode = "USD"
+) {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
     currency: currencyCode || "USD",
@@ -222,7 +239,7 @@ function getStatusLabel(status: CustomerPoStatus) {
 function getStatusBadgeClasses(status: CustomerPoStatus) {
   switch (status) {
     case "draft":
-      return "border-white/10 bg-white/10 text-white/75";
+      return "border-slate-400/20 bg-white/[0.06] text-slate-300";
     case "received":
       return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
     case "verified":
@@ -239,6 +256,50 @@ function getStatusBadgeClasses(status: CustomerPoStatus) {
       return "border-rose-500/30 bg-rose-500/10 text-rose-300";
     default:
       return "border-white/10 bg-white/10 text-white/75";
+  }
+}
+
+function compareValues(a: string | number, b: string | number) {
+  if (typeof a === "number" && typeof b === "number") {
+    return a - b;
+  }
+
+  return String(a).localeCompare(String(b), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function getLineItemSortValue(line: CustomerPoLineItem, key: LineItemSortKey) {
+  switch (key) {
+    case "line":
+      return line.sort_order ?? 0;
+    case "description":
+      return line.description || "";
+    case "item":
+      return line.item?.name || "";
+    case "quantity":
+      return toNumber(line.quantity);
+    case "unit_price":
+      return toNumber(line.unit_price);
+    case "discount":
+      return toNumber(line.discount);
+    case "tax":
+      return (
+        line.finance_tax_codes?.name ||
+        line.finance_tax_codes?.code ||
+        String(line.finance_tax_codes?.rate_percent ?? "")
+      );
+    case "revenue":
+      return (
+        line.finance_revenue_categories?.name ||
+        line.finance_revenue_categories?.code ||
+        ""
+      );
+    case "line_total":
+      return toNumber(line.line_total);
+    default:
+      return "";
   }
 }
 
@@ -272,6 +333,10 @@ export default function FinanceCustomerPoDetailPage() {
     notes: "",
   });
 
+  const [lineSortKey, setLineSortKey] = useState<LineItemSortKey>("line");
+  const [lineSortDirection, setLineSortDirection] =
+    useState<SortDirection>("asc");
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -280,7 +345,7 @@ export default function FinanceCustomerPoDetailPage() {
   const loadCustomerPo = useCallback(async () => {
     if (!id) return;
 
-    setIsLoading(true);
+    setIsLoading((current) => current || !customerPo);
     setError("");
 
     try {
@@ -321,8 +386,7 @@ export default function FinanceCustomerPoDetailPage() {
         setQuotation(null);
       }
 
-
-          if (typedPo?.proforma_invoice_id) {
+      if (typedPo?.proforma_invoice_id) {
         const { data: proformaData, error: proformaError } = await supabase
           .from("finance_proforma_invoices")
           .select("id, proforma_number, status, total_amount, currency_code")
@@ -335,7 +399,7 @@ export default function FinanceCustomerPoDetailPage() {
         setProforma(null);
       }
 
-      const { data: attachmentData, error: attachmentError } = await supabase
+          const { data: attachmentData, error: attachmentError } = await supabase
         .from("finance_record_attachments")
         .select(`
           id,
@@ -411,14 +475,13 @@ export default function FinanceCustomerPoDetailPage() {
       if (lineItemError) throw lineItemError;
 
       setLineItems((lineItemData || []) as unknown as CustomerPoLineItem[]);
-      
     } catch (err) {
       console.error(err);
       setError("Failed to load Customer PO.");
     } finally {
       setIsLoading(false);
     }
-  }, [id]);
+  }, [customerPo, id]);
 
   useEffect(() => {
     void loadCustomerPo();
@@ -449,7 +512,6 @@ export default function FinanceCustomerPoDetailPage() {
         },
         () => void loadCustomerPo()
       )
-      
       .on(
         "postgres_changes",
         {
@@ -460,18 +522,31 @@ export default function FinanceCustomerPoDetailPage() {
         },
         () => void loadCustomerPo()
       )
-
-      
       .subscribe();
 
+    const intervalId = window.setInterval(() => {
+      void loadCustomerPo();
+    }, 60000);
+
     return () => {
+      window.clearInterval(intervalId);
       supabase.removeChannel(channel);
     };
   }, [id, loadCustomerPo]);
 
   const hasCustomerPoFile = attachments.length > 0;
 
-    const lineSubtotal = lineItems.reduce(
+  const sortedLineItems = useMemo(() => {
+    return [...lineItems].sort((first, second) => {
+      const firstValue = getLineItemSortValue(first, lineSortKey);
+      const secondValue = getLineItemSortValue(second, lineSortKey);
+      const directionMultiplier = lineSortDirection === "asc" ? 1 : -1;
+
+      return compareValues(firstValue, secondValue) * directionMultiplier;
+    });
+  }, [lineItems, lineSortDirection, lineSortKey]);
+
+  const lineSubtotal = lineItems.reduce(
     (sum, line) => sum + toNumber(line.quantity) * toNumber(line.unit_price),
     0
   );
@@ -487,6 +562,26 @@ export default function FinanceCustomerPoDetailPage() {
   );
 
   const lineTax = Math.max(lineTotal - (lineSubtotal - lineDiscount), 0);
+
+  const canEditDetails =
+    customerPo?.status !== "archived" &&
+    customerPo?.status !== "deleted" &&
+    customerPo?.status !== "linked_to_pi";
+
+  function handleLineSort(nextKey: LineItemSortKey) {
+    if (lineSortKey === nextKey) {
+      setLineSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setLineSortKey(nextKey);
+    setLineSortDirection(nextKey === "line" ? "asc" : "desc");
+  }
+
+  function getLineSortIndicator(key: LineItemSortKey) {
+    if (lineSortKey !== key) return "↕";
+    return lineSortDirection === "asc" ? "↑" : "↓";
+  }
 
   function resetEditDraft() {
     if (!customerPo) return;
@@ -647,25 +742,33 @@ export default function FinanceCustomerPoDetailPage() {
     }
   }
 
-    function handleOpenNewProformaInvoiceFromCustomerPo() {
+  function handleOpenNewProformaInvoiceFromCustomerPo() {
     if (!customerPo) return;
 
     if (customerPo.status !== "received") {
-      setError("Customer PO must be marked as received before creating a proforma invoice.");
+      setError(
+        "Customer PO must be marked as received before creating a proforma invoice."
+      );
       return;
     }
 
     if (!hasCustomerPoFile) {
-      setError("Customer PO document must be uploaded before creating a proforma invoice.");
+      setError(
+        "Customer PO document must be uploaded before creating a proforma invoice."
+      );
       return;
     }
 
     if (customerPo.proforma_invoice_id) {
-      navigate(`/finance/transactions/proforma-invoices/${customerPo.proforma_invoice_id}`);
+      navigate(
+        `/finance/transactions/proforma-invoices/${customerPo.proforma_invoice_id}`
+      );
       return;
     }
 
-    navigate(`/finance/transactions/proforma-invoices/new?client_po_id=${customerPo.id}`);
+    navigate(
+      `/finance/transactions/proforma-invoices/new?client_po_id=${customerPo.id}`
+    );
   }
 
   async function handleSaveDetailsEdit() {
@@ -782,6 +885,15 @@ export default function FinanceCustomerPoDetailPage() {
     }
   }
 
+  const activeSectionClass =
+    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
+
+  const summaryBlockClass =
+    "rounded-[24px] border border-white/10 bg-black/20 p-4";
+
+  const fieldShellClass =
+    "mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
@@ -806,10 +918,7 @@ export default function FinanceCustomerPoDetailPage() {
     );
   }
 
-  const canEditDetails =
-    customerPo.status !== "archived" &&
-    customerPo.status !== "deleted" &&
-    customerPo.status !== "linked_to_pi";
+  const currencyCode = customerPo.currency_code || "USD";
 
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
@@ -827,7 +936,7 @@ export default function FinanceCustomerPoDetailPage() {
               Customer POs
             </button>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-stretch">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
               <div>
                 <Badge className="inline-flex w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200 shadow-none">
                   Customer Commitment
@@ -858,7 +967,9 @@ export default function FinanceCustomerPoDetailPage() {
                 </div>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Customer PO received from the client. Create the proforma invoice after the PO is marked as received and the customer document is uploaded.
+                  Customer PO received from the client. Create the proforma
+                  invoice after the PO is marked as received and the customer
+                  document is uploaded.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
@@ -866,7 +977,10 @@ export default function FinanceCustomerPoDetailPage() {
                     Customer PO No. {customerPo.external_po_number || "—"}
                   </Badge>
                   <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200 shadow-none">
-                    {formatMoney(customerPo.total_amount, customerPo.currency_code || "USD")}
+                    {formatMoney(customerPo.total_amount, currencyCode)}
+                  </Badge>
+                  <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
+                    Auto-refresh enabled
                   </Badge>
                 </div>
               </div>
@@ -912,8 +1026,8 @@ export default function FinanceCustomerPoDetailPage() {
               </div>
             </div>
 
-            <div className="mt-6 flex flex-wrap gap-3">
-                            {customerPo.status === "draft" ? (
+                        <div className="mt-6 flex flex-wrap gap-3">
+              {customerPo.status === "draft" ? (
                 <Button
                   onClick={() => void updateCustomerPoStatus("received")}
                   disabled={isSaving}
@@ -943,7 +1057,9 @@ export default function FinanceCustomerPoDetailPage() {
               {customerPo.proforma_invoice_id ? (
                 <Button
                   onClick={() =>
-                    navigate(`/finance/transactions/proforma-invoices/${customerPo.proforma_invoice_id}`)
+                    navigate(
+                      `/finance/transactions/proforma-invoices/${customerPo.proforma_invoice_id}`
+                    )
                   }
                   className="h-11 rounded-2xl border border-violet-400/20 bg-violet-500 px-4 font-semibold text-white hover:bg-violet-400"
                 >
@@ -1005,67 +1121,74 @@ export default function FinanceCustomerPoDetailPage() {
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_420px]">
           <div className="space-y-6">
-            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-white">Document Overview</CardTitle>
-                    <CardDescription className="text-white/45">
-                      Customer PO commercial details and source links.
-                    </CardDescription>
+            <Card className={activeSectionClass}>
+              <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Document Overview
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Customer PO commercial details and source links.
+                      </CardDescription>
+                    </div>
                   </div>
+                </div>
 
-                  {canEditDetails ? (
-                    <div className="flex items-center gap-2">
-                      {isEditingDetails ? (
-                        <>
-                          <Button
-                            onClick={() => void handleSaveDetailsEdit()}
-                            disabled={isSaving}
-                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
-                          >
-                            <Save className="mr-2 h-4 w-4" />
-                            {isSaving ? "Saving..." : "Save"}
-                          </Button>
+                {canEditDetails ? (
+                  <div className="flex items-center gap-2">
+                    {isEditingDetails ? (
+                      <>
+                        <Button
+                          onClick={() => void handleSaveDetailsEdit()}
+                          disabled={isSaving}
+                          className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
+                        >
+                          <Save className="mr-2 h-4 w-4" />
+                          {isSaving ? "Saving..." : "Save"}
+                        </Button>
 
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setIsEditingDetails(false);
-                              resetEditDraft();
-                            }}
-                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                          >
-                            Cancel
-                          </Button>
-                        </>
-                      ) : (
                         <Button
                           variant="outline"
-                          onClick={() => setIsEditingDetails(true)}
+                          onClick={() => {
+                            setIsEditingDetails(false);
+                            resetEditDraft();
+                          }}
                           className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
                         >
-                          <SquarePen className="mr-2 h-4 w-4" />
-                          Edit
+                          Cancel
                         </Button>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsEditingDetails(true)}
+                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                      >
+                        <SquarePen className="mr-2 h-4 w-4" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+                ) : null}
               </CardHeader>
 
               <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                <div className={summaryBlockClass}>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                     Internal CPO No.
                   </div>
-                  <div className="mt-2 text-base font-semibold text-white">
+                  <div className="mt-2 text-2xl font-semibold text-white">
                     {customerPo.client_po_number || "Pending"}
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                <div className={summaryBlockClass}>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                     Customer PO No.
                   </div>
                   {isEditingDetails ? (
@@ -1077,17 +1200,17 @@ export default function FinanceCustomerPoDetailPage() {
                           external_po_number: event.target.value,
                         }))
                       }
-                      className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"
+                      className={fieldShellClass}
                     />
                   ) : (
-                    <div className="mt-2 text-base font-semibold text-white">
+                    <div className="mt-2 text-2xl font-semibold text-white">
                       {customerPo.external_po_number || "—"}
                     </div>
                   )}
                 </div>
 
-                <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                <div className={summaryBlockClass}>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                     Status
                   </div>
                   <div className="mt-2">
@@ -1101,26 +1224,26 @@ export default function FinanceCustomerPoDetailPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                <div className={summaryBlockClass}>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                     Client
                   </div>
-                  <div className="mt-2 text-base font-semibold text-white">
+                  <div className="mt-2 text-2xl font-semibold text-white">
                     {customerPo.client_name_snapshot || "—"}
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                <div className={summaryBlockClass}>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                     Company
                   </div>
-                  <div className="mt-2 text-base font-semibold text-white">
+                  <div className="mt-2 text-2xl font-semibold text-white">
                     {customerPo.company_name_snapshot || "—"}
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                <div className={summaryBlockClass}>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                     PO Date
                   </div>
                   {isEditingDetails ? (
@@ -1133,17 +1256,17 @@ export default function FinanceCustomerPoDetailPage() {
                           po_date: event.target.value,
                         }))
                       }
-                      className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"
+                      className={fieldShellClass}
                     />
                   ) : (
-                    <div className="mt-2 text-base font-semibold text-white">
+                    <div className="mt-2 text-2xl font-semibold text-white">
                       {formatDate(customerPo.po_date)}
                     </div>
                   )}
                 </div>
 
-                <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                <div className={summaryBlockClass}>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                     Received
                   </div>
                   {isEditingDetails ? (
@@ -1156,26 +1279,26 @@ export default function FinanceCustomerPoDetailPage() {
                           received_date: event.target.value,
                         }))
                       }
-                      className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"
+                      className={fieldShellClass}
                     />
                   ) : (
-                    <div className="mt-2 text-base font-semibold text-white">
+                    <div className="mt-2 text-2xl font-semibold text-white">
                       {formatDate(customerPo.received_at)}
                     </div>
                   )}
                 </div>
 
-                <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                <div className={summaryBlockClass}>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                     Verified
                   </div>
-                  <div className="mt-2 text-base font-semibold text-white">
+                  <div className="mt-2 text-2xl font-semibold text-white">
                     {formatDate(customerPo.verified_at)}
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                <div className={summaryBlockClass}>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                     Total
                   </div>
                   {isEditingDetails ? (
@@ -1188,17 +1311,17 @@ export default function FinanceCustomerPoDetailPage() {
                           total_amount: event.target.value,
                         }))
                       }
-                      className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"
+                      className={fieldShellClass}
                     />
                   ) : (
-                    <div className="mt-2 text-base font-semibold text-white">
-                      {formatMoney(customerPo.total_amount, customerPo.currency_code || "USD")}
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {formatMoney(customerPo.total_amount, currencyCode)}
                     </div>
                   )}
                 </div>
 
-                <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 md:col-span-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                     Notes
                   </div>
                   {isEditingDetails ? (
@@ -1211,10 +1334,10 @@ export default function FinanceCustomerPoDetailPage() {
                         }))
                       }
                       rows={4}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-sm text-white outline-none"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
                     />
                   ) : (
-                    <div className="mt-2 text-sm leading-6 text-white/70">
+                    <div className="mt-2 text-sm leading-6 text-slate-300">
                       {customerPo.notes || "—"}
                     </div>
                   )}
@@ -1222,219 +1345,287 @@ export default function FinanceCustomerPoDetailPage() {
               </CardContent>
             </Card>
 
-                        <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                        <Card className={activeSectionClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-white">Customer PO Line Items</CardTitle>
-                <CardDescription className="text-white/45">
-                  Item-level details saved against this customer purchase order.
-                </CardDescription>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Customer PO Line Items
+                    </CardTitle>
+                    <CardDescription className="mt-1 text-xs text-slate-500">
+                      Item-level details saved against this customer purchase
+                      order. Header sorting is frontend-only.
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
 
-              <CardContent className="space-y-4 p-5">
-                {lineItems.length === 0 ? (
-                  <div className="rounded-[22px] border border-white/10 bg-black/20 px-4 py-6 text-sm text-white/50">
-                    No Customer PO line items found.
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-3">
-                      {lineItems.map((line, index) => (
-                        <div
-                          key={line.id}
-                          className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                        >
-                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200 shadow-none">
-                                  Line {index + 1}
-                                </Badge>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <div className="max-h-[720px] overflow-y-auto">
+                    <table className="w-full min-w-[1240px] border-collapse">
+                      <thead>
+                        <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                          {[
+                            ["line", "Line"],
+                            ["description", "Description"],
+                            ["item", "Item"],
+                            ["quantity", "Qty"],
+                            ["unit_price", "Unit Price"],
+                            ["discount", "Discount"],
+                            ["tax", "Tax"],
+                            ["revenue", "Revenue"],
+                            ["line_total", "Line Total"],
+                          ].map(([key, label]) => (
+                            <th
+                              key={key}
+                              className={`sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold ${
+                                key === "quantity" ||
+                                key === "unit_price" ||
+                                key === "discount" ||
+                                key === "line_total"
+                                  ? "text-right"
+                                  : ""
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleLineSort(key as LineItemSortKey)
+                                }
+                                className={`inline-flex items-center gap-2 transition hover:text-white ${
+                                  key === "quantity" ||
+                                  key === "unit_price" ||
+                                  key === "discount" ||
+                                  key === "line_total"
+                                    ? "ml-auto"
+                                    : ""
+                                }`}
+                              >
+                                {label}
+                                <span className="text-[10px] text-slate-600">
+                                  {getLineSortIndicator(
+                                    key as LineItemSortKey
+                                  )}
+                                </span>
+                              </button>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
 
-                                {line.item?.name ? (
-                                  <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
-                                    {line.item.name}
-                                  </Badge>
+                      <tbody className="divide-y divide-white/5">
+                        {sortedLineItems.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan={9}
+                              className="px-5 py-14 text-center text-sm text-slate-500"
+                            >
+                              No Customer PO line items found.
+                            </td>
+                          </tr>
+                        ) : (
+                          sortedLineItems.map((line, index) => (
+                            <tr
+                              key={line.id}
+                              className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
+                            >
+                              <td className="px-5 py-4 font-semibold text-white">
+                                {line.sort_order ?? index + 1}
+                              </td>
+
+                              <td className="px-5 py-4">
+                                <div className="max-w-[360px] truncate font-medium text-white">
+                                  {line.description || "Untitled line"}
+                                </div>
+                                {line.notes ? (
+                                  <div className="mt-1 max-w-[360px] truncate text-xs text-slate-500">
+                                    {line.notes}
+                                  </div>
                                 ) : null}
-                              </div>
+                              </td>
 
-                              <div className="mt-3 text-base font-semibold text-white">
-                                {line.description || "Untitled line"}
-                              </div>
+                              <td className="px-5 py-4">
+                                {line.item?.name || "—"}
+                              </td>
 
-                              <div className="mt-2 flex flex-wrap gap-2 text-xs text-white/45">
-                                <span>
-                                  Qty:{" "}
-                                  <span className="text-white/70">
-                                    {toNumber(line.quantity)}
-                                  </span>
-                                </span>
-                                <span>•</span>
-                                <span>
-                                  Unit:{" "}
-                                  <span className="text-white/70">
-                                    {line.finance_units_of_measure?.code ||
-                                      line.finance_units_of_measure?.name ||
-                                      "—"}
-                                  </span>
-                                </span>
-                                <span>•</span>
-                                <span>
-                                  Tax:{" "}
-                                  <span className="text-white/70">
-                                    {line.finance_tax_codes?.name ||
-                                      line.finance_tax_codes?.code ||
-                                      "—"}
-                                  </span>
-                                </span>
-                                <span>•</span>
-                                <span>
-                                  Revenue:{" "}
-                                  <span className="text-white/70">
-                                    {line.finance_revenue_categories?.name ||
-                                      line.finance_revenue_categories?.code ||
-                                      "—"}
-                                  </span>
-                                </span>
-                              </div>
-                            </div>
+                              <td className="px-5 py-4 text-right font-semibold text-white">
+                                {toNumber(line.quantity)}
+                              </td>
 
-                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[420px]">
-                              <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-3">
-                                <div className="text-[10px] uppercase tracking-[0.16em] text-white/35">
-                                  Unit Price
-                                </div>
-                                <div className="mt-2 text-sm font-semibold text-white">
-                                  {formatMoney(line.unit_price, customerPo.currency_code || "USD")}
-                                </div>
-                              </div>
+                              <td className="px-5 py-4 text-right font-semibold text-white">
+                                {formatMoney(line.unit_price, currencyCode)}
+                              </td>
 
-                              <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-3">
-                                <div className="text-[10px] uppercase tracking-[0.16em] text-white/35">
-                                  Discount
-                                </div>
-                                <div className="mt-2 text-sm font-semibold text-white">
-                                  {formatMoney(line.discount, customerPo.currency_code || "USD")}
-                                </div>
-                              </div>
+                              <td className="px-5 py-4 text-right font-semibold text-white">
+                                {formatMoney(line.discount, currencyCode)}
+                              </td>
 
-                              <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-3">
-                                <div className="text-[10px] uppercase tracking-[0.16em] text-white/35">
-                                  Quantity
-                                </div>
-                                <div className="mt-2 text-sm font-semibold text-white">
-                                  {toNumber(line.quantity)}
-                                </div>
-                              </div>
+                              <td className="px-5 py-4">
+                                {line.finance_tax_codes?.name ||
+                                  line.finance_tax_codes?.code ||
+                                  "—"}
+                              </td>
 
-                              <div className="rounded-[18px] border border-cyan-400/15 bg-cyan-500/10 px-3 py-3">
-                                <div className="text-[10px] uppercase tracking-[0.16em] text-cyan-100/60">
-                                  Line Total
-                                </div>
-                                <div className="mt-2 text-sm font-semibold text-white">
-                                  {formatMoney(line.line_total, customerPo.currency_code || "USD")}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                              <td className="px-5 py-4">
+                                {line.finance_revenue_categories?.name ||
+                                  line.finance_revenue_categories?.code ||
+                                  "—"}
+                              </td>
 
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-                      <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                          Subtotal
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {formatMoney(lineSubtotal, customerPo.currency_code || "USD")}
-                        </div>
-                      </div>
-
-                      <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                          Discount
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {formatMoney(lineDiscount, customerPo.currency_code || "USD")}
-                        </div>
-                      </div>
-
-                      <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                          Tax
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {formatMoney(lineTax, customerPo.currency_code || "USD")}
-                        </div>
-                      </div>
-
-                      <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/60">
-                          Total
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {formatMoney(lineTotal, customerPo.currency_code || "USD")}
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
+                              <td className="px-5 py-4 text-right font-semibold text-white">
+                                {formatMoney(line.line_total, currencyCode)}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+              <div className={summaryBlockClass}>
+                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                  Subtotal
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-white">
+                  {formatMoney(lineSubtotal, currencyCode)}
+                </div>
+              </div>
+
+              <div className={summaryBlockClass}>
+                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                  Discount
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-white">
+                  {formatMoney(lineDiscount, currencyCode)}
+                </div>
+              </div>
+
+              <div className={summaryBlockClass}>
+                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                  Tax
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-white">
+                  {formatMoney(lineTax, currencyCode)}
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 p-4">
+                <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-100/60">
+                  Total
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-white">
+                  {formatMoney(lineTotal, currencyCode)}
+                </div>
+              </div>
+            </div>
+
+            <Card className={activeSectionClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-white">Linked Documents</CardTitle>
-                <CardDescription className="text-white/45">
-                  Source quotation and downstream proforma invoice.
-                </CardDescription>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
+                    <Link2 className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Linked Documents
+                    </CardTitle>
+                    <CardDescription className="mt-1 text-xs text-slate-500">
+                      Source quotation and downstream proforma invoice.
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
 
               <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                <div className={summaryBlockClass}>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                     Linked Quotation
                   </div>
-                  <div className="mt-2 text-base font-semibold text-white">
+                  <div className="mt-2 text-2xl font-semibold text-white">
                     {quotation?.quotation_number || "—"}
                   </div>
-                  <div className="mt-2 text-sm text-white/50">
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
                     {quotation
                       ? `${quotation.status || "—"} · ${formatMoney(
                           quotation.total_amount,
-                          quotation.currency_code || customerPo.currency_code || "USD"
+                          quotation.currency_code || currencyCode
                         )}`
                       : "No quotation linked."}
                   </div>
+                  {quotation ? (
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        navigate(
+                          `/finance/transactions/quotations/${quotation.id}`
+                        )
+                      }
+                      className="mt-4 h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      Open
+                    </Button>
+                  ) : null}
                 </div>
 
-                <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                <div className={summaryBlockClass}>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                     Linked Proforma Invoice
                   </div>
-                  <div className="mt-2 text-base font-semibold text-white">
+                  <div className="mt-2 text-2xl font-semibold text-white">
                     {proforma?.proforma_number || "—"}
                   </div>
-                  <div className="mt-2 text-sm text-white/50">
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
                     {proforma
                       ? `${proforma.status || "—"} · ${formatMoney(
                           proforma.total_amount,
-                          proforma.currency_code || customerPo.currency_code || "USD"
+                          proforma.currency_code || currencyCode
                         )}`
                       : "No proforma invoice linked yet."}
                   </div>
+                  {proforma ? (
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        navigate(
+                          `/finance/transactions/proforma-invoices/${proforma.id}`
+                        )
+                      }
+                      className="mt-4 h-9 rounded-2xl border-violet-400/20 bg-violet-500/10 px-3 text-violet-200 hover:bg-violet-500/20"
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      Open
+                    </Button>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          <div className="space-y-6">
-            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                    <div className="space-y-6">
+            <Card className={activeSectionClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-white">Customer PO Document</CardTitle>
-                <CardDescription className="text-white/45">
-                  Upload or view the customer purchase order document.
-                </CardDescription>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                    <Paperclip className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Customer PO Document
+                    </CardTitle>
+                    <CardDescription className="mt-1 text-xs text-slate-500">
+                      Upload or view the customer purchase order document.
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
 
               <CardContent className="space-y-4 p-5">
@@ -1519,7 +1710,7 @@ export default function FinanceCustomerPoDetailPage() {
                   {isUploading ? "Uploading..." : "Upload Document"}
                 </Button>
 
-                <div className="space-y-3">
+                <div className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
                   {attachments.length === 0 ? (
                     <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-4 text-sm text-rose-200">
                       No Customer PO document uploaded. Verification is blocked.
@@ -1552,12 +1743,21 @@ export default function FinanceCustomerPoDetailPage() {
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+            <Card className={activeSectionClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-white">Verification Rules</CardTitle>
-                <CardDescription className="text-white/45">
-                  Locked Customer PO workflow.
-                </CardDescription>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
+                    <CheckCircle className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Verification Rules
+                    </CardTitle>
+                    <CardDescription className="mt-1 text-xs text-slate-500">
+                      Locked Customer PO workflow.
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
 
               <CardContent className="space-y-3 p-5 text-sm leading-6 text-slate-400">

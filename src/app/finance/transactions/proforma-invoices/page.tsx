@@ -100,43 +100,38 @@ function getToneClasses(tone: ProformaMetricCard["tone"]) {
     case "emerald":
       return {
         glow: "from-emerald-500/20 via-emerald-400/10 to-transparent",
-        iconWrap:
-          "border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_0_30px_rgba(16,185,129,0.18)]",
-        accent: "bg-emerald-400",
+        iconWrap: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
         value: "text-emerald-100",
+        accent: "bg-emerald-400",
       };
     case "amber":
       return {
         glow: "from-amber-500/20 via-amber-400/10 to-transparent",
-        iconWrap:
-          "border-amber-400/20 bg-amber-500/10 text-amber-300 shadow-[0_0_30px_rgba(245,158,11,0.18)]",
-        accent: "bg-amber-400",
+        iconWrap: "border-amber-400/20 bg-amber-500/10 text-amber-200",
         value: "text-amber-100",
+        accent: "bg-amber-400",
       };
     case "rose":
       return {
         glow: "from-rose-500/20 via-rose-400/10 to-transparent",
-        iconWrap:
-          "border-rose-400/20 bg-rose-500/10 text-rose-300 shadow-[0_0_30px_rgba(244,63,94,0.18)]",
-        accent: "bg-rose-400",
+        iconWrap: "border-rose-400/20 bg-rose-500/10 text-rose-200",
         value: "text-rose-100",
+        accent: "bg-rose-400",
       };
     case "violet":
       return {
         glow: "from-violet-500/20 via-violet-400/10 to-transparent",
-        iconWrap:
-          "border-violet-400/20 bg-violet-500/10 text-violet-300 shadow-[0_0_30px_rgba(139,92,246,0.18)]",
-        accent: "bg-violet-400",
+        iconWrap: "border-violet-400/20 bg-violet-500/10 text-violet-200",
         value: "text-violet-100",
+        accent: "bg-violet-400",
       };
     case "cyan":
     default:
       return {
         glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
-        iconWrap:
-          "border-cyan-400/20 bg-cyan-500/10 text-cyan-300 shadow-[0_0_30px_rgba(34,211,238,0.18)]",
-        accent: "bg-cyan-400",
+        iconWrap: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
         value: "text-cyan-100",
+        accent: "bg-cyan-400",
       };
   }
 }
@@ -148,31 +143,36 @@ function MetricCard({ metric }: { metric: ProformaMetricCard }) {
   return (
     <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
       <div
-        className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow} opacity-70`}
+        className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`}
       />
-      <div className="relative flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {metric.title}
+
+      <div className="relative flex h-full flex-col justify-between gap-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              {metric.title}
+            </div>
+            <div
+              className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${tone.value}`}
+            >
+              {metric.value}
+            </div>
           </div>
+
           <div
-            className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${tone.value}`}
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
           >
-            {metric.value}
+            <Icon className="h-5 w-5" />
           </div>
-          <div className="mt-2 min-w-0 truncate text-sm leading-6 text-slate-400">
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
             {metric.subtitle}
           </div>
-        </div>
-
-        <div
-          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
-        >
-          <Icon className="h-5 w-5" />
+          <div className={`h-2 w-2 shrink-0 rounded-full ${tone.accent}`} />
         </div>
       </div>
-
-      <div className={`absolute bottom-5 right-5 h-2 w-2 rounded-full ${tone.accent}`} />
     </div>
   );
 }
@@ -308,6 +308,39 @@ function getProformaSortValue(
   }
 }
 
+function SortHeader({
+  label,
+  sortKey,
+  activeSortKey,
+  sortDirection,
+  onSort,
+  align = "left",
+}: {
+  label: string;
+  sortKey: ProformaSortKey;
+  activeSortKey: ProformaSortKey;
+  sortDirection: SortDirection;
+  onSort: (key: ProformaSortKey) => void;
+  align?: "left" | "right";
+}) {
+  const isActive = activeSortKey === sortKey;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(sortKey)}
+      className={`inline-flex w-full items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition hover:text-slate-300 ${
+        align === "right" ? "justify-end text-right" : "justify-start text-left"
+      } ${isActive ? "text-slate-300" : "text-slate-500"}`}
+    >
+      <span>{label}</span>
+      <span className="text-[10px]">
+        {isActive ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}
+      </span>
+    </button>
+  );
+}
+
 export default function FinanceProformaInvoicesPage() {
   const navigate = useNavigate();
 
@@ -330,10 +363,6 @@ export default function FinanceProformaInvoicesPage() {
 
   const [sortKey, setSortKey] = useState<ProformaSortKey>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
-  const [archiveSortKey, setArchiveSortKey] =
-    useState<ProformaSortKey>("created_at");
-  const [archiveSortDirection, setArchiveSortDirection] =
-    useState<SortDirection>("desc");
 
   const loadPermissions = useCallback(async () => {
     const {
@@ -360,61 +389,63 @@ export default function FinanceProformaInvoicesPage() {
     }
   }, []);
 
+  const hydrateClientNames = useCallback(async (rows: ProformaInvoiceListRow[]) => {
+    const clientIds = Array.from(
+      new Set(rows.map((row) => row.client_id).filter(Boolean))
+    ) as string[];
+
+    let clientMap = new Map<
+      string,
+      { name: string | null; legal_name: string | null }
+    >();
+
+    if (clientIds.length > 0) {
+      const { data: clients, error: clientsError } = await supabase
+        .from("finance_clients")
+        .select("id, name, legal_name")
+        .in("id", clientIds);
+
+      if (clientsError) {
+        throw clientsError;
+      }
+
+      clientMap = new Map(
+        (clients || []).map((client) => [
+          client.id as string,
+          {
+            name: (client as { name?: string | null }).name ?? null,
+            legal_name:
+              (client as { legal_name?: string | null }).legal_name ?? null,
+          },
+        ])
+      );
+    }
+
+    return rows.map((row) => {
+      const client = row.client_id ? clientMap.get(row.client_id) : null;
+
+      return {
+        ...row,
+        client_name: client?.name ?? null,
+        client_legal_name: client?.legal_name ?? null,
+      };
+    });
+  }, []);
+
   const loadProformas = useCallback(async () => {
     setIsLoading((current) => current || proformas.length === 0);
 
     try {
       const rows = (await getProformaInvoicesList()) as ProformaInvoiceListRow[];
-
-      const clientIds = Array.from(
-        new Set(rows.map((row) => row.client_id).filter(Boolean))
-      ) as string[];
-
-      let clientMap = new Map<
-        string,
-        { name: string | null; legal_name: string | null }
-      >();
-
-      if (clientIds.length > 0) {
-        const { data: clients, error: clientsError } = await supabase
-          .from("finance_clients")
-          .select("id, name, legal_name")
-          .in("id", clientIds);
-
-        if (clientsError) {
-          throw clientsError;
-        }
-
-        clientMap = new Map(
-          (clients || []).map((client) => [
-            client.id as string,
-            {
-              name: (client as { name?: string | null }).name ?? null,
-              legal_name:
-                (client as { legal_name?: string | null }).legal_name ?? null,
-            },
-          ])
-        );
-      }
-
-      setProformas(
-        rows.map((row) => {
-          const client = row.client_id ? clientMap.get(row.client_id) : null;
-
-          return {
-            ...row,
-            client_name: client?.name ?? null,
-            client_legal_name: client?.legal_name ?? null,
-          };
-        })
-      );
+      const hydratedRows = await hydrateClientNames(rows);
+      setProformas(hydratedRows);
     } catch (error) {
       console.error("Failed to load proforma invoices:", error);
       setProformas([]);
     } finally {
       setIsLoading(false);
     }
-  }, [proformas.length]);
+  }, [hydrateClientNames, proformas.length]);
 
   const loadArchivedProformas = useCallback(async () => {
     setIsArchiveLoading(true);
@@ -422,56 +453,15 @@ export default function FinanceProformaInvoicesPage() {
     try {
       const rows =
         (await getProformaInvoicesArchiveList()) as ProformaInvoiceListRow[];
-
-      const clientIds = Array.from(
-        new Set(rows.map((row) => row.client_id).filter(Boolean))
-      ) as string[];
-
-      let clientMap = new Map<
-        string,
-        { name: string | null; legal_name: string | null }
-      >();
-
-      if (clientIds.length > 0) {
-        const { data: clients, error: clientsError } = await supabase
-          .from("finance_clients")
-          .select("id, name, legal_name")
-          .in("id", clientIds);
-
-        if (clientsError) {
-          throw clientsError;
-        }
-
-        clientMap = new Map(
-          (clients || []).map((client) => [
-            client.id as string,
-            {
-              name: (client as { name?: string | null }).name ?? null,
-              legal_name:
-                (client as { legal_name?: string | null }).legal_name ?? null,
-            },
-          ])
-        );
-      }
-
-          setArchivedProformas(
-        rows.map((row) => {
-          const client = row.client_id ? clientMap.get(row.client_id) : null;
-
-          return {
-            ...row,
-            client_name: client?.name ?? null,
-            client_legal_name: client?.legal_name ?? null,
-          };
-        })
-      );
+      const hydratedRows = await hydrateClientNames(rows);
+      setArchivedProformas(hydratedRows);
     } catch (error) {
       console.error("Failed to load archived proforma invoices:", error);
       setArchivedProformas([]);
     } finally {
       setIsArchiveLoading(false);
     }
-  }, []);
+  }, [hydrateClientNames]);
 
   useEffect(() => {
     void Promise.all([loadPermissions(), loadProformas()]);
@@ -539,20 +529,12 @@ export default function FinanceProformaInvoicesPage() {
         getProformaDisplayName(proforma)
           .toLowerCase()
           .includes(normalizedSearch) ||
-        getClientDisplayName(proforma)
-          .toLowerCase()
-          .includes(normalizedSearch) ||
+        getClientDisplayName(proforma).toLowerCase().includes(normalizedSearch) ||
         (proforma.status || "").toLowerCase().includes(normalizedSearch) ||
         currencyCode.toLowerCase().includes(normalizedSearch)
       );
     });
   }, [proformas, search]);
-
-  const visibleArchivedProformas = useMemo(() => {
-    return archivedProformas.filter(
-      (proforma) => String(proforma.status) === archiveTab
-    );
-  }, [archivedProformas, archiveTab]);
 
   const sortedProformas = useMemo(() => {
     return [...filteredProformas].sort((first, second) => {
@@ -564,15 +546,20 @@ export default function FinanceProformaInvoicesPage() {
     });
   }, [filteredProformas, sortDirection, sortKey]);
 
+  const visibleArchivedProformas = useMemo(() => {
+    return archivedProformas.filter(
+      (proforma) => String(proforma.status) === archiveTab
+    );
+  }, [archivedProformas, archiveTab]);
+
   const sortedArchivedProformas = useMemo(() => {
     return [...visibleArchivedProformas].sort((first, second) => {
-      const firstValue = getProformaSortValue(first, archiveSortKey);
-      const secondValue = getProformaSortValue(second, archiveSortKey);
-      const multiplier = archiveSortDirection === "asc" ? 1 : -1;
+      const firstValue = getProformaSortValue(first, "created_at");
+      const secondValue = getProformaSortValue(second, "created_at");
 
-      return compareSortValues(firstValue, secondValue) * multiplier;
+      return compareSortValues(secondValue, firstValue);
     });
-  }, [archiveSortDirection, archiveSortKey, visibleArchivedProformas]);
+  }, [visibleArchivedProformas]);
 
   const metricCards = useMemo<ProformaMetricCard[]>(() => {
     const activeProformas = proformas.filter(
@@ -649,26 +636,6 @@ export default function FinanceProformaInvoicesPage() {
     setSortDirection(nextKey === "created_at" ? "desc" : "asc");
   }
 
-  function handleArchiveSort(nextKey: ProformaSortKey) {
-    if (archiveSortKey === nextKey) {
-      setArchiveSortDirection((current) =>
-        current === "asc" ? "desc" : "asc"
-      );
-      return;
-    }
-
-    setArchiveSortKey(nextKey);
-    setArchiveSortDirection(nextKey === "created_at" ? "desc" : "asc");
-  }
-
-  function getSortIndicator(key: ProformaSortKey, archive = false) {
-    const activeKey = archive ? archiveSortKey : sortKey;
-    const activeDirection = archive ? archiveSortDirection : sortDirection;
-
-    if (activeKey !== key) return "↕";
-    return activeDirection === "asc" ? "↑" : "↓";
-  }
-
   const handleArchive = async (id: string) => {
     await archiveProformaInvoice(id);
 
@@ -713,17 +680,6 @@ export default function FinanceProformaInvoicesPage() {
   const activeSectionClass =
     "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
 
-  const sortableHeaders: { key: ProformaSortKey; label: string; align?: "right" }[] =
-    [
-      { key: "proforma_number", label: "Proforma No." },
-      { key: "client", label: "Client" },
-      { key: "issue_date", label: "Issue Date" },
-      { key: "valid_until", label: "Valid Until" },
-      { key: "total_amount", label: "Total", align: "right" },
-      { key: "status", label: "Status" },
-      { key: "updated_at", label: "Updated" },
-    ];
-
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
@@ -734,79 +690,89 @@ export default function FinanceProformaInvoicesPage() {
             <button
               type="button"
               onClick={() => navigate("/finance/transactions")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/[0.08]"
             >
               <ArrowRight className="h-3.5 w-3.5 rotate-180" />
               Transactions
             </button>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px]">
               <div>
-                <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                  Proforma Invoices
+                <Badge className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                  Proforma Registry
                 </Badge>
 
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Proforma Invoice Registry
-                </h1>
+                <div className="mt-4 flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                    <FileText className="h-5 w-5" />
+                  </div>
+
+                  <div>
+                    <h1 className="text-3xl font-semibold tracking-[-0.035em] text-white md:text-4xl">
+                      Proforma Invoices
+                    </h1>
+                    <div className="mt-1 text-sm text-slate-500">
+                      Pre-invoice commercial records before formal invoice issuance.
+                    </div>
+                  </div>
+                </div>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Track draft, sent, accepted, and converted proforma invoices
-                  before formal invoice issuance. Conversion stays controlled
-                  and receivables are affected only after the formal invoice is
-                  created.
+                  Proforma invoices track draft, sent, accepted, and converted
+                  commercial records before the formal receivable invoice is created.
+                  The active registry stays separate from archived and deleted records.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200 shadow-none">
-                    Auto-refresh enabled
-                  </Badge>
-                  <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 shadow-none">
+                  <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
                     Conversion controlled
-                  </Badge>
-                  <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
-                    Registry table
-                  </Badge>
+                  </span>
+                  <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                    Draft → Sent → Accepted
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                    Auto-refresh enabled
+                  </span>
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                            <div className="grid gap-4 sm:grid-cols-2">
                 <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
                         Active Records
-                      </p>
-                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                      </div>
+                      <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
                         {proformas.length.toLocaleString()}
-                      </p>
+                      </div>
                     </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
                       <FileText className="h-4 w-4" />
                     </div>
                   </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Live records excluding archived and deleted documents.
-                  </p>
+                  <div className="mt-3 text-xs leading-5 text-slate-500">
+                    Excludes archived and deleted proformas.
+                  </div>
                 </div>
 
                 <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Table Rule
-                      </p>
-                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        10 rows
-                      </p>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Visible Results
+                      </div>
+                      <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
+                        {sortedProformas.length.toLocaleString()}
+                      </div>
                     </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                      <Receipt className="h-4 w-4" />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                      <Search className="h-4 w-4" />
                     </div>
                   </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Header stays stable and the table scrolls after 10 rows.
-                  </p>
+                  <div className="mt-3 text-xs leading-5 text-slate-500">
+                    Filtered by proforma, client, status, or currency.
+                  </div>
                 </div>
               </div>
             </div>
@@ -839,7 +805,7 @@ export default function FinanceProformaInvoicesPage() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {metricCards.map((metric) => (
             <MetricCard key={metric.key} metric={metric} />
           ))}
@@ -882,38 +848,84 @@ export default function FinanceProformaInvoicesPage() {
                   <table className="w-full min-w-[1240px] border-collapse">
                     <thead>
                       <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                        {sortableHeaders.map((header) => (
-                          <th
-                            key={header.key}
-                            className={`sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold ${
-                              header.align === "right" ? "text-right" : ""
-                            }`}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => handleSort(header.key)}
-                              className={`inline-flex items-center gap-2 transition hover:text-white ${
-                                header.align === "right" ? "ml-auto" : ""
-                              }`}
-                            >
-                              {header.label}
-                              <span className="text-[10px] text-slate-600">
-                                {getSortIndicator(header.key)}
-                              </span>
-                            </button>
-                          </th>
-                        ))}
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                          <SortHeader
+                            label="Proforma No."
+                            sortKey="proforma_number"
+                            activeSortKey={sortKey}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                          <SortHeader
+                            label="Client"
+                            sortKey="client"
+                            activeSortKey={sortKey}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                          <SortHeader
+                            label="Issue Date"
+                            sortKey="issue_date"
+                            activeSortKey={sortKey}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                          <SortHeader
+                            label="Valid Until"
+                            sortKey="valid_until"
+                            activeSortKey={sortKey}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
+                          <SortHeader
+                            label="Total"
+                            sortKey="total_amount"
+                            activeSortKey={sortKey}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                            align="right"
+                          />
+                        </th>
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                          Currency
+                        </th>
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                          <SortHeader
+                            label="Status"
+                            sortKey="status"
+                            activeSortKey={sortKey}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                          />
+                        </th>
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                          <SortHeader
+                            label="Updated"
+                            sortKey="updated_at"
+                            activeSortKey={sortKey}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                          />
+                        </th>
                         <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
                           Actions
                         </th>
                       </tr>
                     </thead>
 
-                                        <tbody className="divide-y divide-white/5">
+                    <tbody className="divide-y divide-white/5">
                       {isLoading ? (
                         <tr>
                           <td
-                            colSpan={8}
+                            colSpan={9}
                             className="px-5 py-14 text-center text-sm text-slate-500"
                           >
                             Loading proforma invoices...
@@ -922,7 +934,7 @@ export default function FinanceProformaInvoicesPage() {
                       ) : sortedProformas.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={8}
+                            colSpan={9}
                             className="px-5 py-14 text-center text-sm text-slate-500"
                           >
                             No proforma invoices found.
@@ -963,6 +975,12 @@ export default function FinanceProformaInvoicesPage() {
                               </td>
 
                               <td className="px-5 py-4">
+                                <Badge className="rounded-full border border-slate-400/20 bg-white/[0.06] px-3 py-1 text-xs text-slate-300 shadow-none">
+                                  {currencyCode}
+                                </Badge>
+                              </td>
+
+                              <td className="px-5 py-4">
                                 <Badge
                                   className={`rounded-full border px-3 py-1 text-xs shadow-none ${getProformaStatusBadgeClasses(
                                     proforma.status
@@ -993,9 +1011,7 @@ export default function FinanceProformaInvoicesPage() {
                                   {proforma.status === "accepted" ? (
                                     <Button
                                       variant="outline"
-                                      onClick={() =>
-                                        void handleConvert(proforma.id)
-                                      }
+                                      onClick={() => void handleConvert(proforma.id)}
                                       className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
                                     >
                                       <CheckCircle className="h-4 w-4" />
@@ -1021,9 +1037,7 @@ export default function FinanceProformaInvoicesPage() {
                                   ) ? (
                                     <Button
                                       variant="outline"
-                                      onClick={() =>
-                                        void handleDelete(proforma.id)
-                                      }
+                                      onClick={() => void handleDelete(proforma.id)}
                                       className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
                                     >
                                       <Trash2 className="h-4 w-4" />
@@ -1104,30 +1118,33 @@ export default function FinanceProformaInvoicesPage() {
                 ) : (
                   <div className="overflow-x-auto rounded-[24px] border border-white/10">
                     <div className="max-h-[720px] overflow-y-auto">
-                      <table className="w-full min-w-[1100px] border-collapse">
+                      <table className="w-full min-w-[1120px] border-collapse">
                         <thead>
                           <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                            {sortableHeaders.map((header) => (
-                              <th
-                                key={header.key}
-                                className={`sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold ${
-                                  header.align === "right" ? "text-right" : ""
-                                }`}
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => handleArchiveSort(header.key)}
-                                  className={`inline-flex items-center gap-2 transition hover:text-white ${
-                                    header.align === "right" ? "ml-auto" : ""
-                                  }`}
-                                >
-                                  {header.label}
-                                  <span className="text-[10px] text-slate-600">
-                                    {getSortIndicator(header.key, true)}
-                                  </span>
-                                </button>
-                              </th>
-                            ))}
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Proforma No.
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Client
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Issue Date
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Valid Until
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
+                              Total
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Currency
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Status
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Updated
+                            </th>
                             <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
                               Actions
                             </th>
@@ -1166,6 +1183,12 @@ export default function FinanceProformaInvoicesPage() {
                                     proforma.total_amount,
                                     currencyCode
                                   )}
+                                </td>
+
+                                <td className="px-5 py-4">
+                                  <Badge className="rounded-full border border-slate-400/20 bg-white/[0.06] px-3 py-1 text-xs text-slate-300 shadow-none">
+                                    {currencyCode}
+                                  </Badge>
                                 </td>
 
                                 <td className="px-5 py-4">

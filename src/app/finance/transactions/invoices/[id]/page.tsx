@@ -1162,11 +1162,122 @@ export default function FinanceInvoiceDetailPage() {
         return;
       }
 
+      const selectedPaymentMethod = paymentMethods.find(
+        (method) => method.id === paymentMethodIdDraft
+      );
+
+      const selectedCurrency = currencies.find(
+        (currency) => currency.id === currencyIdDraft
+      );
+
+      const selectedPaymentTerm = paymentTerms.find(
+        (term) => term.id === paymentTermsIdDraft
+      );
+
+      const selectedShippingTerm = shippingTerms.find(
+        (term) => term.id === shippingTermIdDraft
+      );
+
+      const isCompany = clientIdDraft.startsWith("company:");
+      const isClient = clientIdDraft.startsWith("client:");
+
+      const resolvedClientId = isClient
+        ? clientIdDraft.replace("client:", "")
+        : null;
+
+      const resolvedCompanyId = isCompany
+        ? clientIdDraft.replace("company:", "")
+        : null;
+
       const { error: snapshotError } = await supabase
         .from("finance_invoices_issued")
         .update({
+          client_id: resolvedClientId,
+          counterparty_company_id: resolvedCompanyId,
+          counterparty_type: isCompany ? "company" : "client",
+          company_id: companyIdDraft || null,
+          project_id: projectIdDraft || null,
+          task_id: taskIdDraft || null,
+          payment_terms_id: paymentTermsIdDraft || null,
+          shipping_term_id: shippingTermIdDraft || null,
+          bank_account_id: bankAccountIdDraft || null,
+          currency_id: currencyIdDraft || null,
+          currency_code:
+            selectedCurrency?.currency_code || invoice.currency_code || "USD",
+          issue_date: issueDateDraft,
+          due_date: dueDateDraft,
+          notes: notesDraft || null,
+          company_name_snapshot:
+            selectedDraftCompany?.legal_name ||
+            selectedDraftCompany?.name ||
+            null,
+          company_contact_person_snapshot:
+            selectedDraftCompany?.contact_person || null,
+          company_address_snapshot: resolvedDraftCompanyAddress || null,
+          company_email_snapshot: selectedDraftCompany?.email || null,
+          company_phone_snapshot: selectedDraftCompany?.phone || null,
+          counterparty_name_snapshot: resolvedDraftRecipientName || null,
+          counterparty_legal_name_snapshot: resolvedDraftRecipientName || null,
+          counterparty_contact_person_snapshot:
+            resolvedDraftRecipientContact || null,
+          counterparty_email_snapshot: resolvedDraftRecipientEmail || null,
+          counterparty_phone_snapshot: resolvedDraftRecipientPhone || null,
+          client_name_snapshot:
+            selectedDraftClient?.legal_name || selectedDraftClient?.name || null,
+          client_contact_person_snapshot:
+            selectedDraftClient?.contact_person || null,
+          client_email_snapshot:
+            selectedDraftClient?.company_email ||
+            selectedDraftClient?.personnel_email ||
+            null,
+          client_phone_snapshot:
+            selectedDraftClient?.company_phone ||
+            selectedDraftClient?.personnel_phone ||
+            null,
+          billing_address_snapshot: resolvedDraftRecipientAddress || null,
+          payment_terms_snapshot:
+            selectedPaymentTerm?.document_label ||
+            selectedPaymentTerm?.name ||
+            null,
+          shipping_terms_snapshot:
+            selectedShippingTerm?.description?.trim()
+              ? `${selectedShippingTerm.name} — ${selectedShippingTerm.description.trim()}`
+              : selectedShippingTerm?.name || selectedShippingTerm?.code || null,
+          terms_and_conditions_snapshot: termsAndConditionsDraft || null,
           bank_details_snapshot:
             buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount),
+          metadata: {
+            ...(invoice.metadata || {}),
+            preferred_payment_method_id: paymentMethodIdDraft || null,
+            preferred_payment_method_name: selectedPaymentMethod?.name || null,
+            preferred_payment_method_code: selectedPaymentMethod?.code || null,
+            bank_account_id: bankAccountIdDraft || null,
+            bank_account_name: selectedDraftBankAccount?.name || null,
+            bank_name:
+              selectedDraftBankAccount?.bank_name ||
+              selectedDraftBankAccount?.institution_name ||
+              null,
+            beneficiary_name: selectedDraftBankAccount?.beneficiary_name || null,
+            bank_address_snapshot:
+              buildBankAddressFromAccount(selectedDraftBankAccount) || null,
+            iban: selectedDraftBankAccount?.iban || null,
+            swift_code:
+              selectedDraftBankAccount?.swift_code ||
+              (selectedDraftBankAccount?.account_identifier_type?.toLowerCase() ===
+              "swift"
+                ? selectedDraftBankAccount?.account_identifier_value
+                : null),
+            bank_identifier_type:
+              selectedDraftBankAccount?.account_identifier_type || null,
+            bank_identifier_value:
+              selectedDraftBankAccount?.account_identifier_value || null,
+            account_number:
+              selectedDraftBankAccount?.account_number ||
+              selectedDraftBankAccount?.masked_account_number ||
+              null,
+            bank_account_currency_code:
+              selectedDraftBankAccount?.currency_code || null,
+          },
         })
         .eq("id", id)
         .eq("status", "draft");
@@ -1187,12 +1298,36 @@ export default function FinanceInvoiceDetailPage() {
       setIsIssuing(false);
     }
   }, [
+    bankAccountIdDraft,
+    clientIdDraft,
+    companyIdDraft,
+    currencies,
+    currencyIdDraft,
+    dueDateDraft,
     id,
     invoice,
-    loadInvoice,
+    issueDateDraft,
     lineItemsDraft,
-    clientIdDraft,
+    loadInvoice,
+    notesDraft,
+    paymentMethodIdDraft,
+    paymentMethods,
+    paymentTerms,
+    paymentTermsIdDraft,
+    projectIdDraft,
+    resolvedDraftCompanyAddress,
+    resolvedDraftRecipientAddress,
+    resolvedDraftRecipientContact,
+    resolvedDraftRecipientEmail,
+    resolvedDraftRecipientName,
+    resolvedDraftRecipientPhone,
     selectedDraftBankAccount,
+    selectedDraftClient,
+    selectedDraftCompany,
+    shippingTermIdDraft,
+    shippingTerms,
+    taskIdDraft,
+    termsAndConditionsDraft,
   ]);
 
   const handleArchive = useCallback(async () => {

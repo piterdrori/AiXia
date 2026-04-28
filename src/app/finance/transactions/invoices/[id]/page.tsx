@@ -457,7 +457,7 @@ export default function FinanceInvoiceDetailPage() {
   const navigate = useNavigate();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [, setIsRefreshing] = useState(false);
   const [isIssuing, setIsIssuing] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
@@ -2664,6 +2664,9 @@ export default function FinanceInvoiceDetailPage() {
                               {resolvedDraftRecipientAddress ? (
                                 <div>{resolvedDraftRecipientAddress}</div>
                               ) : null}
+                              {resolvedDraftRecipientContact ? (
+                                <div>Contact: {resolvedDraftRecipientContact}</div>
+                              ) : null}
                               {resolvedDraftRecipientEmail ? (
                                 <div>Email: {resolvedDraftRecipientEmail}</div>
                               ) : null}
@@ -2675,6 +2678,9 @@ export default function FinanceInvoiceDetailPage() {
                             <>
                               {invoice.billing_address_snapshot ? (
                                 <div>{invoice.billing_address_snapshot}</div>
+                              ) : null}
+                              {resolvedIssuedRecipientContact ? (
+                                <div>Contact: {resolvedIssuedRecipientContact}</div>
                               ) : null}
                               {resolvedIssuedRecipientEmail ? (
                                 <div>Email: {resolvedIssuedRecipientEmail}</div>

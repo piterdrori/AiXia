@@ -42,6 +42,8 @@ import {
   permanentlyDeletePaymentReceived,
 } from "@/lib/finance/paymentsReceived";
 
+import { getIssuedInvoicesList } from "@/lib/finance/invoicesIssued";
+
 type ProfilePermissionRow = {
   role: Role;
   permissions?: Partial<Record<Permission, boolean>> | null;
@@ -65,13 +67,14 @@ type PaymentReceivedListRow = {
 
 type OpenInvoiceRow = {
   id: string;
-  invoice_number: string;
+  invoice_number: string | null;
   issue_date: string | null;
   due_date: string | null;
   status: string;
   payment_status: string | null;
-  counterparty_name_snapshot: string | null;
-  client_name_snapshot: string | null;
+  counterparty_name_snapshot?: string | null;
+  client_name_snapshot?: string | null;
+  client_name?: string | null;
   total_amount: number | string | null;
   paid_amount: number | string | null;
   balance_due: number | string | null;
@@ -286,7 +289,12 @@ function getPaymentClientName(payment: PaymentReceivedListRow) {
 }
 
 function getOpenInvoiceClientName(invoice: OpenInvoiceRow) {
-  return invoice.counterparty_name_snapshot || invoice.client_name_snapshot || "—";
+  return (
+    invoice.counterparty_name_snapshot ||
+    invoice.client_name_snapshot ||
+    invoice.client_name ||
+    "—"
+  );
 }
 
 function getPaymentSortValue(payment: PaymentReceivedListRow, key: PaymentSortKey) {
@@ -463,25 +471,20 @@ export default function PaymentsReceivedPage() {
     setIsLoading((current) => current || payments.length === 0);
 
     try {
-      const [paymentRows, openInvoicesResult] = await Promise.all([
+      const [paymentRows, invoiceRows] = await Promise.all([
         getPaymentsReceived(),
-        supabase
-          .from("finance_invoices_issued")
-          .select(
-            "id, invoice_number, issue_date, due_date, status, payment_status, counterparty_name_snapshot, client_name_snapshot, total_amount, paid_amount, balance_due, currency_code"
-          )
-          .in("status", ["issued"])
-          .gt("balance_due", 0)
-          .order("due_date", { ascending: true })
-          .order("created_at", { ascending: false }),
+        getIssuedInvoicesList(),
       ]);
 
-      if (openInvoicesResult.error) {
-        throw openInvoicesResult.error;
-      }
+      const openInvoiceRows = invoiceRows.filter((invoice) => {
+        return (
+          invoice.status === "issued" &&
+          Number(invoice.balance_due ?? 0) > 0
+        );
+      });
 
       setPayments((paymentRows || []) as PaymentReceivedListRow[]);
-      setOpenInvoices((openInvoicesResult.data || []) as OpenInvoiceRow[]);
+      setOpenInvoices(openInvoiceRows as OpenInvoiceRow[]);
     } catch (error) {
       console.error("Failed to load payments received:", error);
       setPayments([]);

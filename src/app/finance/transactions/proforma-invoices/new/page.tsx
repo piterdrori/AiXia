@@ -103,7 +103,6 @@ type PaymentMethodOption = {
   id: string;
   code: string | null;
   name: string;
-  is_default: boolean;
 };
 
 type ItemOption = {
@@ -404,8 +403,7 @@ export default function FinanceNewProformaInvoicePage() {
   useEffect(() => {
     if (paymentMethodId) return;
 
-    const defaultPaymentMethod =
-      paymentMethods.find((method) => method.is_default) ?? paymentMethods[0];
+    const defaultPaymentMethod = paymentMethods[0];
 
     if (defaultPaymentMethod) {
       setPaymentMethodId(defaultPaymentMethod.id);
@@ -515,7 +513,7 @@ export default function FinanceNewProformaInvoicePage() {
 
         supabase
           .from("finance_payment_methods")
-          .select("id, code, name, is_default")
+          .select("id, code, name")
           .eq("status", "active")
           .order("name", { ascending: true }),
 
@@ -592,9 +590,7 @@ export default function FinanceNewProformaInvoicePage() {
         ) || ((shippingTermsResult.data || []) as ShippingTermOption[])[0];
 
       const defaultPaymentMethod =
-        ((paymentMethodsResult.data || []) as PaymentMethodOption[]).find(
-          (method) => method.is_default
-        ) || ((paymentMethodsResult.data || []) as PaymentMethodOption[])[0];
+        ((paymentMethodsResult.data || []) as PaymentMethodOption[])[0];
 
       if (!paymentTermsId && defaultPaymentTerm) {
         setPaymentTermsId(defaultPaymentTerm.id);

@@ -463,8 +463,8 @@ export default function FinanceProformaInvoiceDetailPage() {
   const [linkedInvoice, setLinkedInvoice] = useState<InvoiceLinkRow | null>(
     null
   );
-  const [project, setProject] = useState<ProjectRow | null>(null);
-  const [task, setTask] = useState<TaskRow | null>(null);
+  const [, setProject] = useState<ProjectRow | null>(null);
+  const [, setTask] = useState<TaskRow | null>(null);
   const [archiveItems, setArchiveItems] = useState<ArchiveProformaRow[]>([]);
 
   const [clients, setClients] = useState<ClientOption[]>([]);
@@ -480,10 +480,10 @@ export default function FinanceProformaInvoiceDetailPage() {
   );
   const [items, setItems] = useState<ItemOption[]>([]);
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
-  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>(
+  const [, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>(
     []
   );
-  const [revenueCategories, setRevenueCategories] = useState<
+  const [, setRevenueCategories] = useState<
     RevenueCategoryOption[]
   >([]);
 

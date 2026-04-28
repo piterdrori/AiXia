@@ -2548,7 +2548,7 @@ export default function FinanceQuotationDetailPage() {
                   ) : null}
                 </CardHeader>
 
-                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
                   <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
                     <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                       Issuing Company
@@ -2617,29 +2617,7 @@ export default function FinanceQuotationDetailPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Bank Details
-                    </div>
-                    <div className="mt-3 text-xl font-semibold leading-tight text-white">
-                      {getBankDisplayName(selectedDraftBankAccount)}
-                    </div>
-                    <div className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
-                      {renderBankDetailLines(
-                        selectedDraftBankAccount,
-                        quotation.bank_details_snapshot
-                      ).length > 0 ? (
-                        renderBankDetailLines(
-                          selectedDraftBankAccount,
-                          quotation.bank_details_snapshot
-                        ).map((line) => <div key={line}>{line}</div>)
-                      ) : (
-                        <div>—</div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                       <div>
                         <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
@@ -2685,7 +2663,7 @@ export default function FinanceQuotationDetailPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
                     <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                       Notes
                     </div>
@@ -2694,7 +2672,7 @@ export default function FinanceQuotationDetailPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
                     <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                       Terms &amp; Conditions
                     </div>

@@ -1785,6 +1785,62 @@ export default function FinanceNewProformaInvoicePage() {
                 </div>
 
                 <div className={summaryBlockClass}>
+                  <div className={labelClass}>Payment Terms</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedPaymentTerm?.name || "—"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedPaymentTerm
+                      ? `${selectedPaymentTerm.code} · Due in ${selectedPaymentTerm.due_days} days`
+                      : "No payment terms selected"}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Shipping Terms</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedShippingTerm?.name || "—"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedShippingTerm?.code || "No shipping terms selected"}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Bank Account</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedBankAccount?.name || "—"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedBankAccount ? (
+                      <>
+                        <div>{selectedBankAccount.bank_name || "—"}</div>
+                        <div>
+                          Account: {selectedBankAccount.account_number || "—"}
+                        </div>
+                        <div>IBAN: {selectedBankAccount.iban || "—"}</div>
+                        <div>SWIFT: {selectedBankAccount.swift_code || "—"}</div>
+                        <div>
+                          Currency: {selectedBankAccount.currency_code || "—"}
+                        </div>
+                      </>
+                    ) : (
+                      "No bank account selected"
+                    )}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Preferred Payment Method</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedPaymentMethod?.name || "—"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedPaymentMethod?.code || "No payment method selected"}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
                   <div className={labelClass}>Currency</div>
                   <div className="mt-2 text-2xl font-semibold text-white">
                     {selectedCurrency

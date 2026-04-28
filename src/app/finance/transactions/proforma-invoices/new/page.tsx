@@ -1256,7 +1256,7 @@ export default function FinanceNewProformaInvoicePage() {
                 </div>
 
                 <div className={summaryBlockClass}>
-                  <div className={labelClass}>Client</div>
+                  <div className={labelClass}>Client / Recipient</div>
                   <select
                     value={clientId}
                     onChange={(event) => setClientId(event.target.value)}
@@ -1269,6 +1269,111 @@ export default function FinanceNewProformaInvoicePage() {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Payment Terms</div>
+                  <select
+                    value={paymentTermsId}
+                    onChange={(event) => setPaymentTermsId(event.target.value)}
+                    className={fieldShellClass}
+                  >
+                    <option value="">Select terms</option>
+                    {paymentTerms.map((term) => (
+                      <option key={term.id} value={term.id}>
+                        {term.code} | {term.name} | Due in {term.due_days} days
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Shipping Terms</div>
+                  <select
+                    value={shippingTermId}
+                    onChange={(event) => setShippingTermId(event.target.value)}
+                    className={fieldShellClass}
+                  >
+                    <option value="">Select shipping terms</option>
+                    {shippingTerms.map((term) => (
+                      <option key={term.id} value={term.id}>
+                        {term.code} | {term.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Bank Account</div>
+                  <select
+                    value={bankAccountId}
+                    onChange={(event) => setBankAccountId(event.target.value)}
+                    className={fieldShellClass}
+                  >
+                    <option value="">Select bank account</option>
+                    {filteredBankAccounts.map((bank) => (
+                      <option key={bank.id} value={bank.id}>
+                        {bank.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="mt-3 text-sm leading-6 text-slate-300">
+                    {selectedBankAccount ? (
+                      <>
+                        <div className="font-semibold text-white">
+                          {selectedBankAccount.beneficiary_name ||
+                            selectedBankAccount.name}
+                        </div>
+                        <div>{selectedBankAccount.bank_name || "—"}</div>
+                        <div>
+                          Account: {selectedBankAccount.account_number || "—"}
+                        </div>
+                        <div>IBAN: {selectedBankAccount.iban || "—"}</div>
+                        <div>SWIFT: {selectedBankAccount.swift_code || "—"}</div>
+                        <div>
+                          Currency: {selectedBankAccount.currency_code || "—"}
+                        </div>
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Preferred Payment Method</div>
+                  <select
+                    value={paymentMethodId}
+                    onChange={(event) => setPaymentMethodId(event.target.value)}
+                    className={fieldShellClass}
+                  >
+                    <option value="">Select payment method</option>
+                    {paymentMethods.map((method) => (
+                      <option key={method.id} value={method.id}>
+                        {method.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Issue Date</div>
+                  <input
+                    type="date"
+                    value={issueDate}
+                    onChange={(event) => setIssueDate(event.target.value)}
+                    className={fieldShellClass}
+                  />
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Due / Valid Until</div>
+                  <input
+                    type="date"
+                    value={validUntil}
+                    onChange={(event) => setValidUntil(event.target.value)}
+                    className={fieldShellClass}
+                  />
                 </div>
 
                 <div className={summaryBlockClass}>
@@ -1328,35 +1433,6 @@ export default function FinanceNewProformaInvoicePage() {
                       </option>
                     ))}
                   </select>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Draft Status</div>
-                  <div className="mt-2">
-                    <Badge className="rounded-full border border-slate-400/20 bg-white/[0.06] px-3 py-1 text-xs text-slate-300 shadow-none">
-                      Draft
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Issue Date</div>
-                  <input
-                    type="date"
-                    value={issueDate}
-                    onChange={(event) => setIssueDate(event.target.value)}
-                    className={fieldShellClass}
-                  />
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Valid Until</div>
-                  <input
-                    type="date"
-                    value={validUntil}
-                    onChange={(event) => setValidUntil(event.target.value)}
-                    className={fieldShellClass}
-                  />
                 </div>
 
                 <div className={summaryBlockClass}>

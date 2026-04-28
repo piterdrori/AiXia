@@ -6,6 +6,7 @@ import QuotationPrintDocument from "./QuotationPrintDocument";
 import {
   ArrowRight,
   CheckCircle,
+  FileText,
   Printer,
   Save,
   SquarePen,

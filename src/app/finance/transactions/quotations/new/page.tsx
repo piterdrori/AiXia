@@ -1276,6 +1276,12 @@ export default function FinanceNewQuotationPage() {
                     const selectedTaxCode = taxCodes.find(
                       (taxCode) => taxCode.id === row.taxCodeId
                     );
+                    const selectedUnit = unitsOfMeasure.find(
+                      (unit) => unit.id === row.unitOfMeasureId
+                    );
+                    const selectedRevenueCategory = revenueCategories.find(
+                      (category) => category.id === row.revenueCategoryId
+                    );
                     const base =
                       toNumber(row.quantity) * toNumber(row.unitPrice);
                     const taxableBase = Math.max(
@@ -1334,7 +1340,7 @@ export default function FinanceNewQuotationPage() {
                             </select>
                           </label>
 
-                                                    <label className="space-y-2 md:col-span-4">
+                          <label className="space-y-2 md:col-span-4">
                             <div className={inputLabelClass}>Description</div>
                             <input
                               value={row.description}
@@ -1366,6 +1372,33 @@ export default function FinanceNewQuotationPage() {
                           </label>
 
                           <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Unit</div>
+                            <select
+                              value={row.unitOfMeasureId}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "unitOfMeasureId",
+                                  event.target.value
+                                )
+                              }
+                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                            >
+                              <option value="">Select unit</option>
+                              {unitsOfMeasure.map((unit) => (
+                                <option key={unit.id} value={unit.id}>
+                                  {unit.name}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedUnit ? (
+                              <div className="text-[11px] text-slate-500">
+                                {selectedUnit.code}
+                              </div>
+                            ) : null}
+                          </label>
+
+                          <label className="space-y-2 md:col-span-2">
                             <div className={inputLabelClass}>Unit Price</div>
                             <input
                               value={row.unitPrice}
@@ -1380,7 +1413,7 @@ export default function FinanceNewQuotationPage() {
                             />
                           </label>
 
-                          <label className="space-y-2 md:col-span-1">
+                          <label className="space-y-2 md:col-span-2">
                             <div className={inputLabelClass}>Discount</div>
                             <input
                               value={row.discount}
@@ -1395,8 +1428,8 @@ export default function FinanceNewQuotationPage() {
                             />
                           </label>
 
-                          <label className="space-y-2 md:col-span-1">
-                            <div className={inputLabelClass}>Tax</div>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Tax Code</div>
                             <select
                               value={row.taxCodeId}
                               onChange={(event) =>
@@ -1408,7 +1441,7 @@ export default function FinanceNewQuotationPage() {
                               }
                               className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
                             >
-                              <option value="">Tax</option>
+                              <option value="">Select tax</option>
                               {taxCodes.map((tax) => (
                                 <option key={tax.id} value={tax.id}>
                                   {tax.name}
@@ -1417,7 +1450,36 @@ export default function FinanceNewQuotationPage() {
                             </select>
                           </label>
 
-                          <div className="space-y-2 md:col-span-2">
+                          <label className="space-y-2 md:col-span-3">
+                            <div className={inputLabelClass}>
+                              Revenue Category
+                            </div>
+                            <select
+                              value={row.revenueCategoryId}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "revenueCategoryId",
+                                  event.target.value
+                                )
+                              }
+                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                            >
+                              <option value="">Select category</option>
+                              {revenueCategories.map((category) => (
+                                <option key={category.id} value={category.id}>
+                                  {category.name}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedRevenueCategory?.code ? (
+                              <div className="text-[11px] text-slate-500">
+                                {selectedRevenueCategory.code}
+                              </div>
+                            ) : null}
+                          </label>
+
+                          <div className="space-y-2 md:col-span-3">
                             <div className={inputLabelClass}>Line Total</div>
                             <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
                               {formatMoney(rowTotal, currencyCode)}

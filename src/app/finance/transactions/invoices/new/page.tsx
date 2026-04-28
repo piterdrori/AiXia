@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
+import {
+  ArrowRight,
+  Building2,
+  FileText,
+  Plus,
+  Save,
+  SquarePen,
+  Trash2,
+  Wallet,
+} from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -24,6 +33,12 @@ type ClientOption = {
   currency_code: string | null;
   payment_terms_days: number | null;
   payment_terms_id: string | null;
+  country: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
 };
 
 type CompanyOption = {
@@ -72,12 +87,23 @@ type BankAccountOption = {
   id: string;
   name: string;
   bank_name: string | null;
+  institution_name: string | null;
   beneficiary_name: string | null;
   iban: string | null;
   swift_code: string | null;
+  account_identifier_type: string | null;
+  account_identifier_value: string | null;
+  account_number: string | null;
+  masked_account_number: string | null;
   currency_code: string | null;
+  bank_address: string | null;
   is_default: boolean;
   company_id: string | null;
+  country: string | null;
+  city: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
 };
 
 type CurrencyOption = {
@@ -150,8 +176,8 @@ function createRow(): InvoiceItemRow {
   };
 }
 
-function toNumber(value: string) {
-  const parsed = Number(value);
+function toNumber(value: string | number | null | undefined) {
+  const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
@@ -164,29 +190,113 @@ function formatMoney(value: number, currencyCode = "USD") {
   }).format(value);
 }
 
+function getCompanyAddress(company: CompanyOption | null) {
+  if (!company) return "";
+
+  return [
+    company.address_line_1,
+    company.address_line_2,
+    company.city,
+    company.state_province,
+    company.postal_code,
+    company.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function getClientAddress(client: ClientOption | null) {
+  if (!client) return "";
+
+  return [
+    client.address_line_1,
+    client.address_line_2,
+    client.city,
+    client.state_province,
+    client.postal_code,
+    client.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function getBankAddress(bank: BankAccountOption | null) {
+  if (!bank) return "";
+
+  if (bank.bank_address) {
+    return bank.bank_address;
+  }
+
+  return [
+    bank.address_line_1,
+    bank.address_line_2,
+    bank.city,
+    bank.postal_code,
+    bank.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function getBankIdentifier(bank: BankAccountOption | null) {
+  if (!bank) return null;
+
+  if (bank.iban) {
+    return {
+      label: "IBAN",
+      value: bank.iban,
+    };
+  }
+
+  if (bank.swift_code) {
+    return {
+      label: "SWIFT",
+      value: bank.swift_code,
+    };
+  }
+
+  if (bank.account_identifier_value) {
+    const normalizedType = (bank.account_identifier_type || "").toLowerCase();
+
+    return {
+      label: normalizedType === "swift" ? "SWIFT" : "Identifier",
+      value: bank.account_identifier_value,
+    };
+  }
+
+  return null;
+}
+
 export default function FinanceNewInvoicePage() {
   const navigate = useNavigate();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-   const [clients, setClients] = useState<ClientOption[]>([]);
+  const [clients, setClients] = useState<ClientOption[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [tasks, setTasks] = useState<TaskOption[]>([]);
-
   const [paymentTerms, setPaymentTerms] = useState<PaymentTermOption[]>([]);
   const [shippingTerms, setShippingTerms] = useState<ShippingTermOption[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>(
+    []
+  );
   const [items, setItems] = useState<ItemOption[]>([]);
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
-  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>([]);
-  const [revenueCategories, setRevenueCategories] = useState<RevenueCategoryOption[]>([]);
+  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>(
+    []
+  );
+  const [revenueCategories, setRevenueCategories] = useState<
+    RevenueCategoryOption[]
+  >([]);
 
   const [clientId, setClientId] = useState("");
-  const [counterpartyType, setCounterpartyType] = useState<"client" | "company">("client");
+  const [counterpartyType, setCounterpartyType] = useState<"client" | "company">(
+    "client"
+  );
   const [counterpartyCompanyId, setCounterpartyCompanyId] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [projectId, setProjectId] = useState("");
@@ -212,18 +322,28 @@ export default function FinanceNewInvoicePage() {
     [clientId, clients]
   );
 
-    const selectedCompany = useMemo(
+
+  const selectedCompany = useMemo(
     () => companies.find((company) => company.id === companyId) ?? null,
     [companies, companyId]
   );
 
-   const filteredTasks = useMemo(() => {
-    if (!projectId) {
-      return tasks;
-    }
+  const selectedCounterpartyCompany = useMemo(
+    () =>
+      companies.find((company) => company.id === counterpartyCompanyId) ??
+      null,
+    [companies, counterpartyCompanyId]
+  );
 
-    return tasks.filter((task) => task.project_id === projectId);
-  }, [projectId, tasks]);
+  const selectedPaymentTerm = useMemo(
+    () => paymentTerms.find((term) => term.id === paymentTermsId) ?? null,
+    [paymentTerms, paymentTermsId]
+  );
+
+  const selectedShippingTerm = useMemo(
+    () => shippingTerms.find((term) => term.id === shippingTermId) ?? null,
+    [shippingTerms, shippingTermId]
+  );
 
   const filteredBankAccounts = useMemo(() => {
     if (!companyId) {
@@ -235,18 +355,10 @@ export default function FinanceNewInvoicePage() {
     );
   }, [bankAccounts, companyId]);
 
-    const selectedPaymentTerm = useMemo(
-    () => paymentTerms.find((term) => term.id === paymentTermsId) ?? null,
-    [paymentTerms, paymentTermsId]
-  );
-
-  const selectedShippingTerm = useMemo(
-    () => shippingTerms.find((term) => term.id === shippingTermId) ?? null,
-    [shippingTerms, shippingTermId]
-  );
-
   const selectedBankAccount = useMemo(
-    () => filteredBankAccounts.find((account) => account.id === bankAccountId) ?? null,
+    () =>
+      filteredBankAccounts.find((account) => account.id === bankAccountId) ??
+      null,
     [bankAccountId, filteredBankAccounts]
   );
 
@@ -260,14 +372,55 @@ export default function FinanceNewInvoicePage() {
     [paymentMethodId, paymentMethods]
   );
 
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === projectId) ?? null,
+    [projectId, projects]
+  );
+
+  const selectedTask = useMemo(
+    () => tasks.find((task) => task.id === taskId) ?? null,
+    [taskId, tasks]
+  );
+
+  const selectedRecipient = useMemo(() => {
+    if (counterpartyType === "client") {
+      return {
+        name: selectedClient?.legal_name || selectedClient?.name || "—",
+        address: getClientAddress(selectedClient),
+        email:
+          selectedClient?.company_email || selectedClient?.personnel_email || "",
+        phone:
+          selectedClient?.company_phone || selectedClient?.personnel_phone || "",
+      };
+    }
+
+    return {
+      name:
+        selectedCounterpartyCompany?.legal_name ||
+        selectedCounterpartyCompany?.name ||
+        "—",
+      address: getCompanyAddress(selectedCounterpartyCompany),
+      email: selectedCounterpartyCompany?.email || "",
+      phone: selectedCounterpartyCompany?.phone || "",
+    };
+  }, [counterpartyType, selectedClient, selectedCounterpartyCompany]);
+
+  const filteredTasks = useMemo(() => {
+    if (!projectId) {
+      return tasks;
+    }
+
+    return tasks.filter((task) => task.project_id === projectId);
+  }, [projectId, tasks]);
+
   useEffect(() => {
-  if (counterpartyType === "client") {
-    setCounterpartyCompanyId("");
-  } else {
-    setClientId("");
-  }
-}, [counterpartyType]);  
-  
+    if (counterpartyType === "client") {
+      setCounterpartyCompanyId("");
+    } else {
+      setClientId("");
+    }
+  }, [counterpartyType]);
+
   useEffect(() => {
     if (!selectedClient) {
       return;
@@ -275,9 +428,11 @@ export default function FinanceNewInvoicePage() {
 
     if (selectedClient.currency_code) {
       setCurrencyCode(selectedClient.currency_code);
+
       const matchedCurrency = currencies.find(
         (entry) => entry.currency_code === selectedClient.currency_code
       );
+
       if (matchedCurrency) {
         setCurrencyId(matchedCurrency.id);
       }
@@ -295,27 +450,22 @@ export default function FinanceNewInvoicePage() {
     }
   }, [currencies, dueDate, issueDate, selectedClient]);
 
-    useEffect(() => {
+  useEffect(() => {
     if (!companyId) return;
 
-    const defaultBank =
-      filteredBankAccounts.find((account) => account.is_default) ??
-      filteredBankAccounts[0];
-
-    if (defaultBank) {
-      setBankAccountId(defaultBank.id);
-    }
+    setBankAccountId("");
 
     if (!currencyId && selectedCompany?.currency_code) {
       const matchedCurrency = currencies.find(
         (entry) => entry.currency_code === selectedCompany.currency_code
       );
+
       if (matchedCurrency) {
         setCurrencyId(matchedCurrency.id);
         setCurrencyCode(matchedCurrency.currency_code);
       }
     }
-  }, [companyId, currencies, currencyId, filteredBankAccounts, selectedCompany]);
+  }, [companyId, currencies, currencyId, selectedCompany]);
 
   useEffect(() => {
     if (shippingTermId) return;
@@ -338,7 +488,28 @@ export default function FinanceNewInvoicePage() {
       setPaymentTermsId(defaultPaymentTerm.id);
     }
   }, [paymentTerms, paymentTermsId]);
-  
+
+  useEffect(() => {
+    if (paymentMethodId) return;
+
+    const defaultPaymentMethod = paymentMethods[0];
+
+    if (defaultPaymentMethod) {
+      setPaymentMethodId(defaultPaymentMethod.id);
+    }
+  }, [paymentMethodId, paymentMethods]);
+
+  useEffect(() => {
+    if (!companyId || bankAccountId) return;
+
+    const defaultBank =
+      filteredBankAccounts.find((account) => account.is_default) ??
+      filteredBankAccounts[0];
+
+    if (defaultBank) {
+      setBankAccountId(defaultBank.id);
+    }
+  }, [bankAccountId, companyId, filteredBankAccounts]);
 
   useEffect(() => {
     if (!projectId) {
@@ -346,7 +517,9 @@ export default function FinanceNewInvoicePage() {
       return;
     }
 
-    const matchingTaskStillValid = filteredTasks.some((task) => task.id === taskId);
+    const matchingTaskStillValid = filteredTasks.some(
+      (task) => task.id === taskId
+    );
 
     if (!matchingTaskStillValid) {
       setTaskId("");
@@ -358,7 +531,7 @@ export default function FinanceNewInvoicePage() {
     setErrorMessage("");
 
     try {
-       const [
+      const [
         clientsResult,
         companiesResult,
         projectsResult,
@@ -376,7 +549,7 @@ export default function FinanceNewInvoicePage() {
         supabase
           .from("finance_clients")
           .select(
-            "id, name, legal_name, company_email, personnel_email, company_phone, personnel_phone, currency_code, payment_terms_days, payment_terms_id"
+            "id, name, legal_name, company_email, personnel_email, company_phone, personnel_phone, currency_code, payment_terms_days, payment_terms_id, country, city, state_province, postal_code, address_line_1, address_line_2"
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
@@ -414,14 +587,16 @@ export default function FinanceNewInvoicePage() {
         supabase
           .from("finance_bank_accounts")
           .select(
-            "id, name, bank_name, beneficiary_name, iban, swift_code, currency_code, is_default, company_id"
+            "id, name, bank_name, institution_name, beneficiary_name, iban, swift_code, account_identifier_type, account_identifier_value, account_number, masked_account_number, currency_code, bank_address, is_default, company_id, country, city, postal_code, address_line_1, address_line_2"
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
 
         supabase
           .from("finance_currencies")
-          .select("id, currency_code, currency_name, currency_symbol, is_base_currency")
+          .select(
+            "id, currency_code, currency_name, currency_symbol, is_base_currency"
+          )
           .eq("status", "active")
           .order("currency_code", { ascending: true }),
 
@@ -459,7 +634,7 @@ export default function FinanceNewInvoicePage() {
           .order("name", { ascending: true }),
       ]);
 
-      if (clientsResult.error) throw clientsResult.error;
+          if (clientsResult.error) throw clientsResult.error;
       if (companiesResult.error) throw companiesResult.error;
       if (projectsResult.error) throw projectsResult.error;
       if (tasksResult.error) throw tasksResult.error;
@@ -477,19 +652,49 @@ export default function FinanceNewInvoicePage() {
       setCompanies((companiesResult.data || []) as CompanyOption[]);
       setProjects((projectsResult.data || []) as ProjectOption[]);
       setTasks((tasksResult.data || []) as TaskOption[]);
-
       setPaymentTerms((paymentTermsResult.data || []) as PaymentTermOption[]);
       setShippingTerms((shippingTermsResult.data || []) as ShippingTermOption[]);
       setBankAccounts((bankAccountsResult.data || []) as BankAccountOption[]);
       setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
-      setPaymentMethods((paymentMethodsResult.data || []) as PaymentMethodOption[]);
+      setPaymentMethods(
+        (paymentMethodsResult.data || []) as PaymentMethodOption[]
+      );
       setItems((itemsResult.data || []) as ItemOption[]);
       setTaxCodes((taxCodesResult.data || []) as TaxCodeOption[]);
-      setUnitsOfMeasure((unitsOfMeasureResult.data || []) as UnitOfMeasureOption[]);
-      setRevenueCategories((revenueCategoriesResult.data || []) as RevenueCategoryOption[]);
+      setUnitsOfMeasure(
+        (unitsOfMeasureResult.data || []) as UnitOfMeasureOption[]
+      );
+      setRevenueCategories(
+        (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
+      );
+
+      const defaultPaymentTerm =
+        ((paymentTermsResult.data || []) as PaymentTermOption[]).find(
+          (term) => term.is_default
+        ) || ((paymentTermsResult.data || []) as PaymentTermOption[])[0];
+
+      const defaultShippingTerm =
+        ((shippingTermsResult.data || []) as ShippingTermOption[]).find(
+          (term) => term.is_default
+        ) || ((shippingTermsResult.data || []) as ShippingTermOption[])[0];
+
+      const defaultPaymentMethod =
+        ((paymentMethodsResult.data || []) as PaymentMethodOption[])[0];
 
       if (!companyId && (companiesResult.data || []).length === 1) {
         setCompanyId(companiesResult.data![0].id);
+      }
+
+      if (!paymentTermsId && defaultPaymentTerm) {
+        setPaymentTermsId(defaultPaymentTerm.id);
+      }
+
+      if (!shippingTermId && defaultShippingTerm) {
+        setShippingTermId(defaultShippingTerm.id);
+      }
+
+      if (!paymentMethodId && defaultPaymentMethod) {
+        setPaymentMethodId(defaultPaymentMethod.id);
       }
     } catch (error) {
       console.error("Failed to load invoice form data:", error);
@@ -497,7 +702,7 @@ export default function FinanceNewInvoicePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, paymentMethodId, paymentTermsId, shippingTermId]);
 
   useEffect(() => {
     void loadFormData();
@@ -513,14 +718,15 @@ export default function FinanceNewInvoicePage() {
 
     const tax = rows.reduce((sum, row) => {
       const base = Math.max(
-        toNumber(row.quantity) * toNumber(row.unitPrice) - toNumber(row.discount),
+        toNumber(row.quantity) * toNumber(row.unitPrice) -
+          toNumber(row.discount),
         0
       );
 
       const taxCode = taxCodes.find((entry) => entry.id === row.taxCodeId);
       if (!taxCode) return sum;
 
-      return sum + base * (toNumber(String(taxCode.rate_percent)) / 100);
+      return sum + base * (toNumber(taxCode.rate_percent) / 100);
     }, 0);
 
     const total = Math.max(subtotal - discount + tax, 0);
@@ -533,7 +739,7 @@ export default function FinanceNewInvoicePage() {
     };
   }, [rows, taxCodes]);
 
-   const updateRow = useCallback(
+  const updateRow = useCallback(
     (localId: string, field: keyof InvoiceItemRow, value: string) => {
       setRows((current) =>
         current.map((row) =>
@@ -574,7 +780,7 @@ export default function FinanceNewInvoicePage() {
     [items]
   );
 
-    const addRow = useCallback(() => {
+  const addRow = useCallback(() => {
     setRows((current) => {
       const last = current[current.length - 1];
 
@@ -605,21 +811,21 @@ export default function FinanceNewInvoicePage() {
     setErrorMessage("");
 
     if (counterpartyType === "client" && !clientId) {
-  setErrorMessage("Select a client.");
-  return;
-}
+      setErrorMessage("Select a client.");
+      return;
+    }
 
-if (counterpartyType === "company" && !counterpartyCompanyId) {
-  setErrorMessage("Select a receiving company.");
-  return;
-}
+    if (counterpartyType === "company" && !counterpartyCompanyId) {
+      setErrorMessage("Select a receiving company.");
+      return;
+    }
 
     if (!companyId) {
       setErrorMessage("Select an issuing company.");
       return;
     }
 
-       const trimmedRows = rows.map((row) => ({
+    const trimmedRows = rows.map((row) => ({
       ...row,
       description: row.description.trim(),
     }));
@@ -650,8 +856,6 @@ if (counterpartyType === "company" && !counterpartyCompanyId) {
       return;
     }
 
-    const validRows = trimmedRows;
-
     setIsSaving(true);
 
     try {
@@ -663,12 +867,13 @@ if (counterpartyType === "company" && !counterpartyCompanyId) {
         throw new Error("User not authenticated");
       }
 
-      const { data: createdInvoiceId, error: invoiceError } = await supabase.rpc("finance_create_invoice_draft", {
-         p_company_id: companyId,
-         p_counterparty_type: counterpartyType,
+      const { data: createdInvoiceId, error: invoiceError } =
+        await supabase.rpc("finance_create_invoice_draft", {
+          p_company_id: companyId,
+          p_counterparty_type: counterpartyType,
           p_client_id: counterpartyType === "client" ? clientId : null,
           p_counterparty_company_id:
-           counterpartyType === "company" ? counterpartyCompanyId : null,
+            counterpartyType === "company" ? counterpartyCompanyId : null,
           p_project_id: projectId || null,
           p_task_id: taskId || null,
           p_payment_terms_id: paymentTermsId || null,
@@ -682,32 +887,31 @@ if (counterpartyType === "company" && !counterpartyCompanyId) {
           p_exchange_rate: 1,
           p_payment_method_id: paymentMethodId || null,
           p_created_by: user.id,
-        }
-      );
+        });
 
       if (invoiceError) throw invoiceError;
       if (!createdInvoiceId) throw new Error("Invoice was not created");
 
- const linePayload = validRows.map((row, index) => ({
-  item_id: row.itemId || null,
-  description: row.description.trim(),
-  quantity: toNumber(row.quantity),
-  unit_price: toNumber(row.unitPrice),
-  discount: toNumber(row.discount),
-  tax_code_id: row.taxCodeId || null,
-  unit_of_measure_id: row.unitOfMeasureId || null,
-  revenue_category_id: row.revenueCategoryId || null,
-  sort_order: index + 1,
-}));
+      const linePayload = trimmedRows.map((row, index) => ({
+        item_id: row.itemId || null,
+        description: row.description.trim(),
+        quantity: toNumber(row.quantity),
+        unit_price: toNumber(row.unitPrice),
+        discount: toNumber(row.discount),
+        tax_code_id: row.taxCodeId || null,
+        unit_of_measure_id: row.unitOfMeasureId || null,
+        revenue_category_id: row.revenueCategoryId || null,
+        sort_order: index + 1,
+      }));
 
-       const { error: lineError } = await supabase.rpc(
-  "finance_insert_invoice_issued_line_items",
-  {
-    p_invoice_id: createdInvoiceId,
-    p_lines: linePayload,
-    p_user_id: user.id,
-  }
-);
+      const { error: lineError } = await supabase.rpc(
+        "finance_insert_invoice_issued_line_items",
+        {
+          p_invoice_id: createdInvoiceId,
+          p_lines: linePayload,
+          p_user_id: user.id,
+        }
+      );
 
       if (lineError) throw lineError;
 
@@ -727,7 +931,7 @@ if (counterpartyType === "company" && !counterpartyCompanyId) {
     } finally {
       setIsSaving(false);
     }
-   }, [
+  }, [
     bankAccountId,
     clientId,
     companyId,
@@ -747,83 +951,257 @@ if (counterpartyType === "company" && !counterpartyCompanyId) {
     taskId,
   ]);
 
+  const activeSectionClass =
+    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
+
+  const summaryBlockClass =
+    "rounded-[24px] border border-white/10 bg-black/20 p-4";
+
+  const fieldShellClass =
+    "mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
+
+  const inputFieldClass =
+    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
+
+  const labelClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
+
+  const inputLabelClass = "text-sm font-medium text-slate-300";
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
+            Loading invoice sources...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
-      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
-        <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6 xl:p-7">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_35%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_24%)]" />
-          <div className="relative flex flex-col gap-6">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-              <div className="max-w-3xl space-y-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.24em] text-white/70 shadow-none">
-                    Receivables
+    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => navigate("/finance/transactions/invoices")}
+              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+            >
+              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+              Invoices
+            </button>
+
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
+              <div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                    New Invoice Draft
                   </Badge>
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    New invoice draft
+
+                  <Badge className="inline-flex w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200 shadow-none">
+                    Receivables
                   </Badge>
                 </div>
 
-                <div className="space-y-3">
-                  <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                    Create Invoice Draft
-                  </h1>
-                  <div className="text-sm text-white/45">
-                    Build a draft from master data, save it, then issue it later
-                    from the invoice detail page.
-                  </div>
+                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                  Create Invoice Draft
+                </h1>
+
+                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                  Create a draft invoice from master data, add commercial line
+                  items, save it, and issue it later from the invoice detail
+                  workflow.
+                </p>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200 shadow-none">
+                    Draft only
+                  </Badge>
+                  <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 shadow-none">
+                    Issue later
+                  </Badge>
+                  <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
+                    No manual refresh
+                  </Badge>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-3 xl:justify-end">
-                <Button
-                  variant="outline"
-                  onClick={() => navigate("/finance/transactions/invoices")}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back
-                </Button>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Recipient
+                      </p>
+                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                        {selectedRecipient.name}
+                      </p>
+                    </div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                      {counterpartyType === "client" ? (
+                        <FileText className="h-4 w-4" />
+                      ) : (
+                        <Building2 className="h-4 w-4" />
+                      )}
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    Recipient selected for this invoice draft.
+                  </p>
+                </div>
 
-                <Button
-                  variant="outline"
-                  onClick={() => void loadFormData()}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Refresh Sources
-                </Button>
+                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Draft Total
+                      </p>
+                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                        {formatMoney(totals.total, currencyCode)}
+                      </p>
+                    </div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                      <Wallet className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    Live total from the draft line items before saving.
+                  </p>
+                </div>
+              </div>
+            </div>
 
-                <Button
-                  onClick={() => void handleSaveDraft()}
-                  disabled={isSaving || isLoading}
-                  className="h-11 rounded-2xl px-4"
-                >
-                  <Save className="mr-2 h-4 w-4" />
-                  {isSaving ? "Saving..." : "Save Draft"}
-                </Button>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button
+                onClick={() => void handleSaveDraft()}
+                disabled={isSaving || isLoading}
+                className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Save className="mr-2 h-4 w-4" />
+                {isSaving ? "Saving..." : "Save Draft"}
+              </Button>
+
+              {errorMessage ? (
+                <div className="flex min-h-11 items-center rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm text-rose-200">
+                  {errorMessage}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </header>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Subtotal
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
+                  {formatMoney(totals.subtotal, currencyCode)}
+                </div>
+                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
+                  Before discount and tax.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                <span className="h-2 w-2 rounded-full bg-cyan-400" />
               </div>
             </div>
           </div>
-        </section>
+
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Discount
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
+                  {formatMoney(totals.discount, currencyCode)}
+                </div>
+                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
+                  Draft commercial discount.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
+                <span className="h-2 w-2 rounded-full bg-amber-400" />
+              </div>
+            </div>
+          </div>
+
+                    <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Tax
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
+                  {formatMoney(totals.tax, currencyCode)}
+                </div>
+                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
+                  Based on selected tax codes.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
+                <span className="h-2 w-2 rounded-full bg-violet-400" />
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Total
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
+                  {formatMoney(totals.total, currencyCode)}
+                </div>
+                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
+                  Draft invoice value.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
           <div className="space-y-6">
-            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardHeader className="border-b border-white/8 pb-4">
-                <CardTitle className="text-white">Invoice Header</CardTitle>
-                <CardDescription className="text-white/45">
-                  Select the commercial and operational sources for the invoice.
-                </CardDescription>
+            <Card className={activeSectionClass}>
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                    <SquarePen className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Document Overview
+                    </CardTitle>
+                    <CardDescription className="mt-1 text-xs text-slate-500">
+                      Issuing company, recipient, commercial terms, dates, and currency.
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
 
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Issuing Company</div>
+              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Issuing Company</div>
                   <select
                     value={companyId}
                     onChange={(event) => setCompanyId(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                    className={fieldShellClass}
                   >
                     <option value="">Select company</option>
                     {companies.map((company) => (
@@ -832,148 +1210,164 @@ if (counterpartyType === "company" && !counterpartyCompanyId) {
                       </option>
                     ))}
                   </select>
-                </label>
 
-                <label className="space-y-2">
-  <div className="text-sm text-white/70">Recipient Type</div>
-  <select
-    value={counterpartyType}
-    onChange={(e) => setCounterpartyType(e.target.value as "client" | "company")}
-    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white"
-  >
-    <option value="client">Client</option>
-    <option value="company">My Company</option>
-  </select>
-</label>
+                  {selectedCompany ? (
+                    <div className="mt-3 text-sm leading-6 text-slate-300">
+                      <div className="font-semibold text-white">
+                        {selectedCompany.legal_name || selectedCompany.name}
+                      </div>
+                      {getCompanyAddress(selectedCompany) ? (
+                        <div>{getCompanyAddress(selectedCompany)}</div>
+                      ) : null}
+                      {selectedCompany.email ? (
+                        <div>Email: {selectedCompany.email}</div>
+                      ) : null}
+                      {selectedCompany.phone ? (
+                        <div>Phone: {selectedCompany.phone}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
 
-{counterpartyType === "client" && (
-  <label className="space-y-2">
-    <div className="text-sm text-white/70">Client</div>
-    <select
-      value={clientId}
-      onChange={(e) => setClientId(e.target.value)}
-      className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white"
-    >
-      <option value="">Select client</option>
-      {clients.map((c) => (
-        <option key={c.id} value={c.id}>
-          {c.legal_name || c.name}
-        </option>
-      ))}
-    </select>
-  </label>
-)}
-
-{counterpartyType === "company" && (
-  <label className="space-y-2">
-    <div className="text-sm text-white/70">Receiving Company</div>
-    <select
-      value={counterpartyCompanyId}
-      onChange={(e) => setCounterpartyCompanyId(e.target.value)}
-      className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white"
-    >
-      <option value="">Select company</option>
-      {companies
-        .filter((c) => c.id !== companyId)
-        .map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.legal_name || c.name}
-          </option>
-        ))}
-    </select>
-  </label>
-)}
-
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Project</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Recipient Type</div>
                   <select
-                    value={projectId}
-                    onChange={(event) => setProjectId(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                    value={counterpartyType}
+                    onChange={(event) =>
+                      setCounterpartyType(
+                        event.target.value as "client" | "company"
+                      )
+                    }
+                    className={fieldShellClass}
                   >
-                    <option value="">No project</option>
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.name}
-                      </option>
-                    ))}
+                    <option value="client">Client</option>
+                    <option value="company">My Company</option>
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Task</div>
-                  <select
-                    value={taskId}
-                    onChange={(event) => setTaskId(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                  >
-                    <option value="">No task</option>
-                    {filteredTasks.map((task) => (
-                      <option key={task.id} value={task.id}>
-                        {task.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {counterpartyType === "client" ? (
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Client / Recipient</div>
+                    <select
+                      value={clientId}
+                      onChange={(event) => setClientId(event.target.value)}
+                      className={fieldShellClass}
+                    >
+                      <option value="">Select client</option>
+                      {clients.map((client) => (
+                        <option key={client.id} value={client.id}>
+                          {client.legal_name || client.name}
+                        </option>
+                      ))}
+                    </select>
 
-                                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Issue Date</div>
-                  <input
-                    type="date"
-                    value={issueDate}
-                    onChange={(event) => setIssueDate(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                  />
-                </label>
+                    {selectedClient ? (
+                      <div className="mt-3 text-sm leading-6 text-slate-300">
+                        <div className="font-semibold text-white">
+                          {selectedClient.legal_name || selectedClient.name}
+                        </div>
+                        {getClientAddress(selectedClient) ? (
+                          <div>{getClientAddress(selectedClient)}</div>
+                        ) : null}
+                        {selectedClient.company_email ||
+                        selectedClient.personnel_email ? (
+                          <div>
+                            Email:{" "}
+                            {selectedClient.company_email ||
+                              selectedClient.personnel_email}
+                          </div>
+                        ) : null}
+                        {selectedClient.company_phone ||
+                        selectedClient.personnel_phone ? (
+                          <div>
+                            Phone:{" "}
+                            {selectedClient.company_phone ||
+                              selectedClient.personnel_phone}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Receiving Company</div>
+                    <select
+                      value={counterpartyCompanyId}
+                      onChange={(event) =>
+                        setCounterpartyCompanyId(event.target.value)
+                      }
+                      className={fieldShellClass}
+                    >
+                      <option value="">Select company</option>
+                      {companies
+                        .filter((company) => company.id !== companyId)
+                        .map((company) => (
+                          <option key={company.id} value={company.id}>
+                            {company.legal_name || company.name}
+                          </option>
+                        ))}
+                    </select>
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Due Date</div>
-                  <input
-                    type="date"
-                    value={dueDate}
-                    onChange={(event) => setDueDate(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                  />
-                </label>
+                    {selectedCounterpartyCompany ? (
+                      <div className="mt-3 text-sm leading-6 text-slate-300">
+                        <div className="font-semibold text-white">
+                          {selectedCounterpartyCompany.legal_name ||
+                            selectedCounterpartyCompany.name}
+                        </div>
+                        {getCompanyAddress(selectedCounterpartyCompany) ? (
+                          <div>
+                            {getCompanyAddress(selectedCounterpartyCompany)}
+                          </div>
+                        ) : null}
+                        {selectedCounterpartyCompany.email ? (
+                          <div>Email: {selectedCounterpartyCompany.email}</div>
+                        ) : null}
+                        {selectedCounterpartyCompany.phone ? (
+                          <div>Phone: {selectedCounterpartyCompany.phone}</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                )}
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Payment Terms</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Payment Terms</div>
                   <select
                     value={paymentTermsId}
                     onChange={(event) => setPaymentTermsId(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                    className={fieldShellClass}
                   >
-                    <option value="">Select payment terms</option>
+                    <option value="">Select terms</option>
                     {paymentTerms.map((term) => (
                       <option key={term.id} value={term.id}>
-                        {term.name}
+                        {term.code} | {term.name} | Due in {term.due_days} days
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Shipping Terms</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Shipping Terms</div>
                   <select
                     value={shippingTermId}
                     onChange={(event) => setShippingTermId(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                    className={fieldShellClass}
                   >
                     <option value="">Select shipping terms</option>
                     {shippingTerms.map((term) => (
                       <option key={term.id} value={term.id}>
-                        {term.name}
+                        {term.code} | {term.name}
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Bank Account</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Bank Account</div>
                   <select
                     value={bankAccountId}
                     onChange={(event) => setBankAccountId(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                    className={fieldShellClass}
                   >
                     <option value="">Select bank account</option>
                     {filteredBankAccounts.map((account) => (
@@ -982,39 +1376,50 @@ if (counterpartyType === "company" && !counterpartyCompanyId) {
                       </option>
                     ))}
                   </select>
-                </label>
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Currency</div>
-                  <select
-                    value={currencyId}
-                    onChange={(event) => {
-                      const nextId = event.target.value;
-                      setCurrencyId(nextId);
-                      const matchedCurrency = currencies.find(
-                        (entry) => entry.id === nextId
-                      );
-                      if (matchedCurrency) {
-                        setCurrencyCode(matchedCurrency.currency_code);
-                      }
-                    }}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                  >
-                    <option value="">Select currency</option>
-                    {currencies.map((currency) => (
-                      <option key={currency.id} value={currency.id}>
-                        {currency.currency_code} — {currency.currency_name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                  {selectedBankAccount ? (
+                    <div className="mt-3 text-sm leading-6 text-slate-300">
+                      <div className="font-semibold text-white">
+                        {selectedBankAccount.beneficiary_name ||
+                          selectedBankAccount.name}
+                      </div>
+                      {selectedBankAccount.bank_name ||
+                      selectedBankAccount.institution_name ? (
+                        <div>
+                          {selectedBankAccount.bank_name ||
+                            selectedBankAccount.institution_name}
+                        </div>
+                      ) : null}
+                      {getBankAddress(selectedBankAccount) ? (
+                        <div>{getBankAddress(selectedBankAccount)}</div>
+                      ) : null}
+                      {selectedBankAccount.account_number ||
+                      selectedBankAccount.masked_account_number ? (
+                        <div>
+                          Account:{" "}
+                          {selectedBankAccount.account_number ||
+                            selectedBankAccount.masked_account_number}
+                        </div>
+                      ) : null}
+                      {getBankIdentifier(selectedBankAccount) ? (
+                        <div>
+                          {getBankIdentifier(selectedBankAccount)?.label}:{" "}
+                          {getBankIdentifier(selectedBankAccount)?.value}
+                        </div>
+                      ) : null}
+                      {selectedBankAccount.currency_code ? (
+                        <div>Currency: {selectedBankAccount.currency_code}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Preferred Payment Method</div>
+                                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Preferred Payment Method</div>
                   <select
                     value={paymentMethodId}
                     onChange={(event) => setPaymentMethodId(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                    className={fieldShellClass}
                   >
                     <option value="">Select payment method</option>
                     {paymentMethods.map((method) => (
@@ -1023,374 +1428,521 @@ if (counterpartyType === "company" && !counterpartyCompanyId) {
                       </option>
                     ))}
                   </select>
-                </label>
-
-               <div className="space-y-2">
-  <div className="text-sm text-white/70">Recipient Email</div>
-  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
-    {counterpartyType === "client"
-      ? selectedClient?.company_email || selectedClient?.personnel_email || "—"
-      : companies.find((c) => c.id === counterpartyCompanyId)?.email || "—"}
-  </div>
-</div>
-
-<div className="space-y-2">
-  <div className="text-sm text-white/70">Recipient Phone</div>
-  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
-    {counterpartyType === "client"
-      ? selectedClient?.company_phone || selectedClient?.personnel_phone || "—"
-      : companies.find((c) => c.id === counterpartyCompanyId)?.phone || "—"}
-  </div>
-</div>
-
-                 <div className="space-y-2">
-                  <div className="text-sm text-white/70">Company Email</div>
-                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
-                    {selectedCompany?.email || "—"}
-                  </div>
                 </div>
 
-                 <div className="space-y-2 md:col-span-2">
-                  <div className="text-sm text-white/70">Bank Details Preview</div>
-                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
-                    {selectedBankAccount ? (
-                      <div className="space-y-1">
-                        <div>{selectedBankAccount.beneficiary_name || "—"}</div>
-                        <div>{selectedBankAccount.bank_name || "—"}</div>
-                        <div>
-                          IBAN: {selectedBankAccount.iban || "—"}
-                        </div>
-                        <div>
-                          SWIFT: {selectedBankAccount.swift_code || "—"}
-                        </div>
-                        <div>
-                          Currency: {selectedBankAccount.currency_code || "—"}
-                        </div>
-                      </div>
-                    ) : (
-                      "—"
-                    )}
-                  </div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Issue Date</div>
+                  <input
+                    type="date"
+                    value={issueDate}
+                    onChange={(event) => setIssueDate(event.target.value)}
+                    className={fieldShellClass}
+                  />
                 </div>
 
-                <label className="space-y-2 md:col-span-2">
-                  <div className="text-sm text-white/70">Notes</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Due Date</div>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={(event) => setDueDate(event.target.value)}
+                    className={fieldShellClass}
+                  />
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Currency</div>
+                  <select
+                    value={currencyId}
+                    onChange={(event) => {
+                      const nextId = event.target.value;
+                      setCurrencyId(nextId);
+
+                      const matchedCurrency = currencies.find(
+                        (entry) => entry.id === nextId
+                      );
+
+                      if (matchedCurrency) {
+                        setCurrencyCode(matchedCurrency.currency_code);
+                      }
+                    }}
+                    className={fieldShellClass}
+                  >
+                    <option value="">Select currency</option>
+                    {currencies.map((currency) => (
+                      <option key={currency.id} value={currency.id}>
+                        {currency.currency_code} — {currency.currency_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Project</div>
+                  <select
+                    value={projectId}
+                    onChange={(event) => setProjectId(event.target.value)}
+                    className={fieldShellClass}
+                  >
+                    <option value="">No project</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Task</div>
+                  <select
+                    value={taskId}
+                    onChange={(event) => setTaskId(event.target.value)}
+                    className={fieldShellClass}
+                  >
+                    <option value="">No task</option>
+                    {filteredTasks.map((task) => (
+                      <option key={task.id} value={task.id}>
+                        {task.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
+                  <div className={labelClass}>Notes</div>
                   <textarea
                     value={notes}
                     onChange={(event) => setNotes(event.target.value)}
                     rows={4}
-                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
+                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
                   />
-                </label>
+                </div>
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardHeader className="border-b border-white/8 pb-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-white">Line Items</CardTitle>
-                    <CardDescription className="text-white/45">
-                      Add the commercial lines that will form the invoice total.
-                    </CardDescription>
+            <Card className={activeSectionClass}>
+              <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                      <SquarePen className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Line Items
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Add products or services using the locked new/create line-item card pattern.
+                      </CardDescription>
+                    </div>
                   </div>
-
-                  <Button onClick={addRow} className="h-10 rounded-2xl px-4">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Row
-                  </Button>
                 </div>
+
+                <Button
+                  variant="outline"
+                  onClick={addRow}
+                  className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Row
+                </Button>
               </CardHeader>
 
-              <CardContent className="space-y-4 p-5">
-                {rows.map((row, index) => {
-                  const rowBase = Math.max(
-                    toNumber(row.quantity) * toNumber(row.unitPrice) -
-                      toNumber(row.discount),
-                    0
-                  );
+              <CardContent className="p-5">
+                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                  {rows.map((row, index) => {
+                    const selectedItem = items.find(
+                      (item) => item.id === row.itemId
+                    );
+                    const selectedUnit = unitsOfMeasure.find(
+                      (unit) => unit.id === row.unitOfMeasureId
+                    );
+                    const selectedRevenueCategory = revenueCategories.find(
+                      (category) => category.id === row.revenueCategoryId
+                    );
+                    const rowBase = Math.max(
+                      toNumber(row.quantity) * toNumber(row.unitPrice) -
+                        toNumber(row.discount),
+                      0
+                    );
+                    const rowTaxRate =
+                      taxCodes.find((entry) => entry.id === row.taxCodeId)
+                        ?.rate_percent ?? 0;
+                    const rowTotal =
+                      rowBase + rowBase * (toNumber(rowTaxRate) / 100);
 
-                  const rowTaxRate =
-                    taxCodes.find((entry) => entry.id === row.taxCodeId)
-                      ?.rate_percent ?? 0;
+                    return (
+                      <div
+                        key={row.localId}
+                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                      >
+                        <div className="mb-4 flex items-center justify-between gap-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-sm font-semibold text-white">
+                              Line {index + 1}
+                            </div>
 
-                  const rowTotal =
-                    rowBase + rowBase * (toNumber(String(rowTaxRate)) / 100);
+                            {selectedItem ? (
+                              <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
+                                {selectedItem.name}
+                              </Badge>
+                            ) : null}
+                          </div>
 
-                  return (
-                    <div
-                      key={row.localId}
-                      className="rounded-[22px] border border-white/8 bg-black/15 p-4"
-                    >
-                      <div className="mb-4 flex items-center justify-between gap-4">
-                        <div className="text-sm font-medium text-white">
-                          Line {index + 1}
+                          <Button
+                            variant="outline"
+                            onClick={() => removeRow(row.localId)}
+                            disabled={rows.length === 1}
+                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
 
-                        <Button
-                          variant="outline"
-                          onClick={() => removeRow(row.localId)}
-                          disabled={rows.length === 1}
-                          className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+                          <label className="space-y-2 md:col-span-3">
+                            <div className={inputLabelClass}>Item</div>
+                            <select
+                              value={row.itemId}
+                              onChange={(event) =>
+                                applyItemToRow(row.localId, event.target.value)
+                              }
+                              className={inputFieldClass}
+                            >
+                              <option value="">Select item</option>
+                              {items.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
 
-                                            <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                        <label className="space-y-2 md:col-span-3">
-                          <div className="text-sm text-white/70">Item</div>
-                          <select
-                            value={row.itemId}
-                            onChange={(event) =>
-                              applyItemToRow(row.localId, event.target.value)
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          >
-                            <option value="">Select item</option>
-                            {items.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                          <label className="space-y-2 md:col-span-4">
+                            <div className={inputLabelClass}>Description</div>
+                            <input
+                              value={row.description}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "description",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Description"
+                              className={inputFieldClass}
+                            />
+                          </label>
 
-                        <label className="space-y-2 md:col-span-4">
-                          <div className="text-sm text-white/70">Description</div>
-                          <input
-                            value={row.description}
-                            onChange={(event) =>
-                              updateRow(
-                                row.localId,
-                                "description",
-                                event.target.value
-                              )
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          />
-                        </label>
+                          <label className="space-y-2 md:col-span-1">
+                            <div className={inputLabelClass}>Qty</div>
+                            <input
+                              value={row.quantity}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "quantity",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            />
+                          </label>
 
-                                                <label className="space-y-2 md:col-span-1">
-                          <div className="text-sm text-white/70">Qty</div>
-                          <input
-                            value={row.quantity}
-                            onChange={(event) =>
-                              updateRow(row.localId, "quantity", event.target.value)
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          />
-                        </label>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Unit</div>
+                            <select
+                              value={row.unitOfMeasureId}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "unitOfMeasureId",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            >
+                              <option value="">Select unit</option>
+                              {unitsOfMeasure.map((unit) => (
+                                <option key={unit.id} value={unit.id}>
+                                  {unit.name}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedUnit ? (
+                              <div className="text-[11px] text-slate-500">
+                                {selectedUnit.code}
+                              </div>
+                            ) : null}
+                          </label>
 
-                        <label className="space-y-2 md:col-span-2">
-                          <div className="text-sm text-white/70">Unit</div>
-                          <select
-                            value={row.unitOfMeasureId}
-                            onChange={(event) =>
-                              updateRow(
-                                row.localId,
-                                "unitOfMeasureId",
-                                event.target.value
-                              )
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          >
-                            <option value="">Select unit</option>
-                            {unitsOfMeasure.map((unit) => (
-                              <option key={unit.id} value={unit.id}>
-                                {unit.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Unit Price</div>
+                            <input
+                              value={row.unitPrice}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "unitPrice",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            />
+                          </label>
 
-                        <label className="space-y-2 md:col-span-2">
-                          <div className="text-sm text-white/70">Unit Price</div>
-                          <input
-                            value={row.unitPrice}
-                            onChange={(event) =>
-                              updateRow(row.localId, "unitPrice", event.target.value)
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          />
-                        </label>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Discount</div>
+                            <input
+                              value={row.discount}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "discount",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            />
+                          </label>
 
-                                                <label className="space-y-2 md:col-span-1">
-                          <div className="text-sm text-white/70">Discount</div>
-                          <input
-                            value={row.discount}
-                            onChange={(event) =>
-                              updateRow(row.localId, "discount", event.target.value)
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          />
-                        </label>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Tax Code</div>
+                            <select
+                              value={row.taxCodeId}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "taxCodeId",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            >
+                              <option value="">Select tax</option>
+                              {taxCodes.map((taxCode) => (
+                                <option key={taxCode.id} value={taxCode.id}>
+                                  {taxCode.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
 
-                        <label className="space-y-2 md:col-span-2">
-                          <div className="text-sm text-white/70">Tax Code</div>
-                          <select
-                            value={row.taxCodeId}
-                            onChange={(event) =>
-                              updateRow(row.localId, "taxCodeId", event.target.value)
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          >
-                            <option value="">Select tax</option>
-                            {taxCodes.map((taxCode) => (
-                              <option key={taxCode.id} value={taxCode.id}>
-                                {taxCode.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                                                    <label className="space-y-2 md:col-span-3">
+                            <div className={inputLabelClass}>
+                              Revenue Category
+                            </div>
+                            <select
+                              value={row.revenueCategoryId}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "revenueCategoryId",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            >
+                              <option value="">Select category</option>
+                              {revenueCategories.map((category) => (
+                                <option key={category.id} value={category.id}>
+                                  {category.name}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedRevenueCategory?.code ? (
+                              <div className="text-[11px] text-slate-500">
+                                {selectedRevenueCategory.code}
+                              </div>
+                            ) : null}
+                          </label>
 
-                        <label className="space-y-2 md:col-span-2">
-                          <div className="text-sm text-white/70">Revenue Category</div>
-                          <select
-                            value={row.revenueCategoryId}
-                            onChange={(event) =>
-                              updateRow(
-                                row.localId,
-                                "revenueCategoryId",
-                                event.target.value
-                              )
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          >
-                            <option value="">Select category</option>
-                            {revenueCategories.map((category) => (
-                              <option key={category.id} value={category.id}>
-                                {category.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <div className="space-y-2 md:col-span-2">
-                          <div className="text-sm text-white/70">Line Total</div>
-                          <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
-                            {formatMoney(rowTotal, currencyCode)}
+                          <div className="space-y-2 md:col-span-3">
+                            <div className={inputLabelClass}>Line Total</div>
+                            <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
+                              {formatMoney(rowTotal, currencyCode)}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </CardContent>
             </Card>
           </div>
 
           <div className="space-y-6">
-            <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardHeader className="border-b border-white/8 pb-4">
-                <CardTitle className="text-white">Draft Summary</CardTitle>
-                <CardDescription className="text-white/45">
-                  Preview totals before saving the invoice draft.
+            <Card className={activeSectionClass}>
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Invoice Summary
+                </CardTitle>
+                <CardDescription className="mt-1 text-xs text-slate-500">
+                  Live commercial summary before saving.
                 </CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-3 p-5">
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Issuing Company
-                  </div>
-                  <div className="mt-2 text-base font-semibold text-white">
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Issuing Company</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
                     {selectedCompany?.legal_name || selectedCompany?.name || "—"}
                   </div>
+                  {selectedCompany ? (
+                    <div className="mt-2 text-sm leading-6 text-slate-400">
+                      {getCompanyAddress(selectedCompany) ? (
+                        <div>{getCompanyAddress(selectedCompany)}</div>
+                      ) : null}
+                      {selectedCompany.email ? (
+                        <div>Email: {selectedCompany.email}</div>
+                      ) : null}
+                      {selectedCompany.phone ? (
+                        <div>Phone: {selectedCompany.phone}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
 
-                                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Recipient
-                     </div>
-                  <div className="mt-2 text-base font-semibold text-white">
-                    {counterpartyType === "client"
-                     ? selectedClient?.legal_name || selectedClient?.name
-                     : companies.find(c => c.id === counterpartyCompanyId)?.legal_name ||
-                       companies.find(c => c.id === counterpartyCompanyId)?.name || "—"}
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Recipient</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedRecipient.name}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedRecipient.address ? (
+                      <div>{selectedRecipient.address}</div>
+                    ) : null}
+                    {selectedRecipient.email ? (
+                      <div>Email: {selectedRecipient.email}</div>
+                    ) : null}
+                    {selectedRecipient.phone ? (
+                      <div>Phone: {selectedRecipient.phone}</div>
+                    ) : null}
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Payment Terms
-                  </div>
-                  <div className="mt-2 text-base font-semibold text-white">
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Payment Terms</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
                     {selectedPaymentTerm?.name || "—"}
                   </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedPaymentTerm
+                      ? `${selectedPaymentTerm.code} · Due in ${selectedPaymentTerm.due_days} days`
+                      : "No payment terms selected"}
+                  </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Shipping Terms
-                  </div>
-                  <div className="mt-2 text-base font-semibold text-white">
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Shipping Terms</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
                     {selectedShippingTerm?.name || "—"}
                   </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedShippingTerm?.code || "No shipping terms selected"}
+                  </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Currency
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Bank Account</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedBankAccount?.name || "—"}
                   </div>
-                  <div className="mt-2 text-base font-semibold text-white">
+                  {selectedBankAccount ? (
+                    <div className="mt-2 text-sm leading-6 text-slate-400">
+                      {selectedBankAccount.bank_name ||
+                      selectedBankAccount.institution_name ? (
+                        <div>
+                          {selectedBankAccount.bank_name ||
+                            selectedBankAccount.institution_name}
+                        </div>
+                      ) : null}
+                      {getBankAddress(selectedBankAccount) ? (
+                        <div>{getBankAddress(selectedBankAccount)}</div>
+                      ) : null}
+                      {selectedBankAccount.account_number ||
+                      selectedBankAccount.masked_account_number ? (
+                        <div>
+                          Account:{" "}
+                          {selectedBankAccount.account_number ||
+                            selectedBankAccount.masked_account_number}
+                        </div>
+                      ) : null}
+                      {getBankIdentifier(selectedBankAccount) ? (
+                        <div>
+                          {getBankIdentifier(selectedBankAccount)?.label}:{" "}
+                          {getBankIdentifier(selectedBankAccount)?.value}
+                        </div>
+                      ) : null}
+                      {selectedBankAccount.currency_code ? (
+                        <div>Currency: {selectedBankAccount.currency_code}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Preferred Payment Method</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedPaymentMethod?.name || "—"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedPaymentMethod?.code || "No payment method selected"}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Currency</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
                     {selectedCurrency
                       ? `${selectedCurrency.currency_code} — ${selectedCurrency.currency_name}`
                       : currencyCode || "—"}
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Bank Account
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Project / Task</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedProject?.name || "—"}
                   </div>
-                  <div className="mt-2 text-base font-semibold text-white">
-                    {selectedBankAccount?.name || "—"}
-                  </div>
-                </div>
-
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Payment Method
-                  </div>
-                  <div className="mt-2 text-base font-semibold text-white">
-                    {selectedPaymentMethod?.name || "—"}
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedTask?.title || "No task selected"}
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Subtotal
+                <div className={summaryBlockClass}>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-400">Subtotal</span>
+                    <span className="font-semibold text-white">
+                      {formatMoney(totals.subtotal, currencyCode)}
+                    </span>
                   </div>
-                  <div className="mt-2 text-lg font-semibold text-white">
-                    {formatMoney(totals.subtotal, currencyCode)}
-                  </div>
-                </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Discount
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <span className="text-slate-400">Discount</span>
+                    <span className="font-semibold text-white">
+                      {formatMoney(totals.discount, currencyCode)}
+                    </span>
                   </div>
-                  <div className="mt-2 text-lg font-semibold text-white">
-                    {formatMoney(totals.discount, currencyCode)}
-                  </div>
-                </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Tax
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <span className="text-slate-400">Tax</span>
+                    <span className="font-semibold text-white">
+                      {formatMoney(totals.tax, currencyCode)}
+                    </span>
                   </div>
-                  <div className="mt-2 text-lg font-semibold text-white">
-                    {formatMoney(totals.tax, currencyCode)}
-                  </div>
-                </div>
 
-                <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">
-                    Total
-                  </div>
-                  <div className="mt-2 text-xl font-semibold text-white">
-                    {formatMoney(totals.total, currencyCode)}
+                  <div className="mt-3 border-t border-white/10 pt-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-slate-300">
+                        Total
+                      </span>
+                      <span className="text-lg font-semibold text-white">
+                        {formatMoney(totals.total, currencyCode)}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -1402,12 +1954,17 @@ if (counterpartyType === "company" && !counterpartyCompanyId) {
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardHeader className="border-b border-white/8 pb-4">
-                <CardTitle className="text-white">Locked Behavior</CardTitle>
+            <Card className={activeSectionClass}>
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Locked Behavior
+                </CardTitle>
+                <CardDescription className="mt-1 text-xs text-slate-500">
+                  New invoice creation rules.
+                </CardDescription>
               </CardHeader>
 
-              <CardContent className="space-y-3 p-5 text-sm text-white/55">
+              <CardContent className="space-y-2 p-5 text-sm leading-6 text-slate-400">
                 <div>• This page creates a draft only.</div>
                 <div>• Real invoice number is finalized on issue.</div>
                 <div>• Issue action happens later from the detail page.</div>
@@ -1417,12 +1974,6 @@ if (counterpartyType === "company" && !counterpartyCompanyId) {
             </Card>
           </div>
         </div>
-
-        {isLoading ? (
-          <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
-            Loading invoice sources...
-          </div>
-        ) : null}
       </div>
     </div>
   );

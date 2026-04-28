@@ -2754,7 +2754,7 @@ export default function FinanceInvoiceDetailPage() {
                         </div>
                       </div>
 
-                      <div className={summaryBlockClass}>
+                                      <div className={summaryBlockClass}>
                         <div className={labelClass}>Due Date</div>
                         <div className="mt-2 text-2xl font-semibold text-white">
                           {invoice.status === "draft"
@@ -2763,155 +2763,817 @@ export default function FinanceInvoiceDetailPage() {
                         </div>
                       </div>
 
-                                          </div>
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Currency</div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {invoice.status === "draft"
+                            ? selectedDraftCurrency
+                              ? `${selectedDraftCurrency.currency_code} — ${selectedDraftCurrency.currency_name}`
+                              : invoice.currency_code || "USD"
+                            : invoice.currency_code || "USD"}
+                        </div>
+                      </div>
+
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Project</div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {invoice.status === "draft"
+                            ? selectedDraftProject?.name || "—"
+                            : project?.name || "—"}
+                        </div>
+                      </div>
+
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Task</div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {invoice.status === "draft"
+                            ? selectedDraftTask?.title || "—"
+                            : task?.title || "—"}
+                        </div>
+                      </div>
+
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Posted To Ledger</div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {invoice.posted_to_ledger ? "Posted" : "Not Posted"}
+                        </div>
+                      </div>
+
+                      <div className={`${summaryBlockClass} md:col-span-3`}>
+                        <div className={labelClass}>Notes</div>
+                        <div className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">
+                          {invoice.status === "draft"
+                            ? notesDraft || "—"
+                            : invoice.notes || "—"}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className={sectionCardClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Terms &amp; Conditions
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Payment terms, shipping terms, and document terms.
+                      </CardDescription>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {editingParties ? (
+                        <Button
+                          onClick={() =>
+                            invoice.status === "draft"
+                              ? void handleSaveDraftChanges()
+                              : void handleSaveIssuedPartiesChanges()
+                          }
+                          disabled={isSavingDraft}
+                          className="h-9 rounded-2xl px-3"
+                        >
+                          <Save className="mr-2 h-4 w-4" />
+                          {isSavingDraft ? "Saving..." : "Save"}
+                        </Button>
+                      ) : null}
+
+                      {canEditDraft || canEditIssuedParties ? (
+                        <Button
+                          variant="outline"
+                          onClick={() => setEditingParties((current) => !current)}
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                        >
+                          <SquarePen className="mr-2 h-4 w-4" />
+                          {editingParties ? "Close" : "Edit"}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Payment Terms</div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {invoice.status === "draft"
+                        ? selectedDraftPaymentTerm?.name || "—"
+                        : invoice.payment_terms_snapshot || "—"}
+                    </div>
+                  </div>
+
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Shipping Terms</div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {invoice.status === "draft"
+                        ? selectedDraftShippingTermsLabel || "—"
+                        : invoice.shipping_terms_snapshot || "—"}
+                    </div>
+                  </div>
+
+                  <div className={`${summaryBlockClass} md:col-span-2`}>
+                    <div className={labelClass}>Terms and Conditions</div>
+                    {editingParties ? (
+                      <textarea
+                        value={termsAndConditionsDraft}
+                        onChange={(event) =>
+                          setTermsAndConditionsDraft(event.target.value)
+                        }
+                        rows={7}
+                        className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                      />
+                    ) : (
+                      <div className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">
+                        {termsAndConditionsDraft ||
+                          invoice.terms_and_conditions_snapshot ||
+                          "—"}
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
 
-              <div className="space-y-6">
-                <Card className={sectionCardClass}>
-                  <CardHeader className="border-b border-white/10 px-5 py-4">
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Line Items
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Products and services on this invoice.
-                    </CardDescription>
-                  </CardHeader>
+              <Card className={sectionCardClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Line Items
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Products and services on this invoice.
+                      </CardDescription>
+                    </div>
 
-                  <CardContent className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
-                    {lineItemsDraft.map((row, index) => (
-                      <div
-                        key={row.id}
-                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                      >
-                        <div className="mb-4 flex items-center justify-between gap-4">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-sm font-semibold text-white">
-                              Line {index + 1}
+                    <div className="flex items-center gap-2">
+                      {editingLines ? (
+                        <Button
+                          onClick={() =>
+                            canEditDraft
+                              ? void handleSaveDraftChanges()
+                              : void handleSaveIssuedLineChanges()
+                          }
+                          disabled={isSavingDraft}
+                          className="h-9 rounded-2xl px-3"
+                        >
+                          <Save className="mr-2 h-4 w-4" />
+                          {isSavingDraft ? "Saving..." : "Save"}
+                        </Button>
+                      ) : null}
+
+                      {editingLines && canEditDraft ? (
+                        <Button
+                          variant="outline"
+                          onClick={addDraftLineItem}
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                        >
+                          Add Row
+                        </Button>
+                      ) : null}
+
+                      {canEditDraft || invoice.status === "issued" ? (
+                        <Button
+                          variant="outline"
+                          onClick={() => setEditingLines((current) => !current)}
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                        >
+                          <SquarePen className="mr-2 h-4 w-4" />
+                          {editingLines ? "Close" : "Edit"}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="p-5">
+                  <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                    {(editingLines ? lineItemsDraft : lineItems).map((row, index) => {
+                      const editable = editingLines;
+                      const editableRow = row as EditableLineItem;
+                      const readOnlyRow = row as LineItemRow;
+
+                      const rowQuantity = editable
+                        ? toNumber(editableRow.quantity)
+                        : toNumber(readOnlyRow.quantity);
+                      const rowUnitPrice = editable
+                        ? toNumber(editableRow.unit_price)
+                        : toNumber(readOnlyRow.unit_price);
+                      const rowDiscount = editable
+                        ? toNumber(editableRow.discount)
+                        : toNumber(readOnlyRow.discount);
+                      const rowTaxCodeId = editable
+                        ? editableRow.tax_code_id
+                        : readOnlyRow.tax_code_id || "";
+                      const rowTaxRate =
+                        taxCodes.find((taxCode) => taxCode.id === rowTaxCodeId)
+                          ?.rate_percent ?? 0;
+                      const rowBase = Math.max(
+                        rowQuantity * rowUnitPrice - rowDiscount,
+                        0
+                      );
+                      const rowTotal = editable
+                        ? rowBase + rowBase * (toNumber(rowTaxRate) / 100)
+                        : toNumber(readOnlyRow.line_total);
+
+                      return (
+                        <div
+                          key={(row as EditableLineItem | LineItemRow).id}
+                          className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                        >
+                          <div className="mb-4 flex items-center justify-between gap-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-sm font-semibold text-white">
+                                Line {index + 1}
+                              </div>
                             </div>
+
+                            {editable && canEditDraft ? (
+                              <Button
+                                variant="outline"
+                                onClick={() => removeDraftLineItem(editableRow.id)}
+                                disabled={lineItemsDraft.length === 1}
+                                className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            ) : null}
                           </div>
 
-                          {canEditDraft || canEditIssuedLines ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => removeDraftLineItem(row.id)}
-                              disabled={lineItemsDraft.length === 1}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          ) : null}
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                          <label className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>Item</div>
-                            <select
-                              value={row.item_id}
-                              onChange={(e) =>
-                                applyDraftItemSelection(row.id, e.target.value)
-                              }
-                              className={inputFieldClass}
-                            >
-                              <option value="">Select item</option>
-                              {items.map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label className="space-y-2 md:col-span-4">
-                            <div className={inputLabelClass}>Description</div>
-                            <input
-                              value={row.description}
-                              onChange={(e) =>
-                                setLineItemsDraft((draft) =>
-                                  draft.map((r) =>
-                                    r.id === row.id
-                                      ? { ...r, description: e.target.value }
-                                      : r
-                                  )
-                                )
-                              }
-                              className={inputFieldClass}
-                              placeholder="Description"
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-1">
-                            <div className={inputLabelClass}>Qty</div>
-                            <input
-                              value={row.quantity}
-                              onChange={(e) =>
-                                setLineItemsDraft((draft) =>
-                                  draft.map((r) =>
-                                    r.id === row.id
-                                      ? { ...r, quantity: e.target.value }
-                                      : r
-                                  )
-                                )
-                              }
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Unit Price</div>
-                            <input
-                              value={row.unit_price}
-                              onChange={(e) =>
-                                setLineItemsDraft((draft) =>
-                                  draft.map((r) =>
-                                    r.id === row.id
-                                      ? { ...r, unit_price: e.target.value }
-                                      : r
-                                  )
-                                )
-                              }
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Discount</div>
-                            <input
-                              value={row.discount}
-                              onChange={(e) =>
-                                setLineItemsDraft((draft) =>
-                                  draft.map((r) =>
-                                    r.id === row.id
-                                      ? { ...r, discount: e.target.value }
-                                      : r
-                                  )
-                                )
-                              }
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <div className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>Line Total</div>
-                            <div className="min-h-[44px] rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 flex items-center">
-                              {formatFinanceMoney(
-                                toNumber(row.quantity) * toNumber(row.unit_price) -
-                                  toNumber(row.discount),
-                                currentCurrencyCode
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+                            <label className="space-y-2 md:col-span-3">
+                              <div className={inputLabelClass}>Item</div>
+                              {editable ? (
+                                <select
+                                  value={editableRow.item_id}
+                                  onChange={(event) =>
+                                    applyDraftItemSelection(
+                                      editableRow.id,
+                                      event.target.value
+                                    )
+                                  }
+                                  className={inputFieldClass}
+                                >
+                                  <option value="">Select item</option>
+                                  {items.map((item) => (
+                                    <option key={item.id} value={item.id}>
+                                      {item.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
+                                  {items.find(
+                                    (item) => item.id === readOnlyRow.item_id
+                                  )?.name || "—"}
+                                </div>
                               )}
+                            </label>
+
+                            <label className="space-y-2 md:col-span-4">
+                              <div className={inputLabelClass}>Description</div>
+                              {editable ? (
+                                <input
+                                  value={editableRow.description}
+                                  onChange={(event) =>
+                                    setLineItemsDraft((draft) =>
+                                      draft.map((entry) =>
+                                        entry.id === editableRow.id
+                                          ? {
+                                              ...entry,
+                                              description: event.target.value,
+                                            }
+                                          : entry
+                                      )
+                                    )
+                                  }
+                                  className={inputFieldClass}
+                                  placeholder="Description"
+                                />
+                              ) : (
+                                <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
+                                  {readOnlyRow.description || "—"}
+                                </div>
+                              )}
+                            </label>
+
+                            <label className="space-y-2 md:col-span-1">
+                              <div className={inputLabelClass}>Qty</div>
+                              {editable ? (
+                                <input
+                                  value={editableRow.quantity}
+                                  onChange={(event) =>
+                                    setLineItemsDraft((draft) =>
+                                      draft.map((entry) =>
+                                        entry.id === editableRow.id
+                                          ? { ...entry, quantity: event.target.value }
+                                          : entry
+                                      )
+                                    )
+                                  }
+                                  className={inputFieldClass}
+                                />
+                              ) : (
+                                <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
+                                  {rowQuantity}
+                                </div>
+                              )}
+                            </label>
+
+                            <label className="space-y-2 md:col-span-2">
+                              <div className={inputLabelClass}>Unit</div>
+                              {editable ? (
+                                <select
+                                  value={editableRow.unit_of_measure_id}
+                                  onChange={(event) =>
+                                    setLineItemsDraft((draft) =>
+                                      draft.map((entry) =>
+                                        entry.id === editableRow.id
+                                          ? {
+                                              ...entry,
+                                              unit_of_measure_id:
+                                                event.target.value,
+                                            }
+                                          : entry
+                                      )
+                                    )
+                                  }
+                                  className={inputFieldClass}
+                                >
+                                  <option value="">Select unit</option>
+                                  {unitsOfMeasure.map((unit) => (
+                                    <option key={unit.id} value={unit.id}>
+                                      {unit.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
+                                  {unitsOfMeasure.find(
+                                    (unit) =>
+                                      unit.id === readOnlyRow.unit_of_measure_id
+                                  )?.name || "—"}
+                                </div>
+                              )}
+                            </label>
+
+                            <label className="space-y-2 md:col-span-2">
+                              <div className={inputLabelClass}>Unit Price</div>
+                              {editable ? (
+                                <input
+                                  value={editableRow.unit_price}
+                                  onChange={(event) =>
+                                    setLineItemsDraft((draft) =>
+                                      draft.map((entry) =>
+                                        entry.id === editableRow.id
+                                          ? {
+                                              ...entry,
+                                              unit_price: event.target.value,
+                                            }
+                                          : entry
+                                      )
+                                    )
+                                  }
+                                  className={inputFieldClass}
+                                />
+                              ) : (
+                                <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
+                                  {formatFinanceMoney(
+                                    rowUnitPrice,
+                                    currentCurrencyCode
+                                  )}
+                                </div>
+                              )}
+                            </label>
+
+                            <label className="space-y-2 md:col-span-2">
+                              <div className={inputLabelClass}>Discount</div>
+                              {editable ? (
+                                <input
+                                  value={editableRow.discount}
+                                  onChange={(event) =>
+                                    setLineItemsDraft((draft) =>
+                                      draft.map((entry) =>
+                                        entry.id === editableRow.id
+                                          ? { ...entry, discount: event.target.value }
+                                          : entry
+                                      )
+                                    )
+                                  }
+                                  className={inputFieldClass}
+                                />
+                              ) : (
+                                <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
+                                  {formatFinanceMoney(
+                                    rowDiscount,
+                                    currentCurrencyCode
+                                  )}
+                                </div>
+                              )}
+                            </label>
+
+                            <label className="space-y-2 md:col-span-2">
+                              <div className={inputLabelClass}>Tax Code</div>
+                              {editable ? (
+                                <select
+                                  value={editableRow.tax_code_id}
+                                  onChange={(event) =>
+                                    setLineItemsDraft((draft) =>
+                                      draft.map((entry) =>
+                                        entry.id === editableRow.id
+                                          ? { ...entry, tax_code_id: event.target.value }
+                                          : entry
+                                      )
+                                    )
+                                  }
+                                  className={inputFieldClass}
+                                >
+                                  <option value="">Select tax</option>
+                                  {taxCodes.map((taxCode) => (
+                                    <option key={taxCode.id} value={taxCode.id}>
+                                      {taxCode.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
+                                  {taxCodes.find(
+                                    (taxCode) =>
+                                      taxCode.id === readOnlyRow.tax_code_id
+                                  )?.name || "—"}
+                                </div>
+                              )}
+                            </label>
+
+                            <label className="space-y-2 md:col-span-3">
+                              <div className={inputLabelClass}>
+                                Revenue Category
+                              </div>
+                              {editable ? (
+                                <select
+                                  value={editableRow.revenue_category_id}
+                                  onChange={(event) =>
+                                    setLineItemsDraft((draft) =>
+                                      draft.map((entry) =>
+                                        entry.id === editableRow.id
+                                          ? {
+                                              ...entry,
+                                              revenue_category_id:
+                                                event.target.value,
+                                            }
+                                          : entry
+                                      )
+                                    )
+                                  }
+                                  className={inputFieldClass}
+                                >
+                                  <option value="">Select category</option>
+                                  {revenueCategories.map((category) => (
+                                    <option key={category.id} value={category.id}>
+                                      {category.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
+                                  {revenueCategories.find(
+                                    (category) =>
+                                      category.id ===
+                                      readOnlyRow.revenue_category_id
+                                  )?.name || "—"}
+                                </div>
+                              )}
+                            </label>
+
+                            <div className="space-y-2 md:col-span-3">
+                              <div className={inputLabelClass}>Line Total</div>
+                              <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
+                                {formatFinanceMoney(rowTotal, currentCurrencyCode)}
+                              </div>
                             </div>
                           </div>
                         </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="space-y-6">
+              <Card className={sectionCardClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Financial Summary
+                  </CardTitle>
+                  <CardDescription className="mt-1 text-xs text-slate-500">
+                    Live totals, collection state, and remaining balance.
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-3 p-5">
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Subtotal</div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.subtotal ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Discount</div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.discount ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Tax</div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.tax ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-100/70">
+                      Total
+                    </div>
+                    <div className="mt-2 text-xl font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.total ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Paid</div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.paid ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-amber-400/15 bg-amber-500/10 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-amber-100/70">
+                      Balance Due
+                    </div>
+                    <div className="mt-2 text-xl font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.balance ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className={sectionCardClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Payment History
+                  </CardTitle>
+                  <CardDescription className="mt-1 text-xs text-slate-500">
+                    Confirmed payments linked to this invoice.
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-4 p-5">
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-center justify-between text-sm text-slate-400">
+                      <span>Total</span>
+                      <span>
+                        {formatFinanceMoney(
+                          toNumber(invoice.total_amount),
+                          currentCurrencyCode
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between text-sm text-emerald-300">
+                      <span>Paid</span>
+                      <span>
+                        {formatFinanceMoney(
+                          toNumber(invoice.paid_amount),
+                          currentCurrencyCode
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between text-sm text-amber-300">
+                      <span>Remaining</span>
+                      <span>
+                        {formatFinanceMoney(
+                          toNumber(invoice.balance_due),
+                          currentCurrencyCode
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className="h-full bg-emerald-500 transition-all"
+                        style={{ width: `${paymentProgressPercent}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {payments.length === 0 ? (
+                    <div className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-6 text-center text-sm text-slate-500">
+                      No payments yet.
+                    </div>
+                  ) : (
+                    <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
+                      {payments.map((payment) => (
+                        <div
+                          key={payment.id}
+                          onClick={() =>
+                            navigate(
+                              `/finance/transactions/payments-received/${payment.id}`
+                            )
+                          }
+                          className="cursor-pointer rounded-[20px] border border-white/10 bg-black/20 p-4 transition hover:bg-white/[0.04]"
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <div>
+                              <div className="text-sm font-medium text-white">
+                                {payment.reference_number || payment.id}
+                              </div>
+                              <div className="mt-1 text-xs text-slate-500">
+                                {formatFinanceDate(payment.payment_date)}
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <div className="text-sm font-semibold text-white">
+                                {formatFinanceMoney(
+                                  toNumber(payment.amount),
+                                  payment.payment_currency_code ||
+                                    currentCurrencyCode
+                                )}
+                              </div>
+                              <Badge className="mt-1 rounded-full border border-emerald-400/20 bg-emerald-500/10 text-[10px] text-emerald-300 shadow-none">
+                                {payment.status}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className={sectionCardClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Archive
+                    </CardTitle>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowArchivePopup((current) => {
+                          const next = !current;
+                          if (next) {
+                            setArchiveTab("archived");
+                            void loadArchiveItems();
+                          }
+                          return next;
+                        });
+                      }}
+                      className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                    >
+                      {showArchivePopup ? "Close" : "Open Archive"}
+                    </Button>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="space-y-3 p-5">
+                  <div className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-4 text-sm text-slate-400">
+                    Archive moves the invoice to archived. Delete moves the
+                    invoice to deleted. Hard delete is available only from the
+                    deleted tab.
+                  </div>
+
+                  {showArchivePopup ? (
+                    <div className="space-y-4 rounded-[22px] border border-white/10 bg-black/20 p-4">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setArchiveTab("archived")}
+                          className={`rounded-xl px-4 py-2 text-sm transition ${
+                            archiveTab === "archived"
+                              ? "bg-white/10 text-white"
+                              : "text-slate-500 hover:bg-white/[0.05] hover:text-white"
+                          }`}
+                        >
+                          Archived
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setArchiveTab("deleted")}
+                          className={`rounded-xl px-4 py-2 text-sm transition ${
+                            archiveTab === "deleted"
+                              ? "bg-rose-500/15 text-rose-200"
+                              : "text-slate-500 hover:bg-white/[0.05] hover:text-white"
+                          }`}
+                        >
+                          Deleted
+                        </button>
                       </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              </div>
+
+                      {visibleArchiveItems.length === 0 ? (
+                        <div className="text-sm text-slate-500">
+                          No {archiveTab} invoices.
+                        </div>
+                      ) : (
+                        <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
+                          {visibleArchiveItems.map((item) => (
+                            <div
+                              key={item.id}
+                              className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-3"
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <div className="text-sm font-medium text-white">
+                                    {item.invoice_number || "Invoice"}
+                                  </div>
+                                  <div className="mt-1 text-xs text-slate-500">
+                                    {item.counterparty_name_snapshot ||
+                                      item.client_name_snapshot ||
+                                      "—"}{" "}
+                                    • {formatFinanceDate(item.updated_at || null)}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <div className="text-sm text-slate-400">
+                                    {formatFinanceMoney(
+                                      toNumber(item.total_amount),
+                                      currentCurrencyCode
+                                    )}
+                                  </div>
+
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => void handleRestore(item.id)}
+                                    disabled={isDeleting}
+                                    className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+                                  >
+                                    Restore
+                                  </Button>
+
+                                  {archiveTab === "deleted" ? (
+                                    <Button
+                                      variant="outline"
+                                      onClick={() =>
+                                        void handleHardDelete(item.id)
+                                      }
+                                      disabled={isDeleting}
+                                      className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
             </div>
           </div>
+
+          {error ? (
+            <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+              {error}
+            </div>
+          ) : null}
         </div>
       </div>
+
+      <InvoicePrintDocument
+        invoice={printableInvoice}
+        lineItems={printableLineItems}
+        financialSummary={financialSummary}
+      />
     </>
   );
 }

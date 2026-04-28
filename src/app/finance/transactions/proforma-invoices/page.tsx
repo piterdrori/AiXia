@@ -1,17 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
+  Archive,
   ArrowRight,
+  CheckCircle,
+  Eye,
   FileText,
-  MoreVertical,
   Plus,
   Receipt,
-  RefreshCw,
+  RotateCcw,
   Search,
+  Trash2,
   Wallet,
+  type LucideIcon,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -76,9 +79,21 @@ type ProformaMetricCard = {
   title: string;
   value: string;
   subtitle: string;
-  icon: typeof Wallet;
-  tone: "blue" | "emerald" | "amber" | "rose";
+  icon: LucideIcon;
+  tone: "cyan" | "emerald" | "amber" | "rose" | "violet";
 };
+
+type ProformaSortKey =
+  | "proforma_number"
+  | "client"
+  | "issue_date"
+  | "valid_until"
+  | "total_amount"
+  | "status"
+  | "updated_at"
+  | "created_at";
+
+type SortDirection = "asc" | "desc";
 
 function getToneClasses(tone: ProformaMetricCard["tone"]) {
   switch (tone) {
@@ -88,6 +103,7 @@ function getToneClasses(tone: ProformaMetricCard["tone"]) {
         iconWrap:
           "border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_0_30px_rgba(16,185,129,0.18)]",
         accent: "bg-emerald-400",
+        value: "text-emerald-100",
       };
     case "amber":
       return {
@@ -95,6 +111,7 @@ function getToneClasses(tone: ProformaMetricCard["tone"]) {
         iconWrap:
           "border-amber-400/20 bg-amber-500/10 text-amber-300 shadow-[0_0_30px_rgba(245,158,11,0.18)]",
         accent: "bg-amber-400",
+        value: "text-amber-100",
       };
     case "rose":
       return {
@@ -102,14 +119,24 @@ function getToneClasses(tone: ProformaMetricCard["tone"]) {
         iconWrap:
           "border-rose-400/20 bg-rose-500/10 text-rose-300 shadow-[0_0_30px_rgba(244,63,94,0.18)]",
         accent: "bg-rose-400",
+        value: "text-rose-100",
       };
-    case "blue":
+    case "violet":
+      return {
+        glow: "from-violet-500/20 via-violet-400/10 to-transparent",
+        iconWrap:
+          "border-violet-400/20 bg-violet-500/10 text-violet-300 shadow-[0_0_30px_rgba(139,92,246,0.18)]",
+        accent: "bg-violet-400",
+        value: "text-violet-100",
+      };
+    case "cyan":
     default:
       return {
-        glow: "from-sky-500/20 via-sky-400/10 to-transparent",
+        glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
         iconWrap:
-          "border-sky-400/20 bg-sky-500/10 text-sky-300 shadow-[0_0_30px_rgba(56,189,248,0.18)]",
-        accent: "bg-sky-400",
+          "border-cyan-400/20 bg-cyan-500/10 text-cyan-300 shadow-[0_0_30px_rgba(34,211,238,0.18)]",
+        accent: "bg-cyan-400",
+        value: "text-cyan-100",
       };
   }
 }
@@ -119,33 +146,33 @@ function MetricCard({ metric }: { metric: ProformaMetricCard }) {
   const Icon = metric.icon;
 
   return (
-    <div className="group relative overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+    <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
       <div
-        className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`}
+        className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow} opacity-70`}
       />
-      <div className="relative flex h-full flex-col gap-5 p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-2">
-            <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-white/45">
-              {metric.title}
-            </div>
-            <div className="text-3xl font-semibold tracking-tight text-white">
-              {metric.value}
-            </div>
+      <div className="relative flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            {metric.title}
           </div>
-
           <div
-            className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
+            className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${tone.value}`}
           >
-            <Icon className="h-5 w-5" />
+            {metric.value}
+          </div>
+          <div className="mt-2 min-w-0 truncate text-sm leading-6 text-slate-400">
+            {metric.subtitle}
           </div>
         </div>
 
-        <div className="mt-auto flex items-center justify-between gap-3">
-          <div className="text-sm text-white/55">{metric.subtitle}</div>
-          <div className={`h-2 w-2 rounded-full ${tone.accent}`} />
+        <div
+          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
+        >
+          <Icon className="h-5 w-5" />
         </div>
       </div>
+
+      <div className={`absolute bottom-5 right-5 h-2 w-2 rounded-full ${tone.accent}`} />
     </div>
   );
 }
@@ -180,15 +207,15 @@ function formatFinanceMoney(
 function getProformaStatusBadgeClasses(status: string) {
   switch (status) {
     case "draft":
-      return "border-white/10 bg-white/10 text-white/75";
+      return "border-slate-400/20 bg-white/[0.06] text-slate-300";
     case "sent":
-      return "border-sky-400/20 bg-sky-500/10 text-sky-200";
+      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
     case "accepted":
       return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
     case "converted":
       return "border-violet-400/20 bg-violet-500/10 text-violet-200";
     case "archived":
-      return "border-white/20 bg-white/5 text-white/60";
+      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
     case "deleted":
       return "border-rose-500/30 bg-rose-500/10 text-rose-300";
     default:
@@ -223,22 +250,74 @@ function getCurrencyCodeFromMetadata(
   return typeof value === "string" && value.trim() ? value : "USD";
 }
 
+function getProformaDisplayName(proforma: ProformaInvoiceListRow) {
+  return (
+    proforma.proforma_number ||
+    (proforma.status === "draft"
+      ? "Draft Proforma"
+      : proforma.status === "converted"
+      ? "Converted Proforma"
+      : "Proforma Invoice")
+  );
+}
+
+function getClientDisplayName(proforma: ProformaInvoiceListRow) {
+  return proforma.client_legal_name || proforma.client_name || "Unknown";
+}
+
+function getSortableDate(value: string | null | undefined) {
+  if (!value) return 0;
+
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function compareSortValues(a: string | number, b: string | number) {
+  if (typeof a === "number" && typeof b === "number") {
+    return a - b;
+  }
+
+  return String(a).localeCompare(String(b), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function getProformaSortValue(
+  proforma: ProformaInvoiceListRow,
+  key: ProformaSortKey
+) {
+  switch (key) {
+    case "proforma_number":
+      return getProformaDisplayName(proforma);
+    case "client":
+      return getClientDisplayName(proforma);
+    case "issue_date":
+      return getSortableDate(proforma.issue_date);
+    case "valid_until":
+      return getSortableDate(proforma.valid_until);
+    case "total_amount":
+      return Number(proforma.total_amount ?? 0);
+    case "status":
+      return proforma.status || "";
+    case "updated_at":
+      return getSortableDate(proforma.updated_at);
+    case "created_at":
+    default:
+      return getSortableDate(proforma.created_at);
+  }
+}
+
 export default function FinanceProformaInvoicesPage() {
   const navigate = useNavigate();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [proformas, setProformas] = useState<ProformaInvoiceListRow[]>([]);
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<Role | null>(null);
   const [permissionOverrides, setPermissionOverrides] = useState<
     Partial<Record<Permission, boolean>> | null
   >(null);
-
-  const [openMenuProformaId, setOpenMenuProformaId] = useState<string | null>(
-    null
-  );
-  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
 
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
   const [archiveTab, setArchiveTab] = useState<"archived" | "deleted">(
@@ -248,6 +327,13 @@ export default function FinanceProformaInvoicesPage() {
     ProformaInvoiceListRow[]
   >([]);
   const [isArchiveLoading, setIsArchiveLoading] = useState(false);
+
+  const [sortKey, setSortKey] = useState<ProformaSortKey>("created_at");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [archiveSortKey, setArchiveSortKey] =
+    useState<ProformaSortKey>("created_at");
+  const [archiveSortDirection, setArchiveSortDirection] =
+    useState<SortDirection>("desc");
 
   const loadPermissions = useCallback(async () => {
     const {
@@ -274,12 +360,8 @@ export default function FinanceProformaInvoicesPage() {
     }
   }, []);
 
-  const loadProformas = useCallback(async (refreshMode = false) => {
-    if (refreshMode) {
-      setIsRefreshing(true);
-    } else {
-      setIsLoading(true);
-    }
+  const loadProformas = useCallback(async () => {
+    setIsLoading((current) => current || proformas.length === 0);
 
     try {
       const rows = (await getProformaInvoicesList()) as ProformaInvoiceListRow[];
@@ -330,14 +412,9 @@ export default function FinanceProformaInvoicesPage() {
       console.error("Failed to load proforma invoices:", error);
       setProformas([]);
     } finally {
-      if (refreshMode) {
-        setIsRefreshing(false);
-      } else {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
-  }, []);
-
+  }, [proformas.length]);
 
   const loadArchivedProformas = useCallback(async () => {
     setIsArchiveLoading(true);
@@ -377,7 +454,7 @@ export default function FinanceProformaInvoicesPage() {
         );
       }
 
-      setArchivedProformas(
+          setArchivedProformas(
         rows.map((row) => {
           const client = row.client_id ? clientMap.get(row.client_id) : null;
 
@@ -401,22 +478,6 @@ export default function FinanceProformaInvoicesPage() {
   }, [loadPermissions, loadProformas]);
 
   useEffect(() => {
-    function handleDocumentClick(event: MouseEvent) {
-      if (!actionsMenuRef.current) return;
-
-      if (!actionsMenuRef.current.contains(event.target as Node)) {
-        setOpenMenuProformaId(null);
-      }
-    }
-
-    document.addEventListener("mousedown", handleDocumentClick);
-
-    return () => {
-      document.removeEventListener("mousedown", handleDocumentClick);
-    };
-  }, []);
-
-  useEffect(() => {
     if (!isArchiveModalOpen) return;
     void loadArchivedProformas();
   }, [isArchiveModalOpen, loadArchivedProformas]);
@@ -428,7 +489,7 @@ export default function FinanceProformaInvoicesPage() {
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_proforma_invoices" },
         () => {
-          void loadProformas(true);
+          void loadProformas();
           if (isArchiveModalOpen) {
             void loadArchivedProformas();
           }
@@ -441,11 +502,19 @@ export default function FinanceProformaInvoicesPage() {
           schema: "public",
           table: "finance_proforma_invoice_line_items",
         },
-        () => void loadProformas(true)
+        () => void loadProformas()
       )
       .subscribe();
 
+    const intervalId = window.setInterval(() => {
+      void loadProformas();
+      if (isArchiveModalOpen) {
+        void loadArchivedProformas();
+      }
+    }, 60000);
+
     return () => {
+      window.clearInterval(intervalId);
       supabase.removeChannel(channel);
     };
   }, [isArchiveModalOpen, loadArchivedProformas, loadProformas]);
@@ -467,13 +536,10 @@ export default function FinanceProformaInvoicesPage() {
       const currencyCode = getCurrencyCodeFromMetadata(proforma.metadata);
 
       return (
-        (proforma.proforma_number || "")
+        getProformaDisplayName(proforma)
           .toLowerCase()
           .includes(normalizedSearch) ||
-        (proforma.client_name || "")
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        (proforma.client_legal_name || "")
+        getClientDisplayName(proforma)
           .toLowerCase()
           .includes(normalizedSearch) ||
         (proforma.status || "").toLowerCase().includes(normalizedSearch) ||
@@ -487,6 +553,26 @@ export default function FinanceProformaInvoicesPage() {
       (proforma) => String(proforma.status) === archiveTab
     );
   }, [archivedProformas, archiveTab]);
+
+  const sortedProformas = useMemo(() => {
+    return [...filteredProformas].sort((first, second) => {
+      const firstValue = getProformaSortValue(first, sortKey);
+      const secondValue = getProformaSortValue(second, sortKey);
+      const multiplier = sortDirection === "asc" ? 1 : -1;
+
+      return compareSortValues(firstValue, secondValue) * multiplier;
+    });
+  }, [filteredProformas, sortDirection, sortKey]);
+
+  const sortedArchivedProformas = useMemo(() => {
+    return [...visibleArchivedProformas].sort((first, second) => {
+      const firstValue = getProformaSortValue(first, archiveSortKey);
+      const secondValue = getProformaSortValue(second, archiveSortKey);
+      const multiplier = archiveSortDirection === "asc" ? 1 : -1;
+
+      return compareSortValues(firstValue, secondValue) * multiplier;
+    });
+  }, [archiveSortDirection, archiveSortKey, visibleArchivedProformas]);
 
   const metricCards = useMemo<ProformaMetricCard[]>(() => {
     const activeProformas = proformas.filter(
@@ -524,7 +610,7 @@ export default function FinanceProformaInvoicesPage() {
         value: totalProformas.toLocaleString(),
         subtitle: "Pre-invoice commercial records",
         icon: FileText,
-        tone: "blue",
+        tone: "cyan",
       },
       {
         key: "drafts",
@@ -538,7 +624,7 @@ export default function FinanceProformaInvoicesPage() {
         key: "pipeline",
         title: "Accepted Pipeline",
         value: formatFinanceMoney(pipelineTotal, pipelineCurrency),
-        subtitle: `${acceptedProformas.length} accepted proformas awaiting conversion`,
+        subtitle: `${acceptedProformas.length} accepted records`,
         icon: Wallet,
         tone: "emerald",
       },
@@ -546,19 +632,48 @@ export default function FinanceProformaInvoicesPage() {
         key: "converted",
         title: "Converted",
         value: convertedProformas.toLocaleString(),
-        subtitle: "Already converted into invoices",
-        icon: Receipt,
-        tone: "rose",
+        subtitle: "Converted into invoices",
+        icon: CheckCircle,
+        tone: "violet",
       },
     ];
   }, [proformas]);
 
+  function handleSort(nextKey: ProformaSortKey) {
+    if (sortKey === nextKey) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortKey(nextKey);
+    setSortDirection(nextKey === "created_at" ? "desc" : "asc");
+  }
+
+  function handleArchiveSort(nextKey: ProformaSortKey) {
+    if (archiveSortKey === nextKey) {
+      setArchiveSortDirection((current) =>
+        current === "asc" ? "desc" : "asc"
+      );
+      return;
+    }
+
+    setArchiveSortKey(nextKey);
+    setArchiveSortDirection(nextKey === "created_at" ? "desc" : "asc");
+  }
+
+  function getSortIndicator(key: ProformaSortKey, archive = false) {
+    const activeKey = archive ? archiveSortKey : sortKey;
+    const activeDirection = archive ? archiveSortDirection : sortDirection;
+
+    if (activeKey !== key) return "↕";
+    return activeDirection === "asc" ? "↑" : "↓";
+  }
+
   const handleArchive = async (id: string) => {
     await archiveProformaInvoice(id);
 
-    setOpenMenuProformaId(null);
     await Promise.all([
-      loadProformas(true),
+      loadProformas(),
       isArchiveModalOpen ? loadArchivedProformas() : Promise.resolve(),
     ]);
   };
@@ -566,29 +681,27 @@ export default function FinanceProformaInvoicesPage() {
   const handleDelete = async (id: string) => {
     await softDeleteProformaInvoice(id);
 
-    setOpenMenuProformaId(null);
     await Promise.all([
-      loadProformas(true),
+      loadProformas(),
       isArchiveModalOpen ? loadArchivedProformas() : Promise.resolve(),
     ]);
   };
 
   const handleRestore = async (id: string) => {
     await restoreProformaInvoice(id);
-    await Promise.all([loadProformas(true), loadArchivedProformas()]);
+    await Promise.all([loadProformas(), loadArchivedProformas()]);
   };
 
   const handleHardDelete = async (id: string) => {
     await permanentlyDeleteProformaInvoice(id);
-    await Promise.all([loadProformas(true), loadArchivedProformas()]);
+    await Promise.all([loadProformas(), loadArchivedProformas()]);
   };
 
   const handleConvert = async (id: string) => {
     const invoiceId = await convertProformaToInvoice(id);
 
-    setOpenMenuProformaId(null);
     await Promise.all([
-      loadProformas(true),
+      loadProformas(),
       isArchiveModalOpen ? loadArchivedProformas() : Promise.resolve(),
     ]);
 
@@ -597,347 +710,363 @@ export default function FinanceProformaInvoicesPage() {
     }
   };
 
-  return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
-      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
-        <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6 xl:p-7">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_35%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_24%)]" />
-          <div className="relative flex flex-col gap-6">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-              <div className="max-w-3xl space-y-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.24em] text-white/70 shadow-none">
-                    Receivables
-                  </Badge>
+  const activeSectionClass =
+    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
 
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    Proforma invoices
+  const sortableHeaders: { key: ProformaSortKey; label: string; align?: "right" }[] =
+    [
+      { key: "proforma_number", label: "Proforma No." },
+      { key: "client", label: "Client" },
+      { key: "issue_date", label: "Issue Date" },
+      { key: "valid_until", label: "Valid Until" },
+      { key: "total_amount", label: "Total", align: "right" },
+      { key: "status", label: "Status" },
+      { key: "updated_at", label: "Updated" },
+    ];
+
+  return (
+    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => navigate("/finance/transactions")}
+              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+            >
+              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+              Transactions
+            </button>
+
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
+              <div>
+                <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                  Proforma Invoices
+                </Badge>
+
+                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                  Proforma Invoice Registry
+                </h1>
+
+                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                  Track draft, sent, accepted, and converted proforma invoices
+                  before formal invoice issuance. Conversion stays controlled
+                  and receivables are affected only after the formal invoice is
+                  created.
+                </p>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200 shadow-none">
+                    Auto-refresh enabled
+                  </Badge>
+                  <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 shadow-none">
+                    Conversion controlled
+                  </Badge>
+                  <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
+                    Registry table
                   </Badge>
                 </div>
+              </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/10 bg-black/20 text-white shadow-[0_0_30px_rgba(255,255,255,0.08)]">
-                      <FileText className="h-5 w-5" />
-                    </div>
-
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                        Proforma Invoices
-                      </h1>
-                      <div className="mt-1 text-sm text-white/45">
-                        Commercial pre-invoice records before formal invoice issuance.
-                      </div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Active Records
+                      </p>
+                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                        {proformas.length.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                      <FileText className="h-4 w-4" />
                     </div>
                   </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    Live records excluding archived and deleted documents.
+                  </p>
+                </div>
 
-                  <p className="max-w-2xl text-sm leading-7 text-white/55 sm:text-[15px]">
-                    This module tracks draft, sent, accepted, and converted
-                    proforma invoices. It supports commercial pipeline monitoring
-                    and controlled conversion into formal invoices without affecting
-                    receivables until conversion.
+                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Table Rule
+                      </p>
+                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                        10 rows
+                      </p>
+                    </div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                      <Receipt className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    Header stays stable and the table scrolls after 10 rows.
                   </p>
                 </div>
               </div>
-
-              <div className="flex flex-wrap gap-3 xl:justify-end">
-                <Button
-                  variant="outline"
-                  onClick={() => navigate("/finance/transactions")}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={() => void loadProformas(true)}
-                  disabled={isRefreshing}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10 disabled:opacity-60"
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  {isRefreshing ? "Refreshing..." : "Refresh"}
-                </Button>
-
-                {canCreateProformas ? (
-                  <Button
-                    onClick={() =>
-                      navigate("/finance/transactions/proforma-invoices/new")
-                    }
-                    className="h-11 rounded-2xl px-4"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Proforma
-                  </Button>
-                ) : null}
-
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setArchiveTab("archived");
-                    setIsArchiveModalOpen(true);
-                  }}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                >
-                  Archive
-                </Button>
-              </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {metricCards.map((metric) => (
-                <MetricCard key={metric.key} metric={metric} />
-              ))}
+            <div className="mt-6 flex flex-wrap gap-3">
+              {canCreateProformas ? (
+                <Button
+                  onClick={() =>
+                    navigate("/finance/transactions/proforma-invoices/new")
+                  }
+                  className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Proforma
+                </Button>
+              ) : null}
+
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setArchiveTab("archived");
+                  setIsArchiveModalOpen(true);
+                }}
+                className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20"
+              >
+                <Archive className="mr-2 h-4 w-4" />
+                Archive
+              </Button>
             </div>
           </div>
-        </section>
+        </header>
 
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {metricCards.map((metric) => (
+            <MetricCard key={metric.key} metric={metric} />
+          ))}
+        </div>
 
-                <section>
-          <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-            <CardHeader className="border-b border-white/8 pb-4">
+        <section>
+          <Card className={activeSectionClass}>
+            <CardHeader className="border-b border-white/10 px-5 py-4">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="space-y-2">
-                  <Badge className="w-fit rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-white/65 shadow-none">
-                    Proforma Registry
+                  <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                    Active Proformas
                   </Badge>
 
-                  <CardTitle className="text-white">
-                    Proforma Invoices List
+                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Proforma Registry
                   </CardTitle>
 
-                  <CardDescription className="max-w-2xl text-white/45">
-                    Search and open proforma invoice records, review commercial
-                    status, client, dates, and total amount before conversion to
-                    a formal invoice.
+                  <CardDescription className="max-w-2xl text-xs text-slate-500">
+                    Search, sort, open, convert, archive, and delete proforma
+                    invoice records.
                   </CardDescription>
                 </div>
 
                 <div className="relative w-full max-w-md">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search proforma number, client, or status"
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-10 pr-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-cyan-400/30"
+                    placeholder="Search proforma, client, status..."
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-10 pr-4 text-sm text-white outline-none placeholder:text-slate-600 transition focus:border-cyan-400/30 focus:bg-black/30"
                   />
                 </div>
               </div>
             </CardHeader>
 
-            <CardContent className="p-4 sm:p-5 xl:p-6">
-              {isLoading ? (
-                <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
-                  Loading proforma invoices...
-                </div>
-              ) : filteredProformas.length === 0 ? (
-                <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
-                  No proforma invoices found.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {filteredProformas.map((proforma) => {
-                    const currencyCode = getCurrencyCodeFromMetadata(
-                      proforma.metadata
-                    );
-
-                    return (
-                      <button
-                        key={proforma.id}
-                        type="button"
-                        onClick={() =>
-                          navigate(
-                            `/finance/transactions/proforma-invoices/${proforma.id}`
-                          )
-                        }
-                        className="group flex w-full items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.07]"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-base font-semibold text-white">
-                              {proforma.proforma_number ||
-  (proforma.status === "draft"
-    ? "Draft Proforma"
-    : proforma.status === "converted"
-    ? "Converted Proforma"
-    : "Proforma Invoice")}
-                            </div>
-
-                            <Badge
-                              className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getProformaStatusBadgeClasses(
-                                proforma.status
-                              )}`}
-                            >
-                              {getProformaStatusLabel(proforma.status)}
-                            </Badge>
-
-                            <Badge className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] text-white/75 shadow-none">
-                              {currencyCode}
-                            </Badge>
-                          </div>
-
-                          <div className="mt-2 text-sm text-white/70">
-                            {proforma.client_legal_name ||
-                              proforma.client_name ||
-                              "Unknown"}
-                          </div>
-
-                          <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-white/45 md:grid-cols-4">
-                            <div>
-                              Issue: {formatFinanceDate(proforma.issue_date)}
-                            </div>
-                            <div>
-                              Valid Until:{" "}
-                              {formatFinanceDate(proforma.valid_until)}
-                            </div>
-                            <div>
-                              Total:{" "}
-                              {formatFinanceMoney(
-                                proforma.total_amount,
-                                currencyCode
-                              )}
-                            </div>
-                            <div>
-                              Status: {getProformaStatusLabel(proforma.status)}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex shrink-0 items-center gap-3 pl-2">
-                          <div className="hidden text-xs text-white/30 transition-colors duration-200 group-hover:text-white/55 sm:block">
-                            {formatFinanceDate(proforma.created_at)}
-                          </div>
-
-                          <div
-                            className="relative"
-                            ref={
-                              openMenuProformaId === proforma.id
-                                ? actionsMenuRef
-                                : null
-                            }
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <div className="max-h-[720px] overflow-y-auto">
+                  <table className="w-full min-w-[1240px] border-collapse">
+                    <thead>
+                      <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        {sortableHeaders.map((header) => (
+                          <th
+                            key={header.key}
+                            className={`sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold ${
+                              header.align === "right" ? "text-right" : ""
+                            }`}
                           >
                             <button
                               type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setOpenMenuProformaId((current) =>
-                                  current === proforma.id ? null : proforma.id
-                                );
-                              }}
-                              className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
+                              onClick={() => handleSort(header.key)}
+                              className={`inline-flex items-center gap-2 transition hover:text-white ${
+                                header.align === "right" ? "ml-auto" : ""
+                              }`}
                             >
-                              <MoreVertical className="h-4 w-4" />
+                              {header.label}
+                              <span className="text-[10px] text-slate-600">
+                                {getSortIndicator(header.key)}
+                              </span>
                             </button>
+                          </th>
+                        ))}
+                        <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
 
-                           {openMenuProformaId === proforma.id ? (
-  <div className="absolute right-0 z-50 w-48 overflow-hidden rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-xl
-                  bottom-full mb-2">
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    setOpenMenuProformaId(null);
-                                    navigate(
-                                      `/finance/transactions/proforma-invoices/${proforma.id}`
-                                    );
-                                  }}
-                                  className="w-full px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10"
+                                        <tbody className="divide-y divide-white/5">
+                      {isLoading ? (
+                        <tr>
+                          <td
+                            colSpan={8}
+                            className="px-5 py-14 text-center text-sm text-slate-500"
+                          >
+                            Loading proforma invoices...
+                          </td>
+                        </tr>
+                      ) : sortedProformas.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={8}
+                            className="px-5 py-14 text-center text-sm text-slate-500"
+                          >
+                            No proforma invoices found.
+                          </td>
+                        </tr>
+                      ) : (
+                        sortedProformas.map((proforma) => {
+                          const currencyCode = getCurrencyCodeFromMetadata(
+                            proforma.metadata
+                          );
+
+                          return (
+                            <tr
+                              key={proforma.id}
+                              className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
+                            >
+                              <td className="px-5 py-4 font-semibold text-white">
+                                {getProformaDisplayName(proforma)}
+                              </td>
+
+                              <td className="px-5 py-4">
+                                {getClientDisplayName(proforma)}
+                              </td>
+
+                              <td className="px-5 py-4">
+                                {formatFinanceDate(proforma.issue_date)}
+                              </td>
+
+                              <td className="px-5 py-4">
+                                {formatFinanceDate(proforma.valid_until)}
+                              </td>
+
+                              <td className="px-5 py-4 text-right font-semibold text-white">
+                                {formatFinanceMoney(
+                                  proforma.total_amount,
+                                  currencyCode
+                                )}
+                              </td>
+
+                              <td className="px-5 py-4">
+                                <Badge
+                                  className={`rounded-full border px-3 py-1 text-xs shadow-none ${getProformaStatusBadgeClasses(
+                                    proforma.status
+                                  )}`}
                                 >
-                                  Open
-                                </button>
+                                  {getProformaStatusLabel(proforma.status)}
+                                </Badge>
+                              </td>
 
-                                {proforma.status === "draft" ? (
-                                  <button
-                                    type="button"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      setOpenMenuProformaId(null);
+                              <td className="px-5 py-4">
+                                {formatFinanceDate(proforma.updated_at)}
+                              </td>
+
+                              <td className="px-5 py-4">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    variant="outline"
+                                    onClick={() =>
                                       navigate(
                                         `/finance/transactions/proforma-invoices/${proforma.id}`
-                                      );
-                                    }}
-                                    className="w-full px-3 py-2 text-left text-sm text-cyan-200 hover:bg-white/10"
+                                      )
+                                    }
+                                    className="h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
                                   >
-                                    Edit
-                                  </button>
-                                ) : null}
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
 
-                                {proforma.status === "accepted" ? (
-                                  <button
-                                    type="button"
-                                    onClick={async (event) => {
-                                      event.stopPropagation();
-                                      await handleConvert(proforma.id);
-                                    }}
-                                    className="w-full px-3 py-2 text-left text-sm text-emerald-200 hover:bg-white/10"
-                                  >
-                                    Convert to Invoice
-                                  </button>
-                                ) : null}
+                                  {proforma.status === "accepted" ? (
+                                    <Button
+                                      variant="outline"
+                                      onClick={() =>
+                                        void handleConvert(proforma.id)
+                                      }
+                                      className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+                                    >
+                                      <CheckCircle className="h-4 w-4" />
+                                    </Button>
+                                  ) : null}
 
-                               {!["archived", "deleted"].includes(proforma.status) ? (
-  <button
-    type="button"
-    onClick={async (event) => {
-      event.stopPropagation();
-      await handleArchive(proforma.id);
-    }}
-    className="w-full px-3 py-2 text-left text-sm text-amber-300 hover:bg-white/10"
-  >
-    Archive
-  </button>
-) : null}
+                                  {!["archived", "deleted"].includes(
+                                    proforma.status
+                                  ) ? (
+                                    <Button
+                                      variant="outline"
+                                      onClick={() =>
+                                        void handleArchive(proforma.id)
+                                      }
+                                      className="h-9 rounded-2xl border-amber-400/20 bg-amber-500/10 px-3 text-amber-200 hover:bg-amber-500/20"
+                                    >
+                                      <Archive className="h-4 w-4" />
+                                    </Button>
+                                  ) : null}
 
-{!["deleted", "converted"].includes(proforma.status) ? (
-  <button
-    type="button"
-    onClick={async (event) => {
-      event.stopPropagation();
-      await handleDelete(proforma.id);
-    }}
-    className="w-full px-3 py-2 text-left text-sm text-rose-400 hover:bg-white/10"
-  >
-    Delete
-  </button>
-) : null}
-
-                  </div>
-                            ) : null}
-                          </div>
-
-                          <ArrowRight className="h-4 w-4 text-white/30 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
-                        </div>
-                      </button>
-                    );
-                  })}
+                                  {!["deleted", "converted"].includes(
+                                    proforma.status
+                                  ) ? (
+                                    <Button
+                                      variant="outline"
+                                      onClick={() =>
+                                        void handleDelete(proforma.id)
+                                      }
+                                      className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-              )}
+              </div>
             </CardContent>
           </Card>
         </section>
 
-                {isArchiveModalOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
-            <div className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-              <div className="flex items-center justify-between border-b border-white/8 px-6 py-5">
+        {isArchiveModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
+            <div className="flex max-h-[85vh] w-full max-w-6xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+              <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
                 <div>
-                  <div className="text-lg font-semibold text-white">Archive</div>
-                  <div className="mt-1 text-sm text-white/45">
-                    Archived and deleted proforma invoices removed from the active registry.
+                  <div className="text-lg font-semibold text-white">
+                    Proforma Archive
+                  </div>
+                  <div className="mt-1 text-sm text-slate-500">
+                    Archived records can be restored. Deleted records can be
+                    restored or permanently deleted.
                   </div>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => setIsArchiveModalOpen(false)}
-                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 hover:bg-white/10"
+                  className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.08]"
                 >
                   Close
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 border-b border-white/8 px-6 py-4">
+              <div className="flex items-center gap-2 border-b border-white/10 px-6 py-4">
                 <button
                   type="button"
                   onClick={() => setArchiveTab("archived")}
@@ -965,110 +1094,137 @@ export default function FinanceProformaInvoicesPage() {
 
               <div className="overflow-y-auto p-6">
                 {isArchiveLoading ? (
-                  <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
-                    Loading archive...
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-8 text-sm text-slate-500">
+                    Loading archived proformas...
                   </div>
-                ) : visibleArchivedProformas.length === 0 ? (
-                  <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
+                ) : sortedArchivedProformas.length === 0 ? (
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-8 text-sm text-slate-500">
                     No {archiveTab} proforma invoices found.
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {visibleArchivedProformas.map((proforma) => {
-                      const currencyCode = getCurrencyCodeFromMetadata(
-                        proforma.metadata
-                      );
-
-                      return (
-                        <div
-                          key={proforma.id}
-                          className="flex items-start justify-between gap-4 rounded-[22px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-4 py-4"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="text-base font-semibold text-white">
-                               {proforma.proforma_number ||
-  (proforma.status === "draft"
-    ? "Draft Proforma"
-    : proforma.status === "converted"
-    ? "Converted Proforma"
-    : "Proforma Invoice")}
-                              </div>
-
-                              <Badge
-                                className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getProformaStatusBadgeClasses(
-                                  proforma.status
-                                )}`}
+                  <div className="overflow-x-auto rounded-[24px] border border-white/10">
+                    <div className="max-h-[720px] overflow-y-auto">
+                      <table className="w-full min-w-[1100px] border-collapse">
+                        <thead>
+                          <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                            {sortableHeaders.map((header) => (
+                              <th
+                                key={header.key}
+                                className={`sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold ${
+                                  header.align === "right" ? "text-right" : ""
+                                }`}
                               >
-                                {getProformaStatusLabel(proforma.status)}
-                              </Badge>
+                                <button
+                                  type="button"
+                                  onClick={() => handleArchiveSort(header.key)}
+                                  className={`inline-flex items-center gap-2 transition hover:text-white ${
+                                    header.align === "right" ? "ml-auto" : ""
+                                  }`}
+                                >
+                                  {header.label}
+                                  <span className="text-[10px] text-slate-600">
+                                    {getSortIndicator(header.key, true)}
+                                  </span>
+                                </button>
+                              </th>
+                            ))}
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
 
-                              <Badge className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] text-white/75 shadow-none">
-                                {currencyCode}
-                              </Badge>
-                            </div>
+                        <tbody className="divide-y divide-white/5">
+                          {sortedArchivedProformas.map((proforma) => {
+                            const currencyCode = getCurrencyCodeFromMetadata(
+                              proforma.metadata
+                            );
 
-                            <div className="mt-2 text-sm text-white/70">
-                              {proforma.client_legal_name ||
-                                proforma.client_name ||
-                                "Unknown"}
-                            </div>
-
-                            <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-white/45 md:grid-cols-4">
-                              <div>
-                                Issue: {formatFinanceDate(proforma.issue_date)}
-                              </div>
-                              <div>
-                                Valid Until:{" "}
-                                {formatFinanceDate(proforma.valid_until)}
-                              </div>
-                              <div>
-                                Total:{" "}
-                                {formatFinanceMoney(
-                                  proforma.total_amount,
-                                  currencyCode
-                                )}
-                              </div>
-                              <div>
-                                Status: {getProformaStatusLabel(proforma.status)}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex shrink-0 items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                navigate(
-                                  `/finance/transactions/proforma-invoices/${proforma.id}`
-                                )
-                              }
-                              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
-                            >
-                              Open
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => void handleRestore(proforma.id)}
-                              className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-500/20"
-                            >
-                              Restore
-                            </button>
-
-                            {archiveTab === "deleted" ? (
-                              <button
-                                type="button"
-                                onClick={() => void handleHardDelete(proforma.id)}
-                                className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/20"
+                            return (
+                              <tr
+                                key={proforma.id}
+                                className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
                               >
-                                Hard Delete
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      );
-                    })}
+                                <td className="px-5 py-4 font-semibold text-white">
+                                  {getProformaDisplayName(proforma)}
+                                </td>
+
+                                <td className="px-5 py-4">
+                                  {getClientDisplayName(proforma)}
+                                </td>
+
+                                <td className="px-5 py-4">
+                                  {formatFinanceDate(proforma.issue_date)}
+                                </td>
+
+                                <td className="px-5 py-4">
+                                  {formatFinanceDate(proforma.valid_until)}
+                                </td>
+
+                                <td className="px-5 py-4 text-right font-semibold text-white">
+                                  {formatFinanceMoney(
+                                    proforma.total_amount,
+                                    currencyCode
+                                  )}
+                                </td>
+
+                                <td className="px-5 py-4">
+                                  <Badge
+                                    className={`rounded-full border px-3 py-1 text-xs shadow-none ${getProformaStatusBadgeClasses(
+                                      proforma.status
+                                    )}`}
+                                  >
+                                    {getProformaStatusLabel(proforma.status)}
+                                  </Badge>
+                                </td>
+
+                                <td className="px-5 py-4">
+                                  {formatFinanceDate(proforma.updated_at)}
+                                </td>
+
+                                <td className="px-5 py-4">
+                                  <div className="flex justify-end gap-2">
+                                    <Button
+                                      variant="outline"
+                                      onClick={() =>
+                                        navigate(
+                                          `/finance/transactions/proforma-invoices/${proforma.id}`
+                                        )
+                                      }
+                                      className="h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+
+                                    <Button
+                                      variant="outline"
+                                      onClick={() =>
+                                        void handleRestore(proforma.id)
+                                      }
+                                      className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+                                    >
+                                      <RotateCcw className="h-4 w-4" />
+                                    </Button>
+
+                                    {archiveTab === "deleted" ? (
+                                      <Button
+                                        variant="outline"
+                                        onClick={() =>
+                                          void handleHardDelete(proforma.id)
+                                        }
+                                        className="h-9 rounded-2xl border-rose-500/30 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    ) : null}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </div>

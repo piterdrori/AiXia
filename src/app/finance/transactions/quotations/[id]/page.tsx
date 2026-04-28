@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import QuotationPrintDocument from "./QuotationPrintDocument";
 import {
+  Archive,
   ArrowRight,
   CheckCircle,
   FileText,
@@ -24,6 +25,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+type QuotationStatus =
+  | "draft"
+  | "issued"
+  | "sent"
+  | "accepted"
+  | "rejected"
+  | "expired"
+  | "converted"
+  | "archived"
+  | "deleted";
+
 type QuotationRecord = {
   id: string;
   quotation_number: string | null;
@@ -31,45 +43,60 @@ type QuotationRecord = {
   company_id: string | null;
   issue_date: string;
   valid_until: string | null;
-  status:
-    | "draft"
-    | "issued"
-    | "sent"
-    | "accepted"
-    | "rejected"
-    | "expired"
-    | "converted"
-    | "archived"
-    | "deleted";
+  status: QuotationStatus;
+  approval_status?: string | null;
   subtotal: number | string | null;
   tax_amount: number | string | null;
   discount_amount: number | string | null;
   total_amount: number | string | null;
   currency_id: string | null;
   currency_code: string | null;
+  exchange_rate?: number | string | null;
+  payment_terms_id?: string | null;
+  shipping_term_id?: string | null;
+  bank_account_id?: string | null;
   project_id: string | null;
   task_id: string | null;
+  reference_number?: string | null;
+  posted_to_ledger?: boolean;
   notes: string | null;
   metadata?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string | null;
   created_by: string | null;
   updated_by: string | null;
-  client_name_snapshot: string | null;
-  client_contact_person_snapshot?: string | null;
-  billing_address_snapshot?: string | null;
-  client_email_snapshot?: string | null;
-  client_phone_snapshot?: string | null;
+  document_version?: number;
+
   company_name_snapshot: string | null;
+  company_legal_name_snapshot?: string | null;
   company_contact_person_snapshot?: string | null;
-  company_address_snapshot?: string | null;
   company_email_snapshot?: string | null;
   company_phone_snapshot?: string | null;
-  payment_terms_id?: string | null;
+  company_address_snapshot?: string | null;
+
+  client_name_snapshot: string | null;
+  client_legal_name_snapshot?: string | null;
+  client_contact_person_snapshot?: string | null;
+  billing_address_snapshot?: string | null;
+  shipping_address_snapshot?: string | null;
+  client_email_snapshot?: string | null;
+  client_phone_snapshot?: string | null;
+
   payment_terms_snapshot?: string | null;
   payment_terms_document_text?: string | null;
   shipping_terms_snapshot?: string | null;
+  bank_details_snapshot?: string | null;
   terms_and_conditions_snapshot?: string | null;
+
+  counterparty_type?: string | null;
+  counterparty_company_id?: string | null;
+  is_intercompany?: boolean;
+  counterparty_type_snapshot?: string | null;
+  counterparty_name_snapshot?: string | null;
+  counterparty_legal_name_snapshot?: string | null;
+  counterparty_contact_person_snapshot?: string | null;
+  counterparty_email_snapshot?: string | null;
+  counterparty_phone_snapshot?: string | null;
 };
 
 type QuotationLineItemRow = {
@@ -176,6 +203,51 @@ type CurrencyOption = {
   currency_name: string;
 };
 
+type PaymentTermOption = {
+  id: string;
+  code: string;
+  name: string;
+  due_days: number;
+  status: string;
+  is_default: boolean;
+  document_label: string | null;
+  document_terms_text: string | null;
+};
+
+type ShippingTermOption = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  status: string;
+  is_default: boolean;
+};
+
+type BankAccountOption = {
+  id: string;
+  code: string | null;
+  name: string;
+  account_type: string;
+  institution_name: string | null;
+  masked_account_number: string | null;
+  status: string;
+  company_id: string | null;
+  beneficiary_name: string | null;
+  currency_code: string | null;
+  swift_code: string | null;
+  iban: string | null;
+  bank_address: string | null;
+  account_identifier_type: string | null;
+  account_identifier_value: string | null;
+  bank_name: string | null;
+  country: string | null;
+  city: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
+  account_number: string | null;
+};
+
 type ItemOption = {
   id: string;
   name: string;
@@ -253,12 +325,15 @@ function formatFinanceDate(value: string | null | undefined) {
   });
 }
 
-function getQuotationStatusBadgeClasses(status: QuotationRecord["status"]) {
+function joinAddress(parts: Array<string | null | undefined>) {
+  return parts.filter(Boolean).join(", ");
+}
+
+function getQuotationStatusBadgeClasses(status: QuotationStatus) {
   switch (status) {
     case "draft":
       return "border-slate-400/20 bg-white/[0.06] text-slate-300";
     case "issued":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
     case "sent":
       return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
     case "accepted":
@@ -278,7 +353,7 @@ function getQuotationStatusBadgeClasses(status: QuotationRecord["status"]) {
   }
 }
 
-function getQuotationStatusLabel(status: QuotationRecord["status"]) {
+function getQuotationStatusLabel(status: QuotationStatus) {
   switch (status) {
     case "draft":
       return "Draft";
@@ -307,6 +382,100 @@ function getEditableStatusLabel(canEditQuotation: boolean) {
   return canEditQuotation ? "Editable" : "Locked";
 }
 
+function getBankDisplayName(bank: BankAccountOption | null) {
+  if (!bank) return "—";
+  return bank.bank_name || bank.institution_name || bank.name || "—";
+}
+
+function getBankAccountLabel(bank: BankAccountOption) {
+  const identifier =
+    bank.iban ||
+    bank.swift_code ||
+    bank.account_identifier_value ||
+    bank.masked_account_number ||
+    bank.account_number ||
+    bank.code;
+
+  return [getBankDisplayName(bank), identifier].filter(Boolean).join(" • ");
+}
+
+function formatBankDetails(bank: BankAccountOption | null) {
+  if (!bank) return "";
+
+  const address =
+    bank.bank_address ||
+    joinAddress([
+      bank.address_line_1,
+      bank.address_line_2,
+      bank.city,
+      bank.postal_code,
+      bank.country,
+    ]);
+
+  const detailLines = [
+    bank.beneficiary_name ? `Beneficiary: ${bank.beneficiary_name}` : null,
+    getBankDisplayName(bank) !== "—" ? `Bank: ${getBankDisplayName(bank)}` : null,
+    address ? `Address: ${address}` : null,
+    bank.account_number ? `Account: ${bank.account_number}` : null,
+    bank.iban ? `IBAN: ${bank.iban}` : null,
+    bank.swift_code ? `SWIFT: ${bank.swift_code}` : null,
+    !bank.iban && !bank.swift_code && bank.account_identifier_value
+      ? `Identifier: ${bank.account_identifier_value}`
+      : null,
+    bank.currency_code ? `Currency: ${bank.currency_code}` : null,
+  ].filter(Boolean);
+
+  return detailLines.join("\n");
+}
+
+function renderBankDetailLines(
+  bank: BankAccountOption | null,
+  fallbackSnapshot: string | null | undefined
+) {
+  if (bank) {
+    const address =
+      bank.bank_address ||
+      joinAddress([
+        bank.address_line_1,
+        bank.address_line_2,
+        bank.city,
+        bank.postal_code,
+        bank.country,
+      ]);
+
+    return [
+      bank.beneficiary_name,
+      address,
+      bank.account_number ? `Account: ${bank.account_number}` : null,
+      bank.iban ? `IBAN: ${bank.iban}` : null,
+      bank.swift_code ? `SWIFT: ${bank.swift_code}` : null,
+      !bank.iban && !bank.swift_code && bank.account_identifier_value
+        ? `${bank.account_identifier_type || "Identifier"}: ${
+            bank.account_identifier_value
+          }`
+        : null,
+      bank.currency_code ? `Currency: ${bank.currency_code}` : null,
+    ].filter(Boolean);
+  }
+
+  return fallbackSnapshot
+    ? fallbackSnapshot
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : [];
+}
+
+function getPaymentTermLabel(term: PaymentTermOption | null) {
+  if (!term) return "—";
+  return term.document_label || term.name || term.code || "—";
+}
+
+function getShippingTermLabel(term: ShippingTermOption | null) {
+  if (!term) return "—";
+  return term.code || term.name || "—";
+}
+
 export default function FinanceQuotationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -329,6 +498,9 @@ export default function FinanceQuotationDetailPage() {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
+  const [paymentTerms, setPaymentTerms] = useState<PaymentTermOption[]>([]);
+  const [shippingTerms, setShippingTerms] = useState<ShippingTermOption[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
   const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>([]);
@@ -342,9 +514,11 @@ export default function FinanceQuotationDetailPage() {
   );
 
   const [editingOverview, setEditingOverview] = useState(false);
-  const [editingParties, setEditingParties] = useState(false);
+  const [editingFinancialSettings, setEditingFinancialSettings] = useState(false);
+  const [editingDocumentDetails, setEditingDocumentDetails] = useState(false);
   const [editingLines, setEditingLines] = useState(false);
 
+  const [counterpartyTypeDraft, setCounterpartyTypeDraft] = useState("client");
   const [clientIdDraft, setClientIdDraft] = useState("");
   const [companyIdDraft, setCompanyIdDraft] = useState("");
   const [projectIdDraft, setProjectIdDraft] = useState("");
@@ -352,11 +526,13 @@ export default function FinanceQuotationDetailPage() {
   const [issueDateDraft, setIssueDateDraft] = useState("");
   const [validUntilDraft, setValidUntilDraft] = useState("");
   const [currencyIdDraft, setCurrencyIdDraft] = useState("");
+  const [paymentTermsIdDraft, setPaymentTermsIdDraft] = useState("");
+  const [shippingTermIdDraft, setShippingTermIdDraft] = useState("");
+  const [bankAccountIdDraft, setBankAccountIdDraft] = useState("");
   const [notesDraft, setNotesDraft] = useState("");
   const [termsAndConditionsDraft, setTermsAndConditionsDraft] = useState("");
 
   const [lineItemsDraft, setLineItemsDraft] = useState<EditableLineItem[]>([]);
-
   const [error, setError] = useState("");
 
   const handlePrint = useCallback(() => {
@@ -428,34 +604,54 @@ export default function FinanceQuotationDetailPage() {
                 "issue_date",
                 "valid_until",
                 "status",
+                "approval_status",
                 "subtotal",
                 "tax_amount",
                 "discount_amount",
                 "total_amount",
                 "currency_id",
                 "currency_code",
+                "exchange_rate",
+                "payment_terms_id",
+                "shipping_term_id",
+                "bank_account_id",
                 "project_id",
                 "task_id",
+                "reference_number",
+                "posted_to_ledger",
                 "notes",
                 "metadata",
                 "created_at",
                 "updated_at",
                 "created_by",
                 "updated_by",
+                "document_version",
                 "client_name_snapshot",
+                "client_legal_name_snapshot",
                 "client_contact_person_snapshot",
                 "billing_address_snapshot",
+                "shipping_address_snapshot",
                 "client_email_snapshot",
                 "client_phone_snapshot",
                 "company_name_snapshot",
+                "company_legal_name_snapshot",
                 "company_contact_person_snapshot",
                 "company_address_snapshot",
                 "company_email_snapshot",
                 "company_phone_snapshot",
-                "payment_terms_id",
                 "payment_terms_snapshot",
                 "shipping_terms_snapshot",
+                "bank_details_snapshot",
                 "terms_and_conditions_snapshot",
+                "counterparty_type",
+                "counterparty_company_id",
+                "is_intercompany",
+                "counterparty_type_snapshot",
+                "counterparty_name_snapshot",
+                "counterparty_legal_name_snapshot",
+                "counterparty_contact_person_snapshot",
+                "counterparty_email_snapshot",
+                "counterparty_phone_snapshot",
               ].join(", ")
             )
             .eq("id", id)
@@ -496,17 +692,9 @@ export default function FinanceQuotationDetailPage() {
           loadArchiveItems(),
         ]);
 
-        if (quotationResult.error) {
-          throw quotationResult.error;
-        }
-
-        if (lineItemsResult.error) {
-          throw lineItemsResult.error;
-        }
-
-        if (poResult.error) {
-          throw poResult.error;
-        }
+        if (quotationResult.error) throw quotationResult.error;
+        if (lineItemsResult.error) throw lineItemsResult.error;
+        if (poResult.error) throw poResult.error;
 
         let typedQuotation = quotationResult.data as QuotationRecord | null;
 
@@ -547,6 +735,7 @@ export default function FinanceQuotationDetailPage() {
         setLinkedClientPO(typedClientPO);
 
         if (typedQuotation) {
+          setCounterpartyTypeDraft(typedQuotation.counterparty_type || "client");
           setClientIdDraft(typedQuotation.client_id || "");
           setCompanyIdDraft(typedQuotation.company_id || "");
           setProjectIdDraft(typedQuotation.project_id || "");
@@ -554,6 +743,9 @@ export default function FinanceQuotationDetailPage() {
           setIssueDateDraft(typedQuotation.issue_date || "");
           setValidUntilDraft(typedQuotation.valid_until || "");
           setCurrencyIdDraft(typedQuotation.currency_id || "");
+          setPaymentTermsIdDraft(typedQuotation.payment_terms_id || "");
+          setShippingTermIdDraft(typedQuotation.shipping_term_id || "");
+          setBankAccountIdDraft(typedQuotation.bank_account_id || "");
           setNotesDraft(typedQuotation.notes || "");
           setTermsAndConditionsDraft(
             typedQuotation.terms_and_conditions_snapshot || ""
@@ -594,6 +786,9 @@ export default function FinanceQuotationDetailPage() {
         projectsResult,
         tasksResult,
         currenciesResult,
+        paymentTermsResult,
+        shippingTermsResult,
+        bankAccountsResult,
         itemsResult,
         taxCodesResult,
         unitsOfMeasureResult,
@@ -632,6 +827,28 @@ export default function FinanceQuotationDetailPage() {
           .order("currency_code", { ascending: true }),
 
         supabase
+          .from("finance_payment_terms")
+          .select(
+            "id, code, name, due_days, status, is_default, document_label, document_terms_text"
+          )
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_shipping_terms")
+          .select("id, code, name, description, status, is_default")
+          .eq("status", "active")
+          .order("code", { ascending: true }),
+
+        supabase
+          .from("finance_bank_accounts")
+          .select(
+            "id, code, name, account_type, institution_name, masked_account_number, status, company_id, beneficiary_name, currency_code, swift_code, iban, bank_address, account_identifier_type, account_identifier_value, bank_name, country, city, postal_code, address_line_1, address_line_2, account_number"
+          )
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+
+        supabase
           .from("finance_items")
           .select(
             "id, name, description, sales_price, currency_code, revenue_category_id, tax_code_id, unit_of_measure_id"
@@ -664,6 +881,9 @@ export default function FinanceQuotationDetailPage() {
       if (projectsResult.error) throw projectsResult.error;
       if (tasksResult.error) throw tasksResult.error;
       if (currenciesResult.error) throw currenciesResult.error;
+      if (paymentTermsResult.error) throw paymentTermsResult.error;
+      if (shippingTermsResult.error) throw shippingTermsResult.error;
+      if (bankAccountsResult.error) throw bankAccountsResult.error;
       if (itemsResult.error) throw itemsResult.error;
       if (taxCodesResult.error) throw taxCodesResult.error;
       if (unitsOfMeasureResult.error) throw unitsOfMeasureResult.error;
@@ -673,8 +893,10 @@ export default function FinanceQuotationDetailPage() {
       setCompanies((companiesResult.data || []) as CompanyOption[]);
       setProjects((projectsResult.data || []) as ProjectRow[]);
       setTasks((tasksResult.data || []) as TaskRow[]);
-
-            setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
+      setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
+      setPaymentTerms((paymentTermsResult.data || []) as PaymentTermOption[]);
+      setShippingTerms((shippingTermsResult.data || []) as ShippingTermOption[]);
+      setBankAccounts((bankAccountsResult.data || []) as BankAccountOption[]);
       setItems((itemsResult.data || []) as ItemOption[]);
       setTaxCodes((taxCodesResult.data || []) as TaxCodeOption[]);
       setUnitsOfMeasure((unitsOfMeasureResult.data || []) as UnitOfMeasureOption[]);
@@ -768,6 +990,31 @@ export default function FinanceQuotationDetailPage() {
     [currencies, currencyIdDraft]
   );
 
+  const selectedDraftPaymentTerm = useMemo(
+    () => paymentTerms.find((entry) => entry.id === paymentTermsIdDraft) ?? null,
+    [paymentTerms, paymentTermsIdDraft]
+  );
+
+  const selectedDraftShippingTerm = useMemo(
+    () => shippingTerms.find((entry) => entry.id === shippingTermIdDraft) ?? null,
+    [shippingTermIdDraft, shippingTerms]
+  );
+
+  const filteredBankAccounts = useMemo(() => {
+    if (!companyIdDraft) {
+      return bankAccounts;
+    }
+
+    return bankAccounts.filter(
+      (account) => !account.company_id || account.company_id === companyIdDraft
+    );
+  }, [bankAccounts, companyIdDraft]);
+
+  const selectedDraftBankAccount = useMemo(
+    () => bankAccounts.find((entry) => entry.id === bankAccountIdDraft) ?? null,
+    [bankAccountIdDraft, bankAccounts]
+  );
+
   const filteredDraftTasks = useMemo(() => {
     if (!projectIdDraft) {
       return tasks;
@@ -775,6 +1022,35 @@ export default function FinanceQuotationDetailPage() {
 
     return tasks.filter((task) => task.project_id === projectIdDraft);
   }, [projectIdDraft, tasks]);
+
+  const companyAddress =
+    joinAddress([
+      selectedDraftCompany?.address_line_1,
+      selectedDraftCompany?.address_line_2,
+      selectedDraftCompany?.city,
+      selectedDraftCompany?.state_province,
+      selectedDraftCompany?.postal_code,
+      selectedDraftCompany?.country,
+    ]) ||
+    quotation?.company_address_snapshot ||
+    "";
+
+  const clientAddress =
+    joinAddress([
+      selectedDraftClient?.address_line_1,
+      selectedDraftClient?.address_line_2,
+      selectedDraftClient?.city,
+      selectedDraftClient?.state_province,
+      selectedDraftClient?.postal_code,
+      selectedDraftClient?.country,
+    ]) ||
+    quotation?.billing_address_snapshot ||
+    "";
+
+  const bankDetailsText =
+    formatBankDetails(selectedDraftBankAccount) ||
+    quotation?.bank_details_snapshot ||
+    "";
 
   const draftTotals = useMemo(() => {
     const subtotal = lineItemsDraft.reduce(
@@ -871,6 +1147,10 @@ export default function FinanceQuotationDetailPage() {
       }
     }
 
+    if (selectedDraftClient.payment_terms_id && !paymentTermsIdDraft) {
+      setPaymentTermsIdDraft(selectedDraftClient.payment_terms_id);
+    }
+
     if (!validUntilDraft) {
       const days = selectedDraftClient.payment_terms_days ?? 14;
       const base = new Date(issueDateDraft || new Date().toISOString().slice(0, 10));
@@ -882,6 +1162,7 @@ export default function FinanceQuotationDetailPage() {
     currencies,
     currencyIdDraft,
     issueDateDraft,
+    paymentTermsIdDraft,
     quotation,
     selectedDraftClient,
     validUntilDraft,
@@ -896,6 +1177,16 @@ export default function FinanceQuotationDetailPage() {
       setTaskIdDraft("");
     }
   }, [canEditQuotation, filteredDraftTasks, quotation, taskIdDraft]);
+
+  useEffect(() => {
+    if (
+      bankAccountIdDraft &&
+      filteredBankAccounts.length > 0 &&
+      !filteredBankAccounts.some((account) => account.id === bankAccountIdDraft)
+    ) {
+      setBankAccountIdDraft("");
+    }
+  }, [bankAccountIdDraft, filteredBankAccounts]);
 
   const handleMarkSent = useCallback(async () => {
     if (!quotation || !id) return;
@@ -992,7 +1283,8 @@ export default function FinanceQuotationDetailPage() {
       if (error) throw error;
 
       setEditingOverview(false);
-      setEditingParties(false);
+      setEditingFinancialSettings(false);
+      setEditingDocumentDetails(false);
       setEditingLines(false);
       await loadQuotation(true);
       await loadArchiveItems();
@@ -1022,7 +1314,8 @@ export default function FinanceQuotationDetailPage() {
       if (error) throw error;
 
       setEditingOverview(false);
-      setEditingParties(false);
+      setEditingFinancialSettings(false);
+      setEditingDocumentDetails(false);
       setEditingLines(false);
       await loadQuotation(true);
       await loadArchiveItems();
@@ -1035,7 +1328,7 @@ export default function FinanceQuotationDetailPage() {
     }
   }, [id, loadArchiveItems, loadQuotation, quotation]);
 
-    const handleRestore = useCallback(
+  const handleRestore = useCallback(
     async (quotationId: string) => {
       setIsSavingDraft(true);
       setError("");
@@ -1226,9 +1519,22 @@ export default function FinanceQuotationDetailPage() {
         throw new Error("User not authenticated");
       }
 
+      const selectedPaymentTerm =
+        paymentTerms.find((term) => term.id === paymentTermsIdDraft) ?? null;
+      const selectedShippingTerm =
+        shippingTerms.find((term) => term.id === shippingTermIdDraft) ?? null;
+      const selectedBankAccount =
+        bankAccounts.find((account) => account.id === bankAccountIdDraft) ?? null;
+
+      const nextBankDetailsSnapshot =
+        formatBankDetails(selectedBankAccount) ||
+        quotation.bank_details_snapshot ||
+        null;
+
       const { error: quotationError } = await supabase
         .from("finance_quotations")
         .update({
+          counterparty_type: counterpartyTypeDraft || "client",
           client_id: clientIdDraft || null,
           company_id: companyIdDraft || null,
           issue_date: issueDateDraft,
@@ -1238,14 +1544,32 @@ export default function FinanceQuotationDetailPage() {
             selectedDraftCurrency?.currency_code ||
             quotation.currency_code ||
             "USD",
+          payment_terms_id: paymentTermsIdDraft || null,
+          shipping_term_id: shippingTermIdDraft || null,
+          bank_account_id: bankAccountIdDraft || null,
           project_id: projectIdDraft || null,
           task_id: taskIdDraft || null,
           notes: notesDraft || null,
           terms_and_conditions_snapshot: termsAndConditionsDraft || null,
+          payment_terms_snapshot:
+            selectedPaymentTerm?.document_label ||
+            selectedPaymentTerm?.name ||
+            quotation.payment_terms_snapshot ||
+            null,
+          shipping_terms_snapshot:
+            selectedShippingTerm?.code ||
+            selectedShippingTerm?.name ||
+            quotation.shipping_terms_snapshot ||
+            null,
+          bank_details_snapshot: nextBankDetailsSnapshot,
           client_name_snapshot:
             selectedDraftClient?.legal_name ||
             selectedDraftClient?.name ||
             quotation.client_name_snapshot,
+          client_legal_name_snapshot:
+            selectedDraftClient?.legal_name ||
+            quotation.client_legal_name_snapshot ||
+            null,
           client_contact_person_snapshot:
             selectedDraftClient?.contact_person ||
             quotation.client_contact_person_snapshot ||
@@ -1261,20 +1585,24 @@ export default function FinanceQuotationDetailPage() {
             quotation.client_phone_snapshot ||
             null,
           billing_address_snapshot:
-            [
+            joinAddress([
               selectedDraftClient?.address_line_1,
               selectedDraftClient?.address_line_2,
               selectedDraftClient?.city,
               selectedDraftClient?.state_province,
               selectedDraftClient?.postal_code,
               selectedDraftClient?.country,
-            ]
-              .filter(Boolean)
-              .join(", ") || quotation.billing_address_snapshot || null,
+            ]) ||
+            quotation.billing_address_snapshot ||
+            null,
           company_name_snapshot:
             selectedDraftCompany?.legal_name ||
             selectedDraftCompany?.name ||
             quotation.company_name_snapshot,
+          company_legal_name_snapshot:
+            selectedDraftCompany?.legal_name ||
+            quotation.company_legal_name_snapshot ||
+            null,
           company_contact_person_snapshot:
             selectedDraftCompany?.contact_person ||
             quotation.company_contact_person_snapshot ||
@@ -1288,16 +1616,16 @@ export default function FinanceQuotationDetailPage() {
             quotation.company_phone_snapshot ||
             null,
           company_address_snapshot:
-            [
+            joinAddress([
               selectedDraftCompany?.address_line_1,
               selectedDraftCompany?.address_line_2,
               selectedDraftCompany?.city,
               selectedDraftCompany?.state_province,
               selectedDraftCompany?.postal_code,
               selectedDraftCompany?.country,
-            ]
-              .filter(Boolean)
-              .join(", ") || quotation.company_address_snapshot || null,
+            ]) ||
+            quotation.company_address_snapshot ||
+            null,
           subtotal: draftTotals.subtotal,
           discount_amount: draftTotals.discount,
           tax_amount: draftTotals.tax,
@@ -1360,7 +1688,7 @@ export default function FinanceQuotationDetailPage() {
           sort_order: index + 1,
         };
 
-                if (row.id.startsWith("new_")) {
+        if (row.id.startsWith("new_")) {
           const { error: insertError } = await supabase
             .from("finance_quotation_line_items")
             .insert(payload);
@@ -1378,7 +1706,8 @@ export default function FinanceQuotationDetailPage() {
       }
 
       setEditingOverview(false);
-      setEditingParties(false);
+      setEditingFinancialSettings(false);
+      setEditingDocumentDetails(false);
       setEditingLines(false);
       await loadQuotation(true);
     } catch (err) {
@@ -1388,9 +1717,12 @@ export default function FinanceQuotationDetailPage() {
       setIsSavingDraft(false);
     }
   }, [
+    bankAccountIdDraft,
+    bankAccounts,
     canEditQuotation,
     clientIdDraft,
     companyIdDraft,
+    counterpartyTypeDraft,
     currencyIdDraft,
     draftTotals.discount,
     draftTotals.subtotal,
@@ -1402,11 +1734,15 @@ export default function FinanceQuotationDetailPage() {
     lineItemsDraft,
     loadQuotation,
     notesDraft,
+    paymentTerms,
+    paymentTermsIdDraft,
     projectIdDraft,
     quotation,
     selectedDraftClient,
     selectedDraftCompany,
     selectedDraftCurrency,
+    shippingTermIdDraft,
+    shippingTerms,
     taskIdDraft,
     taxCodes,
     termsAndConditionsDraft,
@@ -1468,11 +1804,11 @@ export default function FinanceQuotationDetailPage() {
             <div className="relative">
               <button
                 type="button"
-                onClick={() => navigate("/finance/transactions")}
+                onClick={() => navigate("/finance/transactions/quotations")}
                 className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/[0.08]"
               >
                 <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                Transactions
+                Quotations
               </button>
 
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px]">
@@ -1541,7 +1877,9 @@ export default function FinanceQuotationDetailPage() {
                         <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
                           {selectedDraftClient?.legal_name ||
                             selectedDraftClient?.name ||
+                            quotation.client_legal_name_snapshot ||
                             quotation.client_name_snapshot ||
+                            quotation.counterparty_name_snapshot ||
                             "—"}
                         </div>
                       </div>
@@ -1578,7 +1916,7 @@ export default function FinanceQuotationDetailPage() {
                 </div>
               </div>
 
-              <div className="mt-6 flex flex-wrap gap-3">
+                            <div className="mt-6 flex flex-wrap gap-3">
                 <Button
                   variant="outline"
                   onClick={handlePrint}
@@ -1630,7 +1968,7 @@ export default function FinanceQuotationDetailPage() {
                     disabled={isArchiving}
                     className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20"
                   >
-                    <Trash2 className="mr-2 h-4 w-4" />
+                    <Archive className="mr-2 h-4 w-4" />
                     {isArchiving ? "Archiving..." : "Archive"}
                   </Button>
                 ) : null}
@@ -1654,92 +1992,100 @@ export default function FinanceQuotationDetailPage() {
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
-              <div className="relative flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Subtotal
+              <div className="relative flex h-full flex-col justify-between gap-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Subtotal
+                    </div>
+                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
+                      {formatFinanceMoney(
+                        financialSummary?.subtotal,
+                        printableCurrencyCode
+                      )}
+                    </div>
                   </div>
-                  <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
-                    {formatFinanceMoney(
-                      financialSummary?.subtotal,
-                      printableCurrencyCode
-                    )}
-                  </div>
-                  <div className="mt-2 min-w-0 truncate text-sm leading-6 text-slate-400">
-                    Before discount and tax.
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-cyan-400" />
                   </div>
                 </div>
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-cyan-400" />
+                <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
+                  Before discount and tax.
                 </div>
               </div>
             </div>
 
             <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
-              <div className="relative flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Discount
+              <div className="relative flex h-full flex-col justify-between gap-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Discount
+                    </div>
+                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
+                      {formatFinanceMoney(
+                        financialSummary?.discount,
+                        printableCurrencyCode
+                      )}
+                    </div>
                   </div>
-                  <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
-                    {formatFinanceMoney(
-                      financialSummary?.discount,
-                      printableCurrencyCode
-                    )}
-                  </div>
-                  <div className="mt-2 min-w-0 truncate text-sm leading-6 text-slate-400">
-                    Commercial adjustment.
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />
                   </div>
                 </div>
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />
+                <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
+                  Commercial adjustment.
                 </div>
               </div>
             </div>
 
             <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
-              <div className="relative flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Tax
+              <div className="relative flex h-full flex-col justify-between gap-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Tax
+                    </div>
+                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
+                      {formatFinanceMoney(
+                        financialSummary?.tax,
+                        printableCurrencyCode
+                      )}
+                    </div>
                   </div>
-                  <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
-                    {formatFinanceMoney(
-                      financialSummary?.tax,
-                      printableCurrencyCode
-                    )}
-                  </div>
-                  <div className="mt-2 min-w-0 truncate text-sm leading-6 text-slate-400">
-                    Calculated from line items.
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-violet-400" />
                   </div>
                 </div>
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-violet-400" />
+                <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
+                  Calculated from line items.
                 </div>
               </div>
             </div>
 
             <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
-              <div className="relative flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Total
+              <div className="relative flex h-full flex-col justify-between gap-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Total
+                    </div>
+                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
+                      {formatFinanceMoney(
+                        financialSummary?.total,
+                        printableCurrencyCode
+                      )}
+                    </div>
                   </div>
-                  <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
-                    {formatFinanceMoney(
-                      financialSummary?.total,
-                      printableCurrencyCode
-                    )}
-                  </div>
-                  <div className="mt-2 min-w-0 truncate text-sm leading-6 text-slate-400">
-                    Current quotation value.
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
                   </div>
                 </div>
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
+                <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
+                  Current quotation value.
                 </div>
               </div>
             </div>
@@ -1748,20 +2094,18 @@ export default function FinanceQuotationDetailPage() {
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
             <div className="space-y-6">
               <Card className={activeSectionClass}>
-                <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                        <FileText className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                          Document Overview
-                        </CardTitle>
-                        <CardDescription className="mt-1 text-xs text-slate-500">
-                          Quotation commercial details, dates, currency, project links, and notes.
-                        </CardDescription>
-                      </div>
+                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Document Overview
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Document identity, counterparty, dates, status, currency, and project context.
+                      </CardDescription>
                     </div>
                   </div>
 
@@ -1803,36 +2147,24 @@ export default function FinanceQuotationDetailPage() {
                 <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
                   <div className={innerPanelClass}>
                     <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Quotation No.
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {quotation.quotation_number || "Pending"}
-                    </div>
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Issuing Company
+                      Counterparty Type
                     </div>
                     {editingOverview ? (
                       <select
-                        value={companyIdDraft}
-                        onChange={(event) => setCompanyIdDraft(event.target.value)}
+                        value={counterpartyTypeDraft}
+                        onChange={(event) =>
+                          setCounterpartyTypeDraft(event.target.value)
+                        }
                         className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
                       >
-                        <option value="">Select company</option>
-                        {companies.map((company) => (
-                          <option key={company.id} value={company.id}>
-                            {company.legal_name || company.name}
-                          </option>
-                        ))}
+                        <option value="client">Client</option>
+                        <option value="company">Intercompany</option>
                       </select>
                     ) : (
                       <div className="mt-2 text-2xl font-semibold text-white">
-                        {selectedDraftCompany?.legal_name ||
-                          selectedDraftCompany?.name ||
-                          quotation.company_name_snapshot ||
-                          "—"}
+                        {quotation.counterparty_type_snapshot ||
+                          quotation.counterparty_type ||
+                          "Client"}
                       </div>
                     )}
                   </div>
@@ -1858,6 +2190,7 @@ export default function FinanceQuotationDetailPage() {
                       <div className="mt-2 text-2xl font-semibold text-white">
                         {selectedDraftClient?.legal_name ||
                           selectedDraftClient?.name ||
+                          quotation.client_legal_name_snapshot ||
                           quotation.client_name_snapshot ||
                           "—"}
                       </div>
@@ -1866,62 +2199,28 @@ export default function FinanceQuotationDetailPage() {
 
                   <div className={innerPanelClass}>
                     <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Issue Date
-                    </div>
-                    {editingOverview ? (
-                      <input
-                        type="date"
-                        value={issueDateDraft}
-                        onChange={(event) => setIssueDateDraft(event.target.value)}
-                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
-                      />
-                    ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {formatFinanceDate(quotation.issue_date)}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Valid Until
-                    </div>
-                    {editingOverview ? (
-                      <input
-                        type="date"
-                        value={validUntilDraft}
-                        onChange={(event) => setValidUntilDraft(event.target.value)}
-                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
-                      />
-                    ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {formatFinanceDate(quotation.valid_until)}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Currency
+                      Issuing Company
                     </div>
                     {editingOverview ? (
                       <select
-                        value={currencyIdDraft}
-                        onChange={(event) => setCurrencyIdDraft(event.target.value)}
+                        value={companyIdDraft}
+                        onChange={(event) => setCompanyIdDraft(event.target.value)}
                         className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
                       >
-                        <option value="">Select currency</option>
-                        {currencies.map((currency) => (
-                          <option key={currency.id} value={currency.id}>
-                            {currency.currency_code} — {currency.currency_name}
+                        <option value="">Select company</option>
+                        {companies.map((company) => (
+                          <option key={company.id} value={company.id}>
+                            {company.legal_name || company.name}
                           </option>
                         ))}
                       </select>
                     ) : (
                       <div className="mt-2 text-2xl font-semibold text-white">
-                        {selectedDraftCurrency
-                          ? `${selectedDraftCurrency.currency_code} — ${selectedDraftCurrency.currency_name}`
-                          : quotation.currency_code || "USD"}
+                        {selectedDraftCompany?.legal_name ||
+                          selectedDraftCompany?.name ||
+                          quotation.company_legal_name_snapshot ||
+                          quotation.company_name_snapshot ||
+                          "—"}
                       </div>
                     )}
                   </div>
@@ -1976,6 +2275,68 @@ export default function FinanceQuotationDetailPage() {
 
                   <div className={innerPanelClass}>
                     <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Currency
+                    </div>
+                    {editingOverview ? (
+                      <select
+                        value={currencyIdDraft}
+                        onChange={(event) => setCurrencyIdDraft(event.target.value)}
+                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                      >
+                        <option value="">Select currency</option>
+                        {currencies.map((currency) => (
+                          <option key={currency.id} value={currency.id}>
+                            {currency.currency_code} — {currency.currency_name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {selectedDraftCurrency
+                          ? `${selectedDraftCurrency.currency_code} — ${selectedDraftCurrency.currency_name}`
+                          : quotation.currency_code || "USD"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Issue Date
+                    </div>
+                    {editingOverview ? (
+                      <input
+                        type="date"
+                        value={issueDateDraft}
+                        onChange={(event) => setIssueDateDraft(event.target.value)}
+                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                      />
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {formatFinanceDate(quotation.issue_date)}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Valid Until
+                    </div>
+                    {editingOverview ? (
+                      <input
+                        type="date"
+                        value={validUntilDraft}
+                        onChange={(event) => setValidUntilDraft(event.target.value)}
+                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                      />
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {formatFinanceDate(quotation.valid_until)}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                       Status
                     </div>
                     <div className="mt-2">
@@ -1988,217 +2349,357 @@ export default function FinanceQuotationDetailPage() {
                       </Badge>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
 
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Notes
+              <Card className={activeSectionClass}>
+                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
+                      <CheckCircle className="h-4 w-4" />
                     </div>
-                    {editingOverview ? (
-                      <textarea
-                        value={notesDraft}
-                        onChange={(event) => setNotesDraft(event.target.value)}
-                        rows={4}
-                        className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
-                      />
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Financial Settings
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Payment terms, shipping terms, and issuing bank account from finance master data.
+                      </CardDescription>
+                    </div>
+                  </div>
+
+                  {canEditQuotation ? (
+                    <div className="flex items-center gap-2">
+                      {editingFinancialSettings ? (
+                        <>
+                          <Button
+                            onClick={() => void handleSaveDraftChanges()}
+                            disabled={isSavingDraft}
+                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
+                          >
+                            <Save className="mr-2 h-4 w-4" />
+                            {isSavingDraft ? "Saving..." : "Save"}
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            onClick={() => setEditingFinancialSettings(false)}
+                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={() => setEditingFinancialSettings(true)}
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                        >
+                          <SquarePen className="mr-2 h-4 w-4" />
+                          Edit
+                        </Button>
+                      )}
+                    </div>
+                  ) : null}
+                </CardHeader>
+
+                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Payment Terms
+                    </div>
+                    {editingFinancialSettings ? (
+                      <select
+                        value={paymentTermsIdDraft}
+                        onChange={(event) =>
+                          setPaymentTermsIdDraft(event.target.value)
+                        }
+                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                      >
+                        <option value="">Select payment terms</option>
+                        {paymentTerms.map((term) => (
+                          <option key={term.id} value={term.id}>
+                            {term.document_label || term.name}
+                          </option>
+                        ))}
+                      </select>
                     ) : (
-                      <div className="mt-2 text-sm leading-6 text-slate-300">
-                        {quotation.notes || "—"}
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {getPaymentTermLabel(selectedDraftPaymentTerm) !== "—"
+                          ? getPaymentTermLabel(selectedDraftPaymentTerm)
+                          : quotation.payment_terms_snapshot || "—"}
                       </div>
                     )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Shipping Terms
+                    </div>
+                    {editingFinancialSettings ? (
+                      <select
+                        value={shippingTermIdDraft}
+                        onChange={(event) =>
+                          setShippingTermIdDraft(event.target.value)
+                        }
+                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                      >
+                        <option value="">Select shipping terms</option>
+                        {shippingTerms.map((term) => (
+                          <option key={term.id} value={term.id}>
+                            {term.code} — {term.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {getShippingTermLabel(selectedDraftShippingTerm) !== "—"
+                          ? getShippingTermLabel(selectedDraftShippingTerm)
+                          : quotation.shipping_terms_snapshot || "—"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Bank Account
+                    </div>
+                    {editingFinancialSettings ? (
+                      <select
+                        value={bankAccountIdDraft}
+                        onChange={(event) =>
+                          setBankAccountIdDraft(event.target.value)
+                        }
+                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                      >
+                        <option value="">Select bank account</option>
+                        {filteredBankAccounts.map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {getBankAccountLabel(account)}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {getBankDisplayName(selectedDraftBankAccount)}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Bank Details
+                    </div>
+                    <div className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">
+                      {bankDetailsText || "—"}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
 
               <Card className={activeSectionClass}>
-                <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                        <CheckCircle className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                          Document Parties
-                        </CardTitle>
-                        <CardDescription className="mt-1 text-xs text-slate-500">
-                          Company and client identity snapshots plus quotation
-                          terms and conditions.
-                        </CardDescription>
-                      </div>
+                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                      <CheckCircle className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Document Details
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Document-level company, client, bank, financial, and terms snapshots.
+                      </CardDescription>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    {editingParties ? (
-                      <Button
-                        onClick={() => void handleSaveDraftChanges()}
-                        disabled={isSavingDraft}
-                        className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
-                      >
-                        <Save className="mr-2 h-4 w-4" />
-                        {isSavingDraft ? "Saving..." : "Save"}
-                      </Button>
-                    ) : null}
+                  {canEditQuotation ? (
+                    <div className="flex items-center gap-2">
+                      {editingDocumentDetails ? (
+                        <>
+                          <Button
+                            onClick={() => void handleSaveDraftChanges()}
+                            disabled={isSavingDraft}
+                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                          >
+                            <Save className="mr-2 h-4 w-4" />
+                            {isSavingDraft ? "Saving..." : "Save"}
+                          </Button>
 
-                    {canEditQuotation ? (
-                      <Button
-                        variant="outline"
-                        onClick={() => setEditingParties((current) => !current)}
-                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                      >
-                        <SquarePen className="mr-2 h-4 w-4" />
-                        {editingParties ? "Close" : "Edit"}
-                      </Button>
-                    ) : null}
-                  </div>
+                          <Button
+                            variant="outline"
+                            onClick={() => setEditingDocumentDetails(false)}
+                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={() => setEditingDocumentDetails(true)}
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                        >
+                          <SquarePen className="mr-2 h-4 w-4" />
+                          Edit Terms
+                        </Button>
+                      )}
+                    </div>
+                  ) : null}
                 </CardHeader>
 
-                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
                   <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
                     <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                       Issuing Company
                     </div>
-                    <div className="mt-3 space-y-3 text-sm text-slate-300">
+                    <div className="mt-3 text-xl font-semibold leading-tight text-white">
+                      {selectedDraftCompany?.legal_name ||
+                        selectedDraftCompany?.name ||
+                        quotation.company_legal_name_snapshot ||
+                        quotation.company_name_snapshot ||
+                        "—"}
+                    </div>
+                    <div className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                          Legal Name
-                        </div>
-                        <div className="mt-1 font-semibold text-white">
-                          {selectedDraftCompany?.legal_name ||
-                            selectedDraftCompany?.name ||
-                            quotation.company_name_snapshot ||
-                            "—"}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                          Contact Person
-                        </div>
-                        <div className="mt-1">
-                          {selectedDraftCompany?.contact_person ||
-                            quotation.company_contact_person_snapshot ||
-                            "—"}
-                        </div>
+                        {selectedDraftCompany?.contact_person ||
+                          quotation.company_contact_person_snapshot ||
+                          "—"}
                       </div>
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                          Email
-                        </div>
-                        <div className="mt-1">
-                          {selectedDraftCompany?.email ||
-                            quotation.company_email_snapshot ||
-                            "—"}
-                        </div>
+                        {selectedDraftCompany?.email ||
+                          quotation.company_email_snapshot ||
+                          "—"}
                       </div>
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                          Phone
-                        </div>
-                        <div className="mt-1">
-                          {selectedDraftCompany?.phone ||
-                            quotation.company_phone_snapshot ||
-                            "—"}
-                        </div>
+                        {selectedDraftCompany?.phone ||
+                          quotation.company_phone_snapshot ||
+                          "—"}
                       </div>
-
-                                            <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                          Primary Address
-                        </div>
-                        <div className="mt-1 leading-6">
-                          {[
-                            selectedDraftCompany?.address_line_1,
-                            selectedDraftCompany?.address_line_2,
-                            selectedDraftCompany?.city,
-                            selectedDraftCompany?.state_province,
-                            selectedDraftCompany?.postal_code,
-                            selectedDraftCompany?.country,
-                          ]
-                            .filter(Boolean)
-                            .join(", ") ||
-                            quotation.company_address_snapshot ||
-                            "—"}
-                        </div>
-                      </div>
+                      <div>{companyAddress || "—"}</div>
                     </div>
                   </div>
 
                   <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
                     <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Client
+                      Recipient
                     </div>
-                    <div className="mt-3 space-y-3 text-sm text-slate-300">
+                    <div className="mt-3 text-xl font-semibold leading-tight text-white">
+                      {selectedDraftClient?.legal_name ||
+                        selectedDraftClient?.name ||
+                        quotation.client_legal_name_snapshot ||
+                        quotation.client_name_snapshot ||
+                        quotation.counterparty_name_snapshot ||
+                        "—"}
+                    </div>
+                    <div className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                          Legal Name
-                        </div>
-                        <div className="mt-1 font-semibold text-white">
-                          {selectedDraftClient?.legal_name ||
-                            selectedDraftClient?.name ||
-                            quotation.client_name_snapshot ||
-                            "—"}
-                        </div>
+                        {selectedDraftClient?.contact_person ||
+                          quotation.client_contact_person_snapshot ||
+                          quotation.counterparty_contact_person_snapshot ||
+                          "—"}
                       </div>
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                          Contact Person
-                        </div>
-                        <div className="mt-1">
-                          {selectedDraftClient?.contact_person ||
-                            quotation.client_contact_person_snapshot ||
-                            "—"}
-                        </div>
+                        {selectedDraftClient?.company_email ||
+                          selectedDraftClient?.personnel_email ||
+                          quotation.client_email_snapshot ||
+                          quotation.counterparty_email_snapshot ||
+                          "—"}
                       </div>
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                          Email
+                        {selectedDraftClient?.company_phone ||
+                          selectedDraftClient?.personnel_phone ||
+                          quotation.client_phone_snapshot ||
+                          quotation.counterparty_phone_snapshot ||
+                          "—"}
+                      </div>
+                      <div>{clientAddress || "—"}</div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Bank Details
+                    </div>
+                    <div className="mt-3 text-xl font-semibold leading-tight text-white">
+                      {getBankDisplayName(selectedDraftBankAccount)}
+                    </div>
+                    <div className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
+                      {renderBankDetailLines(
+                        selectedDraftBankAccount,
+                        quotation.bank_details_snapshot
+                      ).length > 0 ? (
+                        renderBankDetailLines(
+                          selectedDraftBankAccount,
+                          quotation.bank_details_snapshot
+                        ).map((line) => <div key={line}>{line}</div>)
+                      ) : (
+                        <div>—</div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                      <div>
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                          Payment Terms
                         </div>
-                        <div className="mt-1">
-                          {selectedDraftClient?.company_email ||
-                            selectedDraftClient?.personnel_email ||
-                            quotation.client_email_snapshot ||
-                            "—"}
+                        <div className="mt-2 text-sm font-semibold text-white">
+                          {getPaymentTermLabel(selectedDraftPaymentTerm) !== "—"
+                            ? getPaymentTermLabel(selectedDraftPaymentTerm)
+                            : quotation.payment_terms_snapshot || "—"}
                         </div>
                       </div>
+
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                          Phone
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                          Shipping Terms
                         </div>
-                        <div className="mt-1">
-                          {selectedDraftClient?.company_phone ||
-                            selectedDraftClient?.personnel_phone ||
-                            quotation.client_phone_snapshot ||
-                            "—"}
+                        <div className="mt-2 text-sm font-semibold text-white">
+                          {getShippingTermLabel(selectedDraftShippingTerm) !== "—"
+                            ? getShippingTermLabel(selectedDraftShippingTerm)
+                            : quotation.shipping_terms_snapshot || "—"}
                         </div>
                       </div>
+
                       <div>
-                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                          Primary Address
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                          Currency
                         </div>
-                        <div className="mt-1 leading-6">
-                          {[
-                            selectedDraftClient?.address_line_1,
-                            selectedDraftClient?.address_line_2,
-                            selectedDraftClient?.city,
-                            selectedDraftClient?.state_province,
-                            selectedDraftClient?.postal_code,
-                            selectedDraftClient?.country,
-                          ]
+                        <div className="mt-2 text-sm font-semibold text-white">
+                          {printableCurrencyCode}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                          Project / Task
+                        </div>
+                        <div className="mt-2 text-sm font-semibold text-white">
+                          {[selectedDraftProject?.name, selectedDraftTask?.title]
                             .filter(Boolean)
-                            .join(", ") ||
-                            quotation.billing_address_snapshot ||
-                            "—"}
+                            .join(" / ") || "—"}
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Notes
+                    </div>
+                    <div className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
+                      {quotation.notes || "—"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
                     <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                       Terms &amp; Conditions
                     </div>
 
-                    {editingParties ? (
+                    {editingDocumentDetails ? (
                       <textarea
                         value={termsAndConditionsDraft}
                         onChange={(event) =>
@@ -2217,21 +2718,18 @@ export default function FinanceQuotationDetailPage() {
               </Card>
 
               <Card className={activeSectionClass}>
-                <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                        <SquarePen className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                          Line Items
-                        </CardTitle>
-                        <CardDescription className="mt-1 text-xs text-slate-500">
-                          Quotation lines stay editable through negotiation,
-                          including accepted quotations.
-                        </CardDescription>
-                      </div>
+                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                      <SquarePen className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Line Items
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Quotation lines stay editable through negotiation, including accepted quotations.
+                      </CardDescription>
                     </div>
                   </div>
 
@@ -2270,7 +2768,7 @@ export default function FinanceQuotationDetailPage() {
                   </div>
                 </CardHeader>
 
-                <CardContent className="space-y-3 p-5">
+                <CardContent className="max-h-[720px] space-y-3 overflow-y-auto p-5 pr-4">
                   {(editingLines ? lineItemsDraft : lineItems).map((row, index) => {
                     const editable = editingLines;
 
@@ -2376,7 +2874,7 @@ export default function FinanceQuotationDetailPage() {
                             )}
                           </label>
 
-                                                    <label className="space-y-2 md:col-span-1">
+                          <label className="space-y-2 md:col-span-1">
                             <div className={labelClass}>Qty</div>
                             {editable ? (
                               <input
@@ -2717,14 +3215,17 @@ export default function FinanceQuotationDetailPage() {
         </div>
       </div>
 
-            {showArchivePopup ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
-          <div className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+      {showArchivePopup ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
+          <div className="flex max-h-[85vh] w-full max-w-6xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
             <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
               <div>
-                <div className="text-lg font-semibold text-white">Archive</div>
+                <div className="text-lg font-semibold text-white">
+                  Quotation Archive
+                </div>
                 <div className="mt-1 text-sm text-slate-500">
-                  Archived and deleted quotations removed from the active registry.
+                  Archived records can be restored. Deleted records can be
+                  restored or permanently deleted.
                 </div>
               </div>
 
@@ -2743,8 +3244,8 @@ export default function FinanceQuotationDetailPage() {
                 onClick={() => setArchiveTab("archived")}
                 className={`rounded-xl px-4 py-2 text-sm transition ${
                   archiveTab === "archived"
-                    ? "bg-white/[0.08] text-white"
-                    : "text-slate-500 hover:bg-white/[0.05] hover:text-slate-300"
+                    ? "bg-white/10 text-white"
+                    : "text-white/55 hover:bg-white/5 hover:text-white/80"
                 }`}
               >
                 Archived
@@ -2756,7 +3257,7 @@ export default function FinanceQuotationDetailPage() {
                 className={`rounded-xl px-4 py-2 text-sm transition ${
                   archiveTab === "deleted"
                     ? "bg-rose-500/15 text-rose-200"
-                    : "text-slate-500 hover:bg-white/[0.05] hover:text-slate-300"
+                    : "text-white/55 hover:bg-white/5 hover:text-white/80"
                 }`}
               >
                 Deleted
@@ -2769,78 +3270,112 @@ export default function FinanceQuotationDetailPage() {
                   No {archiveTab} quotations found.
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {visibleArchiveItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-start justify-between gap-4 rounded-[24px] border border-white/10 bg-white/[0.035] px-4 py-4"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="text-base font-semibold text-white">
-                            {item.quotation_number || "Quotation"}
-                          </div>
+                <div className="overflow-x-auto rounded-[24px] border border-white/10">
+                  <div className="max-h-[720px] overflow-y-auto">
+                    <table className="w-full min-w-[1020px] border-collapse">
+                      <thead>
+                        <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                          <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                            Quotation No.
+                          </th>
+                          <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                            Client
+                          </th>
+                          <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                            Company
+                          </th>
+                          <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
+                            Total
+                          </th>
+                          <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                            Status
+                          </th>
+                          <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                            Updated
+                          </th>
+                          <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
 
-                          <Badge
-                            className={`rounded-full border px-2.5 py-1 text-[11px] shadow-none ${getQuotationStatusBadgeClasses(
-                              item.status
-                            )}`}
+                      <tbody className="divide-y divide-white/5">
+                        {visibleArchiveItems.map((item) => (
+                          <tr
+                            key={item.id}
+                            className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
                           >
-                            {getQuotationStatusLabel(
-                              item.status as QuotationRecord["status"]
-                            )}
-                          </Badge>
-                        </div>
+                            <td className="px-5 py-4 font-semibold text-white">
+                              {item.quotation_number || "Quotation"}
+                            </td>
 
-                        <div className="mt-2 text-sm text-slate-300">
-                          {item.client_name_snapshot ||
-                            item.company_name_snapshot ||
-                            "—"}
-                        </div>
+                            <td className="px-5 py-4">
+                              {item.client_name_snapshot || "—"}
+                            </td>
 
-                        <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-slate-500 md:grid-cols-2">
-                          <div>
-                            Total:{" "}
-                            {formatFinanceMoney(
-                              item.total_amount,
-                              printableCurrencyCode
-                            )}
-                          </div>
-                          <div>Updated: {formatFinanceDate(item.updated_at)}</div>
-                        </div>
-                      </div>
+                            <td className="px-5 py-4">
+                              {item.company_name_snapshot || "—"}
+                            </td>
 
-                      <div className="flex shrink-0 items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            navigate(`/finance/transactions/quotations/${item.id}`)
-                          }
-                          className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.08]"
-                        >
-                          Open
-                        </button>
+                            <td className="px-5 py-4 text-right font-semibold text-white">
+                              {formatFinanceMoney(
+                                item.total_amount,
+                                printableCurrencyCode
+                              )}
+                            </td>
 
-                        <button
-                          type="button"
-                          onClick={() => void handleRestore(item.id)}
-                          className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-500/20"
-                        >
-                          Restore
-                        </button>
+                            <td className="px-5 py-4">
+                              <Badge
+                                className={`rounded-full border px-3 py-1 text-xs shadow-none ${getQuotationStatusBadgeClasses(
+                                  item.status
+                                )}`}
+                              >
+                                {getQuotationStatusLabel(item.status)}
+                              </Badge>
+                            </td>
 
-                        {archiveTab === "deleted" ? (
-                          <button
-                            type="button"
-                            onClick={() => void handleHardDelete(item.id)}
-                            className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/20"
-                          >
-                            Hard Delete
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))}
+                            <td className="px-5 py-4">
+                              {formatFinanceDate(item.updated_at)}
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  onClick={() =>
+                                    navigate(
+                                      `/finance/transactions/quotations/${item.id}`
+                                    )
+                                  }
+                                  className="h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
+                                >
+                                  Open
+                                </Button>
+
+                                <Button
+                                  variant="outline"
+                                  onClick={() => void handleRestore(item.id)}
+                                  className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+                                >
+                                  Restore
+                                </Button>
+
+                                {archiveTab === "deleted" ? (
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => void handleHardDelete(item.id)}
+                                    className="h-9 rounded-2xl border-rose-500/30 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                  >
+                                    Hard Delete
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
@@ -2862,6 +3397,3 @@ export default function FinanceQuotationDetailPage() {
     </>
   );
 }
-
-
-    

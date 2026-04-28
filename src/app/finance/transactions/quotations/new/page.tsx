@@ -2,10 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle,
+  FileText,
+  Plus,
+  Save,
+  SquarePen,
+  Trash2,
+  Wallet,
+} from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -133,8 +143,8 @@ function createRow(): QuotationItemRow {
   };
 }
 
-function toNumber(value: string) {
-  const parsed = Number(value);
+function toNumber(value: string | number | null | undefined) {
+  const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
@@ -145,6 +155,23 @@ function formatMoney(value: number, currencyCode = "USD") {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function getCompanyAddress(company: CompanyOption | null) {
+  if (!company) return "—";
+
+  return (
+    [
+      company.address_line_1,
+      company.address_line_2,
+      company.city,
+      company.state_province,
+      company.postal_code,
+      company.country,
+    ]
+      .filter(Boolean)
+      .join(", ") || "—"
+  );
 }
 
 export default function FinanceNewQuotationPage() {
@@ -193,6 +220,12 @@ export default function FinanceNewQuotationPage() {
     [clientId, clients]
   );
 
+  const selectedCounterpartyCompany = useMemo(
+    () =>
+      companies.find((company) => company.id === counterpartyCompanyId) ?? null,
+    [companies, counterpartyCompanyId]
+  );
+
   const selectedCompany = useMemo(
     () => companies.find((company) => company.id === companyId) ?? null,
     [companies, companyId]
@@ -238,6 +271,16 @@ export default function FinanceNewQuotationPage() {
     [currencies, currencyId]
   );
 
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === projectId) ?? null,
+    [projectId, projects]
+  );
+
+  const selectedTask = useMemo(
+    () => tasks.find((task) => task.id === taskId) ?? null,
+    [taskId, tasks]
+  );
+
   useEffect(() => {
     if (counterpartyType === "client") {
       setCounterpartyCompanyId("");
@@ -256,6 +299,7 @@ export default function FinanceNewQuotationPage() {
       const matchedCurrency = currencies.find(
         (entry) => entry.currency_code === selectedClient.currency_code
       );
+
       if (matchedCurrency) {
         setCurrencyId(matchedCurrency.id);
       }
@@ -288,6 +332,7 @@ export default function FinanceNewQuotationPage() {
       const matchedCurrency = currencies.find(
         (entry) => entry.currency_code === selectedCompany.currency_code
       );
+
       if (matchedCurrency) {
         setCurrencyId(matchedCurrency.id);
         setCurrencyCode(matchedCurrency.currency_code);
@@ -337,7 +382,7 @@ export default function FinanceNewQuotationPage() {
     setErrorMessage("");
 
     try {
-       const [
+      const [
         clientsResult,
         companiesResult,
         projectsResult,
@@ -412,14 +457,14 @@ export default function FinanceNewQuotationPage() {
           .eq("is_active_for_sales", true)
           .order("name", { ascending: true }),
 
-                supabase
+        supabase
           .from("finance_tax_codes")
           .select("id, code, name, rate_percent")
           .eq("status", "active")
           .order("name", { ascending: true }),
       ]);
 
-           if (clientsResult.error) throw clientsResult.error;
+      if (clientsResult.error) throw clientsResult.error;
       if (companiesResult.error) throw companiesResult.error;
       if (projectsResult.error) throw projectsResult.error;
       if (tasksResult.error) throw tasksResult.error;
@@ -680,11 +725,24 @@ export default function FinanceNewQuotationPage() {
     validUntil,
   ]);
 
-    if (isLoading) {
+  const activeSectionClass =
+    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
+
+  const summaryBlockClass =
+    "rounded-[24px] border border-white/10 bg-black/20 p-4";
+
+  const fieldShellClass =
+    "mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
+
+  const labelClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
+
+  const inputLabelClass = "text-sm font-medium text-slate-300";
+
+  if (isLoading) {
     return (
-      <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
-        <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
-          <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
+      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
             Loading quotation sources...
           </div>
         </div>
@@ -693,603 +751,815 @@ export default function FinanceNewQuotationPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
-      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
-      {/* HEADER */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            onClick={() => navigate("/finance/transactions/quotations")}
-            className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-white/70 hover:bg-white/10"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
 
-          <div>
-            <div className="text-lg font-semibold text-white">
-              New Quotation
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => navigate("/finance/transactions/quotations")}
+              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+            >
+              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+              Quotations
+            </button>
+
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
+              <div>
+                <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                  New Quotation
+                </Badge>
+
+                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                  Create Quotation Draft
+                </h1>
+
+                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                  Create a draft commercial offer. This page only saves the
+                  quotation draft; sending, accepting, rejecting, archiving, and
+                  conversion happen later from the quotation detail workflow.
+                </p>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200 shadow-none">
+                    Draft only
+                  </Badge>
+                  <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 shadow-none">
+                    Editable after creation
+                  </Badge>
+                  <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
+                    No manual refresh
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Counterparty
+                      </p>
+                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                        {counterpartyType === "client"
+                          ? selectedClient?.legal_name ||
+                            selectedClient?.name ||
+                            "—"
+                          : selectedCounterpartyCompany?.legal_name ||
+                            selectedCounterpartyCompany?.name ||
+                            "—"}
+                      </p>
+                    </div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    Client or intercompany receiving entity selected for this quotation.
+                  </p>
+                </div>
+
+                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Draft Total
+                      </p>
+                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                        {formatMoney(totals.total, currencyCode)}
+                      </p>
+                    </div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                      <Wallet className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    Live total from the draft line items before saving.
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="text-xs text-white/40">
-              Create a draft quotation document
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button
+                onClick={handleSaveDraft}
+                disabled={isSaving}
+                className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Save className="mr-2 h-4 w-4" />
+                {isSaving ? "Saving..." : "Save Draft"}
+              </Button>
+
+              {errorMessage ? (
+                <div className="flex min-h-11 items-center rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm text-rose-200">
+                  {errorMessage}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </header>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Subtotal
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
+                  {formatMoney(totals.subtotal, currencyCode)}
+                </div>
+                <div className="mt-2 min-w-0 truncate text-sm leading-6 text-slate-400">
+                  Before discount and tax.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-cyan-400" />
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Discount
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
+                  {formatMoney(totals.discount, currencyCode)}
+                </div>
+                <div className="mt-2 min-w-0 truncate text-sm leading-6 text-slate-400">
+                  Draft commercial discount.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Tax
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
+                  {formatMoney(totals.tax, currencyCode)}
+                </div>
+                <div className="mt-2 min-w-0 truncate text-sm leading-6 text-slate-400">
+                  Based on selected tax codes.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-violet-400" />
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Total
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
+                  {formatMoney(totals.total, currencyCode)}
+                </div>
+                <div className="mt-2 min-w-0 truncate text-sm leading-6 text-slate-400">
+                  Draft quotation value.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => loadFormData()}
-            className="h-10 rounded-xl border-white/10 bg-white/5 px-4 text-white/70 hover:bg-white/10"
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
+          <div className="space-y-6">
+            <Card className={activeSectionClass}>
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                    <SquarePen className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Document Overview
+                    </CardTitle>
+                    <CardDescription className="mt-1 text-xs text-slate-500">
+                      Counterparty, issuing company, project references, dates, and currency.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
 
-          <Button
-            onClick={handleSaveDraft}
-            disabled={isSaving}
-            className="h-10 rounded-xl bg-indigo-600 px-4 text-white hover:bg-indigo-500"
-          >
-            <Save className="mr-2 h-4 w-4" />
-            {isSaving ? "Saving..." : "Save Draft"}
-          </Button>
-        </div>
-      </div>
-
-      {/* MAIN GRID */}
-      <div className="grid grid-cols-12 gap-4">
-        {/* LEFT COLUMN */}
-        <div className="col-span-8 flex flex-col gap-4">
-          {/* BASIC INFO */}
-          <Card className="rounded-[24px] border border-white/10 bg-white/[0.04]">
-            <CardHeader>
-              <CardTitle className="text-white">Basic Information</CardTitle>
-              <CardDescription>
-                Define counterparties and document scope
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent className="grid grid-cols-2 gap-4">
-              {/* Counterparty Type */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-white/50">
-                  Counterparty Type
-                </label>
-
-                <select
-                  value={counterpartyType}
-                  onChange={(e) =>
-                    setCounterpartyType(
-                      e.target.value as "client" | "company"
-                    )
-                  }
-                  className="h-10 rounded-xl bg-black/40 px-3 text-sm text-white border border-white/10"
-                >
-                  <option value="client">Client</option>
-                  <option value="company">Company</option>
-                </select>
-              </div>
-
-              {/* Client */}
-              {counterpartyType === "client" && (
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-white/50">Client</label>
-
+              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Counterparty Type</div>
                   <select
-                    value={clientId}
-                    onChange={(e) => setClientId(e.target.value)}
-                    className="h-10 rounded-xl bg-black/40 px-3 text-sm text-white border border-white/10"
+                    value={counterpartyType}
+                    onChange={(event) =>
+                      setCounterpartyType(
+                        event.target.value as "client" | "company"
+                      )
+                    }
+                    className={fieldShellClass}
                   >
-                    <option value="">Select client</option>
-                    {clients.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
+                    <option value="client">Client</option>
+                    <option value="company">Company</option>
                   </select>
                 </div>
-              )}
 
-              {/* Company Counterparty */}
-              {counterpartyType === "company" && (
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-white/50">
-                    Receiving Company
-                  </label>
+                {counterpartyType === "client" ? (
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Client</div>
+                    <select
+                      value={clientId}
+                      onChange={(event) => setClientId(event.target.value)}
+                      className={fieldShellClass}
+                    >
+                      <option value="">Select client</option>
+                      {clients.map((client) => (
+                        <option key={client.id} value={client.id}>
+                          {client.legal_name || client.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Receiving Company</div>
+                    <select
+                      value={counterpartyCompanyId}
+                      onChange={(event) =>
+                        setCounterpartyCompanyId(event.target.value)
+                      }
+                      className={fieldShellClass}
+                    >
+                      <option value="">Select company</option>
+                      {companies.map((company) => (
+                        <option key={company.id} value={company.id}>
+                          {company.legal_name || company.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Issuing Company</div>
                   <select
-                    value={counterpartyCompanyId}
-                    onChange={(e) =>
-                      setCounterpartyCompanyId(e.target.value)
-                    }
-                    className="h-10 rounded-xl bg-black/40 px-3 text-sm text-white border border-white/10"
+                    value={companyId}
+                    onChange={(event) => setCompanyId(event.target.value)}
+                    className={fieldShellClass}
                   >
                     <option value="">Select company</option>
-                    {companies.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
+                    {companies.map((company) => (
+                      <option key={company.id} value={company.id}>
+                        {company.legal_name || company.name}
                       </option>
                     ))}
                   </select>
                 </div>
-              )}
 
-              {/* Issuing Company */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-white/50">
-                  Issuing Company
-                </label>
-
-                <select
-                  value={companyId}
-                  onChange={(e) => setCompanyId(e.target.value)}
-                  className="h-10 rounded-xl bg-black/40 px-3 text-sm text-white border border-white/10"
-                >
-                  <option value="">Select company</option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Project */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-white/50">Project</label>
-
-                <select
-                  value={projectId}
-                  onChange={(e) => setProjectId(e.target.value)}
-                  className="h-10 rounded-xl bg-black/40 px-3 text-sm text-white border border-white/10"
-                >
-                  <option value="">None</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Task */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-white/50">Task</label>
-
-                <select
-                  value={taskId}
-                  onChange={(e) => setTaskId(e.target.value)}
-                  className="h-10 rounded-xl bg-black/40 px-3 text-sm text-white border border-white/10"
-                >
-                  <option value="">None</option>
-                  {filteredTasks.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </CardContent>
-          </Card>
-
-                    {/* FINANCIAL SETTINGS */}
-          <Card className="rounded-[24px] border border-white/10 bg-white/[0.04]">
-            <CardHeader>
-              <CardTitle className="text-white">
-                Financial Settings
-              </CardTitle>
-              <CardDescription>
-                Payment terms, currency and logistics
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent className="grid grid-cols-2 gap-4">
-              {/* Currency */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-white/50">Currency</label>
-
-                <select
-                  value={currencyId}
-                  onChange={(e) => setCurrencyId(e.target.value)}
-                  className="h-10 rounded-xl bg-black/40 px-3 text-sm text-white border border-white/10"
-                >
-                  <option value="">Select currency</option>
-                  {currencies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.currency_code}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Bank */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-white/50">
-                  Bank Account
-                </label>
-
-                <select
-                  value={bankAccountId}
-                  onChange={(e) => setBankAccountId(e.target.value)}
-                  className="h-10 rounded-xl bg-black/40 px-3 text-sm text-white border border-white/10"
-                >
-                  <option value="">Select bank</option>
-                  {filteredBankAccounts.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Payment Terms */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-white/50">
-                  Payment Terms
-                </label>
-
-                <select
-                  value={paymentTermsId}
-                  onChange={(e) => setPaymentTermsId(e.target.value)}
-                  className="h-10 rounded-xl bg-black/40 px-3 text-sm text-white border border-white/10"
-                >
-                  <option value="">Select terms</option>
-                  {paymentTerms.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Shipping Terms */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-white/50">
-                  Shipping Terms
-                </label>
-
-                <select
-                  value={shippingTermId}
-                  onChange={(e) => setShippingTermId(e.target.value)}
-                  className="h-10 rounded-xl bg-black/40 px-3 text-sm text-white border border-white/10"
-                >
-                  <option value="">Select shipping</option>
-                  {shippingTerms.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* DATES */}
-          <Card className="rounded-[24px] border border-white/10 bg-white/[0.04]">
-            <CardHeader>
-              <CardTitle className="text-white">Dates</CardTitle>
-              <CardDescription>
-                Issue and validity timeline
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent className="grid grid-cols-2 gap-4">
-              {/* Issue Date */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-white/50">
-                  Issue Date
-                </label>
-
-                <input
-                  type="date"
-                  value={issueDate}
-                  onChange={(e) => setIssueDate(e.target.value)}
-                  className="h-10 rounded-xl bg-black/40 px-3 text-sm text-white border border-white/10"
-                />
-              </div>
-
-              {/* Valid Until */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-white/50">
-                  Valid Until
-                </label>
-
-                <input
-                  type="date"
-                  value={validUntil}
-                  onChange={(e) => setValidUntil(e.target.value)}
-                  className="h-10 rounded-xl bg-black/40 px-3 text-sm text-white border border-white/10"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-
-                    {/* LINE ITEMS */}
-          <Card className="rounded-[24px] border border-white/10 bg-white/[0.04]">
-            <CardHeader>
-              <CardTitle className="text-white">Line Items</CardTitle>
-              <CardDescription>
-                Define products / services in this quotation
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent className="flex flex-col gap-4">
-              {/* TABLE HEADER */}
-              <div className="grid grid-cols-12 gap-2 text-[11px] uppercase tracking-wider text-white/40 px-2">
-                <div className="col-span-3">Item</div>
-                <div className="col-span-3">Description</div>
-                <div className="col-span-1">Qty</div>
-                <div className="col-span-2">Unit Price</div>
-                <div className="col-span-1">Discount</div>
-                <div className="col-span-1">Tax</div>
-                <div className="col-span-1"></div>
-              </div>
-
-              {/* ROWS */}
-              <div className="flex flex-col gap-2">
-                {rows.map((row) => (
-                  <div
-                    key={row.localId}
-                    className="grid grid-cols-12 gap-2 rounded-xl border border-white/10 bg-white/[0.02] p-2"
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Project</div>
+                  <select
+                    value={projectId}
+                    onChange={(event) => setProjectId(event.target.value)}
+                    className={fieldShellClass}
                   >
-                    {/* ITEM SELECT */}
-                    <select
-                      value={row.itemId}
-                      onChange={(e) =>
-                        applyItemToRow(row.localId, e.target.value)
-                      }
-                      className="col-span-3 h-10 rounded-lg bg-black/40 px-2 text-sm text-white border border-white/10"
-                    >
-                      <option value="">Select item</option>
-                      {items.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
+                    <option value="">No project</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                    {/* DESCRIPTION */}
-                    <input
-                      value={row.description}
-                      onChange={(e) =>
-                        updateRow(
-                          row.localId,
-                          "description",
-                          e.target.value
-                        )
-                      }
-                      placeholder="Description"
-                      className="col-span-3 h-10 rounded-lg bg-black/40 px-2 text-sm text-white border border-white/10"
-                    />
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Task</div>
+                  <select
+                    value={taskId}
+                    onChange={(event) => setTaskId(event.target.value)}
+                    className={fieldShellClass}
+                  >
+                    <option value="">No task</option>
+                    {filteredTasks.map((task) => (
+                      <option key={task.id} value={task.id}>
+                        {task.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                    {/* QUANTITY */}
-                    <input
-                      value={row.quantity}
-                      onChange={(e) =>
-                        updateRow(row.localId, "quantity", e.target.value)
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Currency</div>
+                  <select
+                    value={currencyId}
+                    onChange={(event) => {
+                      setCurrencyId(event.target.value);
+                      const nextCurrency = currencies.find(
+                        (currency) => currency.id === event.target.value
+                      );
+                      if (nextCurrency) {
+                        setCurrencyCode(nextCurrency.currency_code);
                       }
-                      className="col-span-1 h-10 rounded-lg bg-black/40 px-2 text-sm text-white border border-white/10"
-                    />
+                    }}
+                    className={fieldShellClass}
+                  >
+                    <option value="">Select currency</option>
+                    {currencies.map((currency) => (
+                      <option key={currency.id} value={currency.id}>
+                        {currency.currency_code} — {currency.currency_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                    {/* UNIT PRICE */}
-                    <input
-                      value={row.unitPrice}
-                      onChange={(e) =>
-                        updateRow(row.localId, "unitPrice", e.target.value)
-                      }
-                      className="col-span-2 h-10 rounded-lg bg-black/40 px-2 text-sm text-white border border-white/10"
-                    />
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Issue Date</div>
+                  <input
+                    type="date"
+                    value={issueDate}
+                    onChange={(event) => setIssueDate(event.target.value)}
+                    className={fieldShellClass}
+                  />
+                </div>
 
-                    {/* DISCOUNT */}
-                    <input
-                      value={row.discount}
-                      onChange={(e) =>
-                        updateRow(row.localId, "discount", e.target.value)
-                      }
-                      className="col-span-1 h-10 rounded-lg bg-black/40 px-2 text-sm text-white border border-white/10"
-                    />
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Valid Until</div>
+                  <input
+                    type="date"
+                    value={validUntil}
+                    onChange={(event) => setValidUntil(event.target.value)}
+                    className={fieldShellClass}
+                  />
+                </div>
 
-                    {/* TAX */}
-                    <select
-                      value={row.taxCodeId}
-                      onChange={(e) =>
-                        updateRow(row.localId, "taxCodeId", e.target.value)
-                      }
-                      className="col-span-1 h-10 rounded-lg bg-black/40 px-2 text-sm text-white border border-white/10"
-                    >
-                      <option value="">Tax</option>
-                      {taxCodes.map((tax) => (
-                        <option key={tax.id} value={tax.id}>
-                          {tax.name}
-                        </option>
-                      ))}
-                    </select>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Draft Status</div>
+                  <div className="mt-2">
+                    <Badge className="rounded-full border border-slate-400/20 bg-white/[0.06] px-3 py-1 text-xs text-slate-300 shadow-none">
+                      Draft
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-                    {/* REMOVE */}
-                    <div className="col-span-1 flex items-center justify-end">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => removeRow(row.localId)}
-                      >
-                        <Trash2 className="h-4 w-4 text-rose-400" />
-                      </Button>
+            <Card className={activeSectionClass}>
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
+                    <Wallet className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Financial Settings
+                    </CardTitle>
+                    <CardDescription className="mt-1 text-xs text-slate-500">
+                      Payment terms, shipping terms, bank account, and financial defaults.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Payment Terms</div>
+                  <select
+                    value={paymentTermsId}
+                    onChange={(event) => setPaymentTermsId(event.target.value)}
+                    className={fieldShellClass}
+                  >
+                    <option value="">Select terms</option>
+                    {paymentTerms.map((term) => (
+                      <option key={term.id} value={term.id}>
+                        {term.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Shipping Terms</div>
+                  <select
+                    value={shippingTermId}
+                    onChange={(event) => setShippingTermId(event.target.value)}
+                    className={fieldShellClass}
+                  >
+                    <option value="">Select shipping</option>
+                    {shippingTerms.map((term) => (
+                      <option key={term.id} value={term.id}>
+                        {term.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Bank Account</div>
+                  <select
+                    value={bankAccountId}
+                    onChange={(event) => setBankAccountId(event.target.value)}
+                    className={fieldShellClass}
+                  >
+                    <option value="">Select bank</option>
+                    {filteredBankAccounts.map((bank) => (
+                      <option key={bank.id} value={bank.id}>
+                        {bank.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Bank Details</div>
+                  <div className="mt-2 text-sm leading-6 text-slate-300">
+                    {selectedBankAccount ? (
+                      <>
+                        <div className="font-semibold text-white">
+                          {selectedBankAccount.bank_name ||
+                            selectedBankAccount.name}
+                        </div>
+                        <div>
+                          Beneficiary:{" "}
+                          {selectedBankAccount.beneficiary_name || "—"}
+                        </div>
+                        <div>IBAN: {selectedBankAccount.iban || "—"}</div>
+                        <div>
+                          SWIFT: {selectedBankAccount.swift_code || "—"}
+                        </div>
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className={activeSectionClass}>
+              <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                      <SquarePen className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Line Items
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Add products or services using the locked quotation line-item card pattern.
+                      </CardDescription>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
 
-              {/* ADD ROW */}
-              <div>
                 <Button
                   variant="outline"
                   onClick={addRow}
-                  className="rounded-xl border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                  className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
                 >
                   <Plus className="mr-2 h-4 w-4" />
-                  Add Line
+                  Add Row
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardHeader>
 
-                    {/* NOTES */}
-          <Card className="rounded-[24px] border border-white/10 bg-white/[0.04]">
-            <CardHeader>
-              <CardTitle className="text-white">Notes</CardTitle>
-              <CardDescription>
-                Internal or document notes for this quotation draft
-              </CardDescription>
-            </CardHeader>
+              <CardContent className="p-5">
+                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                  {rows.map((row, index) => {
+                    const selectedItem = items.find(
+                      (item) => item.id === row.itemId
+                    );
+                    const selectedTaxCode = taxCodes.find(
+                      (taxCode) => taxCode.id === row.taxCodeId
+                    );
+                    const base =
+                      toNumber(row.quantity) * toNumber(row.unitPrice);
+                    const taxableBase = Math.max(
+                      base - toNumber(row.discount),
+                      0
+                    );
+                    const taxAmount =
+                      taxableBase *
+                      (Number(selectedTaxCode?.rate_percent ?? 0) / 100);
+                    const rowTotal = taxableBase + taxAmount;
 
-            <CardContent>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add notes..."
-                rows={5}
-                className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-3 text-sm text-white outline-none"
-              />
-            </CardContent>
-          </Card>
-        </div>
+                    return (
+                      <div
+                        key={row.localId}
+                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                      >
+                        <div className="mb-4 flex items-center justify-between gap-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-sm font-semibold text-white">
+                              Line {index + 1}
+                            </div>
 
-        {/* RIGHT COLUMN */}
-        <div className="col-span-4 flex flex-col gap-4">
-          <Card className="rounded-[24px] border border-white/10 bg-white/[0.04]">
-            <CardHeader>
-              <CardTitle className="text-white">Quotation Summary</CardTitle>
-              <CardDescription>
-                Live commercial summary before saving
-              </CardDescription>
-            </CardHeader>
+                            {selectedItem ? (
+                              <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
+                                {selectedItem.name}
+                              </Badge>
+                            ) : null}
+                          </div>
 
-            <CardContent className="flex flex-col gap-3">
-              <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-                <div className="text-[11px] uppercase tracking-wider text-white/40">
-                  Counterparty
-                </div>
-                <div className="mt-1 text-sm font-medium text-white">
-                  {counterpartyType === "client"
-                    ? selectedClient?.legal_name || selectedClient?.name || "—"
-                    : companies.find((c) => c.id === counterpartyCompanyId)
-                        ?.legal_name ||
-                      companies.find((c) => c.id === counterpartyCompanyId)?.name ||
-                      "—"}
-                </div>
-              </div>
+                          <Button
+                            variant="outline"
+                            onClick={() => removeRow(row.localId)}
+                            disabled={rows.length === 1}
+                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
 
-              <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-                <div className="text-[11px] uppercase tracking-wider text-white/40">
-                  Issuing Company
-                </div>
-                <div className="mt-1 text-sm font-medium text-white">
-                  {selectedCompany?.legal_name || selectedCompany?.name || "—"}
-                </div>
-              </div>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+                          <label className="space-y-2 md:col-span-3">
+                            <div className={inputLabelClass}>Item</div>
+                            <select
+                              value={row.itemId}
+                              onChange={(event) =>
+                                applyItemToRow(row.localId, event.target.value)
+                              }
+                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                            >
+                              <option value="">Select item</option>
+                              {items.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
 
-              <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-                <div className="text-[11px] uppercase tracking-wider text-white/40">
-                  Payment Terms
-                </div>
-                <div className="mt-1 text-sm font-medium text-white">
-                  {selectedPaymentTerm?.name || "—"}
-                </div>
-              </div>
+                                                    <label className="space-y-2 md:col-span-4">
+                            <div className={inputLabelClass}>Description</div>
+                            <input
+                              value={row.description}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "description",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Description"
+                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
+                            />
+                          </label>
 
-              <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-                <div className="text-[11px] uppercase tracking-wider text-white/40">
-                  Shipping Terms
-                </div>
-                <div className="mt-1 text-sm font-medium text-white">
-                  {selectedShippingTerm?.name || "—"}
-                </div>
-              </div>
+                          <label className="space-y-2 md:col-span-1">
+                            <div className={inputLabelClass}>Qty</div>
+                            <input
+                              value={row.quantity}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "quantity",
+                                  event.target.value
+                                )
+                              }
+                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                            />
+                          </label>
 
-              <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-                <div className="text-[11px] uppercase tracking-wider text-white/40">
-                  Bank Account
-                </div>
-                <div className="mt-1 text-sm font-medium text-white">
-                  {selectedBankAccount?.name || "—"}
-                </div>
-                <div className="mt-1 text-xs text-white/45">
-                  {selectedBankAccount?.bank_name || ""}
-                </div>
-              </div>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Unit Price</div>
+                            <input
+                              value={row.unitPrice}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "unitPrice",
+                                  event.target.value
+                                )
+                              }
+                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                            />
+                          </label>
 
-              <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-                <div className="text-[11px] uppercase tracking-wider text-white/40">
-                  Currency
-                </div>
-                <div className="mt-1 text-sm font-medium text-white">
-                  {selectedCurrency
-                    ? `${selectedCurrency.currency_code} — ${selectedCurrency.currency_name}`
-                    : currencyCode || "—"}
-                </div>
-              </div>
+                          <label className="space-y-2 md:col-span-1">
+                            <div className={inputLabelClass}>Discount</div>
+                            <input
+                              value={row.discount}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "discount",
+                                  event.target.value
+                                )
+                              }
+                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                            />
+                          </label>
 
-              <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-white/50">Subtotal</span>
-                  <span className="font-medium text-white">
-                    {formatMoney(totals.subtotal, currencyCode)}
-                  </span>
-                </div>
+                          <label className="space-y-2 md:col-span-1">
+                            <div className={inputLabelClass}>Tax</div>
+                            <select
+                              value={row.taxCodeId}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "taxCodeId",
+                                  event.target.value
+                                )
+                              }
+                              className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                            >
+                              <option value="">Tax</option>
+                              {taxCodes.map((tax) => (
+                                <option key={tax.id} value={tax.id}>
+                                  {tax.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
 
-                <div className="mt-2 flex items-center justify-between text-sm">
-                  <span className="text-white/50">Discount</span>
-                  <span className="font-medium text-white">
-                    {formatMoney(totals.discount, currencyCode)}
-                  </span>
+                          <div className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Line Total</div>
+                            <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
+                              {formatMoney(rowTotal, currencyCode)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
+              </CardContent>
+            </Card>
 
-                <div className="mt-2 flex items-center justify-between text-sm">
-                  <span className="text-white/50">Tax</span>
-                  <span className="font-medium text-white">
-                    {formatMoney(totals.tax, currencyCode)}
-                  </span>
-                </div>
-
-                <div className="mt-3 border-t border-white/10 pt-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-white/70">
-                      Total
-                    </span>
-                    <span className="text-lg font-semibold text-white">
-                      {formatMoney(totals.total, currencyCode)}
-                    </span>
+            <Card className={activeSectionClass}>
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Notes
+                    </CardTitle>
+                    <CardDescription className="mt-1 text-xs text-slate-500">
+                      Internal or document notes for this quotation draft.
+                    </CardDescription>
                   </div>
                 </div>
-              </div>
+              </CardHeader>
 
-              {errorMessage ? (
-                <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-200">
-                  {errorMessage}
+              <CardContent className="p-5">
+                <textarea
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  placeholder="Add notes..."
+                  rows={5}
+                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
+                />
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <Card className={activeSectionClass}>
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Quotation Summary
+                </CardTitle>
+                <CardDescription className="mt-1 text-xs text-slate-500">
+                  Live commercial summary before saving.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-3 p-5">
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Counterparty</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {counterpartyType === "client"
+                      ? selectedClient?.legal_name || selectedClient?.name || "—"
+                      : selectedCounterpartyCompany?.legal_name ||
+                        selectedCounterpartyCompany?.name ||
+                        "—"}
+                  </div>
                 </div>
-              ) : null}
-            </CardContent>
-          </Card>
 
-          <Card className="rounded-[24px] border border-white/10 bg-white/[0.04]">
-            <CardHeader>
-              <CardTitle className="text-white">Locked Behavior</CardTitle>
-            </CardHeader>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Issuing Company</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedCompany?.legal_name || selectedCompany?.name || "—"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {getCompanyAddress(selectedCompany)}
+                  </div>
+                </div>
 
-            <CardContent className="space-y-2 text-sm text-white/55">
-              <div>• This page creates a quotation draft only.</div>
-              <div>• Send / accept / reject / archive happen later.</div>
-              <div>• Client PO conversion happens only after approval of the flow.</div>
-              <div>• Master data is the source of truth for contacts and finance data.</div>
-              <div>• Snapshot logic is preserved in backend creation flow.</div>
-            </CardContent>
-          </Card>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Payment Terms</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedPaymentTerm?.name || "—"}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Shipping Terms</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedShippingTerm?.name || "—"}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Bank Account</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedBankAccount?.name || "—"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedBankAccount?.bank_name || "—"}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Currency</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedCurrency
+                      ? `${selectedCurrency.currency_code} — ${selectedCurrency.currency_name}`
+                      : currencyCode || "—"}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-400">Subtotal</span>
+                    <span className="font-semibold text-white">
+                      {formatMoney(totals.subtotal, currencyCode)}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <span className="text-slate-400">Discount</span>
+                    <span className="font-semibold text-white">
+                      {formatMoney(totals.discount, currencyCode)}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <span className="text-slate-400">Tax</span>
+                    <span className="font-semibold text-white">
+                      {formatMoney(totals.tax, currencyCode)}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 border-t border-white/10 pt-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-slate-300">
+                        Total
+                      </span>
+                      <span className="text-lg font-semibold text-white">
+                        {formatMoney(totals.total, currencyCode)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {errorMessage ? (
+                  <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                    {errorMessage}
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            <Card className={activeSectionClass}>
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Locked Behavior
+                </CardTitle>
+                <CardDescription className="mt-1 text-xs text-slate-500">
+                  New quotation creation rules.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-2 p-5 text-sm leading-6 text-slate-400">
+                <div>• This page creates a quotation draft only.</div>
+                <div>• Send, accept, reject, archive, and delete happen later.</div>
+                <div>• Client PO conversion happens only after the quotation workflow.</div>
+                <div>• Master data remains the source of truth.</div>
+                <div>• Snapshot logic is preserved in the backend creation flow.</div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
-
-            </div>
     </div>
   );
 }

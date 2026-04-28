@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Archive,
@@ -161,19 +161,6 @@ type CustomerPoEditDraft = {
   notes: string;
 };
 
-type LineItemSortKey =
-  | "line"
-  | "description"
-  | "item"
-  | "quantity"
-  | "unit_price"
-  | "discount"
-  | "tax"
-  | "revenue"
-  | "line_total";
-
-type SortDirection = "asc" | "desc";
-
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -259,50 +246,6 @@ function getStatusBadgeClasses(status: CustomerPoStatus) {
   }
 }
 
-function compareValues(a: string | number, b: string | number) {
-  if (typeof a === "number" && typeof b === "number") {
-    return a - b;
-  }
-
-  return String(a).localeCompare(String(b), undefined, {
-    numeric: true,
-    sensitivity: "base",
-  });
-}
-
-function getLineItemSortValue(line: CustomerPoLineItem, key: LineItemSortKey) {
-  switch (key) {
-    case "line":
-      return line.sort_order ?? 0;
-    case "description":
-      return line.description || "";
-    case "item":
-      return line.item?.name || "";
-    case "quantity":
-      return toNumber(line.quantity);
-    case "unit_price":
-      return toNumber(line.unit_price);
-    case "discount":
-      return toNumber(line.discount);
-    case "tax":
-      return (
-        line.finance_tax_codes?.name ||
-        line.finance_tax_codes?.code ||
-        String(line.finance_tax_codes?.rate_percent ?? "")
-      );
-    case "revenue":
-      return (
-        line.finance_revenue_categories?.name ||
-        line.finance_revenue_categories?.code ||
-        ""
-      );
-    case "line_total":
-      return toNumber(line.line_total);
-    default:
-      return "";
-  }
-}
-
 async function getCurrentUserId() {
   const {
     data: { user },
@@ -332,10 +275,6 @@ export default function FinanceCustomerPoDetailPage() {
     total_amount: "",
     notes: "",
   });
-
-  const [lineSortKey, setLineSortKey] = useState<LineItemSortKey>("line");
-  const [lineSortDirection, setLineSortDirection] =
-    useState<SortDirection>("asc");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -536,16 +475,6 @@ export default function FinanceCustomerPoDetailPage() {
 
   const hasCustomerPoFile = attachments.length > 0;
 
-  const sortedLineItems = useMemo(() => {
-    return [...lineItems].sort((first, second) => {
-      const firstValue = getLineItemSortValue(first, lineSortKey);
-      const secondValue = getLineItemSortValue(second, lineSortKey);
-      const directionMultiplier = lineSortDirection === "asc" ? 1 : -1;
-
-      return compareValues(firstValue, secondValue) * directionMultiplier;
-    });
-  }, [lineItems, lineSortDirection, lineSortKey]);
-
   const lineSubtotal = lineItems.reduce(
     (sum, line) => sum + toNumber(line.quantity) * toNumber(line.unit_price),
     0
@@ -567,21 +496,6 @@ export default function FinanceCustomerPoDetailPage() {
     customerPo?.status !== "archived" &&
     customerPo?.status !== "deleted" &&
     customerPo?.status !== "linked_to_pi";
-
-  function handleLineSort(nextKey: LineItemSortKey) {
-    if (lineSortKey === nextKey) {
-      setLineSortDirection((current) => (current === "asc" ? "desc" : "asc"));
-      return;
-    }
-
-    setLineSortKey(nextKey);
-    setLineSortDirection(nextKey === "line" ? "asc" : "desc");
-  }
-
-  function getLineSortIndicator(key: LineItemSortKey) {
-    if (lineSortKey !== key) return "↕";
-    return lineSortDirection === "asc" ? "↑" : "↓";
-  }
 
   function resetEditDraft() {
     if (!customerPo) return;
@@ -1345,7 +1259,7 @@ export default function FinanceCustomerPoDetailPage() {
               </CardContent>
             </Card>
 
-                        <Card className={activeSectionClass}>
+            <Card className={activeSectionClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
                 <div className="flex items-center gap-3">
                   <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
@@ -1356,136 +1270,152 @@ export default function FinanceCustomerPoDetailPage() {
                       Customer PO Line Items
                     </CardTitle>
                     <CardDescription className="mt-1 text-xs text-slate-500">
-                      Item-level details saved against this customer purchase
-                      order. Header sorting is frontend-only.
+                      Item-level details saved against this customer purchase order.
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
 
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <div className="max-h-[720px] overflow-y-auto">
-                    <table className="w-full min-w-[1240px] border-collapse">
-                      <thead>
-                        <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                          {[
-                            ["line", "Line"],
-                            ["description", "Description"],
-                            ["item", "Item"],
-                            ["quantity", "Qty"],
-                            ["unit_price", "Unit Price"],
-                            ["discount", "Discount"],
-                            ["tax", "Tax"],
-                            ["revenue", "Revenue"],
-                            ["line_total", "Line Total"],
-                          ].map(([key, label]) => (
-                            <th
-                              key={key}
-                              className={`sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold ${
-                                key === "quantity" ||
-                                key === "unit_price" ||
-                                key === "discount" ||
-                                key === "line_total"
-                                  ? "text-right"
-                                  : ""
-                              }`}
-                            >
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleLineSort(key as LineItemSortKey)
-                                }
-                                className={`inline-flex items-center gap-2 transition hover:text-white ${
-                                  key === "quantity" ||
-                                  key === "unit_price" ||
-                                  key === "discount" ||
-                                  key === "line_total"
-                                    ? "ml-auto"
-                                    : ""
-                                }`}
-                              >
-                                {label}
-                                <span className="text-[10px] text-slate-600">
-                                  {getLineSortIndicator(
-                                    key as LineItemSortKey
-                                  )}
-                                </span>
-                              </button>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-
-                      <tbody className="divide-y divide-white/5">
-                        {sortedLineItems.length === 0 ? (
-                          <tr>
-                            <td
-                              colSpan={9}
-                              className="px-5 py-14 text-center text-sm text-slate-500"
-                            >
-                              No Customer PO line items found.
-                            </td>
-                          </tr>
-                        ) : (
-                          sortedLineItems.map((line, index) => (
-                            <tr
-                              key={line.id}
-                              className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                            >
-                              <td className="px-5 py-4 font-semibold text-white">
-                                {line.sort_order ?? index + 1}
-                              </td>
-
-                              <td className="px-5 py-4">
-                                <div className="max-w-[360px] truncate font-medium text-white">
-                                  {line.description || "Untitled line"}
-                                </div>
-                                {line.notes ? (
-                                  <div className="mt-1 max-w-[360px] truncate text-xs text-slate-500">
-                                    {line.notes}
-                                  </div>
-                                ) : null}
-                              </td>
-
-                              <td className="px-5 py-4">
-                                {line.item?.name || "—"}
-                              </td>
-
-                              <td className="px-5 py-4 text-right font-semibold text-white">
-                                {toNumber(line.quantity)}
-                              </td>
-
-                              <td className="px-5 py-4 text-right font-semibold text-white">
-                                {formatMoney(line.unit_price, currencyCode)}
-                              </td>
-
-                              <td className="px-5 py-4 text-right font-semibold text-white">
-                                {formatMoney(line.discount, currencyCode)}
-                              </td>
-
-                              <td className="px-5 py-4">
-                                {line.finance_tax_codes?.name ||
-                                  line.finance_tax_codes?.code ||
-                                  "—"}
-                              </td>
-
-                              <td className="px-5 py-4">
-                                {line.finance_revenue_categories?.name ||
-                                  line.finance_revenue_categories?.code ||
-                                  "—"}
-                              </td>
-
-                              <td className="px-5 py-4 text-right font-semibold text-white">
-                                {formatMoney(line.line_total, currencyCode)}
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+              <CardContent className="p-5">
+                {lineItems.length === 0 ? (
+                  <div className="rounded-[22px] border border-white/10 bg-black/20 px-4 py-6 text-sm text-slate-500">
+                    No Customer PO line items found.
                   </div>
-                </div>
+                ) : (
+                  <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                    {lineItems.map((line, index) => {
+                      const unitLabel =
+                        line.finance_units_of_measure?.code ||
+                        line.finance_units_of_measure?.name ||
+                        "—";
+
+                      const taxLabel =
+                        line.finance_tax_codes?.name ||
+                        line.finance_tax_codes?.code ||
+                        "—";
+
+                      const revenueLabel =
+                        line.finance_revenue_categories?.name ||
+                        line.finance_revenue_categories?.code ||
+                        "—";
+
+                      return (
+                        <div
+                          key={line.id}
+                          className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                        >
+                          <div className="mb-4 flex items-center justify-between gap-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-sm font-semibold text-white">
+                                Line {line.sort_order ?? index + 1}
+                              </div>
+
+                              {line.item?.name ? (
+                                <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
+                                  {line.item.name}
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+                            <div className="space-y-2 md:col-span-3">
+                              <div className="text-sm font-medium text-slate-300">
+                                Item
+                              </div>
+                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80">
+                                {line.item?.name || "—"}
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 md:col-span-4">
+                              <div className="text-sm font-medium text-slate-300">
+                                Description
+                              </div>
+                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80">
+                                {line.description || "—"}
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 md:col-span-1">
+                              <div className="text-sm font-medium text-slate-300">
+                                Qty
+                              </div>
+                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80">
+                                {toNumber(line.quantity)}
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 md:col-span-2">
+                              <div className="text-sm font-medium text-slate-300">
+                                Unit
+                              </div>
+                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80">
+                                {unitLabel}
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 md:col-span-2">
+                              <div className="text-sm font-medium text-slate-300">
+                                Unit Price
+                              </div>
+                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80">
+                                {formatMoney(line.unit_price, currencyCode)}
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 md:col-span-2">
+                              <div className="text-sm font-medium text-slate-300">
+                                Discount
+                              </div>
+                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80">
+                                {formatMoney(line.discount, currencyCode)}
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 md:col-span-2">
+                              <div className="text-sm font-medium text-slate-300">
+                                Tax Code
+                              </div>
+                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80">
+                                {taxLabel}
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 md:col-span-3">
+                              <div className="text-sm font-medium text-slate-300">
+                                Revenue Category
+                              </div>
+                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80">
+                                {revenueLabel}
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 md:col-span-3">
+                              <div className="text-sm font-medium text-slate-300">
+                                Line Total
+                              </div>
+                              <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
+                                {formatMoney(line.line_total, currencyCode)}
+                              </div>
+                            </div>
+
+                            {line.notes ? (
+                              <div className="space-y-2 md:col-span-12">
+                                <div className="text-sm font-medium text-slate-300">
+                                  Notes
+                                </div>
+                                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-slate-300">
+                                  {line.notes}
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </CardContent>
             </Card>
 

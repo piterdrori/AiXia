@@ -4,10 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
+  FileText,
   Plus,
   Save,
+  SquarePen,
   Trash2,
   Upload,
+  Wallet,
   X,
 } from "lucide-react";
 
@@ -193,7 +196,10 @@ function toNumber(value: number | string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function formatMoney(value: number | string | null | undefined, currencyCode = "USD") {
+function formatMoney(
+  value: number | string | null | undefined,
+  currencyCode = "USD"
+) {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
     currency: currencyCode || "USD",
@@ -205,16 +211,18 @@ function formatMoney(value: number | string | null | undefined, currencyCode = "
 function makeAddressSnapshot(row: ClientOption | CompanyOption | null | undefined) {
   if (!row) return null;
 
-  return [
-    row.address_line_1,
-    row.address_line_2,
-    row.city,
-    row.state_province,
-    row.postal_code,
-    row.country,
-  ]
-    .filter(Boolean)
-    .join(", ") || null;
+  return (
+    [
+      row.address_line_1,
+      row.address_line_2,
+      row.city,
+      row.state_province,
+      row.postal_code,
+      row.country,
+    ]
+      .filter(Boolean)
+      .join(", ") || null
+  );
 }
 
 async function getCurrentUserId() {
@@ -237,8 +245,12 @@ export default function FinanceNewCustomerPoPage() {
   const [quotations, setQuotations] = useState<QuotationOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
-  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>([]);
-  const [revenueCategories, setRevenueCategories] = useState<RevenueCategoryOption[]>([]);
+  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>(
+    []
+  );
+  const [revenueCategories, setRevenueCategories] = useState<
+    RevenueCategoryOption[]
+  >([]);
 
   const [form, setForm] = useState<CustomerPoFormState>(EMPTY_FORM);
   const [lineDrafts, setLineDrafts] = useState<CustomerPoLineDraft[]>([
@@ -251,6 +263,22 @@ export default function FinanceNewCustomerPoPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const activeSectionClass =
+    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
+
+  const summaryBlockClass =
+    "rounded-[24px] border border-white/10 bg-black/20 p-4";
+
+  const fieldShellClass =
+    "mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-45";
+
+  const inputFieldClass =
+    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-45";
+
+  const labelClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
+
+  const inputLabelClass = "text-sm font-medium text-slate-300";
+
   const loadLookups = useCallback(async () => {
     setIsLoadingLookups(true);
     setError("");
@@ -262,7 +290,8 @@ export default function FinanceNewCustomerPoPage() {
         currenciesResult,
         projectsResult,
         tasksResult,
-        quotationsResult,
+
+                quotationsResult,
         itemsResult,
         taxCodesResult,
         unitsResult,
@@ -275,6 +304,7 @@ export default function FinanceNewCustomerPoPage() {
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
+
         supabase
           .from("finance_companies")
           .select(
@@ -283,17 +313,22 @@ export default function FinanceNewCustomerPoPage() {
           .eq("status", "active")
           .order("name", { ascending: true }),
 
-
-                supabase
+        supabase
           .from("finance_currencies")
           .select("id, currency_code, currency_name")
           .eq("status", "active")
           .order("currency_code", { ascending: true }),
-        supabase.from("projects").select("id, name").order("name", { ascending: true }),
+
+        supabase
+          .from("projects")
+          .select("id, name")
+          .order("name", { ascending: true }),
+
         supabase
           .from("tasks")
           .select("id, title, project_id")
           .order("created_at", { ascending: false }),
+
         supabase
           .from("finance_quotations")
           .select(
@@ -301,6 +336,7 @@ export default function FinanceNewCustomerPoPage() {
           )
           .not("status", "in", "(archived,deleted)")
           .order("created_at", { ascending: false }),
+
         supabase
           .from("finance_items")
           .select(
@@ -309,16 +345,19 @@ export default function FinanceNewCustomerPoPage() {
           .eq("status", "active")
           .eq("is_active_for_sales", true)
           .order("name", { ascending: true }),
+
         supabase
           .from("finance_tax_codes")
           .select("id, code, name, rate_percent")
           .eq("status", "active")
           .order("name", { ascending: true }),
+
         supabase
           .from("finance_units_of_measure")
           .select("id, code, name")
           .eq("status", "active")
           .order("name", { ascending: true }),
+
         supabase
           .from("finance_revenue_categories")
           .select("id, code, name")
@@ -389,6 +428,16 @@ export default function FinanceNewCustomerPoPage() {
   const selectedCurrency = useMemo(
     () => currencies.find((currency) => currency.id === form.currency_id) || null,
     [currencies, form.currency_id]
+  );
+
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === form.project_id) || null,
+    [form.project_id, projects]
+  );
+
+  const selectedTask = useMemo(
+    () => tasks.find((task) => task.id === form.task_id) || null,
+    [form.task_id, tasks]
   );
 
   const totals = useMemo(() => {
@@ -510,7 +559,11 @@ export default function FinanceNewCustomerPoPage() {
     }));
   }
 
-  function updateLine(localId: string, field: keyof CustomerPoLineDraft, value: string) {
+  function updateLine(
+    localId: string,
+    field: keyof CustomerPoLineDraft,
+    value: string
+  ) {
     setLineDrafts((current) =>
       current.map((row) =>
         row.localId === localId ? { ...row, [field]: value } : row
@@ -645,7 +698,9 @@ export default function FinanceNewCustomerPoPage() {
           toNumber(line.unit_price) < 0
       )
     ) {
-      setError("Every Customer PO line needs a description, quantity greater than 0, and unit price 0 or higher.");
+      setError(
+        "Every Customer PO line needs a description, quantity greater than 0, and unit price 0 or higher."
+      );
       return;
     }
 
@@ -763,6 +818,18 @@ export default function FinanceNewCustomerPoPage() {
     }
   }
 
+  if (isLoadingLookups) {
+    return (
+      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
+            Loading Customer PO sources...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
@@ -779,7 +846,7 @@ export default function FinanceNewCustomerPoPage() {
               Customer POs
             </button>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-stretch">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
               <div>
                 <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
                   New Customer PO
@@ -790,50 +857,193 @@ export default function FinanceNewCustomerPoPage() {
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Create the customer purchase order with item lines from master data, upload the customer PO document, and link it to a quotation when available.
+                  Create a received customer purchase order, copy quotation
+                  lines when available, upload the customer PO document, and
+                  preserve the source snapshots for the transaction flow.
                 </p>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200 shadow-none">
+                    Document required
+                  </Badge>
+                  <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 shadow-none">
+                    Quotation link optional
+                  </Badge>
+                  <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
+                    No manual refresh
+                  </Badge>
+                </div>
               </div>
 
-              <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Calculated Total
-                    </p>
-                    <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                      {formatMoney(totals.total, form.currency_code || "USD")}
-                    </p>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Client
+                      </p>
+                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                        {selectedClient?.legal_name || selectedClient?.name || "—"}
+                      </p>
+                    </div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                      <FileText className="h-4 w-4" />
+                    </div>
                   </div>
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                    <Upload className="h-4 w-4" />
-                  </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    Customer selected for this incoming purchase order.
+                  </p>
                 </div>
-                <p className="mt-3 text-xs leading-5 text-slate-500">
-                  Total amount is calculated from Customer PO line items.
-                </p>
+
+                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Calculated Total
+                      </p>
+                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                        {formatMoney(totals.total, form.currency_code || "USD")}
+                      </p>
+                    </div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                      <Wallet className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    Total amount is calculated from Customer PO line items.
+                  </p>
+                </div>
               </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button
+                onClick={() => void handleCreateCustomerPo()}
+                disabled={isSaving || isLoadingLookups}
+                className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Save className="mr-2 h-4 w-4" />
+                {isSaving ? "Creating..." : "Create Customer PO"}
+              </Button>
+
+              {error ? (
+                <div className="flex min-h-11 items-center rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm text-rose-200">
+                  {error}
+                </div>
+              ) : null}
             </div>
           </div>
         </header>
 
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_420px]">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Subtotal
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
+                  {formatMoney(totals.subtotal, form.currency_code || "USD")}
+                </div>
+                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
+                  Before discount and tax.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                <span className="h-2 w-2 rounded-full bg-cyan-400" />
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Discount
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
+                  {formatMoney(totals.discount, form.currency_code || "USD")}
+                </div>
+                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
+                  Customer PO discount.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
+                <span className="h-2 w-2 rounded-full bg-amber-400" />
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Tax
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
+                  {formatMoney(totals.tax, form.currency_code || "USD")}
+                </div>
+                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
+                  Based on tax codes.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
+                <span className="h-2 w-2 rounded-full bg-violet-400" />
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Total
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
+                  {formatMoney(totals.total, form.currency_code || "USD")}
+                </div>
+                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
+                  Customer PO value.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
           <div className="space-y-6">
-            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+            <Card className={activeSectionClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-white">Customer PO Details</CardTitle>
-                <CardDescription className="text-white/45">
-                  Client first. Linked quotations are filtered by the selected client. Quotation values auto-fill but remain editable.
-                </CardDescription>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                    <SquarePen className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Document Overview
+                    </CardTitle>
+                    <CardDescription className="mt-1 text-xs text-slate-500">
+                      Client, linked quotation, company, dates, currency, project, and status.
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
 
               <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Client</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Client</div>
                   <select
                     value={form.client_id}
                     onChange={(event) => handleClientChange(event.target.value)}
                     disabled={isLoadingLookups}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
+                    className={fieldShellClass}
                   >
                     <option value="">Select client</option>
                     {clients.map((client) => (
@@ -842,15 +1052,15 @@ export default function FinanceNewCustomerPoPage() {
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Linked Quotation</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Linked Quotation</div>
                   <select
                     value={form.quotation_id}
                     onChange={(event) => void handleQuotationChange(event.target.value)}
                     disabled={!form.client_id || isLoadingLookups}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
+                    className={fieldShellClass}
                   >
                     <option value="">
                       {form.client_id ? "No linked quotation" : "Select client first"}
@@ -862,10 +1072,10 @@ export default function FinanceNewCustomerPoPage() {
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Customer PO No.</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Customer PO No.</div>
                   <input
                     value={form.external_po_number}
                     onChange={(event) =>
@@ -874,13 +1084,13 @@ export default function FinanceNewCustomerPoPage() {
                         external_po_number: event.target.value,
                       }))
                     }
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                    className={fieldShellClass}
                     placeholder="Customer document number"
                   />
-                </label>
+                </div>
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Company</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Company</div>
                   <select
                     value={form.company_id}
                     onChange={(event) =>
@@ -890,7 +1100,7 @@ export default function FinanceNewCustomerPoPage() {
                       }))
                     }
                     disabled={isLoadingLookups}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
+                    className={fieldShellClass}
                   >
                     <option value="">Select company</option>
                     {companies.map((company) => (
@@ -899,10 +1109,10 @@ export default function FinanceNewCustomerPoPage() {
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">PO Date</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>PO Date</div>
                   <input
                     type="date"
                     value={form.po_date}
@@ -912,12 +1122,12 @@ export default function FinanceNewCustomerPoPage() {
                         po_date: event.target.value,
                       }))
                     }
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                    className={fieldShellClass}
                   />
-                </label>
+                </div>
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Received Date</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Received Date</div>
                   <input
                     type="date"
                     value={form.received_date}
@@ -927,17 +1137,17 @@ export default function FinanceNewCustomerPoPage() {
                         received_date: event.target.value,
                       }))
                     }
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                    className={fieldShellClass}
                   />
-                </label>
+                </div>
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Currency</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Currency</div>
                   <select
                     value={form.currency_id}
                     onChange={(event) => handleCurrencyChange(event.target.value)}
                     disabled={isLoadingLookups}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
+                    className={fieldShellClass}
                   >
                     <option value="">Select currency</option>
                     {currencies.map((currency) => (
@@ -946,10 +1156,10 @@ export default function FinanceNewCustomerPoPage() {
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Project</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Project</div>
                   <select
                     value={form.project_id}
                     onChange={(event) =>
@@ -960,7 +1170,7 @@ export default function FinanceNewCustomerPoPage() {
                       }))
                     }
                     disabled={isLoadingLookups}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
+                    className={fieldShellClass}
                   >
                     <option value="">No project</option>
                     {projects.map((project) => (
@@ -969,10 +1179,10 @@ export default function FinanceNewCustomerPoPage() {
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Task</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Task</div>
                   <select
                     value={form.task_id}
                     onChange={(event) =>
@@ -982,7 +1192,7 @@ export default function FinanceNewCustomerPoPage() {
                       }))
                     }
                     disabled={isLoadingLookups}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none disabled:opacity-45"
+                    className={fieldShellClass}
                   >
                     <option value="">No task</option>
                     {filteredTasks.map((task) => (
@@ -991,10 +1201,10 @@ export default function FinanceNewCustomerPoPage() {
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Initial Status</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Initial Status</div>
                   <select
                     value={form.status}
                     onChange={(event) =>
@@ -1003,15 +1213,15 @@ export default function FinanceNewCustomerPoPage() {
                         status: event.target.value as CustomerPoStatus,
                       }))
                     }
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                    className={fieldShellClass}
                   >
                     <option value="received">Received</option>
                     <option value="draft">Draft</option>
                   </select>
-                </label>
+                </div>
 
-                <div className="md:col-span-3">
-                  <div className="text-sm text-white/70">Notes</div>
+                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
+                  <div className={labelClass}>Notes</div>
                   <textarea
                     value={form.notes}
                     onChange={(event) =>
@@ -1021,231 +1231,281 @@ export default function FinanceNewCustomerPoPage() {
                       }))
                     }
                     rows={4}
-                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
+                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
                   />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <CardTitle className="text-white">Customer PO Line Items</CardTitle>
-                    <CardDescription className="text-white/45">
-                      Select items from master data or adjust copied quotation lines.
-                    </CardDescription>
+                        <Card className={activeSectionClass}>
+              <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                      <SquarePen className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Customer PO Line Items
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Add products or services using the locked new/create line-item card pattern.
+                      </CardDescription>
+                    </div>
                   </div>
-
-                  <Button
-                    onClick={addLine}
-                    className="h-10 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 font-semibold text-slate-950 hover:bg-cyan-400"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Line
-                  </Button>
                 </div>
+
+                <Button
+                  variant="outline"
+                  onClick={addLine}
+                  className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Line
+                </Button>
               </CardHeader>
 
-              <CardContent className="space-y-4 p-5">
-                {lineDrafts.map((line, index) => {
-                  const base = Math.max(
-                    toNumber(line.quantity) * toNumber(line.unit_price) -
-                      toNumber(line.discount),
-                    0
-                  );
-                  const taxCode = taxCodes.find(
-                    (entry) => entry.id === line.tax_code_id
-                  );
-                  const lineTotal =
-                    base + base * (toNumber(taxCode?.rate_percent) / 100);
+              <CardContent className="p-5">
+                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                  {lineDrafts.map((line, index) => {
+                    const selectedItem = items.find(
+                      (item) => item.id === line.item_id
+                    );
+                    const selectedTaxCode = taxCodes.find(
+                      (entry) => entry.id === line.tax_code_id
+                    );
+                    const selectedUnit = unitsOfMeasure.find(
+                      (unit) => unit.id === line.unit_of_measure_id
+                    );
+                    const selectedRevenueCategory = revenueCategories.find(
+                      (category) => category.id === line.revenue_category_id
+                    );
 
-                  return (
-                    <div
-                      key={line.localId}
-                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                    >
-                      <div className="mb-4 flex items-center justify-between gap-4">
-                        <div className="text-sm font-semibold text-white">
-                          Line {index + 1}
+                    const base = Math.max(
+                      toNumber(line.quantity) * toNumber(line.unit_price) -
+                        toNumber(line.discount),
+                      0
+                    );
+                    const lineTotal =
+                      base + base * (toNumber(selectedTaxCode?.rate_percent) / 100);
+
+                    return (
+                      <div
+                        key={line.localId}
+                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                      >
+                        <div className="mb-4 flex items-center justify-between gap-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-sm font-semibold text-white">
+                              Line {index + 1}
+                            </div>
+
+                            {selectedItem ? (
+                              <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
+                                {selectedItem.name}
+                              </Badge>
+                            ) : null}
+                          </div>
+
+                          <Button
+                            variant="outline"
+                            onClick={() => removeLine(line.localId)}
+                            disabled={lineDrafts.length === 1}
+                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
 
-                        <Button
-                          variant="outline"
-                          onClick={() => removeLine(line.localId)}
-                          disabled={lineDrafts.length === 1}
-                          className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20 disabled:opacity-40"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+                          <label className="space-y-2 md:col-span-3">
+                            <div className={inputLabelClass}>Item</div>
+                            <select
+                              value={line.item_id}
+                              onChange={(event) =>
+                                applyItemToLine(line.localId, event.target.value)
+                              }
+                              className={inputFieldClass}
+                            >
+                              <option value="">Manual / no item</option>
+                              {items.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
 
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                        <label className="space-y-2 md:col-span-3">
-                          <div className="text-sm text-white/70">Item</div>
-                          <select
-                            value={line.item_id}
-                            onChange={(event) =>
-                              applyItemToLine(line.localId, event.target.value)
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          >
-                            <option value="">Manual / no item</option>
-                            {items.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                          <label className="space-y-2 md:col-span-4">
+                            <div className={inputLabelClass}>Description</div>
+                            <input
+                              value={line.description}
+                              onChange={(event) =>
+                                updateLine(
+                                  line.localId,
+                                  "description",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Description"
+                              className={inputFieldClass}
+                            />
+                          </label>
 
-                        <label className="space-y-2 md:col-span-4">
-                          <div className="text-sm text-white/70">Description</div>
-                          <input
-                            value={line.description}
-                            onChange={(event) =>
-                              updateLine(
-                                line.localId,
-                                "description",
-                                event.target.value
-                              )
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          />
-                        </label>
+                          <label className="space-y-2 md:col-span-1">
+                            <div className={inputLabelClass}>Qty</div>
+                            <input
+                              value={line.quantity}
+                              onChange={(event) =>
+                                updateLine(
+                                  line.localId,
+                                  "quantity",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            />
+                          </label>
 
-                        <label className="space-y-2 md:col-span-1">
-                          <div className="text-sm text-white/70">Qty</div>
-                          <input
-                            value={line.quantity}
-                            onChange={(event) =>
-                              updateLine(
-                                line.localId,
-                                "quantity",
-                                event.target.value
-                              )
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          />
-                        </label>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Unit</div>
+                            <select
+                              value={line.unit_of_measure_id}
+                              onChange={(event) =>
+                                updateLine(
+                                  line.localId,
+                                  "unit_of_measure_id",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            >
+                              <option value="">No unit</option>
+                              {unitsOfMeasure.map((unit) => (
+                                <option key={unit.id} value={unit.id}>
+                                  {unit.code} — {unit.name}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedUnit ? (
+                              <div className="text-[11px] text-slate-500">
+                                {selectedUnit.code}
+                              </div>
+                            ) : null}
+                          </label>
 
-                        <label className="space-y-2 md:col-span-2">
-                          <div className="text-sm text-white/70">Unit</div>
-                          <select
-                            value={line.unit_of_measure_id}
-                            onChange={(event) =>
-                              updateLine(
-                                line.localId,
-                                "unit_of_measure_id",
-                                event.target.value
-                              )
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          >
-                            <option value="">No unit</option>
-                            {unitsOfMeasure.map((unit) => (
-                              <option key={unit.id} value={unit.id}>
-                                {unit.code} — {unit.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Unit Price</div>
+                            <input
+                              value={line.unit_price}
+                              onChange={(event) =>
+                                updateLine(
+                                  line.localId,
+                                  "unit_price",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            />
+                          </label>
 
-                        <label className="space-y-2 md:col-span-2">
-                          <div className="text-sm text-white/70">Unit Price</div>
-                          <input
-                            value={line.unit_price}
-                            onChange={(event) =>
-                              updateLine(
-                                line.localId,
-                                "unit_price",
-                                event.target.value
-                              )
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          />
-                        </label>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Discount</div>
+                            <input
+                              value={line.discount}
+                              onChange={(event) =>
+                                updateLine(
+                                  line.localId,
+                                  "discount",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            />
+                          </label>
 
-                        <label className="space-y-2 md:col-span-2">
-                          <div className="text-sm text-white/70">Discount</div>
-                          <input
-                            value={line.discount}
-                            onChange={(event) =>
-                              updateLine(
-                                line.localId,
-                                "discount",
-                                event.target.value
-                              )
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          />
-                        </label>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Tax Code</div>
+                            <select
+                              value={line.tax_code_id}
+                              onChange={(event) =>
+                                updateLine(
+                                  line.localId,
+                                  "tax_code_id",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            >
+                              <option value="">No tax</option>
+                              {taxCodes.map((taxCode) => (
+                                <option key={taxCode.id} value={taxCode.id}>
+                                  {taxCode.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
 
-                        <label className="space-y-2 md:col-span-2">
-                          <div className="text-sm text-white/70">Tax Code</div>
-                          <select
-                            value={line.tax_code_id}
-                            onChange={(event) =>
-                              updateLine(
-                                line.localId,
-                                "tax_code_id",
-                                event.target.value
-                              )
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          >
-                            <option value="">No tax</option>
-                            {taxCodes.map((taxCode) => (
-                              <option key={taxCode.id} value={taxCode.id}>
-                                {taxCode.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                          <label className="space-y-2 md:col-span-3">
+                            <div className={inputLabelClass}>
+                              Revenue Category
+                            </div>
+                            <select
+                              value={line.revenue_category_id}
+                              onChange={(event) =>
+                                updateLine(
+                                  line.localId,
+                                  "revenue_category_id",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            >
+                              <option value="">No category</option>
+                              {revenueCategories.map((category) => (
+                                <option key={category.id} value={category.id}>
+                                  {category.name}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedRevenueCategory?.code ? (
+                              <div className="text-[11px] text-slate-500">
+                                {selectedRevenueCategory.code}
+                              </div>
+                            ) : null}
+                          </label>
 
-                        <label className="space-y-2 md:col-span-3">
-                          <div className="text-sm text-white/70">Revenue Category</div>
-                          <select
-                            value={line.revenue_category_id}
-                            onChange={(event) =>
-                              updateLine(
-                                line.localId,
-                                "revenue_category_id",
-                                event.target.value
-                              )
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          >
-                            <option value="">No category</option>
-                            {revenueCategories.map((category) => (
-                              <option key={category.id} value={category.id}>
-                                {category.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <div className="space-y-2 md:col-span-3">
-                          <div className="text-sm text-white/70">Line Total</div>
-                          <div className="flex h-11 items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-white">
-                            {formatMoney(lineTotal, form.currency_code || "USD")}
+                          <div className="space-y-2 md:col-span-3">
+                            <div className={inputLabelClass}>Line Total</div>
+                            <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
+                              {formatMoney(lineTotal, form.currency_code || "USD")}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </CardContent>
             </Card>
           </div>
 
           <div className="space-y-6">
-            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+            <Card className={activeSectionClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-white">Customer PO Document</CardTitle>
-                <CardDescription className="text-white/45">
-                  Drag and drop the customer PO file here. A document is required.
-                </CardDescription>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                    <Upload className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Customer PO Document
+                    </CardTitle>
+                    <CardDescription className="mt-1 text-xs text-slate-500">
+                      Upload the customer PO file. A document is required.
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
 
               <CardContent className="space-y-4 p-5">
@@ -1321,34 +1581,40 @@ export default function FinanceNewCustomerPoPage() {
                   </div>
                 ) : null}
 
-                <div className="space-y-3 rounded-[22px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-white/55">Subtotal</span>
-                    <span className="text-sm font-semibold text-white">
-                      {formatMoney(totals.subtotal, form.currency_code || "USD")}
-                    </span>
-                  </div>
+                                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Summary</div>
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-white/55">Discount</span>
-                    <span className="text-sm font-semibold text-white">
-                      {formatMoney(totals.discount, form.currency_code || "USD")}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-white/55">Tax</span>
-                    <span className="text-sm font-semibold text-white">
-                      {formatMoney(totals.tax, form.currency_code || "USD")}
-                    </span>
-                  </div>
-
-                  <div className="border-t border-white/10 pt-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-cyan-100/70">Total</span>
-                      <span className="text-lg font-semibold text-white">
-                        {formatMoney(totals.total, form.currency_code || "USD")}
+                  <div className="mt-3 space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-400">Subtotal</span>
+                      <span className="font-semibold text-white">
+                        {formatMoney(totals.subtotal, form.currency_code || "USD")}
                       </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-400">Discount</span>
+                      <span className="font-semibold text-white">
+                        {formatMoney(totals.discount, form.currency_code || "USD")}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-400">Tax</span>
+                      <span className="font-semibold text-white">
+                        {formatMoney(totals.tax, form.currency_code || "USD")}
+                      </span>
+                    </div>
+
+                    <div className="border-t border-white/10 pt-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-slate-300">
+                          Total
+                        </span>
+                        <span className="text-lg font-semibold text-white">
+                          {formatMoney(totals.total, form.currency_code || "USD")}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1356,7 +1622,7 @@ export default function FinanceNewCustomerPoPage() {
                 <Button
                   onClick={() => void handleCreateCustomerPo()}
                   disabled={isSaving || isLoadingLookups}
-                  className="h-11 w-full rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 font-semibold text-slate-950 hover:bg-cyan-400"
+                  className="h-11 w-full rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Save className="mr-2 h-4 w-4" />
                   {isSaving ? "Creating..." : "Create Customer PO"}
@@ -1370,15 +1636,72 @@ export default function FinanceNewCustomerPoPage() {
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+            <Card className={activeSectionClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-white">Creation Rules</CardTitle>
-                <CardDescription className="text-white/45">
-                  Locked Customer PO behavior.
+                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Customer PO Summary
+                </CardTitle>
+                <CardDescription className="mt-1 text-xs text-slate-500">
+                  Live document context before creation.
                 </CardDescription>
               </CardHeader>
 
-              <CardContent className="space-y-3 p-5 text-sm leading-6 text-slate-400">
+              <CardContent className="space-y-3 p-5">
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Client</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedClient?.legal_name || selectedClient?.name || "—"}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Company</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedCompany?.legal_name || selectedCompany?.name || "—"}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Linked Quotation</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedQuotation?.quotation_number || "—"}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Currency</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedCurrency
+                      ? `${selectedCurrency.currency_code} — ${
+                          selectedCurrency.currency_name || ""
+                        }`
+                      : form.currency_code || "—"}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Project / Task</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedProject?.name || "—"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedTask?.title || "No task selected"}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className={activeSectionClass}>
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Creation Rules
+                </CardTitle>
+                <CardDescription className="mt-1 text-xs text-slate-500">
+                  Locked Customer PO creation behavior.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-2 p-5 text-sm leading-6 text-slate-400">
                 <div>• Internal CPO No. is generated automatically.</div>
                 <div>• Customer PO No. comes from the customer document.</div>
                 <div>• Linked quotation is filtered by selected client.</div>

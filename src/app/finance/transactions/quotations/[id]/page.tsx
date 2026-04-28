@@ -428,44 +428,6 @@ function formatBankDetails(bank: BankAccountOption | null) {
   return detailLines.join("\n");
 }
 
-function renderBankDetailLines(
-  bank: BankAccountOption | null,
-  fallbackSnapshot: string | null | undefined
-) {
-  if (bank) {
-    const address =
-      bank.bank_address ||
-      joinAddress([
-        bank.address_line_1,
-        bank.address_line_2,
-        bank.city,
-        bank.postal_code,
-        bank.country,
-      ]);
-
-    return [
-      bank.beneficiary_name,
-      address,
-      bank.account_number ? `Account: ${bank.account_number}` : null,
-      bank.iban ? `IBAN: ${bank.iban}` : null,
-      bank.swift_code ? `SWIFT: ${bank.swift_code}` : null,
-      !bank.iban && !bank.swift_code && bank.account_identifier_value
-        ? `${bank.account_identifier_type || "Identifier"}: ${
-            bank.account_identifier_value
-          }`
-        : null,
-      bank.currency_code ? `Currency: ${bank.currency_code}` : null,
-    ].filter(Boolean);
-  }
-
-  return fallbackSnapshot
-    ? fallbackSnapshot
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
-    : [];
-}
-
 function getPaymentTermLabel(term: PaymentTermOption | null) {
   if (!term) return "—";
   return term.document_label || term.name || term.code || "—";

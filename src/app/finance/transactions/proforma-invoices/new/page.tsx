@@ -1032,7 +1032,6 @@ export default function FinanceNewProformaInvoicePage() {
           payment_terms_id: paymentTermsId || null,
           shipping_term_id: shippingTermId || null,
           bank_account_id: bankAccountId || null,
-          preferred_payment_method_id: paymentMethodId || null,
           currency_code: currencyCode || sourceCustomerPo?.currency_code || "USD",
           metadata: {
             currency_code: currencyCode || "USD",

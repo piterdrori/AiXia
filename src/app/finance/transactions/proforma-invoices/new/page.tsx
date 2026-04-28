@@ -96,11 +96,16 @@ type BankAccountOption = {
   id: string;
   name: string;
   bank_name: string | null;
+  institution_name: string | null;
   beneficiary_name: string | null;
   iban: string | null;
   swift_code: string | null;
+  account_identifier_type: string | null;
+  account_identifier_value: string | null;
   account_number: string | null;
+  masked_account_number: string | null;
   currency_code: string | null;
+  bank_address: string | null;
   is_default: boolean;
   company_id: string | null;
   country: string | null;
@@ -255,6 +260,10 @@ function getClientAddress(client: ClientOption | null) {
 function getBankAddress(bank: BankAccountOption | null) {
   if (!bank) return "";
 
+  if (bank.bank_address) {
+    return bank.bank_address;
+  }
+
   return [
     bank.address_line_1,
     bank.address_line_2,
@@ -280,6 +289,15 @@ function getBankIdentifier(bank: BankAccountOption | null) {
     return {
       label: "SWIFT",
       value: bank.swift_code,
+    };
+  }
+
+  if (bank.account_identifier_value) {
+    const normalizedType = (bank.account_identifier_type || "").toLowerCase();
+
+    return {
+      label: normalizedType === "swift" ? "SWIFT" : "Identifier",
+      value: bank.account_identifier_value,
     };
   }
 
@@ -564,7 +582,7 @@ export default function FinanceNewProformaInvoicePage() {
         supabase
           .from("finance_bank_accounts")
           .select(
-            "id, name, bank_name, beneficiary_name, iban, swift_code, account_number, currency_code, is_default, company_id, country, city, postal_code, address_line_1, address_line_2"
+            "id, name, bank_name, institution_name, beneficiary_name, iban, swift_code, account_identifier_type, account_identifier_value, account_number, masked_account_number, currency_code, bank_address, is_default, company_id, country, city, postal_code, address_line_1, address_line_2"
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
@@ -949,12 +967,27 @@ export default function FinanceNewProformaInvoicePage() {
             client_address_snapshot: getClientAddress(selectedClient),
             bank_account_id: bankAccountId || null,
             bank_account_name: selectedBankAccount?.name || null,
-            bank_name: selectedBankAccount?.bank_name || null,
+            bank_name:
+              selectedBankAccount?.bank_name ||
+              selectedBankAccount?.institution_name ||
+              null,
             beneficiary_name: selectedBankAccount?.beneficiary_name || null,
             bank_address_snapshot: getBankAddress(selectedBankAccount),
             iban: selectedBankAccount?.iban || null,
-            swift_code: selectedBankAccount?.swift_code || null,
-            account_number: selectedBankAccount?.account_number || null,
+            swift_code:
+              selectedBankAccount?.swift_code ||
+              (selectedBankAccount?.account_identifier_type?.toLowerCase() ===
+              "swift"
+                ? selectedBankAccount?.account_identifier_value
+                : null),
+            bank_identifier_type:
+              selectedBankAccount?.account_identifier_type || null,
+            bank_identifier_value:
+              selectedBankAccount?.account_identifier_value || null,
+            account_number:
+              selectedBankAccount?.account_number ||
+              selectedBankAccount?.masked_account_number ||
+              null,
             bank_account_currency_code:
               selectedBankAccount?.currency_code || null,
             preferred_payment_method_id: paymentMethodId || null,
@@ -1014,12 +1047,27 @@ export default function FinanceNewProformaInvoicePage() {
             client_address_snapshot: getClientAddress(selectedClient),
             bank_account_id: bankAccountId || null,
             bank_account_name: selectedBankAccount?.name || null,
-            bank_name: selectedBankAccount?.bank_name || null,
+            bank_name:
+              selectedBankAccount?.bank_name ||
+              selectedBankAccount?.institution_name ||
+              null,
             beneficiary_name: selectedBankAccount?.beneficiary_name || null,
             bank_address_snapshot: getBankAddress(selectedBankAccount),
             iban: selectedBankAccount?.iban || null,
-            swift_code: selectedBankAccount?.swift_code || null,
-            account_number: selectedBankAccount?.account_number || null,
+            swift_code:
+              selectedBankAccount?.swift_code ||
+              (selectedBankAccount?.account_identifier_type?.toLowerCase() ===
+              "swift"
+                ? selectedBankAccount?.account_identifier_value
+                : null),
+            bank_identifier_type:
+              selectedBankAccount?.account_identifier_type || null,
+            bank_identifier_value:
+              selectedBankAccount?.account_identifier_value || null,
+            account_number:
+              selectedBankAccount?.account_number ||
+              selectedBankAccount?.masked_account_number ||
+              null,
             bank_account_currency_code:
               selectedBankAccount?.currency_code || null,
             preferred_payment_method_id: paymentMethodId || null,
@@ -1458,14 +1506,23 @@ export default function FinanceNewProformaInvoicePage() {
                         {selectedBankAccount.beneficiary_name ||
                           selectedBankAccount.name}
                       </div>
-                      {selectedBankAccount.bank_name ? (
-                        <div>{selectedBankAccount.bank_name}</div>
+                      {selectedBankAccount.bank_name ||
+                      selectedBankAccount.institution_name ? (
+                        <div>
+                          {selectedBankAccount.bank_name ||
+                            selectedBankAccount.institution_name}
+                        </div>
                       ) : null}
                       {getBankAddress(selectedBankAccount) ? (
                         <div>{getBankAddress(selectedBankAccount)}</div>
                       ) : null}
-                      {selectedBankAccount.account_number ? (
-                        <div>Account: {selectedBankAccount.account_number}</div>
+                      {selectedBankAccount.account_number ||
+                      selectedBankAccount.masked_account_number ? (
+                        <div>
+                          Account:{" "}
+                          {selectedBankAccount.account_number ||
+                            selectedBankAccount.masked_account_number}
+                        </div>
                       ) : null}
                       {getBankIdentifier(selectedBankAccount) ? (
                         <div>
@@ -1955,14 +2012,23 @@ export default function FinanceNewProformaInvoicePage() {
                   </div>
                   {selectedBankAccount ? (
                     <div className="mt-2 text-sm leading-6 text-slate-400">
-                      {selectedBankAccount.bank_name ? (
-                        <div>{selectedBankAccount.bank_name}</div>
+                      {selectedBankAccount.bank_name ||
+                      selectedBankAccount.institution_name ? (
+                        <div>
+                          {selectedBankAccount.bank_name ||
+                            selectedBankAccount.institution_name}
+                        </div>
                       ) : null}
                       {getBankAddress(selectedBankAccount) ? (
                         <div>{getBankAddress(selectedBankAccount)}</div>
                       ) : null}
-                      {selectedBankAccount.account_number ? (
-                        <div>Account: {selectedBankAccount.account_number}</div>
+                      {selectedBankAccount.account_number ||
+                      selectedBankAccount.masked_account_number ? (
+                        <div>
+                          Account:{" "}
+                          {selectedBankAccount.account_number ||
+                            selectedBankAccount.masked_account_number}
+                        </div>
                       ) : null}
                       {getBankIdentifier(selectedBankAccount) ? (
                         <div>

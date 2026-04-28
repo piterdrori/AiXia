@@ -493,6 +493,7 @@ export default function FinanceProformaInvoiceDetailPage() {
   );
 
   const [editingOverview, setEditingOverview] = useState(false);
+  const [editingTerms, setEditingTerms] = useState(false);
   const [, setEditingParties] = useState(false);
   const [editingLines, setEditingLines] = useState(false);
 
@@ -1365,6 +1366,7 @@ export default function FinanceProformaInvoiceDetailPage() {
       await softDeleteProformaInvoice(id);
 
       setEditingOverview(false);
+      setEditingTerms(false);
       setEditingParties(false);
       setEditingLines(false);
 
@@ -1389,6 +1391,7 @@ export default function FinanceProformaInvoiceDetailPage() {
       await archiveProformaInvoice(id);
 
       setEditingOverview(false);
+      setEditingTerms(false);
       setEditingParties(false);
       setEditingLines(false);
       await loadProforma(true);
@@ -1684,6 +1687,7 @@ export default function FinanceProformaInvoiceDetailPage() {
       if (snapshotError) throw snapshotError;
 
       setEditingOverview(false);
+      setEditingTerms(false);
       setEditingParties(false);
       setEditingLines(false);
       await loadProforma(true);
@@ -2372,34 +2376,6 @@ export default function FinanceProformaInvoiceDetailPage() {
                         </div>
                       </div>
 
-                                            <div className={summaryBlockClass}>
-                        <div className={labelClass}>Payment Terms</div>
-                        <div className="mt-2 text-lg font-semibold text-white">
-                          {selectedDraftPaymentTerm?.document_label ||
-                            selectedDraftPaymentTerm?.name ||
-                            proforma.payment_terms_snapshot ||
-                            "—"}
-                        </div>
-                      </div>
-
-                      <div className={summaryBlockClass}>
-                        <div className={labelClass}>Shipping Terms</div>
-                        <div className="mt-2 text-lg font-semibold text-white">
-                          {selectedDraftShippingTermsLabel ||
-                            proforma.shipping_terms_snapshot ||
-                            "—"}
-                        </div>
-                      </div>
-
-                      <div className={summaryBlockClass}>
-                        <div className={labelClass}>Terms & Conditions</div>
-                        <div className="mt-2 text-sm text-slate-300 whitespace-pre-line">
-                          {termsAndConditionsDraft ||
-                            proforma.terms_and_conditions_snapshot ||
-                            "—"}
-                        </div>
-                      </div>
-
                       <div className={summaryBlockClass}>
                         <div className={labelClass}>Bank Details</div>
                         <div className="mt-2 whitespace-pre-line text-sm text-slate-300">
@@ -2434,6 +2410,139 @@ export default function FinanceProformaInvoiceDetailPage() {
                         <div className={labelClass}>Task</div>
                         <div className="mt-2 text-2xl font-semibold text-white">
                           {selectedDraftTask?.title || "—"}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              </Card>
+
+              <Card className={sectionCardClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Terms & Conditions
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Payment terms, shipping terms, and document terms.
+                      </CardDescription>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {editingTerms ? (
+                        <Button
+                          onClick={() => void handleSaveDraftChanges()}
+                          disabled={isSavingDraft}
+                          className="h-9 rounded-2xl px-3"
+                        >
+                          <Save className="mr-2 h-4 w-4" />
+                          {isSavingDraft ? "Saving..." : "Save"}
+                        </Button>
+                      ) : null}
+
+                      {canEditDraft ? (
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            setEditingTerms((current) => !current)
+                          }
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                        >
+                          <SquarePen className="mr-2 h-4 w-4" />
+                          {editingTerms ? "Close" : "Edit"}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="space-y-4 p-5">
+                  {editingTerms && canEditDraft ? (
+                    <>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <label className="space-y-2">
+                          <div className={inputLabelClass}>Payment Terms</div>
+                          <select
+                            value={paymentTermsIdDraft}
+                            onChange={(event) =>
+                              setPaymentTermsIdDraft(event.target.value)
+                            }
+                            className={inputFieldClass}
+                          >
+                            <option value="">Select payment terms</option>
+                            {paymentTerms.map((term) => (
+                              <option key={term.id} value={term.id}>
+                                {term.code} | {term.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="space-y-2">
+                          <div className={inputLabelClass}>Shipping Terms</div>
+                          <select
+                            value={shippingTermIdDraft}
+                            onChange={(event) =>
+                              setShippingTermIdDraft(event.target.value)
+                            }
+                            className={inputFieldClass}
+                          >
+                            <option value="">Select shipping terms</option>
+                            {shippingTerms.map((term) => (
+                              <option key={term.id} value={term.id}>
+                                {term.code} | {term.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+
+                      <label className="block space-y-2">
+                        <div className={inputLabelClass}>
+                          Terms and Conditions
+                        </div>
+                        <textarea
+                          value={termsAndConditionsDraft}
+                          onChange={(event) =>
+                            setTermsAndConditionsDraft(event.target.value)
+                          }
+                          rows={4}
+                          className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
+                        />
+                      </label>
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div className={summaryBlockClass}>
+                          <div className={labelClass}>Payment Terms</div>
+                          <div className="mt-2 text-lg font-semibold text-white">
+                            {selectedDraftPaymentTerm?.document_label ||
+                              selectedDraftPaymentTerm?.name ||
+                              proforma.payment_terms_snapshot ||
+                              "—"}
+                          </div>
+                        </div>
+
+                        <div className={summaryBlockClass}>
+                          <div className={labelClass}>Shipping Terms</div>
+                          <div className="mt-2 text-lg font-semibold text-white">
+                            {selectedDraftShippingTermsLabel ||
+                              proforma.shipping_terms_snapshot ||
+                              "—"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Terms and Conditions</div>
+                        <div className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">
+                          {termsAndConditionsDraft ||
+                            proforma.terms_and_conditions_snapshot ||
+                            "—"}
                         </div>
                       </div>
                     </>

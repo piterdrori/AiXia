@@ -1609,7 +1609,7 @@ export default function FinanceQuotationDetailPage() {
                   </Button>
                 ) : null}
 
-                                {canMarkRejected ? (
+                {canMarkRejected ? (
                   <Button
                     variant="outline"
                     onClick={() => void handleMarkRejected()}
@@ -1646,16 +1646,6 @@ export default function FinanceQuotationDetailPage() {
                     {isDeleting ? "Deleting..." : "Delete"}
                   </Button>
                 ) : null}
-
-                <Button
-                  variant="outline"
-                  onClick={() => void loadQuotation(true)}
-                  disabled={isRefreshing}
-                  className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  {isRefreshing ? "Refreshing..." : "Refresh"}
-                </Button>
               </div>
             </div>
           </section>

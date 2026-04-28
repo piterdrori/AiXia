@@ -1387,6 +1387,23 @@ export default function FinanceNewProformaInvoicePage() {
                       </option>
                     ))}
                   </select>
+
+                  {selectedCompany ? (
+                    <div className="mt-3 text-sm leading-6 text-slate-300">
+                      <div className="font-semibold text-white">
+                        {selectedCompany.legal_name || selectedCompany.name}
+                      </div>
+                      {getCompanyAddress(selectedCompany) ? (
+                        <div>{getCompanyAddress(selectedCompany)}</div>
+                      ) : null}
+                      {selectedCompany.email ? (
+                        <div>Email: {selectedCompany.email}</div>
+                      ) : null}
+                      {selectedCompany.phone ? (
+                        <div>Phone: {selectedCompany.phone}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className={summaryBlockClass}>
@@ -1403,6 +1420,33 @@ export default function FinanceNewProformaInvoicePage() {
                       </option>
                     ))}
                   </select>
+
+                  {selectedClient ? (
+                    <div className="mt-3 text-sm leading-6 text-slate-300">
+                      <div className="font-semibold text-white">
+                        {selectedClient.legal_name || selectedClient.name}
+                      </div>
+                      {getClientAddress(selectedClient) ? (
+                        <div>{getClientAddress(selectedClient)}</div>
+                      ) : null}
+                      {selectedClient.company_email ||
+                      selectedClient.personnel_email ? (
+                        <div>
+                          Email:{" "}
+                          {selectedClient.company_email ||
+                            selectedClient.personnel_email}
+                        </div>
+                      ) : null}
+                      {selectedClient.company_phone ||
+                      selectedClient.personnel_phone ? (
+                        <div>
+                          Phone:{" "}
+                          {selectedClient.company_phone ||
+                            selectedClient.personnel_phone}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className={summaryBlockClass}>
@@ -1451,32 +1495,33 @@ export default function FinanceNewProformaInvoicePage() {
                       </option>
                     ))}
                   </select>
-                  <div className="mt-3 text-sm leading-6 text-slate-300">
-                    {selectedBankAccount ? (
-                      <>
-                        <div className="font-semibold text-white">
-                          {selectedBankAccount.beneficiary_name ||
-                            selectedBankAccount.name}
-                        </div>
-                        <div>{selectedBankAccount.bank_name || "—"}</div>
+
+                  {selectedBankAccount ? (
+                    <div className="mt-3 text-sm leading-6 text-slate-300">
+                      <div className="font-semibold text-white">
+                        {selectedBankAccount.beneficiary_name ||
+                          selectedBankAccount.name}
+                      </div>
+                      {selectedBankAccount.bank_name ? (
+                        <div>{selectedBankAccount.bank_name}</div>
+                      ) : null}
+                      {getBankAddress(selectedBankAccount) ? (
                         <div>{getBankAddress(selectedBankAccount)}</div>
+                      ) : null}
+                      {selectedBankAccount.account_number ? (
+                        <div>Account: {selectedBankAccount.account_number}</div>
+                      ) : null}
+                      {getBankIdentifier(selectedBankAccount) ? (
                         <div>
-                          Account: {selectedBankAccount.account_number || "—"}
+                          {getBankIdentifier(selectedBankAccount)?.label}:{" "}
+                          {getBankIdentifier(selectedBankAccount)?.value}
                         </div>
-                        {selectedBankAccount.iban ? (
-                          <div>IBAN: {selectedBankAccount.iban}</div>
-                        ) : null}
-                        {selectedBankAccount.swift_code ? (
-                          <div>SWIFT: {selectedBankAccount.swift_code}</div>
-                        ) : null}
-                        <div>
-                          Currency: {selectedBankAccount.currency_code || "—"}
-                        </div>
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </div>
+                      ) : null}
+                      {selectedBankAccount.currency_code ? (
+                        <div>Currency: {selectedBankAccount.currency_code}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className={summaryBlockClass}>

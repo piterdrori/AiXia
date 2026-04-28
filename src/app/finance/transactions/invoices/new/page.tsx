@@ -453,7 +453,13 @@ export default function FinanceNewInvoicePage() {
   useEffect(() => {
     if (!companyId) return;
 
-    setBankAccountId("");
+    const selectedBankStillBelongsToCompany = selectedBankAccount
+      ? !selectedBankAccount.company_id || selectedBankAccount.company_id === companyId
+      : true;
+
+    if (!selectedBankStillBelongsToCompany) {
+      setBankAccountId("");
+    }
 
     if (!currencyId && selectedCompany?.currency_code) {
       const matchedCurrency = currencies.find(
@@ -465,7 +471,13 @@ export default function FinanceNewInvoicePage() {
         setCurrencyCode(matchedCurrency.currency_code);
       }
     }
-  }, [companyId, currencies, currencyId, selectedCompany]);
+  }, [
+    companyId,
+    currencies,
+    currencyId,
+    selectedBankAccount,
+    selectedCompany,
+  ]);
 
   useEffect(() => {
     if (shippingTermId) return;
@@ -702,7 +714,7 @@ export default function FinanceNewInvoicePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [companyId, paymentMethodId, paymentTermsId, shippingTermId]);
+  }, []);
 
   useEffect(() => {
     void loadFormData();

@@ -1751,259 +1751,260 @@ export default function FinanceQuotationDetailPage() {
                   <div>
                     <div className="flex items-center gap-3">
                       <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                        <SquarePen className="h-4 w-4" />
+                        <FileText className="h-4 w-4" />
                       </div>
                       <div>
                         <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
                           Document Overview
                         </CardTitle>
                         <CardDescription className="mt-1 text-xs text-slate-500">
-                          Commercial header, project references, currency, dates,
-                          and quotation lifecycle state.
+                          Quotation commercial details, dates, currency, project links, and notes.
                         </CardDescription>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    {editingOverview ? (
-                      <Button
-                        onClick={() => void handleSaveDraftChanges()}
-                        disabled={isSavingDraft}
-                        className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
-                      >
-                        <Save className="mr-2 h-4 w-4" />
-                        {isSavingDraft ? "Saving..." : "Save"}
-                      </Button>
-                    ) : null}
+                  {canEditQuotation ? (
+                    <div className="flex items-center gap-2">
+                      {editingOverview ? (
+                        <>
+                          <Button
+                            onClick={() => void handleSaveDraftChanges()}
+                            disabled={isSavingDraft}
+                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
+                          >
+                            <Save className="mr-2 h-4 w-4" />
+                            {isSavingDraft ? "Saving..." : "Save"}
+                          </Button>
 
-                    {canEditQuotation ? (
-                      <Button
-                        variant="outline"
-                        onClick={() => setEditingOverview((current) => !current)}
-                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                      >
-                        <SquarePen className="mr-2 h-4 w-4" />
-                        {editingOverview ? "Close" : "Edit"}
-                      </Button>
-                    ) : null}
-                  </div>
+                          <Button
+                            variant="outline"
+                            onClick={() => setEditingOverview(false)}
+                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={() => setEditingOverview(true)}
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                        >
+                          <SquarePen className="mr-2 h-4 w-4" />
+                          Edit
+                        </Button>
+                      )}
+                    </div>
+                  ) : null}
                 </CardHeader>
 
                 <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                  {editingOverview ? (
-                    <>
-                      <label className="space-y-2">
-                        <div className={labelClass}>Issuing Company</div>
-                        <select
-                          value={companyIdDraft}
-                          onChange={(event) => setCompanyIdDraft(event.target.value)}
-                          className={fieldShellClass}
-                        >
-                          <option value="">Select company</option>
-                          {companies.map((company) => (
-                            <option key={company.id} value={company.id}>
-                              {company.legal_name || company.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Quotation No.
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {quotation.quotation_number || "Pending"}
+                    </div>
+                  </div>
 
-                      <label className="space-y-2">
-                        <div className={labelClass}>Client</div>
-                        <select
-                          value={clientIdDraft}
-                          onChange={(event) => setClientIdDraft(event.target.value)}
-                          className={fieldShellClass}
-                        >
-                          <option value="">Select client</option>
-                          {clients.map((client) => (
-                            <option key={client.id} value={client.id}>
-                              {client.legal_name || client.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                                            <label className="space-y-2">
-                        <div className={labelClass}>Project</div>
-                        <select
-                          value={projectIdDraft}
-                          onChange={(event) => setProjectIdDraft(event.target.value)}
-                          className={fieldShellClass}
-                        >
-                          <option value="">No project</option>
-                          {projects.map((projectItem) => (
-                            <option key={projectItem.id} value={projectItem.id}>
-                              {projectItem.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="space-y-2">
-                        <div className={labelClass}>Task</div>
-                        <select
-                          value={taskIdDraft}
-                          onChange={(event) => setTaskIdDraft(event.target.value)}
-                          className={fieldShellClass}
-                        >
-                          <option value="">No task</option>
-                          {filteredDraftTasks.map((taskItem) => (
-                            <option key={taskItem.id} value={taskItem.id}>
-                              {taskItem.title}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="space-y-2">
-                        <div className={labelClass}>Issue Date</div>
-                        <input
-                          type="date"
-                          value={issueDateDraft}
-                          onChange={(event) => setIssueDateDraft(event.target.value)}
-                          className={fieldShellClass}
-                        />
-                      </label>
-
-                      <label className="space-y-2">
-                        <div className={labelClass}>Valid Until</div>
-                        <input
-                          type="date"
-                          value={validUntilDraft}
-                          onChange={(event) => setValidUntilDraft(event.target.value)}
-                          className={fieldShellClass}
-                        />
-                      </label>
-
-                      <label className="space-y-2">
-                        <div className={labelClass}>Currency</div>
-                        <select
-                          value={currencyIdDraft}
-                          onChange={(event) => setCurrencyIdDraft(event.target.value)}
-                          className={fieldShellClass}
-                        >
-                          <option value="">Select currency</option>
-                          {currencies.map((currency) => (
-                            <option key={currency.id} value={currency.id}>
-                              {currency.currency_code} — {currency.currency_name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <div className={innerPanelClass}>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Status
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {getQuotationStatusLabel(quotation.status)}
-                        </div>
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Issuing Company
+                    </div>
+                    {editingOverview ? (
+                      <select
+                        value={companyIdDraft}
+                        onChange={(event) => setCompanyIdDraft(event.target.value)}
+                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                      >
+                        <option value="">Select company</option>
+                        {companies.map((company) => (
+                          <option key={company.id} value={company.id}>
+                            {company.legal_name || company.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {selectedDraftCompany?.legal_name ||
+                          selectedDraftCompany?.name ||
+                          quotation.company_name_snapshot ||
+                          "—"}
                       </div>
+                    )}
+                  </div>
 
-                      <div className="md:col-span-3">
-                        <div className={labelClass}>Notes</div>
-                        <textarea
-                          value={notesDraft}
-                          onChange={(event) => setNotesDraft(event.target.value)}
-                          rows={4}
-                          className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
-                        />
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Client
+                    </div>
+                    {editingOverview ? (
+                      <select
+                        value={clientIdDraft}
+                        onChange={(event) => setClientIdDraft(event.target.value)}
+                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                      >
+                        <option value="">Select client</option>
+                        {clients.map((client) => (
+                          <option key={client.id} value={client.id}>
+                            {client.legal_name || client.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {selectedDraftClient?.legal_name ||
+                          selectedDraftClient?.name ||
+                          quotation.client_name_snapshot ||
+                          "—"}
                       </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className={innerPanelClass}>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Issuing Company
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {selectedDraftCompany?.legal_name ||
-                            selectedDraftCompany?.name ||
-                            quotation.company_name_snapshot ||
-                            "—"}
-                        </div>
-                      </div>
+                    )}
+                  </div>
 
-                      <div className={innerPanelClass}>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Client
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {selectedDraftClient?.legal_name ||
-                            selectedDraftClient?.name ||
-                            quotation.client_name_snapshot ||
-                            "—"}
-                        </div>
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Issue Date
+                    </div>
+                    {editingOverview ? (
+                      <input
+                        type="date"
+                        value={issueDateDraft}
+                        onChange={(event) => setIssueDateDraft(event.target.value)}
+                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                      />
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {formatFinanceDate(quotation.issue_date)}
                       </div>
+                    )}
+                  </div>
 
-                      <div className={innerPanelClass}>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Issue Date
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {formatFinanceDate(quotation.issue_date)}
-                        </div>
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Valid Until
+                    </div>
+                    {editingOverview ? (
+                      <input
+                        type="date"
+                        value={validUntilDraft}
+                        onChange={(event) => setValidUntilDraft(event.target.value)}
+                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                      />
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {formatFinanceDate(quotation.valid_until)}
                       </div>
+                    )}
+                  </div>
 
-                      <div className={innerPanelClass}>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Valid Until
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {formatFinanceDate(quotation.valid_until)}
-                        </div>
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Currency
+                    </div>
+                    {editingOverview ? (
+                      <select
+                        value={currencyIdDraft}
+                        onChange={(event) => setCurrencyIdDraft(event.target.value)}
+                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                      >
+                        <option value="">Select currency</option>
+                        {currencies.map((currency) => (
+                          <option key={currency.id} value={currency.id}>
+                            {currency.currency_code} — {currency.currency_name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {selectedDraftCurrency
+                          ? `${selectedDraftCurrency.currency_code} — ${selectedDraftCurrency.currency_name}`
+                          : quotation.currency_code || "USD"}
                       </div>
+                    )}
+                  </div>
 
-                      <div className={innerPanelClass}>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Currency
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {selectedDraftCurrency
-                            ? `${selectedDraftCurrency.currency_code} — ${selectedDraftCurrency.currency_name}`
-                            : quotation.currency_code || "USD"}
-                        </div>
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Project
+                    </div>
+                    {editingOverview ? (
+                      <select
+                        value={projectIdDraft}
+                        onChange={(event) => setProjectIdDraft(event.target.value)}
+                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                      >
+                        <option value="">No project</option>
+                        {projects.map((projectItem) => (
+                          <option key={projectItem.id} value={projectItem.id}>
+                            {projectItem.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {selectedDraftProject?.name || "—"}
                       </div>
+                    )}
+                  </div>
 
-                      <div className={innerPanelClass}>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Project
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {selectedDraftProject?.name || "—"}
-                        </div>
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Task
+                    </div>
+                    {editingOverview ? (
+                      <select
+                        value={taskIdDraft}
+                        onChange={(event) => setTaskIdDraft(event.target.value)}
+                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                      >
+                        <option value="">No task</option>
+                        {filteredDraftTasks.map((taskItem) => (
+                          <option key={taskItem.id} value={taskItem.id}>
+                            {taskItem.title}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {selectedDraftTask?.title || "—"}
                       </div>
+                    )}
+                  </div>
 
-                      <div className={innerPanelClass}>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Task
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {selectedDraftTask?.title || "—"}
-                        </div>
-                      </div>
+                  <div className={innerPanelClass}>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Status
+                    </div>
+                    <div className="mt-2">
+                      <Badge
+                        className={`rounded-full border px-3 py-1 text-xs shadow-none ${getQuotationStatusBadgeClasses(
+                          quotation.status
+                        )}`}
+                      >
+                        {getQuotationStatusLabel(quotation.status)}
+                      </Badge>
+                    </div>
+                  </div>
 
-                      <div className={innerPanelClass}>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Status
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {getQuotationStatusLabel(quotation.status)}
-                        </div>
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                      Notes
+                    </div>
+                    {editingOverview ? (
+                      <textarea
+                        value={notesDraft}
+                        onChange={(event) => setNotesDraft(event.target.value)}
+                        rows={4}
+                        className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                      />
+                    ) : (
+                      <div className="mt-2 text-sm leading-6 text-slate-300">
+                        {quotation.notes || "—"}
                       </div>
-
-                      <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Notes
-                        </div>
-                        <div className="mt-2 text-sm leading-6 text-slate-300">
-                          {quotation.notes || "—"}
-                        </div>
-                      </div>
-                    </>
-                  )}
+                    )}
+                  </div>
                 </CardContent>
               </Card>
 

@@ -286,35 +286,6 @@ function getBankIdentifier(bank: BankAccountOption | null) {
   return null;
 }
 
-function getBankIdentifier(bank: BankAccountOption | null) {
-  if (!bank) return null;
-
-  if (bank.iban) {
-    return {
-      label: "IBAN",
-      value: bank.iban,
-    };
-  }
-
-  if (bank.swift_code) {
-    return {
-      label: "SWIFT",
-      value: bank.swift_code,
-    };
-  }
-
-  if (bank.identifier_value) {
-    const normalizedType = (bank.identifier_type || "").toLowerCase();
-
-    return {
-      label: normalizedType === "swift" ? "SWIFT" : "Identifier",
-      value: bank.identifier_value,
-    };
-  }
-
-  return null;
-}
-
 export default function FinanceNewProformaInvoicePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();

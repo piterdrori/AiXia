@@ -297,39 +297,6 @@ function getBankIdentifier(bank: BankAccountOption | null) {
   return null;
 }
 
-function getClientAddress(client: ClientOption | null) {
-  if (!client) return "—";
-
-  return (
-    [
-      client.address_line_1,
-      client.address_line_2,
-      client.city,
-      client.state_province,
-      client.postal_code,
-      client.country,
-    ]
-      .filter(Boolean)
-      .join(", ") || "—"
-  );
-}
-
-function getBankAddress(bank: BankAccountOption | null) {
-  if (!bank) return "—";
-
-  return (
-    [
-      bank.address_line_1,
-      bank.address_line_2,
-      bank.city,
-      bank.postal_code,
-      bank.country,
-    ]
-      .filter(Boolean)
-      .join(", ") || "—"
-  );
-}
-
 export default function FinanceNewProformaInvoicePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();

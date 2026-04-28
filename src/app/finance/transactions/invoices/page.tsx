@@ -67,7 +67,7 @@ type InvoiceSortKey =
   | "balance_due"
   | "status"
   | "payment_status"
-  | "updated_at";
+  | "created_at";
 
 type SortDirection = "asc" | "desc";
 
@@ -232,8 +232,8 @@ function getSortValue(invoice: FinanceIssuedInvoiceListRow, key: InvoiceSortKey)
       return String(invoice.status || "").toLowerCase();
     case "payment_status":
       return String(invoice.payment_status || "").toLowerCase();
-    case "updated_at":
-      return invoice.updated_at ? new Date(invoice.updated_at).getTime() : 0;
+    case "created_at":
+      return invoice.created_at ? new Date(invoice.created_at).getTime() : 0;
     default:
       return "";
   }
@@ -290,7 +290,7 @@ export default function FinanceInvoicesPage() {
   >([]);
   const [isArchiveLoading, setIsArchiveLoading] = useState(false);
 
-  const [sortKey, setSortKey] = useState<InvoiceSortKey>("updated_at");
+  const [sortKey, setSortKey] = useState<InvoiceSortKey>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   const loadPermissions = useCallback(async () => {
@@ -456,7 +456,7 @@ export default function FinanceInvoicesPage() {
     }
 
     setSortKey(key);
-    setSortDirection(key === "updated_at" ? "desc" : "asc");
+    setSortDirection(key === "created_at" ? "desc" : "asc");
   };
 
   const filteredInvoices = useMemo(() => {
@@ -467,8 +467,8 @@ export default function FinanceInvoicesPage() {
     }
 
     return invoices.filter((invoice) => {
-      const postingStatus = getInvoicePostingStatus(invoice);
-      const overdue = isInvoiceOverdue(invoice);
+      const postingStatus = getInvoicePostingStatus(invoice as any);
+      const overdue = isInvoiceOverdue(invoice as any);
 
       return (
         (invoice.invoice_number || "").toLowerCase().includes(normalizedSearch) ||
@@ -507,12 +507,12 @@ export default function FinanceInvoicesPage() {
 
   const sortedVisibleArchivedInvoices = useMemo(() => {
     return [...visibleArchivedInvoices].sort((first, second) => {
-      const firstUpdated = first.updated_at ? new Date(first.updated_at).getTime() : 0;
-      const secondUpdated = second.updated_at
-        ? new Date(second.updated_at).getTime()
+      const firstCreated = first.created_at ? new Date(first.created_at).getTime() : 0;
+      const secondCreated = second.created_at
+        ? new Date(second.created_at).getTime()
         : 0;
 
-      return secondUpdated - firstUpdated;
+      return secondCreated - firstCreated;
     });
   }, [visibleArchivedInvoices]);
 
@@ -820,8 +820,8 @@ export default function FinanceInvoicesPage() {
                         </th>
                         <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
                           <SortHeader
-                            label="Updated"
-                            sortKey="updated_at"
+                            label="Created"
+                            sortKey="created_at"
                             activeSortKey={sortKey}
                             sortDirection={sortDirection}
                             onSort={handleSort}
@@ -854,7 +854,7 @@ export default function FinanceInvoicesPage() {
                         </tr>
                       ) : (
                         sortedInvoices.map((invoice) => {
-                          const displayState = getInvoiceDisplayState(invoice);
+                          const displayState = getInvoiceDisplayState(invoice as any);
 
                           return (
                             <tr
@@ -934,7 +934,7 @@ export default function FinanceInvoicesPage() {
                               </td>
 
                               <td className="px-5 py-4">
-                                {formatFinanceDate(invoice.updated_at)}
+                                {formatFinanceDate(invoice.created_at)}
                               </td>
 
                               <td className="px-5 py-4">
@@ -1121,7 +1121,7 @@ export default function FinanceInvoicesPage() {
                               </td>
 
                               <td className="px-5 py-4">
-                                {formatFinanceDate(invoice.updated_at)}
+                                {formatFinanceDate(invoice.created_at)}
                               </td>
 
                               <td className="px-5 py-4">

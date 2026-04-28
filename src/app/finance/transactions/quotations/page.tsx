@@ -908,7 +908,7 @@ export default function FinanceQuotationsPage() {
 
         {isArchiveModalOpen ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
-            <div className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+            <div className="flex max-h-[85vh] w-full max-w-6xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
               <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
                 <div>
                   <div className="text-lg font-semibold text-white">
@@ -966,107 +966,115 @@ export default function FinanceQuotationsPage() {
                   </div>
                 ) : (
                   <div className="overflow-x-auto rounded-[24px] border border-white/10">
-                    <table className="w-full min-w-[1100px] border-collapse">
-                      <thead>
-                        <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                          <th className="px-5 py-4 font-semibold">
-                            Quotation No.
-                          </th>
-                          <th className="px-5 py-4 font-semibold">Client</th>
-                          <th className="px-5 py-4 font-semibold">
-                            Issue Date
-                          </th>
-                          <th className="px-5 py-4 text-right font-semibold">
-                            Total
-                          </th>
-                          <th className="px-5 py-4 font-semibold">Status</th>
-                          <th className="px-5 py-4 font-semibold">Updated</th>
-                          <th className="px-5 py-4 text-right font-semibold">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
+                    <div className="max-h-[720px] overflow-y-auto">
+                      <table className="w-full min-w-[1100px] border-collapse">
+                        <thead>
+                          <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Quotation No.
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Client
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Issue Date
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
+                              Total
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Status
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Updated
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
 
-                      <tbody className="divide-y divide-white/5">
-                        {visibleArchivedQuotations.map((quotation) => (
-                          <tr
-                            key={quotation.id}
-                            className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                          >
-                            <td className="px-5 py-4 font-semibold text-white">
-                              {quotation.quotation_number || "Quotation"}
-                            </td>
+                        <tbody className="divide-y divide-white/5">
+                          {visibleArchivedQuotations.map((quotation) => (
+                            <tr
+                              key={quotation.id}
+                              className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
+                            >
+                              <td className="px-5 py-4 font-semibold text-white">
+                                {quotation.quotation_number || "Quotation"}
+                              </td>
 
-                            <td className="px-5 py-4">
-                              {quotation.client_name_snapshot ||
-                                quotation.company_name_snapshot ||
-                                "—"}
-                            </td>
+                              <td className="px-5 py-4">
+                                {quotation.client_name_snapshot ||
+                                  quotation.company_name_snapshot ||
+                                  "—"}
+                              </td>
 
-                            <td className="px-5 py-4">
-                              {formatFinanceDate(quotation.issue_date)}
-                            </td>
+                              <td className="px-5 py-4">
+                                {formatFinanceDate(quotation.issue_date)}
+                              </td>
 
-                            <td className="px-5 py-4 text-right font-semibold text-white">
-                              {formatFinanceMoney(
-                                quotation.total_amount,
-                                quotation.currency_code || "USD"
-                              )}
-                            </td>
+                              <td className="px-5 py-4 text-right font-semibold text-white">
+                                {formatFinanceMoney(
+                                  quotation.total_amount,
+                                  quotation.currency_code || "USD"
+                                )}
+                              </td>
 
-                            <td className="px-5 py-4">
-                              <Badge
-                                className={`rounded-full border px-3 py-1 text-xs shadow-none ${getQuotationStatusBadgeClasses(
-                                  quotation.status
-                                )}`}
-                              >
-                                {getQuotationStatusLabel(quotation.status)}
-                              </Badge>
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {formatFinanceDate(quotation.updated_at)}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  variant="outline"
-                                  onClick={() =>
-                                    navigate(
-                                      `/finance/transactions/quotations/${quotation.id}`
-                                    )
-                                  }
-                                  className="h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
+                              <td className="px-5 py-4">
+                                <Badge
+                                  className={`rounded-full border px-3 py-1 text-xs shadow-none ${getQuotationStatusBadgeClasses(
+                                    quotation.status
+                                  )}`}
                                 >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
+                                  {getQuotationStatusLabel(quotation.status)}
+                                </Badge>
+                              </td>
 
-                                <Button
-                                  variant="outline"
-                                  onClick={() => void handleRestore(quotation.id)}
-                                  className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
-                                >
-                                  <RotateCcw className="h-4 w-4" />
-                                </Button>
+                              <td className="px-5 py-4">
+                                {formatFinanceDate(quotation.updated_at)}
+                              </td>
 
-                                {archiveTab === "deleted" ? (
+                              <td className="px-5 py-4">
+                                <div className="flex justify-end gap-2">
                                   <Button
                                     variant="outline"
                                     onClick={() =>
-                                      void handleHardDelete(quotation.id)
+                                      navigate(
+                                        `/finance/transactions/quotations/${quotation.id}`
+                                      )
                                     }
-                                    className="h-9 rounded-2xl border-rose-500/30 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                    className="h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
                                   >
-                                    <Trash2 className="h-4 w-4" />
+                                    <Eye className="h-4 w-4" />
                                   </Button>
-                                ) : null}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => void handleRestore(quotation.id)}
+                                    className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+                                  >
+                                    <RotateCcw className="h-4 w-4" />
+                                  </Button>
+
+                                  {archiveTab === "deleted" ? (
+                                    <Button
+                                      variant="outline"
+                                      onClick={() =>
+                                        void handleHardDelete(quotation.id)
+                                      }
+                                      className="h-9 rounded-2xl border-rose-500/30 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </div>

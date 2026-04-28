@@ -2417,8 +2417,6 @@ export default function FinanceProformaInvoiceDetailPage() {
                 </CardContent>
               </Card>
 
-              </Card>
-
               <Card className={sectionCardClass}>
                 <CardHeader className="border-b border-white/10 px-5 py-4">
                   <div className="flex items-start justify-between gap-4">

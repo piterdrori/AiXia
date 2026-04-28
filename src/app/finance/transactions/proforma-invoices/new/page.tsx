@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
+import {
+  ArrowRight,
+  FileText,
+  Plus,
+  Save,
+  SquarePen,
+  Trash2,
+  Wallet,
+} from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -154,8 +162,8 @@ function createRow(): ProformaItemRow {
   };
 }
 
-function toNumber(value: string) {
-  const parsed = Number(value);
+function toNumber(value: string | number | null | undefined) {
+  const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
@@ -166,6 +174,23 @@ function formatMoney(value: number, currencyCode = "USD") {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function getCompanyAddress(company: CompanyOption | null) {
+  if (!company) return "—";
+
+  return (
+    [
+      company.address_line_1,
+      company.address_line_2,
+      company.city,
+      company.state_province,
+      company.postal_code,
+      company.country,
+    ]
+      .filter(Boolean)
+      .join(", ") || "—"
+  );
 }
 
 export default function FinanceNewProformaInvoicePage() {
@@ -217,6 +242,21 @@ export default function FinanceNewProformaInvoicePage() {
     [companies, companyId]
   );
 
+  const selectedCurrency = useMemo(
+    () => currencies.find((currency) => currency.id === currencyId) ?? null,
+    [currencies, currencyId]
+  );
+
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === projectId) ?? null,
+    [projectId, projects]
+  );
+
+  const selectedTask = useMemo(
+    () => tasks.find((task) => task.id === taskId) ?? null,
+    [taskId, tasks]
+  );
+
   const filteredTasks = useMemo(() => {
     if (!projectId) {
       return tasks;
@@ -225,11 +265,6 @@ export default function FinanceNewProformaInvoicePage() {
     return tasks.filter((task) => task.project_id === projectId);
   }, [projectId, tasks]);
 
-  const selectedCurrency = useMemo(
-    () => currencies.find((currency) => currency.id === currencyId) ?? null,
-    [currencies, currencyId]
-  );
-
   useEffect(() => {
     if (!selectedClient) {
       return;
@@ -237,9 +272,11 @@ export default function FinanceNewProformaInvoicePage() {
 
     if (selectedClient.currency_code) {
       setCurrencyCode(selectedClient.currency_code);
+
       const matchedCurrency = currencies.find(
         (entry) => entry.currency_code === selectedClient.currency_code
       );
+
       if (matchedCurrency) {
         setCurrencyId(matchedCurrency.id);
       }
@@ -253,6 +290,7 @@ export default function FinanceNewProformaInvoicePage() {
     }
   }, [currencies, issueDate, selectedClient, validUntil]);
 
+
   useEffect(() => {
     if (!companyId) return;
 
@@ -260,6 +298,7 @@ export default function FinanceNewProformaInvoicePage() {
       const matchedCurrency = currencies.find(
         (entry) => entry.currency_code === selectedCompany.currency_code
       );
+
       if (matchedCurrency) {
         setCurrencyId(matchedCurrency.id);
         setCurrencyCode(matchedCurrency.currency_code);
@@ -273,7 +312,9 @@ export default function FinanceNewProformaInvoicePage() {
       return;
     }
 
-    const matchingTaskStillValid = filteredTasks.some((task) => task.id === taskId);
+    const matchingTaskStillValid = filteredTasks.some(
+      (task) => task.id === taskId
+    );
 
     if (!matchingTaskStillValid) {
       setTaskId("");
@@ -324,7 +365,9 @@ export default function FinanceNewProformaInvoicePage() {
 
         supabase
           .from("finance_currencies")
-          .select("id, currency_code, currency_name, currency_symbol, is_base_currency")
+          .select(
+            "id, currency_code, currency_name, currency_symbol, is_base_currency"
+          )
           .eq("status", "active")
           .order("currency_code", { ascending: true }),
 
@@ -373,7 +416,9 @@ export default function FinanceNewProformaInvoicePage() {
       setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
       setItems((itemsResult.data || []) as ItemOption[]);
       setTaxCodes((taxCodesResult.data || []) as TaxCodeOption[]);
-      setUnitsOfMeasure((unitsOfMeasureResult.data || []) as UnitOfMeasureOption[]);
+      setUnitsOfMeasure(
+        (unitsOfMeasureResult.data || []) as UnitOfMeasureOption[]
+      );
       setRevenueCategories(
         (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
       );
@@ -389,14 +434,19 @@ export default function FinanceNewProformaInvoicePage() {
 
         if (customerPoError) throw customerPoError;
 
-        const typedCustomerPo = (customerPoData || null) as CustomerPoSource | null;
+        const typedCustomerPo =
+          (customerPoData || null) as CustomerPoSource | null;
 
         if (!typedCustomerPo) {
           setErrorMessage("Customer PO source was not found.");
         } else if (typedCustomerPo.status !== "received") {
-          setErrorMessage("Customer PO must be marked as received before creating a proforma invoice.");
+          setErrorMessage(
+            "Customer PO must be marked as received before creating a proforma invoice."
+          );
         } else if (typedCustomerPo.proforma_invoice_id) {
-          navigate(`/finance/transactions/proforma-invoices/${typedCustomerPo.proforma_invoice_id}`);
+          navigate(
+            `/finance/transactions/proforma-invoices/${typedCustomerPo.proforma_invoice_id}`
+          );
           return;
         } else {
           setSourceCustomerPo(typedCustomerPo);
@@ -438,7 +488,8 @@ export default function FinanceNewProformaInvoicePage() {
 
           if (customerPoLinesError) throw customerPoLinesError;
 
-          const customerPoLines = (customerPoLinesData || []) as CustomerPoLineSource[];
+          const customerPoLines =
+            (customerPoLinesData || []) as CustomerPoLineSource[];
 
           if (customerPoLines.length > 0) {
             setRows(
@@ -485,7 +536,6 @@ export default function FinanceNewProformaInvoicePage() {
     }
   }, [companyId, navigate, sourceClientPoId]);
 
-
   useEffect(() => {
     void loadFormData();
   }, [loadFormData]);
@@ -500,7 +550,8 @@ export default function FinanceNewProformaInvoicePage() {
 
     const tax = rows.reduce((sum, row) => {
       const base = Math.max(
-        toNumber(row.quantity) * toNumber(row.unitPrice) - toNumber(row.discount),
+        toNumber(row.quantity) * toNumber(row.unitPrice) -
+          toNumber(row.discount),
         0
       );
 
@@ -589,228 +640,395 @@ export default function FinanceNewProformaInvoicePage() {
   }, []);
 
   const handleSaveDraft = useCallback(async () => {
-  setErrorMessage("");
+    setErrorMessage("");
 
-  if (!clientId) {
-    setErrorMessage("Select a client.");
-    return;
-  }
+    if (!clientId) {
+      setErrorMessage("Select a client.");
+      return;
+    }
 
-  if (!companyId) {
-    setErrorMessage("Select an issuing company.");
-    return;
-  }
+    if (!companyId) {
+      setErrorMessage("Select an issuing company.");
+      return;
+    }
 
-  const trimmedRows = rows.map((row) => ({
-    ...row,
-    description: row.description.trim(),
-  }));
+    const trimmedRows = rows.map((row) => ({
+      ...row,
+      description: row.description.trim(),
+    }));
 
-  const hasAtLeastOneValidRow = trimmedRows.some(
-    (row) =>
-      row.description &&
-      toNumber(row.quantity) > 0 &&
-      toNumber(row.unitPrice) >= 0
-  );
-
-  if (!hasAtLeastOneValidRow) {
-    setErrorMessage("Add at least one valid line item.");
-    return;
-  }
-
-  const hasInvalidRow = trimmedRows.some(
-    (row) =>
-      !row.description ||
-      toNumber(row.quantity) <= 0 ||
-      toNumber(row.unitPrice) < 0
-  );
-
-  if (hasInvalidRow) {
-    setErrorMessage(
-      "Every line item must have a description, quantity greater than 0, and unit price 0 or higher."
+    const hasAtLeastOneValidRow = trimmedRows.some(
+      (row) =>
+        row.description &&
+        toNumber(row.quantity) > 0 &&
+        toNumber(row.unitPrice) >= 0
     );
-    return;
-  }
 
-  const validRows = trimmedRows;
+    if (!hasAtLeastOneValidRow) {
+      setErrorMessage("Add at least one valid line item.");
+      return;
+    }
 
-  setIsSaving(true);
+    const hasInvalidRow = trimmedRows.some(
+      (row) =>
+        !row.description ||
+        toNumber(row.quantity) <= 0 ||
+        toNumber(row.unitPrice) < 0
+    );
 
-  try {
-    const { data, error } = await supabase.rpc(
-      "finance_create_proforma_invoice",
-      {
-        p_client_id: clientId,
-        p_issue_date: issueDate,
-        p_valid_until: validUntil || null,
-        p_currency_id: currencyId || null,
-        p_project_id: projectId || null,
-        p_task_id: taskId || null,
-        p_notes: notes || null,
-        p_metadata: {
-          currency_code: currencyCode || "USD",
-          issuing_company_id: companyId,
-          creation_mode: sourceCustomerPo ? "customer_po_prefill" : "manual_draft",
-          client_po_id: sourceCustomerPo?.id || null,
-          client_po_number: sourceCustomerPo?.client_po_number || null,
-          external_po_number: sourceCustomerPo?.external_po_number || null,
-          quotation_id: sourceCustomerPo?.quotation_id || null,
-        },
-        p_lines: validRows.map((row) => ({
-          item_id: row.itemId || null,
-          description: row.description.trim(),
-          quantity: toNumber(row.quantity),
-          unit_price: toNumber(row.unitPrice),
-          discount: toNumber(row.discount),
-          tax_code_id: row.taxCodeId || null,
-          unit_of_measure_id: row.unitOfMeasureId || null,
-          revenue_category_id: row.revenueCategoryId || null,
-        })),
+    if (hasInvalidRow) {
+      setErrorMessage(
+        "Every line item must have a description, quantity greater than 0, and unit price 0 or higher."
+      );
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const { data, error } = await supabase.rpc(
+        "finance_create_proforma_invoice",
+        {
+          p_client_id: clientId,
+          p_issue_date: issueDate,
+          p_valid_until: validUntil || null,
+          p_currency_id: currencyId || null,
+          p_project_id: projectId || null,
+          p_task_id: taskId || null,
+          p_notes: notes || null,
+          p_metadata: {
+            currency_code: currencyCode || "USD",
+            issuing_company_id: companyId,
+            creation_mode: sourceCustomerPo
+              ? "customer_po_prefill"
+              : "manual_draft",
+            client_po_id: sourceCustomerPo?.id || null,
+            client_po_number: sourceCustomerPo?.client_po_number || null,
+            external_po_number: sourceCustomerPo?.external_po_number || null,
+            quotation_id: sourceCustomerPo?.quotation_id || null,
+          },
+          p_lines: trimmedRows.map((row) => ({
+            item_id: row.itemId || null,
+            description: row.description.trim(),
+            quantity: toNumber(row.quantity),
+            unit_price: toNumber(row.unitPrice),
+            discount: toNumber(row.discount),
+            tax_code_id: row.taxCodeId || null,
+            unit_of_measure_id: row.unitOfMeasureId || null,
+            revenue_category_id: row.revenueCategoryId || null,
+          })),
+        }
+      );
+
+      if (error) throw error;
+
+      if (!data) {
+        throw new Error("Proforma invoice was not created");
       }
+
+      if (sourceCustomerPo) {
+        const userResult = await supabase.auth.getUser();
+
+        const { error: proformaLinkError } = await supabase
+          .from("finance_proforma_invoices")
+          .update({
+            company_id: companyId || null,
+            quotation_id: sourceCustomerPo.quotation_id || null,
+            client_po_id: sourceCustomerPo.id,
+            currency_code:
+              currencyCode || sourceCustomerPo.currency_code || "USD",
+            updated_by: userResult.data.user?.id || null,
+          })
+          .eq("id", data);
+
+        if (proformaLinkError) throw proformaLinkError;
+
+        const { error: customerPoLinkError } = await supabase
+          .from("finance_client_purchase_orders")
+          .update({
+            proforma_invoice_id: data,
+            status: "linked_to_pi",
+            linked_to_pi_at: new Date().toISOString(),
+            updated_by: userResult.data.user?.id || null,
+          })
+          .eq("id", sourceCustomerPo.id);
+
+        if (customerPoLinkError) throw customerPoLinkError;
+      }
+
+      navigate(`/finance/transactions/proforma-invoices/${data}`);
+    } catch (error) {
+      console.error("Failed to save proforma invoice draft:", error);
+      setErrorMessage("Failed to save proforma invoice draft.");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [
+    clientId,
+    companyId,
+    currencyCode,
+    currencyId,
+    issueDate,
+    navigate,
+    notes,
+    projectId,
+    rows,
+    sourceCustomerPo,
+    taskId,
+    validUntil,
+  ]);
+
+  const activeSectionClass =
+    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
+
+  const summaryBlockClass =
+    "rounded-[24px] border border-white/10 bg-black/20 p-4";
+
+  const fieldShellClass =
+    "mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
+
+  const inputFieldClass =
+    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
+
+  const labelClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
+
+  const inputLabelClass = "text-sm font-medium text-slate-300";
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
+            Loading proforma invoice sources...
+          </div>
+        </div>
+      </div>
     );
-
-    if (error) throw error;
-    if (!data) {
-      throw new Error("Proforma invoice was not created");
-    }
-
-    if (sourceCustomerPo) {
-      const userId = await supabase.auth.getUser();
-
-      const { error: proformaLinkError } = await supabase
-        .from("finance_proforma_invoices")
-        .update({
-          company_id: companyId || null,
-          quotation_id: sourceCustomerPo.quotation_id || null,
-          client_po_id: sourceCustomerPo.id,
-          currency_code: currencyCode || sourceCustomerPo.currency_code || "USD",
-          updated_by: userId.data.user?.id || null,
-        })
-        .eq("id", data);
-
-      if (proformaLinkError) throw proformaLinkError;
-
-      const { error: customerPoLinkError } = await supabase
-        .from("finance_client_purchase_orders")
-        .update({
-          proforma_invoice_id: data,
-          status: "linked_to_pi",
-          linked_to_pi_at: new Date().toISOString(),
-          updated_by: userId.data.user?.id || null,
-        })
-        .eq("id", sourceCustomerPo.id);
-
-      if (customerPoLinkError) throw customerPoLinkError;
-    }
-
-    navigate(`/finance/transactions/proforma-invoices/${data}`);
-  } catch (error) {
-    console.error("Failed to save proforma invoice draft:", error);
-    setErrorMessage("Failed to save proforma invoice draft.");
-  } finally {
-    setIsSaving(false);
   }
-}, [
-  clientId,
-  companyId,
-  currencyCode,
-  currencyId,
-  issueDate,
-  navigate,
-  notes,
-  projectId,
-  rows,
-  sourceCustomerPo,
-  taskId,
-  validUntil,
-]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
-      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
-        <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6 xl:p-7">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_35%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_24%)]" />
-          <div className="relative flex flex-col gap-6">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-              <div className="max-w-3xl space-y-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.24em] text-white/70 shadow-none">
-                    Receivables
-                  </Badge>
+    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
 
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    New proforma draft
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => navigate("/finance/transactions/proforma-invoices")}
+              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+            >
+              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+              Proforma Invoices
+            </button>
+
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
+              <div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                    New Proforma Invoice
                   </Badge>
 
                   {sourceCustomerPo ? (
-                    <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-emerald-200 shadow-none">
-                      From Customer PO {sourceCustomerPo.client_po_number || sourceCustomerPo.external_po_number}
+                    <Badge className="inline-flex w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200 shadow-none">
+                      From Customer PO{" "}
+                      {sourceCustomerPo.client_po_number ||
+                        sourceCustomerPo.external_po_number}
                     </Badge>
                   ) : null}
                 </div>
 
-                <div className="space-y-3">
-                  <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                    Create Proforma Invoice Draft
-                  </h1>
-                  <div className="text-sm text-white/45">
-                    Build a commercial pre-invoice draft from master data, then
-                    send, accept, and convert it later from the proforma detail page.
-                  </div>
+                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                  Create Proforma Invoice Draft
+                </h1>
+
+                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                  Create a draft proforma invoice from master data or from a
+                  customer PO. Sending, acceptance, conversion, archive, and
+                  delete actions happen later from the proforma detail workflow.
+                </p>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200 shadow-none">
+                    Draft only
+                  </Badge>
+                  <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 shadow-none">
+                    Customer PO prefill supported
+                  </Badge>
+                  <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
+                    No manual refresh
+                  </Badge>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-3 xl:justify-end">
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    navigate("/finance/transactions/proforma-invoices")
-                  }
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back
-                </Button>
+                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Client
+                      </p>
+                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                        {selectedClient?.legal_name || selectedClient?.name || "—"}
+                      </p>
+                    </div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    Client selected for this proforma invoice draft.
+                  </p>
+                </div>
 
-                <Button
-                  variant="outline"
-                  onClick={() => void loadFormData()}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Refresh Sources
-                </Button>
+                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Draft Total
+                      </p>
+                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                        {formatMoney(totals.total, currencyCode)}
+                      </p>
+                    </div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                      <Wallet className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    Live total from the draft line items before saving.
+                  </p>
+                </div>
+              </div>
+            </div>
 
-                <Button
-                  onClick={() => void handleSaveDraft()}
-                  disabled={isSaving || isLoading}
-                  className="h-11 rounded-2xl px-4"
-                >
-                  <Save className="mr-2 h-4 w-4" />
-                  {isSaving ? "Saving..." : "Save Draft"}
-                </Button>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button
+                onClick={() => void handleSaveDraft()}
+                disabled={isSaving || isLoading}
+                className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Save className="mr-2 h-4 w-4" />
+                {isSaving ? "Saving..." : "Save Draft"}
+              </Button>
+
+              {errorMessage ? (
+                <div className="flex min-h-11 items-center rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm text-rose-200">
+                  {errorMessage}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </header>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Subtotal
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
+                  {formatMoney(totals.subtotal, currencyCode)}
+                </div>
+                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
+                  Before discount and tax.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                <span className="h-2 w-2 rounded-full bg-cyan-400" />
               </div>
             </div>
           </div>
-        </section>
+
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Discount
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
+                  {formatMoney(totals.discount, currencyCode)}
+                </div>
+                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
+                  Draft commercial discount.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
+                <span className="h-2 w-2 rounded-full bg-amber-400" />
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Tax
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
+                  {formatMoney(totals.tax, currencyCode)}
+                </div>
+                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
+                  Based on selected tax codes.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
+                <span className="h-2 w-2 rounded-full bg-violet-400" />
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Total
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
+                  {formatMoney(totals.total, currencyCode)}
+                </div>
+                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
+                  Draft proforma value.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              </div>
+            </div>
+          </div>
+        </div>
 
                 <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
           <div className="space-y-6">
-            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardHeader className="border-b border-white/8 pb-4">
-                <CardTitle className="text-white">Proforma Header</CardTitle>
-                <CardDescription className="text-white/45">
-                  Select the commercial and operational sources for the proforma invoice.
-                </CardDescription>
+            <Card className={activeSectionClass}>
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                    <SquarePen className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Document Overview
+                    </CardTitle>
+                    <CardDescription className="mt-1 text-xs text-slate-500">
+                      Issuing company, client, project references, dates, and currency.
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
 
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Issuing Company</div>
+              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Issuing Company</div>
                   <select
                     value={companyId}
                     onChange={(event) => setCompanyId(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                    className={fieldShellClass}
                   >
                     <option value="">Select company</option>
                     {companies.map((company) => (
@@ -819,14 +1037,14 @@ export default function FinanceNewProformaInvoicePage() {
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Client</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Client</div>
                   <select
                     value={clientId}
                     onChange={(event) => setClientId(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                    className={fieldShellClass}
                   >
                     <option value="">Select client</option>
                     {clients.map((client) => (
@@ -835,75 +1053,25 @@ export default function FinanceNewProformaInvoicePage() {
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Project</div>
-                  <select
-                    value={projectId}
-                    onChange={(event) => setProjectId(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                  >
-                    <option value="">No project</option>
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Task</div>
-                  <select
-                    value={taskId}
-                    onChange={(event) => setTaskId(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                  >
-                    <option value="">No task</option>
-                    {filteredTasks.map((task) => (
-                      <option key={task.id} value={task.id}>
-                        {task.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Issue Date</div>
-                  <input
-                    type="date"
-                    value={issueDate}
-                    onChange={(event) => setIssueDate(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                  />
-                </label>
-
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Valid Until</div>
-                  <input
-                    type="date"
-                    value={validUntil}
-                    onChange={(event) => setValidUntil(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                  />
-                </label>
-
-                <label className="space-y-2">
-                  <div className="text-sm text-white/70">Currency</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Currency</div>
                   <select
                     value={currencyId}
                     onChange={(event) => {
                       const nextId = event.target.value;
                       setCurrencyId(nextId);
+
                       const matchedCurrency = currencies.find(
                         (entry) => entry.id === nextId
                       );
+
                       if (matchedCurrency) {
                         setCurrencyCode(matchedCurrency.currency_code);
                       }
                     }}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
+                    className={fieldShellClass}
                   >
                     <option value="">Select currency</option>
                     {currencies.map((currency) => (
@@ -912,330 +1080,437 @@ export default function FinanceNewProformaInvoicePage() {
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <div className="space-y-2">
-                  <div className="text-sm text-white/70">Client Email</div>
-                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
-                    {selectedClient?.company_email ||
-                      selectedClient?.personnel_email ||
-                      "—"}
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Project</div>
+                  <select
+                    value={projectId}
+                    onChange={(event) => setProjectId(event.target.value)}
+                    className={fieldShellClass}
+                  >
+                    <option value="">No project</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Task</div>
+                  <select
+                    value={taskId}
+                    onChange={(event) => setTaskId(event.target.value)}
+                    className={fieldShellClass}
+                  >
+                    <option value="">No task</option>
+                    {filteredTasks.map((task) => (
+                      <option key={task.id} value={task.id}>
+                        {task.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Draft Status</div>
+                  <div className="mt-2">
+                    <Badge className="rounded-full border border-slate-400/20 bg-white/[0.06] px-3 py-1 text-xs text-slate-300 shadow-none">
+                      Draft
+                    </Badge>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="text-sm text-white/70">Client Phone</div>
-                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
-                    {selectedClient?.company_phone ||
-                      selectedClient?.personnel_phone ||
-                      "—"}
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Issue Date</div>
+                  <input
+                    type="date"
+                    value={issueDate}
+                    onChange={(event) => setIssueDate(event.target.value)}
+                    className={fieldShellClass}
+                  />
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Valid Until</div>
+                  <input
+                    type="date"
+                    value={validUntil}
+                    onChange={(event) => setValidUntil(event.target.value)}
+                    className={fieldShellClass}
+                  />
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Source Customer PO</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {sourceCustomerPo
+                      ? sourceCustomerPo.client_po_number ||
+                        sourceCustomerPo.external_po_number ||
+                        "Linked"
+                      : "Manual"}
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="text-sm text-white/70">Company Email</div>
-                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
-                    {selectedCompany?.email || "—"}
-                  </div>
-                </div>
-
-                <label className="space-y-2 md:col-span-2">
-                  <div className="text-sm text-white/70">Notes</div>
+                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
+                  <div className={labelClass}>Notes</div>
                   <textarea
                     value={notes}
                     onChange={(event) => setNotes(event.target.value)}
                     rows={4}
-                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none"
+                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
                   />
-                </label>
+                </div>
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardHeader className="border-b border-white/8 pb-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-white">Line Items</CardTitle>
-                    <CardDescription className="text-white/45">
-                      Add the commercial lines that will form the proforma invoice total.
-                    </CardDescription>
+            <Card className={activeSectionClass}>
+              <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                      <SquarePen className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Line Items
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Add products or services using the locked new/create line-item card pattern.
+                      </CardDescription>
+                    </div>
                   </div>
-
-                  <Button onClick={addRow} className="h-10 rounded-2xl px-4">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Row
-                  </Button>
                 </div>
+
+                <Button
+                  variant="outline"
+                  onClick={addRow}
+                  className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Row
+                </Button>
               </CardHeader>
 
-              <CardContent className="space-y-4 p-5">
-                {rows.map((row, index) => {
-                  const rowBase = Math.max(
-                    toNumber(row.quantity) * toNumber(row.unitPrice) -
-                      toNumber(row.discount),
-                    0
-                  );
+              <CardContent className="p-5">
+                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                  {rows.map((row, index) => {
+                    const selectedItem = items.find(
+                      (item) => item.id === row.itemId
+                    );
+                    const selectedTaxCode = taxCodes.find(
+                      (taxCode) => taxCode.id === row.taxCodeId
+                    );
+                    const selectedUnit = unitsOfMeasure.find(
+                      (unit) => unit.id === row.unitOfMeasureId
+                    );
+                    const selectedRevenueCategory = revenueCategories.find(
+                      (category) => category.id === row.revenueCategoryId
+                    );
 
-                  const rowTaxRate =
-                    taxCodes.find((entry) => entry.id === row.taxCodeId)
-                      ?.rate_percent ?? 0;
+                    const rowBase = Math.max(
+                      toNumber(row.quantity) * toNumber(row.unitPrice) -
+                        toNumber(row.discount),
+                      0
+                    );
 
-                  const rowTotal =
-                    rowBase + rowBase * (Number(rowTaxRate) / 100);
+                    const rowTaxRate = selectedTaxCode?.rate_percent ?? 0;
+                    const rowTotal =
+                      rowBase + rowBase * (Number(rowTaxRate) / 100);
 
-                  return (
-                    <div
-                      key={row.localId}
-                      className="rounded-[22px] border border-white/8 bg-black/15 p-4"
-                    >
-                      <div className="mb-4 flex items-center justify-between gap-4">
-                        <div className="text-sm font-medium text-white">
-                          Line {index + 1}
+                    return (
+                      <div
+                        key={row.localId}
+                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                      >
+                        <div className="mb-4 flex items-center justify-between gap-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-sm font-semibold text-white">
+                              Line {index + 1}
+                            </div>
+
+                            {selectedItem ? (
+                              <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
+                                {selectedItem.name}
+                              </Badge>
+                            ) : null}
+                          </div>
+
+                          <Button
+                            variant="outline"
+                            onClick={() => removeRow(row.localId)}
+                            disabled={rows.length === 1}
+                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
 
-                        <Button
-                          variant="outline"
-                          onClick={() => removeRow(row.localId)}
-                          disabled={rows.length === 1}
-                          className="h-9 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+                          <label className="space-y-2 md:col-span-3">
+                            <div className={inputLabelClass}>Item</div>
+                            <select
+                              value={row.itemId}
+                              onChange={(event) =>
+                                applyItemToRow(row.localId, event.target.value)
+                              }
+                              className={inputFieldClass}
+                            >
+                              <option value="">Select item</option>
+                              {items.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
 
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                        <label className="space-y-2 md:col-span-3">
-                          <div className="text-sm text-white/70">Item</div>
-                          <select
-                            value={row.itemId}
-                            onChange={(event) =>
-                              applyItemToRow(row.localId, event.target.value)
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          >
-                            <option value="">Select item</option>
-                            {items.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                          <label className="space-y-2 md:col-span-4">
+                            <div className={inputLabelClass}>Description</div>
+                            <input
+                              value={row.description}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "description",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Description"
+                              className={inputFieldClass}
+                            />
+                          </label>
 
-                        <label className="space-y-2 md:col-span-4">
-                          <div className="text-sm text-white/70">Description</div>
-                          <input
-                            value={row.description}
-                            onChange={(event) =>
-                              updateRow(
-                                row.localId,
-                                "description",
-                                event.target.value
-                              )
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          />
-                        </label>
+                                                    <label className="space-y-2 md:col-span-1">
+                            <div className={inputLabelClass}>Qty</div>
+                            <input
+                              value={row.quantity}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "quantity",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            />
+                          </label>
 
-                        <label className="space-y-2 md:col-span-1">
-                          <div className="text-sm text-white/70">Qty</div>
-                          <input
-                            value={row.quantity}
-                            onChange={(event) =>
-                              updateRow(row.localId, "quantity", event.target.value)
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          />
-                        </label>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Unit</div>
+                            <select
+                              value={row.unitOfMeasureId}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "unitOfMeasureId",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            >
+                              <option value="">Select unit</option>
+                              {unitsOfMeasure.map((unit) => (
+                                <option key={unit.id} value={unit.id}>
+                                  {unit.name}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedUnit ? (
+                              <div className="text-[11px] text-slate-500">
+                                {selectedUnit.code}
+                              </div>
+                            ) : null}
+                          </label>
 
-                        <label className="space-y-2 md:col-span-2">
-                          <div className="text-sm text-white/70">Unit</div>
-                          <select
-                            value={row.unitOfMeasureId}
-                            onChange={(event) =>
-                              updateRow(
-                                row.localId,
-                                "unitOfMeasureId",
-                                event.target.value
-                              )
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          >
-                            <option value="">Select unit</option>
-                            {unitsOfMeasure.map((unit) => (
-                              <option key={unit.id} value={unit.id}>
-                                {unit.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Unit Price</div>
+                            <input
+                              value={row.unitPrice}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "unitPrice",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            />
+                          </label>
 
-                        <label className="space-y-2 md:col-span-2">
-                          <div className="text-sm text-white/70">Unit Price</div>
-                          <input
-                            value={row.unitPrice}
-                            onChange={(event) =>
-                              updateRow(row.localId, "unitPrice", event.target.value)
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          />
-                        </label>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Discount</div>
+                            <input
+                              value={row.discount}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "discount",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            />
+                          </label>
 
-                                                <label className="space-y-2 md:col-span-1">
-                          <div className="text-sm text-white/70">Discount</div>
-                          <input
-                            value={row.discount}
-                            onChange={(event) =>
-                              updateRow(row.localId, "discount", event.target.value)
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          />
-                        </label>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Tax Code</div>
+                            <select
+                              value={row.taxCodeId}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "taxCodeId",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            >
+                              <option value="">Select tax</option>
+                              {taxCodes.map((taxCode) => (
+                                <option key={taxCode.id} value={taxCode.id}>
+                                  {taxCode.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
 
-                        <label className="space-y-2 md:col-span-2">
-                          <div className="text-sm text-white/70">Tax Code</div>
-                          <select
-                            value={row.taxCodeId}
-                            onChange={(event) =>
-                              updateRow(row.localId, "taxCodeId", event.target.value)
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          >
-                            <option value="">Select tax</option>
-                            {taxCodes.map((taxCode) => (
-                              <option key={taxCode.id} value={taxCode.id}>
-                                {taxCode.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                          <label className="space-y-2 md:col-span-3">
+                            <div className={inputLabelClass}>
+                              Revenue Category
+                            </div>
+                            <select
+                              value={row.revenueCategoryId}
+                              onChange={(event) =>
+                                updateRow(
+                                  row.localId,
+                                  "revenueCategoryId",
+                                  event.target.value
+                                )
+                              }
+                              className={inputFieldClass}
+                            >
+                              <option value="">Select category</option>
+                              {revenueCategories.map((category) => (
+                                <option key={category.id} value={category.id}>
+                                  {category.name}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedRevenueCategory?.code ? (
+                              <div className="text-[11px] text-slate-500">
+                                {selectedRevenueCategory.code}
+                              </div>
+                            ) : null}
+                          </label>
 
-                        <label className="space-y-2 md:col-span-2">
-                          <div className="text-sm text-white/70">Revenue Category</div>
-                          <select
-                            value={row.revenueCategoryId}
-                            onChange={(event) =>
-                              updateRow(
-                                row.localId,
-                                "revenueCategoryId",
-                                event.target.value
-                              )
-                            }
-                            className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
-                          >
-                            <option value="">Select category</option>
-                            {revenueCategories.map((category) => (
-                              <option key={category.id} value={category.id}>
-                                {category.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <div className="space-y-2 md:col-span-2">
-                          <div className="text-sm text-white/70">Line Total</div>
-                          <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/80">
-                            {formatMoney(rowTotal, currencyCode)}
+                          <div className="space-y-2 md:col-span-3">
+                            <div className={inputLabelClass}>Line Total</div>
+                            <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
+                              {formatMoney(rowTotal, currencyCode)}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </CardContent>
             </Card>
           </div>
 
           <div className="space-y-6">
-            <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardHeader className="border-b border-white/8 pb-4">
-                <CardTitle className="text-white">Draft Summary</CardTitle>
-                <CardDescription className="text-white/45">
-                  Preview totals before saving the proforma invoice draft.
+            <Card className={activeSectionClass}>
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Proforma Summary
+                </CardTitle>
+                <CardDescription className="mt-1 text-xs text-slate-500">
+                  Live commercial summary before saving.
                 </CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-3 p-5">
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Issuing Company
-                  </div>
-                  <div className="mt-2 text-base font-semibold text-white">
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Issuing Company</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
                     {selectedCompany?.legal_name || selectedCompany?.name || "—"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {getCompanyAddress(selectedCompany)}
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Client
-                  </div>
-                  <div className="mt-2 text-base font-semibold text-white">
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Client</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
                     {selectedClient?.legal_name || selectedClient?.name || "—"}
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Currency
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Source Customer PO</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {sourceCustomerPo
+                      ? sourceCustomerPo.client_po_number ||
+                        sourceCustomerPo.external_po_number ||
+                        "Linked"
+                      : "Manual"}
                   </div>
-                  <div className="mt-2 text-base font-semibold text-white">
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Currency</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
                     {selectedCurrency
                       ? `${selectedCurrency.currency_code} — ${selectedCurrency.currency_name}`
                       : currencyCode || "—"}
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Issue Date
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Project / Task</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedProject?.name || "—"}
                   </div>
-                  <div className="mt-2 text-base font-semibold text-white">
-                    {issueDate || "—"}
-                  </div>
-                </div>
-
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Valid Until
-                  </div>
-                  <div className="mt-2 text-base font-semibold text-white">
-                    {validUntil || "—"}
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedTask?.title || "No task selected"}
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Subtotal
+                <div className={summaryBlockClass}>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-400">Subtotal</span>
+                    <span className="font-semibold text-white">
+                      {formatMoney(totals.subtotal, currencyCode)}
+                    </span>
                   </div>
-                  <div className="mt-2 text-lg font-semibold text-white">
-                    {formatMoney(totals.subtotal, currencyCode)}
-                  </div>
-                </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Discount
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <span className="text-slate-400">Discount</span>
+                    <span className="font-semibold text-white">
+                      {formatMoney(totals.discount, currencyCode)}
+                    </span>
                   </div>
-                  <div className="mt-2 text-lg font-semibold text-white">
-                    {formatMoney(totals.discount, currencyCode)}
-                  </div>
-                </div>
 
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Tax
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <span className="text-slate-400">Tax</span>
+                    <span className="font-semibold text-white">
+                      {formatMoney(totals.tax, currencyCode)}
+                    </span>
                   </div>
-                  <div className="mt-2 text-lg font-semibold text-white">
-                    {formatMoney(totals.tax, currencyCode)}
-                  </div>
-                </div>
 
-                <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">
-                    Total
-                  </div>
-                  <div className="mt-2 text-xl font-semibold text-white">
-                    {formatMoney(totals.total, currencyCode)}
+                  <div className="mt-3 border-t border-white/10 pt-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-slate-300">
+                        Total
+                      </span>
+                      <span className="text-lg font-semibold text-white">
+                        {formatMoney(totals.total, currencyCode)}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -1247,27 +1522,27 @@ export default function FinanceNewProformaInvoicePage() {
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardHeader className="border-b border-white/8 pb-4">
-                <CardTitle className="text-white">Locked Behavior</CardTitle>
+            <Card className={activeSectionClass}>
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Locked Behavior
+                </CardTitle>
+                <CardDescription className="mt-1 text-xs text-slate-500">
+                  New proforma creation rules.
+                </CardDescription>
               </CardHeader>
 
-              <CardContent className="space-y-3 p-5 text-sm text-white/55">
-                <div>• This page creates a draft only.</div>
+              <CardContent className="space-y-2 p-5 text-sm leading-6 text-slate-400">
+                <div>• This page creates a proforma invoice draft only.</div>
                 <div>• Proforma does not affect receivables directly.</div>
-                <div>• Send, accept, and convert actions happen later from the detail page.</div>
-                <div>• Master data supplies the source values.</div>
+                <div>• Send, accept, archive, and convert happen later.</div>
+                <div>• Customer PO prefill keeps the source link intact.</div>
                 <div>• Conversion to invoice is controlled and explicit.</div>
+                <div>• Master data remains the source of truth.</div>
               </CardContent>
             </Card>
           </div>
         </div>
-
-        {isLoading ? (
-          <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
-            Loading proforma invoice sources...
-          </div>
-        ) : null}
       </div>
     </div>
   );

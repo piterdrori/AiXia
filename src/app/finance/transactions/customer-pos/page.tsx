@@ -687,99 +687,176 @@ export default function FinanceCustomerPosPage() {
 
         {showArchivePanel ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
-            <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#080b12] shadow-2xl shadow-black/60">
-              <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+            <div className="flex max-h-[85vh] w-full max-w-6xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+              <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
                 <div>
-                  <div className="text-lg font-semibold text-white">Customer PO Archive</div>
-                  <div className="mt-1 text-sm text-white/45">
-                    Archived records can be restored. Deleted records can be restored or permanently deleted.
+                  <div className="text-lg font-semibold text-white">
+                    Customer PO Archive
+                  </div>
+                  <div className="mt-1 text-sm text-slate-500">
+                    Archived records can be restored. Deleted records can be
+                    restored or permanently deleted.
                   </div>
                 </div>
 
-                <Button
-                  variant="outline"
+                <button
+                  type="button"
                   onClick={() => setShowArchivePanel(false)}
-                  className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                  className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.08]"
                 >
                   Close
-                </Button>
+                </button>
               </div>
 
-              <div className="space-y-4 overflow-y-auto p-5">
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setArchiveTab("archived")}
-                    className={`rounded-xl px-4 py-2 text-sm transition ${
-                      archiveTab === "archived"
-                        ? "bg-white/10 text-white"
-                        : "text-white/55 hover:bg-white/5 hover:text-white/80"
-                    }`}
-                  >
-                    Archived
-                  </button>
+              <div className="flex items-center gap-2 border-b border-white/10 px-6 py-4">
+                <button
+                  type="button"
+                  onClick={() => setArchiveTab("archived")}
+                  className={`rounded-xl px-4 py-2 text-sm transition ${
+                    archiveTab === "archived"
+                      ? "bg-white/10 text-white"
+                      : "text-white/55 hover:bg-white/5 hover:text-white/80"
+                  }`}
+                >
+                  Archived
+                </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setArchiveTab("deleted")}
-                    className={`rounded-xl px-4 py-2 text-sm transition ${
-                      archiveTab === "deleted"
-                        ? "bg-rose-500/15 text-rose-200"
-                        : "text-white/55 hover:bg-white/5 hover:text-white/80"
-                    }`}
-                  >
-                    Deleted
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setArchiveTab("deleted")}
+                  className={`rounded-xl px-4 py-2 text-sm transition ${
+                    archiveTab === "deleted"
+                      ? "bg-rose-500/15 text-rose-200"
+                      : "text-white/55 hover:bg-white/5 hover:text-white/80"
+                  }`}
+                >
+                  Deleted
+                </button>
+              </div>
 
-                <div className="max-h-[560px] space-y-3 overflow-y-auto pr-1">
-                  {archiveRows.length === 0 ? (
-                    <div className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-white/45">
-                      No {archiveTab} customer POs.
-                    </div>
-                  ) : (
-                    archiveRows.map((row) => (
-                      <div
-                        key={row.id}
-                        className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-3"
-                      >
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="min-w-0">
-                            <div className="truncate font-semibold text-white">
-                              {row.client_po_number || "Customer PO"} ·{" "}
-                              {row.external_po_number || "No customer number"}
-                            </div>
-                            <div className="mt-1 text-xs text-white/45">
-                              {row.client_name_snapshot || "—"} · {formatDate(row.updated_at)}
-                            </div>
-                          </div>
+              <div className="overflow-y-auto p-6">
+                {archiveRows.length === 0 ? (
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-8 text-sm text-slate-500">
+                    No {archiveTab} customer POs found.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-[24px] border border-white/10">
+                    <div className="max-h-[720px] overflow-y-auto">
+                      <table className="w-full min-w-[1100px] border-collapse">
+                        <thead>
+                          <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Internal CPO No.
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Customer PO No.
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Client
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              PO Date
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
+                              Total
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Status
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
+                              Updated
+                            </th>
+                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
 
-                          <div className="flex shrink-0 gap-2">
-                            <Button
-                              variant="outline"
-                              onClick={() => void handleRestore(row)}
-                              disabled={isSaving}
-                              className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+                        <tbody className="divide-y divide-white/5">
+                          {archiveRows.map((row) => (
+                            <tr
+                              key={row.id}
+                              className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
                             >
-                              <RotateCcw className="h-4 w-4" />
-                            </Button>
+                              <td className="px-5 py-4 font-semibold text-white">
+                                {row.client_po_number || "Pending"}
+                              </td>
 
-                            {archiveTab === "deleted" ? (
-                              <Button
-                                variant="outline"
-                                onClick={() => void handleHardDelete(row)}
-                                disabled={isSaving}
-                                className="h-9 rounded-2xl border-rose-500/30 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
+                              <td className="px-5 py-4">
+                                {row.external_po_number || "—"}
+                              </td>
+
+                              <td className="px-5 py-4">
+                                {row.client_name_snapshot || "—"}
+                              </td>
+
+                              <td className="px-5 py-4">
+                                {formatDate(row.po_date)}
+                              </td>
+
+                              <td className="px-5 py-4 text-right font-semibold text-white">
+                                {formatMoney(
+                                  row.total_amount,
+                                  row.currency_code || "USD"
+                                )}
+                              </td>
+
+                              <td className="px-5 py-4">
+                                <Badge
+                                  className={`rounded-full border px-3 py-1 text-xs shadow-none ${getStatusBadgeClasses(
+                                    row.status
+                                  )}`}
+                                >
+                                  {getStatusLabel(row.status)}
+                                </Badge>
+                              </td>
+
+                              <td className="px-5 py-4">
+                                {formatDate(row.updated_at)}
+                              </td>
+
+                              <td className="px-5 py-4">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    variant="outline"
+                                    onClick={() =>
+                                      navigate(
+                                        `/finance/transactions/customer-pos/${row.id}`
+                                      )
+                                    }
+                                    className="h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => void handleRestore(row)}
+                                    disabled={isSaving}
+                                    className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+                                  >
+                                    <RotateCcw className="h-4 w-4" />
+                                  </Button>
+
+                                  {archiveTab === "deleted" ? (
+                                    <Button
+                                      variant="outline"
+                                      onClick={() => void handleHardDelete(row)}
+                                      disabled={isSaving}
+                                      className="h-9 rounded-2xl border-rose-500/30 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

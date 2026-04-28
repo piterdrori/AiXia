@@ -70,6 +70,42 @@ type CurrencyOption = {
   is_base_currency: boolean;
 };
 
+type PaymentTermOption = {
+  id: string;
+  code: string;
+  name: string;
+  due_days: number;
+  is_default: boolean;
+};
+
+type ShippingTermOption = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  is_default: boolean;
+};
+
+type BankAccountOption = {
+  id: string;
+  name: string;
+  bank_name: string | null;
+  beneficiary_name: string | null;
+  iban: string | null;
+  swift_code: string | null;
+  account_number: string | null;
+  currency_code: string | null;
+  is_default: boolean;
+  company_id: string | null;
+};
+
+type PaymentMethodOption = {
+  id: string;
+  code: string | null;
+  name: string;
+  is_default: boolean;
+};
+
 type ItemOption = {
   id: string;
   name: string;
@@ -206,6 +242,12 @@ export default function FinanceNewProformaInvoicePage() {
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [tasks, setTasks] = useState<TaskOption[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
+  const [paymentTerms, setPaymentTerms] = useState<PaymentTermOption[]>([]);
+  const [shippingTerms, setShippingTerms] = useState<ShippingTermOption[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>(
+    []
+  );
   const [items, setItems] = useState<ItemOption[]>([]);
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
   const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>(
@@ -224,6 +266,10 @@ export default function FinanceNewProformaInvoicePage() {
     new Date().toISOString().slice(0, 10)
   );
   const [validUntil, setValidUntil] = useState("");
+  const [paymentTermsId, setPaymentTermsId] = useState("");
+  const [shippingTermId, setShippingTermId] = useState("");
+  const [bankAccountId, setBankAccountId] = useState("");
+  const [paymentMethodId, setPaymentMethodId] = useState("");
   const [currencyId, setCurrencyId] = useState("");
   const [currencyCode, setCurrencyCode] = useState("USD");
   const [notes, setNotes] = useState("");
@@ -245,6 +291,38 @@ export default function FinanceNewProformaInvoicePage() {
   const selectedCurrency = useMemo(
     () => currencies.find((currency) => currency.id === currencyId) ?? null,
     [currencies, currencyId]
+  );
+
+  const selectedPaymentTerm = useMemo(
+    () => paymentTerms.find((term) => term.id === paymentTermsId) ?? null,
+    [paymentTerms, paymentTermsId]
+  );
+
+  const selectedShippingTerm = useMemo(
+    () => shippingTerms.find((term) => term.id === shippingTermId) ?? null,
+    [shippingTerms, shippingTermId]
+  );
+
+  const filteredBankAccounts = useMemo(() => {
+    if (!companyId) {
+      return bankAccounts;
+    }
+
+    return bankAccounts.filter(
+      (account) => !account.company_id || account.company_id === companyId
+    );
+  }, [bankAccounts, companyId]);
+
+  const selectedBankAccount = useMemo(
+    () =>
+      filteredBankAccounts.find((account) => account.id === bankAccountId) ??
+      null,
+    [bankAccountId, filteredBankAccounts]
+  );
+
+  const selectedPaymentMethod = useMemo(
+    () => paymentMethods.find((method) => method.id === paymentMethodId) ?? null,
+    [paymentMethodId, paymentMethods]
   );
 
   const selectedProject = useMemo(
@@ -282,6 +360,10 @@ export default function FinanceNewProformaInvoicePage() {
       }
     }
 
+    if (selectedClient.payment_terms_id) {
+      setPaymentTermsId(selectedClient.payment_terms_id);
+    }
+
     if (!validUntil) {
       const days = selectedClient.payment_terms_days ?? 14;
       const base = new Date(issueDate || new Date().toISOString().slice(0, 10));
@@ -305,6 +387,40 @@ export default function FinanceNewProformaInvoicePage() {
       }
     }
   }, [companyId, currencies, currencyId, selectedCompany]);
+
+    useEffect(() => {
+    if (shippingTermId) return;
+
+    const defaultShippingTerm =
+      shippingTerms.find((term) => term.is_default) ?? shippingTerms[0];
+
+    if (defaultShippingTerm) {
+      setShippingTermId(defaultShippingTerm.id);
+    }
+  }, [shippingTermId, shippingTerms]);
+
+  useEffect(() => {
+    if (paymentMethodId) return;
+
+    const defaultPaymentMethod =
+      paymentMethods.find((method) => method.is_default) ?? paymentMethods[0];
+
+    if (defaultPaymentMethod) {
+      setPaymentMethodId(defaultPaymentMethod.id);
+    }
+  }, [paymentMethodId, paymentMethods]);
+
+  useEffect(() => {
+    if (!companyId || bankAccountId) return;
+
+    const defaultBankAccount =
+      filteredBankAccounts.find((account) => account.is_default) ??
+      filteredBankAccounts[0];
+
+    if (defaultBankAccount) {
+      setBankAccountId(defaultBankAccount.id);
+    }
+  }, [bankAccountId, companyId, filteredBankAccounts]);
 
   useEffect(() => {
     if (!projectId) {
@@ -332,6 +448,10 @@ export default function FinanceNewProformaInvoicePage() {
         projectsResult,
         tasksResult,
         currenciesResult,
+        paymentTermsResult,
+        shippingTermsResult,
+        bankAccountsResult,
+        paymentMethodsResult,
         itemsResult,
         taxCodesResult,
         unitsOfMeasureResult,
@@ -372,6 +492,32 @@ export default function FinanceNewProformaInvoicePage() {
           .order("currency_code", { ascending: true }),
 
         supabase
+          .from("finance_payment_terms")
+          .select("id, code, name, due_days, is_default")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_shipping_terms")
+          .select("id, code, name, description, is_default")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_bank_accounts")
+          .select(
+            "id, name, bank_name, beneficiary_name, iban, swift_code, account_number, currency_code, is_default, company_id"
+          )
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_payment_methods")
+          .select("id, code, name, is_default")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+
+        supabase
           .from("finance_items")
           .select(
             "id, name, description, sales_price, currency_code, revenue_category_id, tax_code_id, unit_of_measure_id"
@@ -404,6 +550,10 @@ export default function FinanceNewProformaInvoicePage() {
       if (projectsResult.error) throw projectsResult.error;
       if (tasksResult.error) throw tasksResult.error;
       if (currenciesResult.error) throw currenciesResult.error;
+      if (paymentTermsResult.error) throw paymentTermsResult.error;
+      if (shippingTermsResult.error) throw shippingTermsResult.error;
+      if (bankAccountsResult.error) throw bankAccountsResult.error;
+      if (paymentMethodsResult.error) throw paymentMethodsResult.error;
       if (itemsResult.error) throw itemsResult.error;
       if (taxCodesResult.error) throw taxCodesResult.error;
       if (unitsOfMeasureResult.error) throw unitsOfMeasureResult.error;
@@ -414,6 +564,12 @@ export default function FinanceNewProformaInvoicePage() {
       setProjects((projectsResult.data || []) as ProjectOption[]);
       setTasks((tasksResult.data || []) as TaskOption[]);
       setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
+      setPaymentTerms((paymentTermsResult.data || []) as PaymentTermOption[]);
+      setShippingTerms((shippingTermsResult.data || []) as ShippingTermOption[]);
+      setBankAccounts((bankAccountsResult.data || []) as BankAccountOption[]);
+      setPaymentMethods(
+        (paymentMethodsResult.data || []) as PaymentMethodOption[]
+      );
       setItems((itemsResult.data || []) as ItemOption[]);
       setTaxCodes((taxCodesResult.data || []) as TaxCodeOption[]);
       setUnitsOfMeasure(
@@ -422,6 +578,33 @@ export default function FinanceNewProformaInvoicePage() {
       setRevenueCategories(
         (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
       );
+
+      const defaultPaymentTerm =
+        ((paymentTermsResult.data || []) as PaymentTermOption[]).find(
+          (term) => term.is_default
+        ) || ((paymentTermsResult.data || []) as PaymentTermOption[])[0];
+
+      const defaultShippingTerm =
+        ((shippingTermsResult.data || []) as ShippingTermOption[]).find(
+          (term) => term.is_default
+        ) || ((shippingTermsResult.data || []) as ShippingTermOption[])[0];
+
+      const defaultPaymentMethod =
+        ((paymentMethodsResult.data || []) as PaymentMethodOption[]).find(
+          (method) => method.is_default
+        ) || ((paymentMethodsResult.data || []) as PaymentMethodOption[])[0];
+
+      if (!paymentTermsId && defaultPaymentTerm) {
+        setPaymentTermsId(defaultPaymentTerm.id);
+      }
+
+      if (!shippingTermId && defaultShippingTerm) {
+        setShippingTermId(defaultShippingTerm.id);
+      }
+
+      if (!paymentMethodId && defaultPaymentMethod) {
+        setPaymentMethodId(defaultPaymentMethod.id);
+      }
 
       if (sourceClientPoId) {
         const { data: customerPoData, error: customerPoError } = await supabase
@@ -696,9 +879,29 @@ export default function FinanceNewProformaInvoicePage() {
           p_project_id: projectId || null,
           p_task_id: taskId || null,
           p_notes: notes || null,
+        
           p_metadata: {
             currency_code: currencyCode || "USD",
             issuing_company_id: companyId,
+            payment_terms_id: paymentTermsId || null,
+            payment_terms_name: selectedPaymentTerm?.name || null,
+            payment_terms_code: selectedPaymentTerm?.code || null,
+            payment_terms_due_days: selectedPaymentTerm?.due_days ?? null,
+            shipping_term_id: shippingTermId || null,
+            shipping_term_name: selectedShippingTerm?.name || null,
+            shipping_term_code: selectedShippingTerm?.code || null,
+            bank_account_id: bankAccountId || null,
+            bank_account_name: selectedBankAccount?.name || null,
+            bank_name: selectedBankAccount?.bank_name || null,
+            beneficiary_name: selectedBankAccount?.beneficiary_name || null,
+            iban: selectedBankAccount?.iban || null,
+            swift_code: selectedBankAccount?.swift_code || null,
+            account_number: selectedBankAccount?.account_number || null,
+            bank_account_currency_code:
+              selectedBankAccount?.currency_code || null,
+            preferred_payment_method_id: paymentMethodId || null,
+            preferred_payment_method_name: selectedPaymentMethod?.name || null,
+            preferred_payment_method_code: selectedPaymentMethod?.code || null,
             creation_mode: sourceCustomerPo
               ? "customer_po_prefill"
               : "manual_draft",
@@ -707,6 +910,7 @@ export default function FinanceNewProformaInvoicePage() {
             external_po_number: sourceCustomerPo?.external_po_number || null,
             quotation_id: sourceCustomerPo?.quotation_id || null,
           },
+          
           p_lines: trimmedRows.map((row) => ({
             item_id: row.itemId || null,
             description: row.description.trim(),
@@ -735,6 +939,10 @@ export default function FinanceNewProformaInvoicePage() {
             company_id: companyId || null,
             quotation_id: sourceCustomerPo.quotation_id || null,
             client_po_id: sourceCustomerPo.id,
+            payment_terms_id: paymentTermsId || null,
+            shipping_term_id: shippingTermId || null,
+            bank_account_id: bankAccountId || null,
+            preferred_payment_method_id: paymentMethodId || null,
             currency_code:
               currencyCode || sourceCustomerPo.currency_code || "USD",
             updated_by: userResult.data.user?.id || null,
@@ -770,9 +978,17 @@ export default function FinanceNewProformaInvoicePage() {
     currencyId,
     issueDate,
     navigate,
+    bankAccountId,
     notes,
+    paymentMethodId,
+    paymentTermsId,
     projectId,
     rows,
+    selectedBankAccount,
+    selectedPaymentMethod,
+    selectedPaymentTerm,
+    selectedShippingTerm,
+    shippingTermId,
     sourceCustomerPo,
     taskId,
     validUntil,

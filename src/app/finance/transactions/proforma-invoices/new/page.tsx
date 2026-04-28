@@ -376,6 +376,8 @@ export default function FinanceNewProformaInvoicePage() {
   useEffect(() => {
     if (!companyId) return;
 
+    setBankAccountId("");
+
     if (!currencyId && selectedCompany?.currency_code) {
       const matchedCurrency = currencies.find(
         (entry) => entry.currency_code === selectedCompany.currency_code
@@ -930,27 +932,56 @@ export default function FinanceNewProformaInvoicePage() {
         throw new Error("Proforma invoice was not created");
       }
 
-      if (sourceCustomerPo) {
-        const userResult = await supabase.auth.getUser();
+      const userResult = await supabase.auth.getUser();
 
-        const { error: proformaLinkError } = await supabase
-          .from("finance_proforma_invoices")
-          .update({
-            company_id: companyId || null,
-            quotation_id: sourceCustomerPo.quotation_id || null,
-            client_po_id: sourceCustomerPo.id,
+      const { error: proformaCommercialSetupError } = await supabase
+        .from("finance_proforma_invoices")
+        .update({
+          company_id: companyId || null,
+          quotation_id: sourceCustomerPo?.quotation_id || null,
+          client_po_id: sourceCustomerPo?.id || null,
+          payment_terms_id: paymentTermsId || null,
+          shipping_term_id: shippingTermId || null,
+          bank_account_id: bankAccountId || null,
+          preferred_payment_method_id: paymentMethodId || null,
+          currency_code: currencyCode || sourceCustomerPo?.currency_code || "USD",
+          metadata: {
+            currency_code: currencyCode || "USD",
+            issuing_company_id: companyId,
             payment_terms_id: paymentTermsId || null,
+            payment_terms_name: selectedPaymentTerm?.name || null,
+            payment_terms_code: selectedPaymentTerm?.code || null,
+            payment_terms_due_days: selectedPaymentTerm?.due_days ?? null,
             shipping_term_id: shippingTermId || null,
+            shipping_term_name: selectedShippingTerm?.name || null,
+            shipping_term_code: selectedShippingTerm?.code || null,
             bank_account_id: bankAccountId || null,
+            bank_account_name: selectedBankAccount?.name || null,
+            bank_name: selectedBankAccount?.bank_name || null,
+            beneficiary_name: selectedBankAccount?.beneficiary_name || null,
+            iban: selectedBankAccount?.iban || null,
+            swift_code: selectedBankAccount?.swift_code || null,
+            account_number: selectedBankAccount?.account_number || null,
+            bank_account_currency_code:
+              selectedBankAccount?.currency_code || null,
             preferred_payment_method_id: paymentMethodId || null,
-            currency_code:
-              currencyCode || sourceCustomerPo.currency_code || "USD",
-            updated_by: userResult.data.user?.id || null,
-          })
-          .eq("id", data);
+            preferred_payment_method_name: selectedPaymentMethod?.name || null,
+            preferred_payment_method_code: selectedPaymentMethod?.code || null,
+            creation_mode: sourceCustomerPo
+              ? "customer_po_prefill"
+              : "manual_draft",
+            client_po_id: sourceCustomerPo?.id || null,
+            client_po_number: sourceCustomerPo?.client_po_number || null,
+            external_po_number: sourceCustomerPo?.external_po_number || null,
+            quotation_id: sourceCustomerPo?.quotation_id || null,
+          },
+          updated_by: userResult.data.user?.id || null,
+        })
+        .eq("id", data);
 
-        if (proformaLinkError) throw proformaLinkError;
+      if (proformaCommercialSetupError) throw proformaCommercialSetupError;
 
+      if (sourceCustomerPo) {
         const { error: customerPoLinkError } = await supabase
           .from("finance_client_purchase_orders")
           .update({
@@ -972,13 +1003,13 @@ export default function FinanceNewProformaInvoicePage() {
       setIsSaving(false);
     }
   }, [
+    bankAccountId,
     clientId,
     companyId,
     currencyCode,
     currencyId,
     issueDate,
     navigate,
-    bankAccountId,
     notes,
     paymentMethodId,
     paymentTermsId,

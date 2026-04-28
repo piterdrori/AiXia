@@ -7,7 +7,6 @@ import {
   ArrowRight,
   CheckCircle,
   Printer,
-  RefreshCw,
   Save,
   SquarePen,
   Trash2,
@@ -312,7 +311,6 @@ export default function FinanceQuotationDetailPage() {
   const navigate = useNavigate();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -410,9 +408,7 @@ export default function FinanceQuotationDetailPage() {
     async (refreshOnly = false) => {
       if (!id) return;
 
-      if (refreshOnly) {
-        setIsRefreshing(true);
-      } else {
+      if (!refreshOnly) {
         setIsLoading(true);
       }
 
@@ -583,11 +579,7 @@ export default function FinanceQuotationDetailPage() {
         console.error(err);
         setError("Failed to load quotation.");
       } finally {
-        if (refreshOnly) {
-          setIsRefreshing(false);
-        } else {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
       }
     },
     [id, loadArchiveItems]

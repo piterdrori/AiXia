@@ -713,10 +713,12 @@ export default function FinanceQuotationsPage() {
               <Button
                 variant="outline"
                 onClick={() => {
+                  setArchiveTab("archived");
                   setIsArchiveModalOpen(true);
                 }}
-                className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
+                className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20"
               >
+                <Archive className="mr-2 h-4 w-4" />
                 Archive
               </Button>
             </div>

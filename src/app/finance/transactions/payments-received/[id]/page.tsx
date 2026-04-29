@@ -268,15 +268,7 @@ export default function PaymentReceivedDetailPage() {
   const fieldShellClass =
     "mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-45";
 
-  const inputFieldClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-45";
-
-  const readOnlyFieldClass =
-    "flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80";
-
   const labelClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
-
-  const inputLabelClass = "text-sm font-medium text-slate-300";
 
   const hasProof = attachments.length > 0;
   const convertedAmount = toNumber(payment?.converted_amount);
@@ -601,7 +593,7 @@ export default function PaymentReceivedDetailPage() {
             .order("currency_code", { ascending: true }),
         ]);
 
-      setInvoiceOptions((invoices || []) as PaymentInvoiceOption[]);
+      setInvoiceOptions((invoices || []) as unknown as PaymentInvoiceOption[]);
       setPaymentMethodOptions((methods || []) as PaymentMethodOption[]);
       setCurrencyOptions((currencies || []) as CurrencyOption[]);
     }

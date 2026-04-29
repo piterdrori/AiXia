@@ -95,9 +95,18 @@ import FinanceQuotationDetailPage from "@/app/finance/transactions/quotations/[i
 import FinanceProformaInvoicesPage from "@/app/finance/transactions/proforma-invoices/page";
 import FinanceNewProformaInvoicePage from "@/app/finance/transactions/proforma-invoices/new/page";
 import FinanceProformaInvoiceDetailPage from "@/app/finance/transactions/proforma-invoices/[id]/page";
-import FinanceBillsPage from "@/app/finance/bills/page";
-import BillDetailPage from "@/app/finance/bills/[id]/page";
-import FinancePaymentsMadePage from "@/app/finance/payments-made/page";
+import FinanceVendorQuotationsPage from "@/app/finance/transactions/vendor-quotations/page";
+import FinanceNewVendorQuotationPage from "@/app/finance/transactions/vendor-quotations/new/page";
+import FinanceVendorQuotationDetailPage from "@/app/finance/transactions/vendor-quotations/[id]/page";
+import FinancePurchaseOrdersPage from "@/app/finance/transactions/purchase-orders/page";
+import FinanceNewPurchaseOrderPage from "@/app/finance/transactions/purchase-orders/new/page";
+import FinancePurchaseOrderDetailPage from "@/app/finance/transactions/purchase-orders/[id]/page";
+import FinanceBillsPage from "@/app/finance/transactions/bills/page";
+import FinanceNewBillPage from "@/app/finance/transactions/bills/new/page";
+import BillDetailPage from "@/app/finance/transactions/bills/[id]/page";
+import FinancePaymentsMadePage from "@/app/finance/transactions/payments-made/page";
+import FinanceNewPaymentMadePage from "@/app/finance/transactions/payments-made/new/page";
+import PaymentMadeDetailPage from "@/app/finance/transactions/payments-made/[id]/page";
 import PaymentsReceivedPage from "@/app/finance/transactions/payments-received/page";
 import PaymentReceivedDetailPage from "@/app/finance/transactions/payments-received/[id]/page";
 import NewPaymentReceivedPage from "@/app/finance/transactions/payments-received/new/page";
@@ -1291,11 +1300,88 @@ function AppRoutes() {
 />
 
 <Route
+  path="/finance/transactions/vendor-quotations"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceVendorQuotationsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/vendor-quotations/new"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceNewVendorQuotationPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/vendor-quotations/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceVendorQuotationDetailPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/purchase-orders"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinancePurchaseOrdersPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/purchase-orders/new"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceNewPurchaseOrderPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/purchase-orders/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinancePurchaseOrderDetailPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
   path="/finance/transactions/bills"
   element={
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceBillsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/bills/new"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceNewBillPage />
       </DashboardLayout>
     </ProtectedRoute>
   }
@@ -1318,6 +1404,28 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinancePaymentsMadePage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/payments-made/new"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceNewPaymentMadePage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/payments-made/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <PaymentMadeDetailPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

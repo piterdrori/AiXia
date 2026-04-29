@@ -7,6 +7,7 @@ import {
   FileText,
   Link2,
   Plus,
+  Printer,
   Receipt,
   RotateCcw,
   Save,
@@ -26,6 +27,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import PurchaseOrderPrintDocument from "./PurchaseOrderPrintDocument";
 
 type PurchaseOrderStatus =
   | "draft"
@@ -91,6 +93,21 @@ type VendorOption = {
   code: string | null;
   name: string;
   legal_name: string | null;
+  email: string | null;
+  phone: string | null;
+  contact_person: string | null;
+  billing_address: string | null;
+  company_email: string | null;
+  personnel_email: string | null;
+  company_phone: string | null;
+  personnel_phone: string | null;
+  company_related_personnel: string | null;
+  country: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
   currency_code: string | null;
   payment_terms_id: string | null;
 };
@@ -99,6 +116,16 @@ type CompanyOption = {
   id: string;
   name: string;
   legal_name: string | null;
+  contact_person: string | null;
+  email: string | null;
+  phone: string | null;
+  currency_code: string | null;
+  country: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
 };
 
 type CurrencyOption = {
@@ -109,12 +136,18 @@ type CurrencyOption = {
 
 type PaymentTermOption = {
   id: string;
+  code: string;
   name: string;
+  due_days: number;
+  document_label: string | null;
+  document_terms_text: string | null;
 };
 
 type ShippingTermOption = {
   id: string;
+  code: string;
   name: string;
+  description: string | null;
 };
 
 type UnitOption = {
@@ -136,12 +169,54 @@ type ExpenseCategoryOption = {
 
 type ItemOption = {
   id: string;
-  item_code: string | null;
   name: string;
   description: string | null;
   unit_price: number | string | null;
   default_unit_of_measure_id: string | null;
   default_tax_code_id: string | null;
+};
+
+type VendorBankAccountOption = {
+  id: string;
+  bank_id: string;
+  vendor_id: string;
+  beneficiary_name: string | null;
+  bank_name: string | null;
+  country: string | null;
+  city: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
+  account_number: string | null;
+  account_identifier_type: string | null;
+  account_identifier_value: string | null;
+  currency_code: string | null;
+  is_default: boolean;
+};
+
+type VendorAddressOption = {
+  id: string;
+  vendor_id: string;
+  address_type: string;
+  country: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
+  sort_order: number;
+  is_primary: boolean;
+};
+
+type VendorPersonnelOption = {
+  id: string;
+  vendor_id: string;
+  full_name: string | null;
+  position: string | null;
+  email: string | null;
+  phone: string | null;
+  sort_order: number;
+  is_primary: boolean;
 };
 
 type VendorQuotationLinkRow = {
@@ -252,6 +327,116 @@ function getBillDocumentLabel(documentType: string) {
   return documentType === "vendor_pi" ? "Vendor PI" : "Vendor Invoice";
 }
 
+function buildCompanyAddress(company: CompanyOption | null) {
+  if (!company) return "";
+
+  return [
+    company.address_line_1,
+    company.address_line_2,
+    company.city,
+    company.state_province,
+    company.postal_code,
+    company.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function buildVendorAddress(
+  vendor: VendorOption | null,
+  vendorAddresses: VendorAddressOption[]
+) {
+  const primaryAddress =
+    vendorAddresses.find((address) => address.is_primary) ||
+    vendorAddresses[0] ||
+    null;
+
+  if (primaryAddress) {
+    return [
+      primaryAddress.address_line_1,
+      primaryAddress.address_line_2,
+      primaryAddress.city,
+      primaryAddress.state_province,
+      primaryAddress.postal_code,
+      primaryAddress.country,
+    ]
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  if (vendor?.billing_address) return vendor.billing_address;
+
+  return [
+    vendor?.address_line_1,
+    vendor?.address_line_2,
+    vendor?.city,
+    vendor?.state_province,
+    vendor?.postal_code,
+    vendor?.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function buildVendorBankAddress(account: VendorBankAccountOption | null) {
+  if (!account) return "";
+
+  return [
+    account.address_line_1,
+    account.address_line_2,
+    account.city,
+    account.postal_code,
+    account.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function buildVendorBankIdentifierLine(
+  account: VendorBankAccountOption | null
+) {
+  if (!account?.account_identifier_value) return "";
+
+  const normalizedType = (account.account_identifier_type || "").toLowerCase();
+
+  return `${
+    normalizedType === "swift" ? "SWIFT" : "Identifier"
+  }: ${account.account_identifier_value}`;
+}
+
+function buildVendorBankDetailsLines(
+  account: VendorBankAccountOption | null
+) {
+  if (!account) return [];
+
+  const bankAddress = buildVendorBankAddress(account);
+  const identifierLine = buildVendorBankIdentifierLine(account);
+
+  return [
+    account.beneficiary_name
+      ? `Beneficiary: ${account.beneficiary_name}`
+      : "",
+    account.bank_name ? `Beneficiary Bank Name: ${account.bank_name}` : "",
+    bankAddress ? `Beneficiary Bank Address: ${bankAddress}` : "",
+    account.account_number ? `Bank Account: ${account.account_number}` : "",
+    identifierLine,
+    account.currency_code ? `Currency: ${account.currency_code}` : "",
+  ].filter((line) => line.trim());
+}
+
+function getPaymentTermLabel(term: PaymentTermOption | null) {
+  if (!term) return "—";
+  return term.document_label || term.name || term.code || "—";
+}
+
+function getShippingTermLabel(term: ShippingTermOption | null) {
+  if (!term) return "—";
+
+  return term.description?.trim()
+    ? `${term.name} — ${term.description.trim()}`
+    : term.name || term.code || "—";
+}
+
 function createLineDraft(line: PurchaseOrderLineItem): LineDraft {
   return {
     id: line.id,
@@ -305,6 +490,15 @@ export default function FinancePurchaseOrderDetailPage() {
     ExpenseCategoryOption[]
   >([]);
   const [items, setItems] = useState<ItemOption[]>([]);
+  const [vendorBankAccounts, setVendorBankAccounts] = useState<
+    VendorBankAccountOption[]
+  >([]);
+  const [vendorAddresses, setVendorAddresses] = useState<VendorAddressOption[]>(
+    []
+  );
+  const [vendorPersonnel, setVendorPersonnel] = useState<VendorPersonnelOption[]>(
+    []
+  );
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingOverview, setIsSavingOverview] = useState(false);
@@ -323,6 +517,8 @@ export default function FinancePurchaseOrderDetailPage() {
     currency_code: "",
     payment_terms_id: "",
     shipping_term_id: "",
+    vendor_bank_account_id: "",
+    terms_and_conditions: "",
     notes: "",
   });
 
@@ -359,8 +555,119 @@ export default function FinancePurchaseOrderDetailPage() {
     [shippingTerms, purchaseOrder?.shipping_term_id]
   );
 
-  const canEdit =
-    !!purchaseOrder && purchaseOrder.status === "draft";
+  const selectedVendorAddresses = useMemo(
+    () =>
+      vendorAddresses.filter(
+        (address) => address.vendor_id === purchaseOrder?.vendor_id
+      ),
+    [purchaseOrder?.vendor_id, vendorAddresses]
+  );
+
+  const selectedVendorPersonnel = useMemo(
+    () =>
+      vendorPersonnel.filter(
+        (person) => person.vendor_id === purchaseOrder?.vendor_id
+      ),
+    [purchaseOrder?.vendor_id, vendorPersonnel]
+  );
+
+  const selectedVendorContact = useMemo(
+    () =>
+      selectedVendorPersonnel.find((person) => person.is_primary) ||
+      selectedVendorPersonnel[0] ||
+      null,
+    [selectedVendorPersonnel]
+  );
+
+  const filteredVendorBankAccounts = useMemo(
+    () =>
+      vendorBankAccounts.filter(
+        (account) => account.vendor_id === purchaseOrder?.vendor_id
+      ),
+    [purchaseOrder?.vendor_id, vendorBankAccounts]
+  );
+
+  const selectedVendorBankAccount = useMemo(() => {
+    const metadataBankId =
+      (purchaseOrder?.metadata?.vendor_bank_account_id as string | undefined) ||
+      "";
+
+    const selectedFromDraft =
+      filteredVendorBankAccounts.find(
+        (account) => account.id === overviewDraft.vendor_bank_account_id
+      ) || null;
+
+    const selectedFromMetadata =
+      filteredVendorBankAccounts.find((account) => account.id === metadataBankId) ||
+      null;
+
+    const defaultBank =
+      filteredVendorBankAccounts.find((account) => account.is_default) ||
+      filteredVendorBankAccounts[0] ||
+      null;
+
+    return selectedFromDraft || selectedFromMetadata || defaultBank;
+  }, [
+    filteredVendorBankAccounts,
+    overviewDraft.vendor_bank_account_id,
+    purchaseOrder?.metadata?.vendor_bank_account_id,
+  ]);
+
+  const selectedPaymentTermsLabel = useMemo(
+    () => getPaymentTermLabel(selectedPaymentTerm),
+    [selectedPaymentTerm]
+  );
+
+  const selectedShippingTermsLabel = useMemo(
+    () => getShippingTermLabel(selectedShippingTerm),
+    [selectedShippingTerm]
+  );
+
+  const resolvedCompanyAddress = useMemo(
+    () => buildCompanyAddress(selectedCompany),
+    [selectedCompany]
+  );
+
+  const resolvedVendorAddress = useMemo(
+    () => buildVendorAddress(selectedVendor, selectedVendorAddresses),
+    [selectedVendor, selectedVendorAddresses]
+  );
+
+  const resolvedVendorEmail = useMemo(
+    () =>
+      selectedVendor?.company_email ||
+      selectedVendor?.personnel_email ||
+      selectedVendor?.email ||
+      selectedVendorContact?.email ||
+      "",
+    [selectedVendor, selectedVendorContact]
+  );
+
+  const resolvedVendorPhone = useMemo(
+    () =>
+      selectedVendor?.company_phone ||
+      selectedVendor?.personnel_phone ||
+      selectedVendor?.phone ||
+      selectedVendorContact?.phone ||
+      "",
+    [selectedVendor, selectedVendorContact]
+  );
+
+  const resolvedVendorContact = useMemo(
+    () =>
+      selectedVendor?.company_related_personnel ||
+      selectedVendor?.contact_person ||
+      selectedVendorContact?.full_name ||
+      "",
+    [selectedVendor, selectedVendorContact]
+  );
+
+  const vendorBankDetailsLines = useMemo(
+    () => buildVendorBankDetailsLines(selectedVendorBankAccount),
+    [selectedVendorBankAccount]
+  );
+
+  const canEdit = !!purchaseOrder && purchaseOrder.status === "draft";
 
   const canIssue =
     !!purchaseOrder && purchaseOrder.status === "draft" && lineItems.length > 0;
@@ -375,9 +682,26 @@ export default function FinancePurchaseOrderDetailPage() {
 
   const canArchive =
     !!purchaseOrder &&
-    !["archived", "deleted", "linked_to_bill"].includes(purchaseOrder.status);
+    ![
+      "archived",
+      "deleted",
+      "issued",
+      "sent",
+      "acknowledged",
+      "linked_to_bill",
+      "closed",
+    ].includes(purchaseOrder.status);
 
-  const canDelete = !!purchaseOrder && purchaseOrder.status !== "deleted";
+  const canDelete =
+    !!purchaseOrder &&
+    ![
+      "deleted",
+      "issued",
+      "sent",
+      "acknowledged",
+      "linked_to_bill",
+      "closed",
+    ].includes(purchaseOrder.status);
 
   const canRestore =
     !!purchaseOrder && ["archived", "deleted"].includes(purchaseOrder.status);
@@ -395,14 +719,21 @@ export default function FinancePurchaseOrderDetailPage() {
       taxCodesResult,
       expenseCategoriesResult,
       itemsResult,
+      vendorBankAccountsResult,
+      vendorAddressesResult,
+      vendorPersonnelResult,
     ] = await Promise.all([
       supabase
         .from("finance_vendors")
-        .select("id, code, name, legal_name, currency_code, payment_terms_id")
+        .select(
+          "id, code, name, legal_name, email, phone, contact_person, billing_address, company_email, personnel_email, company_phone, personnel_phone, company_related_personnel, country, city, state_province, postal_code, address_line_1, address_line_2, currency_code, payment_terms_id"
+        )
         .order("name", { ascending: true }),
       supabase
         .from("finance_companies")
-        .select("id, name, legal_name")
+        .select(
+          "id, name, legal_name, contact_person, email, phone, currency_code, country, city, state_province, postal_code, address_line_1, address_line_2"
+        )
         .order("name", { ascending: true }),
       supabase
         .from("finance_currencies")
@@ -410,11 +741,11 @@ export default function FinancePurchaseOrderDetailPage() {
         .order("currency_code", { ascending: true }),
       supabase
         .from("finance_payment_terms")
-        .select("id, name")
+        .select("id, code, name, due_days, document_label, document_terms_text")
         .order("name", { ascending: true }),
       supabase
         .from("finance_shipping_terms")
-        .select("id, name")
+        .select("id, code, name, description")
         .order("name", { ascending: true }),
       supabase
         .from("finance_units_of_measure")
@@ -431,9 +762,33 @@ export default function FinancePurchaseOrderDetailPage() {
       supabase
         .from("finance_items")
         .select(
-          "id, item_code, name, description, unit_price, default_unit_of_measure_id, default_tax_code_id"
+          "id, name, description, unit_price, default_unit_of_measure_id, default_tax_code_id"
         )
         .order("name", { ascending: true }),
+      supabase
+        .from("finance_vendor_bank_accounts")
+        .select(
+          "id, bank_id, vendor_id, beneficiary_name, bank_name, country, city, postal_code, address_line_1, address_line_2, account_number, account_identifier_type, account_identifier_value, currency_code, is_default"
+        )
+        .eq("status", "active")
+        .order("is_default", { ascending: false })
+        .order("bank_name", { ascending: true }),
+      supabase
+        .from("finance_vendor_addresses")
+        .select(
+          "id, vendor_id, address_type, country, city, state_province, postal_code, address_line_1, address_line_2, sort_order, is_primary"
+        )
+        .eq("status", "active")
+        .order("is_primary", { ascending: false })
+        .order("sort_order", { ascending: true }),
+      supabase
+        .from("finance_vendor_personnel")
+        .select(
+          "id, vendor_id, full_name, position, email, phone, sort_order, is_primary"
+        )
+        .eq("status", "active")
+        .order("is_primary", { ascending: false })
+        .order("sort_order", { ascending: true }),
     ]);
 
     if (vendorsResult.error) throw vendorsResult.error;
@@ -445,6 +800,9 @@ export default function FinancePurchaseOrderDetailPage() {
     if (taxCodesResult.error) throw taxCodesResult.error;
     if (expenseCategoriesResult.error) throw expenseCategoriesResult.error;
     if (itemsResult.error) throw itemsResult.error;
+    if (vendorBankAccountsResult.error) throw vendorBankAccountsResult.error;
+    if (vendorAddressesResult.error) throw vendorAddressesResult.error;
+    if (vendorPersonnelResult.error) throw vendorPersonnelResult.error;
 
     setVendors((vendorsResult.data || []) as unknown as VendorOption[]);
     setCompanies((companiesResult.data || []) as unknown as CompanyOption[]);
@@ -461,6 +819,15 @@ export default function FinancePurchaseOrderDetailPage() {
       (expenseCategoriesResult.data || []) as unknown as ExpenseCategoryOption[]
     );
     setItems((itemsResult.data || []) as unknown as ItemOption[]);
+    setVendorBankAccounts(
+      (vendorBankAccountsResult.data || []) as unknown as VendorBankAccountOption[]
+    );
+    setVendorAddresses(
+      (vendorAddressesResult.data || []) as unknown as VendorAddressOption[]
+    );
+    setVendorPersonnel(
+      (vendorPersonnelResult.data || []) as unknown as VendorPersonnelOption[]
+    );
   }, []);
 
   const loadPurchaseOrder = useCallback(async () => {
@@ -533,8 +900,17 @@ export default function FinancePurchaseOrderDetailPage() {
         currency_code: typedPurchaseOrder.currency_code || "",
         payment_terms_id: typedPurchaseOrder.payment_terms_id || "",
         shipping_term_id: typedPurchaseOrder.shipping_term_id || "",
+        vendor_bank_account_id:
+          (typedPurchaseOrder.metadata?.vendor_bank_account_id as string | undefined) ||
+          "",
+        terms_and_conditions:
+          (typedPurchaseOrder.metadata?.purchase_order_terms_and_conditions as
+            | string
+            | undefined) || "",
         notes: typedPurchaseOrder.notes || "",
       });
+
+      
     } catch (error) {
       console.error("Failed to load purchase order:", error);
       setErrorMessage("Failed to load purchase order.");
@@ -657,6 +1033,261 @@ export default function FinancePurchaseOrderDetailPage() {
     });
   }, []);
 
+  const financialSummary = useMemo(() => {
+    const subtotal = lineItems.reduce((sum, line) => {
+      return sum + toNumber(line.quantity) * toNumber(line.unit_price);
+    }, 0);
+
+    const discount = lineItems.reduce((sum, line) => {
+      return sum + toNumber(line.discount);
+    }, 0);
+
+    const total = toNumber(purchaseOrder?.total_amount);
+    const tax = Math.max(total - Math.max(subtotal - discount, 0), 0);
+
+    return {
+      subtotal: Math.round(subtotal * 100) / 100,
+      discount: Math.round(discount * 100) / 100,
+      tax: Math.round(tax * 100) / 100,
+      total: Math.round(total * 100) / 100,
+    };
+  }, [lineItems, purchaseOrder?.total_amount]);
+
+  const printablePurchaseOrder = useMemo(() => {
+    if (!purchaseOrder) return null;
+
+    const metadata = purchaseOrder.metadata || {};
+
+    return {
+      ...purchaseOrder,
+      company_name: selectedCompany?.legal_name || selectedCompany?.name || "",
+      company_contact_person: selectedCompany?.contact_person || "",
+      company_email: selectedCompany?.email || "",
+      company_phone: selectedCompany?.phone || "",
+      company_address: resolvedCompanyAddress,
+      vendor_name: selectedVendor?.legal_name || selectedVendor?.name || "",
+      vendor_contact_person: resolvedVendorContact,
+      vendor_email: resolvedVendorEmail,
+      vendor_phone: resolvedVendorPhone,
+      vendor_address: resolvedVendorAddress,
+      vendor_bank_details_snapshot: vendorBankDetailsLines.join("\n"),
+      payment_terms_snapshot: selectedPaymentTermsLabel,
+      payment_terms_document_text:
+        selectedPaymentTerm?.document_terms_text || "",
+      shipping_terms_snapshot: selectedShippingTermsLabel,
+      metadata: {
+        ...metadata,
+        vendor_bank_account_id:
+          selectedVendorBankAccount?.id ||
+          metadata.vendor_bank_account_id ||
+          null,
+        company_snapshot: metadata.company_snapshot || {
+          id: selectedCompany?.id || null,
+          name: selectedCompany?.name || null,
+          legal_name: selectedCompany?.legal_name || null,
+          contact_person: selectedCompany?.contact_person || null,
+          email: selectedCompany?.email || null,
+          phone: selectedCompany?.phone || null,
+          currency_code: selectedCompany?.currency_code || null,
+          address: resolvedCompanyAddress,
+        },
+        vendor_snapshot: metadata.vendor_snapshot || {
+          id: selectedVendor?.id || null,
+          code: selectedVendor?.code || null,
+          name: selectedVendor?.name || null,
+          legal_name: selectedVendor?.legal_name || null,
+          contact_person: resolvedVendorContact || null,
+          email: resolvedVendorEmail || null,
+          phone: resolvedVendorPhone || null,
+          currency_code: selectedVendor?.currency_code || null,
+          address: resolvedVendorAddress,
+        },
+        vendor_bank_snapshot: metadata.vendor_bank_snapshot || {
+          id: selectedVendorBankAccount?.id || null,
+          bank_id: selectedVendorBankAccount?.bank_id || null,
+          beneficiary_name: selectedVendorBankAccount?.beneficiary_name || null,
+          bank_name: selectedVendorBankAccount?.bank_name || null,
+          account_number: selectedVendorBankAccount?.account_number || null,
+          account_identifier_type:
+            selectedVendorBankAccount?.account_identifier_type || null,
+          account_identifier_value:
+            selectedVendorBankAccount?.account_identifier_value || null,
+          currency_code: selectedVendorBankAccount?.currency_code || null,
+          address: buildVendorBankAddress(selectedVendorBankAccount),
+          lines: vendorBankDetailsLines,
+        },
+        payment_terms_snapshot: metadata.payment_terms_snapshot || {
+          id: selectedPaymentTerm?.id || null,
+          code: selectedPaymentTerm?.code || null,
+          name: selectedPaymentTerm?.name || null,
+          due_days: selectedPaymentTerm?.due_days || null,
+          document_label: selectedPaymentTerm?.document_label || null,
+          document_terms_text:
+            selectedPaymentTerm?.document_terms_text || null,
+        },
+        shipping_terms_snapshot: metadata.shipping_terms_snapshot || {
+          id: selectedShippingTerm?.id || null,
+          code: selectedShippingTerm?.code || null,
+          name: selectedShippingTerm?.name || null,
+          description: selectedShippingTerm?.description || null,
+          label: selectedShippingTermsLabel,
+        },
+        purchase_order_terms_and_conditions:
+          metadata.purchase_order_terms_and_conditions ||
+          overviewDraft.terms_and_conditions ||
+          "",
+      },
+    };
+  }, [
+    overviewDraft.terms_and_conditions,
+    purchaseOrder,
+    resolvedCompanyAddress,
+    resolvedVendorAddress,
+    resolvedVendorContact,
+    resolvedVendorEmail,
+    resolvedVendorPhone,
+    selectedCompany,
+    selectedPaymentTerm,
+    selectedPaymentTermsLabel,
+    selectedShippingTerm,
+    selectedShippingTermsLabel,
+    selectedVendor,
+    selectedVendorBankAccount,
+    vendorBankDetailsLines,
+  ]);
+
+  const savePrintSnapshots = useCallback(async () => {
+    if (!purchaseOrder) return;
+
+    const snapshotMetadata = {
+      ...(purchaseOrder.metadata || {}),
+      vendor_bank_account_id: selectedVendorBankAccount?.id || null,
+      company_snapshot: {
+        id: selectedCompany?.id || null,
+        name: selectedCompany?.name || null,
+        legal_name: selectedCompany?.legal_name || null,
+        contact_person: selectedCompany?.contact_person || null,
+        email: selectedCompany?.email || null,
+        phone: selectedCompany?.phone || null,
+        currency_code: selectedCompany?.currency_code || null,
+        address: resolvedCompanyAddress,
+      },
+      vendor_snapshot: {
+        id: selectedVendor?.id || null,
+        code: selectedVendor?.code || null,
+        name: selectedVendor?.name || null,
+        legal_name: selectedVendor?.legal_name || null,
+        contact_person: resolvedVendorContact || null,
+        email: resolvedVendorEmail || null,
+        phone: resolvedVendorPhone || null,
+        currency_code: selectedVendor?.currency_code || null,
+        address: resolvedVendorAddress,
+      },
+      vendor_bank_snapshot: {
+        id: selectedVendorBankAccount?.id || null,
+        bank_id: selectedVendorBankAccount?.bank_id || null,
+        beneficiary_name: selectedVendorBankAccount?.beneficiary_name || null,
+        bank_name: selectedVendorBankAccount?.bank_name || null,
+        account_number: selectedVendorBankAccount?.account_number || null,
+        account_identifier_type:
+          selectedVendorBankAccount?.account_identifier_type || null,
+        account_identifier_value:
+          selectedVendorBankAccount?.account_identifier_value || null,
+        currency_code: selectedVendorBankAccount?.currency_code || null,
+        address: buildVendorBankAddress(selectedVendorBankAccount),
+        lines: vendorBankDetailsLines,
+      },
+      payment_terms_snapshot: {
+        id: selectedPaymentTerm?.id || null,
+        code: selectedPaymentTerm?.code || null,
+        name: selectedPaymentTerm?.name || null,
+        due_days: selectedPaymentTerm?.due_days || null,
+        document_label: selectedPaymentTerm?.document_label || null,
+        document_terms_text:
+          selectedPaymentTerm?.document_terms_text || null,
+      },
+      shipping_terms_snapshot: {
+        id: selectedShippingTerm?.id || null,
+        code: selectedShippingTerm?.code || null,
+        name: selectedShippingTerm?.name || null,
+        description: selectedShippingTerm?.description || null,
+        label: selectedShippingTermsLabel,
+      },
+      purchase_order_terms_and_conditions:
+        overviewDraft.terms_and_conditions ||
+        (purchaseOrder.metadata?.purchase_order_terms_and_conditions as
+          | string
+          | undefined) ||
+        "",
+    };
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user?.id) throw new Error("User not authenticated");
+
+    const { error } = await supabase
+      .from("finance_purchase_orders")
+      .update({
+        metadata: snapshotMetadata,
+        updated_by: user.id,
+      })
+      .eq("id", purchaseOrder.id)
+      .eq("status", "draft");
+
+    if (error) throw error;
+  }, [
+    overviewDraft.terms_and_conditions,
+    purchaseOrder,
+    resolvedCompanyAddress,
+    resolvedVendorAddress,
+    resolvedVendorContact,
+    resolvedVendorEmail,
+    resolvedVendorPhone,
+    selectedCompany,
+    selectedPaymentTerm,
+    selectedShippingTerm,
+    selectedShippingTermsLabel,
+    selectedVendor,
+    selectedVendorBankAccount,
+    vendorBankDetailsLines,
+  ]);
+
+  const handleIssuePurchaseOrder = useCallback(async () => {
+    if (!purchaseOrder) return;
+
+    try {
+      setIsRunningAction(true);
+      setErrorMessage("");
+
+      await savePrintSnapshots();
+
+      const { error } = await supabase.rpc("finance_issue_purchase_order", {
+        p_purchase_order_id: purchaseOrder.id,
+      });
+
+      if (error) throw error;
+
+      await loadPurchaseOrder();
+    } catch (error) {
+      console.error("Failed to issue purchase order:", error);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to issue purchase order."
+      );
+    } finally {
+      setIsRunningAction(false);
+    }
+  }, [loadPurchaseOrder, purchaseOrder, savePrintSnapshots]);
+
+  const handlePrintPurchaseOrder = useCallback(() => {
+    window.setTimeout(() => {
+      window.print();
+    }, 50);
+  }, []);
+
   const saveOverview = useCallback(async () => {
     if (!purchaseOrder || !canEdit) return;
 
@@ -696,6 +1327,13 @@ export default function FinancePurchaseOrderDetailPage() {
           payment_terms_id: overviewDraft.payment_terms_id || null,
           shipping_term_id: overviewDraft.shipping_term_id || null,
           notes: overviewDraft.notes.trim() || null,
+          metadata: {
+            ...(purchaseOrder.metadata || {}),
+            vendor_bank_account_id:
+              overviewDraft.vendor_bank_account_id || null,
+            purchase_order_terms_and_conditions:
+              overviewDraft.terms_and_conditions || "",
+          },
           updated_by: user.id,
         })
         .eq("id", purchaseOrder.id)
@@ -977,12 +1615,23 @@ export default function FinancePurchaseOrderDetailPage() {
 
                   {canIssue ? (
                     <Button
-                      onClick={() => void runRpcAction("finance_issue_purchase_order")}
+                      onClick={() => void handleIssuePurchaseOrder()}
                       disabled={isRunningAction}
                       className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
                     >
                       <Send className="mr-2 h-4 w-4" />
                       Issue Purchase Order
+                    </Button>
+                  ) : null}
+
+                  {purchaseOrder.status !== "draft" ? (
+                    <Button
+                      variant="outline"
+                      onClick={handlePrintPurchaseOrder}
+                      className="h-11 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-4 text-cyan-200 hover:bg-cyan-500/20"
+                    >
+                      <Printer className="mr-2 h-4 w-4" />
+                      Print PO
                     </Button>
                   ) : null}
 
@@ -1255,7 +1904,72 @@ export default function FinancePurchaseOrderDetailPage() {
                     </select>
                   ) : (
                     <div className={readOnlyBoxClass}>
-                      {selectedShippingTerm?.name || "—"}
+                      {selectedShippingTermsLabel}
+                    </div>
+                  )}
+                </label>
+
+                <label className="space-y-2 md:col-span-2">
+                  <div className={labelClass}>Vendor Bank Account</div>
+                  {isOverviewEditMode ? (
+                    <select
+                      value={overviewDraft.vendor_bank_account_id}
+                      onChange={(event) =>
+                        setOverviewDraft((current) => ({
+                          ...current,
+                          vendor_bank_account_id: event.target.value,
+                        }))
+                      }
+                      className={fieldClass}
+                    >
+                      <option value="">Use default vendor bank account</option>
+                      {filteredVendorBankAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.bank_name || "Bank"} —{" "}
+                          {account.account_number ||
+                            account.account_identifier_value ||
+                            account.bank_id}
+                          {account.currency_code ? ` — ${account.currency_code}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="min-h-[44px] rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white">
+                      {vendorBankDetailsLines.length > 0 ? (
+                        <div className="space-y-1">
+                          {vendorBankDetailsLines.map((line) => (
+                            <div key={line}>{line}</div>
+                          ))}
+                        </div>
+                      ) : (
+                        "—"
+                      )}
+                    </div>
+                  )}
+                </label>
+
+                <label className="space-y-2 md:col-span-2">
+                  <div className={labelClass}>Terms and Conditions</div>
+                  {isOverviewEditMode ? (
+                    <textarea
+                      value={overviewDraft.terms_and_conditions}
+                      onChange={(event) =>
+                        setOverviewDraft((current) => ({
+                          ...current,
+                          terms_and_conditions: event.target.value,
+                        }))
+                      }
+                      rows={5}
+                      placeholder="Purchase order terms and conditions shown on the printable PO."
+                      className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                    />
+                  ) : (
+                    <div className={readOnlyBoxClass}>
+                      {overviewDraft.terms_and_conditions ||
+                        (purchaseOrder.metadata?.purchase_order_terms_and_conditions as
+                          | string
+                          | undefined) ||
+                        "Default PO terms will be used on print."}
                     </div>
                   )}
                 </label>
@@ -1385,7 +2099,6 @@ export default function FinancePurchaseOrderDetailPage() {
                             <option value="">Manual item</option>
                             {items.map((item) => (
                               <option key={item.id} value={item.id}>
-                                {item.item_code ? `${item.item_code} — ` : ""}
                                 {item.name}
                               </option>
                             ))}
@@ -1646,6 +2359,76 @@ export default function FinancePurchaseOrderDetailPage() {
                     {normalizeStatusLabel(purchaseOrder.status)}
                   </Badge>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card className={sectionCardClass}>
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Printable PO
+                </CardTitle>
+                <CardDescription className="mt-1 text-xs text-slate-500">
+                  Print-ready purchase order details generated by AiXia.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-3 p-5">
+                <div className={innerPanelClass}>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                    Company
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-white">
+                    {selectedCompany?.legal_name || selectedCompany?.name || "—"}
+                  </div>
+                  {resolvedCompanyAddress ? (
+                    <div className="mt-2 text-xs leading-5 text-slate-500">
+                      {resolvedCompanyAddress}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className={innerPanelClass}>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                    Supplier
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-white">
+                    {selectedVendor?.legal_name || selectedVendor?.name || "—"}
+                  </div>
+                  <div className="mt-2 text-xs leading-5 text-slate-500">
+                    {[resolvedVendorContact, resolvedVendorEmail, resolvedVendorPhone]
+                      .filter(Boolean)
+                      .join(" · ") || "No contact details"}
+                  </div>
+                </div>
+
+                <div className={innerPanelClass}>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                    Vendor Bank
+                  </div>
+                  {vendorBankDetailsLines.length > 0 ? (
+                    <div className="mt-2 space-y-1 text-xs leading-5 text-slate-400">
+                      {vendorBankDetailsLines.map((line) => (
+                        <div key={line}>{line}</div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-xs leading-5 text-amber-200">
+                      No active vendor bank account found.
+                    </div>
+                  )}
+                </div>
+
+                <Button
+                  variant="outline"
+                  onClick={handlePrintPurchaseOrder}
+                  disabled={!printablePurchaseOrder || purchaseOrder.status === "draft"}
+                  className="h-10 w-full justify-start rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-4 text-cyan-200 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  {purchaseOrder.status === "draft"
+                    ? "Issue PO Before Printing"
+                    : "Print Purchase Order"}
+                </Button>
               </CardContent>
             </Card>
 
@@ -1948,6 +2731,14 @@ export default function FinancePurchaseOrderDetailPage() {
           Created: {formatDateTime(purchaseOrder.created_at)} · Updated:{" "}
           {formatDateTime(purchaseOrder.updated_at)}
         </div>
+
+        {printablePurchaseOrder ? (
+          <PurchaseOrderPrintDocument
+            purchaseOrder={printablePurchaseOrder}
+            lineItems={lineItems}
+            financialSummary={financialSummary}
+          />
+        ) : null}
       </div>
     </div>
   );

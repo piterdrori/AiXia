@@ -696,8 +696,12 @@ export default function FinanceCustomerPoDetailPage() {
             mime_type
           )
         `)
-        .eq("entity_type", "finance_client_purchase_order")
         .eq("entity_id", id)
+        .in("entity_type", [
+          "finance_client_purchase_order",
+          "finance_customer_po",
+          "customer_po",
+        ])
         .order("created_at", { ascending: false });
 
       if (attachmentError) throw attachmentError;
@@ -753,7 +757,7 @@ export default function FinanceCustomerPoDetailPage() {
           )
         `)
         .eq("client_po_id", id)
-        .neq("status", "deleted")
+        .or("status.is.null,status.neq.deleted")
         .order("sort_order", { ascending: true });
 
       if (lineItemError) throw lineItemError;
@@ -937,7 +941,6 @@ export default function FinanceCustomerPoDetailPage() {
   const canEditDetails =
     customerPo?.status !== "archived" &&
     customerPo?.status !== "deleted" &&
-    customerPo?.status !== "linked_to_pi";
 
   function resetEditDraft() {
     if (!customerPo) return;
@@ -977,6 +980,10 @@ export default function FinanceCustomerPoDetailPage() {
     setEditDraft((current) => ({
       ...current,
       quotation_id: quotationItem.id,
+      external_po_number:
+        current.external_po_number ||
+        quotationItem.quotation_number ||
+        "",
       client_id: quotationItem.client_id || current.client_id,
       company_id: quotationItem.company_id || current.company_id,
       currency_id: matchedCurrency?.id || current.currency_id,

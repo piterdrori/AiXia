@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
-  CheckCircle,
   FileText,
   Link2,
   Save,
@@ -221,7 +220,7 @@ export default function NewPaymentReceivedPage() {
       if (currenciesResult.error) throw currenciesResult.error;
       if (paymentMethodsResult.error) throw paymentMethodsResult.error;
 
-      setInvoices((invoicesResult.data || []) as InvoiceOption[]);
+      setInvoices((invoicesResult.data || []) as unknown as InvoiceOption[]);
       setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
       setPaymentMethods(
         (paymentMethodsResult.data || []) as PaymentMethodOption[]

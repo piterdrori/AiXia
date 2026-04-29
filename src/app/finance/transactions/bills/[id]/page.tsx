@@ -378,11 +378,22 @@ export default function FinanceBillDetailPage() {
     ["open", "partially_paid", "overdue"].includes(bill.status) &&
     toNumber(bill.balance_due) > 0;
 
+  const hasPaymentHistory = paymentLinks.length > 0;
+
   const canArchive =
     !!bill &&
-    !["archived", "deleted", "paid"].includes(bill.status);
+    !hasPaymentHistory &&
+    !["archived", "deleted", "open", "partially_paid", "paid", "overdue"].includes(
+      bill.status
+    );
 
-  const canDelete = !!bill && bill.status !== "deleted";
+  const canDelete =
+    !!bill &&
+    !hasPaymentHistory &&
+    !["deleted", "open", "partially_paid", "paid", "overdue"].includes(
+      bill.status
+    );
+
   const canRestore = !!bill && ["archived", "deleted"].includes(bill.status);
   const canHardDelete = !!bill && bill.status === "deleted";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Archive,
@@ -10,6 +10,7 @@ import {
   FileText,
   Link2,
   Paperclip,
+  Plus,
   RotateCcw,
   Save,
   SquarePen,
@@ -92,12 +93,66 @@ type CustomerPoRow = {
   counterparty_phone_snapshot: string | null;
 };
 
+type ClientOption = {
+  id: string;
+  name: string;
+  legal_name: string | null;
+  contact_person: string | null;
+  company_email: string | null;
+  personnel_email: string | null;
+  company_phone: string | null;
+  personnel_phone: string | null;
+  country: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
+};
+
+type CompanyOption = {
+  id: string;
+  name: string;
+  legal_name: string | null;
+  contact_person: string | null;
+  email: string | null;
+  phone: string | null;
+  country: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
+};
+
+type CurrencyOption = {
+  id: string;
+  currency_code: string;
+  currency_name: string | null;
+};
+
+type ProjectOption = {
+  id: string;
+  name: string;
+};
+
+type TaskOption = {
+  id: string;
+  title: string;
+  project_id: string | null;
+};
+
 type QuotationOption = {
   id: string;
   quotation_number: string | null;
-  status: string | null;
-  total_amount: number | string | null;
+  client_id: string | null;
+  company_id: string | null;
+  currency_id: string | null;
   currency_code: string | null;
+  total_amount: number | string | null;
+  project_id: string | null;
+  task_id: string | null;
+  status: string | null;
 };
 
 type ProformaOption = {
@@ -106,6 +161,23 @@ type ProformaOption = {
   status: string | null;
   total_amount: number | string | null;
   currency_code: string | null;
+};
+
+type QuotationLineOption = {
+  id: string;
+  quotation_id: string;
+  item_id: string | null;
+  item_name: string | null;
+  description: string | null;
+  quantity: number | string | null;
+  unit_price: number | string | null;
+  tax_rate: number | string | null;
+  discount_rate: number | string | null;
+  line_discount_amount: number | string | null;
+  line_total: number | string | null;
+  tax_code_id: string | null;
+  unit_of_measure_id: string | null;
+  revenue_category_id: string | null;
 };
 
 type CustomerPoAttachment = {
@@ -149,17 +221,82 @@ type CustomerPoLineItem = {
   } | null;
   finance_revenue_categories?: {
     code: string | null;
-    name: string | null;
+    name: string;
   } | null;
 };
 
+type ItemOption = {
+  id: string;
+  name: string;
+  description: string | null;
+  sales_price: number | string | null;
+  revenue_category_id: string | null;
+  tax_code_id: string | null;
+  unit_of_measure_id: string | null;
+};
+
+type TaxCodeOption = {
+  id: string;
+  code: string;
+  name: string;
+  rate_percent: number | string | null;
+};
+
+type UnitOfMeasureOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+type RevenueCategoryOption = {
+  id: string;
+  code: string | null;
+  name: string;
+};
+
 type CustomerPoEditDraft = {
+  client_id: string;
+  quotation_id: string;
   external_po_number: string;
+  company_id: string;
   po_date: string;
   received_date: string;
-  total_amount: string;
+  currency_id: string;
+  currency_code: string;
+  project_id: string;
+  task_id: string;
   notes: string;
 };
+
+type CustomerPoLineDraft = {
+  localId: string;
+  sourceId: string | null;
+  item_id: string;
+  description: string;
+  quantity: string;
+  unit_price: string;
+  discount: string;
+  tax_code_id: string;
+  unit_of_measure_id: string;
+  revenue_category_id: string;
+  notes: string;
+};
+
+function createLineDraft(): CustomerPoLineDraft {
+  return {
+    localId: crypto.randomUUID(),
+    sourceId: null,
+    item_id: "",
+    description: "",
+    quantity: "1",
+    unit_price: "0",
+    discount: "0",
+    tax_code_id: "",
+    unit_of_measure_id: "",
+    revenue_category_id: "",
+    notes: "",
+  };
+}
 
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
@@ -198,6 +335,23 @@ function getDateInputValue(value: string | null | undefined) {
   if (Number.isNaN(parsed.getTime())) return "";
 
   return parsed.toISOString().slice(0, 10);
+}
+
+function makeAddressSnapshot(row: ClientOption | CompanyOption | null | undefined) {
+  if (!row) return null;
+
+  return (
+    [
+      row.address_line_1,
+      row.address_line_2,
+      row.city,
+      row.state_province,
+      row.postal_code,
+      row.country,
+    ]
+      .filter(Boolean)
+      .join(", ") || null
+  );
 }
 
 function getStatusLabel(status: CustomerPoStatus) {
@@ -265,21 +419,220 @@ export default function FinanceCustomerPoDetailPage() {
   const [attachments, setAttachments] = useState<CustomerPoAttachment[]>([]);
   const [lineItems, setLineItems] = useState<CustomerPoLineItem[]>([]);
 
+  const [clients, setClients] = useState<ClientOption[]>([]);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [tasks, setTasks] = useState<TaskOption[]>([]);
+  const [quotations, setQuotations] = useState<QuotationOption[]>([]);
+  const [items, setItems] = useState<ItemOption[]>([]);
+  const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
+  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>(
+    []
+  );
+  const [revenueCategories, setRevenueCategories] = useState<
+    RevenueCategoryOption[]
+  >([]);
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const [isEditingLines, setIsEditingLines] = useState(false);
+
   const [editDraft, setEditDraft] = useState<CustomerPoEditDraft>({
+    client_id: "",
+    quotation_id: "",
     external_po_number: "",
+    company_id: "",
     po_date: "",
     received_date: "",
-    total_amount: "",
+    currency_id: "",
+    currency_code: "",
+    project_id: "",
+    task_id: "",
     notes: "",
   });
 
+  const [lineDrafts, setLineDrafts] = useState<CustomerPoLineDraft[]>([
+    createLineDraft(),
+  ]);
+
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingLookups, setIsLoadingLookups] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState("");
+
+  const activeSectionClass =
+    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
+
+  const summaryBlockClass =
+    "rounded-[24px] border border-white/10 bg-black/20 p-4";
+
+  const fieldShellClass =
+    "mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-45";
+
+  const inputFieldClass =
+    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-45";
+
+  const readOnlyFieldClass =
+    "flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80";
+
+  const labelClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
+
+  const inputLabelClass = "text-sm font-medium text-slate-300";
+
+  const loadLookups = useCallback(async () => {
+    setIsLoadingLookups(true);
+
+    try {
+      const [
+        clientsResult,
+        companiesResult,
+        currenciesResult,
+        projectsResult,
+        tasksResult,
+        quotationsResult,
+        itemsResult,
+        taxCodesResult,
+        unitsResult,
+        revenueCategoriesResult,
+      ] = await Promise.all([
+        supabase
+          .from("finance_clients")
+          .select(
+            "id, name, legal_name, contact_person, company_email, personnel_email, company_phone, personnel_phone, country, city, state_province, postal_code, address_line_1, address_line_2"
+          )
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_companies")
+          .select(
+            "id, name, legal_name, contact_person, email, phone, country, city, state_province, postal_code, address_line_1, address_line_2"
+          )
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+
+
+                supabase
+          .from("finance_currencies")
+          .select("id, currency_code, currency_name")
+          .eq("status", "active")
+          .order("currency_code", { ascending: true }),
+
+        supabase
+          .from("projects")
+          .select("id, name")
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("tasks")
+          .select("id, title, project_id")
+          .order("created_at", { ascending: false }),
+
+        supabase
+          .from("finance_quotations")
+          .select(
+            "id, quotation_number, client_id, company_id, currency_id, currency_code, total_amount, project_id, task_id, status"
+          )
+          .not("status", "in", "(archived,deleted)")
+          .order("created_at", { ascending: false }),
+
+        supabase
+          .from("finance_items")
+          .select(
+            "id, name, description, sales_price, revenue_category_id, tax_code_id, unit_of_measure_id"
+          )
+          .eq("status", "active")
+          .eq("is_active_for_sales", true)
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_tax_codes")
+          .select("id, code, name, rate_percent")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_units_of_measure")
+          .select("id, code, name")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_revenue_categories")
+          .select("id, code, name")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+      ]);
+
+      if (clientsResult.error) throw clientsResult.error;
+      if (companiesResult.error) throw companiesResult.error;
+      if (currenciesResult.error) throw currenciesResult.error;
+      if (projectsResult.error) throw projectsResult.error;
+      if (tasksResult.error) throw tasksResult.error;
+      if (quotationsResult.error) throw quotationsResult.error;
+      if (itemsResult.error) throw itemsResult.error;
+      if (taxCodesResult.error) throw taxCodesResult.error;
+      if (unitsResult.error) throw unitsResult.error;
+      if (revenueCategoriesResult.error) throw revenueCategoriesResult.error;
+
+      setClients((clientsResult.data || []) as ClientOption[]);
+      setCompanies((companiesResult.data || []) as CompanyOption[]);
+      setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
+      setProjects((projectsResult.data || []) as ProjectOption[]);
+      setTasks((tasksResult.data || []) as TaskOption[]);
+      setQuotations((quotationsResult.data || []) as QuotationOption[]);
+      setItems((itemsResult.data || []) as ItemOption[]);
+      setTaxCodes((taxCodesResult.data || []) as TaxCodeOption[]);
+      setUnitsOfMeasure((unitsResult.data || []) as UnitOfMeasureOption[]);
+      setRevenueCategories(
+        (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
+      );
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load Customer PO lookup data.");
+    } finally {
+      setIsLoadingLookups(false);
+    }
+  }, []);
+
+  const resetEditDraftFromPo = useCallback((po: CustomerPoRow) => {
+    setEditDraft({
+      client_id: po.client_id || "",
+      quotation_id: po.quotation_id || "",
+      external_po_number: po.external_po_number || "",
+      company_id: po.company_id || "",
+      po_date: getDateInputValue(po.po_date),
+      received_date: getDateInputValue(po.received_at),
+      currency_id: po.currency_id || "",
+      currency_code: po.currency_code || "",
+      project_id: po.project_id || "",
+      task_id: po.task_id || "",
+      notes: po.notes || "",
+    });
+  }, []);
+
+  const resetLineDraftsFromRows = useCallback((rows: CustomerPoLineItem[]) => {
+    setLineDrafts(
+      rows.length > 0
+        ? rows.map((line) => ({
+            localId: crypto.randomUUID(),
+            sourceId: line.id,
+            item_id: line.item_id || "",
+            description: line.description || "",
+            quantity: String(line.quantity ?? 1),
+            unit_price: String(line.unit_price ?? 0),
+            discount: String(line.discount ?? 0),
+            tax_code_id: line.tax_code_id || "",
+            unit_of_measure_id: line.unit_of_measure_id || "",
+            revenue_category_id: line.revenue_category_id || "",
+            notes: line.notes || "",
+          }))
+        : [createLineDraft()]
+    );
+  }, []);
 
   const loadCustomerPo = useCallback(async () => {
     if (!id) return;
@@ -299,23 +652,16 @@ export default function FinanceCustomerPoDetailPage() {
       const typedPo = (poData || null) as CustomerPoRow | null;
       setCustomerPo(typedPo);
 
-      if (typedPo) {
-        setEditDraft({
-          external_po_number: typedPo.external_po_number || "",
-          po_date: getDateInputValue(typedPo.po_date),
-          received_date: getDateInputValue(typedPo.received_at),
-          total_amount:
-            typedPo.total_amount !== null && typedPo.total_amount !== undefined
-              ? String(typedPo.total_amount)
-              : "",
-          notes: typedPo.notes || "",
-        });
+      if (typedPo && !isEditingDetails) {
+        resetEditDraftFromPo(typedPo);
       }
 
       if (typedPo?.quotation_id) {
         const { data: quotationData, error: quotationError } = await supabase
           .from("finance_quotations")
-          .select("id, quotation_number, status, total_amount, currency_code")
+          .select(
+            "id, quotation_number, client_id, company_id, currency_id, currency_code, total_amount, project_id, task_id, status"
+          )
           .eq("id", typedPo.quotation_id)
           .maybeSingle();
 
@@ -413,18 +759,37 @@ export default function FinanceCustomerPoDetailPage() {
 
       if (lineItemError) throw lineItemError;
 
-      setLineItems((lineItemData || []) as unknown as CustomerPoLineItem[]);
+      const typedLineItems =
+        (lineItemData || []) as unknown as CustomerPoLineItem[];
+
+      setLineItems(typedLineItems);
+
+      if (!isEditingLines) {
+        resetLineDraftsFromRows(typedLineItems);
+      }
     } catch (err) {
       console.error(err);
       setError("Failed to load Customer PO.");
     } finally {
       setIsLoading(false);
     }
-  }, [customerPo, id]);
+  }, [
+    customerPo,
+    id,
+    isEditingDetails,
+    isEditingLines,
+    resetEditDraftFromPo,
+    resetLineDraftsFromRows,
+  ]);
+
+  useEffect(() => {
+    void loadLookups();
+  }, [loadLookups]);
 
   useEffect(() => {
     void loadCustomerPo();
   }, [loadCustomerPo]);
+
 
   useEffect(() => {
     if (!id) return;
@@ -473,24 +838,103 @@ export default function FinanceCustomerPoDetailPage() {
     };
   }, [id, loadCustomerPo]);
 
+  const selectedClient = useMemo(
+    () => clients.find((client) => client.id === editDraft.client_id) || null,
+    [clients, editDraft.client_id]
+  );
+
+  const selectedCompany = useMemo(
+    () => companies.find((company) => company.id === editDraft.company_id) || null,
+    [companies, editDraft.company_id]
+  );
+
+  const selectedQuotation = useMemo(
+    () =>
+      quotations.find((quotationItem) => quotationItem.id === editDraft.quotation_id) ||
+      quotation ||
+      null,
+    [editDraft.quotation_id, quotation, quotations]
+  );
+
+  const selectedCurrency = useMemo(
+    () =>
+      currencies.find((currency) => currency.id === editDraft.currency_id) || null,
+    [currencies, editDraft.currency_id]
+  );
+
+  const filteredQuotations = useMemo(() => {
+    if (!editDraft.client_id) return quotations;
+
+    return quotations.filter(
+      (quotationItem) =>
+        quotationItem.client_id === editDraft.client_id ||
+        quotationItem.id === editDraft.quotation_id
+    );
+  }, [editDraft.client_id, editDraft.quotation_id, quotations]);
+
+  const filteredTasks = useMemo(() => {
+    if (!editDraft.project_id) return tasks;
+    return tasks.filter((task) => task.project_id === editDraft.project_id);
+  }, [editDraft.project_id, tasks]);
+
+  const displayedCurrencyCode =
+    editDraft.currency_code ||
+    selectedCurrency?.currency_code ||
+    customerPo?.currency_code ||
+    "USD";
+
+  const draftTotals = useMemo(() => {
+    const subtotal = lineDrafts.reduce(
+      (sum, row) => sum + toNumber(row.quantity) * toNumber(row.unit_price),
+      0
+    );
+
+    const discount = lineDrafts.reduce(
+      (sum, row) => sum + toNumber(row.discount),
+      0
+    );
+
+    const tax = lineDrafts.reduce((sum, row) => {
+      const base = Math.max(
+        toNumber(row.quantity) * toNumber(row.unit_price) -
+          toNumber(row.discount),
+        0
+      );
+
+      const taxCode = taxCodes.find((entry) => entry.id === row.tax_code_id);
+      if (!taxCode) return sum;
+
+      return sum + base * (toNumber(taxCode.rate_percent) / 100);
+    }, 0);
+
+    return {
+      subtotal,
+      discount,
+      tax,
+      total: Math.max(subtotal - discount + tax, 0),
+    };
+  }, [lineDrafts, taxCodes]);
+
   const hasCustomerPoFile = attachments.length > 0;
 
-  const lineSubtotal = lineItems.reduce(
-    (sum, line) => sum + toNumber(line.quantity) * toNumber(line.unit_price),
-    0
-  );
+  const lineSubtotal = isEditingLines
+    ? draftTotals.subtotal
+    : lineItems.reduce(
+        (sum, line) => sum + toNumber(line.quantity) * toNumber(line.unit_price),
+        0
+      );
 
-  const lineDiscount = lineItems.reduce(
-    (sum, line) => sum + toNumber(line.discount),
-    0
-  );
+  const lineDiscount = isEditingLines
+    ? draftTotals.discount
+    : lineItems.reduce((sum, line) => sum + toNumber(line.discount), 0);
 
-  const lineTotal = lineItems.reduce(
-    (sum, line) => sum + toNumber(line.line_total),
-    0
-  );
+  const lineTotal = isEditingLines
+    ? draftTotals.total
+    : lineItems.reduce((sum, line) => sum + toNumber(line.line_total), 0);
 
-  const lineTax = Math.max(lineTotal - (lineSubtotal - lineDiscount), 0);
+  const lineTax = isEditingLines
+    ? draftTotals.tax
+    : Math.max(lineTotal - (lineSubtotal - lineDiscount), 0);
 
   const canEditDetails =
     customerPo?.status !== "archived" &&
@@ -499,16 +943,146 @@ export default function FinanceCustomerPoDetailPage() {
 
   function resetEditDraft() {
     if (!customerPo) return;
+    resetEditDraftFromPo(customerPo);
+  }
 
-    setEditDraft({
-      external_po_number: customerPo.external_po_number || "",
-      po_date: getDateInputValue(customerPo.po_date),
-      received_date: getDateInputValue(customerPo.received_at),
-      total_amount:
-        customerPo.total_amount !== null && customerPo.total_amount !== undefined
-          ? String(customerPo.total_amount)
-          : "",
-      notes: customerPo.notes || "",
+  function resetLineDrafts() {
+    resetLineDraftsFromRows(lineItems);
+  }
+
+  function handleClientChange(clientId: string) {
+    setEditDraft((current) => ({
+      ...current,
+      client_id: clientId,
+      quotation_id: "",
+    }));
+  }
+
+  async function handleQuotationChange(quotationId: string) {
+    const quotationItem = quotations.find((entry) => entry.id === quotationId);
+
+    if (!quotationItem) {
+      setEditDraft((current) => ({
+        ...current,
+        quotation_id: "",
+      }));
+
+      return;
+    }
+
+    const matchedCurrency = currencies.find(
+      (currency) =>
+        currency.id === quotationItem.currency_id ||
+        currency.currency_code === quotationItem.currency_code
+    );
+
+    setEditDraft((current) => ({
+      ...current,
+      quotation_id: quotationItem.id,
+      client_id: quotationItem.client_id || current.client_id,
+      company_id: quotationItem.company_id || current.company_id,
+      currency_id: matchedCurrency?.id || current.currency_id,
+      currency_code:
+        matchedCurrency?.currency_code ||
+        quotationItem.currency_code ||
+        current.currency_code,
+      project_id: quotationItem.project_id || current.project_id,
+      task_id: quotationItem.task_id || current.task_id,
+    }));
+
+    const { data, error: linesError } = await supabase
+      .from("finance_quotation_line_items")
+      .select(
+        "id, quotation_id, item_id, item_name, description, quantity, unit_price, tax_rate, discount_rate, line_discount_amount, line_total, tax_code_id, unit_of_measure_id, revenue_category_id"
+      )
+      .eq("quotation_id", quotationItem.id)
+      .order("sort_order", { ascending: true });
+
+    if (linesError) {
+      console.error(linesError);
+      setError("Failed to load quotation line items.");
+      return;
+    }
+
+    const quotationLines = (data || []) as QuotationLineOption[];
+
+    if (quotationLines.length > 0) {
+      setLineDrafts(
+        quotationLines.map((line) => ({
+          localId: crypto.randomUUID(),
+          sourceId: null,
+          item_id: line.item_id || "",
+          description: line.description || line.item_name || "",
+          quantity: String(line.quantity ?? 1),
+          unit_price: String(line.unit_price ?? 0),
+          discount: String(line.line_discount_amount ?? 0),
+          tax_code_id: line.tax_code_id || "",
+          unit_of_measure_id: line.unit_of_measure_id || "",
+          revenue_category_id: line.revenue_category_id || "",
+          notes: "",
+        }))
+      );
+      setIsEditingLines(true);
+    }
+  }
+
+  function handleCurrencyChange(currencyId: string) {
+    const currency = currencies.find((entry) => entry.id === currencyId);
+
+    setEditDraft((current) => ({
+      ...current,
+      currency_id: currencyId,
+      currency_code: currency?.currency_code || "",
+    }));
+  }
+
+  function updateLine(
+    localId: string,
+    field: keyof CustomerPoLineDraft,
+    value: string
+  ) {
+    setLineDrafts((current) =>
+      current.map((row) =>
+        row.localId === localId ? { ...row, [field]: value } : row
+      )
+    );
+  }
+
+  function applyItemToLine(localId: string, itemId: string) {
+    const selectedItem = items.find((item) => item.id === itemId);
+
+    setLineDrafts((current) =>
+      current.map((row) => {
+        if (row.localId !== localId) return row;
+
+        if (!selectedItem) {
+          return {
+            ...row,
+            item_id: "",
+          };
+        }
+
+        return {
+          ...row,
+          item_id: selectedItem.id,
+          description: selectedItem.description || selectedItem.name,
+          unit_price: String(selectedItem.sales_price ?? 0),
+          tax_code_id: selectedItem.tax_code_id || "",
+          unit_of_measure_id: selectedItem.unit_of_measure_id || "",
+          revenue_category_id: selectedItem.revenue_category_id || "",
+        };
+      })
+    );
+  }
+
+  function addLine() {
+    setLineDrafts((current) => [...current, createLineDraft()]);
+  }
+
+  function removeLine(localId: string) {
+    setLineDrafts((current) => {
+      if (current.length === 1) return current;
+      return current.filter((row) => row.localId !== localId);
     });
   }
 
@@ -561,7 +1135,7 @@ export default function FinanceCustomerPoDetailPage() {
 
       if (fileUploadError) throw fileUploadError;
 
-      const { error: attachmentError } = await supabase
+          const { error: attachmentError } = await supabase
         .from("finance_record_attachments")
         .insert({
           entity_type: "finance_client_purchase_order",
@@ -686,15 +1260,25 @@ export default function FinanceCustomerPoDetailPage() {
   }
 
   async function handleSaveDetailsEdit() {
-    if (!customerPo) return;
+    if (!customerPo || !canEditDetails) return;
+
+    if (!editDraft.client_id) {
+      setError("Client is required.");
+      return;
+    }
 
     if (!editDraft.external_po_number.trim()) {
       setError("Customer PO No. is required.");
       return;
     }
 
-    if (!editDraft.total_amount || Number(editDraft.total_amount) <= 0) {
-      setError("Total amount must be greater than 0.");
+    if (!editDraft.company_id) {
+      setError("Issuing company is required.");
+      return;
+    }
+
+    if (!editDraft.currency_code) {
+      setError("Currency is required.");
       return;
     }
 
@@ -704,17 +1288,108 @@ export default function FinanceCustomerPoDetailPage() {
 
       const userId = await getCurrentUserId();
 
+      const selectedDraftClient =
+        clients.find((client) => client.id === editDraft.client_id) || null;
+      const selectedDraftCompany =
+        companies.find((company) => company.id === editDraft.company_id) || null;
+      const selectedDraftCurrency =
+        currencies.find((currency) => currency.id === editDraft.currency_id) || null;
+
       const { error: updateError } = await supabase
         .from("finance_client_purchase_orders")
         .update({
           external_po_number: editDraft.external_po_number.trim(),
-          reference_number: editDraft.external_po_number.trim(),
+          quotation_id: editDraft.quotation_id || null,
+          client_id: editDraft.client_id || null,
+          company_id: editDraft.company_id || null,
+          currency_id: editDraft.currency_id || null,
+          currency_code:
+            editDraft.currency_code ||
+            selectedDraftCurrency?.currency_code ||
+            customerPo.currency_code ||
+            null,
           po_date: editDraft.po_date || null,
           received_at: editDraft.received_date
             ? new Date(`${editDraft.received_date}T00:00:00`).toISOString()
             : null,
-          total_amount: Number(editDraft.total_amount),
           notes: editDraft.notes.trim() || null,
+          project_id: editDraft.project_id || null,
+          task_id: editDraft.task_id || null,
+          reference_number: editDraft.external_po_number.trim(),
+          company_name_snapshot:
+            selectedDraftCompany?.legal_name ||
+            selectedDraftCompany?.name ||
+            customerPo.company_name_snapshot ||
+            null,
+          company_legal_name_snapshot:
+            selectedDraftCompany?.legal_name || customerPo.company_legal_name_snapshot || null,
+          company_contact_person_snapshot:
+            selectedDraftCompany?.contact_person ||
+            customerPo.company_contact_person_snapshot ||
+            null,
+          company_email_snapshot:
+            selectedDraftCompany?.email || customerPo.company_email_snapshot || null,
+          company_phone_snapshot:
+            selectedDraftCompany?.phone || customerPo.company_phone_snapshot || null,
+          company_address_snapshot:
+            makeAddressSnapshot(selectedDraftCompany) ||
+            customerPo.company_address_snapshot ||
+            null,
+          client_name_snapshot:
+            selectedDraftClient?.legal_name ||
+            selectedDraftClient?.name ||
+            customerPo.client_name_snapshot ||
+            null,
+          client_legal_name_snapshot:
+            selectedDraftClient?.legal_name || customerPo.client_legal_name_snapshot || null,
+          client_contact_person_snapshot:
+            selectedDraftClient?.contact_person ||
+            customerPo.client_contact_person_snapshot ||
+            null,
+          client_email_snapshot:
+            selectedDraftClient?.company_email ||
+            selectedDraftClient?.personnel_email ||
+            customerPo.client_email_snapshot ||
+            null,
+          client_phone_snapshot:
+            selectedDraftClient?.company_phone ||
+            selectedDraftClient?.personnel_phone ||
+            customerPo.client_phone_snapshot ||
+            null,
+          billing_address_snapshot:
+            makeAddressSnapshot(selectedDraftClient) ||
+            customerPo.billing_address_snapshot ||
+            null,
+          shipping_address_snapshot:
+            makeAddressSnapshot(selectedDraftClient) ||
+            customerPo.shipping_address_snapshot ||
+            null,
+          counterparty_type: "client",
+          counterparty_company_id: null,
+          is_intercompany: false,
+          counterparty_name_snapshot:
+            selectedDraftClient?.legal_name ||
+            selectedDraftClient?.name ||
+            customerPo.counterparty_name_snapshot ||
+            null,
+          counterparty_legal_name_snapshot:
+            selectedDraftClient?.legal_name ||
+            customerPo.counterparty_legal_name_snapshot ||
+            null,
+          counterparty_contact_person_snapshot:
+            selectedDraftClient?.contact_person ||
+            customerPo.counterparty_contact_person_snapshot ||
+            null,
+          counterparty_email_snapshot:
+            selectedDraftClient?.company_email ||
+            selectedDraftClient?.personnel_email ||
+            customerPo.counterparty_email_snapshot ||
+            null,
+          counterparty_phone_snapshot:
+            selectedDraftClient?.company_phone ||
+            selectedDraftClient?.personnel_phone ||
+            customerPo.counterparty_phone_snapshot ||
+            null,
           updated_by: userId,
         })
         .eq("id", customerPo.id)
@@ -728,6 +1403,140 @@ export default function FinanceCustomerPoDetailPage() {
       console.error(err);
       setError(
         err instanceof Error ? err.message : "Failed to update Customer PO details."
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleSaveLineItems() {
+    if (!customerPo || !canEditDetails) return;
+
+    const validLines = lineDrafts.map((line) => ({
+      ...line,
+      description: line.description.trim(),
+    }));
+
+    if (
+      validLines.some(
+        (line) =>
+          !line.description ||
+          toNumber(line.quantity) <= 0 ||
+          toNumber(line.unit_price) < 0
+      )
+    ) {
+      setError(
+        "Every Customer PO line needs a description, quantity greater than 0, and unit price 0 or higher."
+      );
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setError("");
+
+      const userId = await getCurrentUserId();
+
+      if (!userId) {
+        throw new Error("User not authenticated.");
+      }
+
+      const existingIds = lineItems.map((line) => line.id);
+      const draftExistingIds = validLines
+        .map((line) => line.sourceId)
+        .filter(Boolean) as string[];
+
+      const idsToDelete = existingIds.filter(
+        (existingId) => !draftExistingIds.includes(existingId)
+      );
+
+      if (idsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("finance_client_purchase_order_line_items")
+          .update({
+            status: "deleted",
+            updated_by: userId,
+          })
+          .in("id", idsToDelete);
+
+        if (deleteError) throw deleteError;
+      }
+
+          for (let index = 0; index < validLines.length; index += 1) {
+        const line = validLines[index];
+        const taxCode = taxCodes.find((entry) => entry.id === line.tax_code_id);
+        const base = Math.max(
+          toNumber(line.quantity) * toNumber(line.unit_price) -
+            toNumber(line.discount),
+          0
+        );
+        const lineTax = base * (toNumber(taxCode?.rate_percent) / 100);
+        const lineTotal = base + lineTax;
+
+        const payload = {
+          client_po_id: customerPo.id,
+          item_id: line.item_id || null,
+          description: line.description,
+          quantity: toNumber(line.quantity),
+          unit_price: toNumber(line.unit_price),
+          discount: toNumber(line.discount),
+          line_total: lineTotal,
+          sort_order: index + 1,
+          unit_of_measure_id: line.unit_of_measure_id || null,
+          tax_code_id: line.tax_code_id || null,
+          revenue_category_id: line.revenue_category_id || null,
+          project_id: editDraft.project_id || customerPo.project_id || null,
+          task_id: editDraft.task_id || customerPo.task_id || null,
+          status: "active",
+          reference_number:
+            editDraft.external_po_number.trim() ||
+            customerPo.external_po_number ||
+            null,
+          notes: line.notes.trim() || null,
+          metadata: {
+            source: editDraft.quotation_id ? "quotation_or_manual" : "manual",
+            quotation_id: editDraft.quotation_id || customerPo.quotation_id || null,
+          },
+          updated_by: userId,
+        };
+
+        if (line.sourceId) {
+          const { error: updateError } = await supabase
+            .from("finance_client_purchase_order_line_items")
+            .update(payload)
+            .eq("id", line.sourceId)
+            .eq("client_po_id", customerPo.id);
+
+          if (updateError) throw updateError;
+        } else {
+          const { error: insertError } = await supabase
+            .from("finance_client_purchase_order_line_items")
+            .insert({
+              ...payload,
+              created_by: userId,
+            });
+
+          if (insertError) throw insertError;
+        }
+      }
+
+      const { error: totalUpdateError } = await supabase
+        .from("finance_client_purchase_orders")
+        .update({
+          total_amount: draftTotals.total,
+          updated_by: userId,
+        })
+        .eq("id", customerPo.id)
+        .not("status", "in", "(archived,deleted,linked_to_pi)");
+
+      if (totalUpdateError) throw totalUpdateError;
+
+      setIsEditingLines(false);
+      await loadCustomerPo();
+    } catch (err) {
+      console.error(err);
+      setError(
+        err instanceof Error ? err.message : "Failed to update Customer PO lines."
       );
     } finally {
       setIsSaving(false);
@@ -799,19 +1608,7 @@ export default function FinanceCustomerPoDetailPage() {
     }
   }
 
-  const activeSectionClass =
-    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
-
-  const summaryBlockClass =
-    "rounded-[24px] border border-white/10 bg-black/20 p-4";
-
-  const fieldShellClass =
-    "mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
-
-  const readOnlyFieldClass =
-    "flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80";
-
-  if (isLoading) {
+  if (isLoading || isLoadingLookups) {
     return (
       <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
         <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
@@ -835,7 +1632,7 @@ export default function FinanceCustomerPoDetailPage() {
     );
   }
 
-  const currencyCode = customerPo.currency_code || "USD";
+  const totalDisplayValue = isEditingLines ? draftTotals.total : customerPo.total_amount || lineTotal;
 
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
@@ -884,8 +1681,8 @@ export default function FinanceCustomerPoDetailPage() {
                 </div>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Customer PO saved in the system from an accepted quotation. The
-                  customer document must be uploaded before the proforma invoice
+                  Customer PO saved in the system from a quotation or manual entry.
+                  The customer document must be uploaded before the proforma invoice
                   can be created from this Customer PO.
                 </p>
 
@@ -894,7 +1691,7 @@ export default function FinanceCustomerPoDetailPage() {
                     Customer PO No. {customerPo.external_po_number || "—"}
                   </Badge>
                   <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200 shadow-none">
-                    {formatMoney(customerPo.total_amount, currencyCode)}
+                    {formatMoney(totalDisplayValue, displayedCurrencyCode)}
                   </Badge>
                   <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
                     Auto-refresh enabled
@@ -910,7 +1707,7 @@ export default function FinanceCustomerPoDetailPage() {
                         Linked Quotation
                       </p>
                       <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {quotation?.quotation_number || "—"}
+                        {quotation?.quotation_number || selectedQuotation?.quotation_number || "—"}
                       </p>
                     </div>
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
@@ -942,6 +1739,7 @@ export default function FinanceCustomerPoDetailPage() {
                 </div>
               </div>
             </div>
+
 
                         <div className="mt-6 flex flex-wrap gap-3">
               {customerPo.status === "draft" ? (
@@ -1045,7 +1843,7 @@ export default function FinanceCustomerPoDetailPage() {
                   Subtotal
                 </div>
                 <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
-                  {formatMoney(lineSubtotal, currencyCode)}
+                  {formatMoney(lineSubtotal, displayedCurrencyCode)}
                 </div>
               </div>
               <div className="text-sm leading-6 text-slate-400">
@@ -1062,7 +1860,7 @@ export default function FinanceCustomerPoDetailPage() {
                   Discount
                 </div>
                 <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
-                  {formatMoney(lineDiscount, currencyCode)}
+                  {formatMoney(lineDiscount, displayedCurrencyCode)}
                 </div>
               </div>
               <div className="text-sm leading-6 text-slate-400">
@@ -1079,7 +1877,7 @@ export default function FinanceCustomerPoDetailPage() {
                   Tax
                 </div>
                 <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
-                  {formatMoney(lineTax, currencyCode)}
+                  {formatMoney(lineTax, displayedCurrencyCode)}
                 </div>
               </div>
               <div className="text-sm leading-6 text-slate-400">
@@ -1096,7 +1894,7 @@ export default function FinanceCustomerPoDetailPage() {
                   Total
                 </div>
                 <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
-                  {formatMoney(customerPo.total_amount || lineTotal, currencyCode)}
+                  {formatMoney(totalDisplayValue, displayedCurrencyCode)}
                 </div>
               </div>
               <div className="text-sm leading-6 text-slate-400">
@@ -1119,7 +1917,7 @@ export default function FinanceCustomerPoDetailPage() {
                       Document Overview
                     </CardTitle>
                     <CardDescription className="mt-1 text-xs text-slate-500">
-                      Customer PO identity, source link, dates, status, currency, and value.
+                      Customer PO identity, linked quotation, client, company, currency, dates, and notes.
                     </CardDescription>
                   </div>
                 </div>
@@ -1164,18 +1962,14 @@ export default function FinanceCustomerPoDetailPage() {
 
               <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
                 <div className={summaryBlockClass}>
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Internal CPO No.
-                  </div>
+                  <div className={labelClass}>Internal CPO No.</div>
                   <div className="mt-2 text-2xl font-semibold text-white">
                     {customerPo.client_po_number || "Pending"}
                   </div>
                 </div>
 
                 <div className={summaryBlockClass}>
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Customer PO No.
-                  </div>
+                  <div className={labelClass}>Customer PO No.</div>
                   {isEditingDetails ? (
                     <input
                       value={editDraft.external_po_number}
@@ -1195,45 +1989,106 @@ export default function FinanceCustomerPoDetailPage() {
                 </div>
 
                 <div className={summaryBlockClass}>
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Linked Quotation
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {quotation?.quotation_number || "—"}
-                  </div>
+                  <div className={labelClass}>Linked Quotation</div>
+                  {isEditingDetails ? (
+                    <select
+                      value={editDraft.quotation_id}
+                      onChange={(event) =>
+                        void handleQuotationChange(event.target.value)
+                      }
+                      className={fieldShellClass}
+                    >
+                      <option value="">No linked quotation</option>
+                      {filteredQuotations.map((quotationItem) => (
+                        <option key={quotationItem.id} value={quotationItem.id}>
+                          {quotationItem.quotation_number || "Quotation"} —{" "}
+                          {formatMoney(
+                            quotationItem.total_amount,
+                            quotationItem.currency_code || displayedCurrencyCode
+                          )}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {quotation?.quotation_number || "—"}
+                    </div>
+                  )}
                 </div>
 
                 <div className={summaryBlockClass}>
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Client
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {customerPo.client_name_snapshot || "—"}
-                  </div>
+                  <div className={labelClass}>Client</div>
+                  {isEditingDetails ? (
+                    <select
+                      value={editDraft.client_id}
+                      onChange={(event) => handleClientChange(event.target.value)}
+                      className={fieldShellClass}
+                    >
+                      <option value="">Select client</option>
+                      {clients.map((client) => (
+                        <option key={client.id} value={client.id}>
+                          {client.legal_name || client.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {customerPo.client_name_snapshot || "—"}
+                    </div>
+                  )}
                 </div>
 
                 <div className={summaryBlockClass}>
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Issuing Company
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {customerPo.company_name_snapshot || "—"}
-                  </div>
+                  <div className={labelClass}>Issuing Company</div>
+                  {isEditingDetails ? (
+                    <select
+                      value={editDraft.company_id}
+                      onChange={(event) =>
+                        setEditDraft((current) => ({
+                          ...current,
+                          company_id: event.target.value,
+                        }))
+                      }
+                      className={fieldShellClass}
+                    >
+                      <option value="">Select company</option>
+                      {companies.map((company) => (
+                        <option key={company.id} value={company.id}>
+                          {company.legal_name || company.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {customerPo.company_name_snapshot || "—"}
+                    </div>
+                  )}
                 </div>
 
                 <div className={summaryBlockClass}>
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Currency
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {currencyCode}
-                  </div>
+                  <div className={labelClass}>Currency</div>
+                  {isEditingDetails ? (
+                    <select
+                      value={editDraft.currency_id}
+                      onChange={(event) => handleCurrencyChange(event.target.value)}
+                      className={fieldShellClass}
+                    >
+                      <option value="">Select currency</option>
+                      {currencies.map((currency) => (
+                        <option key={currency.id} value={currency.id}>
+                          {currency.currency_code} — {currency.currency_name || ""}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {displayedCurrencyCode}
+                    </div>
+                  )}
                 </div>
 
-                                <div className={summaryBlockClass}>
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    PO Date
-                  </div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>PO Date</div>
                   {isEditingDetails ? (
                     <input
                       type="date"
@@ -1254,9 +2109,7 @@ export default function FinanceCustomerPoDetailPage() {
                 </div>
 
                 <div className={summaryBlockClass}>
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Received
-                  </div>
+                  <div className={labelClass}>Received</div>
                   {isEditingDetails ? (
                     <input
                       type="date"
@@ -1277,9 +2130,7 @@ export default function FinanceCustomerPoDetailPage() {
                 </div>
 
                 <div className={summaryBlockClass}>
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Status
-                  </div>
+                  <div className={labelClass}>Status</div>
                   <div className="mt-2">
                     <Badge
                       className={`rounded-full border px-3 py-1 text-xs shadow-none ${getStatusBadgeClasses(
@@ -1292,41 +2143,71 @@ export default function FinanceCustomerPoDetailPage() {
                 </div>
 
                 <div className={summaryBlockClass}>
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Verified
-                  </div>
+                  <div className={labelClass}>Project</div>
+                  {isEditingDetails ? (
+                    <select
+                      value={editDraft.project_id}
+                      onChange={(event) =>
+                        setEditDraft((current) => ({
+                          ...current,
+                          project_id: event.target.value,
+                          task_id: "",
+                        }))
+                      }
+                      className={fieldShellClass}
+                    >
+                      <option value="">No project</option>
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {projects.find((project) => project.id === customerPo.project_id)
+                        ?.name || "—"}
+                    </div>
+                  )}
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Task</div>
+                  {isEditingDetails ? (
+                    <select
+                      value={editDraft.task_id}
+                      onChange={(event) =>
+                        setEditDraft((current) => ({
+                          ...current,
+                          task_id: event.target.value,
+                        }))
+                      }
+                      className={fieldShellClass}
+                    >
+                      <option value="">No task</option>
+                      {filteredTasks.map((task) => (
+                        <option key={task.id} value={task.id}>
+                          {task.title}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {tasks.find((task) => task.id === customerPo.task_id)?.title ||
+                        "—"}
+                    </div>
+                  )}
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Verified</div>
                   <div className="mt-2 text-2xl font-semibold text-white">
                     {formatDate(customerPo.verified_at)}
                   </div>
                 </div>
 
-                <div className={summaryBlockClass}>
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Total
-                  </div>
-                  {isEditingDetails ? (
-                    <input
-                      type="number"
-                      value={editDraft.total_amount}
-                      onChange={(event) =>
-                        setEditDraft((current) => ({
-                          ...current,
-                          total_amount: event.target.value,
-                        }))
-                      }
-                      className={fieldShellClass}
-                    />
-                  ) : (
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatMoney(customerPo.total_amount, currencyCode)}
-                    </div>
-                  )}
-                </div>
-
                 <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Notes
-                  </div>
+                  <div className={labelClass}>Notes</div>
                   {isEditingDetails ? (
                     <textarea
                       value={editDraft.notes}
@@ -1349,24 +2230,308 @@ export default function FinanceCustomerPoDetailPage() {
             </Card>
 
             <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
+              <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
                 <div className="flex items-center gap-3">
                   <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <FileText className="h-4 w-4" />
+                    <SquarePen className="h-4 w-4" />
                   </div>
                   <div>
                     <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
                       Customer PO Line Items
                     </CardTitle>
                     <CardDescription className="mt-1 text-xs text-slate-500">
-                      Item-level details saved against this customer purchase order.
+                      Editable customer PO lines copied from quotation or entered manually.
                     </CardDescription>
                   </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {isEditingLines ? (
+                    <>
+                      <Button
+                        onClick={() => void handleSaveLineItems()}
+                        disabled={isSaving}
+                        className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        {isSaving ? "Saving..." : "Save"}
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        onClick={addLine}
+                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Line
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setIsEditingLines(false);
+                          resetLineDrafts();
+                        }}
+                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                      >
+                        Cancel
+                      </Button>
+                    </>
+                  ) : canEditDetails ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsEditingLines(true)}
+                      className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                    >
+                      <SquarePen className="mr-2 h-4 w-4" />
+                      Edit
+                    </Button>
+                  ) : null}
                 </div>
               </CardHeader>
 
               <CardContent className="p-5">
-                {lineItems.length === 0 ? (
+                {isEditingLines ? (
+                  <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                    {lineDrafts.map((line, index) => {
+                      const selectedItem = items.find(
+                        (item) => item.id === line.item_id
+                      );
+                      const selectedTaxCode = taxCodes.find(
+                        (entry) => entry.id === line.tax_code_id
+                      );
+                      const selectedUnit = unitsOfMeasure.find(
+                        (unit) => unit.id === line.unit_of_measure_id
+                      );
+                      const selectedRevenueCategory = revenueCategories.find(
+                        (category) => category.id === line.revenue_category_id
+                      );
+
+                      const base = Math.max(
+                        toNumber(line.quantity) * toNumber(line.unit_price) -
+                          toNumber(line.discount),
+                        0
+                      );
+                      const currentLineTotal =
+                        base +
+                        base * (toNumber(selectedTaxCode?.rate_percent) / 100);
+
+                      return (
+                        <div
+                          key={line.localId}
+                          className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                        >
+                          <div className="mb-4 flex items-center justify-between gap-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-sm font-semibold text-white">
+                                Line {index + 1}
+                              </div>
+
+                              {selectedItem ? (
+                                <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
+                                  {selectedItem.name}
+                                </Badge>
+                              ) : null}
+                            </div>
+
+                            <Button
+                              variant="outline"
+                              onClick={() => removeLine(line.localId)}
+                              disabled={lineDrafts.length === 1}
+                              className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+                            <label className="space-y-2 md:col-span-3">
+                              <div className={inputLabelClass}>Item</div>
+                              <select
+                                value={line.item_id}
+                                onChange={(event) =>
+                                  applyItemToLine(line.localId, event.target.value)
+                                }
+                                className={inputFieldClass}
+                              >
+                                <option value="">Manual / no item</option>
+                                {items.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+
+                            <label className="space-y-2 md:col-span-4">
+                              <div className={inputLabelClass}>Description</div>
+                              <input
+                                value={line.description}
+                                onChange={(event) =>
+                                  updateLine(
+                                    line.localId,
+                                    "description",
+                                    event.target.value
+                                  )
+                                }
+                                placeholder="Description"
+                                className={inputFieldClass}
+                              />
+                            </label>
+
+                            <label className="space-y-2 md:col-span-1">
+                              <div className={inputLabelClass}>Qty</div>
+                              <input
+                                value={line.quantity}
+                                onChange={(event) =>
+                                  updateLine(
+                                    line.localId,
+                                    "quantity",
+                                    event.target.value
+                                  )
+                                }
+                                className={inputFieldClass}
+                              />
+                            </label>
+
+                            <label className="space-y-2 md:col-span-2">
+                              <div className={inputLabelClass}>Unit</div>
+                              <select
+                                value={line.unit_of_measure_id}
+                                onChange={(event) =>
+                                  updateLine(
+                                    line.localId,
+                                    "unit_of_measure_id",
+                                    event.target.value
+                                  )
+                                }
+                                className={inputFieldClass}
+                              >
+                                <option value="">No unit</option>
+                                {unitsOfMeasure.map((unit) => (
+                                  <option key={unit.id} value={unit.id}>
+                                    {unit.code} — {unit.name}
+                                  </option>
+                                ))}
+                              </select>
+                              {selectedUnit ? (
+                                <div className="text-[11px] text-slate-500">
+                                  {selectedUnit.code}
+                                </div>
+                              ) : null}
+                            </label>
+
+                            <label className="space-y-2 md:col-span-2">
+                              <div className={inputLabelClass}>Unit Price</div>
+                              <input
+                                value={line.unit_price}
+                                onChange={(event) =>
+                                  updateLine(
+                                    line.localId,
+                                    "unit_price",
+                                    event.target.value
+                                  )
+                                }
+                                className={inputFieldClass}
+                              />
+                            </label>
+
+                            <label className="space-y-2 md:col-span-2">
+                              <div className={inputLabelClass}>Discount</div>
+                              <input
+                                value={line.discount}
+                                onChange={(event) =>
+                                  updateLine(
+                                    line.localId,
+                                    "discount",
+                                    event.target.value
+                                  )
+                                }
+                                className={inputFieldClass}
+                              />
+                            </label>
+
+                            <label className="space-y-2 md:col-span-2">
+                              <div className={inputLabelClass}>Tax Code</div>
+                              <select
+                                value={line.tax_code_id}
+                                onChange={(event) =>
+                                  updateLine(
+                                    line.localId,
+                                    "tax_code_id",
+                                    event.target.value
+                                  )
+                                }
+                                className={inputFieldClass}
+                              >
+                                <option value="">No tax</option>
+                                {taxCodes.map((taxCode) => (
+                                  <option key={taxCode.id} value={taxCode.id}>
+                                    {taxCode.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+
+                            <label className="space-y-2 md:col-span-3">
+                              <div className={inputLabelClass}>
+                                Revenue Category
+                              </div>
+                              <select
+                                value={line.revenue_category_id}
+                                onChange={(event) =>
+                                  updateLine(
+                                    line.localId,
+                                    "revenue_category_id",
+                                    event.target.value
+                                  )
+                                }
+                                className={inputFieldClass}
+                              >
+                                <option value="">No category</option>
+                                {revenueCategories.map((category) => (
+                                  <option key={category.id} value={category.id}>
+                                    {category.name}
+                                  </option>
+                                ))}
+                              </select>
+                              {selectedRevenueCategory?.code ? (
+                                <div className="text-[11px] text-slate-500">
+                                  {selectedRevenueCategory.code}
+                                </div>
+                              ) : null}
+                            </label>
+
+                            <div className="space-y-2 md:col-span-3">
+                              <div className={inputLabelClass}>Line Total</div>
+                              <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
+                                {formatMoney(
+                                  currentLineTotal,
+                                  displayedCurrencyCode
+                                )}
+                              </div>
+                            </div>
+
+                            <label className="space-y-2 md:col-span-12">
+                              <div className={inputLabelClass}>Notes</div>
+                              <input
+                                value={line.notes}
+                                onChange={(event) =>
+                                  updateLine(
+                                    line.localId,
+                                    "notes",
+                                    event.target.value
+                                  )
+                                }
+                                className={inputFieldClass}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : lineItems.length === 0 ? (
                   <div className="rounded-[22px] border border-white/10 bg-black/20 px-4 py-6 text-sm text-slate-500">
                     No Customer PO line items found.
                   </div>
@@ -1409,70 +2574,52 @@ export default function FinanceCustomerPoDetailPage() {
 
                           <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
                             <div className="space-y-2 md:col-span-3">
-                              <div className="text-sm font-medium text-slate-300">
-                                Item
-                              </div>
+                              <div className={inputLabelClass}>Item</div>
                               <div className={readOnlyFieldClass}>
                                 {line.item?.name || "—"}
                               </div>
                             </div>
 
                             <div className="space-y-2 md:col-span-4">
-                              <div className="text-sm font-medium text-slate-300">
-                                Description
-                              </div>
+                              <div className={inputLabelClass}>Description</div>
                               <div className={readOnlyFieldClass}>
                                 {line.description || "—"}
                               </div>
                             </div>
 
                             <div className="space-y-2 md:col-span-1">
-                              <div className="text-sm font-medium text-slate-300">
-                                Qty
-                              </div>
+                              <div className={inputLabelClass}>Qty</div>
                               <div className={readOnlyFieldClass}>
                                 {toNumber(line.quantity)}
                               </div>
                             </div>
 
                             <div className="space-y-2 md:col-span-2">
-                              <div className="text-sm font-medium text-slate-300">
-                                Unit
-                              </div>
+                              <div className={inputLabelClass}>Unit</div>
+                              <div className={readOnlyFieldClass}>{unitLabel}</div>
+                            </div>
+
+                            <div className="space-y-2 md:col-span-2">
+                              <div className={inputLabelClass}>Unit Price</div>
                               <div className={readOnlyFieldClass}>
-                                {unitLabel}
+                                {formatMoney(line.unit_price, displayedCurrencyCode)}
                               </div>
                             </div>
 
                             <div className="space-y-2 md:col-span-2">
-                              <div className="text-sm font-medium text-slate-300">
-                                Unit Price
-                              </div>
+                              <div className={inputLabelClass}>Discount</div>
                               <div className={readOnlyFieldClass}>
-                                {formatMoney(line.unit_price, currencyCode)}
+                                {formatMoney(line.discount, displayedCurrencyCode)}
                               </div>
                             </div>
 
                             <div className="space-y-2 md:col-span-2">
-                              <div className="text-sm font-medium text-slate-300">
-                                Discount
-                              </div>
-                              <div className={readOnlyFieldClass}>
-                                {formatMoney(line.discount, currencyCode)}
-                              </div>
-                            </div>
-
-                            <div className="space-y-2 md:col-span-2">
-                              <div className="text-sm font-medium text-slate-300">
-                                Tax Code
-                              </div>
-                              <div className={readOnlyFieldClass}>
-                                {taxLabel}
-                              </div>
+                              <div className={inputLabelClass}>Tax Code</div>
+                              <div className={readOnlyFieldClass}>{taxLabel}</div>
                             </div>
 
                             <div className="space-y-2 md:col-span-3">
-                              <div className="text-sm font-medium text-slate-300">
+                              <div className={inputLabelClass}>
                                 Revenue Category
                               </div>
                               <div className={readOnlyFieldClass}>
@@ -1481,19 +2628,18 @@ export default function FinanceCustomerPoDetailPage() {
                             </div>
 
                             <div className="space-y-2 md:col-span-3">
-                              <div className="text-sm font-medium text-slate-300">
-                                Line Total
-                              </div>
+                              <div className={inputLabelClass}>Line Total</div>
                               <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
-                                {formatMoney(line.line_total, currencyCode)}
+                                {formatMoney(
+                                  line.line_total,
+                                  displayedCurrencyCode
+                                )}
                               </div>
                             </div>
 
                             {line.notes ? (
                               <div className="space-y-2 md:col-span-12">
-                                <div className="text-sm font-medium text-slate-300">
-                                  Notes
-                                </div>
+                                <div className={inputLabelClass}>Notes</div>
                                 <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-slate-300">
                                   {line.notes}
                                 </div>
@@ -1527,26 +2673,27 @@ export default function FinanceCustomerPoDetailPage() {
 
               <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
                 <div className={summaryBlockClass}>
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Linked Quotation
-                  </div>
+                  <div className={labelClass}>Linked Quotation</div>
                   <div className="mt-2 text-2xl font-semibold text-white">
-                    {quotation?.quotation_number || "—"}
+                    {quotation?.quotation_number || selectedQuotation?.quotation_number || "—"}
                   </div>
                   <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {quotation
-                      ? `${quotation.status || "—"} · ${formatMoney(
-                          quotation.total_amount,
-                          quotation.currency_code || currencyCode
+                    {quotation || selectedQuotation
+                      ? `${(quotation || selectedQuotation)?.status || "—"} · ${formatMoney(
+                          (quotation || selectedQuotation)?.total_amount,
+                          (quotation || selectedQuotation)?.currency_code ||
+                            displayedCurrencyCode
                         )}`
                       : "No quotation linked."}
                   </div>
-                  {quotation ? (
+                  {quotation || selectedQuotation ? (
                     <Button
                       variant="outline"
                       onClick={() =>
                         navigate(
-                          `/finance/transactions/quotations/${quotation.id}`
+                          `/finance/transactions/quotations/${
+                            (quotation || selectedQuotation)?.id
+                          }`
                         )
                       }
                       className="mt-4 h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
@@ -1558,9 +2705,7 @@ export default function FinanceCustomerPoDetailPage() {
                 </div>
 
                 <div className={summaryBlockClass}>
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Linked Proforma Invoice
-                  </div>
+                  <div className={labelClass}>Linked Proforma Invoice</div>
                   <div className="mt-2 text-2xl font-semibold text-white">
                     {proforma?.proforma_number || "—"}
                   </div>
@@ -1568,7 +2713,7 @@ export default function FinanceCustomerPoDetailPage() {
                     {proforma
                       ? `${proforma.status || "—"} · ${formatMoney(
                           proforma.total_amount,
-                          proforma.currency_code || currencyCode
+                          proforma.currency_code || displayedCurrencyCode
                         )}`
                       : "No proforma invoice linked yet."}
                   </div>
@@ -1742,7 +2887,8 @@ export default function FinanceCustomerPoDetailPage() {
               </CardHeader>
 
               <CardContent className="space-y-3 p-5 text-sm leading-6 text-slate-400">
-                <div>• Customer PO is saved from an accepted quotation.</div>
+                <div>• Customer PO can be linked to a quotation or entered manually.</div>
+                <div>• Client, company, currency, quotation, and lines are editable before PI linking.</div>
                 <div>• Customer PO document is required before creating the PI.</div>
                 <div>• Draft records must be marked as received first.</div>
                 <div>• Create Proforma Invoice is available after received status and file upload.</div>

@@ -7,7 +7,6 @@ import {
   FileText,
   Link2,
   Paperclip,
-  RefreshCw,
   RotateCcw,
   Save,
   SquarePen,
@@ -132,7 +131,6 @@ type ExpenseCategoryOption = {
 
 type ItemOption = {
   id: string;
-  item_code: string | null;
   name: string;
   description: string | null;
   unit_price: number | string | null;
@@ -389,7 +387,8 @@ export default function FinanceVendorQuotationDetailPage() {
   const canArchive =
     !!quotation &&
     !["archived", "deleted", "converted"].includes(quotation.status);
-  const canDelete = !!quotation && quotation.status !== "deleted";
+  const canDelete =
+    !!quotation && !["deleted", "converted"].includes(quotation.status);
   const canRestore =
     !!quotation && ["archived", "deleted"].includes(quotation.status);
   const canHardDelete = !!quotation && quotation.status === "deleted";
@@ -441,7 +440,7 @@ export default function FinanceVendorQuotationDetailPage() {
       supabase
         .from("finance_items")
         .select(
-          "id, item_code, name, description, unit_price, default_unit_of_measure_id, default_tax_code_id"
+          "id, name, description, unit_price, default_unit_of_measure_id, default_tax_code_id"
         )
         .order("name", { ascending: true }),
     ]);
@@ -1378,9 +1377,6 @@ export default function FinanceVendorQuotationDetailPage() {
                                   <option value="">Manual item</option>
                                   {items.map((item) => (
                                     <option key={item.id} value={item.id}>
-                                      {item.item_code
-                                        ? `${item.item_code} — `
-                                        : ""}
                                       {item.name}
                                     </option>
                                   ))}
@@ -1819,14 +1815,6 @@ export default function FinanceVendorQuotationDetailPage() {
                   </Button>
                 ) : null}
 
-                <Button
-                  variant="outline"
-                  onClick={() => void loadQuotation()}
-                  className="h-10 w-full justify-start rounded-2xl border-white/10 bg-white/[0.05] px-4 text-slate-300 hover:bg-white/[0.08]"
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Sync Record
-                </Button>
               </CardContent>
             </Card>
           </div>

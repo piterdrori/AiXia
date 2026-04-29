@@ -57,6 +57,7 @@ function formatMoney(value: number, currencyCode = "USD") {
 export default function NewPaymentReceivedPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const sourceInvoiceId = searchParams.get("invoice_id");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -64,9 +65,11 @@ export default function NewPaymentReceivedPage() {
 
   const [invoices, setInvoices] = useState<InvoiceOption[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
- 
-  const [invoiceId, setInvoiceId] = useState("");
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>(
+    []
+  );
+
+  const [invoiceId, setInvoiceId] = useState(sourceInvoiceId || "");
   const [paymentDate, setPaymentDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
@@ -87,57 +90,31 @@ export default function NewPaymentReceivedPage() {
     [paymentMethodId, paymentMethods]
   );
 
-  useEffect(() => {
-    void loadFormData();
-  }, []);
-
-  useEffect(() => {
-  const invoiceFromUrl = searchParams.get("invoice_id");
-  if (invoiceFromUrl) {
-    setInvoiceId(invoiceFromUrl);
-  }
-}, [searchParams]);
-
-  useEffect(() => {
-    if (!selectedInvoice) return;
-
-    setPaymentCurrencyCode(
-      (current) => current || selectedInvoice.currency_code || "USD"
-    );
-
-    if (!amount) {
-      const openBalance = toNumber(selectedInvoice.balance_due);
-      if (openBalance > 0) {
-        setAmount(String(openBalance));
-      }
-    }
-  }, [amount, selectedInvoice]);
-
   const loadFormData = useCallback(async () => {
     try {
       setIsLoading(true);
       setErrorMessage("");
 
-     const invoicesResult = await supabase
-  .from("finance_invoices_issued")
-  .select(
-  "id, invoice_number, client_id, counterparty_type, counterparty_company_id, client_name_snapshot, currency_code, balance_due, status"
-)
-  .in("status", ["issued", "partially_paid", "overdue"])
-  .gt("balance_due", 0)
-  .order("created_at", { ascending: false });
+      const invoicesResult = await supabase
+        .from("finance_invoices_issued")
+        .select(
+          "id, invoice_number, client_id, counterparty_type, counterparty_company_id, client_name_snapshot, currency_code, balance_due, status"
+        )
+        .in("status", ["issued", "partially_paid", "overdue"])
+        .gt("balance_due", 0)
+        .order("created_at", { ascending: false });
 
-const currenciesResult = await supabase
-  .from("finance_currencies")
-  .select("id, currency_code, currency_name")
-  .eq("status", "active")
-  .order("currency_code", { ascending: true });
+      const currenciesResult = await supabase
+        .from("finance_currencies")
+        .select("id, currency_code, currency_name")
+        .eq("status", "active")
+        .order("currency_code", { ascending: true });
 
-const paymentMethodsResult = await supabase
-  .from("finance_payment_methods")
-  .select("id, name")
-  .eq("status", "active")
-  .order("name", { ascending: true });
+      const paymentMethodsResult = await supabase
+        .from("finance_payment_methods")
+        .select("id, name")
+        .eq("status", "active")
+        .order("name", { ascending: true });
 
       if (invoicesResult.error) throw invoicesResult.error;
       if (currenciesResult.error) throw currenciesResult.error;
@@ -155,6 +132,31 @@ const paymentMethodsResult = await supabase
       setIsLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    void loadFormData();
+  }, [loadFormData]);
+
+  useEffect(() => {
+    if (sourceInvoiceId) {
+      setInvoiceId(sourceInvoiceId);
+    }
+  }, [sourceInvoiceId]);
+
+  useEffect(() => {
+    if (!selectedInvoice) return;
+
+    setPaymentCurrencyCode(
+      (current) => current || selectedInvoice.currency_code || "USD"
+    );
+
+    if (!amount) {
+      const openBalance = toNumber(selectedInvoice.balance_due);
+      if (openBalance > 0) {
+        setAmount(String(openBalance));
+      }
+    }
+  }, [amount, selectedInvoice]);
 
   const invoiceCurrencyCode = selectedInvoice?.currency_code || "USD";
   const numericAmount = toNumber(amount);
@@ -198,60 +200,65 @@ const paymentMethodsResult = await supabase
         throw new Error("User not authenticated");
       }
 
-const created = await createPaymentReceived({
-  invoice_id: selectedInvoice.id,
-  client_id:
-    selectedInvoice.counterparty_type === "client"
-      ? selectedInvoice.client_id ?? undefined
-      : undefined,
-  amount: numericAmount,
-  payment_date: paymentDate,
-  reference_number: referenceNumber || undefined,
-  payment_method_id: paymentMethodId || undefined,
-  notes: notes || undefined,
-  payment_currency_code: paymentCurrencyCode,
-  invoice_currency_code: selectedInvoice.currency_code || undefined,
-  exchange_rate: 1,
-  converted_amount: numericAmount,
-  exchange_rate_source:
-    paymentCurrencyCode === (selectedInvoice.currency_code || "")
-      ? "system_same_currency"
-      : "pending_backend_conversion",
-  exchange_rate_date: paymentDate,
-  created_by: user.id,
-  updated_by: user.id,
-  posted_to_ledger: false,
-  metadata: {
-    creation_mode: "manual_draft",
-    proof_required_before_confirmation: true,
-  },
-});
+      const created = await createPaymentReceived({
+        invoice_id: selectedInvoice.id,
+        client_id:
+          selectedInvoice.counterparty_type === "client"
+            ? selectedInvoice.client_id ?? undefined
+            : undefined,
+        amount: numericAmount,
+        payment_date: paymentDate,
+        reference_number: referenceNumber || undefined,
+        payment_method_id: paymentMethodId || undefined,
+        notes: notes || undefined,
+        payment_currency_code: paymentCurrencyCode,
+        invoice_currency_code: selectedInvoice.currency_code || undefined,
+        exchange_rate: 1,
+        converted_amount: numericAmount,
+        exchange_rate_source:
+          paymentCurrencyCode === (selectedInvoice.currency_code || "")
+            ? "system_same_currency"
+            : "pending_backend_conversion",
+        exchange_rate_date: paymentDate,
+        created_by: user.id,
+        updated_by: user.id,
+        posted_to_ledger: false,
+        metadata: {
+          creation_mode: sourceInvoiceId
+            ? "invoice_prefill_draft"
+            : "manual_draft",
+          source: "invoice",
+          source_invoice_id: selectedInvoice.id,
+          source_invoice_number: selectedInvoice.invoice_number || null,
+          source_invoice_status: selectedInvoice.status || null,
+          source_invoice_currency_code: selectedInvoice.currency_code || null,
+          source_invoice_balance_due: selectedInvoice.balance_due ?? null,
+          proof_required_before_confirmation: true,
+        },
+      });
 
-if (!created?.id) {
-  throw new Error("Payment creation failed: no id returned");
-}
+      if (!created?.id) {
+        throw new Error("Payment creation failed: no id returned");
+      }
 
-const { error: fxError } = await supabase.functions.invoke(
-  "finance-payment-received-convert",
-  {
-    body: {
-      payment_id: created.id,
-      amount: numericAmount,
-      payment_currency_code: paymentCurrencyCode,
-      invoice_id: selectedInvoice.id,
-      payment_date: paymentDate,
-    },
-  }
-);
+      const { error: fxError } = await supabase.functions.invoke(
+        "finance-payment-received-convert",
+        {
+          body: {
+            payment_id: created.id,
+            amount: numericAmount,
+            payment_currency_code: paymentCurrencyCode,
+            invoice_id: selectedInvoice.id,
+            payment_date: paymentDate,
+          },
+        }
+      );
 
-if (fxError) {
-  console.error("FX conversion failed:", fxError);
-}
+      if (fxError) {
+        console.error("FX conversion failed:", fxError);
+      }
 
-const paymentId = created.id;
-
-navigate(`/finance/transactions/payments-received/${paymentId}`);
-      
+      navigate(`/finance/transactions/payments-received/${created.id}`);
     } catch (error) {
       console.error("Failed to create payment received:", error);
       setErrorMessage(
@@ -271,20 +278,22 @@ navigate(`/finance/transactions/payments-received/${paymentId}`);
     paymentMethodId,
     referenceNumber,
     selectedInvoice,
+    sourceInvoiceId,
   ]);
 
   const metricSummary = useMemo(() => {
     return {
       invoiceNumber: selectedInvoice?.invoice_number || "—",
       clientName:
-  selectedInvoice?.client_name_snapshot ||
-  selectedInvoice?.invoice_number ||
-  "Intercompany",
+        selectedInvoice?.client_name_snapshot ||
+        selectedInvoice?.invoice_number ||
+        "Intercompany",
       invoiceCurrency: invoiceCurrencyCode,
       paymentCurrency: paymentCurrencyCode || "—",
       openBalance,
       enteredAmount: numericAmount,
       paymentMethod: selectedPaymentMethod?.name || "—",
+      invoiceStatus: selectedInvoice?.status || "—",
     };
   }, [
     invoiceCurrencyCode,
@@ -300,6 +309,7 @@ navigate(`/finance/transactions/payments-received/${paymentId}`);
       <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
         <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6 xl:p-7">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_35%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_24%)]" />
+
           <div className="relative flex flex-col gap-6">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
               <div className="max-w-3xl space-y-4">
@@ -307,18 +317,27 @@ navigate(`/finance/transactions/payments-received/${paymentId}`);
                   <Badge className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.24em] text-white/70 shadow-none">
                     Receivables
                   </Badge>
+
                   <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-cyan-200 shadow-none">
                     New payment draft
                   </Badge>
+
+                  {sourceInvoiceId ? (
+                    <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-emerald-200 shadow-none">
+                      Invoice prefilled
+                    </Badge>
+                  ) : null}
                 </div>
 
                 <div className="space-y-3">
                   <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
                     Create Payment Received Draft
                   </h1>
+
                   <div className="text-sm text-white/45">
-                    Register a manual incoming payment against an issued invoice.
-                    Confirmation happens later only after proof is uploaded.
+                    Register a manual incoming payment against a linked issued
+                    invoice. Confirmation happens later only after proof is
+                    uploaded.
                   </div>
                 </div>
               </div>
@@ -326,7 +345,9 @@ navigate(`/finance/transactions/payments-received/${paymentId}`);
               <div className="flex flex-wrap gap-3 xl:justify-end">
                 <Button
                   variant="outline"
-                  onClick={() => navigate("/finance/transactions/payments-received")}
+                  onClick={() =>
+                    navigate("/finance/transactions/payments-received")
+                  }
                   className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
                 >
                   <ArrowLeft className="mr-2 h-4 w-4" />
@@ -361,14 +382,14 @@ navigate(`/finance/transactions/payments-received/${paymentId}`);
               <CardHeader className="border-b border-white/8 pb-4">
                 <CardTitle className="text-white">Payment Header</CardTitle>
                 <CardDescription className="text-white/45">
-                  Link the payment to an open invoice and capture settlement
+                  Link this payment to one open invoice and capture settlement
                   details, currency, date, reference, and notes.
                 </CardDescription>
               </CardHeader>
 
               <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
                 <label className="space-y-2 md:col-span-2">
-                  <div className="text-sm text-white/70">Invoice</div>
+                  <div className="text-sm text-white/70">Linked Invoice</div>
                   <select
                     value={invoiceId}
                     onChange={(event) => setInvoiceId(event.target.value)}
@@ -378,10 +399,20 @@ navigate(`/finance/transactions/payments-received/${paymentId}`);
                     {invoices.map((invoice) => (
                       <option key={invoice.id} value={invoice.id}>
                         {invoice.invoice_number} —{" "}
-                        {invoice.client_name_snapshot || "—"}
+                        {invoice.client_name_snapshot || "Intercompany"} —{" "}
+                        {formatMoney(
+                          toNumber(invoice.balance_due),
+                          invoice.currency_code || "USD"
+                        )}{" "}
+                        open
                       </option>
                     ))}
                   </select>
+
+                  <div className="text-xs leading-5 text-white/40">
+                    This payment draft is created against the selected invoice.
+                    After confirmation, the linked invoice balance is updated.
+                  </div>
                 </label>
 
                 <label className="space-y-2">
@@ -408,7 +439,9 @@ navigate(`/finance/transactions/payments-received/${paymentId}`);
                   <div className="text-sm text-white/70">Payment Currency</div>
                   <select
                     value={paymentCurrencyCode}
-                    onChange={(event) => setPaymentCurrencyCode(event.target.value)}
+                    onChange={(event) =>
+                      setPaymentCurrencyCode(event.target.value)
+                    }
                     className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
                   >
                     <option value="">Select currency</option>
@@ -456,7 +489,9 @@ navigate(`/finance/transactions/payments-received/${paymentId}`);
                 <div className="space-y-2">
                   <div className="text-sm text-white/70">Settlement Type</div>
                   <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
-                    {isCrossCurrency ? "Cross-currency settlement" : "Same-currency settlement"}
+                    {isCrossCurrency
+                      ? "Cross-currency settlement"
+                      : "Same-currency settlement"}
                   </div>
                 </div>
 
@@ -473,225 +508,244 @@ navigate(`/finance/transactions/payments-received/${paymentId}`);
             </Card>
 
             <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-  <CardHeader className="border-b border-white/8 pb-4">
-    <CardTitle className="text-white">Locked Behavior</CardTitle>
-    <CardDescription className="text-white/45">
-      This module records external client payments manually and only
-      confirms them after proof is uploaded.
-    </CardDescription>
-  </CardHeader>
+              <CardHeader className="border-b border-white/8 pb-4">
+                <CardTitle className="text-white">Locked Behavior</CardTitle>
+                <CardDescription className="text-white/45">
+                  This module records external client payments manually and only
+                  confirms them after proof is uploaded.
+                </CardDescription>
+              </CardHeader>
 
-  <CardContent className="space-y-3 p-5 text-sm text-white/55">
-    <div>• Payments are created as draft only.</div>
-    <div>• No direct bank integration — fully manual flow.</div>
-    <div>• Client sends transfer confirmation externally.</div>
-    <div>• You must upload proof before confirmation.</div>
-    <div>• Without proof → confirmation is blocked.</div>
-    <div>• Confirmed payments update invoice balance.</div>
-    <div>• Multi-currency is supported with conversion.</div>
-    <div>• Exchange rate is stored at payment level.</div>
-    <div>• Converted amount is used for invoice settlement.</div>
-    <div>• Payments can be cancelled but not edited after confirmation.</div>
-    <div>• Proof documents are locked (admin-only deletion).</div>
-  </CardContent>
-</Card>
+              <CardContent className="space-y-3 p-5 text-sm text-white/55">
+                <div>• Payments are created as draft only.</div>
+                <div>• Every payment must be linked to one invoice.</div>
+                <div>• The selected invoice ID is saved on the payment record.</div>
+                <div>• No direct bank integration — fully manual flow.</div>
+                <div>• Client sends transfer confirmation externally.</div>
+                <div>• You must upload proof before confirmation.</div>
+                <div>• Without proof → confirmation is blocked.</div>
+                <div>• Confirmed payments update the linked invoice balance.</div>
+                <div>• Multi-currency is supported with conversion.</div>
+                <div>• Exchange rate is stored at payment level.</div>
+                <div>• Converted amount is used for invoice settlement.</div>
+                <div>• Payments can be cancelled but not edited after confirmation.</div>
+                <div>• Proof documents are locked (admin-only deletion).</div>
+              </CardContent>
+            </Card>
 
-    <Card className="overflow-hidden rounded-[30px] border border-amber-400/20 bg-amber-500/5 backdrop-blur-xl">
-  <CardHeader className="border-b border-white/8 pb-4">
-    <CardTitle className="text-white">Proof of Payment (Optional)</CardTitle>
-    <CardDescription className="text-white/45">
-      You can upload proof now or later. Confirmation will be blocked without it.
-    </CardDescription>
-  </CardHeader>
+            <Card className="overflow-hidden rounded-[30px] border border-amber-400/20 bg-amber-500/5 backdrop-blur-xl">
+              <CardHeader className="border-b border-white/8 pb-4">
+                <CardTitle className="text-white">
+                  Proof of Payment (Optional)
+                </CardTitle>
+                <CardDescription className="text-white/45">
+                  You can upload proof now or later. Confirmation will be
+                  blocked without it.
+                </CardDescription>
+              </CardHeader>
 
-  <CardContent className="p-5 space-y-4">
-    <input
-      type="file"
-      onChange={(e) => {
-        const file = e.target.files?.[0] || null;
-        setProofFile(file);
-      }}
-      className="block w-full text-sm text-white file:mr-4 file:py-2 file:px-4
-      file:rounded-lg file:border-0 file:bg-white/10 file:text-white hover:file:bg-white/20"
-    />
+              <CardContent className="space-y-4 p-5">
+                <input
+                  type="file"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] || null;
+                    setProofFile(file);
+                  }}
+                  className="block w-full text-sm text-white file:mr-4 file:rounded-lg file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-white hover:file:bg-white/20"
+                />
 
-    {proofFile && (
-      <div className="text-green-400 text-sm">
-        Selected file: {proofFile.name}
-      </div>
-    )}
-
-    {!proofFile && (
-      <div className="text-yellow-400 text-sm">
-        No file selected (you can upload later in detail page)
-      </div>
-    )}
-  </CardContent>
-</Card>
-            
+                {proofFile ? (
+                  <div className="text-sm text-green-400">
+                    Selected file: {proofFile.name}
+                  </div>
+                ) : (
+                  <div className="text-sm text-yellow-400">
+                    No file selected (you can upload later in detail page)
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-  <CardHeader className="border-b border-white/8 pb-4">
-    <CardTitle className="text-white">Payment Summary</CardTitle>
-    <CardDescription className="text-white/45">
-  Preview the raw payment input before saving. Exchange rate, converted amount,
-  and invoice-currency settlement are calculated by the backend after draft creation.
-</CardDescription>
-  </CardHeader>
+              <CardHeader className="border-b border-white/8 pb-4">
+                <CardTitle className="text-white">Payment Summary</CardTitle>
+                <CardDescription className="text-white/45">
+                  Preview the raw payment input before saving. Exchange rate,
+                  converted amount, and invoice-currency settlement are
+                  calculated by the backend after draft creation.
+                </CardDescription>
+              </CardHeader>
 
-  <CardContent className="p-5">
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-        <div className="text-xs uppercase tracking-[0.18em] text-white/40">
-          Entered Amount
-        </div>
-        <div className="mt-2 text-xl font-semibold text-white">
-          {paymentCurrencyCode || "—"}{" "}
-          {Number.isFinite(numericAmount) ? numericAmount.toFixed(2) : "0.00"}
-        </div>
-      </div>
+              <CardContent className="p-5">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <div className="text-xs uppercase tracking-[0.18em] text-white/40">
+                      Entered Amount
+                    </div>
+                    <div className="mt-2 text-xl font-semibold text-white">
+                      {paymentCurrencyCode || "—"}{" "}
+                      {Number.isFinite(numericAmount)
+                        ? numericAmount.toFixed(2)
+                        : "0.00"}
+                    </div>
+                  </div>
 
-      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-        <div className="text-xs uppercase tracking-[0.18em] text-white/40">
-          Open Invoice Balance
-        </div>
-        <div className="mt-2 text-xl font-semibold text-white">
-          {formatMoney(openBalance, invoiceCurrencyCode)}
-        </div>
-      </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <div className="text-xs uppercase tracking-[0.18em] text-white/40">
+                      Open Invoice Balance
+                    </div>
+                    <div className="mt-2 text-xl font-semibold text-white">
+                      {formatMoney(openBalance, invoiceCurrencyCode)}
+                    </div>
+                  </div>
 
-      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-        <div className="text-xs uppercase tracking-[0.18em] text-white/40">
-          Settlement Direction
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <div className="text-xs uppercase tracking-[0.18em] text-white/40">
+                      Settlement Direction
+                    </div>
+                    <div className="mt-2 text-xl font-semibold text-white">
+                      {paymentCurrencyCode || "—"} →{" "}
+                      {invoiceCurrencyCode || "—"}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <CardHeader className="border-b border-white/8 pb-4">
+                <CardTitle className="text-white">Draft Summary</CardTitle>
+                <CardDescription className="text-white/45">
+                  Review the linked invoice, payment method, currency path, and
+                  current amount before saving the payment draft.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-3 p-5">
+                <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">
+                    Linked Invoice
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {metricSummary.invoiceNumber}
+                  </div>
+                  <div className="mt-1 text-xs text-white/40">
+                    Status: {metricSummary.invoiceStatus}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Client
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {metricSummary.clientName}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Invoice Currency
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {metricSummary.invoiceCurrency}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Payment Currency
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {paymentCurrencyCode || "USD"}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Open Balance
+                  </div>
+                  <div className="mt-2 text-lg font-semibold text-white">
+                    {formatMoney(
+                      metricSummary.openBalance,
+                      metricSummary.invoiceCurrency
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Entered Amount
+                  </div>
+                  <div className="mt-2 text-lg font-semibold text-white">
+                    {formatMoney(
+                      metricSummary.enteredAmount,
+                      paymentCurrencyCode || "USD"
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Payment Method
+                  </div>
+                  <div className="mt-2 text-base font-semibold text-white">
+                    {metricSummary.paymentMethod}
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">
+                    Settlement Type
+                  </div>
+                  <div className="mt-2 text-xl font-semibold text-white">
+                    {!selectedInvoice
+                      ? "Select Invoice First"
+                      : isCrossCurrency
+                        ? "Cross-Currency"
+                        : "Same Currency"}
+                  </div>
+                </div>
+
+                {errorMessage ? (
+                  <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                    {errorMessage}
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <CardHeader className="border-b border-white/8 pb-4">
+                <CardTitle className="text-white">Workflow Reminder</CardTitle>
+              </CardHeader>
+
+              <CardContent className="space-y-3 p-5 text-sm text-white/55">
+                <div>• Select the invoice first.</div>
+                <div>• Save the payment as draft against that invoice.</div>
+                <div>• Upload the transfer proof on the detail page.</div>
+                <div>• Only then can the payment be confirmed.</div>
+                <div>
+                  • Confirmed payments update the linked invoice balance
+                  automatically.
+                </div>
+                <div>
+                  • Multi-currency conversion is calculated automatically by the
+                  backend.
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-        <div className="mt-2 text-xl font-semibold text-white">
-          {paymentCurrencyCode || "—"} → {invoiceCurrencyCode || "—"}
-        </div>
-      </div>
-    </div>
-  </CardContent>
-</Card>
 
-            </div>
-
-<div className="space-y-6">
-  <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-    <CardHeader className="border-b border-white/8 pb-4">
-      <CardTitle className="text-white">Draft Summary</CardTitle>
-      <CardDescription className="text-white/45">
-        Review the linked invoice, payment method, currency path, and current
-        amount before saving the payment draft.
-      </CardDescription>
-    </CardHeader>
-
-    <CardContent className="space-y-3 p-5">
-      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-          Invoice
-        </div>
-        <div className="mt-2 text-base font-semibold text-white">
-          {metricSummary.invoiceNumber}
-        </div>
-      </div>
-
-      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-          Client
-        </div>
-        <div className="mt-2 text-base font-semibold text-white">
-          {metricSummary.clientName}
-        </div>
-      </div>
-
-      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-          Invoice Currency
-        </div>
-        <div className="mt-2 text-base font-semibold text-white">
-          {metricSummary.invoiceCurrency}
-        </div>
-      </div>
-
-      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-    Payment Currency
-  </div>
-  <div className="mt-2 text-base font-semibold text-white">
-    {paymentCurrencyCode || "USD"}
-  </div>
-</div>
-
-      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-          Open Balance
-        </div>
-        <div className="mt-2 text-lg font-semibold text-white">
-          {formatMoney(metricSummary.openBalance, metricSummary.invoiceCurrency)}
-        </div>
-      </div>
-
-    <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-  <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-    Entered Amount
-  </div>
-  <div className="mt-2 text-lg font-semibold text-white">
-    {formatMoney(metricSummary.enteredAmount, paymentCurrencyCode || "USD")}
-  </div>
-</div>
-
-      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-          Payment Method
-        </div>
-        <div className="mt-2 text-base font-semibold text-white">
-          {metricSummary.paymentMethod}
-        </div>
-      </div>
-
-      <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
-  <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">
-    Settlement Type
-  </div>
-  <div className="mt-2 text-xl font-semibold text-white">
-    {!selectedInvoice
-      ? "Select Invoice First"
-      : isCrossCurrency
-      ? "Cross-Currency"
-      : "Same Currency"}
-  </div>
-</div>
-
-      {errorMessage ? (
-        <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-          {errorMessage}
-        </div>
-      ) : null}
-    </CardContent>
-  </Card>
-
-  <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-    <CardHeader className="border-b border-white/8 pb-4">
-      <CardTitle className="text-white">Workflow Reminder</CardTitle>
-    </CardHeader>
-
-    <CardContent className="space-y-3 p-5 text-sm text-white/55">
-      <div>• Save the payment as draft first.</div>
-      <div>• Upload the transfer proof on the detail page.</div>
-      <div>• Only then can the payment be confirmed.</div>
-      <div>• Confirmed payments update invoice balances automatically.</div>
-      <div>• Multi-currency conversion is calculated automatically by the backend.</div>
-    </CardContent>
-  </Card>
-</div>
-</div>
-
-{isLoading ? (
-  <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
-    Loading payment sources...
-  </div>
-) : null}
+        {isLoading ? (
+          <div className="rounded-[22px] border border-white/8 bg-black/15 px-4 py-8 text-sm text-white/50">
+            Loading payment sources...
+          </div>
+        ) : null}
       </div>
     </div>
   );
 }
-            

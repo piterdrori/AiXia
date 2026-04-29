@@ -71,7 +71,6 @@ type ExpenseCategoryOption = {
 
 type ItemOption = {
   id: string;
-  item_code: string | null;
   name: string;
   description: string | null;
   unit_price: number | string | null;
@@ -292,7 +291,7 @@ export default function FinanceNewBillPage() {
           supabase
             .from("finance_items")
             .select(
-              "id, item_code, name, description, unit_price, default_unit_of_measure_id, default_tax_code_id"
+              "id, name, description, unit_price, default_unit_of_measure_id, default_tax_code_id"
             )
             .eq("status", "active")
             .order("name", { ascending: true }),
@@ -958,7 +957,6 @@ export default function FinanceNewBillPage() {
                           <option value="">Manual item</option>
                           {items.map((item) => (
                             <option key={item.id} value={item.id}>
-                              {item.item_code ? `${item.item_code} — ` : ""}
                               {item.name}
                             </option>
                           ))}

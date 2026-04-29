@@ -940,7 +940,7 @@ export default function FinanceCustomerPoDetailPage() {
 
   const canEditDetails =
     customerPo?.status !== "archived" &&
-    customerPo?.status !== "deleted" &&
+    customerPo?.status !== "deleted";
 
   function resetEditDraft() {
     if (!customerPo) return;
@@ -2325,9 +2325,6 @@ export default function FinanceCustomerPoDetailPage() {
                       const selectedRevenueCategory = revenueCategories.find(
                         (category) => category.id === line.revenue_category_id
                       );
-
-                      void selectedClient;
-                      void selectedCompany;
 
                       const base = Math.max(
                         toNumber(line.quantity) * toNumber(line.unit_price) -

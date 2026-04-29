@@ -350,6 +350,15 @@ export default function FinanceNewProformaInvoicePage() {
   const [notes, setNotes] = useState("");
   const [rows, setRows] = useState<ProformaItemRow[]>([createRow()]);
   const [errorMessage, setErrorMessage] = useState("");
+  const [sourceMode, setSourceMode] = useState<"manual" | "customer_po">(
+    sourceClientPoId ? "customer_po" : "manual"
+  );
+  const [sourceCustomerPoId, setSourceCustomerPoId] = useState(
+    sourceClientPoId || ""
+  );
+  const [customerPoSources, setCustomerPoSources] = useState<CustomerPoSource[]>(
+    []
+  );
   const [sourceCustomerPo, setSourceCustomerPo] =
     useState<CustomerPoSource | null>(null);
 
@@ -423,6 +432,10 @@ export default function FinanceNewProformaInvoicePage() {
       return;
     }
 
+    if (sourceMode === "customer_po" && sourceCustomerPo) {
+      return;
+    }
+
     if (selectedClient.currency_code) {
       setCurrencyCode(selectedClient.currency_code);
 
@@ -445,7 +458,14 @@ export default function FinanceNewProformaInvoicePage() {
       base.setDate(base.getDate() + days);
       setValidUntil(base.toISOString().slice(0, 10));
     }
-  }, [currencies, issueDate, selectedClient, validUntil]);
+  }, [
+    currencies,
+    issueDate,
+    selectedClient,
+    sourceCustomerPo,
+    sourceMode,
+    validUntil,
+  ]);
 
 
   useEffect(() => {
@@ -526,6 +546,134 @@ export default function FinanceNewProformaInvoicePage() {
     }
   }, [filteredTasks, projectId, taskId]);
 
+  const applyCustomerPoSource = useCallback(
+    async (customerPoId: string) => {
+      if (!customerPoId) {
+        setSourceCustomerPo(null);
+        setSourceCustomerPoId("");
+        setClientId("");
+        setProjectId("");
+        setTaskId("");
+        setRows([createRow()]);
+        setNotes("");
+        return;
+      }
+
+      setErrorMessage("");
+
+      const { data: customerPoData, error: customerPoError } = await supabase
+        .from("finance_client_purchase_orders")
+        .select(
+          "id, client_po_number, external_po_number, quotation_id, proforma_invoice_id, client_id, company_id, po_date, received_at, status, currency_id, currency_code, total_amount, notes, project_id, task_id"
+        )
+        .eq("id", customerPoId)
+        .maybeSingle();
+
+      if (customerPoError) throw customerPoError;
+
+      const typedCustomerPo =
+        (customerPoData || null) as CustomerPoSource | null;
+
+      if (!typedCustomerPo) {
+        setErrorMessage("Customer PO source was not found.");
+        return;
+      }
+
+      if (typedCustomerPo.status !== "received") {
+        setErrorMessage(
+          "Customer PO must be marked as received before creating a proforma invoice."
+        );
+        return;
+      }
+
+      if (typedCustomerPo.proforma_invoice_id) {
+        navigate(
+          `/finance/transactions/proforma-invoices/${typedCustomerPo.proforma_invoice_id}`
+        );
+        return;
+      }
+
+      setSourceMode("customer_po");
+      setSourceCustomerPoId(typedCustomerPo.id);
+      setSourceCustomerPo(typedCustomerPo);
+
+      setClientId(typedCustomerPo.client_id || "");
+      setCompanyId(typedCustomerPo.company_id || "");
+      setProjectId(typedCustomerPo.project_id || "");
+      setTaskId(typedCustomerPo.task_id || "");
+      setCurrencyId(typedCustomerPo.currency_id || "");
+      setCurrencyCode(typedCustomerPo.currency_code || "USD");
+      setIssueDate(new Date().toISOString().slice(0, 10));
+
+      const validUntilDate = new Date();
+      validUntilDate.setDate(validUntilDate.getDate() + 30);
+      setValidUntil(validUntilDate.toISOString().slice(0, 10));
+
+      setNotes(
+        [
+          `Created from Customer PO: ${
+            typedCustomerPo.client_po_number ||
+            typedCustomerPo.external_po_number ||
+            typedCustomerPo.id
+          }`,
+          typedCustomerPo.notes || "",
+        ]
+          .filter(Boolean)
+          .join("\n")
+      );
+
+      const { data: customerPoLinesData, error: customerPoLinesError } =
+        await supabase
+          .from("finance_client_purchase_order_line_items")
+          .select(
+            "id, client_po_id, item_id, description, quantity, unit_price, discount, sort_order, unit_of_measure_id, tax_code_id, revenue_category_id, project_id, task_id, status"
+          )
+          .eq("client_po_id", typedCustomerPo.id)
+          .or("status.is.null,status.neq.deleted")
+          .order("sort_order", { ascending: true });
+
+      if (customerPoLinesError) throw customerPoLinesError;
+
+      const customerPoLines =
+        (customerPoLinesData || []) as CustomerPoLineSource[];
+
+      if (customerPoLines.length > 0) {
+        setRows(
+          customerPoLines.map((line) => ({
+            localId: crypto.randomUUID(),
+            itemId: line.item_id || "",
+            description: line.description || "",
+            quantity: String(line.quantity ?? 1),
+            unitPrice: String(line.unit_price ?? 0),
+            discount: String(line.discount ?? 0),
+            taxCodeId: line.tax_code_id || "",
+            unitOfMeasureId: line.unit_of_measure_id || "",
+            revenueCategoryId: line.revenue_category_id || "",
+          }))
+        );
+      } else {
+        setRows([
+          {
+            localId: crypto.randomUUID(),
+            itemId: "",
+            description: `Customer PO ${
+              typedCustomerPo.external_po_number ||
+              typedCustomerPo.client_po_number ||
+              ""
+            }`.trim(),
+            quantity: "1",
+            unitPrice: String(Number(typedCustomerPo.total_amount || 0)),
+            discount: "0",
+            taxCodeId: "",
+            unitOfMeasureId: "",
+            revenueCategoryId: "",
+          },
+        ]);
+      }
+    },
+    [navigate]
+  );
+
   const loadFormData = useCallback(async () => {
     setIsLoading(true);
     setErrorMessage("");
@@ -545,6 +693,7 @@ export default function FinanceNewProformaInvoicePage() {
         taxCodesResult,
         unitsOfMeasureResult,
         revenueCategoriesResult,
+        customerPoSourcesResult,
       ] = await Promise.all([
         supabase
           .from("finance_clients")
@@ -632,6 +781,15 @@ export default function FinanceNewProformaInvoicePage() {
           .select("id, code, name")
           .eq("status", "active")
           .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_client_purchase_orders")
+          .select(
+            "id, client_po_number, external_po_number, quotation_id, proforma_invoice_id, client_id, company_id, po_date, received_at, status, currency_id, currency_code, total_amount, notes, project_id, task_id"
+          )
+          .eq("status", "received")
+          .is("proforma_invoice_id", null)
+          .order("received_at", { ascending: false }),
       ]);
 
       if (clientsResult.error) throw clientsResult.error;
@@ -647,6 +805,7 @@ export default function FinanceNewProformaInvoicePage() {
       if (taxCodesResult.error) throw taxCodesResult.error;
       if (unitsOfMeasureResult.error) throw unitsOfMeasureResult.error;
       if (revenueCategoriesResult.error) throw revenueCategoriesResult.error;
+      if (customerPoSourcesResult.error) throw customerPoSourcesResult.error;
 
       setClients((clientsResult.data || []) as ClientOption[]);
       setCompanies((companiesResult.data || []) as CompanyOption[]);
@@ -666,6 +825,9 @@ export default function FinanceNewProformaInvoicePage() {
       );
       setRevenueCategories(
         (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
+      );
+      setCustomerPoSources(
+        (customerPoSourcesResult.data || []) as CustomerPoSource[]
       );
 
       const defaultPaymentTerm =
@@ -694,107 +856,7 @@ export default function FinanceNewProformaInvoicePage() {
       }
 
       if (sourceClientPoId) {
-        const { data: customerPoData, error: customerPoError } = await supabase
-          .from("finance_client_purchase_orders")
-          .select(
-            "id, client_po_number, external_po_number, quotation_id, proforma_invoice_id, client_id, company_id, po_date, received_at, status, currency_id, currency_code, total_amount, notes, project_id, task_id"
-          )
-          .eq("id", sourceClientPoId)
-          .maybeSingle();
-
-        if (customerPoError) throw customerPoError;
-
-        const typedCustomerPo =
-          (customerPoData || null) as CustomerPoSource | null;
-
-        if (!typedCustomerPo) {
-          setErrorMessage("Customer PO source was not found.");
-        } else if (typedCustomerPo.status !== "received") {
-          setErrorMessage(
-            "Customer PO must be marked as received before creating a proforma invoice."
-          );
-        } else if (typedCustomerPo.proforma_invoice_id) {
-          navigate(
-            `/finance/transactions/proforma-invoices/${typedCustomerPo.proforma_invoice_id}`
-          );
-          return;
-        } else {
-          setSourceCustomerPo(typedCustomerPo);
-
-          setClientId(typedCustomerPo.client_id || "");
-          setCompanyId(typedCustomerPo.company_id || "");
-          setProjectId(typedCustomerPo.project_id || "");
-          setTaskId(typedCustomerPo.task_id || "");
-          setCurrencyId(typedCustomerPo.currency_id || "");
-          setCurrencyCode(typedCustomerPo.currency_code || "USD");
-          setIssueDate(new Date().toISOString().slice(0, 10));
-
-          const validUntilDate = new Date();
-          validUntilDate.setDate(validUntilDate.getDate() + 30);
-          setValidUntil(validUntilDate.toISOString().slice(0, 10));
-
-          setNotes(
-            [
-              `Created from Customer PO: ${
-                typedCustomerPo.client_po_number ||
-                typedCustomerPo.external_po_number ||
-                typedCustomerPo.id
-              }`,
-              typedCustomerPo.notes || "",
-            ]
-              .filter(Boolean)
-              .join("\n")
-          );
-
-          const { data: customerPoLinesData, error: customerPoLinesError } =
-            await supabase
-              .from("finance_client_purchase_order_line_items")
-              .select(
-                "id, client_po_id, item_id, description, quantity, unit_price, discount, sort_order, unit_of_measure_id, tax_code_id, revenue_category_id, project_id, task_id, status"
-              )
-              .eq("client_po_id", typedCustomerPo.id)
-              .eq("status", "active")
-              .order("sort_order", { ascending: true });
-
-          if (customerPoLinesError) throw customerPoLinesError;
-
-          const customerPoLines =
-            (customerPoLinesData || []) as CustomerPoLineSource[];
-
-          if (customerPoLines.length > 0) {
-            setRows(
-              customerPoLines.map((line) => ({
-                localId: crypto.randomUUID(),
-                itemId: line.item_id || "",
-                description: line.description || "",
-                quantity: String(line.quantity ?? 1),
-                unitPrice: String(line.unit_price ?? 0),
-                discount: String(line.discount ?? 0),
-                taxCodeId: line.tax_code_id || "",
-                unitOfMeasureId: line.unit_of_measure_id || "",
-                revenueCategoryId: line.revenue_category_id || "",
-              }))
-            );
-          } else {
-            setRows([
-              {
-                localId: crypto.randomUUID(),
-                itemId: "",
-                description: `Customer PO ${
-                  typedCustomerPo.external_po_number ||
-                  typedCustomerPo.client_po_number ||
-                  ""
-                }`.trim(),
-                quantity: "1",
-                unitPrice: String(Number(typedCustomerPo.total_amount || 0)),
-                discount: "0",
-                taxCodeId: "",
-                unitOfMeasureId: "",
-                revenueCategoryId: "",
-              },
-            ]);
-          }
-        }
+        await applyCustomerPoSource(sourceClientPoId);
       } else if (!companyId && (companiesResult.data || []).length === 1) {
         setCompanyId(companiesResult.data![0].id);
       }
@@ -804,7 +866,7 @@ export default function FinanceNewProformaInvoicePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [navigate, sourceClientPoId]);
+  }, [applyCustomerPoSource, companyId, paymentMethodId, paymentTermsId, shippingTermId, sourceClientPoId]);
 
   useEffect(() => {
     void loadFormData();
@@ -1644,14 +1706,62 @@ export default function FinanceNewProformaInvoicePage() {
                   </select>
                 </div>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Source Customer PO</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
+                                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Source Mode</div>
+                  <select
+                    value={sourceMode}
+                    onChange={(event) => {
+                      const nextMode = event.target.value as
+                        | "manual"
+                        | "customer_po";
+
+                      setSourceMode(nextMode);
+
+                      if (nextMode === "manual") {
+                        setSourceCustomerPo(null);
+                        setSourceCustomerPoId("");
+                        setRows([createRow()]);
+                        setNotes("");
+                      }
+                    }}
+                    className={fieldShellClass}
+                  >
+                    <option value="manual">Manual</option>
+                    <option value="customer_po">From Customer PO</option>
+                  </select>
+
+                  {sourceMode === "customer_po" ? (
+                    <select
+                      value={sourceCustomerPoId}
+                      onChange={(event) => {
+                        const nextCustomerPoId = event.target.value;
+                        setSourceCustomerPoId(nextCustomerPoId);
+                        void applyCustomerPoSource(nextCustomerPoId);
+                      }}
+                      className={fieldShellClass}
+                    >
+                      <option value="">Select Customer PO</option>
+                      {customerPoSources.map((po) => (
+                        <option key={po.id} value={po.id}>
+                          {po.client_po_number || "Customer PO"} ·{" "}
+                          {po.external_po_number || "No external no."} ·{" "}
+                          {formatMoney(
+                            Number(po.total_amount || 0),
+                            po.currency_code || currencyCode
+                          )}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+
+                  <div className="mt-3 text-sm leading-6 text-slate-400">
                     {sourceCustomerPo
-                      ? sourceCustomerPo.client_po_number ||
-                        sourceCustomerPo.external_po_number ||
-                        "Linked"
-                      : "Manual"}
+                      ? `Selected: ${
+                          sourceCustomerPo.client_po_number ||
+                          sourceCustomerPo.external_po_number ||
+                          "Customer PO"
+                        }`
+                      : "Manual proforma invoice without Customer PO relation."}
                   </div>
                 </div>
 
@@ -1992,6 +2102,11 @@ export default function FinanceNewProformaInvoicePage() {
                         sourceCustomerPo.external_po_number ||
                         "Linked"
                       : "Manual"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {sourceCustomerPo
+                      ? "This PI will stay linked to the selected Customer PO."
+                      : "This PI will be created without a Customer PO link."}
                   </div>
                 </div>
 

@@ -2696,13 +2696,36 @@ export default function FinanceProformaInvoiceDetailPage() {
                   </div>
 
                   <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Linked Quotation</div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {linkedCustomerPo?.quotation_id ||
-                      resolveProformaQuotationId(proforma)
-                        ? "Linked"
-                        : "—"}
-                    </div>
+                    <div className={eyebrowClass}>Linked Customer PO</div>
+                    {editingOverview && canEditDraft ? (
+                      <select
+                        value={sourceCustomerPoIdDraft}
+                        onChange={(event) =>
+                          void applyCustomerPoSourceToDraft(event.target.value)
+                        }
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">No Customer PO / Manual</option>
+                        {selectableCustomerPos.map((po) => (
+                          <option key={po.id} value={po.id}>
+                            {po.client_po_number || "Customer PO"} ·{" "}
+                            {po.external_po_number || "No external no."} ·{" "}
+                            {formatFinanceMoney(
+                              po.total_amount,
+                              po.currency_code || printableCurrencyCode
+                            )}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {linkedCustomerPo?.client_po_number ||
+                          linkedCustomerPo?.external_po_number ||
+                          getMetadataString(proforma.metadata, "client_po_number") ||
+                          getMetadataString(proforma.metadata, "external_po_number") ||
+                          "—"}
+                      </div>
+                    )}
                   </div>
 
                   <div className={innerPanelClass}>

@@ -1734,28 +1734,53 @@ const [proformaSources, setProformaSources] = useState<
 
   <select
     value={sourceMode}
-    onChange={(event) => {
-      const nextMode = event.target.value as
-        | "manual"
-        | "proforma_invoice";
+onChange={(event) => {
+  const nextMode = event.target.value as
+    | "manual"
+    | "proforma_invoice";
 
-      setSourceMode(nextMode);
+  setSourceMode(nextMode);
 
-      if (nextMode === "manual") {
-        setSourceProformaId("");
-        setSourceProformaInvoice(null);
-        setRows([createRow()]);
-        setNotes("");
-        return;
-      }
+  if (nextMode === "manual") {
+    // 🔥 FULL HARD RESET (CRITICAL)
+    setSourceProformaId("");
+    setSourceProformaInvoice(null);
 
-      // AUTO LOAD FIRST AVAILABLE PI WHEN SWITCHING MODE
-      if (proformaSources.length > 0) {
-        const first = proformaSources[0];
-        setSourceProformaId(first.id);
-        void applyProformaSource(first.id);
-      }
-    }}
+    setClientId("");
+    setCounterpartyCompanyId("");
+    setCompanyId("");
+    setProjectId("");
+    setTaskId("");
+
+    setPaymentTermsId("");
+    setShippingTermId("");
+    setBankAccountId("");
+
+    setCurrencyId("");
+    setCurrencyCode("USD");
+
+    setDueDate("");
+
+    setRows([createRow()]);
+    setNotes("");
+    setErrorMessage("");
+
+    return;
+  }
+
+  // AUTO LOAD FIRST AVAILABLE PI WHEN SWITCHING MODE
+  if (proformaSources.length > 0) {
+    const first = proformaSources[0];
+
+    setSourceProformaId(first.id);
+
+    // 🔥 HARD RESET BEFORE APPLY (CRITICAL)
+    setRows([]);
+    setNotes("");
+
+    void applyProformaSource(first.id);
+  }
+}}
     className={fieldShellClass}
   >
     <option value="manual">Manual</option>

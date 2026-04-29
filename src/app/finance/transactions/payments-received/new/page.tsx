@@ -24,7 +24,23 @@ type InvoiceOption = {
   counterparty_type: "client" | "company";
   counterparty_company_id: string | null;
   client_name_snapshot: string | null;
+  client_contact_person_snapshot: string | null;
+  client_email_snapshot: string | null;
+  client_phone_snapshot: string | null;
+  counterparty_name_snapshot: string | null;
+  counterparty_legal_name_snapshot: string | null;
+  counterparty_contact_person_snapshot: string | null;
+  counterparty_email_snapshot: string | null;
+  counterparty_phone_snapshot: string | null;
+  billing_address_snapshot: string | null;
+  company_name_snapshot: string | null;
+  company_contact_person_snapshot: string | null;
+  company_email_snapshot: string | null;
+  company_phone_snapshot: string | null;
+  company_address_snapshot: string | null;
   currency_code: string | null;
+  total_amount: number | string | null;
+  paid_amount: number | string | null;
   balance_due: number | string | null;
   status: string;
 };
@@ -98,7 +114,7 @@ export default function NewPaymentReceivedPage() {
       const invoicesResult = await supabase
         .from("finance_invoices_issued")
         .select(
-          "id, invoice_number, client_id, counterparty_type, counterparty_company_id, client_name_snapshot, currency_code, balance_due, status"
+          "id, invoice_number, client_id, counterparty_type, counterparty_company_id, client_name_snapshot, client_contact_person_snapshot, client_email_snapshot, client_phone_snapshot, counterparty_name_snapshot, counterparty_legal_name_snapshot, counterparty_contact_person_snapshot, counterparty_email_snapshot, counterparty_phone_snapshot, billing_address_snapshot, company_name_snapshot, company_contact_person_snapshot, company_email_snapshot, company_phone_snapshot, company_address_snapshot, currency_code, total_amount, paid_amount, balance_due, status"
         )
         .in("status", ["issued", "partially_paid", "overdue"])
         .gt("balance_due", 0)
@@ -161,6 +177,36 @@ export default function NewPaymentReceivedPage() {
   const invoiceCurrencyCode = selectedInvoice?.currency_code || "USD";
   const numericAmount = toNumber(amount);
   const openBalance = toNumber(selectedInvoice?.balance_due);
+
+  const invoiceFromName = selectedInvoice?.company_name_snapshot || "—";
+  const invoiceFromContact =
+    selectedInvoice?.company_contact_person_snapshot || "";
+  const invoiceFromEmail = selectedInvoice?.company_email_snapshot || "";
+  const invoiceFromPhone = selectedInvoice?.company_phone_snapshot || "";
+  const invoiceFromAddress = selectedInvoice?.company_address_snapshot || "";
+
+  const invoiceToName =
+    selectedInvoice?.counterparty_legal_name_snapshot ||
+    selectedInvoice?.counterparty_name_snapshot ||
+    selectedInvoice?.client_name_snapshot ||
+    "—";
+
+  const invoiceToContact =
+    selectedInvoice?.counterparty_contact_person_snapshot ||
+    selectedInvoice?.client_contact_person_snapshot ||
+    "";
+
+  const invoiceToEmail =
+    selectedInvoice?.counterparty_email_snapshot ||
+    selectedInvoice?.client_email_snapshot ||
+    "";
+
+  const invoiceToPhone =
+    selectedInvoice?.counterparty_phone_snapshot ||
+    selectedInvoice?.client_phone_snapshot ||
+    "";
+
+  const invoiceToAddress = selectedInvoice?.billing_address_snapshot || "";
 
   const isCrossCurrency =
     !!paymentCurrencyCode &&
@@ -232,7 +278,11 @@ export default function NewPaymentReceivedPage() {
           source_invoice_number: selectedInvoice.invoice_number || null,
           source_invoice_status: selectedInvoice.status || null,
           source_invoice_currency_code: selectedInvoice.currency_code || null,
+          source_invoice_total_amount: selectedInvoice.total_amount ?? null,
+          source_invoice_paid_amount: selectedInvoice.paid_amount ?? null,
           source_invoice_balance_due: selectedInvoice.balance_due ?? null,
+          source_invoice_from_name: invoiceFromName || null,
+          source_invoice_to_name: invoiceToName || null,
           proof_required_before_confirmation: true,
         },
       });
@@ -260,7 +310,8 @@ export default function NewPaymentReceivedPage() {
 
       navigate(`/finance/transactions/payments-received/${created.id}`);
     } catch (error) {
-      console.error("Failed to create payment received:", error);
+
+          console.error("Failed to create payment received:", error);
       setErrorMessage(
         error instanceof Error
           ? error.message
@@ -270,6 +321,8 @@ export default function NewPaymentReceivedPage() {
       setIsSaving(false);
     }
   }, [
+    invoiceFromName,
+    invoiceToName,
     navigate,
     notes,
     numericAmount,
@@ -286,6 +339,7 @@ export default function NewPaymentReceivedPage() {
       invoiceNumber: selectedInvoice?.invoice_number || "—",
       clientName:
         selectedInvoice?.client_name_snapshot ||
+        selectedInvoice?.counterparty_name_snapshot ||
         selectedInvoice?.invoice_number ||
         "Intercompany",
       invoiceCurrency: invoiceCurrencyCode,
@@ -333,7 +387,6 @@ export default function NewPaymentReceivedPage() {
                   <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
                     Create Payment Received Draft
                   </h1>
-
                   <div className="text-sm text-white/45">
                     Register a manual incoming payment against a linked issued
                     invoice. Confirmation happens later only after proof is
@@ -392,21 +445,34 @@ export default function NewPaymentReceivedPage() {
                   <div className="text-sm text-white/70">Linked Invoice</div>
                   <select
                     value={invoiceId}
-                    onChange={(event) => setInvoiceId(event.target.value)}
+                    onChange={(event) => {
+                      setInvoiceId(event.target.value);
+                      setAmount("");
+                      setPaymentCurrencyCode("");
+                    }}
                     className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none"
                   >
                     <option value="">Select invoice</option>
-                    {invoices.map((invoice) => (
-                      <option key={invoice.id} value={invoice.id}>
-                        {invoice.invoice_number} —{" "}
-                        {invoice.client_name_snapshot || "Intercompany"} —{" "}
-                        {formatMoney(
-                          toNumber(invoice.balance_due),
-                          invoice.currency_code || "USD"
-                        )}{" "}
-                        open
-                      </option>
-                    ))}
+                    {invoices.map((invoice) => {
+                      const recipientName =
+                        invoice.counterparty_legal_name_snapshot ||
+                        invoice.counterparty_name_snapshot ||
+                        invoice.client_name_snapshot ||
+                        "Intercompany";
+
+                      return (
+                        <option key={invoice.id} value={invoice.id}>
+                          {invoice.invoice_number} —{" "}
+                          {invoice.company_name_snapshot || "From company"} →{" "}
+                          {recipientName} —{" "}
+                          {formatMoney(
+                            toNumber(invoice.balance_due),
+                            invoice.currency_code || "USD"
+                          )}{" "}
+                          open
+                        </option>
+                      );
+                    })}
                   </select>
 
                   <div className="text-xs leading-5 text-white/40">
@@ -414,6 +480,82 @@ export default function NewPaymentReceivedPage() {
                     After confirmation, the linked invoice balance is updated.
                   </div>
                 </label>
+
+                {selectedInvoice ? (
+                  <div className="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-2">
+                    <div className="rounded-[22px] border border-cyan-400/15 bg-cyan-500/10 p-4">
+                      <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">
+                        Invoice From
+                      </div>
+                      <div className="mt-2 text-lg font-semibold text-white">
+                        {invoiceFromName}
+                      </div>
+
+                      <div className="mt-3 space-y-1 text-sm leading-6 text-white/55">
+                        {invoiceFromContact ? (
+                          <div>Contact: {invoiceFromContact}</div>
+                        ) : null}
+                        {invoiceFromEmail ? (
+                          <div>Email: {invoiceFromEmail}</div>
+                        ) : null}
+                        {invoiceFromPhone ? (
+                          <div>Phone: {invoiceFromPhone}</div>
+                        ) : null}
+                        {invoiceFromAddress ? (
+                          <div>{invoiceFromAddress}</div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[22px] border border-emerald-400/15 bg-emerald-500/10 p-4">
+                      <div className="text-xs uppercase tracking-[0.18em] text-emerald-100/70">
+                        Invoice To
+                      </div>
+                      <div className="mt-2 text-lg font-semibold text-white">
+                        {invoiceToName}
+                      </div>
+
+                      <div className="mt-3 space-y-1 text-sm leading-6 text-white/55">
+                        {invoiceToContact ? (
+                          <div>Contact: {invoiceToContact}</div>
+                        ) : null}
+                        {invoiceToEmail ? (
+                          <div>Email: {invoiceToEmail}</div>
+                        ) : null}
+                        {invoiceToPhone ? (
+                          <div>Phone: {invoiceToPhone}</div>
+                        ) : null}
+                        {invoiceToAddress ? <div>{invoiceToAddress}</div> : null}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
+                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                        Invoice Total
+                      </div>
+                      <div className="mt-2 text-lg font-semibold text-white">
+                        {formatMoney(
+                          toNumber(selectedInvoice.total_amount),
+                          invoiceCurrencyCode
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
+                      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                        Paid / Open Balance
+                      </div>
+                      <div className="mt-2 text-lg font-semibold text-white">
+                        {formatMoney(
+                          toNumber(selectedInvoice.paid_amount),
+                          invoiceCurrencyCode
+                        )}{" "}
+                        paid · {formatMoney(openBalance, invoiceCurrencyCode)}{" "}
+                        open
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
 
                 <label className="space-y-2">
                   <div className="text-sm text-white/70">Payment Date</div>
@@ -519,7 +661,9 @@ export default function NewPaymentReceivedPage() {
               <CardContent className="space-y-3 p-5 text-sm text-white/55">
                 <div>• Payments are created as draft only.</div>
                 <div>• Every payment must be linked to one invoice.</div>
-                <div>• The selected invoice ID is saved on the payment record.</div>
+                <div>
+                  • The selected invoice ID is saved on the payment record.
+                </div>
                 <div>• No direct bank integration — fully manual flow.</div>
                 <div>• Client sends transfer confirmation externally.</div>
                 <div>• You must upload proof before confirmation.</div>
@@ -528,7 +672,9 @@ export default function NewPaymentReceivedPage() {
                 <div>• Multi-currency is supported with conversion.</div>
                 <div>• Exchange rate is stored at payment level.</div>
                 <div>• Converted amount is used for invoice settlement.</div>
-                <div>• Payments can be cancelled but not edited after confirmation.</div>
+                <div>
+                  • Payments can be cancelled but not edited after confirmation.
+                </div>
                 <div>• Proof documents are locked (admin-only deletion).</div>
               </CardContent>
             </Card>
@@ -638,10 +784,13 @@ export default function NewPaymentReceivedPage() {
 
                 <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Client
+                    Invoice From / To
                   </div>
                   <div className="mt-2 text-base font-semibold text-white">
-                    {metricSummary.clientName}
+                    {invoiceFromName} → {invoiceToName}
+                  </div>
+                  <div className="mt-1 text-xs leading-5 text-white/40">
+                    {invoiceToEmail || invoiceToPhone || metricSummary.clientName}
                   </div>
                 </div>
 

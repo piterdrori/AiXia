@@ -64,16 +64,6 @@ type PurchaseOrderLine = {
   notes: string | null;
 };
 
-type PaymentTermOption = {
-  id: string;
-  name: string;
-};
-
-type ShippingTermOption = {
-  id: string;
-  name: string;
-};
-
 type ExpenseCategoryOption = {
   id: string;
   name: string;
@@ -213,8 +203,7 @@ export default function FinanceNewBillPage() {
   const [purchaseOrderLines, setPurchaseOrderLines] = useState<
     PurchaseOrderLine[]
   >([]);
-  const [paymentTerms, setPaymentTerms] = useState<PaymentTermOption[]>([]);
-  const [shippingTerms, setShippingTerms] = useState<ShippingTermOption[]>([]);
+  
   const [expenseCategories, setExpenseCategories] = useState<
     ExpenseCategoryOption[]
   >([]);
@@ -263,11 +252,10 @@ export default function FinanceNewBillPage() {
         const [
           vendorsResult,
           purchaseOrdersResult,
-          paymentTermsResult,
-          shippingTermsResult,
           expenseCategoriesResult,
           itemsResult,
         ] = await Promise.all([
+          
           supabase
             .from("finance_vendors")
             .select("id, code, name, legal_name, currency_code")
@@ -295,16 +283,7 @@ export default function FinanceNewBillPage() {
             )
             .in("status", ["issued", "sent", "acknowledged"])
             .order("updated_at", { ascending: false }),
-          supabase
-            .from("finance_payment_terms")
-            .select("id, name")
-            .eq("status", "active")
-            .order("name", { ascending: true }),
-          supabase
-            .from("finance_shipping_terms")
-            .select("id, name")
-            .eq("status", "active")
-            .order("name", { ascending: true }),
+         
           supabase
             .from("finance_expense_categories")
             .select("id, name")
@@ -319,10 +298,8 @@ export default function FinanceNewBillPage() {
             .order("name", { ascending: true }),
         ]);
 
-              if (vendorsResult.error) throw vendorsResult.error;
+        if (vendorsResult.error) throw vendorsResult.error;
         if (purchaseOrdersResult.error) throw purchaseOrdersResult.error;
-        if (paymentTermsResult.error) throw paymentTermsResult.error;
-        if (shippingTermsResult.error) throw shippingTermsResult.error;
         if (expenseCategoriesResult.error) throw expenseCategoriesResult.error;
         if (itemsResult.error) throw itemsResult.error;
 
@@ -345,12 +322,7 @@ export default function FinanceNewBillPage() {
 
         setVendors((vendorsResult.data || []) as unknown as VendorOption[]);
         setPurchaseOrders(mappedPurchaseOrders);
-        setPaymentTerms(
-          (paymentTermsResult.data || []) as unknown as PaymentTermOption[]
-        );
-        setShippingTerms(
-          (shippingTermsResult.data || []) as unknown as ShippingTermOption[]
-        );
+
         setExpenseCategories(
           (expenseCategoriesResult.data || []) as unknown as ExpenseCategoryOption[]
         );

@@ -1805,11 +1805,9 @@ export default function FinanceProformaInvoiceDetailPage() {
 
   const removeDraftLineItem = useCallback((lineId: string) => {
     setLineItemsDraft((current) => {
-      if (current.length === 1) {
-        return current;
-      }
+      const nextRows = current.filter((entry) => entry.id !== lineId);
 
-      return current.filter((entry) => entry.id !== lineId);
+      return nextRows.length > 0 ? nextRows : [createEditableDraftLineItem()];
     });
   }, []);
 
@@ -1968,6 +1966,13 @@ export default function FinanceProformaInvoiceDetailPage() {
             : null,
       };
 
+      const { error: deleteOldLinesError } = await supabase
+        .from("finance_proforma_invoice_line_items")
+        .delete()
+        .eq("proforma_invoice_id", id);
+
+      if (deleteOldLinesError) throw deleteOldLinesError;
+
       const { error: rpcError } = await supabase.rpc(
         "finance_update_proforma_invoice_draft",
         {
@@ -1981,7 +1986,7 @@ export default function FinanceProformaInvoiceDetailPage() {
           p_notes: notesDraft || null,
           p_metadata: nextMetadata,
           p_lines: cleanedLineItems.map((row) => ({
-            id: row.id,
+            id: `new_${crypto.randomUUID()}`,
             item_id: row.item_id || null,
             description: row.description.trim(),
             quantity: toNumber(row.quantity),
@@ -3264,8 +3269,7 @@ export default function FinanceProformaInvoiceDetailPage() {
                             <Button
                               variant="outline"
                               onClick={() => removeDraftLineItem(row.id)}
-                              disabled={lineItemsDraft.length === 1}
-                              className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                              className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

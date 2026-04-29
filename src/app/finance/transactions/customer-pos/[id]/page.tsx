@@ -338,7 +338,7 @@ export default function FinanceCustomerPoDetailPage() {
         setProforma(null);
       }
 
-          const { data: attachmentData, error: attachmentError } = await supabase
+      const { data: attachmentData, error: attachmentError } = await supabase
         .from("finance_record_attachments")
         .select(`
           id,
@@ -808,6 +808,9 @@ export default function FinanceCustomerPoDetailPage() {
   const fieldShellClass =
     "mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
 
+  const readOnlyFieldClass =
+    "flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80";
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
@@ -850,7 +853,7 @@ export default function FinanceCustomerPoDetailPage() {
               Customer POs
             </button>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px]">
               <div>
                 <Badge className="inline-flex w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200 shadow-none">
                   Customer Commitment
@@ -881,9 +884,9 @@ export default function FinanceCustomerPoDetailPage() {
                 </div>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Customer PO received from the client. Create the proforma
-                  invoice after the PO is marked as received and the customer
-                  document is uploaded.
+                  Customer PO saved in the system from an accepted quotation. The
+                  customer document must be uploaded before the proforma invoice
+                  can be created from this Customer PO.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
@@ -899,7 +902,7 @@ export default function FinanceCustomerPoDetailPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -915,7 +918,7 @@ export default function FinanceCustomerPoDetailPage() {
                     </div>
                   </div>
                   <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Source commercial offer linked to this Customer PO.
+                    Source quotation linked to this Customer PO.
                   </p>
                 </div>
 
@@ -934,7 +937,7 @@ export default function FinanceCustomerPoDetailPage() {
                     </div>
                   </div>
                   <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Proforma invoice generated or linked after verification.
+                    Proforma invoice created from this Customer PO.
                   </p>
                 </div>
               </div>
@@ -1033,23 +1036,91 @@ export default function FinanceCustomerPoDetailPage() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_420px]">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
+            <div className="relative flex h-full flex-col justify-between gap-5">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Subtotal
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
+                  {formatMoney(lineSubtotal, currencyCode)}
+                </div>
+              </div>
+              <div className="text-sm leading-6 text-slate-400">
+                Line value before discount and tax.
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
+            <div className="relative flex h-full flex-col justify-between gap-5">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Discount
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
+                  {formatMoney(lineDiscount, currencyCode)}
+                </div>
+              </div>
+              <div className="text-sm leading-6 text-slate-400">
+                Customer PO discount value.
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
+            <div className="relative flex h-full flex-col justify-between gap-5">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Tax
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
+                  {formatMoney(lineTax, currencyCode)}
+                </div>
+              </div>
+              <div className="text-sm leading-6 text-slate-400">
+                Derived from customer PO lines.
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
+            <div className="relative flex h-full flex-col justify-between gap-5">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Total
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
+                  {formatMoney(customerPo.total_amount || lineTotal, currencyCode)}
+                </div>
+              </div>
+              <div className="text-sm leading-6 text-slate-400">
+                Saved customer commitment value.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
           <div className="space-y-6">
             <Card className={activeSectionClass}>
-              <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Document Overview
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Customer PO commercial details and source links.
-                      </CardDescription>
-                    </div>
+              <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Document Overview
+                    </CardTitle>
+                    <CardDescription className="mt-1 text-xs text-slate-500">
+                      Customer PO identity, source link, dates, status, currency, and value.
+                    </CardDescription>
                   </div>
                 </div>
 
@@ -1125,16 +1196,10 @@ export default function FinanceCustomerPoDetailPage() {
 
                 <div className={summaryBlockClass}>
                   <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Status
+                    Linked Quotation
                   </div>
-                  <div className="mt-2">
-                    <Badge
-                      className={`rounded-full border px-3 py-1 text-xs shadow-none ${getStatusBadgeClasses(
-                        customerPo.status
-                      )}`}
-                    >
-                      {getStatusLabel(customerPo.status)}
-                    </Badge>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {quotation?.quotation_number || "—"}
                   </div>
                 </div>
 
@@ -1149,7 +1214,7 @@ export default function FinanceCustomerPoDetailPage() {
 
                 <div className={summaryBlockClass}>
                   <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Company
+                    Issuing Company
                   </div>
                   <div className="mt-2 text-2xl font-semibold text-white">
                     {customerPo.company_name_snapshot || "—"}
@@ -1157,6 +1222,15 @@ export default function FinanceCustomerPoDetailPage() {
                 </div>
 
                 <div className={summaryBlockClass}>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                    Currency
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {currencyCode}
+                  </div>
+                </div>
+
+                                <div className={summaryBlockClass}>
                   <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                     PO Date
                   </div>
@@ -1200,6 +1274,21 @@ export default function FinanceCustomerPoDetailPage() {
                       {formatDate(customerPo.received_at)}
                     </div>
                   )}
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                    Status
+                  </div>
+                  <div className="mt-2">
+                    <Badge
+                      className={`rounded-full border px-3 py-1 text-xs shadow-none ${getStatusBadgeClasses(
+                        customerPo.status
+                      )}`}
+                    >
+                      {getStatusLabel(customerPo.status)}
+                    </Badge>
+                  </div>
                 </div>
 
                 <div className={summaryBlockClass}>
@@ -1323,7 +1412,7 @@ export default function FinanceCustomerPoDetailPage() {
                               <div className="text-sm font-medium text-slate-300">
                                 Item
                               </div>
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80">
+                              <div className={readOnlyFieldClass}>
                                 {line.item?.name || "—"}
                               </div>
                             </div>
@@ -1332,7 +1421,7 @@ export default function FinanceCustomerPoDetailPage() {
                               <div className="text-sm font-medium text-slate-300">
                                 Description
                               </div>
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80">
+                              <div className={readOnlyFieldClass}>
                                 {line.description || "—"}
                               </div>
                             </div>
@@ -1341,7 +1430,7 @@ export default function FinanceCustomerPoDetailPage() {
                               <div className="text-sm font-medium text-slate-300">
                                 Qty
                               </div>
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80">
+                              <div className={readOnlyFieldClass}>
                                 {toNumber(line.quantity)}
                               </div>
                             </div>
@@ -1350,7 +1439,7 @@ export default function FinanceCustomerPoDetailPage() {
                               <div className="text-sm font-medium text-slate-300">
                                 Unit
                               </div>
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80">
+                              <div className={readOnlyFieldClass}>
                                 {unitLabel}
                               </div>
                             </div>
@@ -1359,7 +1448,7 @@ export default function FinanceCustomerPoDetailPage() {
                               <div className="text-sm font-medium text-slate-300">
                                 Unit Price
                               </div>
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80">
+                              <div className={readOnlyFieldClass}>
                                 {formatMoney(line.unit_price, currencyCode)}
                               </div>
                             </div>
@@ -1368,7 +1457,7 @@ export default function FinanceCustomerPoDetailPage() {
                               <div className="text-sm font-medium text-slate-300">
                                 Discount
                               </div>
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80">
+                              <div className={readOnlyFieldClass}>
                                 {formatMoney(line.discount, currencyCode)}
                               </div>
                             </div>
@@ -1377,7 +1466,7 @@ export default function FinanceCustomerPoDetailPage() {
                               <div className="text-sm font-medium text-slate-300">
                                 Tax Code
                               </div>
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80">
+                              <div className={readOnlyFieldClass}>
                                 {taxLabel}
                               </div>
                             </div>
@@ -1386,7 +1475,7 @@ export default function FinanceCustomerPoDetailPage() {
                               <div className="text-sm font-medium text-slate-300">
                                 Revenue Category
                               </div>
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80">
+                              <div className={readOnlyFieldClass}>
                                 {revenueLabel}
                               </div>
                             </div>
@@ -1418,44 +1507,6 @@ export default function FinanceCustomerPoDetailPage() {
                 )}
               </CardContent>
             </Card>
-
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-              <div className={summaryBlockClass}>
-                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  Subtotal
-                </div>
-                <div className="mt-2 text-2xl font-semibold text-white">
-                  {formatMoney(lineSubtotal, currencyCode)}
-                </div>
-              </div>
-
-              <div className={summaryBlockClass}>
-                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  Discount
-                </div>
-                <div className="mt-2 text-2xl font-semibold text-white">
-                  {formatMoney(lineDiscount, currencyCode)}
-                </div>
-              </div>
-
-              <div className={summaryBlockClass}>
-                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  Tax
-                </div>
-                <div className="mt-2 text-2xl font-semibold text-white">
-                  {formatMoney(lineTax, currencyCode)}
-                </div>
-              </div>
-
-              <div className="rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 p-4">
-                <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-100/60">
-                  Total
-                </div>
-                <div className="mt-2 text-2xl font-semibold text-white">
-                  {formatMoney(lineTotal, currencyCode)}
-                </div>
-              </div>
-            </div>
 
             <Card className={activeSectionClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
@@ -1540,7 +1591,7 @@ export default function FinanceCustomerPoDetailPage() {
             </Card>
           </div>
 
-                    <div className="space-y-6">
+          <div className="space-y-6">
             <Card className={activeSectionClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
                 <div className="flex items-center gap-3">
@@ -1643,7 +1694,7 @@ export default function FinanceCustomerPoDetailPage() {
                 <div className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
                   {attachments.length === 0 ? (
                     <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-4 text-sm text-rose-200">
-                      No Customer PO document uploaded. Verification is blocked.
+                      No Customer PO document uploaded. PI creation is blocked.
                     </div>
                   ) : (
                     attachments.map((attachment) => (
@@ -1681,22 +1732,23 @@ export default function FinanceCustomerPoDetailPage() {
                   </div>
                   <div>
                     <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Verification Rules
+                      Workflow Rules
                     </CardTitle>
                     <CardDescription className="mt-1 text-xs text-slate-500">
-                      Locked Customer PO workflow.
+                      Locked Customer PO to proforma workflow.
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
 
               <CardContent className="space-y-3 p-5 text-sm leading-6 text-slate-400">
-                <div>• Customer PO file is required before creating a proforma invoice.</div>
+                <div>• Customer PO is saved from an accepted quotation.</div>
+                <div>• Customer PO document is required before creating the PI.</div>
                 <div>• Draft records must be marked as received first.</div>
                 <div>• Create Proforma Invoice is available after received status and file upload.</div>
+                <div>• After PI exists, use Open Proforma Invoice.</div>
                 <div>• Archive keeps the record recoverable.</div>
                 <div>• Delete moves the record to deleted state.</div>
-                <div>• Hard delete is only available from deleted state.</div>
               </CardContent>
             </Card>
 

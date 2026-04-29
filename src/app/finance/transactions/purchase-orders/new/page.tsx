@@ -6,7 +6,10 @@ import {
   Link2,
   Plus,
   Save,
+  SquarePen,
   Trash2,
+  Truck,
+  Wallet,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -25,30 +28,94 @@ type VendorOption = {
   code: string | null;
   name: string;
   legal_name: string | null;
+  email: string | null;
+  phone: string | null;
+  contact_person: string | null;
   currency_code: string | null;
   payment_terms_id: string | null;
+  country: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
 };
 
 type CompanyOption = {
   id: string;
   name: string;
   legal_name: string | null;
+  email: string | null;
+  phone: string | null;
+  currency_code: string | null;
+  country: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
+};
+
+type ProjectOption = {
+  id: string;
+  name: string;
+};
+
+type TaskOption = {
+  id: string;
+  title: string;
+  project_id: string | null;
 };
 
 type CurrencyOption = {
   id: string;
   currency_code: string;
   currency_name: string;
+  currency_symbol: string | null;
+  is_base_currency: boolean;
 };
 
 type PaymentTermOption = {
   id: string;
+  code: string | null;
   name: string;
+  due_days: number | null;
+  is_default: boolean | null;
 };
 
 type ShippingTermOption = {
   id: string;
+  code: string | null;
   name: string;
+  description: string | null;
+  is_default: boolean | null;
+};
+
+type PaymentMethodOption = {
+  id: string;
+  code: string | null;
+  name: string;
+};
+
+type VendorBankAccountOption = {
+  id: string;
+  bank_id: string;
+  vendor_id: string;
+  vendor_code: string | null;
+  beneficiary_name: string | null;
+  bank_name: string | null;
+  country: string | null;
+  city: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
+  account_number: string | null;
+  account_identifier_type: string | null;
+  account_identifier_value: string | null;
+  currency_code: string | null;
+  is_default: boolean;
+  status: string;
+  notes: string | null;
 };
 
 type UnitOption = {
@@ -59,12 +126,14 @@ type UnitOption = {
 
 type TaxCodeOption = {
   id: string;
+  code: string | null;
   name: string;
   rate_percent: number | string | null;
 };
 
 type ExpenseCategoryOption = {
   id: string;
+  code: string | null;
   name: string;
 };
 
@@ -72,6 +141,15 @@ type ItemOption = {
   id: string;
   name: string;
   description: string | null;
+  sales_price: number | string | null;
+  unit_price: number | string | null;
+  currency_code: string | null;
+  unit_of_measure_id: string | null;
+  default_unit_of_measure_id: string | null;
+  tax_code_id: string | null;
+  default_tax_code_id: string | null;
+  expense_category_id: string | null;
+  revenue_category_id: string | null;
 };
 
 type VendorQuotationOption = {
@@ -86,6 +164,8 @@ type VendorQuotationOption = {
   currency_code: string | null;
   payment_terms_id: string | null;
   shipping_term_id: string | null;
+  project_id: string | null;
+  task_id: string | null;
   total_amount: number | string | null;
   notes: string | null;
   vendor_name?: string | null;
@@ -102,6 +182,8 @@ type VendorQuotationLine = {
   unit_of_measure_id: string | null;
   tax_code_id: string | null;
   expense_category_id: string | null;
+  project_id: string | null;
+  task_id: string | null;
   sort_order: number;
   notes: string | null;
 };
@@ -117,6 +199,8 @@ type PurchaseOrderLineDraft = {
   unit_of_measure_id: string;
   tax_code_id: string;
   expense_category_id: string;
+  project_id: string;
+  task_id: string;
   notes: string;
 };
 
@@ -132,6 +216,8 @@ function createEmptyLine(): PurchaseOrderLineDraft {
     unit_of_measure_id: "",
     tax_code_id: "",
     expense_category_id: "",
+    project_id: "",
+    task_id: "",
     notes: "",
   };
 }
@@ -150,6 +236,8 @@ function createLineFromVendorQuotation(
     unit_of_measure_id: line.unit_of_measure_id || "",
     tax_code_id: line.tax_code_id || "",
     expense_category_id: line.expense_category_id || "",
+    project_id: line.project_id || "",
+    task_id: line.task_id || "",
     notes: line.notes || "",
   };
 }
@@ -181,6 +269,84 @@ function formatDate(value: string | null | undefined) {
   });
 }
 
+function getCompanyAddress(company: CompanyOption | null) {
+  if (!company) return "";
+
+  return [
+    company.address_line_1,
+    company.address_line_2,
+    company.city,
+    company.state_province,
+    company.postal_code,
+    company.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function getVendorAddress(vendor: VendorOption | null) {
+  if (!vendor) return "";
+
+  return [
+    vendor.address_line_1,
+    vendor.address_line_2,
+    vendor.city,
+    vendor.state_province,
+    vendor.postal_code,
+    vendor.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function getVendorBankAddress(bank: VendorBankAccountOption | null) {
+  if (!bank) return "";
+
+  return [
+    bank.address_line_1,
+    bank.address_line_2,
+    bank.city,
+    bank.postal_code,
+    bank.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function getVendorBankIdentifier(bank: VendorBankAccountOption | null) {
+  if (!bank) return null;
+
+  if (bank.account_identifier_type === "iban" && bank.account_identifier_value) {
+    return {
+      label: "IBAN",
+      value: bank.account_identifier_value,
+    };
+  }
+
+  if (bank.account_identifier_type === "swift" && bank.account_identifier_value) {
+    return {
+      label: "SWIFT",
+      value: bank.account_identifier_value,
+    };
+  }
+
+  if (bank.account_identifier_value) {
+    return {
+      label: "Identifier",
+      value: bank.account_identifier_value,
+    };
+  }
+
+  if (bank.account_number) {
+    return {
+      label: "Account",
+      value: bank.account_number,
+    };
+  }
+
+  return null;
+}
+
 export default function FinanceNewPurchaseOrderPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -188,9 +354,18 @@ export default function FinanceNewPurchaseOrderPage() {
 
   const [vendors, setVendors] = useState<VendorOption[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [tasks, setTasks] = useState<TaskOption[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
   const [paymentTerms, setPaymentTerms] = useState<PaymentTermOption[]>([]);
   const [shippingTerms, setShippingTerms] = useState<ShippingTermOption[]>([]);
+
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>(
+    []
+  );
+  const [vendorBankAccounts, setVendorBankAccounts] = useState<
+    VendorBankAccountOption[]
+  >([]);
   const [units, setUnits] = useState<UnitOption[]>([]);
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
   const [expenseCategories, setExpenseCategories] = useState<
@@ -216,11 +391,16 @@ export default function FinanceNewPurchaseOrderPage() {
   );
   const [vendorId, setVendorId] = useState("");
   const [companyId, setCompanyId] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const [taskId, setTaskId] = useState("");
   const [poDate, setPoDate] = useState(new Date().toISOString().slice(0, 10));
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
   const [currencyCode, setCurrencyCode] = useState("");
+  const [currencyId, setCurrencyId] = useState("");
   const [paymentTermsId, setPaymentTermsId] = useState("");
   const [shippingTermId, setShippingTermId] = useState("");
+  const [paymentMethodId, setPaymentMethodId] = useState("");
+  const [vendorBankAccountId, setVendorBankAccountId] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<PurchaseOrderLineDraft[]>([
     createEmptyLine(),
@@ -239,71 +419,255 @@ export default function FinanceNewPurchaseOrderPage() {
     [vendorId, vendors]
   );
 
-  useEffect(() => {
-    async function loadLookups() {
-      try {
-        setIsLoading(true);
-        setErrorMessage("");
+  const selectedCompany = useMemo(
+    () => companies.find((company) => company.id === companyId) ?? null,
+    [companies, companyId]
+  );
 
-        const [
-          vendorsResult,
-          companiesResult,
-          currenciesResult,
-          paymentTermsResult,
-          shippingTermsResult,
-          unitsResult,
-          taxCodesResult,
-          expenseCategoriesResult,
-          itemsResult,
-          vendorQuotationsResult,
-        ] = await Promise.all([
+  const selectedCurrency = useMemo(
+    () => currencies.find((currency) => currency.id === currencyId) ?? null,
+    [currencies, currencyId]
+  );
+
+  const selectedPaymentTerm = useMemo(
+    () => paymentTerms.find((term) => term.id === paymentTermsId) ?? null,
+    [paymentTerms, paymentTermsId]
+  );
+
+  const selectedShippingTerm = useMemo(
+    () => shippingTerms.find((term) => term.id === shippingTermId) ?? null,
+    [shippingTerms, shippingTermId]
+  );
+
+  const selectedPaymentMethod = useMemo(
+    () => paymentMethods.find((method) => method.id === paymentMethodId) ?? null,
+    [paymentMethodId, paymentMethods]
+  );
+
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === projectId) ?? null,
+    [projectId, projects]
+  );
+
+  const filteredTasks = useMemo(() => {
+    if (!projectId) {
+      return tasks;
+    }
+
+    return tasks.filter((task) => task.project_id === projectId);
+  }, [projectId, tasks]);
+
+  const selectedTask = useMemo(
+    () => filteredTasks.find((task) => task.id === taskId) ?? null,
+    [filteredTasks, taskId]
+  );
+
+  const filteredVendorBankAccounts = useMemo(() => {
+    if (!vendorId) {
+      return [];
+    }
+
+    return vendorBankAccounts.filter((account) => account.vendor_id === vendorId);
+  }, [vendorBankAccounts, vendorId]);
+
+  const selectedVendorBankAccount = useMemo(
+    () =>
+      filteredVendorBankAccounts.find(
+        (account) => account.id === vendorBankAccountId
+      ) ?? null,
+    [filteredVendorBankAccounts, vendorBankAccountId]
+  );
+
+  const sourceDescription = useMemo(() => {
+    if (sourceMode === "vendor_quotation") {
+      return selectedVendorQuotation
+        ? selectedVendorQuotation.vendor_quotation_number
+        : "From Vendor Quotation";
+    }
+
+    return "Manual Purchase Order";
+  }, [selectedVendorQuotation, sourceMode]);
+
+  const loadFormData = useCallback(async () => {
+    type LookupResult = {
+      data: unknown[];
+      error: string;
+    };
+
+    async function loadLookup(
+      label: string,
+      query: PromiseLike<{
+        data: unknown[] | null;
+        error: { message?: string } | null;
+      }>
+    ): Promise<LookupResult> {
+      try {
+        const result = await query;
+
+        if (result.error) {
+          const message = result.error.message || `${label} failed to load.`;
+          console.error(`${label} lookup failed:`, result.error);
+
+          return {
+            data: [],
+            error: `${label}: ${message}`,
+          };
+        }
+
+        return {
+          data: result.data || [],
+          error: "",
+        };
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : `${label} failed to load.`;
+
+        console.error(`${label} lookup failed:`, error);
+
+        return {
+          data: [],
+          error: `${label}: ${message}`,
+        };
+      }
+    }
+
+    try {
+      setIsLoading(true);
+      setErrorMessage("");
+
+      const [
+        vendorsResult,
+        companiesResult,
+        projectsResult,
+        tasksResult,
+        currenciesResult,
+        paymentTermsResult,
+        shippingTermsResult,
+        paymentMethodsResult,
+        vendorBankAccountsResult,
+        unitsResult,
+        taxCodesResult,
+        expenseCategoriesResult,
+        itemsResult,
+        vendorQuotationsResult,
+      ] = await Promise.all([
+        loadLookup(
+          "Vendors",
           supabase
             .from("finance_vendors")
-            .select("id, code, name, legal_name, currency_code, payment_terms_id")
+            .select(
+              "id, code, name, legal_name, email, phone, contact_person, currency_code, payment_terms_id, country, city, state_province, postal_code, address_line_1, address_line_2"
+            )
             .eq("status", "active")
-            .order("name", { ascending: true }),
+            .order("name", { ascending: true })
+        ),
+        loadLookup(
+          "Companies",
           supabase
             .from("finance_companies")
-            .select("id, name, legal_name")
+            .select(
+              "id, name, legal_name, email, phone, currency_code, country, city, state_province, postal_code, address_line_1, address_line_2"
+            )
             .eq("status", "active")
-            .order("name", { ascending: true }),
+            .order("name", { ascending: true })
+        ),
+        loadLookup(
+          "Projects",
+          supabase.from("projects").select("id, name").order("name", {
+            ascending: true,
+          })
+        ),
+        loadLookup(
+          "Tasks",
+          supabase
+            .from("tasks")
+            .select("id, title, project_id")
+            .order("created_at", { ascending: false })
+        ),
+        loadLookup(
+          "Currencies",
           supabase
             .from("finance_currencies")
-            .select("id, currency_code, currency_name")
+            .select(
+              "id, currency_code, currency_name, currency_symbol, is_base_currency"
+            )
             .eq("status", "active")
-            .order("currency_code", { ascending: true }),
+            .order("currency_code", { ascending: true })
+        ),
+        loadLookup(
+          "Payment terms",
           supabase
             .from("finance_payment_terms")
-            .select("id, name")
+            .select("id, code, name, due_days, is_default")
             .eq("status", "active")
-            .order("name", { ascending: true }),
+            .order("name", { ascending: true })
+        ),
+        loadLookup(
+          "Shipping terms",
           supabase
             .from("finance_shipping_terms")
-            .select("id, name")
+            .select("id, code, name, description, is_default")
             .eq("status", "active")
-            .order("name", { ascending: true }),
+            .order("name", { ascending: true })
+        ),
+        loadLookup(
+          "Payment methods",
+          supabase
+            .from("finance_payment_methods")
+            .select("id, code, name")
+            .eq("status", "active")
+            .order("name", { ascending: true })
+        ),
+        loadLookup(
+          "Vendor bank accounts",
+          supabase
+            .from("finance_vendor_bank_accounts")
+            .select(
+              "id, bank_id, vendor_id, vendor_code, beneficiary_name, bank_name, country, city, postal_code, address_line_1, address_line_2, account_number, account_identifier_type, account_identifier_value, currency_code, is_default, status, notes"
+            )
+            .eq("status", "active")
+            .order("is_default", { ascending: false })
+            .order("bank_name", { ascending: true })
+        ),
+        loadLookup(
+          "Units of measure",
           supabase
             .from("finance_units_of_measure")
             .select("id, name, code")
             .eq("status", "active")
-            .order("name", { ascending: true }),
+            .order("name", { ascending: true })
+        ),
+        loadLookup(
+          "Tax codes",
           supabase
             .from("finance_tax_codes")
-            .select("id, name, rate_percent")
+            .select("id, code, name, rate_percent")
             .eq("status", "active")
-            .order("name", { ascending: true }),
+            .order("name", { ascending: true })
+        ),
+        loadLookup(
+          "Expense categories",
           supabase
             .from("finance_expense_categories")
-            .select("id, name")
+            .select("id, code, name")
             .eq("status", "active")
-            .order("name", { ascending: true }),
+            .order("name", { ascending: true })
+        ),
+        loadLookup(
+          "Items",
           supabase
             .from("finance_items")
-            .select("id, name, description")
+            .select(
+              "id, name, description, sales_price, unit_price, currency_code, unit_of_measure_id, default_unit_of_measure_id, tax_code_id, default_tax_code_id, expense_category_id, revenue_category_id"
+            )
             .eq("status", "active")
-            .order("name", { ascending: true }),
+            .order("name", { ascending: true })
+        ),
+        loadLookup(
+          "Accepted vendor quotations",
           supabase
-            .from("finance_vendor_quotations")
+
+                      .from("finance_vendor_quotations")
             .select(
               [
                 "id",
@@ -317,29 +681,20 @@ export default function FinanceNewPurchaseOrderPage() {
                 "currency_code",
                 "payment_terms_id",
                 "shipping_term_id",
+                "project_id",
+                "task_id",
                 "total_amount",
                 "notes",
                 "finance_vendors(name, legal_name)",
               ].join(", ")
             )
             .eq("status", "accepted")
-            .order("updated_at", { ascending: false }),
-        ]);
+            .order("updated_at", { ascending: false })
+        ),
+      ]);
 
-        if (vendorsResult.error) throw vendorsResult.error;
-        if (companiesResult.error) throw companiesResult.error;
-        if (currenciesResult.error) throw currenciesResult.error;
-        if (paymentTermsResult.error) throw paymentTermsResult.error;
-        if (shippingTermsResult.error) throw shippingTermsResult.error;
-        if (unitsResult.error) throw unitsResult.error;
-        if (taxCodesResult.error) throw taxCodesResult.error;
-        if (expenseCategoriesResult.error) throw expenseCategoriesResult.error;
-        if (itemsResult.error) throw itemsResult.error;
-        if (vendorQuotationsResult.error) throw vendorQuotationsResult.error;
-
-        const mappedVendorQuotations = (
-          (vendorQuotationsResult.data || []) as unknown[]
-        ).map((record) => {
+      const mappedVendorQuotations = vendorQuotationsResult.data.map(
+        (record) => {
           const row = record as VendorQuotationOption & {
             finance_vendors?: {
               name?: string | null;
@@ -352,36 +707,75 @@ export default function FinanceNewPurchaseOrderPage() {
             vendor_name: row.finance_vendors?.name ?? null,
             vendor_legal_name: row.finance_vendors?.legal_name ?? null,
           };
-        });
+        }
+      );
 
-        setVendors((vendorsResult.data || []) as unknown as VendorOption[]);
-        setCompanies((companiesResult.data || []) as unknown as CompanyOption[]);
-        setCurrencies(
-          (currenciesResult.data || []) as unknown as CurrencyOption[]
-        );
-        setPaymentTerms(
-          (paymentTermsResult.data || []) as unknown as PaymentTermOption[]
-        );
-        setShippingTerms(
-          (shippingTermsResult.data || []) as unknown as ShippingTermOption[]
-        );
-        setUnits((unitsResult.data || []) as unknown as UnitOption[]);
-        setTaxCodes((taxCodesResult.data || []) as unknown as TaxCodeOption[]);
-        setExpenseCategories(
-          (expenseCategoriesResult.data || []) as unknown as ExpenseCategoryOption[]
-        );
-        setItems((itemsResult.data || []) as unknown as ItemOption[]);
-        setVendorQuotations(mappedVendorQuotations);
-      } catch (error) {
-        console.error("Failed to load purchase order form data:", error);
-        setErrorMessage("Failed to load purchase order form data.");
-      } finally {
-        setIsLoading(false);
+      setVendors(vendorsResult.data as VendorOption[]);
+      setCompanies(companiesResult.data as CompanyOption[]);
+      setProjects(projectsResult.data as ProjectOption[]);
+      setTasks(tasksResult.data as TaskOption[]);
+      setCurrencies(currenciesResult.data as CurrencyOption[]);
+      setPaymentTerms(paymentTermsResult.data as PaymentTermOption[]);
+      setShippingTerms(shippingTermsResult.data as ShippingTermOption[]);
+      setPaymentMethods(paymentMethodsResult.data as PaymentMethodOption[]);
+      setVendorBankAccounts(
+        vendorBankAccountsResult.data as VendorBankAccountOption[]
+      );
+      setUnits(unitsResult.data as UnitOption[]);
+      setTaxCodes(taxCodesResult.data as TaxCodeOption[]);
+      setExpenseCategories(
+        expenseCategoriesResult.data as ExpenseCategoryOption[]
+      );
+      setItems(itemsResult.data as ItemOption[]);
+      setVendorQuotations(mappedVendorQuotations);
+
+      if (!companyId && companiesResult.data.length === 1) {
+        const onlyCompany = companiesResult.data[0] as CompanyOption;
+        setCompanyId(onlyCompany.id);
       }
-    }
 
-    void loadLookups();
-  }, []);
+      const defaultPaymentMethod =
+        (paymentMethodsResult.data as PaymentMethodOption[])[0];
+
+      if (!paymentMethodId && defaultPaymentMethod) {
+        setPaymentMethodId(defaultPaymentMethod.id);
+      }
+
+      const lookupErrors = [
+        vendorsResult.error,
+        companiesResult.error,
+        projectsResult.error,
+        tasksResult.error,
+        currenciesResult.error,
+        paymentTermsResult.error,
+        shippingTermsResult.error,
+        paymentMethodsResult.error,
+        vendorBankAccountsResult.error,
+        unitsResult.error,
+        taxCodesResult.error,
+        expenseCategoriesResult.error,
+        itemsResult.error,
+        vendorQuotationsResult.error,
+      ].filter(Boolean);
+
+      if (lookupErrors.length > 0) {
+        setErrorMessage(lookupErrors.join(" | "));
+      }
+    } catch (error) {
+      console.error("Failed to load purchase order form data:", error);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to load purchase order form data."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [companyId, paymentMethodId]);
+
+  useEffect(() => {
+    void loadFormData();
+  }, [loadFormData]);
 
   useEffect(() => {
     if (!selectedVendor) return;
@@ -389,6 +783,74 @@ export default function FinanceNewPurchaseOrderPage() {
     setCurrencyCode((current) => current || selectedVendor.currency_code || "");
     setPaymentTermsId((current) => current || selectedVendor.payment_terms_id || "");
   }, [selectedVendor]);
+
+  useEffect(() => {
+    if (!vendorId) {
+      setVendorBankAccountId("");
+      return;
+    }
+
+    const selectedBankStillValid = filteredVendorBankAccounts.some(
+      (account) => account.id === vendorBankAccountId
+    );
+
+    if (!selectedBankStillValid) {
+      const defaultBank =
+        filteredVendorBankAccounts.find((account) => account.is_default) ??
+        filteredVendorBankAccounts[0];
+
+      setVendorBankAccountId(defaultBank?.id || "");
+    }
+  }, [filteredVendorBankAccounts, vendorBankAccountId, vendorId]);
+
+  useEffect(() => {
+    if (!currencyCode) return;
+
+    const matchedCurrency = currencies.find(
+      (currency) => currency.currency_code === currencyCode
+    );
+
+    if (matchedCurrency && currencyId !== matchedCurrency.id) {
+      setCurrencyId(matchedCurrency.id);
+    }
+  }, [currencies, currencyCode, currencyId]);
+
+  useEffect(() => {
+    if (paymentTermsId) return;
+
+    const defaultPaymentTerm =
+      paymentTerms.find((term) => term.is_default) ?? paymentTerms[0];
+
+    if (defaultPaymentTerm) {
+      setPaymentTermsId(defaultPaymentTerm.id);
+    }
+  }, [paymentTerms, paymentTermsId]);
+
+  useEffect(() => {
+    if (shippingTermId) return;
+
+    const defaultShippingTerm =
+      shippingTerms.find((term) => term.is_default) ?? shippingTerms[0];
+
+    if (defaultShippingTerm) {
+      setShippingTermId(defaultShippingTerm.id);
+    }
+  }, [shippingTermId, shippingTerms]);
+
+  useEffect(() => {
+    if (!projectId) {
+      setTaskId("");
+      return;
+    }
+
+    const matchingTaskStillValid = filteredTasks.some(
+      (task) => task.id === taskId
+    );
+
+    if (!matchingTaskStillValid) {
+      setTaskId("");
+    }
+  }, [filteredTasks, projectId, taskId]);
 
   useEffect(() => {
     async function applyVendorQuotationSource() {
@@ -399,12 +861,14 @@ export default function FinanceNewPurchaseOrderPage() {
       setCurrencyCode(selectedVendorQuotation.currency_code || "");
       setPaymentTermsId(selectedVendorQuotation.payment_terms_id || "");
       setShippingTermId(selectedVendorQuotation.shipping_term_id || "");
+      setProjectId(selectedVendorQuotation.project_id || "");
+      setTaskId(selectedVendorQuotation.task_id || "");
       setNotes(selectedVendorQuotation.notes || "");
 
       const { data, error } = await supabase
         .from("finance_vendor_quotation_line_items")
         .select(
-          "id, item_id, description, quantity, unit_price, discount, unit_of_measure_id, tax_code_id, expense_category_id, sort_order, notes"
+          "id, item_id, description, quantity, unit_price, discount, unit_of_measure_id, tax_code_id, expense_category_id, project_id, task_id, sort_order, notes"
         )
         .eq("vendor_quotation_id", selectedVendorQuotation.id)
         .eq("status", "active")
@@ -429,6 +893,40 @@ export default function FinanceNewPurchaseOrderPage() {
     void applyVendorQuotationSource();
   }, [selectedVendorQuotation, sourceMode]);
 
+  const totals = useMemo(() => {
+    const subtotal = lines.reduce(
+      (sum, line) => sum + toNumber(line.quantity) * toNumber(line.unit_price),
+      0
+    );
+
+    const discount = lines.reduce(
+      (sum, line) => sum + toNumber(line.discount),
+      0
+    );
+
+    const tax = lines.reduce((sum, line) => {
+      const taxCode = taxCodes.find((entry) => entry.id === line.tax_code_id);
+      const base = Math.max(
+        toNumber(line.quantity) * toNumber(line.unit_price) -
+          toNumber(line.discount),
+        0
+      );
+
+      if (!taxCode) return sum;
+
+      return sum + base * (toNumber(taxCode.rate_percent) / 100);
+    }, 0);
+
+    const total = Math.max(subtotal - discount + tax, 0);
+
+    return {
+      subtotal,
+      discount,
+      tax,
+      total,
+    };
+  }, [lines, taxCodes]);
+
   const lineTotals = useMemo(() => {
     return lines.map((line) => {
       const taxCode = taxCodes.find((tax) => tax.id === line.tax_code_id);
@@ -442,11 +940,6 @@ export default function FinanceNewPurchaseOrderPage() {
       return Math.round((base + taxAmount) * 100) / 100;
     });
   }, [lines, taxCodes]);
-
-  const totalAmount = useMemo(
-    () => lineTotals.reduce((sum, value) => sum + value, 0),
-    [lineTotals]
-  );
 
   const updateLine = useCallback(
     (
@@ -469,9 +962,19 @@ export default function FinanceNewPurchaseOrderPage() {
       updateLine(localId, {
         item_id: itemId,
         description: selectedItem?.description || selectedItem?.name || "",
-        unit_price: "0",
-        unit_of_measure_id: "",
-        tax_code_id: "",
+        unit_price: String(
+          selectedItem?.sales_price ?? selectedItem?.unit_price ?? 0
+        ),
+        unit_of_measure_id:
+          selectedItem?.unit_of_measure_id ||
+          selectedItem?.default_unit_of_measure_id ||
+          "",
+        tax_code_id:
+          selectedItem?.tax_code_id || selectedItem?.default_tax_code_id || "",
+        expense_category_id:
+          selectedItem?.expense_category_id ||
+          selectedItem?.revenue_category_id ||
+          "",
       });
     },
     [items, updateLine]
@@ -488,12 +991,33 @@ export default function FinanceNewPurchaseOrderPage() {
     });
   }, []);
 
+  const resetManualSource = useCallback(() => {
+    setVendorQuotationId("");
+    setVendorQuotationLines([]);
+    setVendorId("");
+    setCompanyId("");
+    setProjectId("");
+    setTaskId("");
+    setCurrencyCode("");
+
+                                            setCurrencyId("");
+    setPaymentTermsId("");
+    setShippingTermId("");
+    setPaymentMethodId("");
+    setVendorBankAccountId("");
+    setExpectedDeliveryDate("");
+    setNotes("");
+    setLines([createEmptyLine()]);
+    setErrorMessage("");
+  }, []);
+
   const validateForm = useCallback(() => {
     if (sourceMode === "vendor_quotation" && !vendorQuotationId) {
       return "Select an accepted vendor quotation.";
     }
 
     if (!vendorId) return "Select a vendor.";
+    if (!companyId) return "Select receiving company.";
     if (!poDate) return "Select purchase order date.";
     if (!currencyCode) return "Select currency.";
 
@@ -514,7 +1038,15 @@ export default function FinanceNewPurchaseOrderPage() {
     }
 
     return "";
-  }, [currencyCode, lines, poDate, sourceMode, vendorId, vendorQuotationId]);
+  }, [
+    companyId,
+    currencyCode,
+    lines,
+    poDate,
+    sourceMode,
+    vendorId,
+    vendorQuotationId,
+  ]);
 
   const handleSave = useCallback(async () => {
     const validationError = validateForm();
@@ -550,6 +1082,24 @@ export default function FinanceNewPurchaseOrderPage() {
           throw new Error("Purchase order creation failed.");
         }
 
+        const { error: patchError } = await supabase
+          .from("finance_purchase_orders")
+          .update({
+            expected_delivery_date: expectedDeliveryDate || null,
+            payment_method_id: paymentMethodId || null,
+            vendor_bank_account_id: vendorBankAccountId || null,
+            metadata: {
+              source: "vendor_quotation_conversion",
+              vendor_quotation_id: vendorQuotationId,
+              preferred_payment_method_id: paymentMethodId || null,
+              vendor_bank_account_id: vendorBankAccountId || null,
+            },
+            updated_by: user.id,
+          })
+          .eq("id", purchaseOrderId);
+
+        if (patchError) throw patchError;
+
         navigate(`/finance/transactions/purchase-orders/${purchaseOrderId}`);
         return;
       }
@@ -558,18 +1108,24 @@ export default function FinanceNewPurchaseOrderPage() {
         .from("finance_purchase_orders")
         .insert({
           vendor_id: vendorId,
-          company_id: companyId || null,
+          company_id: companyId,
+          project_id: projectId || null,
+          task_id: taskId || null,
           po_date: poDate,
           expected_delivery_date: expectedDeliveryDate || null,
           status: "draft",
           currency_code: currencyCode,
           payment_terms_id: paymentTermsId || null,
           shipping_term_id: shippingTermId || null,
+          payment_method_id: paymentMethodId || null,
+          vendor_bank_account_id: vendorBankAccountId || null,
           notes: notes.trim() || null,
           metadata: {
             source: "manual_purchase_order",
+            preferred_payment_method_id: paymentMethodId || null,
+            vendor_bank_account_id: vendorBankAccountId || null,
             expected_flow:
-              "purchase_order_to_vendor_bill_to_payment_made",
+              "vendor_quotation_to_purchase_order_to_vendor_bill_to_payment_made",
           },
           created_by: user.id,
           updated_by: user.id,
@@ -597,7 +1153,9 @@ export default function FinanceNewPurchaseOrderPage() {
         unit_of_measure_id: line.unit_of_measure_id || null,
         tax_code_id: line.tax_code_id || null,
         expense_category_id: line.expense_category_id || null,
-        sort_order: index,
+        project_id: line.project_id || projectId || null,
+        task_id: line.task_id || taskId || null,
+        sort_order: index + 1,
         notes: line.notes.trim() || null,
         metadata: {
           source: "new_purchase_order_page",
@@ -628,29 +1186,40 @@ export default function FinanceNewPurchaseOrderPage() {
     lines,
     navigate,
     notes,
+    paymentMethodId,
     paymentTermsId,
-    poDate,
+    projectId,
     shippingTermId,
     sourceMode,
+    taskId,
     validateForm,
+    vendorBankAccountId,
     vendorId,
     vendorQuotationId,
   ]);
 
-  const fieldClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
-  const labelClass = "text-sm font-medium text-slate-300";
-  const sectionCardClass =
+  const activeSectionClass =
     "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
-  const lineInputClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
+
+  const summaryBlockClass =
+    "rounded-[24px] border border-white/10 bg-black/20 p-4";
+
+  const fieldShellClass =
+    "mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:opacity-70";
+
+  const inputFieldClass =
+    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:opacity-70";
+
+  const labelClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
+
+  const inputLabelClass = "text-sm font-medium text-slate-300";
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
         <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
           <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
-            Loading purchase order form...
+            Loading purchase order sources...
           </div>
         </div>
       </div>
@@ -673,80 +1242,188 @@ export default function FinanceNewPurchaseOrderPage() {
               Purchase Orders
             </button>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
               <div>
                 <div className="flex flex-wrap gap-2">
-                  <Badge className="w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    New Purchase Order
+                  <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                    New Purchase Order Draft
                   </Badge>
 
-                  <Badge className="w-fit rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200 shadow-none">
-                    Step 02
+                  <Badge className="inline-flex w-fit rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200 shadow-none">
+                    Supplier Flow
                   </Badge>
                 </div>
 
                 <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Create Purchase Order
+                  Create Purchase Order Draft
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Create the official AiXia purchase order sent to the supplier.
-                  This is the exact reverse-side mirror of receiving a Customer
-                  PO in the incoming flow.
+                  Build a supplier purchase order from master data or from an
+                  accepted vendor quotation. Save it as a draft, then issue and
+                  send it later from the purchase order detail page.
                 </p>
 
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <Button
-                    onClick={() => void handleSave()}
-                    disabled={isSaving}
-                    className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    {isSaving ? "Saving..." : "Save Purchase Order"}
-                  </Button>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200 shadow-none">
+                    Draft only
+                  </Badge>
+                  <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 shadow-none">
+                    Issue later
+                  </Badge>
+                  <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
+                    Reverse procurement
+                  </Badge>
+                </div>
+              </div>
 
-                  {errorMessage ? (
-                    <div className="flex min-h-11 items-center rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm text-rose-200">
-                      {errorMessage}
+                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Supplier
+                      </p>
+                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                        {selectedVendor?.legal_name ||
+                          selectedVendor?.name ||
+                          "—"}
+                      </p>
                     </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="grid gap-4">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Source Mode
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
+                      <Truck className="h-4 w-4" />
+                    </div>
                   </div>
-                  <div className="mt-2 text-xl font-semibold text-white">
-                    {sourceMode === "vendor_quotation"
-                      ? "From Vendor Quotation"
-                      : "Manual PO"}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Accepted vendor quotations convert through backend RPC.
-                  </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    Supplier selected for this purchase order draft.
+                  </p>
                 </div>
 
                 <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Draft Value
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Draft Total
+                      </p>
+                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                        {formatMoney(totals.total, currencyCode || "USD")}
+                      </p>
+                    </div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                      <Wallet className="h-4 w-4" />
+                    </div>
                   </div>
-                  <div className="mt-2 text-xl font-semibold text-white">
-                    {formatMoney(totalAmount, currencyCode || "USD")}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Calculated from line items.
-                  </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    Live value from the draft purchase order line items.
+                  </p>
                 </div>
               </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button
+                onClick={() => void handleSave()}
+                disabled={isSaving || isLoading}
+                className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Save className="mr-2 h-4 w-4" />
+                {isSaving ? "Saving..." : "Save Draft"}
+              </Button>
+
+              {errorMessage ? (
+                <div className="flex min-h-11 items-center rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm text-rose-200">
+                  {errorMessage}
+                </div>
+              ) : null}
             </div>
           </div>
         </header>
 
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Subtotal
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
+                  {formatMoney(totals.subtotal, currencyCode || "USD")}
+                </div>
+                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
+                  Before discount and tax.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                <span className="h-2 w-2 rounded-full bg-cyan-400" />
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Discount
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
+                  {formatMoney(totals.discount, currencyCode || "USD")}
+                </div>
+                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
+                  Draft supplier discount.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
+                <span className="h-2 w-2 rounded-full bg-amber-400" />
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Tax
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
+                  {formatMoney(totals.tax, currencyCode || "USD")}
+                </div>
+                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
+                  Based on selected tax codes.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
+                <span className="h-2 w-2 rounded-full bg-violet-400" />
+              </div>
+            </div>
+          </div>
+
+          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Total
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
+                  {formatMoney(totals.total, currencyCode || "USD")}
+                </div>
+                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
+                  Draft purchase order value.
+                </div>
+              </div>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
           <div className="space-y-6">
-            <Card className={sectionCardClass}>
+            <Card className={activeSectionClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
                 <div className="flex items-center gap-3">
                   <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
@@ -763,8 +1440,8 @@ export default function FinanceNewPurchaseOrderPage() {
                 </div>
               </CardHeader>
 
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                <label className="space-y-2">
+              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+                <div className={summaryBlockClass}>
                   <div className={labelClass}>Creation Mode</div>
                   <select
                     value={sourceMode}
@@ -772,30 +1449,36 @@ export default function FinanceNewPurchaseOrderPage() {
                       const nextMode = event.target.value as
                         | "manual"
                         | "vendor_quotation";
+
                       setSourceMode(nextMode);
 
                       if (nextMode === "manual") {
-                        setVendorQuotationId("");
-                        setVendorQuotationLines([]);
-                        setLines([createEmptyLine()]);
+                        resetManualSource();
+                        return;
                       }
+
+                      setVendorQuotationId("");
+                      setVendorQuotationLines([]);
+                      setLines([createEmptyLine()]);
+                      setNotes("");
+                      setErrorMessage("");
                     }}
-                    className={fieldClass}
+                    className={fieldShellClass}
                   >
                     <option value="manual">Manual Purchase Order</option>
                     <option value="vendor_quotation">
                       From Vendor Quotation
                     </option>
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-2">
+                                <div className={summaryBlockClass}>
                   <div className={labelClass}>Accepted Vendor Quotation</div>
                   <select
                     value={vendorQuotationId}
                     onChange={(event) => setVendorQuotationId(event.target.value)}
                     disabled={sourceMode !== "vendor_quotation"}
-                    className={fieldClass}
+                    className={fieldShellClass}
                   >
                     <option value="">Select accepted quotation</option>
                     {vendorQuotations.map((quotation) => (
@@ -812,53 +1495,80 @@ export default function FinanceNewPurchaseOrderPage() {
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Source Status</div>
+                  <div className="mt-2 text-xl font-semibold text-white">
+                    {sourceDescription}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedVendorQuotation
+                      ? `External ref: ${
+                          selectedVendorQuotation.external_quotation_number ||
+                          "—"
+                        }`
+                      : "Manual purchase order without source quotation."}
+                  </div>
+                </div>
 
                 {selectedVendorQuotation ? (
-                  <div className="rounded-[22px] border border-violet-400/15 bg-violet-500/10 p-4 md:col-span-2">
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-violet-100/70">
-                      Source Vendor Quotation
-                    </div>
-                    <div className="mt-2 text-lg font-semibold text-white">
+                  <div className="rounded-[24px] border border-violet-400/15 bg-violet-500/10 p-4 md:col-span-3">
+                    <div className={labelClass}>Source Vendor Quotation</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
                       {selectedVendorQuotation.vendor_quotation_number}
                     </div>
-                    <div className="mt-2 text-sm leading-6 text-slate-300">
-                      External Ref:{" "}
-                      {selectedVendorQuotation.external_quotation_number || "—"} ·
-                      Date: {formatDate(selectedVendorQuotation.quotation_date)} ·
-                      Lines: {vendorQuotationLines.length}
+                    <div className="mt-2 grid grid-cols-1 gap-3 text-sm leading-6 text-slate-300 md:grid-cols-4">
+                      <div>
+                        <span className="text-slate-500">Vendor:</span>{" "}
+                        {selectedVendorQuotation.vendor_legal_name ||
+                          selectedVendorQuotation.vendor_name ||
+                          "—"}
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Date:</span>{" "}
+                        {formatDate(selectedVendorQuotation.quotation_date)}
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Valid Until:</span>{" "}
+                        {formatDate(selectedVendorQuotation.valid_until)}
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Lines:</span>{" "}
+                        {vendorQuotationLines.length}
+                      </div>
                     </div>
                   </div>
                 ) : null}
               </CardContent>
             </Card>
 
-            <Card className={sectionCardClass}>
+            <Card className={activeSectionClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
                 <div className="flex items-center gap-3">
                   <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <FileText className="h-4 w-4" />
+                    <SquarePen className="h-4 w-4" />
                   </div>
                   <div>
                     <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
                       Document Overview
                     </CardTitle>
                     <CardDescription className="mt-1 text-xs text-slate-500">
-                      Supplier, receiving company, dates, and commercial
-                      settings.
+                      Supplier, receiving company, commercial terms, dates,
+                      source references, and currency.
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
 
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                <label className="space-y-2">
-                  <div className={labelClass}>Vendor</div>
+              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Vendor / Supplier</div>
                   <select
                     value={vendorId}
                     onChange={(event) => setVendorId(event.target.value)}
                     disabled={sourceMode === "vendor_quotation"}
-                    className={fieldClass}
+                    className={fieldShellClass}
                   >
                     <option value="">Select vendor</option>
                     {vendors.map((vendor) => (
@@ -868,15 +1578,38 @@ export default function FinanceNewPurchaseOrderPage() {
                       </option>
                     ))}
                   </select>
-                </label>
 
-                <label className="space-y-2">
+                  {selectedVendor ? (
+                    <div className="mt-3 text-sm leading-6 text-slate-300">
+                      <div className="font-semibold text-white">
+                        {selectedVendor.legal_name || selectedVendor.name}
+                      </div>
+                      {selectedVendor.code ? (
+                        <div>Vendor Code: {selectedVendor.code}</div>
+                      ) : null}
+                      {getVendorAddress(selectedVendor) ? (
+                        <div>{getVendorAddress(selectedVendor)}</div>
+                      ) : null}
+                      {selectedVendor.contact_person ? (
+                        <div>Contact: {selectedVendor.contact_person}</div>
+                      ) : null}
+                      {selectedVendor.email ? (
+                        <div>Email: {selectedVendor.email}</div>
+                      ) : null}
+                      {selectedVendor.phone ? (
+                        <div>Phone: {selectedVendor.phone}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className={summaryBlockClass}>
                   <div className={labelClass}>Receiving Company</div>
                   <select
                     value={companyId}
                     onChange={(event) => setCompanyId(event.target.value)}
                     disabled={sourceMode === "vendor_quotation"}
-                    className={fieldClass}
+                    className={fieldShellClass}
                   >
                     <option value="">Select company</option>
                     {companies.map((company) => (
@@ -885,19 +1618,64 @@ export default function FinanceNewPurchaseOrderPage() {
                       </option>
                     ))}
                   </select>
-                </label>
 
-                <label className="space-y-2">
+                  {selectedCompany ? (
+                    <div className="mt-3 text-sm leading-6 text-slate-300">
+                      <div className="font-semibold text-white">
+                        {selectedCompany.legal_name || selectedCompany.name}
+                      </div>
+                      {getCompanyAddress(selectedCompany) ? (
+                        <div>{getCompanyAddress(selectedCompany)}</div>
+                      ) : null}
+                      {selectedCompany.email ? (
+                        <div>Email: {selectedCompany.email}</div>
+                      ) : null}
+                      {selectedCompany.phone ? (
+                        <div>Phone: {selectedCompany.phone}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Currency</div>
+                  <select
+                    value={currencyId}
+                    onChange={(event) => {
+                      const nextId = event.target.value;
+                      setCurrencyId(nextId);
+
+                      const matchedCurrency = currencies.find(
+                        (entry) => entry.id === nextId
+                      );
+
+                      if (matchedCurrency) {
+                        setCurrencyCode(matchedCurrency.currency_code);
+                      }
+                    }}
+                    disabled={sourceMode === "vendor_quotation"}
+                    className={fieldShellClass}
+                  >
+                    <option value="">Select currency</option>
+                    {currencies.map((currency) => (
+                      <option key={currency.id} value={currency.id}>
+                        {currency.currency_code} — {currency.currency_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={summaryBlockClass}>
                   <div className={labelClass}>PO Date</div>
                   <input
                     type="date"
                     value={poDate}
                     onChange={(event) => setPoDate(event.target.value)}
-                    className={fieldClass}
+                    className={fieldShellClass}
                   />
-                </label>
+                </div>
 
-                <label className="space-y-2">
+                <div className={summaryBlockClass}>
                   <div className={labelClass}>Expected Delivery</div>
                   <input
                     type="date"
@@ -905,77 +1683,181 @@ export default function FinanceNewPurchaseOrderPage() {
                     onChange={(event) =>
                       setExpectedDeliveryDate(event.target.value)
                     }
-                    className={fieldClass}
+                    className={fieldShellClass}
                   />
-                </label>
+                </div>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Currency</div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Project</div>
                   <select
-                    value={currencyCode}
-                    onChange={(event) => setCurrencyCode(event.target.value)}
+                    value={projectId}
+                    onChange={(event) => setProjectId(event.target.value)}
                     disabled={sourceMode === "vendor_quotation"}
-                    className={fieldClass}
+                    className={fieldShellClass}
                   >
-                    <option value="">Select currency</option>
-                    {currencies.map((currency) => (
-                      <option key={currency.id} value={currency.currency_code}>
-                        {currency.currency_code} — {currency.currency_name}
+                    <option value="">No project</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-2">
+                                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Task</div>
+                  <select
+                    value={taskId}
+                    onChange={(event) => setTaskId(event.target.value)}
+                    disabled={sourceMode === "vendor_quotation"}
+                    className={fieldShellClass}
+                  >
+                    <option value="">No task</option>
+                    {filteredTasks.map((task) => (
+                      <option key={task.id} value={task.id}>
+                        {task.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={summaryBlockClass}>
                   <div className={labelClass}>Payment Terms</div>
                   <select
                     value={paymentTermsId}
                     onChange={(event) => setPaymentTermsId(event.target.value)}
                     disabled={sourceMode === "vendor_quotation"}
-                    className={fieldClass}
+                    className={fieldShellClass}
                   >
                     <option value="">Select terms</option>
                     {paymentTerms.map((term) => (
                       <option key={term.id} value={term.id}>
+                        {term.code ? `${term.code} | ` : ""}
                         {term.name}
+                        {term.due_days !== null && term.due_days !== undefined
+                          ? ` | Due in ${term.due_days} days`
+                          : ""}
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-2">
+                <div className={summaryBlockClass}>
                   <div className={labelClass}>Shipping Terms</div>
                   <select
                     value={shippingTermId}
                     onChange={(event) => setShippingTermId(event.target.value)}
                     disabled={sourceMode === "vendor_quotation"}
-                    className={fieldClass}
+                    className={fieldShellClass}
                   >
-                    <option value="">Select shipping term</option>
+                    <option value="">Select shipping terms</option>
                     {shippingTerms.map((term) => (
                       <option key={term.id} value={term.id}>
+                        {term.code ? `${term.code} | ` : ""}
                         {term.name}
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-2 md:col-span-2">
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Preferred Payment Method</div>
+                  <select
+                    value={paymentMethodId}
+                    onChange={(event) => setPaymentMethodId(event.target.value)}
+                    className={fieldShellClass}
+                  >
+                    <option value="">Select payment method</option>
+                    {paymentMethods.map((method) => (
+                      <option key={method.id} value={method.id}>
+                        {method.code ? `${method.code} | ` : ""}
+                        {method.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Vendor Bank Account</div>
+                  <select
+                    value={vendorBankAccountId}
+                    onChange={(event) =>
+                      setVendorBankAccountId(event.target.value)
+                    }
+                    disabled={!vendorId}
+                    className={fieldShellClass}
+                  >
+                    <option value="">Select vendor bank</option>
+                    {filteredVendorBankAccounts.map((bank) => {
+                      const identifier = getVendorBankIdentifier(bank);
+
+                      return (
+                        <option key={bank.id} value={bank.id}>
+                          {bank.beneficiary_name ||
+                            bank.bank_name ||
+                            bank.bank_id}
+                          {identifier
+                            ? ` — ${identifier.label}: ${identifier.value}`
+                            : ""}
+                          {bank.currency_code ? ` — ${bank.currency_code}` : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+
+                  {selectedVendorBankAccount ? (
+                    <div className="mt-3 text-sm leading-6 text-slate-300">
+                      {selectedVendorBankAccount.beneficiary_name ? (
+                        <div className="font-semibold text-white">
+                          {selectedVendorBankAccount.beneficiary_name}
+                        </div>
+                      ) : null}
+                      {selectedVendorBankAccount.bank_name ? (
+                        <div>{selectedVendorBankAccount.bank_name}</div>
+                      ) : null}
+                      {getVendorBankAddress(selectedVendorBankAccount) ? (
+                        <div>
+                          {getVendorBankAddress(selectedVendorBankAccount)}
+                        </div>
+                      ) : null}
+                      {getVendorBankIdentifier(selectedVendorBankAccount) ? (
+                        <div>
+                          {
+                            getVendorBankIdentifier(selectedVendorBankAccount)
+                              ?.label
+                          }
+                          :{" "}
+                          {
+                            getVendorBankIdentifier(selectedVendorBankAccount)
+                              ?.value
+                          }
+                        </div>
+                      ) : null}
+                      {selectedVendorBankAccount.currency_code ? (
+                        <div>
+                          Currency: {selectedVendorBankAccount.currency_code}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
                   <div className={labelClass}>Notes</div>
                   <textarea
                     value={notes}
                     onChange={(event) => setNotes(event.target.value)}
                     disabled={sourceMode === "vendor_quotation"}
                     rows={4}
-                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:opacity-70"
+                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:opacity-70"
                   />
-                </label>
+                </div>
               </CardContent>
             </Card>
 
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <Card className={activeSectionClass}>
+              <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                <div>
                   <div className="flex items-center gap-3">
                     <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 p-3 text-amber-200">
                       <FileText className="h-4 w-4" />
@@ -985,242 +1867,477 @@ export default function FinanceNewPurchaseOrderPage() {
                         Line Items
                       </CardTitle>
                       <CardDescription className="mt-1 text-xs text-slate-500">
-                        Purchase order lines. Source quotation lines are copied
-                        by the backend conversion RPC.
+                        Add supplier items using the locked new/create line-item card pattern.
                       </CardDescription>
                     </div>
                   </div>
-
-                  {sourceMode === "manual" ? (
-                    <Button
-                      type="button"
-                      onClick={addLine}
-                      className="h-10 rounded-2xl border border-amber-400/20 bg-amber-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add Line
-                    </Button>
-                  ) : null}
                 </div>
+
+                {sourceMode === "manual" ? (
+                  <Button
+                    variant="outline"
+                    onClick={addLine}
+                    className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Row
+                  </Button>
+                ) : null}
               </CardHeader>
 
-              <CardContent className="max-h-[720px] space-y-3 overflow-y-auto p-5 pr-2">
-                {lines.map((line, index) => (
-                  <div
-                    key={line.localId}
-                    className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                  >
-                    <div className="mb-4 flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-white">
-                        Line {index + 1}
-                      </div>
+              <CardContent className="p-5">
+                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                  {lines.map((line, index) => {
+                    const selectedItem = items.find(
+                      (item) => item.id === line.item_id
+                    );
+                    const selectedTaxCode = taxCodes.find(
+                      (taxCode) => taxCode.id === line.tax_code_id
+                    );
+                    const selectedUnit = units.find(
+                      (unit) => unit.id === line.unit_of_measure_id
+                    );
+                    const selectedExpenseCategory = expenseCategories.find(
+                      (category) => category.id === line.expense_category_id
+                    );
 
-                      {sourceMode === "manual" ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => removeLine(line.localId)}
-                          disabled={lines.length <= 1}
-                          className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20 disabled:opacity-40"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      ) : null}
-                    </div>
+                    return (
+                      <div
+                        key={line.localId}
+                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                      >
+                        <div className="mb-4 flex items-center justify-between gap-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-sm font-semibold text-white">
+                              Line {index + 1}
+                            </div>
 
-                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1.4fr_0.55fr_0.65fr]">
-                      <label className="space-y-2">
-                        <div className={labelClass}>Item</div>
-                        <select
-                          value={line.item_id}
-                          onChange={(event) =>
-                            handleItemChange(line.localId, event.target.value)
-                          }
-                          disabled={sourceMode === "vendor_quotation"}
-                          className={lineInputClass}
-                        >
-                          <option value="">Manual item</option>
-                          {items.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                            {selectedItem ? (
+                              <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
+                                {selectedItem.name}
+                              </Badge>
+                            ) : null}
 
-                      <label className="space-y-2">
-                        <div className={labelClass}>Description</div>
-                        <input
-                          value={line.description}
-                          onChange={(event) =>
-                            updateLine(line.localId, {
-                              description: event.target.value,
-                            })
-                          }
-                          disabled={sourceMode === "vendor_quotation"}
-                          className={lineInputClass}
-                        />
-                      </label>
+                            {selectedExpenseCategory ? (
+                              <Badge className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-200 shadow-none">
+                                {selectedExpenseCategory.name}
+                              </Badge>
+                            ) : null}
+                          </div>
 
-                      <label className="space-y-2">
-                        <div className={labelClass}>Qty</div>
-                        <input
-                          value={line.quantity}
-                          onChange={(event) =>
-                            updateLine(line.localId, {
-                              quantity: event.target.value,
-                            })
-                          }
-                          disabled={sourceMode === "vendor_quotation"}
-                          className={lineInputClass}
-                        />
-                      </label>
+                          {sourceMode === "manual" ? (
+                            <Button
+                              variant="outline"
+                              onClick={() => removeLine(line.localId)}
+                              disabled={lines.length === 1}
+                              className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          ) : null}
+                        </div>
 
-                      <label className="space-y-2">
-                        <div className={labelClass}>Unit Price</div>
-                        <input
-                          value={line.unit_price}
-                          onChange={(event) =>
-                            updateLine(line.localId, {
-                              unit_price: event.target.value,
-                            })
-                          }
-                          disabled={sourceMode === "vendor_quotation"}
-                          className={lineInputClass}
-                        />
-                      </label>
-                    </div>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+                          <label className="space-y-2 md:col-span-3">
+                            <div className={inputLabelClass}>Item</div>
+                            <select
+                              value={line.item_id}
+                              onChange={(event) =>
+                                handleItemChange(line.localId, event.target.value)
+                              }
+                              disabled={sourceMode === "vendor_quotation"}
+                              className={inputFieldClass}
+                            >
+                              <option value="">Manual item</option>
+                              {items.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
 
-                    <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[0.7fr_0.8fr_0.9fr_0.9fr_0.8fr]">
-                      <label className="space-y-2">
-                        <div className={labelClass}>Discount</div>
-                        <input
-                          value={line.discount}
-                          onChange={(event) =>
-                            updateLine(line.localId, {
-                              discount: event.target.value,
-                            })
-                          }
-                          disabled={sourceMode === "vendor_quotation"}
-                          className={lineInputClass}
-                        />
-                      </label>
+                          <label className="space-y-2 md:col-span-4">
+                            <div className={inputLabelClass}>Description</div>
+                            <input
+                              value={line.description}
+                              onChange={(event) =>
+                                updateLine(line.localId, {
+                                  description: event.target.value,
+                                })
+                              }
+                              disabled={sourceMode === "vendor_quotation"}
+                              placeholder="Description"
+                              className={inputFieldClass}
+                            />
+                          </label>
 
-                      <label className="space-y-2">
-                        <div className={labelClass}>Unit</div>
-                        <select
-                          value={line.unit_of_measure_id}
-                          onChange={(event) =>
-                            updateLine(line.localId, {
-                              unit_of_measure_id: event.target.value,
-                            })
-                          }
-                          disabled={sourceMode === "vendor_quotation"}
-                          className={lineInputClass}
-                        >
-                          <option value="">Select</option>
-                          {units.map((unit) => (
-                            <option key={unit.id} value={unit.id}>
-                              {unit.code || unit.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                          <label className="space-y-2 md:col-span-1">
+                            <div className={inputLabelClass}>Qty</div>
+                            <input
+                              value={line.quantity}
+                              onChange={(event) =>
+                                updateLine(line.localId, {
+                                  quantity: event.target.value,
+                                })
+                              }
 
-                      <label className="space-y-2">
-                        <div className={labelClass}>Tax Code</div>
-                        <select
-                          value={line.tax_code_id}
-                          onChange={(event) =>
-                            updateLine(line.localId, {
-                              tax_code_id: event.target.value,
-                            })
-                          }
-                          disabled={sourceMode === "vendor_quotation"}
-                          className={lineInputClass}
-                        >
-                          <option value="">No tax</option>
-                          {taxCodes.map((tax) => (
-                            <option key={tax.id} value={tax.id}>
-                              {tax.name} — {toNumber(tax.rate_percent)}%
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                                                          disabled={sourceMode === "vendor_quotation"}
+                              className={inputFieldClass}
+                            />
+                          </label>
 
-                      <label className="space-y-2">
-                        <div className={labelClass}>Expense Category</div>
-                        <select
-                          value={line.expense_category_id}
-                          onChange={(event) =>
-                            updateLine(line.localId, {
-                              expense_category_id: event.target.value,
-                            })
-                          }
-                          disabled={sourceMode === "vendor_quotation"}
-                          className={lineInputClass}
-                        >
-                          <option value="">Select</option>
-                          {expenseCategories.map((category) => (
-                            <option key={category.id} value={category.id}>
-                              {category.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Unit</div>
+                            <select
+                              value={line.unit_of_measure_id}
+                              onChange={(event) =>
+                                updateLine(line.localId, {
+                                  unit_of_measure_id: event.target.value,
+                                })
+                              }
+                              disabled={sourceMode === "vendor_quotation"}
+                              className={inputFieldClass}
+                            >
+                              <option value="">Select unit</option>
+                              {units.map((unit) => (
+                                <option key={unit.id} value={unit.id}>
+                                  {unit.name}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedUnit ? (
+                              <div className="text-[11px] text-slate-500">
+                                {selectedUnit.code}
+                              </div>
+                            ) : null}
+                          </label>
 
-                      <div className="space-y-2">
-                        <div className={labelClass}>Line Total</div>
-                        <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
-                          {formatMoney(lineTotals[index] || 0, currencyCode || "USD")}
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Unit Price</div>
+                            <input
+                              value={line.unit_price}
+                              onChange={(event) =>
+                                updateLine(line.localId, {
+                                  unit_price: event.target.value,
+                                })
+                              }
+                              disabled={sourceMode === "vendor_quotation"}
+                              className={inputFieldClass}
+                            />
+                          </label>
+
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Discount</div>
+                            <input
+                              value={line.discount}
+                              onChange={(event) =>
+                                updateLine(line.localId, {
+                                  discount: event.target.value,
+                                })
+                              }
+                              disabled={sourceMode === "vendor_quotation"}
+                              className={inputFieldClass}
+                            />
+                          </label>
+
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Tax Code</div>
+                            <select
+                              value={line.tax_code_id}
+                              onChange={(event) =>
+                                updateLine(line.localId, {
+                                  tax_code_id: event.target.value,
+                                })
+                              }
+                              disabled={sourceMode === "vendor_quotation"}
+                              className={inputFieldClass}
+                            >
+                              <option value="">Select tax</option>
+                              {taxCodes.map((tax) => (
+                                <option key={tax.id} value={tax.id}>
+                                  {tax.code ? `${tax.code} | ` : ""}
+                                  {tax.name} — {toNumber(tax.rate_percent)}%
+                                </option>
+                              ))}
+                            </select>
+                            {selectedTaxCode ? (
+                              <div className="text-[11px] text-slate-500">
+                                {toNumber(selectedTaxCode.rate_percent)}%
+                              </div>
+                            ) : null}
+                          </label>
+
+                          <label className="space-y-2 md:col-span-3">
+                            <div className={inputLabelClass}>
+                              Expense Category
+                            </div>
+                            <select
+                              value={line.expense_category_id}
+                              onChange={(event) =>
+                                updateLine(line.localId, {
+                                  expense_category_id: event.target.value,
+                                })
+                              }
+                              disabled={sourceMode === "vendor_quotation"}
+                              className={inputFieldClass}
+                            >
+                              <option value="">Select category</option>
+                              {expenseCategories.map((category) => (
+                                <option key={category.id} value={category.id}>
+                                  {category.code ? `${category.code} | ` : ""}
+                                  {category.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <div className="space-y-2 md:col-span-3">
+                            <div className={inputLabelClass}>Line Total</div>
+                            <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
+                              {formatMoney(
+                                lineTotals[index] || 0,
+                                currencyCode || "USD"
+                              )}
+                            </div>
+                          </div>
+
+                          <label className="space-y-2 md:col-span-12">
+                            <div className={inputLabelClass}>Line Notes</div>
+                            <input
+                              value={line.notes}
+                              onChange={(event) =>
+                                updateLine(line.localId, {
+                                  notes: event.target.value,
+                                })
+                              }
+                              disabled={sourceMode === "vendor_quotation"}
+                              placeholder="Optional line notes"
+                              className={inputFieldClass}
+                            />
+                          </label>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  })}
+                </div>
               </CardContent>
             </Card>
           </div>
 
           <div className="space-y-6">
-            <Card className={sectionCardClass}>
+            <Card className={activeSectionClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
                 <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Financial Summary
+                  Purchase Order Summary
                 </CardTitle>
                 <CardDescription className="mt-1 text-xs text-slate-500">
-                  Draft purchase order value before saving.
+                  Live supplier-side summary before saving.
                 </CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-3 p-5">
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Lines
-                  </div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Supplier</div>
                   <div className="mt-2 text-2xl font-semibold text-white">
-                    {lines.length}
+                    {selectedVendor?.legal_name || selectedVendor?.name || "—"}
+                  </div>
+                  {selectedVendor ? (
+                    <div className="mt-2 text-sm leading-6 text-slate-400">
+                      {selectedVendor.code ? (
+                        <div>Vendor Code: {selectedVendor.code}</div>
+                      ) : null}
+                      {getVendorAddress(selectedVendor) ? (
+                        <div>{getVendorAddress(selectedVendor)}</div>
+                      ) : null}
+                      {selectedVendor.contact_person ? (
+                        <div>Contact: {selectedVendor.contact_person}</div>
+                      ) : null}
+                      {selectedVendor.email ? (
+                        <div>Email: {selectedVendor.email}</div>
+                      ) : null}
+                      {selectedVendor.phone ? (
+                        <div>Phone: {selectedVendor.phone}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Receiving Company</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedCompany?.legal_name || selectedCompany?.name || "—"}
+                  </div>
+                  {selectedCompany ? (
+                    <div className="mt-2 text-sm leading-6 text-slate-400">
+                      {getCompanyAddress(selectedCompany) ? (
+                        <div>{getCompanyAddress(selectedCompany)}</div>
+                      ) : null}
+                      {selectedCompany.email ? (
+                        <div>Email: {selectedCompany.email}</div>
+                      ) : null}
+                      {selectedCompany.phone ? (
+                        <div>Phone: {selectedCompany.phone}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Source</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {sourceDescription}
                   </div>
                   <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Purchase order line items.
+                    {sourceMode === "vendor_quotation"
+                      ? "Accepted vendor quotation conversion."
+                      : "Manual purchase order draft."}
                   </div>
                 </div>
 
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Total
-                  </div>
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Payment Terms</div>
                   <div className="mt-2 text-2xl font-semibold text-white">
-                    {formatMoney(totalAmount, currencyCode || "USD")}
+                    {selectedPaymentTerm?.name || "—"}
                   </div>
                   <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Currency: {currencyCode || "—"}
+                    {selectedPaymentTerm
+                      ? `${selectedPaymentTerm.code || "Terms"}${
+                          selectedPaymentTerm.due_days !== null &&
+                          selectedPaymentTerm.due_days !== undefined
+                            ? ` · Due in ${selectedPaymentTerm.due_days} days`
+                            : ""
+                        }`
+                      : "No payment terms selected"}
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3 text-sm leading-6 text-cyan-100">
-                  Purchase orders are created as drafts. The ID page controls
-                  issuing/sending the PO and creating the vendor PI / invoice.
+                                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Shipping Terms</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedShippingTerm?.name || "—"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedShippingTerm?.code ||
+                      "No shipping terms selected"}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Vendor Bank Account</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedVendorBankAccount?.beneficiary_name ||
+                      selectedVendorBankAccount?.bank_name ||
+                      "—"}
+                  </div>
+                  {selectedVendorBankAccount ? (
+                    <div className="mt-2 text-sm leading-6 text-slate-400">
+                      {selectedVendorBankAccount.bank_name ? (
+                        <div>{selectedVendorBankAccount.bank_name}</div>
+                      ) : null}
+                      {getVendorBankAddress(selectedVendorBankAccount) ? (
+                        <div>
+                          {getVendorBankAddress(selectedVendorBankAccount)}
+                        </div>
+                      ) : null}
+                      {getVendorBankIdentifier(selectedVendorBankAccount) ? (
+                        <div>
+                          {
+                            getVendorBankIdentifier(selectedVendorBankAccount)
+                              ?.label
+                          }
+                          :{" "}
+                          {
+                            getVendorBankIdentifier(selectedVendorBankAccount)
+                              ?.value
+                          }
+                        </div>
+                      ) : null}
+                      {selectedVendorBankAccount.currency_code ? (
+                        <div>
+                          Currency: {selectedVendorBankAccount.currency_code}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-sm leading-6 text-slate-400">
+                      No vendor bank account selected.
+                    </div>
+                  )}
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Preferred Payment Method</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedPaymentMethod?.name || "—"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedPaymentMethod?.code ||
+                      "No payment method selected"}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Currency</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedCurrency
+                      ? `${selectedCurrency.currency_code} — ${selectedCurrency.currency_name}`
+                      : currencyCode || "—"}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Project / Task</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedProject?.name || "—"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedTask?.title || "No task selected"}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Timeline</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {formatDate(poDate)}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    Expected delivery: {formatDate(expectedDeliveryDate)}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-400">Subtotal</span>
+                    <span className="font-semibold text-white">
+                      {formatMoney(totals.subtotal, currencyCode || "USD")}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <span className="text-slate-400">Discount</span>
+                    <span className="font-semibold text-white">
+                      {formatMoney(totals.discount, currencyCode || "USD")}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <span className="text-slate-400">Tax</span>
+                    <span className="font-semibold text-white">
+                      {formatMoney(totals.tax, currencyCode || "USD")}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 border-t border-white/10 pt-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-slate-300">
+                        Total
+                      </span>
+                      <span className="text-lg font-semibold text-white">
+                        {formatMoney(totals.total, currencyCode || "USD")}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {errorMessage ? (
@@ -1231,19 +2348,23 @@ export default function FinanceNewPurchaseOrderPage() {
               </CardContent>
             </Card>
 
-            <Card className={sectionCardClass}>
+            <Card className={activeSectionClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
                 <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Reverse Flow Position
+                  Locked Behavior
                 </CardTitle>
+                <CardDescription className="mt-1 text-xs text-slate-500">
+                  New purchase order creation rules.
+                </CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-2 p-5 text-sm leading-6 text-slate-400">
-                <div>• Accepted vendor quotation converts to PO.</div>
-                <div>• Purchase order is created as draft.</div>
-                <div>• Draft PO can be issued/sent from the ID page.</div>
-                <div>• Issued PO can receive vendor PI / invoice.</div>
-                <div>• Vendor bill then continues to Payment Made.</div>
+                <div>• This page creates a purchase order draft only.</div>
+                <div>• PO number and official snapshot are finalized on issue.</div>
+                <div>• Issue/send action happens later from the PO detail page.</div>
+                <div>• Vendor PI / Invoice is received only after PO issue.</div>
+                <div>• Payment Made happens after vendor bill approval.</div>
+                <div>• This is the reverse mirror of the incoming receivables flow.</div>
               </CardContent>
             </Card>
           </div>

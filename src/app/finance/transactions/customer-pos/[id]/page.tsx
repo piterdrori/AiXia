@@ -838,16 +838,6 @@ export default function FinanceCustomerPoDetailPage() {
     };
   }, [id, loadCustomerPo]);
 
-  const selectedClient = useMemo(
-    () => clients.find((client) => client.id === editDraft.client_id) || null,
-    [clients, editDraft.client_id]
-  );
-
-  const selectedCompany = useMemo(
-    () => companies.find((company) => company.id === editDraft.company_id) || null,
-    [companies, editDraft.company_id]
-  );
-
   const selectedQuotation = useMemo(
     () =>
       quotations.find((quotationItem) => quotationItem.id === editDraft.quotation_id) ||

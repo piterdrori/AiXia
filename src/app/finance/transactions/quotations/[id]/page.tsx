@@ -1932,7 +1932,7 @@ export default function FinanceQuotationDetailPage() {
                     className="h-11 rounded-2xl border border-violet-400/20 bg-violet-500 px-4 text-sm font-semibold text-white transition hover:bg-violet-400"
                   >
                     <FileText className="mr-2 h-4 w-4" />
-                    Open Customer PO
+                    Open Saved Customer PO
                   </Button>
                 ) : quotation.status === "accepted" ? (
                   <Button
@@ -1944,7 +1944,7 @@ export default function FinanceQuotationDetailPage() {
                     className="h-11 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
                   >
                     <FileText className="mr-2 h-4 w-4" />
-                    Create Customer PO
+                    Save Customer PO
                   </Button>
                 ) : null}
 

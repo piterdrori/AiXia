@@ -398,51 +398,25 @@ export default function FinanceNewCustomerPoPage() {
   }, []);
 
 useEffect(() => {
-  async function init() {
-    await loadLookups();
+  void loadLookups();
+}, [loadLookups]);
 
-    const quotationIdFromUrl = searchParams.get("quotation_id");
+useEffect(() => {
+  const quotationIdFromUrl = searchParams.get("quotation_id");
 
-    if (!quotationIdFromUrl) return;
+  if (!quotationIdFromUrl || isLoadingLookups || quotations.length === 0) return;
 
-    const quotation = (await supabase
-      .from("finance_quotations")
-      .select(
-        "id, quotation_number, client_id, company_id, currency_id, currency_code, total_amount, project_id, task_id, status"
-      )
-      .eq("id", quotationIdFromUrl)
-      .single()).data;
+  const quotationExists = quotations.some(
+    (quotation) => quotation.id === quotationIdFromUrl
+  );
 
-    if (!quotation) return;
+  if (!quotationExists) return;
 
-    const matchedCurrency = currencies.find(
-      (currency) =>
-        currency.id === quotation.currency_id ||
-        currency.currency_code === quotation.currency_code
-    );
-
-    setForm((current) => ({
-      ...current,
-      client_id: quotation.client_id || "",
-      quotation_id: quotation.id,
-      company_id: quotation.company_id || "",
-      currency_id: matchedCurrency?.id || "",
-      currency_code:
-        matchedCurrency?.currency_code ||
-        quotation.currency_code ||
-        "",
-      project_id: quotation.project_id || "",
-      task_id: quotation.task_id || "",
-    }));
-
-    await handleQuotationChange(quotation.id);
-  }
-
-  void init();
-}, [loadLookups, searchParams]);
+  void handleQuotationChange(quotationIdFromUrl);
+}, [isLoadingLookups, quotations, searchParams]);
 
   const filteredQuotations = useMemo(() => {
-    if (!form.client_id) return [];
+    if (!form.client_id) return quotations;
     return quotations.filter((quotation) => quotation.client_id === form.client_id);
   }, [form.client_id, quotations]);
 
@@ -546,6 +520,7 @@ useEffect(() => {
 
     setForm((current) => ({
       ...current,
+      client_id: quotation.client_id || current.client_id,
       quotation_id: quotation.id,
       company_id: quotation.company_id || current.company_id,
       currency_id: matchedCurrency?.id || current.currency_id,

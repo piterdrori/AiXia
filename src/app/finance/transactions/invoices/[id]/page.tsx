@@ -120,6 +120,16 @@ type PaymentRow = {
   reference_number: string | null;
 };
 
+type ProformaInvoiceLinkRow = {
+  id: string;
+  proforma_number: string | null;
+  status: string;
+  total_amount: number | string | null;
+  currency_code: string | null;
+  client_po_id: string | null;
+  quotation_id: string | null;
+};
+
 type ProjectRow = {
   id: string;
   name: string;
@@ -483,6 +493,8 @@ export default function FinanceInvoiceDetailPage() {
   const [invoice, setInvoice] = useState<InvoiceRecord | null>(null);
   const [lineItems, setLineItems] = useState<LineItemRow[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [linkedProformaInvoice, setLinkedProformaInvoice] =
+    useState<ProformaInvoiceLinkRow | null>(null);
   const [project, setProject] = useState<ProjectRow | null>(null);
   const [task, setTask] = useState<TaskRow | null>(null);
   const [archiveItems, setArchiveItems] = useState<ArchiveInvoiceRow[]>([]);
@@ -610,15 +622,42 @@ export default function FinanceInvoiceDetailPage() {
           );
         }
 
-        const typedInvoice = invoice as unknown as InvoiceRecord;
+        const typedInvoice = invoice as unknown as InvoiceRecord & {
+          proforma_invoice_id?: string | null;
+        };
         const typedLineItems = (lineItems || []) as unknown as LineItemRow[];
         const typedPayments = (paymentsResult.data || []) as PaymentRow[];
         const linkedProject = (projectResult.data as any)?.project ?? null;
         const linkedTask = (projectResult.data as any)?.task ?? null;
 
+        const resolvedProformaInvoiceId =
+          typedInvoice.proforma_invoice_id ||
+          (typedInvoice.metadata?.proforma_invoice_id as string | undefined) ||
+          "";
+
+        let linkedProformaRow: ProformaInvoiceLinkRow | null = null;
+
+        if (resolvedProformaInvoiceId) {
+          const { data: proformaData, error: proformaError } = await supabase
+            .from("finance_proforma_invoices")
+            .select(
+              "id, proforma_number, status, total_amount, currency_code, client_po_id, quotation_id"
+            )
+            .eq("id", resolvedProformaInvoiceId)
+            .maybeSingle();
+
+          if (proformaError) {
+            console.warn("Failed to load linked proforma invoice:", proformaError);
+          }
+
+          linkedProformaRow =
+            (proformaData || null) as ProformaInvoiceLinkRow | null;
+        }
+
         setInvoice(typedInvoice);
         setLineItems(typedLineItems);
         setPayments(typedPayments);
+        setLinkedProformaInvoice(linkedProformaRow);
         setProject(linkedProject);
         setTask(linkedTask);
 
@@ -1157,6 +1196,10 @@ export default function FinanceInvoiceDetailPage() {
   const canEditDraft = invoice?.status === "draft";
   const canEditIssuedOverview = invoice?.status === "issued";
   const canEditIssuedDetails = invoice?.status === "issued";
+  const canRecordPayment =
+    !!invoice &&
+    ["issued", "partially_paid"].includes(invoice.status) &&
+    toNumber(invoice.balance_due) > 0;
   const canArchive =
     !!invoice &&
     ["draft", "issued", "partially_paid", "paid"].includes(invoice.status);
@@ -2384,7 +2427,7 @@ export default function FinanceInvoiceDetailPage() {
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
-                {invoice.status === "issued" ? (
+                {canRecordPayment ? (
                   <Button
                     onClick={() =>
                       navigate(
@@ -2394,7 +2437,7 @@ export default function FinanceInvoiceDetailPage() {
                     className="h-11 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400"
                   >
                     <CheckCircle className="mr-2 h-4 w-4" />
-                    Confirm Payment
+                    Record Payment
                   </Button>
                 ) : null}
 
@@ -3644,6 +3687,44 @@ export default function FinanceInvoiceDetailPage() {
                 </CardHeader>
 
                 <CardContent className="space-y-3 p-5">
+                  <div className={innerPanelClass}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className={eyebrowClass}>Source Proforma Invoice</div>
+                        <div className="mt-2 text-lg font-semibold text-white">
+                          {linkedProformaInvoice?.proforma_number || "—"}
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-slate-400">
+                          {linkedProformaInvoice
+                            ? `${linkedProformaInvoice.status} · ${formatFinanceMoney(
+                                toNumber(linkedProformaInvoice.total_amount),
+                                linkedProformaInvoice.currency_code ||
+                                  currentCurrencyCode
+                              )}`
+                            : "This invoice was created manually or has no PI source."}
+                        </div>
+                      </div>
+
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
+                        <Link2 className="h-4 w-4" />
+                      </div>
+                    </div>
+
+                    {linkedProformaInvoice ? (
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          navigate(
+                            `/finance/transactions/proforma-invoices/${linkedProformaInvoice.id}`
+                          )
+                        }
+                        className="mt-4 h-9 rounded-2xl border-violet-400/20 bg-violet-500/10 px-3 text-violet-200 hover:bg-violet-500/20"
+                      >
+                        Open Proforma Invoice
+                      </Button>
+                    ) : null}
+                  </div>
+
                   <div className={innerPanelClass}>
                     <div className="flex items-start justify-between gap-3">
                       <div>

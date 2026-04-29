@@ -754,7 +754,7 @@ export default function FinanceCustomerPoDetailPage() {
           )
         `)
         .eq("client_po_id", id)
-        .neq("status", "deleted")
+        .or("status.is.null,status.neq.deleted")
         .order("sort_order", { ascending: true });
 
       if (lineItemError) throw lineItemError;
@@ -928,8 +928,7 @@ export default function FinanceCustomerPoDetailPage() {
 
   const canEditDetails =
     customerPo?.status !== "archived" &&
-    customerPo?.status !== "deleted" &&
-    customerPo?.status !== "linked_to_pi";
+    customerPo?.status !== "deleted";
 
   function resetEditDraft() {
     if (!customerPo) return;
@@ -1249,6 +1248,107 @@ export default function FinanceCustomerPoDetailPage() {
     );
   }
 
+  async function copyQuotationLinesToCustomerPo(
+    quotationId: string,
+    po: CustomerPoRow,
+    userId: string | null
+  ) {
+    const { data: quotationLinesData, error: quotationLinesError } = await supabase
+      .from("finance_quotation_line_items")
+      .select(
+        "id, quotation_id, item_id, item_name, description, quantity, unit_price, tax_rate, discount_rate, line_discount_amount, line_total, tax_code_id, unit_of_measure_id, revenue_category_id, sort_order"
+      )
+      .eq("quotation_id", quotationId)
+      .order("sort_order", { ascending: true });
+
+    if (quotationLinesError) throw quotationLinesError;
+
+    const quotationLines = (quotationLinesData || []) as Array<
+      QuotationLineOption & { sort_order: number | null }
+    >;
+
+    const { error: deleteExistingLinesError } = await supabase
+      .from("finance_client_purchase_order_line_items")
+      .update({
+        status: "deleted",
+        updated_by: userId,
+      })
+      .eq("client_po_id", po.id)
+      .or("status.is.null,status.neq.deleted");
+
+    if (deleteExistingLinesError) throw deleteExistingLinesError;
+
+    if (quotationLines.length === 0) {
+      const { error: clearTotalError } = await supabase
+        .from("finance_client_purchase_orders")
+        .update({
+          total_amount: 0,
+          updated_by: userId,
+        })
+        .eq("id", po.id);
+
+      if (clearTotalError) throw clearTotalError;
+
+      return;
+    }
+
+    let copiedTotal = 0;
+
+    const copiedLines = quotationLines.map((line, index) => {
+      const quantity = toNumber(line.quantity);
+      const unitPrice = toNumber(line.unit_price);
+      const discount = toNumber(line.line_discount_amount);
+      const base = Math.max(quantity * unitPrice - discount, 0);
+      const tax = base * (toNumber(line.tax_rate) / 100);
+      const lineTotal = toNumber(line.line_total) || base + tax;
+
+      copiedTotal += lineTotal;
+
+      return {
+        client_po_id: po.id,
+        item_id: line.item_id || null,
+        description: line.description || line.item_name || "Quotation line",
+        quantity,
+        unit_price: unitPrice,
+        discount,
+        line_total: lineTotal,
+        sort_order: line.sort_order ?? index + 1,
+        unit_of_measure_id: line.unit_of_measure_id || null,
+        tax_code_id: line.tax_code_id || null,
+        revenue_category_id: line.revenue_category_id || null,
+        project_id: editDraft.project_id || po.project_id || null,
+        task_id: editDraft.task_id || po.task_id || null,
+        status: "active",
+        reference_number:
+          editDraft.external_po_number.trim() || po.external_po_number || null,
+        notes: null,
+        metadata: {
+          source: "linked_quotation",
+          quotation_id: quotationId,
+          quotation_line_id: line.id,
+        },
+        created_by: userId,
+        updated_by: userId,
+      };
+    });
+
+    const { error: insertCopiedLinesError } = await supabase
+      .from("finance_client_purchase_order_line_items")
+      .insert(copiedLines);
+
+    if (insertCopiedLinesError) throw insertCopiedLinesError;
+
+    const { error: updateTotalError } = await supabase
+      .from("finance_client_purchase_orders")
+      .update({
+        total_amount: copiedTotal,
+        updated_by: userId,
+      })
+      .eq("id", po.id);
+
+    if (updateTotalError) throw updateTotalError;
+  }
+
   async function handleSaveDetailsEdit() {
     if (!customerPo || !canEditDetails) return;
 
@@ -1387,7 +1487,15 @@ export default function FinanceCustomerPoDetailPage() {
 
       if (updateError) throw updateError;
 
+      if (
+        editDraft.quotation_id &&
+        (editDraft.quotation_id !== customerPo.quotation_id || lineItems.length === 0)
+      ) {
+        await copyQuotationLinesToCustomerPo(editDraft.quotation_id, customerPo, userId);
+      }
+
       setIsEditingDetails(false);
+      setIsEditingLines(false);
       await loadCustomerPo();
     } catch (err) {
       console.error(err);
@@ -2521,6 +2629,7 @@ export default function FinanceCustomerPoDetailPage() {
                       );
                     })}
                   </div>
+      
                 ) : lineItems.length === 0 ? (
                   <div className="rounded-[22px] border border-white/10 bg-black/20 px-4 py-6 text-sm text-slate-500">
                     No Customer PO line items found.
@@ -2641,6 +2750,36 @@ export default function FinanceCustomerPoDetailPage() {
                     })}
                   </div>
                 )}
+
+                <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-4">
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Subtotal</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {formatMoney(lineSubtotal, displayedCurrencyCode)}
+                    </div>
+                  </div>
+
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Discount</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {formatMoney(lineDiscount, displayedCurrencyCode)}
+                    </div>
+                  </div>
+
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Tax</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {formatMoney(lineTax, displayedCurrencyCode)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 p-4">
+                    <div className={labelClass}>Total</div>
+                    <div className="mt-2 text-2xl font-semibold text-cyan-100">
+                      {formatMoney(lineTotal, displayedCurrencyCode)}
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 

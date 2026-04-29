@@ -1943,7 +1943,22 @@ export default function FinanceCustomerPoDetailPage() {
                           variant="outline"
                           onClick={() => {
                             setIsEditingDetails(false);
-                            resetEditDraft();
+                            setEditDraft({
+                              client_id: customerPo.client_id || "",
+                              quotation_id: customerPo.quotation_id || "",
+                              external_po_number:
+                                customerPo.external_po_number || "",
+                              company_id: customerPo.company_id || "",
+                              po_date: getDateInputValue(customerPo.po_date),
+                              received_date: getDateInputValue(
+                                customerPo.received_at
+                              ),
+                              currency_id: customerPo.currency_id || "",
+                              currency_code: customerPo.currency_code || "",
+                              project_id: customerPo.project_id || "",
+                              task_id: customerPo.task_id || "",
+                              notes: customerPo.notes || "",
+                            });
                           }}
                           className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
                         >

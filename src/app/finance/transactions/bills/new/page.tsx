@@ -224,6 +224,7 @@ export default function FinanceNewBillPage() {
     new Date().toISOString().slice(0, 10)
   );
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
+  const [currencyCode, setCurrencyCode] = useState("");
   const [referenceNumber, setReferenceNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -342,6 +343,7 @@ export default function FinanceNewBillPage() {
       if (!selectedPurchaseOrder || sourceMode !== "purchase_order") return;
 
       setVendorId(selectedPurchaseOrder.vendor_id || "");
+      setCurrencyCode(selectedPurchaseOrder.currency_code || "");
       setNotes(selectedPurchaseOrder.notes || "");
 
       const { data, error } = await supabase
@@ -372,6 +374,16 @@ export default function FinanceNewBillPage() {
     void applyPurchaseOrderSource();
   }, [selectedPurchaseOrder, sourceMode]);
 
+    useEffect(() => {
+    if (sourceMode === "purchase_order") return;
+
+    const vendorCurrency =
+      vendors.find((vendor) => vendor.id === vendorId)?.currency_code || "";
+
+    setCurrencyCode(vendorCurrency);
+  }, [sourceMode, vendorId, vendors]);
+
+  
   const lineTotals = useMemo(() => {
     return lines.map((line) => {
       return (
@@ -432,6 +444,7 @@ export default function FinanceNewBillPage() {
     }
 
     if (!vendorId) return "Select a vendor.";
+    if (!currencyCode) return "Select currency.";
     if (!issueDate) return "Select issue date.";
     if (!dueDate) return "Select due date.";
     if (!selectedFile) return "Upload the received vendor PI / invoice document.";
@@ -451,7 +464,16 @@ export default function FinanceNewBillPage() {
     }
 
     return "";
-  }, [dueDate, issueDate, lines, purchaseOrderId, selectedFile, sourceMode, vendorId]);
+  }, [
+    currencyCode,
+    dueDate,
+    issueDate,
+    lines,
+    purchaseOrderId,
+    selectedFile,
+    sourceMode,
+    vendorId,
+  ]);
 
   const handleSave = useCallback(async () => {
     const validationError = validateForm();
@@ -510,6 +532,7 @@ export default function FinanceNewBillPage() {
           status: "draft",
           approval_status: "pending",
           document_type: documentType,
+          currency_code: currencyCode,
           external_document_number:
             externalDocumentNumber.trim() || null,
           reference_number: referenceNumber.trim() || null,
@@ -569,6 +592,7 @@ export default function FinanceNewBillPage() {
       setIsSaving(false);
     }
   }, [
+    currencyCode,
     documentType,
     dueDate,
     externalDocumentNumber,

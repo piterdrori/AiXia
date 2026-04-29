@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
   CreditCard,
-  FileText,
   Link2,
   Save,
   Upload,
@@ -503,8 +502,6 @@ export default function FinanceNewPaymentMadePage() {
   const labelClass = "text-sm font-medium text-slate-300";
   const sectionCardClass =
     "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
-  const readOnlyBoxClass =
-    "min-h-[44px] rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white";
 
   if (isLoading) {
     return (

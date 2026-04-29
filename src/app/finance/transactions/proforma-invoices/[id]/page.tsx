@@ -3,9 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  Archive,
   ArrowRight,
   CheckCircle,
+  FileText,
+  Link2,
   Printer,
+  RotateCcw,
   Save,
   SquarePen,
   Trash2,
@@ -35,20 +39,25 @@ import {
   softDeleteProformaInvoice,
 } from "@/lib/finance/proformaInvoices";
 
+type ProformaStatus =
+  | "draft"
+  | "issued"
+  | "confirmed"
+  | "converted"
+  | "archived"
+  | "canceled"
+  | "deleted";
+
 type ProformaRecord = {
   id: string;
   proforma_number: string | null;
   client_id: string | null;
+  client_po_id?: string | null;
+  quotation_id?: string | null;
+  company_id?: string | null;
   issue_date: string;
   valid_until: string | null;
-  status:
-    | "draft"
-    | "issued"
-    | "confirmed"
-    | "converted"
-    | "archived"
-    | "canceled"
-    | "deleted";
+  status: ProformaStatus;
   subtotal: number | string | null;
   tax_amount: number | string | null;
   discount_amount: number | string | null;
@@ -58,6 +67,8 @@ type ProformaRecord = {
   project_id: string | null;
   task_id: string | null;
   payment_terms_id?: string | null;
+  shipping_term_id?: string | null;
+  bank_account_id?: string | null;
   payment_terms_snapshot?: string | null;
   payment_terms_document_text?: string | null;
   shipping_terms_snapshot?: string | null;
@@ -102,6 +113,42 @@ type InvoiceLinkRow = {
   currency_code: string | null;
 };
 
+type CustomerPoSource = {
+  id: string;
+  client_po_number: string | null;
+  external_po_number: string | null;
+  quotation_id: string | null;
+  proforma_invoice_id: string | null;
+  client_id: string | null;
+  company_id: string | null;
+  po_date: string | null;
+  received_at: string | null;
+  status: string;
+  currency_id: string | null;
+  currency_code: string | null;
+  total_amount: number | string | null;
+  notes: string | null;
+  project_id: string | null;
+  task_id: string | null;
+};
+
+type CustomerPoLineSource = {
+  id: string;
+  client_po_id: string;
+  item_id: string | null;
+  description: string;
+  quantity: number | string | null;
+  unit_price: number | string | null;
+  discount: number | string | null;
+  sort_order: number | null;
+  unit_of_measure_id: string | null;
+  tax_code_id: string | null;
+  revenue_category_id: string | null;
+  project_id: string | null;
+  task_id: string | null;
+  status: string | null;
+};
+
 type ProjectRow = {
   id: string;
   name: string;
@@ -132,20 +179,6 @@ type EditableLineItem = {
   unit_of_measure_id: string;
   revenue_category_id: string;
 };
-
-function createEditableDraftLineItem(): EditableLineItem {
-  return {
-    id: `new_${crypto.randomUUID()}`,
-    item_id: "",
-    description: "",
-    quantity: "1",
-    unit_price: "0",
-    discount: "0",
-    tax_code_id: "",
-    unit_of_measure_id: "",
-    revenue_category_id: "",
-  };
-}
 
 type ClientOption = {
   id: string;
@@ -266,6 +299,20 @@ type RevenueCategoryOption = {
   name: string;
 };
 
+function createEditableDraftLineItem(): EditableLineItem {
+  return {
+    id: `new_${crypto.randomUUID()}`,
+    item_id: "",
+    description: "",
+    quantity: "1",
+    unit_price: "0",
+    discount: "0",
+    tax_code_id: "",
+    unit_of_measure_id: "",
+    revenue_category_id: "",
+  };
+}
+
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -296,34 +343,43 @@ function formatFinanceDate(value: string | null | undefined) {
   });
 }
 
+function getDateInputValue(value: string | null | undefined) {
+  if (!value) return "";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+
+  return parsed.toISOString().slice(0, 10);
+}
+
+function joinAddress(parts: Array<string | null | undefined>) {
+  return parts.filter(Boolean).join(", ");
+}
+
 function buildCompanyAddress(company: CompanyOption | null) {
   if (!company) return "";
 
-  return [
+  return joinAddress([
     company.address_line_1,
     company.address_line_2,
     company.city,
     company.state_province,
     company.postal_code,
     company.country,
-  ]
-    .filter(Boolean)
-    .join(", ");
+  ]);
 }
 
 function buildClientAddress(client: ClientOption | null) {
   if (!client) return "";
 
-  return [
+  return joinAddress([
     client.address_line_1,
     client.address_line_2,
     client.city,
     client.state_province,
     client.postal_code,
     client.country,
-  ]
-    .filter(Boolean)
-    .join(", ");
+  ]);
 }
 
 function buildBankIdentifierLine(account: BankAccountOption | null) {
@@ -355,15 +411,13 @@ function buildBankAddressFromAccount(account: BankAccountOption | null) {
     return account.bank_address;
   }
 
-  return [
+  return joinAddress([
     account.address_line_1,
     account.address_line_2,
     account.city,
     account.postal_code,
     account.country,
-  ]
-    .filter(Boolean)
-    .join(", ");
+  ]);
 }
 
 function buildBankDetailsLinesFromAccount(account: BankAccountOption | null) {
@@ -406,7 +460,7 @@ function buildBankDetailsLinesFromSnapshot(snapshot: string | null | undefined) 
     });
 }
 
-function getProformaStatusBadgeClasses(status: ProformaRecord["status"]) {
+function getProformaStatusBadgeClasses(status: ProformaStatus) {
   switch (status) {
     case "draft":
       return "border-white/10 bg-white/10 text-white/75";
@@ -427,7 +481,7 @@ function getProformaStatusBadgeClasses(status: ProformaRecord["status"]) {
   }
 }
 
-function getProformaStatusLabel(status: ProformaRecord["status"]) {
+function getProformaStatusLabel(status: ProformaStatus) {
   switch (status) {
     case "draft":
       return "Draft";
@@ -448,6 +502,54 @@ function getProformaStatusLabel(status: ProformaRecord["status"]) {
   }
 }
 
+function getPaymentTermLabel(term: PaymentTermOption | null) {
+  if (!term) return "—";
+  return term.document_label || term.name || term.code || "—";
+}
+
+function getShippingTermLabel(term: ShippingTermOption | null) {
+  if (!term) return "—";
+  return term.description?.trim()
+    ? `${term.name} — ${term.description.trim()}`
+    : term.name || term.code || "—";
+}
+
+function getMetadataString(
+  metadata: Record<string, unknown> | null | undefined,
+  key: string
+) {
+  const value = metadata?.[key];
+  return typeof value === "string" ? value : "";
+}
+
+function getMetadataNumberOrString(
+  metadata: Record<string, unknown> | null | undefined,
+  key: string
+) {
+  const value = metadata?.[key];
+  return typeof value === "string" || typeof value === "number" ? value : null;
+}
+
+function resolveProformaClientPoId(proforma: ProformaRecord | null) {
+  if (!proforma) return "";
+
+  return (
+    proforma.client_po_id ||
+    getMetadataString(proforma.metadata, "client_po_id") ||
+    ""
+  );
+}
+
+function resolveProformaQuotationId(proforma: ProformaRecord | null) {
+  if (!proforma) return "";
+
+  return (
+    proforma.quotation_id ||
+    getMetadataString(proforma.metadata, "quotation_id") ||
+    ""
+  );
+}
+
 export default function FinanceProformaInvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -463,8 +565,8 @@ export default function FinanceProformaInvoiceDetailPage() {
   const [linkedInvoice, setLinkedInvoice] = useState<InvoiceLinkRow | null>(
     null
   );
-  const [, setProject] = useState<ProjectRow | null>(null);
-  const [, setTask] = useState<TaskRow | null>(null);
+  const [linkedCustomerPo, setLinkedCustomerPo] =
+    useState<CustomerPoSource | null>(null);
   const [archiveItems, setArchiveItems] = useState<ArchiveProformaRow[]>([]);
 
   const [clients, setClients] = useState<ClientOption[]>([]);
@@ -480,12 +582,15 @@ export default function FinanceProformaInvoiceDetailPage() {
   );
   const [items, setItems] = useState<ItemOption[]>([]);
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
-  const [, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>(
+  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>(
     []
   );
-  const [, setRevenueCategories] = useState<
+  const [revenueCategories, setRevenueCategories] = useState<
     RevenueCategoryOption[]
   >([]);
+  const [customerPoSources, setCustomerPoSources] = useState<CustomerPoSource[]>(
+    []
+  );
 
   const [showArchivePopup, setShowArchivePopup] = useState(false);
   const [archiveTab, setArchiveTab] = useState<"archived" | "deleted">(
@@ -493,10 +598,15 @@ export default function FinanceProformaInvoiceDetailPage() {
   );
 
   const [editingOverview, setEditingOverview] = useState(false);
-  const [editingTerms, setEditingTerms] = useState(false);
-  const [, setEditingParties] = useState(false);
+  const [editingFinancialSettings, setEditingFinancialSettings] =
+    useState(false);
+  const [editingDocumentDetails, setEditingDocumentDetails] = useState(false);
   const [editingLines, setEditingLines] = useState(false);
 
+  const [sourceModeDraft, setSourceModeDraft] = useState<
+    "manual" | "customer_po"
+  >("manual");
+  const [sourceCustomerPoIdDraft, setSourceCustomerPoIdDraft] = useState("");
   const [clientIdDraft, setClientIdDraft] = useState("");
   const [companyIdDraft, setCompanyIdDraft] = useState("");
   const [projectIdDraft, setProjectIdDraft] = useState("");
@@ -588,80 +698,82 @@ export default function FinanceProformaInvoiceDetailPage() {
         const linkedInvoiceRow =
           ((invoiceResult.data || [])[0] as InvoiceLinkRow | undefined) || null;
 
+        const metadata = typedProforma.metadata || {};
+        const resolvedClientPoId = resolveProformaClientPoId(typedProforma);
+        let customerPoRow: CustomerPoSource | null = null;
+
+        if (resolvedClientPoId) {
+          const { data: customerPoData, error: customerPoError } = await supabase
+            .from("finance_client_purchase_orders")
+            .select(
+              "id, client_po_number, external_po_number, quotation_id, proforma_invoice_id, client_id, company_id, po_date, received_at, status, currency_id, currency_code, total_amount, notes, project_id, task_id"
+            )
+            .eq("id", resolvedClientPoId)
+            .maybeSingle();
+
+          if (customerPoError) {
+            console.warn("Failed to load linked Customer PO:", customerPoError);
+          }
+
+          customerPoRow = (customerPoData || null) as CustomerPoSource | null;
+        }
+
         setProforma(typedProforma);
         setLineItems(typedLineItems);
         setLinkedInvoice(linkedInvoiceRow);
+        setLinkedCustomerPo(customerPoRow);
 
-        if (typedProforma.project_id) {
-          const { data: projectRows, error: projectError } = await supabase
-            .from("projects")
-            .select("id, name")
-            .eq("id", typedProforma.project_id)
-            .limit(1);
+        const resolvedCompanyId =
+          typedProforma.company_id ||
+          getMetadataString(metadata, "issuing_company_id") ||
+          "";
+        const resolvedShippingTermId =
+          typedProforma.shipping_term_id ||
+          getMetadataString(metadata, "shipping_term_id") ||
+          "";
+        const resolvedBankAccountId =
+          typedProforma.bank_account_id ||
+          getMetadataString(metadata, "bank_account_id") ||
+          "";
+        const resolvedPaymentMethodId = getMetadataString(
+          metadata,
+          "preferred_payment_method_id"
+        );
 
-          if (projectError) {
-            console.warn("Failed to load linked project:", projectError);
-            setProject(null);
-          } else {
-            setProject(
-              ((projectRows || [])[0] as ProjectRow | undefined) || null
-            );
-          }
-        } else {
-          setProject(null);
-        }
-
-        if (typedProforma.task_id) {
-          const { data: taskRows, error: taskError } = await supabase
-            .from("tasks")
-            .select("id, title, project_id")
-            .eq("id", typedProforma.task_id)
-            .limit(1);
-
-          if (taskError) {
-            console.warn("Failed to load linked task:", taskError);
-            setTask(null);
-          } else {
-            setTask(((taskRows || [])[0] as TaskRow | undefined) || null);
-          }
-        } else {
-          setTask(null);
-        }
-
-              const metadata = typedProforma.metadata || {};
-
+        setSourceModeDraft(resolvedClientPoId ? "customer_po" : "manual");
+        setSourceCustomerPoIdDraft(resolvedClientPoId);
         setClientIdDraft(typedProforma.client_id || "");
-        setCompanyIdDraft((metadata.issuing_company_id as string) || "");
+        setCompanyIdDraft(resolvedCompanyId);
         setProjectIdDraft(typedProforma.project_id || "");
         setTaskIdDraft(typedProforma.task_id || "");
-        setIssueDateDraft(typedProforma.issue_date || "");
-        setValidUntilDraft(typedProforma.valid_until || "");
+        setIssueDateDraft(getDateInputValue(typedProforma.issue_date));
+        setValidUntilDraft(getDateInputValue(typedProforma.valid_until));
         setCurrencyIdDraft(typedProforma.currency_id || "");
         setPaymentTermsIdDraft(typedProforma.payment_terms_id || "");
-        setShippingTermIdDraft((metadata.shipping_term_id as string) || "");
-        setBankAccountIdDraft((metadata.bank_account_id as string) || "");
-        setPaymentMethodIdDraft(
-          (metadata.preferred_payment_method_id as string) || ""
-        );
+        setShippingTermIdDraft(resolvedShippingTermId);
+        setBankAccountIdDraft(resolvedBankAccountId);
+        setPaymentMethodIdDraft(resolvedPaymentMethodId);
         setTermsAndConditionsDraft(
           typedProforma.terms_and_conditions_snapshot ||
-            (metadata.terms_and_conditions_snapshot as string) ||
+            getMetadataString(metadata, "terms_and_conditions_snapshot") ||
             ""
         );
         setNotesDraft(typedProforma.notes || "");
 
         setLineItemsDraft(
-          typedLineItems.map((row) => ({
-            id: row.id,
-            item_id: row.item_id || "",
-            description: row.description || "",
-            quantity: String(row.quantity ?? 0),
-            unit_price: String(row.unit_price ?? 0),
-            discount: String(row.discount ?? 0),
-            tax_code_id: row.tax_code_id || "",
-            unit_of_measure_id: row.unit_of_measure_id || "",
-            revenue_category_id: row.revenue_category_id || "",
-          }))
+          typedLineItems.length > 0
+            ? typedLineItems.map((row) => ({
+                id: row.id,
+                item_id: row.item_id || "",
+                description: row.description || "",
+                quantity: String(row.quantity ?? 0),
+                unit_price: String(row.unit_price ?? 0),
+                discount: String(row.discount ?? 0),
+                tax_code_id: row.tax_code_id || "",
+                unit_of_measure_id: row.unit_of_measure_id || "",
+                revenue_category_id: row.revenue_category_id || "",
+              }))
+            : [createEditableDraftLineItem()]
         );
       } catch (err) {
         console.error(err);
@@ -691,6 +803,7 @@ export default function FinanceProformaInvoiceDetailPage() {
         taxCodesResult,
         unitsOfMeasureResult,
         revenueCategoriesResult,
+        customerPoSourcesResult,
       ] = await Promise.all([
         supabase
           .from("finance_clients")
@@ -777,6 +890,14 @@ export default function FinanceProformaInvoiceDetailPage() {
           .select("id, code, name")
           .eq("status", "active")
           .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_client_purchase_orders")
+          .select(
+            "id, client_po_number, external_po_number, quotation_id, proforma_invoice_id, client_id, company_id, po_date, received_at, status, currency_id, currency_code, total_amount, notes, project_id, task_id"
+          )
+          .in("status", ["received", "linked_to_pi"])
+          .order("received_at", { ascending: false }),
       ]);
 
       if (clientsResult.error) throw clientsResult.error;
@@ -792,6 +913,7 @@ export default function FinanceProformaInvoiceDetailPage() {
       if (taxCodesResult.error) throw taxCodesResult.error;
       if (unitsOfMeasureResult.error) throw unitsOfMeasureResult.error;
       if (revenueCategoriesResult.error) throw revenueCategoriesResult.error;
+      if (customerPoSourcesResult.error) throw customerPoSourcesResult.error;
 
       setClients((clientsResult.data || []) as ClientOption[]);
       setCompanies((companiesResult.data || []) as CompanyOption[]);
@@ -811,6 +933,9 @@ export default function FinanceProformaInvoiceDetailPage() {
       );
       setRevenueCategories(
         (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
+      );
+      setCustomerPoSources(
+        (customerPoSourcesResult.data || []) as CustomerPoSource[]
       );
     } catch (err) {
       console.error("Failed to load proforma invoice master data:", err);
@@ -857,23 +982,21 @@ export default function FinanceProformaInvoiceDetailPage() {
         },
         () => void loadProforma(true)
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_client_purchase_orders",
+        },
+        () => void loadProforma(true)
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [id, loadProforma]);
-
-  const totals = useMemo(() => {
-    if (!proforma) return null;
-
-    return {
-      subtotal: toNumber(proforma.subtotal),
-      discount: toNumber(proforma.discount_amount),
-      tax: toNumber(proforma.tax_amount),
-      total: toNumber(proforma.total_amount),
-    };
-  }, [proforma]);
 
   const selectedDraftClient = useMemo(
     () => clients.find((client) => client.id === clientIdDraft) ?? null,
@@ -910,13 +1033,10 @@ export default function FinanceProformaInvoiceDetailPage() {
     [shippingTerms, shippingTermIdDraft]
   );
 
-  const selectedDraftShippingTermsLabel = useMemo(() => {
-    if (!selectedDraftShippingTerm) return "";
-    if (selectedDraftShippingTerm.description?.trim()) {
-      return `${selectedDraftShippingTerm.name} — ${selectedDraftShippingTerm.description.trim()}`;
-    }
-    return selectedDraftShippingTerm.name || selectedDraftShippingTerm.code || "";
-  }, [selectedDraftShippingTerm]);
+  const selectedDraftShippingTermsLabel = useMemo(
+    () => getShippingTermLabel(selectedDraftShippingTerm),
+    [selectedDraftShippingTerm]
+  );
 
   const selectedDraftPaymentMethod = useMemo(
     () =>
@@ -945,7 +1065,20 @@ export default function FinanceProformaInvoiceDetailPage() {
     [bankAccountIdDraft, filteredDraftBankAccounts]
   );
 
-   const resolvedDraftCompanyAddress = useMemo(
+  const selectableCustomerPos = useMemo(() => {
+    if (!proforma) return customerPoSources;
+
+    const currentClientPoId = resolveProformaClientPoId(proforma);
+
+    return customerPoSources.filter(
+      (po) =>
+        !po.proforma_invoice_id ||
+        po.proforma_invoice_id === proforma.id ||
+        po.id === currentClientPoId
+    );
+  }, [customerPoSources, proforma]);
+
+  const resolvedDraftCompanyAddress = useMemo(
     () => buildCompanyAddress(selectedDraftCompany),
     [selectedDraftCompany]
   );
@@ -959,6 +1092,17 @@ export default function FinanceProformaInvoiceDetailPage() {
     () => buildBankDetailsLinesFromAccount(selectedDraftBankAccount),
     [selectedDraftBankAccount]
   );
+
+  const totals = useMemo(() => {
+    if (!proforma) return null;
+
+    return {
+      subtotal: toNumber(proforma.subtotal),
+      discount: toNumber(proforma.discount_amount),
+      tax: toNumber(proforma.tax_amount),
+      total: toNumber(proforma.total_amount),
+    };
+  }, [proforma]);
 
   const draftTotals = useMemo(() => {
     const subtotal = lineItemsDraft.reduce(
@@ -996,10 +1140,18 @@ export default function FinanceProformaInvoiceDetailPage() {
     };
   }, [lineItemsDraft, taxCodes]);
 
+  const canEditDraft = proforma?.status === "draft";
+  const canMarkIssued = proforma?.status === "draft";
+  const canConfirm = proforma?.status === "issued";
+  const canConvert = proforma?.status === "confirmed";
+  const canArchive =
+    !!proforma &&
+    !["archived", "deleted", "converted"].includes(proforma.status);
+
   const financialSummary = useMemo(() => {
     if (!proforma || !totals) return null;
 
-    if (proforma.status === "draft") {
+    if (canEditDraft) {
       return {
         subtotal: draftTotals.subtotal,
         discount: draftTotals.discount,
@@ -1009,11 +1161,12 @@ export default function FinanceProformaInvoiceDetailPage() {
     }
 
     return totals;
-  }, [draftTotals, proforma, totals]);
+  }, [canEditDraft, draftTotals, proforma, totals]);
 
   const printableCurrencyCode =
     selectedDraftCurrency?.currency_code ||
-    (proforma?.metadata?.currency_code as string | undefined) ||
+    proforma?.currency_code ||
+    getMetadataString(proforma?.metadata, "currency_code") ||
     "USD";
 
   const printableProforma = useMemo(() => {
@@ -1026,46 +1179,46 @@ export default function FinanceProformaInvoiceDetailPage() {
       company_name_snapshot:
         selectedDraftCompany?.legal_name ||
         selectedDraftCompany?.name ||
-        (metadata.company_name_snapshot as string | undefined) ||
+        getMetadataString(metadata, "company_name_snapshot") ||
         null,
       company_contact_person_snapshot:
         selectedDraftCompany?.contact_person ||
-        (metadata.company_contact_person_snapshot as string | undefined) ||
+        getMetadataString(metadata, "company_contact_person_snapshot") ||
         null,
       company_address_snapshot:
         resolvedDraftCompanyAddress ||
-        (metadata.company_address_snapshot as string | undefined) ||
+        getMetadataString(metadata, "company_address_snapshot") ||
         null,
       company_email_snapshot:
         selectedDraftCompany?.email ||
-        (metadata.company_email_snapshot as string | undefined) ||
+        getMetadataString(metadata, "company_email_snapshot") ||
         null,
       company_phone_snapshot:
         selectedDraftCompany?.phone ||
-        (metadata.company_phone_snapshot as string | undefined) ||
+        getMetadataString(metadata, "company_phone_snapshot") ||
         null,
       client_name_snapshot:
         selectedDraftClient?.legal_name ||
         selectedDraftClient?.name ||
-        (metadata.client_name_snapshot as string | undefined) ||
+        getMetadataString(metadata, "client_name_snapshot") ||
         null,
       client_contact_person_snapshot:
         selectedDraftClient?.contact_person ||
-        (metadata.client_contact_person_snapshot as string | undefined) ||
+        getMetadataString(metadata, "client_contact_person_snapshot") ||
         null,
       client_email_snapshot:
         selectedDraftClient?.company_email ||
         selectedDraftClient?.personnel_email ||
-        (metadata.client_email_snapshot as string | undefined) ||
+        getMetadataString(metadata, "client_email_snapshot") ||
         null,
       client_phone_snapshot:
         selectedDraftClient?.company_phone ||
         selectedDraftClient?.personnel_phone ||
-        (metadata.client_phone_snapshot as string | undefined) ||
+        getMetadataString(metadata, "client_phone_snapshot") ||
         null,
       billing_address_snapshot:
         resolvedDraftRecipientAddress ||
-        (metadata.billing_address_snapshot as string | undefined) ||
+        getMetadataString(metadata, "billing_address_snapshot") ||
         null,
       payment_terms_snapshot:
         selectedDraftPaymentTerm?.document_label ||
@@ -1077,18 +1230,19 @@ export default function FinanceProformaInvoiceDetailPage() {
         proforma.payment_terms_document_text ||
         "",
       shipping_terms_snapshot:
-        selectedDraftShippingTermsLabel ||
-        proforma.shipping_terms_snapshot ||
-        (metadata.shipping_terms_snapshot as string | undefined) ||
-        null,
+        selectedDraftShippingTermsLabel !== "—"
+          ? selectedDraftShippingTermsLabel
+          : proforma.shipping_terms_snapshot ||
+            getMetadataString(metadata, "shipping_terms_snapshot") ||
+            null,
       terms_and_conditions_snapshot:
         termsAndConditionsDraft ||
         proforma.terms_and_conditions_snapshot ||
-        (metadata.terms_and_conditions_snapshot as string | undefined) ||
+        getMetadataString(metadata, "terms_and_conditions_snapshot") ||
         null,
       bank_details_snapshot:
         buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount) ||
-        (metadata.bank_details_snapshot as string | undefined) ||
+        getMetadataString(metadata, "bank_details_snapshot") ||
         null,
       currency_code: printableCurrencyCode,
     };
@@ -1107,6 +1261,10 @@ export default function FinanceProformaInvoiceDetailPage() {
 
   useEffect(() => {
     if (!proforma || proforma.status !== "draft" || !selectedDraftClient) {
+      return;
+    }
+
+    if (sourceModeDraft === "customer_po" && sourceCustomerPoIdDraft) {
       return;
     }
 
@@ -1140,6 +1298,8 @@ export default function FinanceProformaInvoiceDetailPage() {
     paymentTermsIdDraft,
     proforma,
     selectedDraftClient,
+    sourceCustomerPoIdDraft,
+    sourceModeDraft,
     validUntilDraft,
   ]);
 
@@ -1196,13 +1356,132 @@ export default function FinanceProformaInvoiceDetailPage() {
     selectedDraftCompany,
   ]);
 
-  const canEditDraft = proforma?.status === "draft";
-  const canMarkIssued = proforma?.status === "draft";
-  const canConfirm = proforma?.status === "issued";
-  const canConvert = proforma?.status === "confirmed";
-  const canArchive =
-    !!proforma &&
-    !["archived", "deleted", "converted"].includes(proforma.status);
+  const applyCustomerPoSourceToDraft = useCallback(
+    async (customerPoId: string) => {
+      if (!customerPoId) {
+        setSourceModeDraft("manual");
+        setSourceCustomerPoIdDraft("");
+        setLinkedCustomerPo(null);
+        setLineItemsDraft([createEditableDraftLineItem()]);
+        return;
+      }
+
+      setError("");
+
+      const { data: customerPoData, error: customerPoError } = await supabase
+        .from("finance_client_purchase_orders")
+        .select(
+          "id, client_po_number, external_po_number, quotation_id, proforma_invoice_id, client_id, company_id, po_date, received_at, status, currency_id, currency_code, total_amount, notes, project_id, task_id"
+        )
+        .eq("id", customerPoId)
+        .maybeSingle();
+
+      if (customerPoError) throw customerPoError;
+
+      const customerPo = (customerPoData || null) as CustomerPoSource | null;
+
+      if (!customerPo) {
+        setError("Customer PO source was not found.");
+        return;
+      }
+
+      if (
+        customerPo.proforma_invoice_id &&
+        customerPo.proforma_invoice_id !== id
+      ) {
+        setError("This Customer PO is already linked to another proforma invoice.");
+        return;
+      }
+
+      if (!["received", "linked_to_pi"].includes(customerPo.status)) {
+        setError(
+          "Customer PO must be received before it can be linked to a proforma invoice."
+        );
+        return;
+      }
+
+      setSourceModeDraft("customer_po");
+      setSourceCustomerPoIdDraft(customerPo.id);
+      setLinkedCustomerPo(customerPo);
+
+      setClientIdDraft(customerPo.client_id || "");
+      setCompanyIdDraft(customerPo.company_id || "");
+      setProjectIdDraft(customerPo.project_id || "");
+      setTaskIdDraft(customerPo.task_id || "");
+      setCurrencyIdDraft(customerPo.currency_id || "");
+
+      const matchedCurrency = currencies.find(
+        (currency) =>
+          currency.id === customerPo.currency_id ||
+          currency.currency_code === customerPo.currency_code
+      );
+
+      if (matchedCurrency) {
+        setCurrencyIdDraft(matchedCurrency.id);
+      }
+
+      setNotesDraft(
+        [
+          `Source Customer PO: ${
+            customerPo.client_po_number ||
+            customerPo.external_po_number ||
+            customerPo.id
+          }`,
+          customerPo.notes || "",
+        ]
+          .filter(Boolean)
+          .join("\n")
+      );
+
+      const { data: customerPoLinesData, error: customerPoLinesError } =
+        await supabase
+          .from("finance_client_purchase_order_line_items")
+          .select(
+            "id, client_po_id, item_id, description, quantity, unit_price, discount, sort_order, unit_of_measure_id, tax_code_id, revenue_category_id, project_id, task_id, status"
+          )
+          .eq("client_po_id", customerPo.id)
+          .or("status.is.null,status.neq.deleted")
+          .order("sort_order", { ascending: true });
+
+      if (customerPoLinesError) throw customerPoLinesError;
+
+      const customerPoLines =
+        (customerPoLinesData || []) as CustomerPoLineSource[];
+
+      setLineItemsDraft(
+        customerPoLines.length > 0
+          ? customerPoLines.map((line) => ({
+              id: `new_${crypto.randomUUID()}`,
+              item_id: line.item_id || "",
+              description: line.description || "",
+              quantity: String(line.quantity ?? 1),
+              unit_price: String(line.unit_price ?? 0),
+              discount: String(line.discount ?? 0),
+              tax_code_id: line.tax_code_id || "",
+              unit_of_measure_id: line.unit_of_measure_id || "",
+              revenue_category_id: line.revenue_category_id || "",
+            }))
+          : [
+              {
+                id: `new_${crypto.randomUUID()}`,
+                item_id: "",
+                description: `Customer PO ${
+                  customerPo.external_po_number ||
+                  customerPo.client_po_number ||
+                  ""
+                }`.trim(),
+                quantity: "1",
+                unit_price: String(toNumber(customerPo.total_amount)),
+                discount: "0",
+                tax_code_id: "",
+                unit_of_measure_id: "",
+                revenue_category_id: "",
+              },
+            ]
+      );
+    },
+    [currencies, id]
+  );
 
   const handleMarkIssued = useCallback(async () => {
     if (!proforma || !id) return;
@@ -1219,8 +1498,11 @@ export default function FinanceProformaInvoiceDetailPage() {
             selectedDraftPaymentTerm?.document_label ||
             selectedDraftPaymentTerm?.name ||
             null,
+          shipping_term_id: shippingTermIdDraft || null,
           shipping_terms_snapshot:
-            selectedDraftShippingTermsLabel || null,
+            selectedDraftShippingTermsLabel !== "—"
+              ? selectedDraftShippingTermsLabel
+              : null,
           terms_and_conditions_snapshot: termsAndConditionsDraft || null,
           metadata: {
             ...(proforma.metadata || {}),
@@ -1254,7 +1536,10 @@ export default function FinanceProformaInvoiceDetailPage() {
               null,
             billing_address_snapshot: resolvedDraftRecipientAddress || null,
             shipping_term_id: shippingTermIdDraft || null,
-            shipping_terms_snapshot: selectedDraftShippingTermsLabel || null,
+            shipping_terms_snapshot:
+              selectedDraftShippingTermsLabel !== "—"
+                ? selectedDraftShippingTermsLabel
+                : null,
             bank_account_id: bankAccountIdDraft || null,
             bank_details_snapshot:
               buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount),
@@ -1264,6 +1549,22 @@ export default function FinanceProformaInvoiceDetailPage() {
             preferred_payment_method_code:
               selectedDraftPaymentMethod?.code || null,
             currency_code: printableCurrencyCode,
+            client_po_id:
+              sourceModeDraft === "customer_po"
+                ? sourceCustomerPoIdDraft || null
+                : null,
+            client_po_number:
+              sourceModeDraft === "customer_po"
+                ? linkedCustomerPo?.client_po_number || null
+                : null,
+            external_po_number:
+              sourceModeDraft === "customer_po"
+                ? linkedCustomerPo?.external_po_number || null
+                : null,
+            quotation_id:
+              sourceModeDraft === "customer_po"
+                ? linkedCustomerPo?.quotation_id || null
+                : resolveProformaQuotationId(proforma) || null,
           },
         })
         .eq("id", id)
@@ -1292,6 +1593,7 @@ export default function FinanceProformaInvoiceDetailPage() {
     bankAccountIdDraft,
     companyIdDraft,
     id,
+    linkedCustomerPo,
     loadProforma,
     paymentMethodIdDraft,
     paymentTermsIdDraft,
@@ -1306,6 +1608,8 @@ export default function FinanceProformaInvoiceDetailPage() {
     selectedDraftPaymentTerm,
     selectedDraftShippingTermsLabel,
     shippingTermIdDraft,
+    sourceCustomerPoIdDraft,
+    sourceModeDraft,
     termsAndConditionsDraft,
   ]);
 
@@ -1366,8 +1670,8 @@ export default function FinanceProformaInvoiceDetailPage() {
       await softDeleteProformaInvoice(id);
 
       setEditingOverview(false);
-      setEditingTerms(false);
-      setEditingParties(false);
+      setEditingFinancialSettings(false);
+      setEditingDocumentDetails(false);
       setEditingLines(false);
 
       await loadProforma(true);
@@ -1391,9 +1695,10 @@ export default function FinanceProformaInvoiceDetailPage() {
       await archiveProformaInvoice(id);
 
       setEditingOverview(false);
-      setEditingTerms(false);
-      setEditingParties(false);
+      setEditingFinancialSettings(false);
+      setEditingDocumentDetails(false);
       setEditingLines(false);
+
       await loadProforma(true);
       await loadArchiveItems();
       setShowArchivePopup(true);
@@ -1561,9 +1866,107 @@ export default function FinanceProformaInvoiceDetailPage() {
         paymentMethods.find((method) => method.id === paymentMethodIdDraft) ||
         null;
 
-      const selectedShippingTermsText = selectedShippingTerm?.description?.trim()
-        ? `${selectedShippingTerm.name} — ${selectedShippingTerm.description.trim()}`
-        : selectedShippingTerm?.name || selectedShippingTerm?.code || null;
+      const selectedCustomerPo =
+        sourceModeDraft === "customer_po"
+          ? customerPoSources.find((po) => po.id === sourceCustomerPoIdDraft) ||
+            linkedCustomerPo
+          : null;
+
+      const selectedShippingTermsText =
+        selectedShippingTerm?.description?.trim()
+          ? `${selectedShippingTerm.name} — ${selectedShippingTerm.description.trim()}`
+          : selectedShippingTerm?.name || selectedShippingTerm?.code || null;
+
+      const nextMetadata = {
+        ...(proforma.metadata || {}),
+        issuing_company_id: companyIdDraft || null,
+        issuing_company_name:
+          selectedDraftCompany?.legal_name || selectedDraftCompany?.name || null,
+        company_name_snapshot:
+          selectedDraftCompany?.legal_name || selectedDraftCompany?.name || null,
+        company_contact_person_snapshot:
+          selectedDraftCompany?.contact_person || null,
+        company_address_snapshot: resolvedDraftCompanyAddress || null,
+        company_email_snapshot: selectedDraftCompany?.email || null,
+        company_phone_snapshot: selectedDraftCompany?.phone || null,
+        client_name_snapshot:
+          selectedDraftClient?.legal_name || selectedDraftClient?.name || null,
+        client_contact_person_snapshot:
+          selectedDraftClient?.contact_person || null,
+        client_email_snapshot:
+          selectedDraftClient?.company_email ||
+          selectedDraftClient?.personnel_email ||
+          null,
+        client_phone_snapshot:
+          selectedDraftClient?.company_phone ||
+          selectedDraftClient?.personnel_phone ||
+          null,
+        billing_address_snapshot: resolvedDraftRecipientAddress || null,
+        payment_terms_id: paymentTermsIdDraft || null,
+        payment_terms_snapshot:
+          selectedPaymentTerm?.document_label || selectedPaymentTerm?.name || null,
+        payment_terms_document_text:
+          selectedPaymentTerm?.document_terms_text || null,
+        shipping_term_id: shippingTermIdDraft || null,
+        shipping_terms_snapshot: selectedShippingTermsText,
+        terms_and_conditions_snapshot: termsAndConditionsDraft || null,
+        bank_account_id: bankAccountIdDraft || null,
+        bank_account_name: selectedDraftBankAccount?.name || null,
+        bank_name:
+          selectedDraftBankAccount?.bank_name ||
+          selectedDraftBankAccount?.institution_name ||
+          null,
+        beneficiary_name: selectedDraftBankAccount?.beneficiary_name || null,
+        bank_address_snapshot:
+          buildBankAddressFromAccount(selectedDraftBankAccount) || null,
+        bank_details_snapshot:
+          buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount),
+        iban: selectedDraftBankAccount?.iban || null,
+        swift_code:
+          selectedDraftBankAccount?.swift_code ||
+          (selectedDraftBankAccount?.account_identifier_type?.toLowerCase() ===
+          "swift"
+            ? selectedDraftBankAccount?.account_identifier_value
+            : null),
+        bank_identifier_type:
+          selectedDraftBankAccount?.account_identifier_type || null,
+        bank_identifier_value:
+          selectedDraftBankAccount?.account_identifier_value || null,
+        account_number:
+          selectedDraftBankAccount?.account_number ||
+          selectedDraftBankAccount?.masked_account_number ||
+          null,
+        bank_account_currency_code:
+          selectedDraftBankAccount?.currency_code || null,
+        preferred_payment_method_id: paymentMethodIdDraft || null,
+        preferred_payment_method_name: selectedPaymentMethod?.name || null,
+        preferred_payment_method_code: selectedPaymentMethod?.code || null,
+        currency_code:
+          selectedCurrency?.currency_code ||
+          selectedDraftCurrency?.currency_code ||
+          getMetadataString(proforma.metadata, "currency_code") ||
+          "USD",
+        creation_mode:
+          sourceModeDraft === "customer_po"
+            ? "customer_po_prefill"
+            : "manual_draft",
+        client_po_id:
+          sourceModeDraft === "customer_po"
+            ? sourceCustomerPoIdDraft || null
+            : null,
+        client_po_number:
+          sourceModeDraft === "customer_po"
+            ? selectedCustomerPo?.client_po_number || null
+            : null,
+        external_po_number:
+          sourceModeDraft === "customer_po"
+            ? selectedCustomerPo?.external_po_number || null
+            : null,
+        quotation_id:
+          sourceModeDraft === "customer_po"
+            ? selectedCustomerPo?.quotation_id || null
+            : null,
+      };
 
       const { error: rpcError } = await supabase.rpc(
         "finance_update_proforma_invoice_draft",
@@ -1576,84 +1979,7 @@ export default function FinanceProformaInvoiceDetailPage() {
           p_project_id: projectIdDraft || null,
           p_task_id: taskIdDraft || null,
           p_notes: notesDraft || null,
-          p_metadata: {
-            ...(proforma.metadata || {}),
-            issuing_company_id: companyIdDraft || null,
-            issuing_company_name:
-              selectedDraftCompany?.legal_name ||
-              selectedDraftCompany?.name ||
-              null,
-            company_name_snapshot:
-              selectedDraftCompany?.legal_name ||
-              selectedDraftCompany?.name ||
-              null,
-            company_contact_person_snapshot:
-              selectedDraftCompany?.contact_person || null,
-            company_address_snapshot: resolvedDraftCompanyAddress || null,
-            company_email_snapshot: selectedDraftCompany?.email || null,
-            company_phone_snapshot: selectedDraftCompany?.phone || null,
-            client_name_snapshot:
-              selectedDraftClient?.legal_name ||
-              selectedDraftClient?.name ||
-              null,
-            client_contact_person_snapshot:
-              selectedDraftClient?.contact_person || null,
-            client_email_snapshot:
-              selectedDraftClient?.company_email ||
-              selectedDraftClient?.personnel_email ||
-              null,
-            client_phone_snapshot:
-              selectedDraftClient?.company_phone ||
-              selectedDraftClient?.personnel_phone ||
-              null,
-            billing_address_snapshot: resolvedDraftRecipientAddress || null,
-            payment_terms_id: paymentTermsIdDraft || null,
-            payment_terms_snapshot:
-              selectedPaymentTerm?.document_label ||
-              selectedPaymentTerm?.name ||
-              null,
-            payment_terms_document_text:
-              selectedPaymentTerm?.document_terms_text || null,
-            shipping_term_id: shippingTermIdDraft || null,
-            shipping_terms_snapshot: selectedShippingTermsText,
-            terms_and_conditions_snapshot: termsAndConditionsDraft || null,
-            bank_account_id: bankAccountIdDraft || null,
-            bank_account_name: selectedDraftBankAccount?.name || null,
-            bank_name:
-              selectedDraftBankAccount?.bank_name ||
-              selectedDraftBankAccount?.institution_name ||
-              null,
-            beneficiary_name: selectedDraftBankAccount?.beneficiary_name || null,
-            bank_address_snapshot:
-              buildBankAddressFromAccount(selectedDraftBankAccount) || null,
-            bank_details_snapshot:
-              buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount),
-            iban: selectedDraftBankAccount?.iban || null,
-            swift_code:
-              selectedDraftBankAccount?.swift_code ||
-              (selectedDraftBankAccount?.account_identifier_type?.toLowerCase() ===
-              "swift"
-                ? selectedDraftBankAccount?.account_identifier_value
-                : null),
-            bank_identifier_type:
-              selectedDraftBankAccount?.account_identifier_type || null,
-            bank_identifier_value:
-              selectedDraftBankAccount?.account_identifier_value || null,
-            account_number:
-              selectedDraftBankAccount?.account_number ||
-              selectedDraftBankAccount?.masked_account_number ||
-              null,
-            bank_account_currency_code:
-              selectedDraftBankAccount?.currency_code || null,
-            preferred_payment_method_id: paymentMethodIdDraft || null,
-            preferred_payment_method_name: selectedPaymentMethod?.name || null,
-            preferred_payment_method_code: selectedPaymentMethod?.code || null,
-            currency_code:
-              selectedCurrency?.currency_code ||
-              selectedDraftCurrency?.currency_code ||
-              (proforma.metadata?.currency_code as string | undefined) ||
-              "USD",
-          },
+          p_metadata: nextMetadata,
           p_lines: cleanedLineItems.map((row) => ({
             id: row.id,
             item_id: row.item_id || null,
@@ -1670,25 +1996,74 @@ export default function FinanceProformaInvoiceDetailPage() {
 
       if (rpcError) throw rpcError;
 
-      const { error: snapshotError } = await supabase
+          const { error: snapshotError } = await supabase
         .from("finance_proforma_invoices")
         .update({
+          company_id: companyIdDraft || null,
+          client_po_id:
+            sourceModeDraft === "customer_po"
+              ? sourceCustomerPoIdDraft || null
+              : null,
+          quotation_id:
+            sourceModeDraft === "customer_po"
+              ? selectedCustomerPo?.quotation_id || null
+              : null,
           payment_terms_id: paymentTermsIdDraft || null,
+          shipping_term_id: shippingTermIdDraft || null,
+          bank_account_id: bankAccountIdDraft || null,
+          currency_code:
+            selectedCurrency?.currency_code ||
+            selectedDraftCurrency?.currency_code ||
+            getMetadataString(proforma.metadata, "currency_code") ||
+            "USD",
           payment_terms_snapshot:
             selectedPaymentTerm?.document_label ||
             selectedPaymentTerm?.name ||
             null,
           shipping_terms_snapshot: selectedShippingTermsText,
           terms_and_conditions_snapshot: termsAndConditionsDraft || null,
+          metadata: nextMetadata,
         })
         .eq("id", id)
         .eq("status", "draft");
 
       if (snapshotError) throw snapshotError;
 
+      if (sourceModeDraft === "customer_po" && sourceCustomerPoIdDraft) {
+        const { error: linkPoError } = await supabase
+          .from("finance_client_purchase_orders")
+          .update({
+            proforma_invoice_id: id,
+            status: "linked_to_pi",
+            linked_to_pi_at: new Date().toISOString(),
+          })
+          .eq("id", sourceCustomerPoIdDraft);
+
+        if (linkPoError) throw linkPoError;
+      }
+
+      const previousCustomerPoId = resolveProformaClientPoId(proforma);
+
+      if (
+        previousCustomerPoId &&
+        previousCustomerPoId !== sourceCustomerPoIdDraft
+      ) {
+        const { error: unlinkPoError } = await supabase
+          .from("finance_client_purchase_orders")
+          .update({
+            proforma_invoice_id: null,
+            status: "received",
+            linked_to_pi_at: null,
+          })
+          .eq("id", previousCustomerPoId)
+          .eq("proforma_invoice_id", id);
+
+        if (unlinkPoError) throw unlinkPoError;
+      }
+
       setEditingOverview(false);
-      setEditingTerms(false);
-      setEditingParties(false);
+      setEditingFinancialSettings(false);
+      setEditingDocumentDetails(false);
       setEditingLines(false);
       await loadProforma(true);
     } catch (err) {
@@ -1704,9 +2079,11 @@ export default function FinanceProformaInvoiceDetailPage() {
     companyIdDraft,
     currencies,
     currencyIdDraft,
+    customerPoSources,
     id,
     issueDateDraft,
     lineItemsDraft,
+    linkedCustomerPo,
     loadProforma,
     notesDraft,
     paymentMethodIdDraft,
@@ -1723,6 +2100,8 @@ export default function FinanceProformaInvoiceDetailPage() {
     selectedDraftCurrency,
     shippingTermIdDraft,
     shippingTerms,
+    sourceCustomerPoIdDraft,
+    sourceModeDraft,
     taskIdDraft,
     termsAndConditionsDraft,
     validUntilDraft,
@@ -1735,15 +2114,21 @@ export default function FinanceProformaInvoiceDetailPage() {
   const sectionCardClass =
     "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
 
-  const summaryBlockClass =
+  const innerPanelClass =
     "rounded-[24px] border border-white/10 bg-black/20 p-4";
 
-  const labelClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
-
-  const inputLabelClass = "text-sm font-medium text-slate-300";
+  const fieldShellClass =
+    "h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
 
   const inputFieldClass =
     "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
+
+  const readOnlyFieldClass =
+    "flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80";
+
+  const labelClass = "text-sm font-medium text-slate-300";
+
+  const eyebrowClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
 
   if (isLoading) {
     return (
@@ -1788,7 +2173,7 @@ export default function FinanceProformaInvoiceDetailPage() {
                 Proforma Invoices
               </button>
 
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px]">
                 <div>
                   <div className="flex flex-wrap gap-2">
                     <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
@@ -1802,6 +2187,12 @@ export default function FinanceProformaInvoiceDetailPage() {
                     >
                       {getProformaStatusLabel(proforma.status)}
                     </Badge>
+
+                    {linkedCustomerPo ? (
+                      <Badge className="inline-flex w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200 shadow-none">
+                        Source Customer PO
+                      </Badge>
+                    ) : null}
 
                     {linkedInvoice ? (
                       <Badge className="inline-flex w-fit rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-200 shadow-none">
@@ -1822,9 +2213,21 @@ export default function FinanceProformaInvoiceDetailPage() {
                     issuance. Drafts are editable. Confirmed proformas can be
                     converted into invoices.
                   </p>
+
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                      Draft → Issued → Confirmed
+                    </span>
+                    <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
+                      Customer PO source editable in draft
+                    </span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                      Auto-refresh enabled
+                    </span>
+                  </div>
                 </div>
 
-                                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -1834,6 +2237,10 @@ export default function FinanceProformaInvoiceDetailPage() {
                         <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
                           {selectedDraftClient?.legal_name ||
                             selectedDraftClient?.name ||
+                            getMetadataString(
+                              proforma.metadata,
+                              "client_name_snapshot"
+                            ) ||
                             "—"}
                         </p>
                       </div>
@@ -1870,7 +2277,7 @@ export default function FinanceProformaInvoiceDetailPage() {
                 </div>
               </div>
 
-              <div className="mt-6 flex flex-wrap gap-3">
+                            <div className="mt-6 flex flex-wrap gap-3">
                 <Button
                   variant="outline"
                   onClick={handlePrint}
@@ -1920,7 +2327,7 @@ export default function FinanceProformaInvoiceDetailPage() {
                     disabled={isArchiving}
                     className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <Trash2 className="mr-2 h-4 w-4" />
+                    <Archive className="mr-2 h-4 w-4" />
                     {isArchiving ? "Archiving..." : "Archive"}
                   </Button>
                 ) : null}
@@ -1942,616 +2349,822 @@ export default function FinanceProformaInvoiceDetailPage() {
           </header>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
-              <div className="relative">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Subtotal
+              <div className="relative flex h-full flex-col justify-between gap-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Subtotal
+                    </div>
+                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
+                      {formatFinanceMoney(
+                        financialSummary?.subtotal ?? 0,
+                        printableCurrencyCode
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                    <span className="h-2 w-2 rounded-full bg-cyan-400" />
+                  </div>
                 </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
-                  {formatFinanceMoney(
-                    financialSummary?.subtotal ?? 0,
-                    printableCurrencyCode
-                  )}
-                </div>
-                <div className="mt-2 text-sm leading-6 text-slate-400">
+                <div className="text-sm leading-6 text-slate-400">
                   Before discount and tax.
                 </div>
               </div>
             </div>
 
-            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
-              <div className="relative">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Discount
+              <div className="relative flex h-full flex-col justify-between gap-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Discount
+                    </div>
+                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
+                      {formatFinanceMoney(
+                        financialSummary?.discount ?? 0,
+                        printableCurrencyCode
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
+                    <span className="h-2 w-2 rounded-full bg-amber-400" />
+                  </div>
                 </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
-                  {formatFinanceMoney(
-                    financialSummary?.discount ?? 0,
-                    printableCurrencyCode
-                  )}
-                </div>
-                <div className="mt-2 text-sm leading-6 text-slate-400">
+                <div className="text-sm leading-6 text-slate-400">
                   Commercial discount.
                 </div>
               </div>
             </div>
 
-            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
-              <div className="relative">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Tax
+              <div className="relative flex h-full flex-col justify-between gap-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Tax
+                    </div>
+                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
+                      {formatFinanceMoney(
+                        financialSummary?.tax ?? 0,
+                        printableCurrencyCode
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
+                    <span className="h-2 w-2 rounded-full bg-violet-400" />
+                  </div>
                 </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
-                  {formatFinanceMoney(
-                    financialSummary?.tax ?? 0,
-                    printableCurrencyCode
-                  )}
-                </div>
-                <div className="mt-2 text-sm leading-6 text-slate-400">
+                <div className="text-sm leading-6 text-slate-400">
                   Based on selected tax codes.
                 </div>
               </div>
             </div>
 
-            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
-              <div className="relative">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Total
+              <div className="relative flex h-full flex-col justify-between gap-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Total
+                    </div>
+                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
+                      {formatFinanceMoney(
+                        financialSummary?.total ?? 0,
+                        printableCurrencyCode
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                  </div>
                 </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
-                  {formatFinanceMoney(
-                    financialSummary?.total ?? 0,
-                    printableCurrencyCode
-                  )}
-                </div>
-                <div className="mt-2 text-sm leading-6 text-slate-400">
+                <div className="text-sm leading-6 text-slate-400">
                   Proforma value.
                 </div>
               </div>
             </div>
           </div>
 
-                    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
             <div className="space-y-6">
               <Card className={sectionCardClass}>
-                <CardHeader className="border-b border-white/10 px-5 py-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                        <SquarePen className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                          Document Overview
-                        </CardTitle>
-                        <CardDescription className="mt-1 text-xs text-slate-500">
-                          Company, client, terms, bank, dates, currency, and operational references.
-                        </CardDescription>
-                      </div>
+                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                      <FileText className="h-4 w-4" />
                     </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Document Overview
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Source mode, source Customer PO, client, company, dates, currency, and project context.
+                      </CardDescription>
+                    </div>
+                  </div>
 
+                  {canEditDraft ? (
                     <div className="flex items-center gap-2">
                       {editingOverview ? (
-                        <Button
-                          onClick={() => void handleSaveDraftChanges()}
-                          disabled={isSavingDraft}
-                          className="h-9 rounded-2xl px-3"
-                        >
-                          <Save className="mr-2 h-4 w-4" />
-                          {isSavingDraft ? "Saving..." : "Save"}
-                        </Button>
-                      ) : null}
+                        <>
+                          <Button
+                            onClick={() => void handleSaveDraftChanges()}
+                            disabled={isSavingDraft}
+                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
+                          >
+                            <Save className="mr-2 h-4 w-4" />
+                            {isSavingDraft ? "Saving..." : "Save"}
+                          </Button>
 
-                      {canEditDraft ? (
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setEditingOverview(false);
+                              void loadProforma(true);
+                            }}
+                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
                         <Button
                           variant="outline"
-                          onClick={() =>
-                            setEditingOverview((current) => !current)
-                          }
+                          onClick={() => setEditingOverview(true)}
                           className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
                         >
                           <SquarePen className="mr-2 h-4 w-4" />
-                          {editingOverview ? "Close" : "Edit"}
+                          Edit
                         </Button>
-                      ) : null}
+                      )}
                     </div>
-                  </div>
+                  ) : null}
                 </CardHeader>
 
                 <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                  {editingOverview && canEditDraft ? (
-                    <>
-                      <label className="space-y-2">
-                        <div className={inputLabelClass}>Issuing Company</div>
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Source Mode</div>
+                    {editingOverview && canEditDraft ? (
+                      <>
                         <select
-                          value={companyIdDraft}
-                          onChange={(event) =>
-                            setCompanyIdDraft(event.target.value)
-                          }
-                          className={inputFieldClass}
+                          value={sourceModeDraft}
+                          onChange={(event) => {
+                            const nextMode = event.target.value as
+                              | "manual"
+                              | "customer_po";
+
+                            setSourceModeDraft(nextMode);
+
+                            if (nextMode === "manual") {
+                              setSourceCustomerPoIdDraft("");
+                              setLinkedCustomerPo(null);
+                              setLineItemsDraft([createEditableDraftLineItem()]);
+                              setNotesDraft("");
+                            }
+                          }}
+                          className={`mt-2 ${fieldShellClass}`}
                         >
-                          <option value="">Select company</option>
-                          {companies.map((company) => (
-                            <option key={company.id} value={company.id}>
-                              {company.legal_name || company.name}
-                            </option>
-                          ))}
+                          <option value="manual">Manual</option>
+                          <option value="customer_po">From Customer PO</option>
                         </select>
-                      </label>
 
-                      <label className="space-y-2">
-                        <div className={inputLabelClass}>Client</div>
-                        <select
-                          value={clientIdDraft}
-                          onChange={(event) =>
-                            setClientIdDraft(event.target.value)
-                          }
-                          className={inputFieldClass}
-                        >
-                          <option value="">Select client</option>
-                          {clients.map((client) => (
-                            <option key={client.id} value={client.id}>
-                              {client.legal_name || client.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="space-y-2">
-                        <div className={inputLabelClass}>Payment Terms</div>
-                        <select
-                          value={paymentTermsIdDraft}
-                          onChange={(event) =>
-                            setPaymentTermsIdDraft(event.target.value)
-                          }
-                          className={inputFieldClass}
-                        >
-                          <option value="">Select payment terms</option>
-                          {paymentTerms.map((term) => (
-                            <option key={term.id} value={term.id}>
-                              {term.code} | {term.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="space-y-2">
-                        <div className={inputLabelClass}>Shipping Terms</div>
-                        <select
-                          value={shippingTermIdDraft}
-                          onChange={(event) =>
-                            setShippingTermIdDraft(event.target.value)
-                          }
-                          className={inputFieldClass}
-                        >
-                          <option value="">Select shipping terms</option>
-                          {shippingTerms.map((term) => (
-                            <option key={term.id} value={term.id}>
-                              {term.code} | {term.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="space-y-2">
-                        <div className={inputLabelClass}>Bank Account</div>
-                        <select
-                          value={bankAccountIdDraft}
-                          onChange={(event) =>
-                            setBankAccountIdDraft(event.target.value)
-                          }
-                          className={inputFieldClass}
-                        >
-                          <option value="">Select bank account</option>
-                          {filteredDraftBankAccounts.map((account) => (
-                            <option key={account.id} value={account.id}>
-                              {account.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="space-y-2">
-                        <div className={inputLabelClass}>
-                          Preferred Payment Method
-                        </div>
-                        <select
-                          value={paymentMethodIdDraft}
-                          onChange={(event) =>
-                            setPaymentMethodIdDraft(event.target.value)
-                          }
-                          className={inputFieldClass}
-                        >
-                          <option value="">Select payment method</option>
-                          {paymentMethods.map((method) => (
-                            <option key={method.id} value={method.id}>
-                              {method.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="space-y-2">
-                        <div className={inputLabelClass}>Issue Date</div>
-                        <input
-                          type="date"
-                          value={issueDateDraft}
-                          onChange={(event) =>
-                            setIssueDateDraft(event.target.value)
-                          }
-                          className={inputFieldClass}
-                        />
-                      </label>
-
-                      <label className="space-y-2">
-                        <div className={inputLabelClass}>Valid Until</div>
-                        <input
-                          type="date"
-                          value={validUntilDraft}
-                          onChange={(event) =>
-                            setValidUntilDraft(event.target.value)
-                          }
-                          className={inputFieldClass}
-                        />
-                      </label>
-
-                      <label className="space-y-2">
-                        <div className={inputLabelClass}>Currency</div>
-                        <select
-                          value={currencyIdDraft}
-                          onChange={(event) =>
-                            setCurrencyIdDraft(event.target.value)
-                          }
-                          className={inputFieldClass}
-                        >
-                          <option value="">Select currency</option>
-                          {currencies.map((currency) => (
-                            <option key={currency.id} value={currency.id}>
-                              {currency.currency_code} — {currency.currency_name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="space-y-2">
-                        <div className={inputLabelClass}>Project</div>
-                        <select
-                          value={projectIdDraft}
-                          onChange={(event) =>
-                            setProjectIdDraft(event.target.value)
-                          }
-                          className={inputFieldClass}
-                        >
-                          <option value="">No project</option>
-                          {projects.map((entry) => (
-                            <option key={entry.id} value={entry.id}>
-                              {entry.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="space-y-2">
-                        <div className={inputLabelClass}>Task</div>
-                        <select
-                          value={taskIdDraft}
-                          onChange={(event) =>
-                            setTaskIdDraft(event.target.value)
-                          }
-                          className={inputFieldClass}
-                        >
-                          <option value="">No task</option>
-                          {filteredDraftTasks.map((entry) => (
-                            <option key={entry.id} value={entry.id}>
-                              {entry.title}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                        <div className={labelClass}>Status</div>
-                        <div className="mt-2 text-sm font-semibold text-white">
-                          {getProformaStatusLabel(proforma.status)}
-                        </div>
-                      </div>
-
-                      <div className="md:col-span-3">
-                        <div className={inputLabelClass}>Notes</div>
-                        <textarea
-                          value={notesDraft}
-                          onChange={(event) =>
-                            setNotesDraft(event.target.value)
-                          }
-                          rows={4}
-                          className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className={summaryBlockClass}>
-                        <div className={labelClass}>Issuing Company</div>
-                        <div className="mt-2 text-2xl font-semibold text-white">
-                          {selectedDraftCompany?.legal_name ||
-                            selectedDraftCompany?.name ||
-                            (proforma.metadata?.company_name_snapshot as
-                              | string
-                              | undefined) ||
-                            "—"}
-                        </div>
-                        <div className="mt-2 text-sm leading-6 text-slate-400">
-                          {resolvedDraftCompanyAddress ||
-                          proforma.metadata?.company_address_snapshot ? (
-                            <div>
-                              {resolvedDraftCompanyAddress ||
-                                (proforma.metadata
-                                  ?.company_address_snapshot as string)}
-                            </div>
-                          ) : null}
-                          {selectedDraftCompany?.contact_person ||
-                          proforma.metadata?.company_contact_person_snapshot ? (
-                            <div>
-                              Contact:{" "}
-                              {selectedDraftCompany?.contact_person ||
-                                (proforma.metadata
-                                  ?.company_contact_person_snapshot as string)}
-                            </div>
-                          ) : null}
-                          {selectedDraftCompany?.email ||
-                          proforma.metadata?.company_email_snapshot ? (
-                            <div>
-                              Email:{" "}
-                              {selectedDraftCompany?.email ||
-                                (proforma.metadata
-                                  ?.company_email_snapshot as string)}
-                            </div>
-                          ) : null}
-                          {selectedDraftCompany?.phone ||
-                          proforma.metadata?.company_phone_snapshot ? (
-                            <div>
-                              Phone:{" "}
-                              {selectedDraftCompany?.phone ||
-                                (proforma.metadata
-                                  ?.company_phone_snapshot as string)}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      <div className={summaryBlockClass}>
-                        <div className={labelClass}>Recipient</div>
-                        <div className="mt-2 text-2xl font-semibold text-white">
-                          {selectedDraftClient?.legal_name ||
-                            selectedDraftClient?.name ||
-                            (proforma.metadata?.client_name_snapshot as
-                              | string
-                              | undefined) ||
-                            "—"}
-                        </div>
-                        <div className="mt-2 text-sm leading-6 text-slate-400">
-                          {resolvedDraftRecipientAddress ||
-                          proforma.metadata?.billing_address_snapshot ? (
-                            <div>
-                              {resolvedDraftRecipientAddress ||
-                                (proforma.metadata
-                                  ?.billing_address_snapshot as string)}
-                            </div>
-                          ) : null}
-                          {selectedDraftClient?.contact_person ||
-                          proforma.metadata?.client_contact_person_snapshot ? (
-                            <div>
-                              Contact:{" "}
-                              {selectedDraftClient?.contact_person ||
-                                (proforma.metadata
-                                  ?.client_contact_person_snapshot as string)}
-                            </div>
-                          ) : null}
-                          {selectedDraftClient?.company_email ||
-                          selectedDraftClient?.personnel_email ||
-                          proforma.metadata?.client_email_snapshot ? (
-                            <div>
-                              Email:{" "}
-                              {selectedDraftClient?.company_email ||
-                                selectedDraftClient?.personnel_email ||
-                                (proforma.metadata
-                                  ?.client_email_snapshot as string)}
-                            </div>
-                          ) : null}
-                          {selectedDraftClient?.company_phone ||
-                          selectedDraftClient?.personnel_phone ||
-                          proforma.metadata?.client_phone_snapshot ? (
-                            <div>
-                              Phone:{" "}
-                              {selectedDraftClient?.company_phone ||
-                                selectedDraftClient?.personnel_phone ||
-                                (proforma.metadata
-                                  ?.client_phone_snapshot as string)}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      <div className={summaryBlockClass}>
-                        <div className={labelClass}>Bank Details</div>
-                        <div className="mt-2 whitespace-pre-line text-sm text-slate-300">
-                          {(resolvedBankDetailsLines.length > 0
-                            ? resolvedBankDetailsLines
-                            : buildBankDetailsLinesFromSnapshot(
-                                proforma.bank_details_snapshot ||
-                                  (proforma.metadata
-                                    ?.bank_details_snapshot as
-                                    | string
-                                    | undefined)
+                        {sourceModeDraft === "customer_po" ? (
+                          <select
+                            value={sourceCustomerPoIdDraft}
+                            onChange={(event) =>
+                              void applyCustomerPoSourceToDraft(
+                                event.target.value
                               )
-                          ).join("\n") || "—"}
+                            }
+                            className={`mt-2 ${fieldShellClass}`}
+                          >
+                            <option value="">Select Customer PO</option>
+                            {selectableCustomerPos.map((po) => (
+                              <option key={po.id} value={po.id}>
+                                {po.client_po_number || "Customer PO"} ·{" "}
+                                {po.external_po_number || "No external no."} ·{" "}
+                                {formatFinanceMoney(
+                                  po.total_amount,
+                                  po.currency_code || printableCurrencyCode
+                                )}
+                              </option>
+                            ))}
+                          </select>
+                        ) : null}
+                      </>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {linkedCustomerPo ? "From Customer PO" : "Manual"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Source Customer PO</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {linkedCustomerPo?.client_po_number ||
+                        linkedCustomerPo?.external_po_number ||
+                        getMetadataString(proforma.metadata, "client_po_number") ||
+                        getMetadataString(proforma.metadata, "external_po_number") ||
+                        "—"}
+                    </div>
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Proforma Status</div>
+                    <div className="mt-2">
+                      <Badge
+                        className={`rounded-full border px-3 py-1 text-xs shadow-none ${getProformaStatusBadgeClasses(
+                          proforma.status
+                        )}`}
+                      >
+                        {getProformaStatusLabel(proforma.status)}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Client</div>
+                    {editingOverview && canEditDraft ? (
+                      <select
+                        value={clientIdDraft}
+                        onChange={(event) => setClientIdDraft(event.target.value)}
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">Select client</option>
+                        {clients.map((client) => (
+                          <option key={client.id} value={client.id}>
+                            {client.legal_name || client.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {selectedDraftClient?.legal_name ||
+                          selectedDraftClient?.name ||
+                          getMetadataString(proforma.metadata, "client_name_snapshot") ||
+                          "—"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Issuing Company</div>
+                    {editingOverview && canEditDraft ? (
+                      <select
+                        value={companyIdDraft}
+                        onChange={(event) => setCompanyIdDraft(event.target.value)}
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">Select company</option>
+                        {companies.map((company) => (
+                          <option key={company.id} value={company.id}>
+                            {company.legal_name || company.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {selectedDraftCompany?.legal_name ||
+                          selectedDraftCompany?.name ||
+                          getMetadataString(
+                            proforma.metadata,
+                            "company_name_snapshot"
+                          ) ||
+                          "—"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Currency</div>
+                    {editingOverview && canEditDraft ? (
+                      <select
+                        value={currencyIdDraft}
+                        onChange={(event) => setCurrencyIdDraft(event.target.value)}
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">Select currency</option>
+                        {currencies.map((currency) => (
+                          <option key={currency.id} value={currency.id}>
+                            {currency.currency_code} — {currency.currency_name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {printableCurrencyCode}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Issue Date</div>
+                    {editingOverview && canEditDraft ? (
+                      <input
+                        type="date"
+                        value={issueDateDraft}
+                        onChange={(event) => setIssueDateDraft(event.target.value)}
+                        className={`mt-2 ${fieldShellClass}`}
+                      />
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {formatFinanceDate(proforma.issue_date)}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Valid Until</div>
+                    {editingOverview && canEditDraft ? (
+                      <input
+                        type="date"
+                        value={validUntilDraft}
+                        onChange={(event) => setValidUntilDraft(event.target.value)}
+                        className={`mt-2 ${fieldShellClass}`}
+                      />
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {formatFinanceDate(proforma.valid_until)}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Linked Quotation</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {linkedCustomerPo?.quotation_id ||
+                      resolveProformaQuotationId(proforma)
+                        ? "Linked"
+                        : "—"}
+                    </div>
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Project</div>
+                    {editingOverview && canEditDraft ? (
+                      <select
+                        value={projectIdDraft}
+                        onChange={(event) => {
+                          setProjectIdDraft(event.target.value);
+                          setTaskIdDraft("");
+                        }}
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">No project</option>
+                        {projects.map((projectItem) => (
+                          <option key={projectItem.id} value={projectItem.id}>
+                            {projectItem.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {selectedDraftProject?.name || "—"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Task</div>
+                    {editingOverview && canEditDraft ? (
+                      <select
+                        value={taskIdDraft}
+                        onChange={(event) => setTaskIdDraft(event.target.value)}
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">No task</option>
+                        {filteredDraftTasks.map((taskItem) => (
+                          <option key={taskItem.id} value={taskItem.id}>
+                            {taskItem.title}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {selectedDraftTask?.title || "—"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
+                    <div className={eyebrowClass}>Notes</div>
+                    {editingOverview && canEditDraft ? (
+                      <textarea
+                        value={notesDraft}
+                        onChange={(event) => setNotesDraft(event.target.value)}
+                        rows={4}
+                        className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
+                      />
+                    ) : (
+                      <div className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
+                        {proforma.notes || "—"}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className={sectionCardClass}>
+                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
+                      <CheckCircle className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Financial Settings
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Payment terms, shipping terms, bank account, and payment method.
+                      </CardDescription>
+                    </div>
+                  </div>
+
+                  {canEditDraft ? (
+                    <div className="flex items-center gap-2">
+                      {editingFinancialSettings ? (
+                        <>
+                          <Button
+                            onClick={() => void handleSaveDraftChanges()}
+                            disabled={isSavingDraft}
+                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
+                          >
+                            <Save className="mr-2 h-4 w-4" />
+                            {isSavingDraft ? "Saving..." : "Save"}
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setEditingFinancialSettings(false);
+                              void loadProforma(true);
+                            }}
+                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={() => setEditingFinancialSettings(true)}
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                        >
+                          <SquarePen className="mr-2 h-4 w-4" />
+                          Edit
+                        </Button>
+                      )}
+                    </div>
+                  ) : null}
+                </CardHeader>
+
+                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Payment Terms</div>
+                    {editingFinancialSettings && canEditDraft ? (
+                      <select
+                        value={paymentTermsIdDraft}
+                        onChange={(event) =>
+                          setPaymentTermsIdDraft(event.target.value)
+                        }
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">Select payment terms</option>
+                        {paymentTerms.map((term) => (
+                          <option key={term.id} value={term.id}>
+                            {term.code} | {term.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {getPaymentTermLabel(selectedDraftPaymentTerm) !== "—"
+                          ? getPaymentTermLabel(selectedDraftPaymentTerm)
+                          : proforma.payment_terms_snapshot || "—"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Shipping Terms</div>
+                    {editingFinancialSettings && canEditDraft ? (
+                      <select
+                        value={shippingTermIdDraft}
+                        onChange={(event) =>
+                          setShippingTermIdDraft(event.target.value)
+                        }
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">Select shipping terms</option>
+                        {shippingTerms.map((term) => (
+                          <option key={term.id} value={term.id}>
+                            {term.code} | {term.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {selectedDraftShippingTermsLabel !== "—"
+                          ? selectedDraftShippingTermsLabel
+                          : proforma.shipping_terms_snapshot || "—"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Bank Account</div>
+                    {editingFinancialSettings && canEditDraft ? (
+                      <select
+                        value={bankAccountIdDraft}
+                        onChange={(event) =>
+                          setBankAccountIdDraft(event.target.value)
+                        }
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">Select bank account</option>
+                        {filteredDraftBankAccounts.map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {selectedDraftBankAccount?.name ||
+                          getMetadataString(proforma.metadata, "bank_account_name") ||
+                          "—"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Preferred Payment Method</div>
+                    {editingFinancialSettings && canEditDraft ? (
+                      <select
+                        value={paymentMethodIdDraft}
+                        onChange={(event) =>
+                          setPaymentMethodIdDraft(event.target.value)
+                        }
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">Select payment method</option>
+                        {paymentMethods.map((method) => (
+                          <option key={method.id} value={method.id}>
+                            {method.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {selectedDraftPaymentMethod?.name ||
+                          getMetadataString(
+                            proforma.metadata,
+                            "preferred_payment_method_name"
+                          ) ||
+                          "—"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
+                    <div className={eyebrowClass}>Bank Details</div>
+                    <div className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
+                      {(resolvedBankDetailsLines.length > 0
+                        ? resolvedBankDetailsLines
+                        : buildBankDetailsLinesFromSnapshot(
+                            proforma.bank_details_snapshot ||
+                              getMetadataString(
+                                proforma.metadata,
+                                "bank_details_snapshot"
+                              )
+                          )
+                      ).join("\n") || "—"}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className={sectionCardClass}>
+                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Document Details
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Document snapshots for print, parties, payment, shipping, notes, and terms.
+                      </CardDescription>
+                    </div>
+                  </div>
+
+                  {canEditDraft ? (
+                    <div className="flex items-center gap-2">
+                      {editingDocumentDetails ? (
+                        <>
+                          <Button
+                            onClick={() => void handleSaveDraftChanges()}
+                            disabled={isSavingDraft}
+                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
+                          >
+                            <Save className="mr-2 h-4 w-4" />
+                            {isSavingDraft ? "Saving..." : "Save"}
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setEditingDocumentDetails(false);
+                              void loadProforma(true);
+                            }}
+                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={() => setEditingDocumentDetails(true)}
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                        >
+                          <SquarePen className="mr-2 h-4 w-4" />
+                          Edit Terms
+                        </Button>
+                      )}
+                    </div>
+                  ) : null}
+                </CardHeader>
+
+                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Issuing Company</div>
+                    <div className="mt-3 text-xl font-semibold leading-tight text-white">
+                      {selectedDraftCompany?.legal_name ||
+                        selectedDraftCompany?.name ||
+                        getMetadataString(proforma.metadata, "company_name_snapshot") ||
+                        "—"}
+                    </div>
+                    <div className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
+                      <div>
+                        {selectedDraftCompany?.contact_person ||
+                          getMetadataString(
+                            proforma.metadata,
+                            "company_contact_person_snapshot"
+                          ) ||
+                          "—"}
+                      </div>
+                      <div>
+                        {selectedDraftCompany?.email ||
+                          getMetadataString(
+                            proforma.metadata,
+                            "company_email_snapshot"
+                          ) ||
+                          "—"}
+                      </div>
+                      <div>
+                        {selectedDraftCompany?.phone ||
+                          getMetadataString(
+                            proforma.metadata,
+                            "company_phone_snapshot"
+                          ) ||
+                          "—"}
+                      </div>
+                      <div>
+                        {resolvedDraftCompanyAddress ||
+                          getMetadataString(
+                            proforma.metadata,
+                            "company_address_snapshot"
+                          ) ||
+                          "—"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Recipient</div>
+                    <div className="mt-3 text-xl font-semibold leading-tight text-white">
+                      {selectedDraftClient?.legal_name ||
+                        selectedDraftClient?.name ||
+                        getMetadataString(proforma.metadata, "client_name_snapshot") ||
+                        "—"}
+                    </div>
+                    <div className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
+                      <div>
+                        {selectedDraftClient?.contact_person ||
+                          getMetadataString(
+                            proforma.metadata,
+                            "client_contact_person_snapshot"
+                          ) ||
+                          "—"}
+                      </div>
+                      <div>
+                        {selectedDraftClient?.company_email ||
+                          selectedDraftClient?.personnel_email ||
+                          getMetadataString(
+                            proforma.metadata,
+                            "client_email_snapshot"
+                          ) ||
+                          "—"}
+                      </div>
+                      <div>
+                        {selectedDraftClient?.company_phone ||
+                          selectedDraftClient?.personnel_phone ||
+                          getMetadataString(
+                            proforma.metadata,
+                            "client_phone_snapshot"
+                          ) ||
+                          "—"}
+                      </div>
+                      <div>
+                        {resolvedDraftRecipientAddress ||
+                          getMetadataString(
+                            proforma.metadata,
+                            "billing_address_snapshot"
+                          ) ||
+                          "—"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                      <div>
+                        <div className={eyebrowClass}>Payment Terms</div>
+                        <div className="mt-2 text-sm font-semibold text-white">
+                          {getPaymentTermLabel(selectedDraftPaymentTerm) !== "—"
+                            ? getPaymentTermLabel(selectedDraftPaymentTerm)
+                            : proforma.payment_terms_snapshot || "—"}
                         </div>
                       </div>
 
-                      <div className={summaryBlockClass}>
-                        <div className={labelClass}>Currency</div>
-                        <div className="mt-2 text-2xl font-semibold text-white">
+                      <div>
+                        <div className={eyebrowClass}>Shipping Terms</div>
+                        <div className="mt-2 text-sm font-semibold text-white">
+                          {selectedDraftShippingTermsLabel !== "—"
+                            ? selectedDraftShippingTermsLabel
+                            : proforma.shipping_terms_snapshot || "—"}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className={eyebrowClass}>Currency</div>
+                        <div className="mt-2 text-sm font-semibold text-white">
                           {printableCurrencyCode}
                         </div>
                       </div>
 
-                      <div className={summaryBlockClass}>
-                        <div className={labelClass}>Project</div>
-                        <div className="mt-2 text-2xl font-semibold text-white">
-                          {selectedDraftProject?.name || "—"}
+                      <div>
+                        <div className={eyebrowClass}>Project / Task</div>
+                        <div className="mt-2 text-sm font-semibold text-white">
+                          {[selectedDraftProject?.name, selectedDraftTask?.title]
+                            .filter(Boolean)
+                            .join(" / ") || "—"}
                         </div>
                       </div>
-
-                      <div className={summaryBlockClass}>
-                        <div className={labelClass}>Task</div>
-                        <div className="mt-2 text-2xl font-semibold text-white">
-                          {selectedDraftTask?.title || "—"}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className={sectionCardClass}>
-                <CardHeader className="border-b border-white/10 px-5 py-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Terms & Conditions
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Payment terms, shipping terms, and document terms.
-                      </CardDescription>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {editingTerms ? (
-                        <Button
-                          onClick={() => void handleSaveDraftChanges()}
-                          disabled={isSavingDraft}
-                          className="h-9 rounded-2xl px-3"
-                        >
-                          <Save className="mr-2 h-4 w-4" />
-                          {isSavingDraft ? "Saving..." : "Save"}
-                        </Button>
-                      ) : null}
-
-                      {canEditDraft ? (
-                        <Button
-                          variant="outline"
-                          onClick={() =>
-                            setEditingTerms((current) => !current)
-                          }
-                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                        >
-                          <SquarePen className="mr-2 h-4 w-4" />
-                          {editingTerms ? "Close" : "Edit"}
-                        </Button>
-                      ) : null}
                     </div>
                   </div>
-                </CardHeader>
 
-                <CardContent className="space-y-4 p-5">
-                  {editingTerms && canEditDraft ? (
-                    <>
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <label className="space-y-2">
-                          <div className={inputLabelClass}>Payment Terms</div>
-                          <select
-                            value={paymentTermsIdDraft}
-                            onChange={(event) =>
-                              setPaymentTermsIdDraft(event.target.value)
-                            }
-                            className={inputFieldClass}
-                          >
-                            <option value="">Select payment terms</option>
-                            {paymentTerms.map((term) => (
-                              <option key={term.id} value={term.id}>
-                                {term.code} | {term.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <label className="space-y-2">
-                          <div className={inputLabelClass}>Shipping Terms</div>
-                          <select
-                            value={shippingTermIdDraft}
-                            onChange={(event) =>
-                              setShippingTermIdDraft(event.target.value)
-                            }
-                            className={inputFieldClass}
-                          >
-                            <option value="">Select shipping terms</option>
-                            {shippingTerms.map((term) => (
-                              <option key={term.id} value={term.id}>
-                                {term.code} | {term.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
+                    <div className={eyebrowClass}>Terms &amp; Conditions</div>
+                    {editingDocumentDetails && canEditDraft ? (
+                      <textarea
+                        value={termsAndConditionsDraft}
+                        onChange={(event) =>
+                          setTermsAndConditionsDraft(event.target.value)
+                        }
+                        rows={7}
+                        className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                      />
+                    ) : (
+                      <div className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
+                        {termsAndConditionsDraft ||
+                          proforma.terms_and_conditions_snapshot ||
+                          getMetadataString(
+                            proforma.metadata,
+                            "terms_and_conditions_snapshot"
+                          ) ||
+                          "—"}
                       </div>
-
-                      <label className="block space-y-2">
-                        <div className={inputLabelClass}>
-                          Terms and Conditions
-                        </div>
-                        <textarea
-                          value={termsAndConditionsDraft}
-                          onChange={(event) =>
-                            setTermsAndConditionsDraft(event.target.value)
-                          }
-                          rows={4}
-                          className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
-                        />
-                      </label>
-                    </>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div className={summaryBlockClass}>
-                          <div className={labelClass}>Payment Terms</div>
-                          <div className="mt-2 text-lg font-semibold text-white">
-                            {selectedDraftPaymentTerm?.document_label ||
-                              selectedDraftPaymentTerm?.name ||
-                              proforma.payment_terms_snapshot ||
-                              "—"}
-                          </div>
-                        </div>
-
-                        <div className={summaryBlockClass}>
-                          <div className={labelClass}>Shipping Terms</div>
-                          <div className="mt-2 text-lg font-semibold text-white">
-                            {selectedDraftShippingTermsLabel ||
-                              proforma.shipping_terms_snapshot ||
-                              "—"}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className={summaryBlockClass}>
-                        <div className={labelClass}>Terms and Conditions</div>
-                        <div className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">
-                          {termsAndConditionsDraft ||
-                            proforma.terms_and_conditions_snapshot ||
-                            "—"}
-                        </div>
-                      </div>
-                    </>
-                  )}
+                    )}
+                  </div>
                 </CardContent>
               </Card>
 
-              {/* Line Items */}
               <Card className={sectionCardClass}>
-                <CardHeader className="border-b border-white/10 px-5 py-4">
-                  <div className="flex items-start justify-between gap-4">
+                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                      <SquarePen className="h-4 w-4" />
+                    </div>
                     <div>
                       <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
                         Line Items
@@ -2560,43 +3173,59 @@ export default function FinanceProformaInvoiceDetailPage() {
                         Products and services included in this proforma invoice.
                       </CardDescription>
                     </div>
+                  </div>
 
-                    <div className="flex items-center gap-2">
-                      {canEditDraft ? (
-                        <Button
-                          onClick={() => setEditingLines((cur) => !cur)}
-                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                        >
-                          <SquarePen className="mr-2 h-4 w-4" />
-                          {editingLines ? "Close" : "Edit"}
-                        </Button>
-                      ) : null}
+                  <div className="flex items-center gap-2">
+                    {editingLines ? (
+                      <Button
+                        onClick={() => void handleSaveDraftChanges()}
+                        disabled={isSavingDraft}
+                        className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        {isSavingDraft ? "Saving..." : "Save"}
+                      </Button>
+                    ) : null}
 
-                      {editingLines ? (
-                        <Button
-                          variant="outline"
-                          onClick={addDraftLineItem}
-                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                        >
-                          Add Row
-                        </Button>
-                      ) : null}
-                    </div>
+                    {editingLines && canEditDraft ? (
+                      <Button
+                        variant="outline"
+                        onClick={addDraftLineItem}
+                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                      >
+                        Add Row
+                      </Button>
+                    ) : null}
+
+                    {canEditDraft ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => setEditingLines((current) => !current)}
+                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                      >
+                        <SquarePen className="mr-2 h-4 w-4" />
+                        {editingLines ? "Close" : "Edit"}
+                      </Button>
+                    ) : null}
                   </div>
                 </CardHeader>
 
-                <CardContent className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                <CardContent className="max-h-[720px] space-y-3 overflow-y-auto p-5 pr-4">
                   {(editingLines ? lineItemsDraft : lineItems).map((row, index) => {
                     const editable = editingLines && canEditDraft;
                     const rowQuantity = toNumber(row.quantity);
                     const rowUnitPrice = toNumber(row.unit_price);
                     const rowDiscount = toNumber(row.discount);
-                    const rowTaxCode =
-                      taxCodes.find((t) => t.id === row.tax_code_id)?.rate_percent ?? 0;
-                    const rowTotal = Math.max(
-                      rowQuantity * rowUnitPrice - rowDiscount + (rowQuantity * rowUnitPrice - rowDiscount) * (rowTaxCode / 100),
+                    const rowTaxRate =
+                      taxCodes.find((taxCode) => taxCode.id === row.tax_code_id)
+                        ?.rate_percent ?? 0;
+                    const taxableBase = Math.max(
+                      rowQuantity * rowUnitPrice - rowDiscount,
                       0
                     );
+                    const rowTotal = editable
+                      ? taxableBase + taxableBase * (toNumber(rowTaxRate) / 100)
+                      : toNumber((row as ProformaLineItemRow).line_total);
 
                     return (
                       <div
@@ -2612,7 +3241,8 @@ export default function FinanceProformaInvoiceDetailPage() {
                             <Button
                               variant="outline"
                               onClick={() => removeDraftLineItem(row.id)}
-                              className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                              disabled={lineItemsDraft.length === 1}
+                              className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -2621,12 +3251,15 @@ export default function FinanceProformaInvoiceDetailPage() {
 
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
                           <label className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>Item</div>
+                            <div className={labelClass}>Item</div>
                             {editable ? (
                               <select
                                 value={row.item_id || ""}
-                                onChange={(e) =>
-                                  applyDraftItemSelection(row.id, e.target.value)
+                                onChange={(event) =>
+                                  applyDraftItemSelection(
+                                    row.id,
+                                    event.target.value
+                                  )
                                 }
                                 className={inputFieldClass}
                               >
@@ -2638,23 +3271,26 @@ export default function FinanceProformaInvoiceDetailPage() {
                                 ))}
                               </select>
                             ) : (
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
-                                {items.find((item) => item.id === row.item_id)?.name || "—"}
+                              <div className={readOnlyFieldClass}>
+                                {items.find((item) => item.id === row.item_id)
+                                  ?.name || "—"}
                               </div>
                             )}
                           </label>
 
-                                                    <label className="space-y-2 md:col-span-5">
-                            <div className={inputLabelClass}>Description</div>
+                          <label className="space-y-2 md:col-span-4">
+                            <div className={labelClass}>Description</div>
                             {editable ? (
                               <input
-                                type="text"
                                 value={row.description || ""}
-                                onChange={(e) =>
+                                onChange={(event) =>
                                   setLineItemsDraft((current) =>
                                     current.map((entry) =>
                                       entry.id === row.id
-                                        ? { ...entry, description: e.target.value }
+                                        ? {
+                                            ...entry,
+                                            description: event.target.value,
+                                          }
                                         : entry
                                     )
                                   )
@@ -2662,24 +3298,25 @@ export default function FinanceProformaInvoiceDetailPage() {
                                 className={inputFieldClass}
                               />
                             ) : (
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
+                              <div className={readOnlyFieldClass}>
                                 {row.description || "—"}
                               </div>
                             )}
                           </label>
 
                           <label className="space-y-2 md:col-span-1">
-                            <div className={inputLabelClass}>Qty</div>
+                            <div className={labelClass}>Qty</div>
                             {editable ? (
                               <input
-                                type="number"
-                                min={0}
                                 value={String(row.quantity ?? "")}
-                                onChange={(e) =>
+                                onChange={(event) =>
                                   setLineItemsDraft((current) =>
                                     current.map((entry) =>
                                       entry.id === row.id
-                                        ? { ...entry, quantity: e.target.value }
+                                        ? {
+                                            ...entry,
+                                            quantity: event.target.value,
+                                          }
                                         : entry
                                     )
                                   )
@@ -2687,24 +3324,60 @@ export default function FinanceProformaInvoiceDetailPage() {
                                 className={inputFieldClass}
                               />
                             ) : (
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
-                                {row.quantity}
+                              <div className={readOnlyFieldClass}>
+                                {toNumber(row.quantity)}
                               </div>
                             )}
                           </label>
 
-                          <label className="space-y-2 md:col-span-1">
-                            <div className={inputLabelClass}>Unit Price</div>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={labelClass}>Unit</div>
+                            {editable ? (
+                              <select
+                                value={row.unit_of_measure_id || ""}
+                                onChange={(event) =>
+                                  setLineItemsDraft((current) =>
+                                    current.map((entry) =>
+                                      entry.id === row.id
+                                        ? {
+                                            ...entry,
+                                            unit_of_measure_id: event.target.value,
+                                          }
+                                        : entry
+                                    )
+                                  )
+                                }
+                                className={inputFieldClass}
+                              >
+                                <option value="">Select unit</option>
+                                {unitsOfMeasure.map((unit) => (
+                                  <option key={unit.id} value={unit.id}>
+                                    {unit.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className={readOnlyFieldClass}>
+                                {unitsOfMeasure.find(
+                                  (unit) => unit.id === row.unit_of_measure_id
+                                )?.name || "—"}
+                              </div>
+                            )}
+                          </label>
+
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={labelClass}>Unit Price</div>
                             {editable ? (
                               <input
-                                type="number"
-                                min={0}
                                 value={String(row.unit_price ?? "")}
-                                onChange={(e) =>
+                                onChange={(event) =>
                                   setLineItemsDraft((current) =>
                                     current.map((entry) =>
                                       entry.id === row.id
-                                        ? { ...entry, unit_price: e.target.value }
+                                        ? {
+                                            ...entry,
+                                            unit_price: event.target.value,
+                                          }
                                         : entry
                                     )
                                   )
@@ -2712,24 +3385,28 @@ export default function FinanceProformaInvoiceDetailPage() {
                                 className={inputFieldClass}
                               />
                             ) : (
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
-                                {formatFinanceMoney(row.unit_price, printableCurrencyCode)}
+                              <div className={readOnlyFieldClass}>
+                                {formatFinanceMoney(
+                                  row.unit_price,
+                                  printableCurrencyCode
+                                )}
                               </div>
                             )}
                           </label>
 
-                          <label className="space-y-2 md:col-span-1">
-                            <div className={inputLabelClass}>Discount</div>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={labelClass}>Discount</div>
                             {editable ? (
                               <input
-                                type="number"
-                                min={0}
                                 value={String(row.discount ?? "")}
-                                onChange={(e) =>
+                                onChange={(event) =>
                                   setLineItemsDraft((current) =>
                                     current.map((entry) =>
                                       entry.id === row.id
-                                        ? { ...entry, discount: e.target.value }
+                                        ? {
+                                            ...entry,
+                                            discount: event.target.value,
+                                          }
                                         : entry
                                     )
                                   )
@@ -2737,26 +3414,103 @@ export default function FinanceProformaInvoiceDetailPage() {
                                 className={inputFieldClass}
                               />
                             ) : (
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
-                                {formatFinanceMoney(row.discount, printableCurrencyCode)}
+                              <div className={readOnlyFieldClass}>
+                                {formatFinanceMoney(
+                                  row.discount,
+                                  printableCurrencyCode
+                                )}
                               </div>
                             )}
                           </label>
 
-                          <label className="space-y-2 md:col-span-1">
-                            <div className={inputLabelClass}>Total</div>
-                            <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white font-semibold">
-                              {formatFinanceMoney(rowTotal, printableCurrencyCode)}
-                            </div>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={labelClass}>Tax Code</div>
+                            {editable ? (
+                              <select
+                                value={row.tax_code_id || ""}
+                                onChange={(event) =>
+                                  setLineItemsDraft((current) =>
+                                    current.map((entry) =>
+                                      entry.id === row.id
+                                        ? {
+                                            ...entry,
+                                            tax_code_id: event.target.value,
+                                          }
+                                        : entry
+                                    )
+                                  )
+                                }
+                                className={inputFieldClass}
+                              >
+                                <option value="">Select tax</option>
+                                {taxCodes.map((taxCode) => (
+                                  <option key={taxCode.id} value={taxCode.id}>
+                                    {taxCode.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className={readOnlyFieldClass}>
+                                {taxCodes.find(
+                                  (taxCode) => taxCode.id === row.tax_code_id
+                                )?.name || "—"}
+                              </div>
+                            )}
                           </label>
+
+                          <label className="space-y-2 md:col-span-3">
+                            <div className={labelClass}>Revenue Category</div>
+                            {editable ? (
+                              <select
+                                value={row.revenue_category_id || ""}
+                                onChange={(event) =>
+                                  setLineItemsDraft((current) =>
+                                    current.map((entry) =>
+                                      entry.id === row.id
+                                        ? {
+                                            ...entry,
+                                            revenue_category_id:
+                                              event.target.value,
+                                          }
+                                        : entry
+                                    )
+                                  )
+                                }
+                                className={inputFieldClass}
+                              >
+                                <option value="">Select category</option>
+                                {revenueCategories.map((category) => (
+                                  <option key={category.id} value={category.id}>
+                                    {category.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className={readOnlyFieldClass}>
+                                {revenueCategories.find(
+                                  (category) =>
+                                    category.id === row.revenue_category_id
+                                )?.name || "—"}
+                              </div>
+                            )}
+                          </label>
+
+                          <div className="space-y-2 md:col-span-3">
+                            <div className={labelClass}>Line Total</div>
+                            <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
+                              {formatFinanceMoney(
+                                rowTotal,
+                                printableCurrencyCode
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
                   })}
                 </CardContent>
               </Card>
-
-                          </div>
+            </div>
 
             <div className="space-y-6">
               <Card className={sectionCardClass}>
@@ -2765,14 +3519,14 @@ export default function FinanceProformaInvoiceDetailPage() {
                     Financial Summary
                   </CardTitle>
                   <CardDescription className="mt-1 text-xs text-slate-500">
-                    Live totals and conversion state.
+                    Live totals and document currency view.
                   </CardDescription>
                 </CardHeader>
 
                 <CardContent className="space-y-3 p-5">
-                  <div className={summaryBlockClass}>
-                    <div className={labelClass}>Subtotal</div>
-                    <div className="mt-2 text-lg font-semibold text-white">
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Subtotal</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
                       {formatFinanceMoney(
                         financialSummary?.subtotal ?? 0,
                         printableCurrencyCode
@@ -2780,9 +3534,9 @@ export default function FinanceProformaInvoiceDetailPage() {
                     </div>
                   </div>
 
-                  <div className={summaryBlockClass}>
-                    <div className={labelClass}>Discount</div>
-                    <div className="mt-2 text-lg font-semibold text-white">
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Discount</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
                       {formatFinanceMoney(
                         financialSummary?.discount ?? 0,
                         printableCurrencyCode
@@ -2790,9 +3544,9 @@ export default function FinanceProformaInvoiceDetailPage() {
                     </div>
                   </div>
 
-                  <div className={summaryBlockClass}>
-                    <div className={labelClass}>Tax</div>
-                    <div className="mt-2 text-lg font-semibold text-white">
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Tax</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
                       {formatFinanceMoney(
                         financialSummary?.tax ?? 0,
                         printableCurrencyCode
@@ -2800,11 +3554,11 @@ export default function FinanceProformaInvoiceDetailPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 p-4">
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-100/70">
+                  <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-200/80">
                       Total
                     </div>
-                    <div className="mt-2 text-xl font-semibold text-white">
+                    <div className="mt-2 text-2xl font-semibold text-white">
                       {formatFinanceMoney(
                         financialSummary?.total ?? 0,
                         printableCurrencyCode
@@ -2817,73 +3571,84 @@ export default function FinanceProformaInvoiceDetailPage() {
               <Card className={sectionCardClass}>
                 <CardHeader className="border-b border-white/10 px-5 py-4">
                   <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Linked Invoice
+                    Linked Documents
                   </CardTitle>
                   <CardDescription className="mt-1 text-xs text-slate-500">
-                    Invoice created from this proforma after conversion.
+                    Source Customer PO and converted invoice relationship.
                   </CardDescription>
                 </CardHeader>
 
                 <CardContent className="space-y-3 p-5">
-                  {!linkedInvoice ? (
-                    <div className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-6 text-center text-sm text-slate-500">
-                      No linked invoice yet.
+                  <div className={innerPanelClass}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className={eyebrowClass}>Source Customer PO</div>
+                        <div className="mt-2 text-lg font-semibold text-white">
+                          {linkedCustomerPo?.client_po_number ||
+                            linkedCustomerPo?.external_po_number ||
+                            getMetadataString(
+                              proforma.metadata,
+                              "client_po_number"
+                            ) ||
+                            getMetadataString(
+                              proforma.metadata,
+                              "external_po_number"
+                            ) ||
+                            "Manual"}
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-slate-400">
+                          {linkedCustomerPo
+                            ? `${linkedCustomerPo.status} · ${formatFinanceMoney(
+                                linkedCustomerPo.total_amount ??
+                                  getMetadataNumberOrString(
+                                    proforma.metadata,
+                                    "customer_po_total_amount"
+                                  ),
+                                linkedCustomerPo.currency_code ||
+                                  printableCurrencyCode
+                              )}`
+                            : "This proforma invoice has no Customer PO source."}
+                        </div>
+                      </div>
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                        <Link2 className="h-4 w-4" />
+                      </div>
                     </div>
-                  ) : (
-                    <>
-                      <div className={summaryBlockClass}>
-                        <div className={labelClass}>Invoice</div>
+
+                    {linkedCustomerPo ? (
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          navigate(
+                            `/finance/transactions/customer-pos/${linkedCustomerPo.id}`
+                          )
+                        }
+                        className="mt-4 h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+                      >
+                        Open Customer PO
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className={eyebrowClass}>Linked Invoice</div>
                         <div className="mt-2 text-lg font-semibold text-white">
-                          {linkedInvoice.invoice_number || "—"}
+                          {linkedInvoice?.invoice_number || "—"}
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-slate-400">
+                          {linkedInvoice
+                            ? `${linkedInvoice.status} · ${linkedInvoice.payment_status || "—"}`
+                            : "No invoice created from this proforma yet."}
                         </div>
                       </div>
-
-                      <div className={summaryBlockClass}>
-                        <div className={labelClass}>Status</div>
-                        <div className="mt-2 text-lg font-semibold text-white">
-                          {linkedInvoice.status || "—"}
-                        </div>
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
+                        <FileText className="h-4 w-4" />
                       </div>
+                    </div>
 
-                      <div className={summaryBlockClass}>
-                        <div className={labelClass}>Payment Status</div>
-                        <div className="mt-2 text-lg font-semibold text-white">
-                          {linkedInvoice.payment_status || "—"}
-                        </div>
-                      </div>
-
-                      <div className={summaryBlockClass}>
-                        <div className={labelClass}>Total</div>
-                        <div className="mt-2 text-lg font-semibold text-white">
-                          {formatFinanceMoney(
-                            linkedInvoice.total_amount,
-                            linkedInvoice.currency_code || printableCurrencyCode
-                          )}
-                        </div>
-                      </div>
-
-                      <div className={summaryBlockClass}>
-                        <div className={labelClass}>Paid</div>
-                        <div className="mt-2 text-lg font-semibold text-white">
-                          {formatFinanceMoney(
-                            linkedInvoice.paid_amount,
-                            linkedInvoice.currency_code || printableCurrencyCode
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="rounded-[24px] border border-amber-400/15 bg-amber-500/10 p-4">
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-amber-100/70">
-                          Balance Due
-                        </div>
-                        <div className="mt-2 text-xl font-semibold text-white">
-                          {formatFinanceMoney(
-                            linkedInvoice.balance_due,
-                            linkedInvoice.currency_code || printableCurrencyCode
-                          )}
-                        </div>
-                      </div>
-
+                    {linkedInvoice ? (
                       <Button
                         variant="outline"
                         onClick={() =>
@@ -2891,12 +3656,12 @@ export default function FinanceProformaInvoiceDetailPage() {
                             `/finance/transactions/invoices/${linkedInvoice.id}`
                           )
                         }
-                        className="h-11 w-full rounded-2xl border-white/10 bg-white/[0.05] text-white hover:bg-white/[0.08]"
+                        className="mt-4 h-9 rounded-2xl border-violet-400/20 bg-violet-500/10 px-3 text-violet-200 hover:bg-violet-500/20"
                       >
                         Open Linked Invoice
                       </Button>
-                    </>
-                  )}
+                    ) : null}
+                  </div>
                 </CardContent>
               </Card>
 
@@ -3003,7 +3768,7 @@ export default function FinanceProformaInvoiceDetailPage() {
                                     disabled={isSavingDraft}
                                     className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
                                   >
-                                    Restore
+                                    <RotateCcw className="h-4 w-4" />
                                   </Button>
 
                                   {archiveTab === "deleted" ? (

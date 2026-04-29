@@ -72,8 +72,6 @@ type ItemOption = {
   id: string;
   name: string;
   description: string | null;
-  default_unit_of_measure_id: string | null;
-  default_tax_code_id: string | null;
 };
 
 type VendorQuotationOption = {
@@ -301,9 +299,7 @@ export default function FinanceNewPurchaseOrderPage() {
             .order("name", { ascending: true }),
           supabase
             .from("finance_items")
-            .select(
-              "id, name, description, default_unit_of_measure_id, default_tax_code_id"
-            )
+            .select("id, name, description")
             .eq("status", "active")
             .order("name", { ascending: true }),
           supabase
@@ -474,8 +470,8 @@ export default function FinanceNewPurchaseOrderPage() {
         item_id: itemId,
         description: selectedItem?.description || selectedItem?.name || "",
         unit_price: "0",
-        unit_of_measure_id: selectedItem?.default_unit_of_measure_id || "",
-        tax_code_id: selectedItem?.default_tax_code_id || "",
+        unit_of_measure_id: "",
+        tax_code_id: "",
       });
     },
     [items, updateLine]

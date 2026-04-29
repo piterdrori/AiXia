@@ -1,14 +1,18 @@
+"use client";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  Archive,
   ArrowRight,
   CheckCircle,
   FileText,
   Link2,
   Printer,
+  RotateCcw,
   Save,
-  Trash2,
   SquarePen,
+  Trash2,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -453,6 +457,18 @@ function getOverdueBadgeClasses() {
   return "border-rose-400/20 bg-rose-500/10 text-rose-200";
 }
 
+function getPaymentTermLabel(term: PaymentTermOption | null) {
+  if (!term) return "—";
+  return term.document_label || term.name || term.code || "—";
+}
+
+function getShippingTermLabel(term: ShippingTermOption | null) {
+  if (!term) return "—";
+  return term.description?.trim()
+    ? `${term.name} — ${term.description.trim()}`
+    : term.name || term.code || "—";
+}
+
 export default function FinanceInvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -532,6 +548,7 @@ export default function FinanceInvoiceDetailPage() {
     setEditingLines(false);
   }, []);
 
+
   const loadArchiveItems = useCallback(async () => {
     const { data, error } = await supabase
       .from("finance_invoices_issued")
@@ -589,8 +606,7 @@ export default function FinanceInvoiceDetailPage() {
         if (projectResult.error) {
           console.warn(
             "Failed to load linked project/task for invoice:",
-
-                        projectResult.error
+            projectResult.error
           );
         }
 
@@ -606,7 +622,6 @@ export default function FinanceInvoiceDetailPage() {
         setProject(linkedProject);
         setTask(linkedTask);
 
-        // ----- DRAFT STATE SYNC -----
         setIssueDateDraft(typedInvoice.issue_date || "");
         setDueDateDraft(typedInvoice.due_date || "");
         setNotesDraft(typedInvoice.notes || "");
@@ -618,10 +633,9 @@ export default function FinanceInvoiceDetailPage() {
           typedInvoice.counterparty_type === "company"
             ? `company:${typedInvoice.counterparty_company_id || ""}`
             : typedInvoice.client_id
-            ? `client:${typedInvoice.client_id}`
-            : ""
+              ? `client:${typedInvoice.client_id}`
+              : ""
         );
-
         setCompanyIdDraft(typedInvoice.company_id || "");
         setProjectIdDraft(typedInvoice.project_id || "");
         setTaskIdDraft(typedInvoice.task_id || "");
@@ -629,7 +643,6 @@ export default function FinanceInvoiceDetailPage() {
         setShippingTermIdDraft(typedInvoice.shipping_term_id || "");
         setBankAccountIdDraft(typedInvoice.bank_account_id || "");
         setCurrencyIdDraft(typedInvoice.currency_id || "");
-
         setPaymentMethodIdDraft(
           (typedInvoice.metadata?.preferred_payment_method_id as string) || ""
         );
@@ -651,21 +664,18 @@ export default function FinanceInvoiceDetailPage() {
         console.error(err);
         setError("Failed to load invoice.");
       } finally {
-        setIsLoading(false);
-        setIsRefreshing(false);
+        if (refreshOnly) {
+          setIsRefreshing(false);
+        } else {
+          setIsLoading(false);
+        }
       }
     },
     [id, loadArchiveItems]
   );
 
-  // INITIAL LOAD
-  useEffect(() => {
-    loadInvoice();
-  }, [loadInvoice]);
-
-  // MASTER DATA LOAD
-  useEffect(() => {
-    const loadMasterData = async () => {
+  const loadMasterData = useCallback(async () => {
+    try {
       const [
         clientsResult,
         companiesResult,
@@ -678,37 +688,106 @@ export default function FinanceInvoiceDetailPage() {
         paymentMethodsResult,
         itemsResult,
         taxCodesResult,
-        unitsResult,
+        unitsOfMeasureResult,
         revenueCategoriesResult,
       ] = await Promise.all([
-        supabase.from("clients").select("*").eq("is_active", true),
-        supabase.from("finance_companies").select("*").eq("is_active", true),
-        supabase.from("projects").select("id, name"),
-        supabase.from("tasks").select("id, title, project_id"),
-        supabase.from("finance_payment_terms").select("*"),
-        supabase.from("finance_shipping_terms").select("*"),
-        supabase.from("finance_bank_accounts").select("*"),
-        supabase.from("finance_currencies").select("*"),
-        supabase.from("finance_payment_methods").select("*"),
-        supabase.from("items").select("*"),
-        supabase.from("finance_tax_codes").select("*"),
-        supabase.from("finance_units_of_measure").select("*"),
-        supabase.from("finance_revenue_categories").select("*"),
+        supabase
+          .from("finance_clients")
+          .select(
+            "id, name, legal_name, contact_person, company_email, personnel_email, company_phone, personnel_phone, currency_code, payment_terms_days, payment_terms_id, country, city, state_province, postal_code, address_line_1, address_line_2"
+          )
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+        supabase
+          .from("finance_companies")
+          .select(
+            "id, name, legal_name, contact_person, email, phone, currency_code, country, city, state_province, postal_code, address_line_1, address_line_2"
+          )
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+        supabase
+          .from("projects")
+          .select("id, name")
+          .order("name", { ascending: true }),
+        supabase
+          .from("tasks")
+          .select("id, title, project_id")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("finance_payment_terms")
+          .select(
+            "id, code, name, due_days, is_default, document_label, document_terms_text"
+          )
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+        supabase
+          .from("finance_shipping_terms")
+          .select("id, code, name, description, is_default")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+        supabase
+          .from("finance_bank_accounts")
+          .select(
+            "id, name, bank_name, institution_name, beneficiary_name, iban, swift_code, bank_address, account_number, masked_account_number, account_identifier_type, account_identifier_value, country, city, postal_code, address_line_1, address_line_2, currency_code, is_default, company_id"
+          )
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+        supabase
+          .from("finance_currencies")
+          .select("id, currency_code, currency_name")
+          .eq("status", "active")
+          .order("currency_code", { ascending: true }),
+        supabase
+          .from("finance_payment_methods")
+          .select("id, code, name")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+        supabase
+          .from("finance_items")
+          .select(
+            "id, name, description, sales_price, currency_code, revenue_category_id, tax_code_id, unit_of_measure_id"
+          )
+          .eq("status", "active")
+          .eq("is_active_for_sales", true)
+          .order("name", { ascending: true }),
+        supabase
+          .from("finance_tax_codes")
+          .select("id, code, name, rate_percent")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+        supabase
+          .from("finance_units_of_measure")
+          .select("id, code, name")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+        supabase
+          .from("finance_revenue_categories")
+          .select("id, code, name")
+          .eq("status", "active")
+          .order("name", { ascending: true }),
       ]);
+
+      if (clientsResult.error) throw clientsResult.error;
+      if (companiesResult.error) throw companiesResult.error;
+      if (projectsResult.error) throw projectsResult.error;
+      if (tasksResult.error) throw tasksResult.error;
+      if (paymentTermsResult.error) throw paymentTermsResult.error;
+      if (shippingTermsResult.error) throw shippingTermsResult.error;
+      if (bankAccountsResult.error) throw bankAccountsResult.error;
+      if (currenciesResult.error) throw currenciesResult.error;
+      if (paymentMethodsResult.error) throw paymentMethodsResult.error;
+      if (itemsResult.error) throw itemsResult.error;
+      if (taxCodesResult.error) throw taxCodesResult.error;
+      if (unitsOfMeasureResult.error) throw unitsOfMeasureResult.error;
+      if (revenueCategoriesResult.error) throw revenueCategoriesResult.error;
 
       setClients((clientsResult.data || []) as ClientOption[]);
       setCompanies((companiesResult.data || []) as CompanyOption[]);
       setProjects((projectsResult.data || []) as ProjectRow[]);
       setTasks((tasksResult.data || []) as TaskRow[]);
-      setPaymentTerms(
-        (paymentTermsResult.data || []) as PaymentTermOption[]
-      );
-      setShippingTerms(
-        (shippingTermsResult.data || []) as ShippingTermOption[]
-      );
-      setBankAccounts(
-        (bankAccountsResult.data || []) as BankAccountOption[]
-      );
+      setPaymentTerms((paymentTermsResult.data || []) as PaymentTermOption[]);
+      setShippingTerms((shippingTermsResult.data || []) as ShippingTermOption[]);
+      setBankAccounts((bankAccountsResult.data || []) as BankAccountOption[]);
       setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
       setPaymentMethods(
         (paymentMethodsResult.data || []) as PaymentMethodOption[]
@@ -716,26 +795,22 @@ export default function FinanceInvoiceDetailPage() {
       setItems((itemsResult.data || []) as ItemOption[]);
       setTaxCodes((taxCodesResult.data || []) as TaxCodeOption[]);
       setUnitsOfMeasure(
-        (unitsResult.data || []) as UnitOfMeasureOption[]
+        (unitsOfMeasureResult.data || []) as UnitOfMeasureOption[]
       );
       setRevenueCategories(
         (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
       );
-    };
-
-    loadMasterData();
+    } catch (err) {
+      console.error("Failed to load invoice master data:", err);
+    }
   }, []);
 
-  // ===== DERIVED =====
+  useEffect(() => {
+    void loadInvoice();
+    void loadMasterData();
+  }, [loadInvoice, loadMasterData]);
 
-  const isDraft = invoice?.status === "draft";
-
-  const currencyCode =
-    invoice?.currency_code ||
-    currencies.find((c) => c.id === invoice?.currency_id)?.currency_code ||
-    "USD";
-
-  const financialSummary = useMemo(() => {
+  const totals = useMemo(() => {
     if (!invoice) return null;
 
     return {
@@ -748,147 +823,495 @@ export default function FinanceInvoiceDetailPage() {
     };
   }, [invoice]);
 
-  const selectedClient = useMemo(() => {
-    if (!clientIdDraft) return null;
-
-    if (clientIdDraft.startsWith("client:")) {
-      const id = clientIdDraft.replace("client:", "");
-      return clients.find((c) => c.id === id) || null;
-    }
-
-    return null;
+  const selectedDraftClient = useMemo(() => {
+    if (!clientIdDraft.startsWith("client:")) return null;
+    const resolvedId = clientIdDraft.replace("client:", "");
+    return clients.find((client) => client.id === resolvedId) ?? null;
   }, [clientIdDraft, clients]);
 
-  const selectedCompany = useMemo(() => {
-    return companies.find((c) => c.id === companyIdDraft) || null;
-  }, [companyIdDraft, companies]);
+  const selectedDraftRecipientCompany = useMemo(() => {
+    if (!clientIdDraft.startsWith("company:")) return null;
+    const resolvedId = clientIdDraft.replace("company:", "");
+    return companies.find((company) => company.id === resolvedId) ?? null;
+  }, [clientIdDraft, companies]);
 
-  const selectedBank = useMemo(() => {
-    return bankAccounts.find((b) => b.id === bankAccountIdDraft) || null;
-  }, [bankAccountIdDraft, bankAccounts]);
+  const selectedDraftCompany = useMemo(
+    () => companies.find((company) => company.id === companyIdDraft) ?? null,
+    [companies, companyIdDraft]
+  );
 
-  const selectedPaymentTerm = useMemo(() => {
-    return paymentTerms.find((p) => p.id === paymentTermsIdDraft) || null;
-  }, [paymentTermsIdDraft, paymentTerms]);
+  const selectedDraftProject = useMemo(
+    () => projects.find((entry) => entry.id === projectIdDraft) ?? null,
+    [projectIdDraft, projects]
+  );
 
-  const selectedShippingTerm = useMemo(() => {
-    return shippingTerms.find((s) => s.id === shippingTermIdDraft) || null;
-  }, [shippingTermIdDraft, shippingTerms]);
+  const selectedDraftTask = useMemo(
+    () => tasks.find((entry) => entry.id === taskIdDraft) ?? null,
+    [taskIdDraft, tasks]
+  );
 
-  const selectedCurrency = useMemo(() => {
-    return currencies.find((c) => c.id === currencyIdDraft) || null;
-  }, [currencyIdDraft, currencies]);
+  const selectedDraftPaymentTerm = useMemo(
+    () => paymentTerms.find((entry) => entry.id === paymentTermsIdDraft) ?? null,
+    [paymentTerms, paymentTermsIdDraft]
+  );
 
-  const isOverdue = useMemo(() => {
-    if (!invoice?.due_date) return false;
-    if (invoice.payment_status === "paid") return false;
+  const selectedDraftShippingTerm = useMemo(
+    () => shippingTerms.find((entry) => entry.id === shippingTermIdDraft) ?? null,
+    [shippingTerms, shippingTermIdDraft]
+  );
 
-    return new Date(invoice.due_date) < new Date();
+  const selectedDraftShippingTermsLabel = useMemo(
+    () => getShippingTermLabel(selectedDraftShippingTerm),
+    [selectedDraftShippingTerm]
+  );
+
+  const selectedDraftCurrency = useMemo(
+    () => currencies.find((entry) => entry.id === currencyIdDraft) ?? null,
+    [currencies, currencyIdDraft]
+  );
+
+  const selectedDraftPaymentMethod = useMemo(
+    () =>
+      paymentMethods.find((entry) => entry.id === paymentMethodIdDraft) ?? null,
+    [paymentMethodIdDraft, paymentMethods]
+  );
+
+  const filteredDraftTasks = useMemo(() => {
+    if (!projectIdDraft) {
+      return tasks;
+    }
+
+    return tasks.filter((task) => task.project_id === projectIdDraft);
+  }, [projectIdDraft, tasks]);
+
+  const filteredDraftBankAccounts = useMemo(() => {
+    if (!companyIdDraft) {
+      return bankAccounts;
+    }
+
+    return bankAccounts.filter(
+      (account) => !account.company_id || account.company_id === companyIdDraft
+    );
+  }, [bankAccounts, companyIdDraft]);
+
+  const selectedDraftBankAccount = useMemo(
+    () =>
+      filteredDraftBankAccounts.find(
+        (account) => account.id === bankAccountIdDraft
+      ) ?? null,
+    [bankAccountIdDraft, filteredDraftBankAccounts]
+  );
+
+  const resolvedDraftCompanyAddress = useMemo(
+    () => buildCompanyAddress(selectedDraftCompany),
+    [selectedDraftCompany]
+  );
+
+  const resolvedDraftRecipientName = useMemo(
+    () =>
+      selectedDraftClient?.legal_name ||
+      selectedDraftClient?.name ||
+      selectedDraftRecipientCompany?.legal_name ||
+      selectedDraftRecipientCompany?.name ||
+      "",
+    [selectedDraftClient, selectedDraftRecipientCompany]
+  );
+
+  const resolvedDraftRecipientAddress = useMemo(() => {
+    if (selectedDraftClient) {
+      return buildClientAddress(selectedDraftClient);
+    }
+
+    return buildCompanyAddress(selectedDraftRecipientCompany);
+  }, [selectedDraftClient, selectedDraftRecipientCompany]);
+
+  const resolvedDraftRecipientEmail = useMemo(
+    () =>
+      selectedDraftClient?.company_email ||
+      selectedDraftClient?.personnel_email ||
+      selectedDraftRecipientCompany?.email ||
+      "",
+    [selectedDraftClient, selectedDraftRecipientCompany]
+  );
+
+  const resolvedDraftRecipientPhone = useMemo(
+    () =>
+      selectedDraftClient?.company_phone ||
+      selectedDraftClient?.personnel_phone ||
+      selectedDraftRecipientCompany?.phone ||
+      "",
+    [selectedDraftClient, selectedDraftRecipientCompany]
+  );
+
+  const resolvedDraftRecipientContact = useMemo(
+    () =>
+      selectedDraftClient?.contact_person ||
+      selectedDraftRecipientCompany?.contact_person ||
+      "",
+    [selectedDraftClient, selectedDraftRecipientCompany]
+  );
+
+  const resolvedIssuedRecipientName = useMemo(() => {
+    if (!invoice) return "";
+
+    return (
+      invoice.counterparty_legal_name_snapshot ||
+      invoice.counterparty_name_snapshot ||
+      invoice.client_name_snapshot ||
+      ""
+    );
   }, [invoice]);
 
-  // ===== LINE LOGIC =====
+  const resolvedIssuedRecipientEmail = useMemo(() => {
+    if (!invoice) return "";
 
-  const handleAddLine = () => {
-    setLineItemsDraft((prev) => [...prev, createEditableDraftLineItem()]);
-  };
-
-  const handleRemoveLine = (id: string) => {
-    setLineItemsDraft((prev) => prev.filter((l) => l.id !== id));
-  };
-
-  const handleLineChange = (
-    id: string,
-    field: keyof EditableLineItem,
-    value: string
-  ) => {
-    setLineItemsDraft((prev) =>
-      prev.map((line) =>
-        line.id === id ? { ...line, [field]: value } : line
-      )
+    return (
+      invoice.client_email_snapshot ||
+      invoice.counterparty_email_snapshot ||
+      ""
     );
-  };
+  }, [invoice]);
 
-  // ===== SAVE =====
+  const resolvedIssuedRecipientPhone = useMemo(() => {
+    if (!invoice) return "";
 
-  const handleSaveDraft = async () => {
-    if (!invoice) return;
+    return (
+      invoice.client_phone_snapshot ||
+      invoice.counterparty_phone_snapshot ||
+      ""
+    );
+  }, [invoice]);
 
-    setIsSavingDraft(true);
-    setError("");
+  const resolvedIssuedRecipientContact = useMemo(() => {
+    if (!invoice) return "";
 
-    try {
-      const { error: updateError } = await supabase
-        .from("finance_invoices_issued")
-        .update({
-          issue_date: issueDateDraft,
-          due_date: dueDateDraft,
-          notes: notesDraft,
-          payment_terms_id: paymentTermsIdDraft || null,
-          shipping_term_id: shippingTermIdDraft || null,
-          bank_account_id: bankAccountIdDraft || null,
-          currency_id: currencyIdDraft || null,
-          terms_and_conditions_snapshot: termsAndConditionsDraft,
-          metadata: {
-            ...(invoice.metadata || {}),
-            preferred_payment_method_id: paymentMethodIdDraft || null,
-          },
-        })
-        .eq("id", invoice.id);
+    return (
+      invoice.client_contact_person_snapshot ||
+      invoice.counterparty_contact_person_snapshot ||
+      ""
+    );
+  }, [invoice]);
 
-      if (updateError) throw updateError;
+  const resolvedBankDetailsLines = useMemo(() => {
+    if (!invoice) return [];
 
-      // RESET LINE ITEMS (STRICT SOURCE OF TRUTH)
-      await supabase
-        .from("finance_invoice_line_items")
-        .delete()
-        .eq("invoice_issued_id", invoice.id);
-
-      const rowsToInsert = lineItemsDraft.map((l, index) => ({
-        invoice_issued_id: invoice.id,
-        item_id: l.item_id || null,
-        description: l.description,
-        quantity: Number(l.quantity || 0),
-        unit_price: Number(l.unit_price || 0),
-        discount: Number(l.discount || 0),
-        tax_code_id: l.tax_code_id || null,
-        unit_of_measure_id: l.unit_of_measure_id || null,
-        revenue_category_id: l.revenue_category_id || null,
-        sort_order: index,
-      }));
-
-      if (rowsToInsert.length > 0) {
-        const { error: insertError } = await supabase
-          .from("finance_invoice_line_items")
-          .insert(rowsToInsert);
-
-        if (insertError) throw insertError;
-      }
-
-      await loadInvoice(true);
-      closeAllEditors();
-    } catch (err) {
-      console.error(err);
-      setError("Failed to save draft.");
-    } finally {
-      setIsSavingDraft(false);
+    if (invoice.status === "draft") {
+      return buildBankDetailsLinesFromAccount(selectedDraftBankAccount);
     }
-  };
 
-  // ===== ISSUE =====
+    return buildBankDetailsLinesFromSnapshot(invoice.bank_details_snapshot);
+  }, [invoice, selectedDraftBankAccount]);
 
-  const handleIssueInvoice = async () => {
-    if (!invoice) return;
+  const draftTotals = useMemo(() => {
+    const subtotal = lineItemsDraft.reduce(
+      (sum, row) => sum + toNumber(row.quantity) * toNumber(row.unit_price),
+      0
+    );
+
+    const discount = lineItemsDraft.reduce(
+      (sum, row) => sum + toNumber(row.discount),
+      0
+    );
+
+    const tax = lineItemsDraft.reduce((sum, row) => {
+      const qty = toNumber(row.quantity);
+      const price = toNumber(row.unit_price);
+      const rowDiscount = toNumber(row.discount);
+      const base = Math.max(qty * price - rowDiscount, 0);
+
+      const taxCode = taxCodes.find((t) => t.id === row.tax_code_id);
+      if (!taxCode) return sum;
+
+      const rate = toNumber(taxCode.rate_percent) / 100;
+      return sum + base * rate;
+    }, 0);
+
+    const total = Math.max(subtotal - discount + tax, 0);
+
+    return {
+      subtotal,
+      discount,
+      tax,
+      total,
+    };
+  }, [lineItemsDraft, taxCodes]);
+
+  const financialSummary = useMemo(() => {
+    if (!invoice || !totals) return null;
+
+    if (invoice.status === "draft") {
+      const paid = totals.paid;
+      const balance = draftTotals.total - paid;
+
+      return {
+        subtotal: draftTotals.subtotal,
+        discount: draftTotals.discount,
+        tax: draftTotals.tax,
+        total: draftTotals.total,
+        paid,
+        balance,
+      };
+    }
+
+    return totals;
+  }, [draftTotals, invoice, totals]);
+
+  useEffect(() => {
+    if (!invoice || invoice.status !== "draft" || !selectedDraftClient) return;
+
+    if (selectedDraftClient.payment_terms_id && !paymentTermsIdDraft) {
+      setPaymentTermsIdDraft(selectedDraftClient.payment_terms_id);
+    }
+
+    if (selectedDraftClient.currency_code && !currencyIdDraft) {
+      const matchedCurrency = currencies.find(
+        (currency) => currency.currency_code === selectedDraftClient.currency_code
+      );
+
+      if (matchedCurrency) {
+        setCurrencyIdDraft(matchedCurrency.id);
+      }
+    }
+
+    if (!dueDateDraft) {
+      const days = selectedDraftClient.payment_terms_days ?? 14;
+      const base = new Date(
+        issueDateDraft || new Date().toISOString().slice(0, 10)
+      );
+      base.setDate(base.getDate() + days);
+      setDueDateDraft(base.toISOString().slice(0, 10));
+    }
+  }, [
+    currencies,
+    currencyIdDraft,
+    dueDateDraft,
+    invoice,
+    issueDateDraft,
+    paymentTermsIdDraft,
+    selectedDraftClient,
+  ]);
+
+  useEffect(() => {
+    if (!invoice || invoice.status !== "draft") return;
+
+    setTermsAndConditionsDraft((current) => {
+      const trimmed = current.trim();
+      if (trimmed || current !== "") return current;
+
+      return "Payment is due according to the agreed payment terms stated on this invoice. Goods remain subject to the agreed shipping terms. Any bank charges are the responsibility of the payer unless otherwise agreed in writing. Please reference the invoice number with your payment. Late payments may result in delays, additional charges, or suspension of further deliveries or services.";
+    });
+  }, [invoice]);
+
+  useEffect(() => {
+    if (!invoice || invoice.status !== "draft" || !companyIdDraft) return;
+
+    const selectedBankStillBelongsToCompany =
+      !bankAccountIdDraft ||
+      filteredDraftBankAccounts.some(
+        (account) => account.id === bankAccountIdDraft
+      );
+
+    if (!selectedBankStillBelongsToCompany) {
+      setBankAccountIdDraft("");
+    }
+
+    const defaultBank =
+      filteredDraftBankAccounts.find((account) => account.is_default) ??
+      filteredDraftBankAccounts[0];
+
+    if (defaultBank && !bankAccountIdDraft) {
+      setBankAccountIdDraft(defaultBank.id);
+    }
+
+    if (!currencyIdDraft && selectedDraftCompany?.currency_code) {
+      const matchedCurrency = currencies.find(
+        (currency) => currency.currency_code === selectedDraftCompany.currency_code
+      );
+
+      if (matchedCurrency) {
+        setCurrencyIdDraft(matchedCurrency.id);
+      }
+    }
+  }, [
+    bankAccountIdDraft,
+    companyIdDraft,
+    currencies,
+    currencyIdDraft,
+    filteredDraftBankAccounts,
+    invoice,
+    selectedDraftCompany,
+  ]);
+
+  useEffect(() => {
+    if (!invoice || invoice.status !== "draft") return;
+
+    const taskStillValid = filteredDraftTasks.some(
+      (entry) => entry.id === taskIdDraft
+    );
+
+    if (taskIdDraft && !taskStillValid) {
+      setTaskIdDraft("");
+    }
+  }, [filteredDraftTasks, invoice, taskIdDraft]);
+
+  const canEditDraft = invoice?.status === "draft";
+  const canEditIssuedOverview = invoice?.status === "issued";
+  const canEditIssuedDetails = invoice?.status === "issued";
+  const canArchive =
+    !!invoice &&
+    ["draft", "issued", "partially_paid", "paid"].includes(invoice.status);
+
+  const handleIssue = useCallback(async () => {
+    if (!invoice || !id) return;
 
     setIsIssuing(true);
     setError("");
 
     try {
-      const { error } = await supabase.rpc(
-        "finance_issue_invoice_issued",
-        {
-          p_invoice_id: invoice.id,
-        }
+      if (!lineItemsDraft.length) {
+        setError("Invoice must have at least one line item.");
+        setIsIssuing(false);
+        return;
+      }
+
+      if (!clientIdDraft) {
+        setError("Invoice must have a recipient.");
+        setIsIssuing(false);
+        return;
+      }
+
+      if (!selectedDraftBankAccount) {
+        setError("Bank account is required before issuing.");
+        setIsIssuing(false);
+        return;
+      }
+
+      const selectedPaymentMethod = paymentMethods.find(
+        (method) => method.id === paymentMethodIdDraft
       );
+
+      const selectedCurrency = currencies.find(
+        (currency) => currency.id === currencyIdDraft
+      );
+
+      const selectedPaymentTerm = paymentTerms.find(
+        (term) => term.id === paymentTermsIdDraft
+      );
+
+      const selectedShippingTerm = shippingTerms.find(
+        (term) => term.id === shippingTermIdDraft
+      );
+
+      const isCompany = clientIdDraft.startsWith("company:");
+      const isClient = clientIdDraft.startsWith("client:");
+
+      const resolvedClientId = isClient
+        ? clientIdDraft.replace("client:", "")
+        : null;
+
+      const resolvedCompanyId = isCompany
+        ? clientIdDraft.replace("company:", "")
+        : null;
+
+      const { error: snapshotError } = await supabase
+        .from("finance_invoices_issued")
+        .update({
+          client_id: resolvedClientId,
+          counterparty_company_id: resolvedCompanyId,
+          counterparty_type: isCompany ? "company" : "client",
+          company_id: companyIdDraft || null,
+          project_id: projectIdDraft || null,
+          task_id: taskIdDraft || null,
+          payment_terms_id: paymentTermsIdDraft || null,
+          shipping_term_id: shippingTermIdDraft || null,
+          bank_account_id: bankAccountIdDraft || null,
+          currency_id: currencyIdDraft || null,
+          currency_code:
+            selectedCurrency?.currency_code || invoice.currency_code || "USD",
+          issue_date: issueDateDraft,
+          due_date: dueDateDraft,
+          notes: notesDraft || null,
+          company_name_snapshot:
+            selectedDraftCompany?.legal_name ||
+            selectedDraftCompany?.name ||
+            null,
+          company_contact_person_snapshot:
+            selectedDraftCompany?.contact_person || null,
+          company_address_snapshot: resolvedDraftCompanyAddress || null,
+          company_email_snapshot: selectedDraftCompany?.email || null,
+          company_phone_snapshot: selectedDraftCompany?.phone || null,
+          counterparty_name_snapshot: resolvedDraftRecipientName || null,
+          counterparty_legal_name_snapshot: resolvedDraftRecipientName || null,
+          counterparty_contact_person_snapshot:
+            resolvedDraftRecipientContact || null,
+          counterparty_email_snapshot: resolvedDraftRecipientEmail || null,
+          counterparty_phone_snapshot: resolvedDraftRecipientPhone || null,
+          client_name_snapshot:
+            selectedDraftClient?.legal_name || selectedDraftClient?.name || null,
+          client_contact_person_snapshot:
+            selectedDraftClient?.contact_person || null,
+          client_email_snapshot:
+            selectedDraftClient?.company_email ||
+            selectedDraftClient?.personnel_email ||
+            null,
+          client_phone_snapshot:
+            selectedDraftClient?.company_phone ||
+            selectedDraftClient?.personnel_phone ||
+            null,
+          billing_address_snapshot: resolvedDraftRecipientAddress || null,
+          payment_terms_snapshot:
+            selectedPaymentTerm?.document_label ||
+            selectedPaymentTerm?.name ||
+            null,
+          shipping_terms_snapshot:
+            selectedShippingTerm?.description?.trim()
+              ? `${selectedShippingTerm.name} — ${selectedShippingTerm.description.trim()}`
+              : selectedShippingTerm?.name || selectedShippingTerm?.code || null,
+          terms_and_conditions_snapshot: termsAndConditionsDraft || null,
+          bank_details_snapshot:
+            buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount),
+          metadata: {
+            ...(invoice.metadata || {}),
+            preferred_payment_method_id: paymentMethodIdDraft || null,
+            preferred_payment_method_name: selectedPaymentMethod?.name || null,
+            preferred_payment_method_code: selectedPaymentMethod?.code || null,
+            bank_account_id: bankAccountIdDraft || null,
+            bank_account_name: selectedDraftBankAccount?.name || null,
+            bank_name:
+              selectedDraftBankAccount?.bank_name ||
+              selectedDraftBankAccount?.institution_name ||
+              null,
+            beneficiary_name: selectedDraftBankAccount?.beneficiary_name || null,
+            bank_address_snapshot:
+              buildBankAddressFromAccount(selectedDraftBankAccount) || null,
+            iban: selectedDraftBankAccount?.iban || null,
+            swift_code:
+              selectedDraftBankAccount?.swift_code ||
+              (selectedDraftBankAccount?.account_identifier_type?.toLowerCase() ===
+              "swift"
+                ? selectedDraftBankAccount?.account_identifier_value
+                : null),
+            bank_identifier_type:
+              selectedDraftBankAccount?.account_identifier_type || null,
+
+                        bank_identifier_value:
+              selectedDraftBankAccount?.account_identifier_value || null,
+            account_number:
+              selectedDraftBankAccount?.account_number ||
+              selectedDraftBankAccount?.masked_account_number ||
+              null,
+            bank_account_currency_code:
+              selectedDraftBankAccount?.currency_code || null,
+          },
+        })
+        .eq("id", id)
+        .eq("status", "draft");
+
+      if (snapshotError) throw snapshotError;
+
+      const { error } = await supabase.rpc("finance_issue_invoice_issued", {
+        p_invoice_id: id,
+      });
 
       if (error) throw error;
 
@@ -899,1172 +1322,2577 @@ export default function FinanceInvoiceDetailPage() {
     } finally {
       setIsIssuing(false);
     }
-  };
+  }, [
+    bankAccountIdDraft,
+    clientIdDraft,
+    companyIdDraft,
+    currencies,
+    currencyIdDraft,
+    dueDateDraft,
+    id,
+    invoice,
+    issueDateDraft,
+    lineItemsDraft,
+    loadInvoice,
+    notesDraft,
+    paymentMethodIdDraft,
+    paymentMethods,
+    paymentTerms,
+    paymentTermsIdDraft,
+    projectIdDraft,
+    resolvedDraftCompanyAddress,
+    resolvedDraftRecipientAddress,
+    resolvedDraftRecipientContact,
+    resolvedDraftRecipientEmail,
+    resolvedDraftRecipientName,
+    resolvedDraftRecipientPhone,
+    selectedDraftBankAccount,
+    selectedDraftClient,
+    selectedDraftCompany,
+    shippingTermIdDraft,
+    shippingTerms,
+    taskIdDraft,
+    termsAndConditionsDraft,
+  ]);
 
-  // ===== ARCHIVE / DELETE =====
-
-  const handleArchive = async () => {
-    if (!invoice) return;
+  const handleArchive = useCallback(async () => {
+    if (!invoice || !id) return;
 
     setIsArchiving(true);
+    setError("");
 
     try {
-      const { error } = await supabase.rpc(
-        "finance_archive_invoice_issued",
-        {
-          p_invoice_id: invoice.id,
-        }
-      );
+      const { error } = await supabase.rpc("finance_archive_invoice_issued", {
+        p_invoice_id: id,
+      });
 
       if (error) throw error;
 
-      navigate("/finance/transactions/invoices");
+      closeAllEditors();
+      await loadInvoice(true);
+      await loadArchiveItems();
+      setShowArchivePopup(true);
     } catch (err) {
       console.error(err);
-      setError("Failed to archive invoice.");
+      setError("Failed to move invoice to archive.");
     } finally {
       setIsArchiving(false);
     }
-  };
+  }, [closeAllEditors, id, invoice, loadArchiveItems, loadInvoice]);
 
-  const handleDelete = async () => {
-    if (!invoice) return;
+  const handleRestore = useCallback(
+    async (invoiceId: string) => {
+      setIsDeleting(true);
+      setError("");
+
+      try {
+        const { error } = await supabase.rpc("finance_restore_invoice_issued", {
+          p_invoice_id: invoiceId,
+        });
+
+        if (error) throw error;
+
+        if (invoiceId === id) {
+          await loadInvoice(true);
+        }
+
+        await loadArchiveItems();
+      } catch (err: any) {
+        console.error(err);
+        setError(err?.message || "Failed to restore invoice.");
+      } finally {
+        setIsDeleting(false);
+      }
+    },
+    [id, loadArchiveItems, loadInvoice]
+  );
+
+  const handleHardDelete = useCallback(
+    async (invoiceId: string) => {
+      setIsDeleting(true);
+      setError("");
+
+      try {
+        const { data: payments, error: paymentsError } = await supabase
+          .from("finance_payments_received")
+          .select("id")
+          .eq("invoice_id", invoiceId)
+          .eq("status", "confirmed");
+
+        if (paymentsError) throw paymentsError;
+
+        if (payments && payments.length > 0) {
+          throw new Error("Cannot delete invoice with existing payments.");
+        }
+
+        const { error: invoiceError } = await supabase.rpc(
+          "finance_hard_delete_invoice_issued",
+          {
+            p_invoice_id: invoiceId,
+          }
+        );
+
+        if (invoiceError) throw invoiceError;
+
+        if (invoiceId === id) {
+          navigate("/finance/transactions/invoices");
+          return;
+        }
+
+        await loadArchiveItems();
+      } catch (err: any) {
+        console.error(err);
+        setError(err?.message || "Failed to permanently delete archived invoice.");
+      } finally {
+        setIsDeleting(false);
+      }
+    },
+    [id, loadArchiveItems, navigate]
+  );
+
+  const handleDelete = useCallback(async () => {
+    if (!invoice || !id) return;
 
     setIsDeleting(true);
+    setError("");
 
     try {
-      const { error } = await supabase.rpc(
-        "finance_delete_invoice_issued",
-        {
-          p_invoice_id: invoice.id,
-        }
-      );
+      const { error } = await supabase.rpc("finance_delete_invoice_issued", {
+        p_invoice_id: id,
+      });
 
       if (error) throw error;
 
-      navigate("/finance/transactions/invoices");
+      await loadInvoice(true);
+      await loadArchiveItems();
+      setShowArchivePopup(true);
     } catch (err) {
       console.error(err);
       setError("Failed to delete invoice.");
     } finally {
       setIsDeleting(false);
     }
-  };
+  }, [id, invoice, loadArchiveItems, loadInvoice]);
 
-  // ===== LOADING =====
+  const applyDraftItemSelection = useCallback(
+    (lineId: string, itemId: string) => {
+      const selectedItem = items.find((item) => item.id === itemId);
 
-  if (isLoading || !invoice) {
+      setLineItemsDraft((current) =>
+        current.map((entry) => {
+          if (entry.id !== lineId) return entry;
+
+          if (!selectedItem) {
+            return {
+              ...entry,
+              item_id: "",
+            };
+          }
+
+          return {
+            ...entry,
+            item_id: selectedItem.id,
+            description: selectedItem.description || selectedItem.name,
+            unit_price: String(selectedItem.sales_price ?? 0),
+            tax_code_id: selectedItem.tax_code_id || "",
+            unit_of_measure_id: selectedItem.unit_of_measure_id || "",
+            revenue_category_id: selectedItem.revenue_category_id || "",
+          };
+        })
+      );
+    },
+    [items]
+  );
+
+  const addDraftLineItem = useCallback(() => {
+    setLineItemsDraft((current) => {
+      const last = current[current.length - 1];
+
+      if (!last) {
+        return [createEditableDraftLineItem()];
+      }
+
+      const isLastEmpty =
+        !last.description.trim() &&
+        toNumber(last.quantity) === 0 &&
+        toNumber(last.unit_price) === 0;
+
+      if (isLastEmpty) {
+        return current;
+      }
+
+      return [...current, createEditableDraftLineItem()];
+    });
+  }, []);
+
+  const removeDraftLineItem = useCallback((lineId: string) => {
+    setLineItemsDraft((current) => {
+      if (current.length === 1) {
+        return current;
+      }
+
+      return current.filter((entry) => entry.id !== lineId);
+    });
+  }, []);
+
+  const handleSaveIssuedOverviewChanges = useCallback(async () => {
+    if (!invoice || !id || invoice.status !== "issued") return;
+
+    setIsSavingDraft(true);
+    setError("");
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.id) {
+        throw new Error("User not authenticated");
+      }
+
+      const { error: invoiceError } = await supabase
+        .from("finance_invoices_issued")
+        .update({
+          issue_date: issueDateDraft,
+          due_date: dueDateDraft,
+          notes: notesDraft || null,
+          updated_by: user.id,
+        })
+        .eq("id", id)
+        .eq("status", "issued");
+
+      if (invoiceError) throw invoiceError;
+
+      setEditingOverview(false);
+      await loadInvoice(true);
+    } catch (err: any) {
+      console.error(err);
+      setError(
+        err?.message ||
+          err?.details ||
+          "Failed to save issued invoice overview changes."
+      );
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }, [id, invoice, issueDateDraft, dueDateDraft, notesDraft, loadInvoice]);
+
+  const handleSaveIssuedDocumentDetailsChanges = useCallback(async () => {
+    if (!invoice || !id || invoice.status !== "issued") return;
+
+    setIsSavingDraft(true);
+    setError("");
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.id) {
+        throw new Error("User not authenticated");
+      }
+
+      const { error: invoiceError } = await supabase
+        .from("finance_invoices_issued")
+        .update({
+          terms_and_conditions_snapshot: termsAndConditionsDraft || null,
+          updated_by: user.id,
+        })
+        .eq("id", id)
+        .eq("status", "issued");
+
+      if (invoiceError) throw invoiceError;
+
+      setEditingDocumentDetails(false);
+      await loadInvoice(true);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to save issued invoice document details.");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }, [id, invoice, termsAndConditionsDraft, loadInvoice]);
+
+  const handleSaveIssuedLineChanges = useCallback(async () => {
+    if (!invoice || !id || invoice.status !== "issued") return;
+
+    setIsSavingDraft(true);
+    setError("");
+
+    const cleanedLineItems = lineItemsDraft.map((row) => ({
+      ...row,
+      description: row.description.trim(),
+    }));
+
+    const hasAtLeastOneValidLine = cleanedLineItems.some(
+      (row) =>
+        row.description &&
+        toNumber(row.quantity) > 0 &&
+        toNumber(row.unit_price) >= 0
+    );
+
+    if (!hasAtLeastOneValidLine) {
+      setError("Issued invoice must include at least one valid line item.");
+      setIsSavingDraft(false);
+      return;
+    }
+
+    const hasInvalidLine = cleanedLineItems.some(
+      (row) =>
+        !row.description ||
+        toNumber(row.quantity) <= 0 ||
+        toNumber(row.unit_price) < 0
+    );
+
+    if (hasInvalidLine) {
+      setError(
+        "Every issued invoice line must have a description, quantity greater than 0, and unit price 0 or higher."
+      );
+      setIsSavingDraft(false);
+      return;
+    }
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.id) {
+        throw new Error("User not authenticated");
+      }
+
+      const existingIds = lineItems.map((entry) => entry.id);
+      const draftIds = cleanedLineItems
+        .filter((entry) => !entry.id.startsWith("new_"))
+        .map((entry) => entry.id);
+
+      const idsToDelete = existingIds.filter(
+        (entryId) => !draftIds.includes(entryId)
+      );
+
+      if (idsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("finance_invoice_issued_line_items")
+          .delete()
+          .in("id", idsToDelete);
+
+        if (deleteError) throw deleteError;
+      }
+
+      for (let index = 0; index < cleanedLineItems.length; index += 1) {
+        const row = cleanedLineItems[index];
+
+        if (row.id.startsWith("new_")) {
+          const { error: insertError } = await supabase
+            .from("finance_invoice_issued_line_items")
+            .insert({
+              invoice_id: id,
+              item_id: row.item_id || null,
+              description: row.description.trim(),
+              quantity: toNumber(row.quantity),
+              unit_price: toNumber(row.unit_price),
+              discount: toNumber(row.discount),
+              tax_code_id: row.tax_code_id || null,
+              unit_of_measure_id: row.unit_of_measure_id || null,
+              revenue_category_id: row.revenue_category_id || null,
+              sort_order: index + 1,
+              status: "active",
+              posted_to_ledger: false,
+              metadata: {},
+              created_by: user.id,
+              updated_by: user.id,
+            });
+
+          if (insertError) throw insertError;
+        } else {
+          const { error: lineError } = await supabase
+            .from("finance_invoice_issued_line_items")
+            .update({
+              item_id: row.item_id || null,
+              description: row.description.trim(),
+              quantity: toNumber(row.quantity),
+              unit_price: toNumber(row.unit_price),
+              discount: toNumber(row.discount),
+              tax_code_id: row.tax_code_id || null,
+              unit_of_measure_id: row.unit_of_measure_id || null,
+              revenue_category_id: row.revenue_category_id || null,
+              sort_order: index + 1,
+              updated_by: user.id,
+            })
+
+                    .eq("id", row.id)
+            .eq("invoice_id", id);
+
+          if (lineError) throw lineError;
+        }
+      }
+
+      const { error: recalcError } = await supabase.rpc(
+        "finance_recalculate_invoice_issued_totals",
+        {
+          p_invoice_id: id,
+        }
+      );
+
+      if (recalcError) throw recalcError;
+
+      setEditingLines(false);
+      await loadInvoice(true);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to save issued invoice line items.");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }, [id, invoice, lineItems, lineItemsDraft, loadInvoice]);
+
+  const handleSaveDraftChanges = useCallback(async () => {
+    if (!invoice || !id || !canEditDraft) return;
+
+    setIsSavingDraft(true);
+    setError("");
+
+    const cleanedLineItems = lineItemsDraft.map((row) => ({
+      ...row,
+      description: row.description.trim(),
+    }));
+
+    const hasAtLeastOneValidLine = cleanedLineItems.some(
+      (row) =>
+        row.description &&
+        toNumber(row.quantity) > 0 &&
+        toNumber(row.unit_price) >= 0
+    );
+
+    if (!hasAtLeastOneValidLine) {
+      setError("Draft invoice must include at least one valid line item.");
+      setIsSavingDraft(false);
+      return;
+    }
+
+    const hasInvalidLine = cleanedLineItems.some(
+      (row) =>
+        !row.description ||
+        toNumber(row.quantity) <= 0 ||
+        toNumber(row.unit_price) < 0
+    );
+
+    if (hasInvalidLine) {
+      setError(
+        "Every draft invoice line must have a description, quantity greater than 0, and unit price 0 or higher."
+      );
+      setIsSavingDraft(false);
+      return;
+    }
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.id) {
+        throw new Error("User not authenticated");
+      }
+
+      const isCompany = clientIdDraft.startsWith("company:");
+      const isClient = clientIdDraft.startsWith("client:");
+
+      const resolvedClientId = isClient
+        ? clientIdDraft.replace("client:", "")
+        : null;
+
+      const resolvedCompanyId = isCompany
+        ? clientIdDraft.replace("company:", "")
+        : null;
+
+      const selectedPaymentMethod = paymentMethods.find(
+        (method) => method.id === paymentMethodIdDraft
+      );
+
+      const selectedCurrency = currencies.find(
+        (currency) => currency.id === currencyIdDraft
+      );
+
+      const selectedPaymentTerm = paymentTerms.find(
+        (term) => term.id === paymentTermsIdDraft
+      );
+
+      const selectedShippingTerm = shippingTerms.find(
+        (term) => term.id === shippingTermIdDraft
+      );
+
+      const { error: invoiceError } = await supabase
+        .from("finance_invoices_issued")
+        .update({
+          client_id: resolvedClientId,
+          counterparty_company_id: resolvedCompanyId,
+          counterparty_type: isCompany ? "company" : "client",
+          company_id: companyIdDraft || null,
+          project_id: projectIdDraft || null,
+          task_id: taskIdDraft || null,
+          payment_terms_id: paymentTermsIdDraft || null,
+          shipping_term_id: shippingTermIdDraft || null,
+          bank_account_id: bankAccountIdDraft || null,
+          currency_id: currencyIdDraft || null,
+          currency_code:
+            selectedCurrency?.currency_code || invoice.currency_code || "USD",
+          issue_date: issueDateDraft,
+          due_date: dueDateDraft,
+          notes: notesDraft || null,
+          company_name_snapshot:
+            selectedDraftCompany?.legal_name ||
+            selectedDraftCompany?.name ||
+            null,
+          company_contact_person_snapshot:
+            selectedDraftCompany?.contact_person || null,
+          company_address_snapshot: resolvedDraftCompanyAddress || null,
+          company_email_snapshot: selectedDraftCompany?.email || null,
+          company_phone_snapshot: selectedDraftCompany?.phone || null,
+          counterparty_name_snapshot: resolvedDraftRecipientName || null,
+          counterparty_legal_name_snapshot: resolvedDraftRecipientName || null,
+          counterparty_contact_person_snapshot:
+            resolvedDraftRecipientContact || null,
+          counterparty_email_snapshot: resolvedDraftRecipientEmail || null,
+          counterparty_phone_snapshot: resolvedDraftRecipientPhone || null,
+          client_name_snapshot:
+            selectedDraftClient?.legal_name || selectedDraftClient?.name || null,
+          client_contact_person_snapshot:
+            selectedDraftClient?.contact_person || null,
+          client_email_snapshot:
+            selectedDraftClient?.company_email ||
+            selectedDraftClient?.personnel_email ||
+            null,
+          client_phone_snapshot:
+            selectedDraftClient?.company_phone ||
+            selectedDraftClient?.personnel_phone ||
+            null,
+          billing_address_snapshot: resolvedDraftRecipientAddress || null,
+          payment_terms_snapshot:
+            selectedPaymentTerm?.document_label ||
+            selectedPaymentTerm?.name ||
+            null,
+          shipping_terms_snapshot:
+            selectedShippingTerm?.description?.trim()
+              ? `${selectedShippingTerm.name} — ${selectedShippingTerm.description.trim()}`
+              : selectedShippingTerm?.name || selectedShippingTerm?.code || null,
+          terms_and_conditions_snapshot: termsAndConditionsDraft || null,
+          bank_details_snapshot:
+            buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount),
+          updated_by: user.id,
+          metadata: {
+            ...(invoice.metadata || {}),
+            preferred_payment_method_id: paymentMethodIdDraft || null,
+            preferred_payment_method_name: selectedPaymentMethod?.name || null,
+            preferred_payment_method_code: selectedPaymentMethod?.code || null,
+            bank_account_id: bankAccountIdDraft || null,
+            bank_account_name: selectedDraftBankAccount?.name || null,
+            bank_name:
+              selectedDraftBankAccount?.bank_name ||
+              selectedDraftBankAccount?.institution_name ||
+              null,
+            beneficiary_name: selectedDraftBankAccount?.beneficiary_name || null,
+            bank_address_snapshot:
+              buildBankAddressFromAccount(selectedDraftBankAccount) || null,
+            iban: selectedDraftBankAccount?.iban || null,
+            swift_code:
+              selectedDraftBankAccount?.swift_code ||
+              (selectedDraftBankAccount?.account_identifier_type?.toLowerCase() ===
+              "swift"
+                ? selectedDraftBankAccount?.account_identifier_value
+                : null),
+            bank_identifier_type:
+              selectedDraftBankAccount?.account_identifier_type || null,
+            bank_identifier_value:
+              selectedDraftBankAccount?.account_identifier_value || null,
+            account_number:
+              selectedDraftBankAccount?.account_number ||
+              selectedDraftBankAccount?.masked_account_number ||
+              null,
+            bank_account_currency_code:
+              selectedDraftBankAccount?.currency_code || null,
+          },
+        })
+        .eq("id", id)
+        .eq("status", "draft");
+
+      if (invoiceError) throw invoiceError;
+
+      const existingIds = lineItems.map((entry) => entry.id);
+      const draftIds = cleanedLineItems
+        .filter((entry) => !entry.id.startsWith("new_"))
+        .map((entry) => entry.id);
+
+      const idsToDelete = existingIds.filter(
+        (entryId) => !draftIds.includes(entryId)
+      );
+
+      if (idsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("finance_invoice_issued_line_items")
+          .delete()
+          .in("id", idsToDelete);
+
+        if (deleteError) throw deleteError;
+      }
+
+      for (let index = 0; index < cleanedLineItems.length; index += 1) {
+        const row = cleanedLineItems[index];
+
+        if (row.id.startsWith("new_")) {
+          const { error: insertError } = await supabase
+            .from("finance_invoice_issued_line_items")
+            .insert({
+              invoice_id: id,
+              item_id: row.item_id || null,
+              description: row.description.trim(),
+              quantity: toNumber(row.quantity),
+              unit_price: toNumber(row.unit_price),
+              discount: toNumber(row.discount),
+              tax_code_id: row.tax_code_id || null,
+              unit_of_measure_id: row.unit_of_measure_id || null,
+              revenue_category_id: row.revenue_category_id || null,
+              sort_order: index + 1,
+              status: "active",
+              posted_to_ledger: false,
+              metadata: {},
+              created_by: user.id,
+              updated_by: user.id,
+            });
+
+          if (insertError) throw insertError;
+        } else {
+          const { error: lineError } = await supabase
+            .from("finance_invoice_issued_line_items")
+            .update({
+              item_id: row.item_id || null,
+              description: row.description.trim(),
+              quantity: toNumber(row.quantity),
+              unit_price: toNumber(row.unit_price),
+              discount: toNumber(row.discount),
+              tax_code_id: row.tax_code_id || null,
+              unit_of_measure_id: row.unit_of_measure_id || null,
+              revenue_category_id: row.revenue_category_id || null,
+              sort_order: index + 1,
+              updated_by: user.id,
+            })
+            .eq("id", row.id)
+            .eq("invoice_id", id);
+
+          if (lineError) throw lineError;
+        }
+      }
+
+      const { error: recalcError } = await supabase.rpc(
+        "finance_recalculate_invoice_issued_totals",
+        {
+          p_invoice_id: id,
+        }
+      );
+
+      if (recalcError) throw recalcError;
+
+      closeAllEditors();
+      await loadInvoice(true);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to save draft changes.");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }, [
+    bankAccountIdDraft,
+    canEditDraft,
+    clientIdDraft,
+    closeAllEditors,
+    companyIdDraft,
+    currencies,
+    currencyIdDraft,
+    dueDateDraft,
+    id,
+    invoice,
+    issueDateDraft,
+    lineItems,
+    lineItemsDraft,
+    loadInvoice,
+    notesDraft,
+    paymentMethodIdDraft,
+    paymentMethods,
+    paymentTerms,
+    paymentTermsIdDraft,
+    projectIdDraft,
+    resolvedDraftCompanyAddress,
+    resolvedDraftRecipientAddress,
+    resolvedDraftRecipientContact,
+    resolvedDraftRecipientEmail,
+    resolvedDraftRecipientName,
+    resolvedDraftRecipientPhone,
+    selectedDraftBankAccount,
+    selectedDraftClient,
+    selectedDraftCompany,
+    shippingTermIdDraft,
+    shippingTerms,
+    taskIdDraft,
+    termsAndConditionsDraft,
+  ]);
+
+  const printableInvoice = useMemo(() => {
+    if (!invoice) return invoice;
+
+    const resolvedPaymentTerm =
+      selectedDraftPaymentTerm ||
+      paymentTerms.find(
+        (entry) =>
+          entry.id === paymentTermsIdDraft ||
+          entry.id === invoice.payment_terms_id
+      ) ||
+      null;
+
+    const resolvedShippingTerms =
+      selectedDraftShippingTermsLabel !== "—"
+        ? selectedDraftShippingTermsLabel
+        : invoice.shipping_terms_snapshot;
+
+    const resolvedPaymentTermsLabel =
+      resolvedPaymentTerm?.document_label ||
+      resolvedPaymentTerm?.name ||
+      invoice.payment_terms_snapshot ||
+      "—";
+
+    const resolvedPaymentTermsText =
+      resolvedPaymentTerm?.document_terms_text ||
+      (invoice as any).payment_terms_document_text ||
+      (invoice as any).payment_terms_text_snapshot ||
+      (invoice as any).payment_terms_description ||
+      "";
+
+    if (invoice.status !== "draft") {
+      return {
+        ...invoice,
+        payment_terms_snapshot: resolvedPaymentTermsLabel,
+        payment_terms_document_text: resolvedPaymentTermsText,
+        shipping_terms_snapshot: resolvedShippingTerms,
+        terms_and_conditions_snapshot:
+          termsAndConditionsDraft || invoice.terms_and_conditions_snapshot,
+        currency_code: invoice.currency_code || "USD",
+      };
+    }
+
+    const draftBankDetails =
+      buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount) ||
+      invoice.bank_details_snapshot;
+
+    return {
+      ...invoice,
+      company_name_snapshot:
+        selectedDraftCompany?.legal_name ||
+        selectedDraftCompany?.name ||
+        invoice.company_name_snapshot,
+      company_contact_person_snapshot:
+        selectedDraftCompany?.contact_person ||
+        invoice.company_contact_person_snapshot,
+      company_address_snapshot:
+        resolvedDraftCompanyAddress || invoice.company_address_snapshot,
+      company_email_snapshot:
+        selectedDraftCompany?.email || invoice.company_email_snapshot,
+      company_phone_snapshot:
+        selectedDraftCompany?.phone || invoice.company_phone_snapshot,
+
+
+            counterparty_name_snapshot:
+        resolvedDraftRecipientName ||
+        invoice.counterparty_name_snapshot ||
+        invoice.client_name_snapshot,
+      client_name_snapshot:
+        selectedDraftClient?.legal_name ||
+        selectedDraftClient?.name ||
+        invoice.client_name_snapshot,
+      client_contact_person_snapshot:
+        selectedDraftClient?.contact_person ||
+        invoice.client_contact_person_snapshot,
+      client_email_snapshot:
+        selectedDraftClient?.company_email ||
+        selectedDraftClient?.personnel_email ||
+        invoice.client_email_snapshot,
+      client_phone_snapshot:
+        selectedDraftClient?.company_phone ||
+        selectedDraftClient?.personnel_phone ||
+        invoice.client_phone_snapshot,
+      billing_address_snapshot:
+        resolvedDraftRecipientAddress || invoice.billing_address_snapshot,
+      payment_terms_snapshot: resolvedPaymentTermsLabel,
+      payment_terms_document_text: resolvedPaymentTermsText,
+      shipping_terms_snapshot: resolvedShippingTerms,
+      terms_and_conditions_snapshot:
+        termsAndConditionsDraft || invoice.terms_and_conditions_snapshot,
+      bank_details_snapshot: draftBankDetails,
+      currency_code:
+        selectedDraftCurrency?.currency_code || invoice.currency_code || "USD",
+    };
+  }, [
+    invoice,
+    paymentTerms,
+    paymentTermsIdDraft,
+    resolvedDraftCompanyAddress,
+    resolvedDraftRecipientAddress,
+    resolvedDraftRecipientName,
+    selectedDraftBankAccount,
+    selectedDraftClient,
+    selectedDraftCompany,
+    selectedDraftCurrency,
+    selectedDraftPaymentTerm,
+    selectedDraftShippingTermsLabel,
+    termsAndConditionsDraft,
+  ]);
+
+  if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-white">
-        Loading invoice...
+      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
+            Loading invoice...
+          </div>
+        </div>
       </div>
     );
   }
 
-  const displayState = getInvoiceDisplayState(invoice);
+  if (!invoice || !totals) {
+    return (
+      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
+            Invoice not found.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  // ===== RENDER START =====
+  const displayState = getInvoiceDisplayState(invoice as any);
+
+  const visibleArchiveItems = archiveItems.filter(
+    (item) => item.status === archiveTab
+  );
+
+  const paymentProgressPercent = (() => {
+    const total = Number(invoice.total_amount || 0);
+    const paid = Number(invoice.paid_amount || 0);
+
+    if (total <= 0) return 0;
+
+    const percent = (paid / total) * 100;
+    return Math.max(0, Math.min(percent, 100));
+  })();
+
+  const printableLineItems = lineItems.map((row) => ({
+    id: row.id,
+    description: row.description || "—",
+    quantity: toNumber(row.quantity),
+    unitPrice: toNumber(row.unit_price),
+    discount: toNumber(row.discount),
+    lineTotal: toNumber(row.line_total),
+  }));
+
+  const currentCurrencyCode =
+    selectedDraftCurrency?.currency_code || invoice.currency_code || "USD";
+
+  const sectionCardClass =
+    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
+
+  const innerPanelClass =
+    "rounded-[24px] border border-white/10 bg-black/20 p-4";
+
+  const fieldShellClass =
+    "h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
+
+  const inputFieldClass =
+    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
+
+  const readOnlyFieldClass =
+    "flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80";
+
+  const labelClass = "text-sm font-medium text-slate-300";
+
+  const eyebrowClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
+
+  const handleSaveOverview = () => {
+    if (canEditDraft) {
+      void handleSaveDraftChanges();
+      return;
+    }
+
+    if (canEditIssuedOverview) {
+      void handleSaveIssuedOverviewChanges();
+    }
+  };
+
+  const handleSaveFinancialSettings = () => {
+    if (canEditDraft) {
+      void handleSaveDraftChanges();
+    }
+  };
+
+  const handleSaveDocumentDetails = () => {
+    if (canEditDraft) {
+      void handleSaveDraftChanges();
+      return;
+    }
+
+    if (canEditIssuedDetails) {
+      void handleSaveIssuedDocumentDetailsChanges();
+    }
+  };
+
+  const handleSaveLines = () => {
+    if (canEditDraft) {
+      void handleSaveDraftChanges();
+      return;
+    }
+
+    if (invoice.status === "issued") {
+      void handleSaveIssuedLineChanges();
+    }
+  };
 
   return (
-
-          <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+    <>
+      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
         <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
 
-          {/* HERO */}
-          <div className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 backdrop-blur-xl">
-            <div className="pointer-events-none absolute -top-32 left-0 h-[300px] w-[300px] rounded-full bg-cyan-500/10 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-32 right-0 h-[300px] w-[300px] rounded-full bg-violet-500/10 blur-3xl" />
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => navigate("/finance/transactions/invoices")}
+                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              >
+                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+                Invoices
+              </button>
 
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px]">
+                <div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                      Invoice Workspace
+                    </Badge>
 
-              <div className="space-y-2">
-                <Badge className="w-fit rounded-full border border-white/10 bg-white/[0.05] px-4 py-1 text-[11px] uppercase tracking-[0.22em]">
-                  Invoice
-                </Badge>
+                    <Badge
+                      className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-none ${getDocumentStatusBadgeClasses(
+                        invoice.status
+                      )}`}
+                    >
+                      {getIssuedInvoiceStatusLabel(invoice.status)}
+                    </Badge>
 
-                <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-semibold tracking-tight">
-                    {invoice.invoice_number}
+                    <Badge
+                      className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-none ${getPaymentStatusBadgeClasses(
+                        invoice.payment_status
+                      )}`}
+                    >
+                      {getIssuedInvoicePaymentStatusLabel(invoice.payment_status)}
+                    </Badge>
+
+                    <Badge
+                      className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-none ${getPostingStatusBadgeClasses(
+                        displayState.postingStatus
+                      )}`}
+                    >
+                      {getPostingStatusLabel(displayState.postingStatus)}
+                    </Badge>
+
+                    {displayState.isOverdue ? (
+                      <Badge
+                        className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-none ${getOverdueBadgeClasses()}`}
+                      >
+                        Overdue
+                      </Badge>
+                    ) : null}
+                  </div>
+
+                  <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                    {invoice.invoice_number ||
+                      (invoice.status === "draft"
+                        ? "Draft Invoice"
+                        : "Invoice")}
                   </h1>
 
-                  <Badge
-                    className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.18em] ${getDocumentStatusBadgeClasses(
-                      invoice.status
-                    )}`}
-                  >
-                    {getIssuedInvoiceStatusLabel(invoice.status)}
-                  </Badge>
+                  <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                    Final outbound receivable document issued by your company to
+                    the recipient. Drafts remain editable; issued records keep
+                    frozen commercial snapshots.
+                  </p>
 
-                  <Badge
-                    className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.18em] ${getPaymentStatusBadgeClasses(
-                      invoice.payment_status
-                    )}`}
-                  >
-                    {getIssuedInvoicePaymentStatusLabel(
-                      invoice.payment_status
-                    )}
-                  </Badge>
-
-                  {isOverdue && (
-                    <Badge
-                      className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.18em] ${getOverdueBadgeClasses()}`}
-                    >
-                      Overdue
-                    </Badge>
-                  )}
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                      Draft → Issued → Paid
+                    </span>
+                    <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
+                      Payment tracking enabled
+                    </span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                      Auto-refresh enabled
+                    </span>
+                  </div>
                 </div>
 
-                <p className="text-sm text-slate-400">
-                  Full invoice lifecycle, financials, and linked flows.
-                </p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Recipient
+                        </p>
+                        <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                          {invoice.status === "draft"
+                            ? resolvedDraftRecipientName || "—"
+                            : resolvedIssuedRecipientName || "—"}
+                        </p>
+                      </div>
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                        <CheckCircle className="h-4 w-4" />
+                      </div>
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-slate-500">
+                      Recipient selected for this invoice.
+                    </p>
+                  </div>
+
+                  <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Balance Due
+                        </p>
+                        <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                          {formatFinanceMoney(
+                            financialSummary?.balance ?? 0,
+                            currentCurrencyCode
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
+                        <span className="h-2 w-2 rounded-full bg-amber-400" />
+                      </div>
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-slate-500">
+                      Remaining amount after confirmed payments.
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-
-                {isDraft && (
+              <div className="mt-6 flex flex-wrap gap-3">
+                {invoice.status === "issued" ? (
                   <Button
-                    onClick={handleSaveDraft}
-                    disabled={isSavingDraft}
-                    className="rounded-2xl bg-white text-black hover:bg-white/90"
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Draft
-                  </Button>
-                )}
-
-                {isDraft && (
-                  <Button
-                    onClick={handleIssueInvoice}
-                    disabled={isIssuing}
-                    className="rounded-2xl bg-cyan-500 text-black hover:bg-cyan-400"
+                    onClick={() =>
+                      navigate(
+                        `/finance/transactions/payments-received/new?invoice_id=${invoice.id}`
+                      )
+                    }
+                    className="h-11 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400"
                   >
                     <CheckCircle className="mr-2 h-4 w-4" />
-                    Issue
+                    Confirm Payment
                   </Button>
-                )}
+                ) : null}
 
-                <Button
+                                <Button
+                  variant="outline"
                   onClick={handlePrint}
-                  variant="secondary"
-                  className="rounded-2xl"
+                  className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
                 >
                   <Printer className="mr-2 h-4 w-4" />
                   Print
                 </Button>
 
-                <Button
-                  onClick={handleArchive}
-                  disabled={isArchiving}
-                  variant="secondary"
-                  className="rounded-2xl"
-                >
-                  Archive
-                </Button>
+                {invoice.status === "draft" ? (
+                  <Button
+                    onClick={() => void handleIssue()}
+                    disabled={isIssuing || isSavingDraft}
+                    className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    {isIssuing ? "Issuing..." : "Issue Invoice"}
+                  </Button>
+                ) : null}
 
-                <Button
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                  variant="destructive"
-                  className="rounded-2xl"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </Button>
+                {canArchive ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleArchive()}
+                    disabled={isArchiving}
+                    className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Archive className="mr-2 h-4 w-4" />
+                    {isArchiving ? "Archiving..." : "Archive"}
+                  </Button>
+                ) : null}
 
+                {invoice.status !== "deleted" &&
+                invoice.status !== "archived" ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleDelete()}
+                    disabled={isDeleting}
+                    className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {isDeleting ? "Deleting..." : "Delete"}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </header>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
+              <div className="relative flex h-full flex-col justify-between gap-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Subtotal
+                    </div>
+                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
+                      {formatFinanceMoney(
+                        financialSummary?.subtotal ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                    <span className="h-2 w-2 rounded-full bg-cyan-400" />
+                  </div>
+                </div>
+                <div className="text-sm leading-6 text-slate-400">
+                  Before discount and tax.
+                </div>
+              </div>
+            </div>
+
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
+              <div className="relative flex h-full flex-col justify-between gap-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Discount
+                    </div>
+                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
+                      {formatFinanceMoney(
+                        financialSummary?.discount ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
+                    <span className="h-2 w-2 rounded-full bg-amber-400" />
+                  </div>
+                </div>
+                <div className="text-sm leading-6 text-slate-400">
+                  Commercial discount.
+                </div>
+              </div>
+            </div>
+
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
+              <div className="relative flex h-full flex-col justify-between gap-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Tax
+                    </div>
+                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
+                      {formatFinanceMoney(
+                        financialSummary?.tax ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
+                    <span className="h-2 w-2 rounded-full bg-violet-400" />
+                  </div>
+                </div>
+                <div className="text-sm leading-6 text-slate-400">
+                  Based on selected tax codes.
+                </div>
+              </div>
+            </div>
+
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
+              <div className="relative flex h-full flex-col justify-between gap-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Total
+                    </div>
+                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
+                      {formatFinanceMoney(
+                        financialSummary?.total ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                  </div>
+                </div>
+                <div className="text-sm leading-6 text-slate-400">
+                  Invoice value.
+                </div>
               </div>
             </div>
           </div>
 
-          {/* GRID */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-
-            {/* LEFT */}
-            <div className="flex flex-col gap-6 lg:col-span-2">
-
-              {/* DOCUMENT OVERVIEW */}
-              <Card className="rounded-[30px] border border-white/10 bg-white/[0.045]">
-                <CardHeader className="flex flex-row items-center justify-between px-5 py-4">
-                  <div>
-                    <CardTitle>Document Overview</CardTitle>
-                    <CardDescription>
-                      Ownership, client and internal structure
-                    </CardDescription>
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
+            <div className="space-y-6">
+              <Card className={sectionCardClass}>
+                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Document Overview
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Recipient, issuing company, dates, currency, and project context.
+                      </CardDescription>
+                    </div>
                   </div>
 
-                  {isDraft && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setEditingOverview((v) => !v)}
-                    >
-                      <SquarePen className="h-4 w-4 mr-1" />
-                      {editingOverview ? "Close" : "Edit"}
-                    </Button>
-                  )}
+                  {canEditDraft || canEditIssuedOverview ? (
+                    <div className="flex items-center gap-2">
+                      {editingOverview ? (
+                        <>
+                          <Button
+                            onClick={handleSaveOverview}
+                            disabled={isSavingDraft}
+                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
+                          >
+                            <Save className="mr-2 h-4 w-4" />
+                            {isSavingDraft ? "Saving..." : "Save"}
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setEditingOverview(false);
+                              void loadInvoice(true);
+                            }}
+                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={() => setEditingOverview(true)}
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                        >
+                          <SquarePen className="mr-2 h-4 w-4" />
+                          Edit
+                        </Button>
+                      )}
+                    </div>
+                  ) : null}
                 </CardHeader>
 
-                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-
-                  {/* CLIENT */}
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Client</p>
-
-                    {editingOverview ? (
+                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Recipient</div>
+                    {editingOverview && invoice.status === "draft" ? (
                       <select
                         value={clientIdDraft}
-                        onChange={(e) => setClientIdDraft(e.target.value)}
-                        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm"
+                        onChange={(event) => setClientIdDraft(event.target.value)}
+                        className={`mt-2 ${fieldShellClass}`}
                       >
-                        <option value="">Select client</option>
-                        {clients.map((c) => (
-                          <option key={c.id} value={`client:${c.id}`}>
-                            {c.name}
-                          </option>
-                        ))}
+                        <option value="">Select recipient</option>
+                        <optgroup label="Clients">
+                          {clients.map((client) => (
+                            <option key={client.id} value={`client:${client.id}`}>
+                              {client.legal_name || client.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Companies (Intercompany)">
+                          {companies
+                            .filter((company) => company.id !== companyIdDraft)
+                            .map((company) => (
+                              <option
+                                key={company.id}
+                                value={`company:${company.id}`}
+                              >
+                                {company.legal_name || company.name}
+                              </option>
+                            ))}
+                        </optgroup>
                       </select>
                     ) : (
-                      <p className="text-sm">
-                        {invoice.client_name_snapshot || "—"}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* COMPANY */}
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Company</p>
-
-                    {editingOverview ? (
-                      <select
-                        value={companyIdDraft}
-                        onChange={(e) => setCompanyIdDraft(e.target.value)}
-                        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm"
-                      >
-                        <option value="">Select</option>
-                        {companies.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <p className="text-sm">
-                        {invoice.company_name_snapshot || "—"}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* PROJECT */}
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Project</p>
-
-                    {editingOverview ? (
-                      <select
-                        value={projectIdDraft}
-                        onChange={(e) => setProjectIdDraft(e.target.value)}
-                        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm"
-                      >
-                        <option value="">None</option>
-                        {projects.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <p className="text-sm">{project?.name || "—"}</p>
-                    )}
-                  </div>
-
-                  {/* TASK */}
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Task</p>
-
-                    {editingOverview ? (
-                      <select
-                        value={taskIdDraft}
-                        onChange={(e) => setTaskIdDraft(e.target.value)}
-                        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm"
-                      >
-                        <option value="">None</option>
-                        {tasks.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.title}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <p className="text-sm">{task?.title || "—"}</p>
-                    )}
-                  </div>
-
-                </CardContent>
-              </Card>
-
-                            {/* FINANCIAL SETTINGS */}
-              <Card className="rounded-[30px] border border-white/10 bg-white/[0.045]">
-                <CardHeader className="flex flex-row items-center justify-between px-5 py-4">
-                  <div>
-                    <CardTitle>Financial Settings</CardTitle>
-                    <CardDescription>
-                      Currency, terms, and banking configuration
-                    </CardDescription>
-                  </div>
-
-                  {isDraft && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        setEditingFinancialSettings((v) => !v)
-                      }
-                    >
-                      <SquarePen className="h-4 w-4 mr-1" />
-                      {editingFinancialSettings ? "Close" : "Edit"}
-                    </Button>
-                  )}
-                </CardHeader>
-
-                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-
-                  {/* CURRENCY */}
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Currency</p>
-
-                    {editingFinancialSettings ? (
-                      <select
-                        value={currencyIdDraft}
-                        onChange={(e) =>
-                          setCurrencyIdDraft(e.target.value)
-                        }
-                        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm"
-                      >
-                        <option value="">Select</option>
-                        {currencies.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.currency_code}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <p className="text-sm">{currencyCode}</p>
-                    )}
-                  </div>
-
-                  {/* PAYMENT TERMS */}
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Payment Terms</p>
-
-                    {editingFinancialSettings ? (
-                      <select
-                        value={paymentTermsIdDraft}
-                        onChange={(e) =>
-                          setPaymentTermsIdDraft(e.target.value)
-                        }
-                        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm"
-                      >
-                        <option value="">Select</option>
-                        {paymentTerms.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <p className="text-sm">
-                        {invoice.payment_terms_snapshot || "—"}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* SHIPPING TERMS */}
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">
-                      Shipping Terms
-                    </p>
-
-                    {editingFinancialSettings ? (
-                      <select
-                        value={shippingTermIdDraft}
-                        onChange={(e) =>
-                          setShippingTermIdDraft(e.target.value)
-                        }
-                        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm"
-                      >
-                        <option value="">Select</option>
-                        {shippingTerms.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <p className="text-sm">
-                        {invoice.shipping_terms_snapshot || "—"}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* BANK */}
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">
-                      Bank Account
-                    </p>
-
-                    {editingFinancialSettings ? (
-                      <select
-                        value={bankAccountIdDraft}
-                        onChange={(e) =>
-                          setBankAccountIdDraft(e.target.value)
-                        }
-                        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm"
-                      >
-                        <option value="">Select</option>
-                        {bankAccounts.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="text-sm space-y-1">
-                        {buildBankDetailsLinesFromSnapshot(
-                          invoice.bank_details_snapshot
-                        ).map((line, idx) => (
-                          <p key={idx}>{line}</p>
-                        ))}
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {invoice.status === "draft"
+                          ? resolvedDraftRecipientName || "—"
+                          : resolvedIssuedRecipientName || "—"}
                       </div>
                     )}
                   </div>
 
-                </CardContent>
-              </Card>
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Issuing Company</div>
+                    {editingOverview && invoice.status === "draft" ? (
+                      <select
 
-              {/* DOCUMENT DETAILS */}
-              <Card className="rounded-[30px] border border-white/10 bg-white/[0.045]">
-                <CardHeader className="flex flex-row items-center justify-between px-5 py-4">
-                  <div>
-                    <CardTitle>Document Details</CardTitle>
-                    <CardDescription>
-                      Dates, notes, and legal text
-                    </CardDescription>
-                  </div>
-
-                  {isDraft && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        setEditingDocumentDetails((v) => !v)
-                      }
-                    >
-                      <SquarePen className="h-4 w-4 mr-1" />
-                      {editingDocumentDetails ? "Close" : "Edit"}
-                    </Button>
-                  )}
-                </CardHeader>
-
-                <CardContent className="flex flex-col gap-4 p-5">
-
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-
-                    <div>
-                      <p className="text-xs text-slate-500 mb-1">
-                        Issue Date
-                      </p>
-
-                      {editingDocumentDetails ? (
-                        <input
-                          type="date"
-                          value={issueDateDraft}
-                          onChange={(e) =>
-                            setIssueDateDraft(e.target.value)
-                          }
-                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm"
-                        />
-                      ) : (
-                        <p className="text-sm">
-                          {formatFinanceDate(invoice.issue_date)}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-slate-500 mb-1">
-                        Due Date
-                      </p>
-
-                      {editingDocumentDetails ? (
-                        <input
-                          type="date"
-                          value={dueDateDraft}
-                          onChange={(e) =>
-                            setDueDateDraft(e.target.value)
-                          }
-                          className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm"
-                        />
-                      ) : (
-                        <p className="text-sm">
-                          {formatFinanceDate(invoice.due_date)}
-                        </p>
-                      )}
-                    </div>
-
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Notes</p>
-
-                    {editingDocumentDetails ? (
-                      <textarea
-                        value={notesDraft}
-                        onChange={(e) =>
-                          setNotesDraft(e.target.value)
-                        }
-                        className="w-full rounded-2xl border border-white/10 bg-black/20 p-4 text-sm"
-                        rows={3}
-                      />
+                                                value={companyIdDraft}
+                        onChange={(event) => setCompanyIdDraft(event.target.value)}
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">Select company</option>
+                        {companies.map((company) => (
+                          <option key={company.id} value={company.id}>
+                            {company.legal_name || company.name}
+                          </option>
+                        ))}
+                      </select>
                     ) : (
-                      <p className="text-sm whitespace-pre-line">
-                        {invoice.notes || "—"}
-                      </p>
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {invoice.status === "draft"
+                          ? selectedDraftCompany?.legal_name ||
+                            selectedDraftCompany?.name ||
+                            "—"
+                          : invoice.company_name_snapshot || "—"}
+                      </div>
                     )}
                   </div>
 
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">
-                      Terms & Conditions
-                    </p>
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Invoice Status</div>
+                    <div className="mt-2">
+                      <Badge
+                        className={`rounded-full border px-3 py-1 text-xs shadow-none ${getDocumentStatusBadgeClasses(
+                          invoice.status
+                        )}`}
+                      >
+                        {getIssuedInvoiceStatusLabel(invoice.status)}
+                      </Badge>
+                    </div>
+                  </div>
 
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Issue Date</div>
+                    {editingOverview ? (
+                      <input
+                        type="date"
+                        value={issueDateDraft}
+                        onChange={(event) => setIssueDateDraft(event.target.value)}
+                        className={`mt-2 ${fieldShellClass}`}
+                      />
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {invoice.status === "draft"
+                          ? formatFinanceDate(issueDateDraft)
+                          : formatFinanceDate(invoice.issue_date)}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Due Date</div>
+                    {editingOverview ? (
+                      <input
+                        type="date"
+                        value={dueDateDraft}
+                        onChange={(event) => setDueDateDraft(event.target.value)}
+                        className={`mt-2 ${fieldShellClass}`}
+                      />
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {invoice.status === "draft"
+                          ? formatFinanceDate(dueDateDraft)
+                          : formatFinanceDate(invoice.due_date)}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Currency</div>
+                    {editingOverview && invoice.status === "draft" ? (
+                      <select
+                        value={currencyIdDraft}
+                        onChange={(event) => setCurrencyIdDraft(event.target.value)}
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">Select currency</option>
+                        {currencies.map((currency) => (
+                          <option key={currency.id} value={currency.id}>
+                            {currency.currency_code} — {currency.currency_name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {currentCurrencyCode}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Project</div>
+                    {editingOverview && invoice.status === "draft" ? (
+                      <select
+                        value={projectIdDraft}
+                        onChange={(event) => {
+                          setProjectIdDraft(event.target.value);
+                          setTaskIdDraft("");
+                        }}
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">No project</option>
+                        {projects.map((projectItem) => (
+                          <option key={projectItem.id} value={projectItem.id}>
+                            {projectItem.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {invoice.status === "draft"
+                          ? selectedDraftProject?.name || "—"
+                          : project?.name || "—"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Task</div>
+                    {editingOverview && invoice.status === "draft" ? (
+                      <select
+                        value={taskIdDraft}
+                        onChange={(event) => setTaskIdDraft(event.target.value)}
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">No task</option>
+                        {filteredDraftTasks.map((taskItem) => (
+                          <option key={taskItem.id} value={taskItem.id}>
+                            {taskItem.title}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {invoice.status === "draft"
+                          ? selectedDraftTask?.title || "—"
+                          : task?.title || "—"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Posted To Ledger</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {invoice.posted_to_ledger ? "Posted" : "Not Posted"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
+                    <div className={eyebrowClass}>Notes</div>
+                    {editingOverview ? (
+                      <textarea
+                        value={notesDraft}
+                        onChange={(event) => setNotesDraft(event.target.value)}
+                        rows={4}
+                        className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
+                      />
+                    ) : (
+                      <div className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
+                        {invoice.status === "draft"
+                          ? notesDraft || "—"
+                          : invoice.notes || "—"}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className={sectionCardClass}>
+                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
+                      <CheckCircle className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Financial Settings
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Payment terms, shipping terms, bank account, and payment method.
+                      </CardDescription>
+                    </div>
+                  </div>
+
+                  {canEditDraft ? (
+                    <div className="flex items-center gap-2">
+                      {editingFinancialSettings ? (
+                        <>
+                          <Button
+                            onClick={handleSaveFinancialSettings}
+                            disabled={isSavingDraft}
+                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
+                          >
+                            <Save className="mr-2 h-4 w-4" />
+                            {isSavingDraft ? "Saving..." : "Save"}
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setEditingFinancialSettings(false);
+                              void loadInvoice(true);
+                            }}
+                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={() => setEditingFinancialSettings(true)}
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                        >
+                          <SquarePen className="mr-2 h-4 w-4" />
+                          Edit
+                        </Button>
+                      )}
+                    </div>
+                  ) : null}
+                </CardHeader>
+
+                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Payment Terms</div>
+                    {editingFinancialSettings && canEditDraft ? (
+                      <select
+                        value={paymentTermsIdDraft}
+                        onChange={(event) =>
+                          setPaymentTermsIdDraft(event.target.value)
+                        }
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">Select payment terms</option>
+                        {paymentTerms.map((term) => (
+                          <option key={term.id} value={term.id}>
+                            {term.code} | {term.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {invoice.status === "draft"
+                          ? getPaymentTermLabel(selectedDraftPaymentTerm)
+                          : invoice.payment_terms_snapshot || "—"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Shipping Terms</div>
+                    {editingFinancialSettings && canEditDraft ? (
+                      <select
+                        value={shippingTermIdDraft}
+                        onChange={(event) =>
+                          setShippingTermIdDraft(event.target.value)
+                        }
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">Select shipping terms</option>
+                        {shippingTerms.map((term) => (
+                          <option key={term.id} value={term.id}>
+                            {term.code} | {term.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {invoice.status === "draft"
+                          ? selectedDraftShippingTermsLabel
+                          : invoice.shipping_terms_snapshot || "—"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Bank Account</div>
+                    {editingFinancialSettings && canEditDraft ? (
+                      <select
+                        value={bankAccountIdDraft}
+                        onChange={(event) =>
+                          setBankAccountIdDraft(event.target.value)
+                        }
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">Select bank account</option>
+                        {filteredDraftBankAccounts.map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {invoice.status === "draft"
+                          ? selectedDraftBankAccount?.name || "—"
+                          : ((invoice.metadata?.bank_account_name as string) ||
+                              "—")}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Preferred Payment Method</div>
+                    {editingFinancialSettings && canEditDraft ? (
+                      <select
+                        value={paymentMethodIdDraft}
+                        onChange={(event) =>
+                          setPaymentMethodIdDraft(event.target.value)
+                        }
+                        className={`mt-2 ${fieldShellClass}`}
+                      >
+                        <option value="">Select payment method</option>
+                        {paymentMethods.map((method) => (
+                          <option key={method.id} value={method.id}>
+                            {method.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {invoice.status === "draft"
+                          ? selectedDraftPaymentMethod?.name || "—"
+                          : ((invoice.metadata
+                              ?.preferred_payment_method_name as string) ||
+                              ((invoice.metadata
+                                ?.preferred_payment_method_id as string) &&
+                                paymentMethods.find(
+                                  (method) =>
+                                    method.id ===
+                                    (invoice.metadata
+                                      ?.preferred_payment_method_id as string)
+                                )?.name) ||
+                              "—")}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
+                    <div className={eyebrowClass}>Bank Details</div>
+                    <div className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
+                      {resolvedBankDetailsLines.length > 0
+                        ? resolvedBankDetailsLines.join("\n")
+                        : "—"}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+                            <Card className={sectionCardClass}>
+                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Document Details
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Document snapshots for print, parties, payment, shipping, notes, and terms.
+                      </CardDescription>
+                    </div>
+                  </div>
+
+                  {canEditDraft || canEditIssuedDetails ? (
+                    <div className="flex items-center gap-2">
+                      {editingDocumentDetails ? (
+                        <>
+                          <Button
+                            onClick={handleSaveDocumentDetails}
+                            disabled={isSavingDraft}
+                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
+                          >
+                            <Save className="mr-2 h-4 w-4" />
+                            {isSavingDraft ? "Saving..." : "Save"}
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setEditingDocumentDetails(false);
+                              void loadInvoice(true);
+                            }}
+                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={() => setEditingDocumentDetails(true)}
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                        >
+                          <SquarePen className="mr-2 h-4 w-4" />
+                          Edit Terms
+                        </Button>
+                      )}
+                    </div>
+                  ) : null}
+                </CardHeader>
+
+                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Issuing Company</div>
+                    <div className="mt-3 text-xl font-semibold leading-tight text-white">
+                      {invoice.status === "draft"
+                        ? selectedDraftCompany?.legal_name ||
+                          selectedDraftCompany?.name ||
+                          "—"
+                        : invoice.company_name_snapshot || "—"}
+                    </div>
+
+                    <div className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
+                      <div>
+                        {invoice.status === "draft"
+                          ? selectedDraftCompany?.contact_person || "—"
+                          : invoice.company_contact_person_snapshot || "—"}
+                      </div>
+                      <div>
+                        {invoice.status === "draft"
+                          ? selectedDraftCompany?.email || "—"
+                          : invoice.company_email_snapshot || "—"}
+                      </div>
+                      <div>
+                        {invoice.status === "draft"
+                          ? selectedDraftCompany?.phone || "—"
+                          : invoice.company_phone_snapshot || "—"}
+                      </div>
+                      <div>
+                        {invoice.status === "draft"
+                          ? resolvedDraftCompanyAddress || "—"
+                          : invoice.company_address_snapshot || "—"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Recipient</div>
+                    <div className="mt-3 text-xl font-semibold leading-tight text-white">
+                      {invoice.status === "draft"
+                        ? resolvedDraftRecipientName || "—"
+                        : resolvedIssuedRecipientName || "—"}
+                    </div>
+
+                    <div className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
+                      <div>
+                        {invoice.status === "draft"
+                          ? resolvedDraftRecipientContact || "—"
+                          : resolvedIssuedRecipientContact || "—"}
+                      </div>
+                      <div>
+                        {invoice.status === "draft"
+                          ? resolvedDraftRecipientEmail || "—"
+                          : resolvedIssuedRecipientEmail || "—"}
+                      </div>
+                      <div>
+                        {invoice.status === "draft"
+                          ? resolvedDraftRecipientPhone || "—"
+                          : resolvedIssuedRecipientPhone || "—"}
+                      </div>
+                      <div>
+                        {invoice.status === "draft"
+                          ? resolvedDraftRecipientAddress || "—"
+                          : invoice.billing_address_snapshot || "—"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                      <div>
+                        <div className={eyebrowClass}>Payment Terms</div>
+                        <div className="mt-2 text-sm font-semibold text-white">
+                          {invoice.status === "draft"
+                            ? getPaymentTermLabel(selectedDraftPaymentTerm)
+                            : invoice.payment_terms_snapshot || "—"}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className={eyebrowClass}>Shipping Terms</div>
+                        <div className="mt-2 text-sm font-semibold text-white">
+                          {invoice.status === "draft"
+                            ? selectedDraftShippingTermsLabel
+                            : invoice.shipping_terms_snapshot || "—"}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className={eyebrowClass}>Currency</div>
+                        <div className="mt-2 text-sm font-semibold text-white">
+                          {currentCurrencyCode}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className={eyebrowClass}>Project / Task</div>
+                        <div className="mt-2 text-sm font-semibold text-white">
+                          {invoice.status === "draft"
+                            ? [selectedDraftProject?.name, selectedDraftTask?.title]
+                                .filter(Boolean)
+                                .join(" / ") || "—"
+                            : [project?.name, task?.title].filter(Boolean).join(" / ") ||
+                              "—"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
+                    <div className={eyebrowClass}>Terms &amp; Conditions</div>
                     {editingDocumentDetails ? (
                       <textarea
                         value={termsAndConditionsDraft}
-                        onChange={(e) =>
-                          setTermsAndConditionsDraft(e.target.value)
+                        onChange={(event) =>
+                          setTermsAndConditionsDraft(event.target.value)
                         }
-                        className="w-full rounded-2xl border border-white/10 bg-black/20 p-4 text-sm"
-                        rows={4}
+                        rows={7}
+                        className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
                       />
                     ) : (
-                      <p className="text-sm whitespace-pre-line">
-                        {invoice.terms_and_conditions_snapshot || "—"}
-                      </p>
+                      <div className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
+                        {termsAndConditionsDraft ||
+                          invoice.terms_and_conditions_snapshot ||
+                          "—"}
+                      </div>
                     )}
                   </div>
-
                 </CardContent>
               </Card>
 
-              {/* LINE ITEMS */}
-              <Card className="rounded-[30px] border border-white/10 bg-white/[0.045]">
-                <CardHeader className="flex flex-row items-center justify-between px-5 py-4">
-                  <div>
-                    <CardTitle>Line Items</CardTitle>
-                    <CardDescription>
-                      Pricing and revenue structure
-                    </CardDescription>
+              <Card className={sectionCardClass}>
+                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                      <SquarePen className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Line Items
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Products and services included in this invoice.
+                      </CardDescription>
+                    </div>
                   </div>
 
-                  {isDraft && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setEditingLines((v) => !v)}
-                    >
-                      <SquarePen className="h-4 w-4 mr-1" />
-                      {editingLines ? "Close" : "Edit"}
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {editingLines ? (
+                      <Button
+                        onClick={handleSaveLines}
+                        disabled={isSavingDraft}
+                        className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        {isSavingDraft ? "Saving..." : "Save"}
+                      </Button>
+                    ) : null}
+
+                    {editingLines && canEditDraft ? (
+                      <Button
+                        variant="outline"
+                        onClick={addDraftLineItem}
+                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                      >
+                        Add Row
+                      </Button>
+                    ) : null}
+
+                    {canEditDraft || invoice.status === "issued" ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => setEditingLines((current) => !current)}
+                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                      >
+                        <SquarePen className="mr-2 h-4 w-4" />
+                        {editingLines ? "Close" : "Edit"}
+                      </Button>
+                    ) : null}
+                  </div>
                 </CardHeader>
 
-                <CardContent className="flex flex-col gap-4 p-5 max-h-[720px] overflow-y-auto pr-1">
+                <CardContent className="max-h-[720px] space-y-3 overflow-y-auto p-5 pr-4">
+                  {(editingLines ? lineItemsDraft : lineItems).map((row, index) => {
+                    const editable = editingLines;
+                    const editableRow = row as EditableLineItem;
+                    const readOnlyRow = row as LineItemRow;
 
-                                    {(editingLines ? lineItemsDraft : lineItems).map(
-                    (line: any, index: number) => {
-                      return (
-                        <div
-                          key={line.id || index}
-                          className="rounded-[24px] border border-white/10 bg-black/20 p-4 space-y-3"
-                        >
+                    const rowQuantity = editable
+                      ? toNumber(editableRow.quantity)
+                      : toNumber(readOnlyRow.quantity);
+                    const rowUnitPrice = editable
+                      ? toNumber(editableRow.unit_price)
+                      : toNumber(readOnlyRow.unit_price);
+                    const rowDiscount = editable
+                      ? toNumber(editableRow.discount)
+                      : toNumber(readOnlyRow.discount);
+                    const rowTaxCodeId = editable
+                      ? editableRow.tax_code_id
+                      : readOnlyRow.tax_code_id || "";
+                    const rowTaxRate =
+                      taxCodes.find((taxCode) => taxCode.id === rowTaxCodeId)
+                        ?.rate_percent ?? 0;
+                    const taxableBase = Math.max(
+                      rowQuantity * rowUnitPrice - rowDiscount,
+                      0
+                    );
+                    const rowTotal = editable
+                      ? taxableBase + taxableBase * (toNumber(rowTaxRate) / 100)
+                      : toNumber(readOnlyRow.line_total);
 
-                          {/* ROW 1 */}
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-
-                            {/* ITEM */}
-                            <div>
-                              <p className="text-xs text-slate-500 mb-1">
-                                Item
-                              </p>
-
-                              {editingLines ? (
-                                <select
-                                  value={line.item_id}
-                                  onChange={(e) =>
-                                    handleLineChange(
-                                      line.id,
-                                      "item_id",
-                                      e.target.value
-                                    )
-                                  }
-                                  className="h-10 w-full rounded-xl border border-white/10 bg-black/20 px-2 text-xs"
-                                >
-                                  <option value="">Select</option>
-                                  {items.map((i) => (
-                                    <option key={i.id} value={i.id}>
-                                      {i.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <p className="text-sm">
-                                  {line.description}
-                                </p>
-                              )}
-                            </div>
-
-                            {/* DESCRIPTION */}
-                            <div className="md:col-span-2">
-                              <p className="text-xs text-slate-500 mb-1">
-                                Description
-                              </p>
-
-                              {editingLines ? (
-                                <input
-                                  value={line.description}
-                                  onChange={(e) =>
-                                    handleLineChange(
-                                      line.id,
-                                      "description",
-                                      e.target.value
-                                    )
-                                  }
-                                  className="h-10 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-xs"
-                                />
-                              ) : (
-                                <p className="text-sm">
-                                  {line.description}
-                                </p>
-                              )}
-                            </div>
-
-                            {/* QTY */}
-                            <div>
-                              <p className="text-xs text-slate-500 mb-1">
-                                Qty
-                              </p>
-
-                              {editingLines ? (
-                                <input
-                                  value={line.quantity}
-                                  onChange={(e) =>
-                                    handleLineChange(
-                                      line.id,
-                                      "quantity",
-                                      e.target.value
-                                    )
-                                  }
-                                  className="h-10 w-full rounded-xl border border-white/10 bg-black/20 px-2 text-xs"
-                                />
-                              ) : (
-                                <p className="text-sm">
-                                  {line.quantity}
-                                </p>
-                              )}
-                            </div>
-
-                            {/* PRICE */}
-                            <div>
-                              <p className="text-xs text-slate-500 mb-1">
-                                Unit Price
-                              </p>
-
-                              {editingLines ? (
-                                <input
-                                  value={line.unit_price}
-                                  onChange={(e) =>
-                                    handleLineChange(
-                                      line.id,
-                                      "unit_price",
-                                      e.target.value
-                                    )
-                                  }
-                                  className="h-10 w-full rounded-xl border border-white/10 bg-black/20 px-2 text-xs"
-                                />
-                              ) : (
-                                <p className="text-sm">
-                                  {formatFinanceMoney(
-                                    line.unit_price,
-                                    currencyCode
-                                  )}
-                                </p>
-                              )}
-                            </div>
-
+                    return (
+                      <div
+                        key={(row as EditableLineItem | LineItemRow).id}
+                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                      >
+                        <div className="mb-4 flex items-center justify-between gap-4">
+                          <div className="text-sm font-semibold text-white">
+                            Line {index + 1}
                           </div>
 
-                          {/* ROW 2 */}
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+                          {editable && canEditDraft ? (
+                            <Button
+                              variant="outline"
+                              onClick={() => removeDraftLineItem(editableRow.id)}
+                              disabled={lineItemsDraft.length === 1}
+                              className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          ) : null}
+                        </div>
 
-                            {/* DISCOUNT */}
-                            <div>
-                              <p className="text-xs text-slate-500 mb-1">
-                                Discount
-                              </p>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+                          <label className="space-y-2 md:col-span-3">
+                            <div className={labelClass}>Item</div>
+                            {editable ? (
+                              <select
+                                value={editableRow.item_id}
+                                onChange={(event) =>
+                                  applyDraftItemSelection(
+                                    editableRow.id,
+                                    event.target.value
+                                  )
+                                }
+                                className={inputFieldClass}
+                              >
+                                <option value="">Select item</option>
+                                {items.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className={readOnlyFieldClass}>
+                                {items.find(
+                                  (item) => item.id === readOnlyRow.item_id
+                                )?.name || "—"}
+                              </div>
+                            )}
+                          </label>
 
-                              {editingLines ? (
-                                <input
-                                  value={line.discount}
-                                  onChange={(e) =>
-                                    handleLineChange(
-                                      line.id,
-                                      "discount",
-                                      e.target.value
+                          <label className="space-y-2 md:col-span-4">
+                            <div className={labelClass}>Description</div>
+                            {editable ? (
+                              <input
+                                value={editableRow.description}
+                                onChange={(event) =>
+                                  setLineItemsDraft((draft) =>
+                                    draft.map((entry) =>
+
+                                                                                    entry.id === editableRow.id
+                                        ? {
+                                            ...entry,
+                                            description: event.target.value,
+                                          }
+                                        : entry
                                     )
-                                  }
-                                  className="h-10 w-full rounded-xl border border-white/10 bg-black/20 px-2 text-xs"
-                                />
-                              ) : (
-                                <p className="text-sm">
-                                  {formatFinanceMoney(
-                                    line.discount,
-                                    currencyCode
-                                  )}
-                                </p>
-                              )}
-                            </div>
+                                  )
+                                }
+                                className={inputFieldClass}
+                              />
+                            ) : (
+                              <div className={readOnlyFieldClass}>
+                                {readOnlyRow.description || "—"}
+                              </div>
+                            )}
+                          </label>
 
-                            {/* TAX */}
-                            <div>
-                              <p className="text-xs text-slate-500 mb-1">
-                                Tax
-                              </p>
-
-                              {editingLines ? (
-                                <select
-                                  value={line.tax_code_id}
-                                  onChange={(e) =>
-                                    handleLineChange(
-                                      line.id,
-                                      "tax_code_id",
-                                      e.target.value
+                          <label className="space-y-2 md:col-span-1">
+                            <div className={labelClass}>Qty</div>
+                            {editable ? (
+                              <input
+                                value={String(editableRow.quantity ?? "")}
+                                onChange={(event) =>
+                                  setLineItemsDraft((draft) =>
+                                    draft.map((entry) =>
+                                      entry.id === editableRow.id
+                                        ? {
+                                            ...entry,
+                                            quantity: event.target.value,
+                                          }
+                                        : entry
                                     )
-                                  }
-                                  className="h-10 w-full rounded-xl border border-white/10 bg-black/20 px-2 text-xs"
-                                >
-                                  <option value="">None</option>
-                                  {taxCodes.map((t) => (
-                                    <option key={t.id} value={t.id}>
-                                      {t.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <p className="text-sm">
-                                  {taxCodes.find(
-                                    (t) => t.id === line.tax_code_id
-                                  )?.name || "—"}
-                                </p>
-                              )}
-                            </div>
+                                  )
+                                }
+                                className={inputFieldClass}
+                              />
+                            ) : (
+                              <div className={readOnlyFieldClass}>
+                                {rowQuantity}
+                              </div>
+                            )}
+                          </label>
 
-                            {/* UNIT */}
-                            <div>
-                              <p className="text-xs text-slate-500 mb-1">
-                                Unit
-                              </p>
-
-                              {editingLines ? (
-                                <select
-                                  value={line.unit_of_measure_id}
-                                  onChange={(e) =>
-                                    handleLineChange(
-                                      line.id,
-                                      "unit_of_measure_id",
-                                      e.target.value
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={labelClass}>Unit</div>
+                            {editable ? (
+                              <select
+                                value={editableRow.unit_of_measure_id}
+                                onChange={(event) =>
+                                  setLineItemsDraft((draft) =>
+                                    draft.map((entry) =>
+                                      entry.id === editableRow.id
+                                        ? {
+                                            ...entry,
+                                            unit_of_measure_id:
+                                              event.target.value,
+                                          }
+                                        : entry
                                     )
-                                  }
-                                  className="h-10 w-full rounded-xl border border-white/10 bg-black/20 px-2 text-xs"
-                                >
-                                  <option value="">None</option>
-                                  {unitsOfMeasure.map((u) => (
-                                    <option key={u.id} value={u.id}>
-                                      {u.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <p className="text-sm">
-                                  {unitsOfMeasure.find(
-                                    (u) =>
-                                      u.id === line.unit_of_measure_id
-                                  )?.name || "—"}
-                                </p>
-                              )}
-                            </div>
+                                  )
+                                }
+                                className={inputFieldClass}
+                              >
+                                <option value="">Select unit</option>
+                                {unitsOfMeasure.map((unit) => (
+                                  <option key={unit.id} value={unit.id}>
+                                    {unit.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className={readOnlyFieldClass}>
+                                {unitsOfMeasure.find(
+                                  (unit) =>
+                                    unit.id === readOnlyRow.unit_of_measure_id
+                                )?.name || "—"}
+                              </div>
+                            )}
+                          </label>
 
-                            {/* CATEGORY */}
-                            <div>
-                              <p className="text-xs text-slate-500 mb-1">
-                                Category
-                              </p>
-
-                              {editingLines ? (
-                                <select
-                                  value={line.revenue_category_id}
-                                  onChange={(e) =>
-                                    handleLineChange(
-                                      line.id,
-                                      "revenue_category_id",
-                                      e.target.value
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={labelClass}>Unit Price</div>
+                            {editable ? (
+                              <input
+                                value={String(editableRow.unit_price ?? "")}
+                                onChange={(event) =>
+                                  setLineItemsDraft((draft) =>
+                                    draft.map((entry) =>
+                                      entry.id === editableRow.id
+                                        ? {
+                                            ...entry,
+                                            unit_price: event.target.value,
+                                          }
+                                        : entry
                                     )
-                                  }
-                                  className="h-10 w-full rounded-xl border border-white/10 bg-black/20 px-2 text-xs"
-                                >
-                                  <option value="">None</option>
-                                  {revenueCategories.map((r) => (
-                                    <option key={r.id} value={r.id}>
-                                      {r.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <p className="text-sm">
-                                  {revenueCategories.find(
-                                    (r) =>
-                                      r.id ===
-                                      line.revenue_category_id
-                                  )?.name || "—"}
-                                </p>
-                              )}
-                            </div>
-
-                            {/* TOTAL */}
-                            <div>
-                              <p className="text-xs text-slate-500 mb-1">
-                                Line Total
-                              </p>
-
-                              <div className="min-h-[40px] flex items-center px-3 rounded-xl border border-cyan-400/15 bg-cyan-500/10 text-xs font-semibold text-cyan-100">
+                                  )
+                                }
+                                className={inputFieldClass}
+                              />
+                            ) : (
+                              <div className={readOnlyFieldClass}>
                                 {formatFinanceMoney(
-                                  line.line_total,
-                                  currencyCode
+                                  rowUnitPrice,
+                                  currentCurrencyCode
                                 )}
                               </div>
-                            </div>
+                            )}
+                          </label>
 
-                          </div>
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={labelClass}>Discount</div>
+                            {editable ? (
+                              <input
+                                value={String(editableRow.discount ?? "")}
+                                onChange={(event) =>
+                                  setLineItemsDraft((draft) =>
+                                    draft.map((entry) =>
+                                      entry.id === editableRow.id
+                                        ? {
+                                            ...entry,
+                                            discount: event.target.value,
+                                          }
+                                        : entry
+                                    )
+                                  )
+                                }
+                                className={inputFieldClass}
+                              />
+                            ) : (
+                              <div className={readOnlyFieldClass}>
+                                {formatFinanceMoney(
+                                  rowDiscount,
+                                  currentCurrencyCode
+                                )}
+                              </div>
+                            )}
+                          </label>
 
-                          {editingLines && (
-                            <div className="flex justify-end">
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => handleRemoveLine(line.id)}
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={labelClass}>Tax Code</div>
+                            {editable ? (
+                              <select
+                                value={editableRow.tax_code_id}
+                                onChange={(event) =>
+                                  setLineItemsDraft((draft) =>
+                                    draft.map((entry) =>
+                                      entry.id === editableRow.id
+                                        ? {
+                                            ...entry,
+                                            tax_code_id: event.target.value,
+                                          }
+                                        : entry
+                                    )
+                                  )
+                                }
+                                className={inputFieldClass}
                               >
-                                Remove
-                              </Button>
+                                <option value="">Select tax</option>
+                                {taxCodes.map((taxCode) => (
+                                  <option key={taxCode.id} value={taxCode.id}>
+                                    {taxCode.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className={readOnlyFieldClass}>
+                                {taxCodes.find(
+                                  (taxCode) =>
+                                    taxCode.id === readOnlyRow.tax_code_id
+                                )?.name || "—"}
+                              </div>
+                            )}
+                          </label>
+
+                          <label className="space-y-2 md:col-span-3">
+                            <div className={labelClass}>Revenue Category</div>
+                            {editable ? (
+                              <select
+                                value={editableRow.revenue_category_id}
+                                onChange={(event) =>
+                                  setLineItemsDraft((draft) =>
+                                    draft.map((entry) =>
+                                      entry.id === editableRow.id
+                                        ? {
+                                            ...entry,
+                                            revenue_category_id:
+                                              event.target.value,
+                                          }
+                                        : entry
+                                    )
+                                  )
+                                }
+                                className={inputFieldClass}
+                              >
+                                <option value="">Select category</option>
+                                {revenueCategories.map((category) => (
+                                  <option key={category.id} value={category.id}>
+                                    {category.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className={readOnlyFieldClass}>
+                                {revenueCategories.find(
+                                  (category) =>
+                                    category.id ===
+                                    readOnlyRow.revenue_category_id
+                                )?.name || "—"}
+                              </div>
+                            )}
+                          </label>
+
+                          <div className="space-y-2 md:col-span-3">
+                            <div className={labelClass}>Line Total</div>
+                            <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
+                              {formatFinanceMoney(
+                                rowTotal,
+                                currentCurrencyCode
+                              )}
                             </div>
-                          )}
-
+                          </div>
                         </div>
-                      );
-                    }
-                  )}
-
-                  {editingLines && (
-                    <Button
-                      onClick={handleAddLine}
-                      className="rounded-2xl"
-                    >
-                      Add Line
-                    </Button>
-                  )}
-
+                      </div>
+                    );
+                  })}
                 </CardContent>
               </Card>
-
             </div>
 
-            {/* RIGHT COLUMN */}
-            <div className="flex flex-col gap-6">
-
-              {/* FINANCIAL SUMMARY */}
-              <Card className="rounded-[30px] border border-white/10 bg-white/[0.045]">
-                <CardHeader className="px-5 py-4">
-                  <CardTitle>Financial Summary</CardTitle>
-                </CardHeader>
-
-                <CardContent className="p-5 space-y-3 text-sm">
-
-                  <div className="flex justify-between">
-                    <span>Subtotal</span>
-                    <span>
-                      {formatFinanceMoney(
-                        financialSummary?.subtotal,
-                        currencyCode
-                      )}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span>Discount</span>
-                    <span>
-                      {formatFinanceMoney(
-                        financialSummary?.discount,
-                        currencyCode
-                      )}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span>Tax</span>
-                    <span>
-                      {formatFinanceMoney(
-                        financialSummary?.tax,
-                        currencyCode
-                      )}
-                    </span>
-                  </div>
-
-                  <div className="border-t border-white/10 pt-3 flex justify-between font-medium">
-                    <span>Total</span>
-                    <span>
-                      {formatFinanceMoney(
-                        financialSummary?.total,
-                        currencyCode
-                      )}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between text-emerald-300">
-                    <span>Paid</span>
-                    <span>
-                      {formatFinanceMoney(
-                        financialSummary?.paid,
-                        currencyCode
-                      )}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between text-rose-300">
-                    <span>Balance</span>
-                    <span>
-                      {formatFinanceMoney(
-                        financialSummary?.balance,
-                        currencyCode
-                      )}
-                    </span>
-                  </div>
-
-                </CardContent>
-              </Card>
-
-                            {/* LINKED DOCUMENTS */}
-              <Card className="rounded-[30px] border border-white/10 bg-white/[0.045]">
-                <CardHeader className="px-5 py-4">
-                  <CardTitle>Linked Documents</CardTitle>
-                  <CardDescription>
-                    Payments and related records
+            <div className="space-y-6">
+              <Card className={sectionCardClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Financial Summary
+                  </CardTitle>
+                  <CardDescription className="mt-1 text-xs text-slate-500">
+                    Live totals, collection state, and remaining balance.
                   </CardDescription>
                 </CardHeader>
 
-                <CardContent className="p-5 flex flex-col gap-3">
-
-                  <div className="space-y-2">
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                      Payments Received
-                    </p>
-
-                    {payments.length === 0 ? (
-                      <p className="text-sm text-slate-500">
-                        No payments yet
-                      </p>
-                    ) : (
-                      payments.map((p) => (
-                        <div
-                          key={p.id}
-                          className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm flex justify-between items-center"
-                        >
-                          <div>
-                            <p>
-                              {formatFinanceMoney(
-                                p.converted_amount,
-                                currencyCode
-                              )}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {formatFinanceDate(p.payment_date)}
-                            </p>
-                          </div>
-
-                          <Badge className="text-xs">
-                            {p.status}
-                          </Badge>
-                        </div>
-                      ))
-                    )}
+                <CardContent className="space-y-3 p-5">
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Subtotal</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.subtotal ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
                   </div>
 
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Discount</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.discount ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Tax</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.tax ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-200/80">
+                      Total
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.total ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Paid</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.paid ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-amber-200/80">
+                      Balance Due
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.balance ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
-              {/* ARCHIVE */}
-              <Card className="rounded-[30px] border border-white/10 bg-white/[0.045]">
-                <CardHeader className="flex flex-row items-center justify-between px-5 py-4">
-                  <div>
-                    <CardTitle>Archive</CardTitle>
-                    <CardDescription>
-                      Archived and deleted invoices
-                    </CardDescription>
-                  </div>
-
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setShowArchivePopup(true)}
-                  >
-                    Open
-                  </Button>
+              <Card className={sectionCardClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Linked Documents
+                  </CardTitle>
+                  <CardDescription className="mt-1 text-xs text-slate-500">
+                    Payments and related receivable records.
+                  </CardDescription>
                 </CardHeader>
 
-                <CardContent className="p-5 text-sm text-slate-400">
-                  Manage archived and deleted invoices.
+                <CardContent className="space-y-3 p-5">
+                  <div className={innerPanelClass}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className={eyebrowClass}>Payment Progress</div>
+                        <div className="mt-2 text-lg font-semibold text-white">
+                          {formatFinanceMoney(
+                            toNumber(invoice.paid_amount),
+                            currentCurrencyCode
+                          )}{" "}
+                          paid
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-slate-400">
+                          {formatFinanceMoney(
+                            toNumber(invoice.balance_due),
+                            currentCurrencyCode
+                          )}{" "}
+                          remaining from{" "}
+                          {formatFinanceMoney(
+                            toNumber(invoice.total_amount),
+                            currentCurrencyCode
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                        <Link2 className="h-4 w-4" />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className="h-full bg-emerald-500 transition-all"
+                        style={{ width: `${paymentProgressPercent}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={innerPanelClass}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className={eyebrowClass}>Payments Received</div>
+                        <div className="mt-2 text-lg font-semibold text-white">
+                          {payments.length}
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-slate-400">
+                          Confirmed payments linked to this invoice.
+                        </div>
+                      </div>
+
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
+                        <FileText className="h-4 w-4" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {payments.length === 0 ? (
+                    <div className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-6 text-center text-sm text-slate-500">
+                      No payments yet.
+                    </div>
+                  ) : (
+                    <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
+                      {payments.map((payment) => (
+                        <div
+                          key={payment.id}
+                          onClick={() =>
+                            navigate(
+                              `/finance/transactions/payments-received/${payment.id}`
+                            )
+                          }
+                          className="cursor-pointer rounded-[20px] border border-white/10 bg-black/20 p-4 transition hover:bg-white/[0.04]"
+                        >
+
+                                                    <div className="flex items-center justify-between gap-4">
+                            <div>
+                              <div className="text-sm font-medium text-white">
+                                {payment.reference_number || payment.id}
+                              </div>
+                              <div className="mt-1 text-xs text-slate-500">
+                                {formatFinanceDate(payment.payment_date)}
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <div className="text-sm font-semibold text-white">
+                                {formatFinanceMoney(
+                                  toNumber(payment.amount),
+                                  payment.payment_currency_code ||
+                                    currentCurrencyCode
+                                )}
+                              </div>
+                              <Badge className="mt-1 rounded-full border border-emerald-400/20 bg-emerald-500/10 text-[10px] text-emerald-300 shadow-none">
+                                {payment.status}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
+              <Card className={sectionCardClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Archive
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Soft-delete, archive, restore, and hard-delete controls.
+                      </CardDescription>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowArchivePopup((current) => {
+                          const next = !current;
+
+                          if (next) {
+                            setArchiveTab("archived");
+                            void loadArchiveItems();
+                          }
+
+                          return next;
+                        });
+                      }}
+                      className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                    >
+                      {showArchivePopup ? "Close" : "Open Archive"}
+                    </Button>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="space-y-3 p-5">
+                  <div className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-4 text-sm leading-6 text-slate-400">
+                    Archive moves the invoice to archived. Delete moves the
+                    invoice to deleted. Hard delete is available only from the
+                    deleted tab.
+                  </div>
+
+                  {showArchivePopup ? (
+                    <div className="space-y-4 rounded-[22px] border border-white/10 bg-black/20 p-4">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setArchiveTab("archived")}
+                          className={`rounded-xl px-4 py-2 text-sm transition ${
+                            archiveTab === "archived"
+                              ? "bg-white/10 text-white"
+                              : "text-slate-500 hover:bg-white/[0.05] hover:text-white"
+                          }`}
+                        >
+                          Archived
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setArchiveTab("deleted")}
+                          className={`rounded-xl px-4 py-2 text-sm transition ${
+                            archiveTab === "deleted"
+                              ? "bg-rose-500/15 text-rose-200"
+                              : "text-slate-500 hover:bg-white/[0.05] hover:text-white"
+                          }`}
+                        >
+                          Deleted
+                        </button>
+                      </div>
+
+                      {visibleArchiveItems.length === 0 ? (
+                        <div className="text-sm text-slate-500">
+                          No {archiveTab} invoices.
+                        </div>
+                      ) : (
+                        <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
+                          {visibleArchiveItems.map((item) => (
+                            <div
+                              key={item.id}
+                              className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-3"
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <div className="text-sm font-medium text-white">
+                                    {item.invoice_number || "Invoice"}
+                                  </div>
+                                  <div className="mt-1 text-xs text-slate-500">
+                                    {item.counterparty_name_snapshot ||
+                                      item.client_name_snapshot ||
+                                      "—"}{" "}
+                                    • {formatFinanceDate(item.updated_at || null)}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <div className="text-sm text-slate-400">
+                                    {formatFinanceMoney(
+                                      toNumber(item.total_amount),
+                                      currentCurrencyCode
+                                    )}
+                                  </div>
+
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => void handleRestore(item.id)}
+                                    disabled={isDeleting}
+                                    className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+                                  >
+                                    <RotateCcw className="h-4 w-4" />
+                                  </Button>
+
+                                  {archiveTab === "deleted" ? (
+                                    <Button
+                                      variant="outline"
+                                      onClick={() =>
+                                        void handleHardDelete(item.id)
+                                      }
+                                      disabled={isDeleting}
+                                      className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+
+              {error ? (
+                <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                  {error}
+                </div>
+              ) : null}
             </div>
           </div>
-
-          {/* ARCHIVE MODAL */}
-          {showArchivePopup && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-              <div className="w-[900px] max-h-[80vh] overflow-hidden rounded-[30px] border border-white/10 bg-[#05070d] flex flex-col">
-
-                {/* HEADER */}
-                <div className="flex items-center justify-between p-4 border-b border-white/10">
-                  <h2 className="text-lg font-medium">
-                    Archive
-                  </h2>
-
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setShowArchivePopup(false)}
-                  >
-                    Close
-                  </Button>
-                </div>
-
-                {/* TABS */}
-                <div className="flex gap-2 p-4 border-b border-white/10">
-                  <Button
-                    size="sm"
-                    variant={archiveTab === "archived" ? "default" : "ghost"}
-                    onClick={() => setArchiveTab("archived")}
-                  >
-                    Archived
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant={archiveTab === "deleted" ? "default" : "ghost"}
-                    onClick={() => setArchiveTab("deleted")}
-                  >
-                    Deleted
-                  </Button>
-                </div>
-
-                {/* TABLE */}
-                <div className="overflow-x-auto flex-1">
-                  <table className="w-full min-w-[800px] text-sm">
-                    <thead className="text-slate-500 border-b border-white/10">
-                      <tr>
-                        <th className="text-left px-4 py-3">Invoice</th>
-                        <th className="text-left px-4 py-3">Client</th>
-                        <th className="text-left px-4 py-3">Total</th>
-                        <th className="text-left px-4 py-3">Updated</th>
-                        <th className="text-right px-4 py-3">Actions</th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {archiveItems
-                        .filter((i) => i.status === archiveTab)
-                        .map((i) => (
-                          <tr
-                            key={i.id}
-                            className="border-b border-white/10 hover:bg-white/[0.03]"
-                          >
-                            <td className="px-4 py-3">
-                              {i.invoice_number}
-                            </td>
-                            <td className="px-4 py-3">
-                              {i.client_name_snapshot ||
-                                i.counterparty_name_snapshot}
-                            </td>
-                            <td className="px-4 py-3">
-                              {formatFinanceMoney(
-                                i.total_amount,
-                                currencyCode
-                              )}
-                            </td>
-                            <td className="px-4 py-3">
-                              {formatFinanceDate(i.updated_at)}
-                            </td>
-                            <td className="px-4 py-3 text-right space-x-2">
-
-                              <Button
-                                size="sm"
-                                onClick={async () => {
-                                  await supabase.rpc(
-                                    "finance_restore_invoice_issued",
-                                    { p_invoice_id: i.id }
-                                  );
-                                  loadInvoice(true);
-                                }}
-                              >
-                                Restore
-                              </Button>
-
-                              {archiveTab === "deleted" && (
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={async () => {
-                                    await supabase.rpc(
-                                      "finance_hard_delete_invoice_issued",
-                                      { p_invoice_id: i.id }
-                                    );
-                                    loadInvoice(true);
-                                  }}
-                                >
-                                  Delete
-                                </Button>
-                              )}
-
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-
-              </div>
-            </div>
-          )}
-
-          {/* PRINT ROOT */}
-          <div style={{ display: "none" }}>
-            <div id="invoice-print-root">
-              <InvoicePrintDocument
-                invoice={invoice}
-                lineItems={lineItems}
-                financialSummary={financialSummary}
-                currency={currencyCode}
-              />
-            </div>
-          </div>
-
         </div>
       </div>
-    );
+
+      <InvoicePrintDocument
+        invoice={printableInvoice}
+        lineItems={printableLineItems}
+        financialSummary={financialSummary}
+      />
+    </>
+  );
 }

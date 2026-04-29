@@ -80,11 +80,15 @@ type ShippingTermOption = {
 
 type BankAccountOption = {
   id: string;
-  name: string;
   bank_name: string | null;
+  institution_name: string | null;
   beneficiary_name: string | null;
   iban: string | null;
   swift_code: string | null;
+  account_identifier_type: string | null;
+  account_identifier_value: string | null;
+  account_number: string | null;
+  masked_account_number: string | null;
   currency_code: string | null;
   is_default: boolean;
   company_id: string | null;
@@ -183,6 +187,31 @@ function getCompanyAddress(company: CompanyOption | null) {
       .filter(Boolean)
       .join(", ") || "—"
   );
+}
+
+function getBankAccountName(bank: BankAccountOption | null) {
+  if (!bank) return "—";
+
+  return bank.bank_name || bank.institution_name || "Bank account";
+}
+
+function getBankIdentifier(bank: BankAccountOption | null) {
+  if (!bank) return "—";
+  if (bank.iban) return `IBAN ${bank.iban}`;
+  if (bank.swift_code) return `SWIFT ${bank.swift_code}`;
+
+  if (bank.account_identifier_type === "swift" && bank.account_identifier_value) {
+    return `SWIFT ${bank.account_identifier_value}`;
+  }
+
+  if (bank.account_identifier_value) {
+    return `Identifier ${bank.account_identifier_value}`;
+  }
+
+  if (bank.masked_account_number) return bank.masked_account_number;
+  if (bank.account_number) return bank.account_number;
+
+  return "No identifier";
 }
 
 export default function FinanceNewQuotationPage() {
@@ -383,8 +412,50 @@ export default function FinanceNewQuotationPage() {
       setTaskId("");
     }
   }, [filteredTasks, projectId, taskId]);
-
+  
   const loadFormData = useCallback(async () => {
+    type LookupResult = {
+      data: unknown[];
+      error: string;
+    };
+
+    async function loadLookup(
+      label: string,
+      query: PromiseLike<{
+        data: unknown[] | null;
+        error: { message?: string } | null;
+      }>
+    ): Promise<LookupResult> {
+      try {
+        const result = await query;
+
+        if (result.error) {
+          const message = result.error.message || `${label} failed to load.`;
+          console.error(`${label} lookup failed:`, result.error);
+
+          return {
+            data: [],
+            error: `${label}: ${message}`,
+          };
+        }
+
+        return {
+          data: result.data || [],
+          error: "",
+        };
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : `${label} failed to load.`;
+
+        console.error(`${label} lookup failed:`, error);
+
+        return {
+          data: [],
+          error: `${label}: ${message}`,
+        };
+      }
+    }
+
     setIsLoading(true);
     setErrorMessage("");
 
@@ -403,125 +474,169 @@ export default function FinanceNewQuotationPage() {
         unitsOfMeasureResult,
         revenueCategoriesResult,
       ] = await Promise.all([
-        supabase
-          .from("finance_clients")
-          .select(
-            "id, name, legal_name, company_email, personnel_email, company_phone, personnel_phone, currency_code, payment_terms_days, payment_terms_id"
-          )
-          .eq("status", "active")
-          .order("name", { ascending: true }),
+        loadLookup(
+          "Clients",
+          supabase
+            .from("finance_clients")
+            .select(
+              "id, name, legal_name, company_email, personnel_email, company_phone, personnel_phone, currency_code, payment_terms_days, payment_terms_id"
+            )
+            .eq("status", "active")
+            .order("name", { ascending: true })
+        ),
 
-        supabase
-          .from("finance_companies")
-          .select(
-            "id, name, legal_name, email, phone, currency_code, country, city, state_province, postal_code, address_line_1, address_line_2"
-          )
-          .eq("status", "active")
-          .order("name", { ascending: true }),
+        loadLookup(
+          "Companies",
+          supabase
+            .from("finance_companies")
+            .select(
+              "id, name, legal_name, email, phone, currency_code, country, city, state_province, postal_code, address_line_1, address_line_2"
+            )
+            .eq("status", "active")
+            .order("name", { ascending: true })
+        ),
 
-        supabase
-          .from("projects")
-          .select("id, name")
-          .order("name", { ascending: true }),
+        loadLookup(
+          "Projects",
+          supabase.from("projects").select("id, name").order("name", {
+            ascending: true,
+          })
+        ),
 
-        supabase
-          .from("tasks")
-          .select("id, title, project_id")
-          .order("created_at", { ascending: false }),
+        loadLookup(
+          "Tasks",
+          supabase
+            .from("tasks")
+            .select("id, title, project_id")
+            .order("created_at", { ascending: false })
+        ),
 
-        supabase
-          .from("finance_payment_terms")
-          .select("id, code, name, due_days, is_default")
-          .eq("status", "active")
-          .order("name", { ascending: true }),
+        loadLookup(
+          "Payment terms",
+          supabase
+            .from("finance_payment_terms")
+            .select("id, code, name, due_days, is_default")
+            .eq("status", "active")
+            .order("name", { ascending: true })
+        ),
 
-        supabase
-          .from("finance_shipping_terms")
-          .select("id, code, name, description, is_default")
-          .eq("status", "active")
-          .order("name", { ascending: true }),
+        loadLookup(
+          "Shipping terms",
+          supabase
+            .from("finance_shipping_terms")
+            .select("id, code, name, description, is_default")
+            .eq("status", "active")
+            .order("name", { ascending: true })
+        ),
 
-        supabase
-          .from("finance_bank_accounts")
-          .select(
-            "id, name, bank_name, beneficiary_name, iban, swift_code, currency_code, is_default, company_id"
-          )
-          .eq("status", "active")
-          .order("name", { ascending: true }),
+        loadLookup(
+          "Bank accounts",
+          supabase
+            .from("finance_bank_accounts")
+            .select(
+              "id, bank_name, institution_name, beneficiary_name, iban, swift_code, account_identifier_type, account_identifier_value, account_number, masked_account_number, currency_code, is_default, company_id"
+            )
+            .eq("status", "active")
+            .order("is_default", { ascending: false })
+            .order("bank_name", { ascending: true })
+        ),
 
-        supabase
-          .from("finance_currencies")
-          .select(
-            "id, currency_code, currency_name, currency_symbol, is_base_currency"
-          )
-          .eq("status", "active")
-          .order("currency_code", { ascending: true }),
+        loadLookup(
+          "Currencies",
+          supabase
+            .from("finance_currencies")
+            .select(
+              "id, currency_code, currency_name, currency_symbol, is_base_currency"
+            )
+            .eq("status", "active")
+            .order("currency_code", { ascending: true })
+        ),
 
-        supabase
-          .from("finance_items")
-          .select(
-            "id, name, description, sales_price, currency_code, revenue_category_id, tax_code_id, unit_of_measure_id"
-          )
-          .eq("status", "active")
-          .eq("is_active_for_sales", true)
-          .order("name", { ascending: true }),
+        loadLookup(
+          "Items",
+          supabase
+            .from("finance_items")
+            .select(
+              "id, name, description, sales_price, currency_code, revenue_category_id, tax_code_id, unit_of_measure_id"
+            )
+            .eq("status", "active")
+            .eq("is_active_for_sales", true)
+            .order("name", { ascending: true })
+        ),
 
-        supabase
-          .from("finance_tax_codes")
-          .select("id, code, name, rate_percent")
-          .eq("status", "active")
-          .order("name", { ascending: true }),
+        loadLookup(
+          "Tax codes",
+          supabase
+            .from("finance_tax_codes")
+            .select("id, code, name, rate_percent")
+            .eq("status", "active")
+            .order("name", { ascending: true })
+        ),
 
-        supabase
-          .from("finance_units_of_measure")
-          .select("id, code, name")
-          .eq("status", "active")
-          .order("name", { ascending: true }),
+        loadLookup(
+          "Units of measure",
+          supabase
+            .from("finance_units_of_measure")
+            .select("id, code, name")
+            .eq("status", "active")
+            .order("name", { ascending: true })
+        ),
 
-        supabase
-          .from("finance_revenue_categories")
-          .select("id, code, name")
-          .eq("status", "active")
-          .order("name", { ascending: true }),
+        loadLookup(
+          "Revenue categories",
+          supabase
+            .from("finance_revenue_categories")
+            .select("id, code, name")
+            .eq("status", "active")
+            .order("name", { ascending: true })
+        ),
       ]);
 
-      if (clientsResult.error) throw clientsResult.error;
-      if (companiesResult.error) throw companiesResult.error;
-      if (projectsResult.error) throw projectsResult.error;
-      if (tasksResult.error) throw tasksResult.error;
-      if (paymentTermsResult.error) throw paymentTermsResult.error;
-      if (shippingTermsResult.error) throw shippingTermsResult.error;
-      if (bankAccountsResult.error) throw bankAccountsResult.error;
-      if (currenciesResult.error) throw currenciesResult.error;
-      if (itemsResult.error) throw itemsResult.error;
-      if (taxCodesResult.error) throw taxCodesResult.error;
-      if (unitsOfMeasureResult.error) throw unitsOfMeasureResult.error;
-      if (revenueCategoriesResult.error) throw revenueCategoriesResult.error;
-
-      setClients((clientsResult.data || []) as ClientOption[]);
-      setCompanies((companiesResult.data || []) as CompanyOption[]);
-      setProjects((projectsResult.data || []) as ProjectOption[]);
-      setTasks((tasksResult.data || []) as TaskOption[]);
-
-      setPaymentTerms((paymentTermsResult.data || []) as PaymentTermOption[]);
-      setShippingTerms((shippingTermsResult.data || []) as ShippingTermOption[]);
-      setBankAccounts((bankAccountsResult.data || []) as BankAccountOption[]);
-      setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
-      setItems((itemsResult.data || []) as ItemOption[]);
-      setTaxCodes((taxCodesResult.data || []) as TaxCodeOption[]);
-      setUnitsOfMeasure(
-        (unitsOfMeasureResult.data || []) as UnitOfMeasureOption[]
-      );
+      setClients(clientsResult.data as ClientOption[]);
+      setCompanies(companiesResult.data as CompanyOption[]);
+      setProjects(projectsResult.data as ProjectOption[]);
+      setTasks(tasksResult.data as TaskOption[]);
+      setPaymentTerms(paymentTermsResult.data as PaymentTermOption[]);
+      setShippingTerms(shippingTermsResult.data as ShippingTermOption[]);
+      setBankAccounts(bankAccountsResult.data as BankAccountOption[]);
+      setCurrencies(currenciesResult.data as CurrencyOption[]);
+      setItems(itemsResult.data as ItemOption[]);
+      setTaxCodes(taxCodesResult.data as TaxCodeOption[]);
+      setUnitsOfMeasure(unitsOfMeasureResult.data as UnitOfMeasureOption[]);
       setRevenueCategories(
-        (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
+        revenueCategoriesResult.data as RevenueCategoryOption[]
       );
 
-      if (!companyId && (companiesResult.data || []).length === 1) {
-        setCompanyId(companiesResult.data![0].id);
+      if (!companyId && companiesResult.data.length === 1) {
+        const onlyCompany = companiesResult.data[0] as CompanyOption;
+        setCompanyId(onlyCompany.id);
+      }
+
+      const lookupErrors = [
+        clientsResult.error,
+        companiesResult.error,
+        projectsResult.error,
+        tasksResult.error,
+        paymentTermsResult.error,
+        shippingTermsResult.error,
+        bankAccountsResult.error,
+        currenciesResult.error,
+        itemsResult.error,
+        taxCodesResult.error,
+        unitsOfMeasureResult.error,
+        revenueCategoriesResult.error,
+      ].filter(Boolean);
+
+      if (lookupErrors.length > 0) {
+        setErrorMessage(lookupErrors.join(" | "));
       }
     } catch (error) {
       console.error("Failed to load quotation form data:", error);
-      setErrorMessage("Failed to load quotation form data.");
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to load quotation form data."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -1207,7 +1322,8 @@ export default function FinanceNewQuotationPage() {
                     <option value="">Select bank</option>
                     {filteredBankAccounts.map((bank) => (
                       <option key={bank.id} value={bank.id}>
-                        {bank.name}
+                        {getBankAccountName(bank)} — {getBankIdentifier(bank)}
+                        {bank.currency_code ? ` — ${bank.currency_code}` : ""}
                       </option>
                     ))}
                   </select>
@@ -1219,17 +1335,17 @@ export default function FinanceNewQuotationPage() {
                     {selectedBankAccount ? (
                       <>
                         <div className="font-semibold text-white">
-                          {selectedBankAccount.bank_name ||
-                            selectedBankAccount.name}
+                          {getBankAccountName(selectedBankAccount)}
                         </div>
-                        <div>
-                          Beneficiary:{" "}
-                          {selectedBankAccount.beneficiary_name || "—"}
-                        </div>
-                        <div>IBAN: {selectedBankAccount.iban || "—"}</div>
-                        <div>
-                          SWIFT: {selectedBankAccount.swift_code || "—"}
-                        </div>
+                        {selectedBankAccount.beneficiary_name ? (
+                          <div>
+                            Beneficiary: {selectedBankAccount.beneficiary_name}
+                          </div>
+                        ) : null}
+                        <div>{getBankIdentifier(selectedBankAccount)}</div>
+                        {selectedBankAccount.currency_code ? (
+                          <div>Currency: {selectedBankAccount.currency_code}</div>
+                        ) : null}
                       </>
                     ) : (
                       "—"
@@ -1572,10 +1688,10 @@ export default function FinanceNewQuotationPage() {
                 <div className={summaryBlockClass}>
                   <div className={labelClass}>Bank Account</div>
                   <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedBankAccount?.name || "—"}
+                    {getBankAccountName(selectedBankAccount)}
                   </div>
                   <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedBankAccount?.bank_name || "—"}
+                    {getBankIdentifier(selectedBankAccount)}
                   </div>
                 </div>
 

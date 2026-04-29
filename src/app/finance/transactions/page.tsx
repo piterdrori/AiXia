@@ -1059,13 +1059,14 @@ export default function FinanceTransactionsPage() {
       },
       "vendor-quotations": {
         key: "vendor-quotations",
-        title: "Quotation (from vendor)",
+        title: "Vendor Quotations",
         description:
           "Vendor quotations received before purchase order issuance.",
+        route: "/finance/transactions/vendor-quotations",
         icon: FileText,
         count: 0,
-        statusLabel: "Later",
-        lastUpdatedLabel: "Planned",
+        statusLabel: "Route ready",
+        lastUpdatedLabel: "Ready",
       },
       invoices: {
         key: "invoices",
@@ -1080,9 +1081,9 @@ export default function FinanceTransactionsPage() {
       },
       bills: {
         key: "bills",
-        title: "Vendor PI / Invoice",
+        title: "Vendor PI / Invoices",
         description:
-          "Vendor proforma invoices and bills received into the payable flow.",
+          "Vendor proforma invoices and vendor invoices received into the payable flow.",
         route: "/finance/transactions/bills",
         icon: Receipt,
         count: data.counts.bills,
@@ -1126,7 +1127,7 @@ export default function FinanceTransactionsPage() {
         key: "payments-made",
         title: "Payments Made",
         description:
-          "Outgoing cash settlements across procurement, expenses, payroll, and reimbursements.",
+          "Outgoing cash settlements for vendor invoices, expenses, payroll, and reimbursements.",
         route: "/finance/transactions/payments-made",
         icon: CreditCard,
         count: data.counts.paymentsMade,
@@ -1157,14 +1158,14 @@ export default function FinanceTransactionsPage() {
       },
       "purchase-orders": {
         key: "purchase-orders",
-        title: "Purchase Order",
+        title: "Purchase Orders",
         description:
-          "Issued supplier purchase order and outbound procurement commitment.",
+          "Issued supplier purchase orders and outbound procurement commitments.",
         route: "/finance/transactions/purchase-orders",
         icon: FileText,
         count: data.counts.purchaseOrders,
-        statusLabel: data.counts.purchaseOrders > 0 ? "Live" : "Later",
-        lastUpdatedLabel: data.counts.purchaseOrders > 0 ? "Live" : "Pending",
+        statusLabel: data.counts.purchaseOrders > 0 ? "Live" : "Route ready",
+        lastUpdatedLabel: data.counts.purchaseOrders > 0 ? "Live" : "Ready",
       },
       payroll: {
         key: "payroll",

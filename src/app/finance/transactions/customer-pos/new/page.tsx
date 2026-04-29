@@ -14,7 +14,7 @@ import {
   RotateCcw,
   Save,
   SquarePen,
-  Trash2,
+  Trash2,    
   Upload,
   X,
 } from "lucide-react";
@@ -2303,6 +2303,9 @@ export default function FinanceCustomerPoDetailPage() {
                       const selectedRevenueCategory = revenueCategories.find(
                         (category) => category.id === line.revenue_category_id
                       );
+
+                      void selectedClient;
+                      void selectedCompany;
 
                       const base = Math.max(
                         toNumber(line.quantity) * toNumber(line.unit_price) -

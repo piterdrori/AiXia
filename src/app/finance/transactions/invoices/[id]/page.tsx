@@ -1,16 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  Archive,
   ArrowRight,
   CheckCircle,
-  FileText,
-  Link2,
   Printer,
-  RotateCcw,
   Save,
-  SquarePen,
   Trash2,
+  SquarePen,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -35,21 +31,17 @@ import {
 } from "@/lib/finance/invoicesIssued";
 import InvoicePrintDocument from "./InvoicePrintDocument";
 
-type InvoiceStatus =
-  | "draft"
-  | "issued"
-  | "partially_paid"
-  | "paid"
-  | "deleted"
-  | "archived";
-
-type InvoicePaymentStatus = "unpaid" | "partial" | "paid";
-
 type InvoiceRecord = {
   id: string;
-  invoice_number: string | null;
-  status: InvoiceStatus;
-  payment_status: InvoicePaymentStatus;
+  invoice_number: string;
+  status:
+    | "draft"
+    | "issued"
+    | "partially_paid"
+    | "paid"
+    | "deleted"
+    | "archived";
+  payment_status: "unpaid" | "partial" | "paid";
   counterparty_type: "client" | "company";
   counterparty_company_id: string | null;
   counterparty_name_snapshot: string | null;
@@ -57,7 +49,7 @@ type InvoiceRecord = {
   counterparty_contact_person_snapshot: string | null;
   counterparty_email_snapshot: string | null;
   counterparty_phone_snapshot: string | null;
-  client_id: string | null;
+  client_id: string;
   client_name_snapshot: string | null;
   client_contact_person_snapshot: string | null;
   billing_address_snapshot: string | null;
@@ -82,7 +74,6 @@ type InvoiceRecord = {
   currency_code: string | null;
   project_id: string | null;
   task_id: string | null;
-  proforma_invoice_id: string | null;
   notes: string | null;
   subtotal: number | string | null;
   discount_amount: number | string | null;
@@ -100,7 +91,6 @@ type InvoiceRecord = {
 
 type LineItemRow = {
   id: string;
-  invoice_id: string;
   item_id: string | null;
   description: string;
   quantity: number | string | null;
@@ -111,8 +101,6 @@ type LineItemRow = {
   revenue_category_id: string | null;
   line_total: number | string | null;
   sort_order: number | null;
-  project_id?: string | null;
-  task_id?: string | null;
 };
 
 type PaymentRow = {
@@ -139,7 +127,7 @@ type TaskRow = {
 
 type ArchiveInvoiceRow = {
   id: string;
-  invoice_number: string | null;
+  invoice_number: string;
   status: "archived" | "deleted";
   counterparty_name_snapshot: string | null;
   client_name_snapshot: string | null;
@@ -157,45 +145,6 @@ type EditableLineItem = {
   tax_code_id: string;
   unit_of_measure_id: string;
   revenue_category_id: string;
-};
-
-type ProformaInvoiceSource = {
-  id: string;
-  proforma_number: string | null;
-  client_id: string | null;
-  client_po_id: string | null;
-  quotation_id: string | null;
-  company_id: string | null;
-  issue_date: string | null;
-  valid_until: string | null;
-  status: string;
-  currency_id: string | null;
-  currency_code: string | null;
-  total_amount: number | string | null;
-  notes: string | null;
-  project_id: string | null;
-  task_id: string | null;
-  payment_terms_id: string | null;
-  shipping_term_id: string | null;
-  bank_account_id: string | null;
-  metadata: Record<string, unknown> | null;
-};
-
-type ProformaInvoiceLineSource = {
-  id: string;
-  proforma_invoice_id: string;
-  item_id: string | null;
-  description: string;
-  quantity: number | string | null;
-  unit_price: number | string | null;
-  discount: number | string | null;
-  sort_order: number | null;
-  unit_of_measure_id: string | null;
-  tax_code_id: string | null;
-  revenue_category_id: string | null;
-  project_id: string | null;
-  task_id: string | null;
-  status: string | null;
 };
 
 function createEditableDraftLineItem(): EditableLineItem {
@@ -270,9 +219,7 @@ type BankAccountOption = {
   id: string;
   name: string;
   bank_name: string | null;
-
-
-    institution_name: string | null;
+  institution_name: string | null;
   beneficiary_name: string | null;
   iban: string | null;
   swift_code: string | null;
@@ -338,43 +285,34 @@ function toNumber(value: number | string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function getDateInputValue(value: string | null | undefined) {
-  if (!value) return "";
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "";
-
-  return parsed.toISOString().slice(0, 10);
-}
-
-function joinAddress(parts: Array<string | null | undefined>) {
-  return parts.filter(Boolean).join(", ");
-}
-
 function buildCompanyAddress(company: CompanyOption | null) {
   if (!company) return "";
 
-  return joinAddress([
+  return [
     company.address_line_1,
     company.address_line_2,
     company.city,
     company.state_province,
     company.postal_code,
     company.country,
-  ]);
+  ]
+    .filter(Boolean)
+    .join(", ");
 }
 
 function buildClientAddress(client: ClientOption | null) {
   if (!client) return "";
 
-  return joinAddress([
+  return [
     client.address_line_1,
     client.address_line_2,
     client.city,
     client.state_province,
     client.postal_code,
     client.country,
-  ]);
+  ]
+    .filter(Boolean)
+    .join(", ");
 }
 
 function buildBankIdentifierLine(account: BankAccountOption | null) {
@@ -406,13 +344,16 @@ function buildBankAddressFromAccount(account: BankAccountOption | null) {
     return account.bank_address;
   }
 
-  return joinAddress([
+
+  return [
     account.address_line_1,
     account.address_line_2,
     account.city,
     account.postal_code,
     account.country,
-  ]);
+  ]
+    .filter(Boolean)
+    .join(", ");
 }
 
 function buildBankDetailsLinesFromAccount(account: BankAccountOption | null) {
@@ -455,23 +396,7 @@ function buildBankDetailsLinesFromSnapshot(snapshot: string | null | undefined) 
     });
 }
 
-function getMetadataString(
-  metadata: Record<string, unknown> | null | undefined,
-  key: string
-) {
-  const value = metadata?.[key];
-  return typeof value === "string" ? value : "";
-}
-
-function getMetadataNumberOrString(
-  metadata: Record<string, unknown> | null | undefined,
-  key: string
-) {
-  const value = metadata?.[key];
-  return typeof value === "string" || typeof value === "number" ? value : null;
-}
-
-function getDocumentStatusBadgeClasses(status: InvoiceStatus) {
+function getDocumentStatusBadgeClasses(status: InvoiceRecord["status"]) {
   if (status === "issued") {
     return "border-sky-400/20 bg-sky-500/10 text-sky-200";
   }
@@ -499,7 +424,7 @@ function getDocumentStatusBadgeClasses(status: InvoiceStatus) {
   return "border-white/10 bg-white/10 text-white/75";
 }
 
-function getPaymentStatusBadgeClasses(status: InvoicePaymentStatus) {
+function getPaymentStatusBadgeClasses(status: InvoiceRecord["payment_status"]) {
   if (status === "paid") {
     return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
   }
@@ -525,18 +450,6 @@ function getPostingStatusLabel(status: InvoicePostingStatus) {
 
 function getOverdueBadgeClasses() {
   return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-}
-
-function getPaymentTermLabel(term: PaymentTermOption | null) {
-  if (!term) return "—";
-  return term.document_label || term.name || term.code || "—";
-}
-
-function getShippingTermLabel(term: ShippingTermOption | null) {
-  if (!term) return "—";
-  return term.description?.trim()
-    ? `${term.name} — ${term.description.trim()}`
-    : term.name || term.code || "—";
 }
 
 export default function FinanceInvoiceDetailPage() {
@@ -576,9 +489,6 @@ export default function FinanceInvoiceDetailPage() {
   const [revenueCategories, setRevenueCategories] = useState<
     RevenueCategoryOption[]
   >([]);
-  const [proformaSources, setProformaSources] = useState<
-    ProformaInvoiceSource[]
-  >([]);
 
   const [showArchivePopup, setShowArchivePopup] = useState(false);
   const [archiveTab, setArchiveTab] = useState<"archived" | "deleted">(
@@ -586,17 +496,8 @@ export default function FinanceInvoiceDetailPage() {
   );
 
   const [editingOverview, setEditingOverview] = useState(false);
-  const [editingFinancialSettings, setEditingFinancialSettings] =
-    useState(false);
-  const [editingDocumentDetails, setEditingDocumentDetails] = useState(false);
+  const [editingParties, setEditingParties] = useState(false);
   const [editingLines, setEditingLines] = useState(false);
-
-  const [sourceModeDraft, setSourceModeDraft] = useState<
-    "manual" | "proforma_invoice"
-  >("manual");
-  const [sourceProformaIdDraft, setSourceProformaIdDraft] = useState("");
-  const [linkedProforma, setLinkedProforma] =
-    useState<ProformaInvoiceSource | null>(null);
 
   const [issueDateDraft, setIssueDateDraft] = useState("");
   const [dueDateDraft, setDueDateDraft] = useState("");
@@ -652,37 +553,28 @@ export default function FinanceInvoiceDetailPage() {
       setError("");
 
       try {
-        const [
-          { invoice, lineItems },
-          paymentsResult,
-          projectResult,
-          linkedProformaResult,
-        ] = await Promise.all([
-          getIssuedInvoiceById(id),
-          supabase
-            .from("finance_payments_received")
-            .select(
-              "id, amount, converted_amount, payment_currency_code, invoice_currency_code, payment_date, status, reference_number"
-            )
-            .eq("invoice_id", id)
-            .eq("status", "confirmed")
-            .order("payment_date", { ascending: false }),
-          supabase
-            .from("finance_invoices_issued")
-            .select("project:projects(id, name), task:tasks(id, title)")
-            .eq("id", id)
-            .maybeSingle(),
-          supabase
-            .from("finance_invoices_issued")
-            .select(
-              "proforma:finance_proforma_invoices(id, proforma_number, client_id, client_po_id, quotation_id, company_id, issue_date, valid_until, status, currency_id, currency_code, total_amount, notes, project_id, task_id, payment_terms_id, shipping_term_id, bank_account_id, metadata)"
-            )
-            .eq("id", id)
-            .maybeSingle(),
-          loadArchiveItems(),
-        ]);
+        const [{ invoice, lineItems }, paymentsResult, projectResult] =
+          await Promise.all([
+            getIssuedInvoiceById(id),
+            supabase
+              .from("finance_payments_received")
+              .select(
+                "id, amount, converted_amount, payment_currency_code, invoice_currency_code, payment_date, status, reference_number"
+              )
+              .eq("invoice_id", id)
+              .eq("status", "confirmed")
+              .order("payment_date", { ascending: false }),
+            supabase
+              .from("finance_invoices_issued")
+              .select("project:projects(id, name), task:tasks(id, title)")
+              .eq("id", id)
+              .maybeSingle(),
+            loadArchiveItems(),
+          ]);
 
-        if (paymentsResult.error) throw paymentsResult.error;
+        if (paymentsResult.error) {
+          throw paymentsResult.error;
+        }
 
         if (projectResult.error) {
           console.warn(
@@ -691,40 +583,20 @@ export default function FinanceInvoiceDetailPage() {
           );
         }
 
-        if (linkedProformaResult.error) {
-          console.warn(
-            "Failed to load linked proforma for invoice:",
-            linkedProformaResult.error
-          );
-        }
-
         const typedInvoice = invoice as unknown as InvoiceRecord;
         const typedLineItems = (lineItems || []) as unknown as LineItemRow[];
         const typedPayments = (paymentsResult.data || []) as PaymentRow[];
         const linkedProject = (projectResult.data as any)?.project ?? null;
         const linkedTask = (projectResult.data as any)?.task ?? null;
-        const linkedProformaRow =
-          ((linkedProformaResult.data as any)?.proforma ||
-            null) as ProformaInvoiceSource | null;
 
-        setInvoice(typedInvoice);
+              setInvoice(typedInvoice);
         setLineItems(typedLineItems);
         setPayments(typedPayments);
         setProject(linkedProject);
         setTask(linkedTask);
-        setLinkedProforma(linkedProformaRow);
 
-        setSourceModeDraft(
-          typedInvoice.proforma_invoice_id || linkedProformaRow
-            ? "proforma_invoice"
-            : "manual"
-        );
-        setSourceProformaIdDraft(
-          typedInvoice.proforma_invoice_id || linkedProformaRow?.id || ""
-        );
-
-        setIssueDateDraft(getDateInputValue(typedInvoice.issue_date));
-        setDueDateDraft(getDateInputValue(typedInvoice.due_date));
+        setIssueDateDraft(typedInvoice.issue_date || "");
+        setDueDateDraft(typedInvoice.due_date || "");
         setNotesDraft(typedInvoice.notes || "");
         setTermsAndConditionsDraft(
           typedInvoice.terms_and_conditions_snapshot || ""
@@ -749,19 +621,17 @@ export default function FinanceInvoiceDetailPage() {
         );
 
         setLineItemsDraft(
-          typedLineItems.length > 0
-            ? typedLineItems.map((row) => ({
-                id: row.id,
-                item_id: row.item_id || "",
-                description: row.description || "",
-                quantity: String(row.quantity ?? 0),
-                unit_price: String(row.unit_price ?? 0),
-                discount: String(row.discount ?? 0),
-                tax_code_id: row.tax_code_id || "",
-                unit_of_measure_id: row.unit_of_measure_id || "",
-                revenue_category_id: row.revenue_category_id || "",
-              }))
-            : [createEditableDraftLineItem()]
+          typedLineItems.map((row) => ({
+            id: row.id,
+            item_id: row.item_id || "",
+            description: row.description || "",
+            quantity: String(row.quantity ?? 0),
+            unit_price: String(row.unit_price ?? 0),
+            discount: String(row.discount ?? 0),
+            tax_code_id: row.tax_code_id || "",
+            unit_of_measure_id: row.unit_of_measure_id || "",
+            revenue_category_id: row.revenue_category_id || "",
+          }))
         );
       } catch (err) {
         console.error(err);
@@ -793,8 +663,6 @@ export default function FinanceInvoiceDetailPage() {
         taxCodesResult,
         unitsOfMeasureResult,
         revenueCategoriesResult,
-        linkedInvoiceIdsResult,
-        proformaSourcesResult,
       ] = await Promise.all([
         supabase
           .from("finance_clients")
@@ -803,7 +671,6 @@ export default function FinanceInvoiceDetailPage() {
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
-
         supabase
           .from("finance_companies")
           .select(
@@ -811,16 +678,14 @@ export default function FinanceInvoiceDetailPage() {
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
-
-        supabase.from("projects").select("id, name").order("name", {
-          ascending: true,
-        }),
-
+        supabase
+          .from("projects")
+          .select("id, name")
+          .order("name", { ascending: true }),
         supabase
           .from("tasks")
           .select("id, title, project_id")
           .order("created_at", { ascending: false }),
-
         supabase
           .from("finance_payment_terms")
           .select(
@@ -828,13 +693,11 @@ export default function FinanceInvoiceDetailPage() {
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
-
         supabase
           .from("finance_shipping_terms")
           .select("id, code, name, description, is_default")
           .eq("status", "active")
           .order("name", { ascending: true }),
-
         supabase
           .from("finance_bank_accounts")
           .select(
@@ -842,19 +705,16 @@ export default function FinanceInvoiceDetailPage() {
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
-
         supabase
           .from("finance_currencies")
           .select("id, currency_code, currency_name")
           .eq("status", "active")
           .order("currency_code", { ascending: true }),
-
         supabase
           .from("finance_payment_methods")
           .select("id, code, name")
           .eq("status", "active")
           .order("name", { ascending: true }),
-
         supabase
           .from("finance_items")
           .select(
@@ -863,37 +723,21 @@ export default function FinanceInvoiceDetailPage() {
           .eq("status", "active")
           .eq("is_active_for_sales", true)
           .order("name", { ascending: true }),
-
         supabase
           .from("finance_tax_codes")
           .select("id, code, name, rate_percent")
           .eq("status", "active")
           .order("name", { ascending: true }),
-
         supabase
           .from("finance_units_of_measure")
           .select("id, code, name")
           .eq("status", "active")
           .order("name", { ascending: true }),
-
         supabase
           .from("finance_revenue_categories")
           .select("id, code, name")
           .eq("status", "active")
           .order("name", { ascending: true }),
-
-        supabase
-          .from("finance_invoices_issued")
-          .select("proforma_invoice_id")
-          .not("proforma_invoice_id", "is", null),
-
-        supabase
-          .from("finance_proforma_invoices")
-          .select(
-            "id, proforma_number, client_id, client_po_id, quotation_id, company_id, issue_date, valid_until, status, currency_id, currency_code, total_amount, notes, project_id, task_id, payment_terms_id, shipping_term_id, bank_account_id, metadata"
-          )
-          .in("status", ["issued", "confirmed"])
-          .order("updated_at", { ascending: false }),
       ]);
 
       if (clientsResult.error) throw clientsResult.error;
@@ -909,16 +753,6 @@ export default function FinanceInvoiceDetailPage() {
       if (taxCodesResult.error) throw taxCodesResult.error;
       if (unitsOfMeasureResult.error) throw unitsOfMeasureResult.error;
       if (revenueCategoriesResult.error) throw revenueCategoriesResult.error;
-      if (linkedInvoiceIdsResult.error) throw linkedInvoiceIdsResult.error;
-      if (proformaSourcesResult.error) throw proformaSourcesResult.error;
-
-      const linkedProformaIds = new Set(
-        ((linkedInvoiceIdsResult.data || []) as Array<{
-          proforma_invoice_id: string | null;
-        }>)
-          .map((row) => row.proforma_invoice_id)
-          .filter(Boolean) as string[]
-      );
 
       setClients((clientsResult.data || []) as ClientOption[]);
       setCompanies((companiesResult.data || []) as CompanyOption[]);
@@ -939,306 +773,28 @@ export default function FinanceInvoiceDetailPage() {
       setRevenueCategories(
         (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
       );
-
-      setProformaSources(
-        ((proformaSourcesResult.data || []) as ProformaInvoiceSource[]).filter(
-          (proforma) =>
-            !linkedProformaIds.has(proforma.id) ||
-            proforma.id === invoice?.proforma_invoice_id
-        )
-      );
     } catch (err) {
       console.error("Failed to load invoice master data:", err);
     }
-  }, [invoice?.proforma_invoice_id]);
+  }, []);
 
   useEffect(() => {
     void loadInvoice();
     void loadMasterData();
   }, [loadInvoice, loadMasterData]);
 
-  useEffect(() => {
-    if (!id) return;
+  const totals = useMemo(() => {
+    if (!invoice) return null;
 
-    const channel = supabase
-      .channel(`invoice-issued-${id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "finance_invoices_issued",
-          filter: `id=eq.${id}`,
-        },
-        () => void loadInvoice(true)
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "finance_invoice_issued_line_items",
-          filter: `invoice_id=eq.${id}`,
-        },
-        () => void loadInvoice(true)
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "finance_payments_received",
-        },
-        () => void loadInvoice(true)
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
+    return {
+      subtotal: toNumber(invoice.subtotal),
+      discount: toNumber(invoice.discount_amount),
+      tax: toNumber(invoice.tax_amount),
+      total: toNumber(invoice.total_amount),
+      paid: toNumber(invoice.paid_amount),
+      balance: toNumber(invoice.balance_due),
     };
-  }, [id, loadInvoice]);
-
-  const applyProformaSource = useCallback(
-    async (proformaId: string) => {
-      if (!proformaId) {
-        setSourceModeDraft("manual");
-        setSourceProformaIdDraft("");
-        setLinkedProforma(null);
-        setLineItemsDraft([createEditableDraftLineItem()]);
-        setNotesDraft("");
-        return;
-      }
-
-      setError("");
-
-      const { data: proformaData, error: proformaError } = await supabase
-        .from("finance_proforma_invoices")
-        .select(
-          "id, proforma_number, client_id, client_po_id, quotation_id, company_id, issue_date, valid_until, status, currency_id, currency_code, total_amount, notes, project_id, task_id, payment_terms_id, shipping_term_id, bank_account_id, metadata"
-        )
-        .eq("id", proformaId)
-        .maybeSingle();
-
-      if (proformaError) throw proformaError;
-
-      const typedProforma =
-        (proformaData || null) as ProformaInvoiceSource | null;
-
-      if (!typedProforma) {
-        setError("Proforma invoice source was not found.");
-        return;
-      }
-
-      if (!["issued", "confirmed"].includes(typedProforma.status)) {
-        setError(
-          "Proforma invoice must be issued or confirmed before linking."
-        );
-        return;
-      }
-
-      setSourceModeDraft("proforma_invoice");
-      setSourceProformaIdDraft(typedProforma.id);
-      setLinkedProforma(typedProforma);
-
-      setClientIdDraft(
-        typedProforma.client_id ? `client:${typedProforma.client_id}` : ""
-      );
-      setCompanyIdDraft(typedProforma.company_id || "");
-      setProjectIdDraft(typedProforma.project_id || "");
-      setTaskIdDraft(typedProforma.task_id || "");
-      setPaymentTermsIdDraft(typedProforma.payment_terms_id || "");
-      setShippingTermIdDraft(typedProforma.shipping_term_id || "");
-      setBankAccountIdDraft(typedProforma.bank_account_id || "");
-      setCurrencyIdDraft(typedProforma.currency_id || "");
-
-      setIssueDateDraft(
-        getDateInputValue(
-          typedProforma.issue_date || new Date().toISOString()
-        )
-      );
-
-      const dueDateBase = typedProforma.valid_until
-        ? new Date(typedProforma.valid_until)
-        : new Date();
-
-      if (!typedProforma.valid_until) {
-        dueDateBase.setDate(dueDateBase.getDate() + 30);
-      }
-
-      setDueDateDraft(dueDateBase.toISOString().slice(0, 10));
-
-      setNotesDraft(
-        [
-          `Created from Proforma Invoice: ${
-            typedProforma.proforma_number || typedProforma.id
-          }`,
-          typedProforma.notes || "",
-        ]
-          .filter(Boolean)
-          .join("\n")
-      );
-
-      const { data: proformaLinesData, error: proformaLinesError } =
-        await supabase
-          .from("finance_proforma_invoice_line_items")
-          .select(
-            "id, proforma_invoice_id, item_id, description, quantity, unit_price, discount, sort_order, unit_of_measure_id, tax_code_id, revenue_category_id, project_id, task_id, status"
-          )
-          .eq("proforma_invoice_id", typedProforma.id)
-          .or("status.is.null,status.neq.deleted")
-          .order("sort_order", { ascending: true });
-
-      if (proformaLinesError) throw proformaLinesError;
-
-      const proformaLines =
-        (proformaLinesData || []) as ProformaInvoiceLineSource[];
-
-      setLineItemsDraft(
-        proformaLines.length > 0
-          ? proformaLines.map((line) => ({
-              id: `new_${crypto.randomUUID()}`,
-              item_id: line.item_id || "",
-              description: line.description || "",
-              quantity: String(line.quantity ?? 1),
-              unit_price: String(line.unit_price ?? 0),
-              discount: String(line.discount ?? 0),
-              tax_code_id: line.tax_code_id || "",
-              unit_of_measure_id: line.unit_of_measure_id || "",
-              revenue_category_id: line.revenue_category_id || "",
-            }))
-          : [
-              {
-                id: `new_${crypto.randomUUID()}`,
-                item_id: "",
-                description: `Proforma Invoice ${
-                  typedProforma.proforma_number || ""
-                }`.trim(),
-                quantity: "1",
-                unit_price: String(toNumber(typedProforma.total_amount)),
-                discount: "0",
-                tax_code_id: "",
-                unit_of_measure_id: "",
-                revenue_category_id: "",
-              },
-            ]
-      );
-    },
-    []
-  );
-
-  useEffect(() => {
-    if (sourceModeDraft === "manual") {
-      setSourceProformaIdDraft("");
-      setLinkedProforma(null);
-      setLineItemsDraft([createEditableDraftLineItem()]);
-      setNotesDraft("");
-    }
-  }, [sourceModeDraft]);
-
-  useEffect(() => {
-    if (sourceModeDraft === "proforma_invoice" && sourceProformaIdDraft) {
-      void applyProformaSource(sourceProformaIdDraft);
-    }
-  }, [sourceModeDraft, sourceProformaIdDraft, applyProformaSource]);
-
-  const handleSaveDraftChanges = useCallback(async () => {
-    if (!invoice) return;
-
-    setIsSavingDraft(true);
-
-    try {
-      const counterpartyType = clientIdDraft.startsWith("company:")
-        ? "company"
-        : "client";
-
-      const parsedClientId =
-        counterpartyType === "client"
-          ? clientIdDraft.replace("client:", "")
-          : null;
-
-      const parsedCounterpartyCompanyId =
-        counterpartyType === "company"
-          ? clientIdDraft.replace("company:", "")
-          : null;
-
-      await supabase
-        .from("finance_invoices_issued")
-        .update({
-          client_id: parsedClientId || null,
-          counterparty_type: counterpartyType,
-          counterparty_company_id: parsedCounterpartyCompanyId,
-          company_id: companyIdDraft || null,
-          project_id: projectIdDraft || null,
-          task_id: taskIdDraft || null,
-          issue_date: issueDateDraft,
-          due_date: dueDateDraft,
-          notes: notesDraft,
-          payment_terms_id: paymentTermsIdDraft || null,
-          shipping_term_id: shippingTermIdDraft || null,
-          bank_account_id: bankAccountIdDraft || null,
-          currency_id: currencyIdDraft || null,
-          proforma_invoice_id:
-            sourceModeDraft === "proforma_invoice"
-              ? sourceProformaIdDraft || null
-              : null,
-          metadata: {
-            ...(invoice.metadata || {}),
-            preferred_payment_method_id: paymentMethodIdDraft || null,
-            source_mode: sourceModeDraft,
-          },
-          terms_and_conditions_snapshot: termsAndConditionsDraft,
-        })
-        .eq("id", invoice.id);
-
-      await supabase
-        .from("finance_invoice_issued_line_items")
-        .delete()
-        .eq("invoice_id", invoice.id);
-
-      if (lineItemsDraft.length > 0) {
-        await supabase.from("finance_invoice_issued_line_items").insert(
-          lineItemsDraft.map((line, index) => ({
-            invoice_id: invoice.id,
-            item_id: line.item_id || null,
-            description: line.description,
-            quantity: Number(line.quantity || 0),
-            unit_price: Number(line.unit_price || 0),
-            discount: Number(line.discount || 0),
-            tax_code_id: line.tax_code_id || null,
-            unit_of_measure_id: line.unit_of_measure_id || null,
-            revenue_category_id: line.revenue_category_id || null,
-            sort_order: index,
-          }))
-        );
-      }
-
-      await loadInvoice(true);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to save draft changes.");
-    } finally {
-      setIsSavingDraft(false);
-    }
-  }, [
-    invoice,
-    clientIdDraft,
-    companyIdDraft,
-    projectIdDraft,
-    taskIdDraft,
-    issueDateDraft,
-    dueDateDraft,
-    notesDraft,
-    paymentTermsIdDraft,
-    shippingTermIdDraft,
-    bankAccountIdDraft,
-    currencyIdDraft,
-    sourceModeDraft,
-    sourceProformaIdDraft,
-    paymentMethodIdDraft,
-    termsAndConditionsDraft,
-    lineItemsDraft,
-    loadInvoice,
-  ]);
+  }, [invoice]);
 
   const selectedDraftClient = useMemo(() => {
     if (!clientIdDraft.startsWith("client:")) return null;
@@ -1277,6 +833,14 @@ export default function FinanceInvoiceDetailPage() {
     [shippingTerms, shippingTermIdDraft]
   );
 
+  const selectedDraftShippingTermsLabel = useMemo(() => {
+    if (!selectedDraftShippingTerm) return "";
+    if (selectedDraftShippingTerm.description?.trim()) {
+      return `${selectedDraftShippingTerm.name} — ${selectedDraftShippingTerm.description.trim()}`;
+    }
+    return selectedDraftShippingTerm.name || selectedDraftShippingTerm.code || "";
+  }, [selectedDraftShippingTerm]);
+
   const selectedDraftCurrency = useMemo(
     () => currencies.find((entry) => entry.id === currencyIdDraft) ?? null,
     [currencies, currencyIdDraft]
@@ -1289,12 +853,18 @@ export default function FinanceInvoiceDetailPage() {
   );
 
   const filteredDraftTasks = useMemo(() => {
-    if (!projectIdDraft) return tasks;
-    return tasks.filter((taskItem) => taskItem.project_id === projectIdDraft);
+    if (!projectIdDraft) {
+      return tasks;
+    }
+
+    return tasks.filter((task) => task.project_id === projectIdDraft);
   }, [projectIdDraft, tasks]);
 
   const filteredDraftBankAccounts = useMemo(() => {
-    if (!companyIdDraft) return bankAccounts;
+    if (!companyIdDraft) {
+      return bankAccounts;
+    }
+
     return bankAccounts.filter(
       (account) => !account.company_id || account.company_id === companyIdDraft
     );
@@ -1324,19 +894,91 @@ export default function FinanceInvoiceDetailPage() {
   );
 
   const resolvedDraftRecipientAddress = useMemo(() => {
-    if (selectedDraftClient) return buildClientAddress(selectedDraftClient);
+    if (selectedDraftClient) {
+      return buildClientAddress(selectedDraftClient);
+    }
+
     return buildCompanyAddress(selectedDraftRecipientCompany);
   }, [selectedDraftClient, selectedDraftRecipientCompany]);
 
+  const resolvedDraftRecipientEmail = useMemo(
+    () =>
+      selectedDraftClient?.company_email ||
+      selectedDraftClient?.personnel_email ||
+      selectedDraftRecipientCompany?.email ||
+      "",
+    [selectedDraftClient, selectedDraftRecipientCompany]
+  );
+
+  const resolvedDraftRecipientPhone = useMemo(
+    () =>
+      selectedDraftClient?.company_phone ||
+      selectedDraftClient?.personnel_phone ||
+      selectedDraftRecipientCompany?.phone ||
+      "",
+    [selectedDraftClient, selectedDraftRecipientCompany]
+  );
+
+  const resolvedDraftRecipientContact = useMemo(
+    () =>
+      selectedDraftClient?.contact_person ||
+      selectedDraftRecipientCompany?.contact_person ||
+      "",
+    [selectedDraftClient, selectedDraftRecipientCompany]
+  );
+
+  const resolvedIssuedRecipientName = useMemo(() => {
+    if (!invoice) return "";
+
+    return (
+      invoice.counterparty_legal_name_snapshot ||
+      invoice.counterparty_name_snapshot ||
+      invoice.client_name_snapshot ||
+      ""
+    );
+  }, [invoice]);
+
+  const resolvedIssuedRecipientEmail = useMemo(() => {
+    if (!invoice) return "";
+
+    return (
+      invoice.client_email_snapshot ||
+      invoice.counterparty_email_snapshot ||
+      ""
+    );
+  }, [invoice]);
+
+  const resolvedIssuedRecipientPhone = useMemo(() => {
+    if (!invoice) return "";
+
+    return (
+      invoice.client_phone_snapshot ||
+      invoice.counterparty_phone_snapshot ||
+      ""
+    );
+  }, [invoice]);
+
+  const resolvedIssuedRecipientContact = useMemo(() => {
+    if (!invoice) return "";
+
+    return (
+      invoice.client_contact_person_snapshot ||
+      invoice.counterparty_contact_person_snapshot ||
+      ""
+    );
+  }, [invoice]);
+
   const resolvedBankDetailsLines = useMemo(() => {
     if (!invoice) return [];
+
     if (invoice.status === "draft") {
       return buildBankDetailsLinesFromAccount(selectedDraftBankAccount);
     }
+
     return buildBankDetailsLinesFromSnapshot(invoice.bank_details_snapshot);
   }, [invoice, selectedDraftBankAccount]);
 
-  const financialSummary = useMemo(() => {
+  const draftTotals = useMemo(() => {
     const subtotal = lineItemsDraft.reduce(
       (sum, row) => sum + toNumber(row.quantity) * toNumber(row.unit_price),
       0
@@ -1348,34 +990,152 @@ export default function FinanceInvoiceDetailPage() {
     );
 
     const tax = lineItemsDraft.reduce((sum, row) => {
-      const base = Math.max(
-        toNumber(row.quantity) * toNumber(row.unit_price) -
-          toNumber(row.discount),
-        0
-      );
-      const taxCode = taxCodes.find((taxCode) => taxCode.id === row.tax_code_id);
+      const qty = toNumber(row.quantity);
+      const price = toNumber(row.unit_price);
+      const rowDiscount = toNumber(row.discount);
+      const base = Math.max(qty * price - rowDiscount, 0);
+
+      const taxCode = taxCodes.find((t) => t.id === row.tax_code_id);
       if (!taxCode) return sum;
-      return sum + base * (toNumber(taxCode.rate_percent) / 100);
+
+      const rate = toNumber(taxCode.rate_percent) / 100;
+      return sum + base * rate;
     }, 0);
 
     const total = Math.max(subtotal - discount + tax, 0);
-    const paid = toNumber(invoice?.paid_amount);
-    const balance = total - paid;
 
     return {
       subtotal,
       discount,
       tax,
       total,
-      paid,
-      balance,
     };
-  }, [invoice?.paid_amount, lineItemsDraft, taxCodes]);
+  }, [lineItemsDraft, taxCodes]);
 
-  const currentCurrencyCode =
-    selectedDraftCurrency?.currency_code || invoice?.currency_code || "USD";
+  const financialSummary = useMemo(() => {
+    if (!invoice || !totals) return null;
 
-  const displayState = invoice ? getInvoiceDisplayState(invoice as any) : null;
+    if (invoice.status === "draft") {
+      const paid = totals.paid;
+      const balance = draftTotals.total - paid;
+
+      return {
+        subtotal: draftTotals.subtotal,
+        discount: draftTotals.discount,
+        tax: draftTotals.tax,
+        total: draftTotals.total,
+        paid,
+        balance,
+      };
+    }
+
+    return totals;
+  }, [draftTotals, invoice, totals]);
+
+  useEffect(() => {
+    if (!invoice || invoice.status !== "draft" || !selectedDraftClient) return;
+
+    if (selectedDraftClient.payment_terms_id && !paymentTermsIdDraft) {
+      setPaymentTermsIdDraft(selectedDraftClient.payment_terms_id);
+    }
+
+    if (selectedDraftClient.currency_code && !currencyIdDraft) {
+      const matchedCurrency = currencies.find(
+        (currency) => currency.currency_code === selectedDraftClient.currency_code
+      );
+
+      if (matchedCurrency) {
+        setCurrencyIdDraft(matchedCurrency.id);
+      }
+    }
+
+    if (!dueDateDraft) {
+      const days = selectedDraftClient.payment_terms_days ?? 14;
+      const base = new Date(
+        issueDateDraft || new Date().toISOString().slice(0, 10)
+      );
+      base.setDate(base.getDate() + days);
+      setDueDateDraft(base.toISOString().slice(0, 10));
+    }
+  }, [
+    currencies,
+    currencyIdDraft,
+    dueDateDraft,
+    invoice,
+    issueDateDraft,
+    paymentTermsIdDraft,
+    selectedDraftClient,
+  ]);
+
+  useEffect(() => {
+    if (!invoice || invoice.status !== "draft") return;
+
+    setTermsAndConditionsDraft((current) => {
+      const trimmed = current.trim();
+      if (trimmed || current !== "") return current;
+
+      return "Payment is due according to the agreed payment terms stated on this invoice. Goods remain subject to the agreed shipping terms. Any bank charges are the responsibility of the payer unless otherwise agreed in writing. Please reference the invoice number with your payment. Late payments may result in delays, additional charges, or suspension of further deliveries or services.";
+    });
+  }, [invoice]);
+
+  useEffect(() => {
+    if (!invoice || invoice.status !== "draft" || !companyIdDraft) return;
+
+    const selectedBankStillBelongsToCompany =
+      !bankAccountIdDraft ||
+      filteredDraftBankAccounts.some(
+        (account) => account.id === bankAccountIdDraft
+      );
+
+    if (!selectedBankStillBelongsToCompany) {
+      setBankAccountIdDraft("");
+    }
+
+    const defaultBank =
+      filteredDraftBankAccounts.find((account) => account.is_default) ??
+      filteredDraftBankAccounts[0];
+
+    if (defaultBank && !bankAccountIdDraft) {
+      setBankAccountIdDraft(defaultBank.id);
+    }
+
+    if (!currencyIdDraft && selectedDraftCompany?.currency_code) {
+      const matchedCurrency = currencies.find(
+        (currency) => currency.currency_code === selectedDraftCompany.currency_code
+      );
+
+      if (matchedCurrency) {
+        setCurrencyIdDraft(matchedCurrency.id);
+      }
+    }
+  }, [
+    bankAccountIdDraft,
+    companyIdDraft,
+    currencies,
+    currencyIdDraft,
+    filteredDraftBankAccounts,
+    invoice,
+    selectedDraftCompany,
+  ]);
+
+  useEffect(() => {
+    if (!invoice || invoice.status !== "draft") return;
+
+    const taskStillValid = filteredDraftTasks.some(
+      (entry) => entry.id === taskIdDraft
+    );
+
+    if (taskIdDraft && !taskStillValid) {
+      setTaskIdDraft("");
+    }
+  }, [filteredDraftTasks, invoice, taskIdDraft]);
+
+  const canEditDraft = invoice?.status === "draft";
+  const canEditIssuedOverview = invoice?.status === "issued";
+  const canEditIssuedParties = invoice?.status === "issued";
+  const canArchive =
+    !!invoice &&
+    ["draft", "issued", "partially_paid", "paid"].includes(invoice.status);
 
   const handleIssue = useCallback(async () => {
     if (!invoice || !id) return;
@@ -1384,7 +1144,145 @@ export default function FinanceInvoiceDetailPage() {
     setError("");
 
     try {
-      await handleSaveDraftChanges();
+      if (!lineItemsDraft.length) {
+        setError("Invoice must have at least one line item.");
+        setIsIssuing(false);
+        return;
+      }
+
+      if (!clientIdDraft) {
+        setError("Invoice must have a recipient.");
+        setIsIssuing(false);
+        return;
+      }
+
+      if (!selectedDraftBankAccount) {
+        setError("Bank account is required before issuing.");
+        setIsIssuing(false);
+        return;
+      }
+
+      const selectedPaymentMethod = paymentMethods.find(
+        (method) => method.id === paymentMethodIdDraft
+      );
+
+      const selectedCurrency = currencies.find(
+        (currency) => currency.id === currencyIdDraft
+      );
+
+      const selectedPaymentTerm = paymentTerms.find(
+        (term) => term.id === paymentTermsIdDraft
+      );
+
+      const selectedShippingTerm = shippingTerms.find(
+        (term) => term.id === shippingTermIdDraft
+      );
+
+      const isCompany = clientIdDraft.startsWith("company:");
+      const isClient = clientIdDraft.startsWith("client:");
+
+      const resolvedClientId = isClient
+        ? clientIdDraft.replace("client:", "")
+        : null;
+
+      const resolvedCompanyId = isCompany
+        ? clientIdDraft.replace("company:", "")
+        : null;
+
+      const { error: snapshotError } = await supabase
+        .from("finance_invoices_issued")
+        .update({
+          client_id: resolvedClientId,
+          counterparty_company_id: resolvedCompanyId,
+          counterparty_type: isCompany ? "company" : "client",
+          company_id: companyIdDraft || null,
+          project_id: projectIdDraft || null,
+          task_id: taskIdDraft || null,
+          payment_terms_id: paymentTermsIdDraft || null,
+          shipping_term_id: shippingTermIdDraft || null,
+          bank_account_id: bankAccountIdDraft || null,
+          currency_id: currencyIdDraft || null,
+          currency_code:
+            selectedCurrency?.currency_code || invoice.currency_code || "USD",
+          issue_date: issueDateDraft,
+          due_date: dueDateDraft,
+          notes: notesDraft || null,
+          company_name_snapshot:
+            selectedDraftCompany?.legal_name ||
+            selectedDraftCompany?.name ||
+            null,
+          company_contact_person_snapshot:
+            selectedDraftCompany?.contact_person || null,
+          company_address_snapshot: resolvedDraftCompanyAddress || null,
+          company_email_snapshot: selectedDraftCompany?.email || null,
+          company_phone_snapshot: selectedDraftCompany?.phone || null,
+          counterparty_name_snapshot: resolvedDraftRecipientName || null,
+          counterparty_legal_name_snapshot: resolvedDraftRecipientName || null,
+          counterparty_contact_person_snapshot:
+            resolvedDraftRecipientContact || null,
+          counterparty_email_snapshot: resolvedDraftRecipientEmail || null,
+          counterparty_phone_snapshot: resolvedDraftRecipientPhone || null,
+          client_name_snapshot:
+            selectedDraftClient?.legal_name || selectedDraftClient?.name || null,
+          client_contact_person_snapshot:
+            selectedDraftClient?.contact_person || null,
+          client_email_snapshot:
+            selectedDraftClient?.company_email ||
+            selectedDraftClient?.personnel_email ||
+            null,
+          client_phone_snapshot:
+            selectedDraftClient?.company_phone ||
+            selectedDraftClient?.personnel_phone ||
+            null,
+          billing_address_snapshot: resolvedDraftRecipientAddress || null,
+          payment_terms_snapshot:
+            selectedPaymentTerm?.document_label ||
+            selectedPaymentTerm?.name ||
+            null,
+          shipping_terms_snapshot:
+            selectedShippingTerm?.description?.trim()
+              ? `${selectedShippingTerm.name} — ${selectedShippingTerm.description.trim()}`
+              : selectedShippingTerm?.name || selectedShippingTerm?.code || null,
+          terms_and_conditions_snapshot: termsAndConditionsDraft || null,
+          bank_details_snapshot:
+            buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount),
+          metadata: {
+            ...(invoice.metadata || {}),
+            preferred_payment_method_id: paymentMethodIdDraft || null,
+            preferred_payment_method_name: selectedPaymentMethod?.name || null,
+            preferred_payment_method_code: selectedPaymentMethod?.code || null,
+            bank_account_id: bankAccountIdDraft || null,
+            bank_account_name: selectedDraftBankAccount?.name || null,
+            bank_name:
+              selectedDraftBankAccount?.bank_name ||
+              selectedDraftBankAccount?.institution_name ||
+              null,
+            beneficiary_name: selectedDraftBankAccount?.beneficiary_name || null,
+            bank_address_snapshot:
+              buildBankAddressFromAccount(selectedDraftBankAccount) || null,
+            iban: selectedDraftBankAccount?.iban || null,
+            swift_code:
+              selectedDraftBankAccount?.swift_code ||
+              (selectedDraftBankAccount?.account_identifier_type?.toLowerCase() ===
+              "swift"
+                ? selectedDraftBankAccount?.account_identifier_value
+                : null),
+            bank_identifier_type:
+              selectedDraftBankAccount?.account_identifier_type || null,
+            bank_identifier_value:
+              selectedDraftBankAccount?.account_identifier_value || null,
+            account_number:
+              selectedDraftBankAccount?.account_number ||
+              selectedDraftBankAccount?.masked_account_number ||
+              null,
+            bank_account_currency_code:
+              selectedDraftBankAccount?.currency_code || null,
+          },
+        })
+        .eq("id", id)
+        .eq("status", "draft");
+
+      if (snapshotError) throw snapshotError;
 
       const { error } = await supabase.rpc("finance_issue_invoice_issued", {
         p_invoice_id: id,
@@ -1399,7 +1297,38 @@ export default function FinanceInvoiceDetailPage() {
     } finally {
       setIsIssuing(false);
     }
-  }, [handleSaveDraftChanges, id, invoice, loadInvoice]);
+  }, [
+    bankAccountIdDraft,
+    clientIdDraft,
+    companyIdDraft,
+    currencies,
+    currencyIdDraft,
+    dueDateDraft,
+    id,
+    invoice,
+    issueDateDraft,
+    lineItemsDraft,
+    loadInvoice,
+    notesDraft,
+    paymentMethodIdDraft,
+    paymentMethods,
+    paymentTerms,
+    paymentTermsIdDraft,
+    projectIdDraft,
+    resolvedDraftCompanyAddress,
+    resolvedDraftRecipientAddress,
+    resolvedDraftRecipientContact,
+    resolvedDraftRecipientEmail,
+    resolvedDraftRecipientName,
+    resolvedDraftRecipientPhone,
+    selectedDraftBankAccount,
+    selectedDraftClient,
+    selectedDraftCompany,
+    shippingTermIdDraft,
+    shippingTerms,
+    taskIdDraft,
+    termsAndConditionsDraft,
+  ]);
 
   const handleArchive = useCallback(async () => {
     if (!invoice || !id) return;
@@ -1414,6 +1343,9 @@ export default function FinanceInvoiceDetailPage() {
 
       if (error) throw error;
 
+      setEditingOverview(false);
+      setEditingParties(false);
+      setEditingLines(false);
       await loadInvoice(true);
       await loadArchiveItems();
       setShowArchivePopup(true);
@@ -1422,30 +1354,6 @@ export default function FinanceInvoiceDetailPage() {
       setError("Failed to move invoice to archive.");
     } finally {
       setIsArchiving(false);
-    }
-  }, [id, invoice, loadArchiveItems, loadInvoice]);
-
-  const handleDelete = useCallback(async () => {
-    if (!invoice || !id) return;
-
-    setIsDeleting(true);
-    setError("");
-
-    try {
-      const { error } = await supabase.rpc("finance_delete_invoice_issued", {
-        p_invoice_id: id,
-      });
-
-      if (error) throw error;
-
-      await loadInvoice(true);
-      await loadArchiveItems();
-      setShowArchivePopup(true);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to delete invoice.");
-    } finally {
-      setIsDeleting(false);
     }
   }, [id, invoice, loadArchiveItems, loadInvoice]);
 
@@ -1482,14 +1390,26 @@ export default function FinanceInvoiceDetailPage() {
       setError("");
 
       try {
-        const { error } = await supabase.rpc(
+        const { data: payments, error: paymentsError } = await supabase
+          .from("finance_payments_received")
+          .select("id")
+          .eq("invoice_id", invoiceId)
+          .eq("status", "confirmed");
+
+        if (paymentsError) throw paymentsError;
+
+        if (payments && payments.length > 0) {
+          throw new Error("Cannot delete invoice with existing payments.");
+        }
+
+        const { error: invoiceError } = await supabase.rpc(
           "finance_hard_delete_invoice_issued",
           {
             p_invoice_id: invoiceId,
           }
         );
 
-        if (error) throw error;
+        if (invoiceError) throw invoiceError;
 
         if (invoiceId === id) {
           navigate("/finance/transactions/invoices");
@@ -1499,7 +1419,7 @@ export default function FinanceInvoiceDetailPage() {
         await loadArchiveItems();
       } catch (err: any) {
         console.error(err);
-        setError(err?.message || "Failed to permanently delete invoice.");
+        setError(err?.message || "Failed to permanently delete archived invoice.");
       } finally {
         setIsDeleting(false);
       }
@@ -1538,22 +1458,579 @@ export default function FinanceInvoiceDetailPage() {
   );
 
   const addDraftLineItem = useCallback(() => {
-    setLineItemsDraft((current) => [...current, createEditableDraftLineItem()]);
+    setLineItemsDraft((current) => {
+      const last = current[current.length - 1];
+
+      if (!last) {
+        return [createEditableDraftLineItem()];
+      }
+
+      const isLastEmpty =
+        !last.description.trim() &&
+        toNumber(last.quantity) === 0 &&
+        toNumber(last.unit_price) === 0;
+
+      if (isLastEmpty) {
+        return current;
+      }
+
+      return [...current, createEditableDraftLineItem()];
+    });
   }, []);
 
   const removeDraftLineItem = useCallback((lineId: string) => {
     setLineItemsDraft((current) => {
-      const nextRows = current.filter((entry) => entry.id !== lineId);
-      return nextRows.length > 0 ? nextRows : [createEditableDraftLineItem()];
+      if (current.length === 1) {
+        return current;
+      }
+
+      return current.filter((entry) => entry.id !== lineId);
     });
   }, []);
 
-  const visibleArchiveItems = archiveItems.filter(
-    (item) => item.status === archiveTab
-  );
+  const handleSaveIssuedOverviewChanges = useCallback(async () => {
+    if (!invoice || !id || invoice.status !== "issued") return;
 
-  const printableInvoice = useMemo(() => {
+    setIsSavingDraft(true);
+    setError("");
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.id) {
+        throw new Error("User not authenticated");
+      }
+
+      const { error: invoiceError } = await supabase
+        .from("finance_invoices_issued")
+        .update({
+          issue_date: issueDateDraft,
+          due_date: dueDateDraft,
+          notes: notesDraft || null,
+          updated_by: user.id,
+        })
+        .eq("id", id)
+        .eq("status", "issued");
+
+      if (invoiceError) throw invoiceError;
+
+      setEditingOverview(false);
+      await loadInvoice(true);
+    } catch (err: any) {
+      console.error(err);
+      setError(
+        err?.message ||
+          err?.details ||
+          "Failed to save issued invoice overview changes."
+      );
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }, [id, invoice, issueDateDraft, dueDateDraft, notesDraft, loadInvoice]);
+
+  const handleSaveIssuedPartiesChanges = useCallback(async () => {
+    if (!invoice || !id || invoice.status !== "issued") return;
+
+    setIsSavingDraft(true);
+    setError("");
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.id) {
+        throw new Error("User not authenticated");
+      }
+
+      const { error: invoiceError } = await supabase
+        .from("finance_invoices_issued")
+        .update({
+          terms_and_conditions_snapshot: termsAndConditionsDraft || null,
+          updated_by: user.id,
+        })
+        .eq("id", id)
+        .eq("status", "issued");
+
+      if (invoiceError) throw invoiceError;
+
+      setEditingParties(false);
+      await loadInvoice(true);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to save issued invoice party details.");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }, [id, invoice, termsAndConditionsDraft, loadInvoice]);
+
+  const handleSaveIssuedLineChanges = useCallback(async () => {
+    if (!invoice || !id || invoice.status !== "issued") return;
+
+    setIsSavingDraft(true);
+    setError("");
+
+    const cleanedLineItems = lineItemsDraft.map((row) => ({
+      ...row,
+      description: row.description.trim(),
+    }));
+
+    const hasAtLeastOneValidLine = cleanedLineItems.some(
+      (row) =>
+        row.description &&
+        toNumber(row.quantity) > 0 &&
+        toNumber(row.unit_price) >= 0
+    );
+
+    if (!hasAtLeastOneValidLine) {
+      setError("Issued invoice must include at least one valid line item.");
+      setIsSavingDraft(false);
+      return;
+    }
+
+    const hasInvalidLine = cleanedLineItems.some(
+      (row) =>
+        !row.description ||
+        toNumber(row.quantity) <= 0 ||
+        toNumber(row.unit_price) < 0
+    );
+
+    if (hasInvalidLine) {
+      setError(
+        "Every issued invoice line must have a description, quantity greater than 0, and unit price 0 or higher."
+      );
+      setIsSavingDraft(false);
+      return;
+    }
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.id) {
+        throw new Error("User not authenticated");
+      }
+
+      const existingIds = lineItems.map((entry) => entry.id);
+      const draftIds = cleanedLineItems
+        .filter((entry) => !entry.id.startsWith("new_"))
+        .map((entry) => entry.id);
+
+      const idsToDelete = existingIds.filter(
+        (entryId) => !draftIds.includes(entryId)
+      );
+
+      if (idsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("finance_invoice_issued_line_items")
+          .delete()
+          .in("id", idsToDelete);
+
+        if (deleteError) throw deleteError;
+      }
+
+            for (let index = 0; index < cleanedLineItems.length; index += 1) {
+        const row = cleanedLineItems[index];
+
+        if (row.id.startsWith("new_")) {
+          const { error: insertError } = await supabase
+            .from("finance_invoice_issued_line_items")
+            .insert({
+              invoice_id: id,
+              item_id: row.item_id || null,
+              description: row.description.trim(),
+              quantity: toNumber(row.quantity),
+              unit_price: toNumber(row.unit_price),
+              discount: toNumber(row.discount),
+              tax_code_id: row.tax_code_id || null,
+              unit_of_measure_id: row.unit_of_measure_id || null,
+              revenue_category_id: row.revenue_category_id || null,
+              sort_order: index + 1,
+              status: "active",
+              posted_to_ledger: false,
+              metadata: {},
+              created_by: user.id,
+              updated_by: user.id,
+            });
+
+          if (insertError) throw insertError;
+        } else {
+          const { error: lineError } = await supabase
+            .from("finance_invoice_issued_line_items")
+            .update({
+              item_id: row.item_id || null,
+              description: row.description.trim(),
+              quantity: toNumber(row.quantity),
+              unit_price: toNumber(row.unit_price),
+              discount: toNumber(row.discount),
+              tax_code_id: row.tax_code_id || null,
+              unit_of_measure_id: row.unit_of_measure_id || null,
+              revenue_category_id: row.revenue_category_id || null,
+              sort_order: index + 1,
+              updated_by: user.id,
+            })
+            .eq("id", row.id)
+            .eq("invoice_id", id);
+
+          if (lineError) throw lineError;
+        }
+      }
+
+      const { error: recalcError } = await supabase.rpc(
+        "finance_recalculate_invoice_issued_totals",
+        {
+          p_invoice_id: id,
+        }
+      );
+
+      if (recalcError) throw recalcError;
+
+      setEditingLines(false);
+      await loadInvoice(true);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to save issued invoice line items.");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }, [id, invoice, lineItems, lineItemsDraft, loadInvoice]);
+
+  const handleSaveDraftChanges = useCallback(async () => {
+    if (!invoice || !id || !canEditDraft) return;
+
+    setIsSavingDraft(true);
+    setError("");
+
+    const cleanedLineItems = lineItemsDraft.map((row) => ({
+      ...row,
+      description: row.description.trim(),
+    }));
+
+    const hasAtLeastOneValidLine = cleanedLineItems.some(
+      (row) =>
+        row.description &&
+        toNumber(row.quantity) > 0 &&
+        toNumber(row.unit_price) >= 0
+    );
+
+    if (!hasAtLeastOneValidLine) {
+      setError("Draft invoice must include at least one valid line item.");
+      setIsSavingDraft(false);
+      return;
+    }
+
+    const hasInvalidLine = cleanedLineItems.some(
+      (row) =>
+        !row.description ||
+        toNumber(row.quantity) <= 0 ||
+        toNumber(row.unit_price) < 0
+    );
+
+    if (hasInvalidLine) {
+      setError(
+        "Every draft invoice line must have a description, quantity greater than 0, and unit price 0 or higher."
+      );
+      setIsSavingDraft(false);
+      return;
+    }
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.id) {
+        throw new Error("User not authenticated");
+      }
+
+      const isCompany = clientIdDraft.startsWith("company:");
+      const isClient = clientIdDraft.startsWith("client:");
+
+      const resolvedClientId = isClient
+        ? clientIdDraft.replace("client:", "")
+        : null;
+
+      const resolvedCompanyId = isCompany
+        ? clientIdDraft.replace("company:", "")
+        : null;
+
+      const selectedPaymentMethod = paymentMethods.find(
+        (method) => method.id === paymentMethodIdDraft
+      );
+
+      const selectedCurrency = currencies.find(
+        (currency) => currency.id === currencyIdDraft
+      );
+
+      const selectedPaymentTerm = paymentTerms.find(
+        (term) => term.id === paymentTermsIdDraft
+      );
+
+      const selectedShippingTerm = shippingTerms.find(
+        (term) => term.id === shippingTermIdDraft
+      );
+
+      const { error: invoiceError } = await supabase
+        .from("finance_invoices_issued")
+        .update({
+          client_id: resolvedClientId,
+          counterparty_company_id: resolvedCompanyId,
+          counterparty_type: isCompany ? "company" : "client",
+          company_id: companyIdDraft || null,
+          project_id: projectIdDraft || null,
+          task_id: taskIdDraft || null,
+          payment_terms_id: paymentTermsIdDraft || null,
+          shipping_term_id: shippingTermIdDraft || null,
+          bank_account_id: bankAccountIdDraft || null,
+          currency_id: currencyIdDraft || null,
+          currency_code:
+            selectedCurrency?.currency_code || invoice.currency_code || "USD",
+          issue_date: issueDateDraft,
+          due_date: dueDateDraft,
+          notes: notesDraft || null,
+          company_name_snapshot:
+            selectedDraftCompany?.legal_name ||
+            selectedDraftCompany?.name ||
+            null,
+          company_contact_person_snapshot:
+            selectedDraftCompany?.contact_person || null,
+          company_address_snapshot: resolvedDraftCompanyAddress || null,
+          company_email_snapshot: selectedDraftCompany?.email || null,
+          company_phone_snapshot: selectedDraftCompany?.phone || null,
+          counterparty_name_snapshot: resolvedDraftRecipientName || null,
+          counterparty_legal_name_snapshot: resolvedDraftRecipientName || null,
+          counterparty_contact_person_snapshot:
+            resolvedDraftRecipientContact || null,
+          counterparty_email_snapshot: resolvedDraftRecipientEmail || null,
+          counterparty_phone_snapshot: resolvedDraftRecipientPhone || null,
+          client_name_snapshot:
+            selectedDraftClient?.legal_name || selectedDraftClient?.name || null,
+          client_contact_person_snapshot:
+            selectedDraftClient?.contact_person || null,
+          client_email_snapshot:
+            selectedDraftClient?.company_email ||
+            selectedDraftClient?.personnel_email ||
+            null,
+          client_phone_snapshot:
+            selectedDraftClient?.company_phone ||
+            selectedDraftClient?.personnel_phone ||
+            null,
+          billing_address_snapshot: resolvedDraftRecipientAddress || null,
+          payment_terms_snapshot:
+            selectedPaymentTerm?.document_label ||
+            selectedPaymentTerm?.name ||
+            null,
+          shipping_terms_snapshot:
+            selectedShippingTerm?.description?.trim()
+              ? `${selectedShippingTerm.name} — ${selectedShippingTerm.description.trim()}`
+              : selectedShippingTerm?.name || selectedShippingTerm?.code || null,
+          terms_and_conditions_snapshot: termsAndConditionsDraft || null,
+          bank_details_snapshot:
+            buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount),
+          updated_by: user.id,
+          metadata: {
+            ...(invoice.metadata || {}),
+            preferred_payment_method_id: paymentMethodIdDraft || null,
+            preferred_payment_method_name: selectedPaymentMethod?.name || null,
+            preferred_payment_method_code: selectedPaymentMethod?.code || null,
+            bank_account_id: bankAccountIdDraft || null,
+            bank_account_name: selectedDraftBankAccount?.name || null,
+            bank_name:
+              selectedDraftBankAccount?.bank_name ||
+              selectedDraftBankAccount?.institution_name ||
+              null,
+            beneficiary_name: selectedDraftBankAccount?.beneficiary_name || null,
+            bank_address_snapshot:
+              buildBankAddressFromAccount(selectedDraftBankAccount) || null,
+            iban: selectedDraftBankAccount?.iban || null,
+            swift_code:
+              selectedDraftBankAccount?.swift_code ||
+              (selectedDraftBankAccount?.account_identifier_type?.toLowerCase() ===
+              "swift"
+                ? selectedDraftBankAccount?.account_identifier_value
+                : null),
+            bank_identifier_type:
+              selectedDraftBankAccount?.account_identifier_type || null,
+            bank_identifier_value:
+              selectedDraftBankAccount?.account_identifier_value || null,
+            account_number:
+              selectedDraftBankAccount?.account_number ||
+              selectedDraftBankAccount?.masked_account_number ||
+              null,
+            bank_account_currency_code:
+              selectedDraftBankAccount?.currency_code || null,
+          },
+        })
+        .eq("id", id)
+        .eq("status", "draft");
+
+      if (invoiceError) throw invoiceError;
+
+      const existingIds = lineItems.map((entry) => entry.id);
+      const draftIds = cleanedLineItems
+        .filter((entry) => !entry.id.startsWith("new_"))
+        .map((entry) => entry.id);
+
+      const idsToDelete = existingIds.filter(
+        (entryId) => !draftIds.includes(entryId)
+      );
+
+      if (idsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("finance_invoice_issued_line_items")
+          .delete()
+          .in("id", idsToDelete);
+
+        if (deleteError) throw deleteError;
+      }
+
+      for (let index = 0; index < cleanedLineItems.length; index += 1) {
+        const row = cleanedLineItems[index];
+
+        if (row.id.startsWith("new_")) {
+          const { error: insertError } = await supabase
+            .from("finance_invoice_issued_line_items")
+            .insert({
+              invoice_id: id,
+              item_id: row.item_id || null,
+              description: row.description.trim(),
+              quantity: toNumber(row.quantity),
+              unit_price: toNumber(row.unit_price),
+              discount: toNumber(row.discount),
+              tax_code_id: row.tax_code_id || null,
+              unit_of_measure_id: row.unit_of_measure_id || null,
+              revenue_category_id: row.revenue_category_id || null,
+              sort_order: index + 1,
+              status: "active",
+              posted_to_ledger: false,
+              metadata: {},
+              created_by: user.id,
+              updated_by: user.id,
+            });
+
+          if (insertError) throw insertError;
+        } else {
+          const { error: lineError } = await supabase
+            .from("finance_invoice_issued_line_items")
+            .update({
+              item_id: row.item_id || null,
+              description: row.description.trim(),
+              quantity: toNumber(row.quantity),
+              unit_price: toNumber(row.unit_price),
+              discount: toNumber(row.discount),
+              tax_code_id: row.tax_code_id || null,
+              unit_of_measure_id: row.unit_of_measure_id || null,
+              revenue_category_id: row.revenue_category_id || null,
+              sort_order: index + 1,
+              updated_by: user.id,
+            })
+            .eq("id", row.id)
+            .eq("invoice_id", id);
+
+          if (lineError) throw lineError;
+        }
+      }
+
+      const { error: recalcError } = await supabase.rpc(
+        "finance_recalculate_invoice_issued_totals",
+        {
+          p_invoice_id: id,
+        }
+      );
+
+      if (recalcError) throw recalcError;
+
+      setEditingOverview(false);
+      setEditingParties(false);
+      setEditingLines(false);
+      await loadInvoice(true);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to save draft changes.");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }, [
+    bankAccountIdDraft,
+    canEditDraft,
+    clientIdDraft,
+    companyIdDraft,
+    currencies,
+    currencyIdDraft,
+    dueDateDraft,
+    id,
+    invoice,
+    issueDateDraft,
+    lineItems,
+    lineItemsDraft,
+    loadInvoice,
+    notesDraft,
+    paymentMethodIdDraft,
+    paymentMethods,
+    paymentTerms,
+    paymentTermsIdDraft,
+    projectIdDraft,
+    resolvedDraftCompanyAddress,
+    resolvedDraftRecipientAddress,
+    resolvedDraftRecipientContact,
+    resolvedDraftRecipientEmail,
+    resolvedDraftRecipientName,
+    resolvedDraftRecipientPhone,
+    selectedDraftBankAccount,
+    selectedDraftClient,
+    selectedDraftCompany,
+    shippingTermIdDraft,
+    shippingTerms,
+    taskIdDraft,
+    termsAndConditionsDraft,
+  ]);
+
+    const printableInvoice = useMemo(() => {
     if (!invoice) return invoice;
+
+    const resolvedPaymentTerm =
+      selectedDraftPaymentTerm ||
+      paymentTerms.find(
+        (entry) =>
+          entry.id === paymentTermsIdDraft ||
+          entry.id === invoice.payment_terms_id
+      ) ||
+      null;
+
+    const resolvedShippingTerms =
+      selectedDraftShippingTermsLabel || invoice.shipping_terms_snapshot;
+
+    const resolvedPaymentTermsLabel =
+      resolvedPaymentTerm?.document_label ||
+      resolvedPaymentTerm?.name ||
+      invoice.payment_terms_snapshot ||
+      "—";
+
+    const resolvedPaymentTermsText =
+      resolvedPaymentTerm?.document_terms_text ||
+      (invoice as any).payment_terms_document_text ||
+      (invoice as any).payment_terms_text_snapshot ||
+      (invoice as any).payment_terms_description ||
+      "";
+
+    if (invoice.status !== "draft") {
+      return {
+        ...invoice,
+        payment_terms_snapshot: resolvedPaymentTermsLabel,
+        payment_terms_document_text: resolvedPaymentTermsText,
+        shipping_terms_snapshot: resolvedShippingTerms,
+        terms_and_conditions_snapshot:
+          termsAndConditionsDraft || invoice.terms_and_conditions_snapshot,
+        currency_code: invoice.currency_code || "USD",
+      };
+    }
+
+    const draftBankDetails =
+      buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount) ||
+      invoice.bank_details_snapshot;
 
     return {
       ...invoice,
@@ -1591,72 +2068,30 @@ export default function FinanceInvoiceDetailPage() {
         invoice.client_phone_snapshot,
       billing_address_snapshot:
         resolvedDraftRecipientAddress || invoice.billing_address_snapshot,
-      payment_terms_snapshot:
-        getPaymentTermLabel(selectedDraftPaymentTerm) !== "—"
-          ? getPaymentTermLabel(selectedDraftPaymentTerm)
-          : invoice.payment_terms_snapshot,
-      shipping_terms_snapshot:
-        getShippingTermLabel(selectedDraftShippingTerm) !== "—"
-          ? getShippingTermLabel(selectedDraftShippingTerm)
-          : invoice.shipping_terms_snapshot,
+      payment_terms_snapshot: resolvedPaymentTermsLabel,
+      payment_terms_document_text: resolvedPaymentTermsText,
+      shipping_terms_snapshot: resolvedShippingTerms,
       terms_and_conditions_snapshot:
         termsAndConditionsDraft || invoice.terms_and_conditions_snapshot,
-      bank_details_snapshot:
-        buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount) ||
-        invoice.bank_details_snapshot,
-      currency_code: currentCurrencyCode,
+      bank_details_snapshot: draftBankDetails,
+      currency_code:
+        selectedDraftCurrency?.currency_code || invoice.currency_code || "USD",
     };
   }, [
-    currentCurrencyCode,
     invoice,
+    paymentTerms,
+    paymentTermsIdDraft,
     resolvedDraftCompanyAddress,
     resolvedDraftRecipientAddress,
     resolvedDraftRecipientName,
     selectedDraftBankAccount,
     selectedDraftClient,
     selectedDraftCompany,
+    selectedDraftCurrency,
     selectedDraftPaymentTerm,
-    selectedDraftShippingTerm,
+    selectedDraftShippingTermsLabel,
     termsAndConditionsDraft,
   ]);
-
-  const printableLineItems = lineItemsDraft.map((row) => {
-    const qty = toNumber(row.quantity);
-    const price = toNumber(row.unit_price);
-    const discount = toNumber(row.discount);
-    const taxRate =
-      taxCodes.find((taxCode) => taxCode.id === row.tax_code_id)
-        ?.rate_percent ?? 0;
-    const base = Math.max(qty * price - discount, 0);
-
-    return {
-      id: row.id,
-      description: row.description || "—",
-      quantity: qty,
-      unitPrice: price,
-      discount,
-      lineTotal: base + base * (toNumber(taxRate) / 100),
-    };
-  });
-
-  const sectionCardClass =
-    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
-
-  const innerPanelClass =
-    "rounded-[24px] border border-white/10 bg-black/20 p-4";
-
-  const fieldShellClass =
-    "h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
-
-  const inputFieldClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
-
-  const readOnlyFieldClass =
-    "flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80";
-
-  const labelClass = "text-sm font-medium text-slate-300";
-
-  const eyebrowClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
 
   if (isLoading) {
     return (
@@ -1670,7 +2105,7 @@ export default function FinanceInvoiceDetailPage() {
     );
   }
 
-  if (!invoice || !displayState) {
+  if (!invoice || !totals) {
     return (
       <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
         <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
@@ -1681,6 +2116,47 @@ export default function FinanceInvoiceDetailPage() {
       </div>
     );
   }
+
+  const displayState = getInvoiceDisplayState(invoice as any);
+
+  const visibleArchiveItems = archiveItems.filter(
+    (item) => item.status === archiveTab
+  );
+
+  const paymentProgressPercent = (() => {
+    const total = Number(invoice.total_amount || 0);
+    const paid = Number(invoice.paid_amount || 0);
+
+    if (total <= 0) return 0;
+
+    const percent = (paid / total) * 100;
+    return Math.max(0, Math.min(percent, 100));
+  })();
+
+  const printableLineItems = lineItems.map((row) => ({
+    id: row.id,
+    description: row.description || "—",
+    quantity: toNumber(row.quantity),
+    unitPrice: toNumber(row.unit_price),
+    discount: toNumber(row.discount),
+    lineTotal: toNumber(row.line_total),
+  }));
+
+  const currentCurrencyCode =
+    selectedDraftCurrency?.currency_code || invoice.currency_code || "USD";
+
+  const sectionCardClass =
+    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
+
+  const summaryBlockClass =
+    "rounded-[24px] border border-white/10 bg-black/20 p-4";
+
+  const labelClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
+
+  const inputLabelClass = "text-sm font-medium text-slate-300";
+
+  const inputFieldClass =
+    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
 
   return (
     <>
@@ -1699,7 +2175,7 @@ export default function FinanceInvoiceDetailPage() {
                 Invoices
               </button>
 
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px]">
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
                 <div>
                   <div className="flex flex-wrap gap-2">
                     <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
@@ -1737,12 +2213,6 @@ export default function FinanceInvoiceDetailPage() {
                         Overdue
                       </Badge>
                     ) : null}
-
-                    {linkedProforma ? (
-                      <Badge className="inline-flex w-fit rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-200 shadow-none">
-                        Linked PI
-                      </Badge>
-                    ) : null}
                   </div>
 
                   <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
@@ -1753,37 +2223,51 @@ export default function FinanceInvoiceDetailPage() {
                   </h1>
 
                   <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                    Final outbound receivable document. Drafts are editable.
-                    Issued invoices keep frozen commercial snapshots.
+                    Final outbound receivable document issued by your company to
+                    the recipient. Drafts remain editable; issued records keep
+                    frozen commercial snapshots.
                   </p>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
                   <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Recipient
-                    </p>
-                    <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                      {resolvedDraftRecipientName ||
-                        invoice.counterparty_name_snapshot ||
-                        invoice.client_name_snapshot ||
-                        "—"}
-                    </p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Recipient
+                        </p>
+                        <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                          {invoice.status === "draft"
+                            ? resolvedDraftRecipientName || "—"
+                            : resolvedIssuedRecipientName || "—"}
+                        </p>
+                      </div>
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                        <CheckCircle className="h-4 w-4" />
+                      </div>
+                    </div>
                     <p className="mt-3 text-xs leading-5 text-slate-500">
                       Recipient selected for this invoice.
                     </p>
                   </div>
 
                   <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Balance Due
-                    </p>
-                    <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                      {formatFinanceMoney(
-                        financialSummary.balance,
-                        currentCurrencyCode
-                      )}
-                    </p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Balance Due
+                        </p>
+                        <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                          {formatFinanceMoney(
+                            financialSummary?.balance ?? 0,
+                            currentCurrencyCode
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
+                        <span className="h-2 w-2 rounded-full bg-amber-400" />
+                      </div>
+                    </div>
                     <p className="mt-3 text-xs leading-5 text-slate-500">
                       Remaining amount after confirmed payments.
                     </p>
@@ -1791,7 +2275,7 @@ export default function FinanceInvoiceDetailPage() {
                 </div>
               </div>
 
-              <div className="mt-6 flex flex-wrap gap-3">
+                            <div className="mt-6 flex flex-wrap gap-3">
                 {invoice.status === "issued" ? (
                   <Button
                     onClick={() =>
@@ -1826,16 +2310,14 @@ export default function FinanceInvoiceDetailPage() {
                   </Button>
                 ) : null}
 
-                {["draft", "issued", "partially_paid", "paid"].includes(
-                  invoice.status
-                ) ? (
+                {canArchive ? (
                   <Button
                     variant="outline"
                     onClick={() => void handleArchive()}
                     disabled={isArchiving}
                     className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <Archive className="mr-2 h-4 w-4" />
+                    <Trash2 className="mr-2 h-4 w-4" />
                     {isArchiving ? "Archiving..." : "Archive"}
                   </Button>
                 ) : null}
@@ -1843,7 +2325,26 @@ export default function FinanceInvoiceDetailPage() {
                 {invoice.status !== "deleted" && invoice.status !== "archived" ? (
                   <Button
                     variant="outline"
-                    onClick={() => void handleDelete()}
+                    onClick={async () => {
+                      setIsDeleting(true);
+                      setError("");
+
+                      try {
+                        const { error } = await supabase.rpc(
+                          "finance_delete_invoice_issued",
+                          { p_invoice_id: invoice.id }
+                        );
+
+                        if (error) throw error;
+
+                        await loadInvoice(true);
+                      } catch (err) {
+                        console.error(err);
+                        setError("Failed to delete invoice.");
+                      } finally {
+                        setIsDeleting(false);
+                      }
+                    }}
                     disabled={isDeleting}
                     className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                   >
@@ -1856,387 +2357,1364 @@ export default function FinanceInvoiceDetailPage() {
           </header>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {[
-              ["Subtotal", financialSummary.subtotal, "cyan"],
-              ["Discount", financialSummary.discount, "amber"],
-              ["Tax", financialSummary.tax, "violet"],
-              ["Total", financialSummary.total, "emerald"],
-            ].map(([label, value, tone]) => (
-              <div
-                key={String(label)}
-                className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl"
-              >
-                <div className="relative">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    {label}
-                  </div>
-                  <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-white">
-                    {formatFinanceMoney(value as number, currentCurrencyCode)}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {tone === "emerald"
-                      ? "Invoice value."
-                      : "Calculated from invoice lines."}
-                  </div>
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
+              <div className="relative">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Subtotal
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
+                  {formatFinanceMoney(
+                    financialSummary?.subtotal ?? 0,
+                    currentCurrencyCode
+                  )}
+                </div>
+                <div className="mt-2 text-sm leading-6 text-slate-400">
+                  Before discount and tax.
                 </div>
               </div>
-            ))}
+            </div>
+
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
+              <div className="relative">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Discount
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
+                  {formatFinanceMoney(
+                    financialSummary?.discount ?? 0,
+                    currentCurrencyCode
+                  )}
+                </div>
+                <div className="mt-2 text-sm leading-6 text-slate-400">
+                  Commercial discount.
+                </div>
+              </div>
+            </div>
+
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
+              <div className="relative">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Tax
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
+                  {formatFinanceMoney(
+                    financialSummary?.tax ?? 0,
+                    currentCurrencyCode
+                  )}
+                </div>
+                <div className="mt-2 text-sm leading-6 text-slate-400">
+                  Based on selected tax codes.
+                </div>
+              </div>
+            </div>
+
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
+              <div className="relative">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Total
+                </div>
+                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
+                  {formatFinanceMoney(
+                    financialSummary?.total ?? 0,
+                    currentCurrencyCode
+                  )}
+                </div>
+                <div className="mt-2 text-sm leading-6 text-slate-400">
+                  Invoice value.
+                </div>
+              </div>
+            </div>
           </div>
 
-                    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-            {/* LEFT COLUMN */}
-            <div className="flex flex-col gap-6">
-
-              {/* DOCUMENT OVERVIEW */}
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
+            <div className="space-y-6">
               <Card className={sectionCardClass}>
                 <CardHeader className="border-b border-white/10 px-5 py-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Document Overview</CardTitle>
-                      <CardDescription>
-                        Core document fields and source configuration
-                      </CardDescription>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                        <SquarePen className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                          Document Overview
+                        </CardTitle>
+                        <CardDescription className="mt-1 text-xs text-slate-500">
+                          Commercial header, recipient, terms, bank, dates, currency, and references.
+                        </CardDescription>
+                      </div>
                     </div>
 
-                    {invoice.status === "draft" && (
-                      <Button
-                        variant="outline"
-                        onClick={() => setEditingOverview((p) => !p)}
-                        className="h-9 rounded-xl border-white/10 bg-white/[0.05]"
-                      >
-                        <SquarePen className="h-4 w-4 mr-2" />
-                        {editingOverview ? "Cancel" : "Edit"}
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {editingOverview ? (
+                        <Button
+                          onClick={() =>
+                            canEditDraft
+                              ? void handleSaveDraftChanges()
+                              : void handleSaveIssuedOverviewChanges()
+                          }
+                          disabled={isSavingDraft}
+                          className="h-9 rounded-2xl px-3"
+                        >
+                          <Save className="mr-2 h-4 w-4" />
+                          {isSavingDraft ? "Saving..." : "Save"}
+                        </Button>
+                      ) : null}
+
+                      {canEditDraft || canEditIssuedOverview ? (
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            setEditingOverview((current) => !current)
+                          }
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                        >
+                          <SquarePen className="mr-2 h-4 w-4" />
+                          {editingOverview ? "Close" : "Edit"}
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
                 </CardHeader>
 
-                <CardContent className="p-5 space-y-6">
-
-                  {/* SOURCE MODE */}
-                  {invoice.status === "draft" && editingOverview && (
-                    <div className="grid md:grid-cols-2 gap-4">
-
-                      <div>
-                        <div className={eyebrowClass}>Source Mode</div>
+                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+                  {editingOverview && invoice.status === "draft" ? (
+                    <>
+                      <label className="space-y-2">
+                        <div className={inputLabelClass}>Issuing Company</div>
                         <select
-                          value={sourceModeDraft}
-                          onChange={(e) =>
-                            setSourceModeDraft(
-                              e.target.value as "manual" | "proforma_invoice"
-                            )
+                          value={companyIdDraft}
+                          onChange={(event) =>
+                            setCompanyIdDraft(event.target.value)
                           }
                           className={inputFieldClass}
                         >
-                          <option value="manual">Manual</option>
-                          <option value="proforma_invoice">
-                            From Proforma Invoice
-                          </option>
+                          <option value="">Select company</option>
+                          {companies.map((company) => (
+                            <option key={company.id} value={company.id}>
+                              {company.legal_name || company.name}
+                            </option>
+                          ))}
                         </select>
-                      </div>
+                      </label>
 
-                      {sourceModeDraft === "proforma_invoice" && (
-                        <div>
-                          <div className={eyebrowClass}>
-                            Select Proforma Invoice
-                          </div>
-                          <select
-                            value={sourceProformaIdDraft}
-                            onChange={(e) =>
-                              setSourceProformaIdDraft(e.target.value)
-                            }
-                            className={inputFieldClass}
-                          >
-                            <option value="">Select PI</option>
-                            {proformaSources.map((pi) => (
-                              <option key={pi.id} value={pi.id}>
-                                {pi.proforma_number} —{" "}
-                                {formatFinanceMoney(
-                                  pi.total_amount,
-                                  pi.currency_code
-                                )}
+                      <label className="space-y-2">
+                        <div className={inputLabelClass}>Recipient</div>
+                        <select
+                          value={clientIdDraft}
+                          onChange={(event) =>
+                            setClientIdDraft(event.target.value)
+                          }
+                          className={inputFieldClass}
+                        >
+                          <option value="">Select recipient</option>
+                          <optgroup label="Clients">
+                            {clients.map((client) => (
+                              <option
+                                key={client.id}
+                                value={`client:${client.id}`}
+                              >
+                                {client.legal_name || client.name}
                               </option>
                             ))}
-                          </select>
+                          </optgroup>
+                          <optgroup label="Companies (Intercompany)">
+                            {companies
+                              .filter((company) => company.id !== companyIdDraft)
+                              .map((company) => (
+                                <option
+                                  key={company.id}
+                                  value={`company:${company.id}`}
+                                >
+                                  {company.legal_name || company.name}
+                                </option>
+                              ))}
+                          </optgroup>
+                        </select>
+                      </label>
+
+                      <label className="space-y-2">
+                        <div className={inputLabelClass}>Payment Terms</div>
+                        <select
+                          value={paymentTermsIdDraft}
+                          onChange={(event) =>
+                            setPaymentTermsIdDraft(event.target.value)
+                          }
+                          className={inputFieldClass}
+                        >
+                          <option value="">Select payment terms</option>
+                          {paymentTerms.map((term) => (
+                            <option key={term.id} value={term.id}>
+                              {term.code} | {term.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="space-y-2">
+                        <div className={inputLabelClass}>Shipping Terms</div>
+                        <select
+                          value={shippingTermIdDraft}
+                          onChange={(event) =>
+                            setShippingTermIdDraft(event.target.value)
+                          }
+                          className={inputFieldClass}
+                        >
+                          <option value="">Select shipping terms</option>
+                          {shippingTerms.map((term) => (
+                            <option key={term.id} value={term.id}>
+                              {term.code} | {term.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                                            <label className="space-y-2">
+                        <div className={inputLabelClass}>Bank Account</div>
+                        <select
+                          value={bankAccountIdDraft}
+                          onChange={(event) =>
+                            setBankAccountIdDraft(event.target.value)
+                          }
+                          className={inputFieldClass}
+                        >
+                          <option value="">Select bank account</option>
+                          {filteredDraftBankAccounts.map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="space-y-2">
+                        <div className={inputLabelClass}>
+                          Preferred Payment Method
                         </div>
-                      )}
-                    </div>
-                  )}
+                        <select
+                          value={paymentMethodIdDraft}
+                          onChange={(event) =>
+                            setPaymentMethodIdDraft(event.target.value)
+                          }
+                          className={inputFieldClass}
+                        >
+                          <option value="">Select payment method</option>
+                          {paymentMethods.map((method) => (
+                            <option key={method.id} value={method.id}>
+                              {method.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
 
-                  {/* DATES + NOTES */}
-                  <div className="grid md:grid-cols-3 gap-4">
-
-                    <div>
-                      <div className={eyebrowClass}>Issue Date</div>
-                      {editingOverview ? (
+                      <label className="space-y-2">
+                        <div className={inputLabelClass}>Issue Date</div>
                         <input
                           type="date"
                           value={issueDateDraft}
-                          onChange={(e) =>
-                            setIssueDateDraft(e.target.value)
+                          onChange={(event) =>
+                            setIssueDateDraft(event.target.value)
                           }
                           className={inputFieldClass}
                         />
-                      ) : (
-                        <div className={readOnlyFieldClass}>
-                          {formatFinanceDate(invoice.issue_date)}
-                        </div>
-                      )}
-                    </div>
+                      </label>
 
-                    <div>
-                      <div className={eyebrowClass}>Due Date</div>
-                      {editingOverview ? (
+                      <label className="space-y-2">
+                        <div className={inputLabelClass}>Due Date</div>
                         <input
                           type="date"
                           value={dueDateDraft}
-                          onChange={(e) =>
-                            setDueDateDraft(e.target.value)
+                          onChange={(event) =>
+                            setDueDateDraft(event.target.value)
                           }
                           className={inputFieldClass}
                         />
-                      ) : (
-                        <div className={readOnlyFieldClass}>
-                          {formatFinanceDate(invoice.due_date)}
-                        </div>
-                      )}
-                    </div>
+                      </label>
 
-                    <div>
-                      <div className={eyebrowClass}>Notes</div>
-                      {editingOverview ? (
-                        <input
+                      <label className="space-y-2">
+                        <div className={inputLabelClass}>Currency</div>
+                        <select
+                          value={currencyIdDraft}
+                          onChange={(event) =>
+                            setCurrencyIdDraft(event.target.value)
+                          }
+                          className={inputFieldClass}
+                        >
+                          <option value="">Select currency</option>
+                          {currencies.map((currency) => (
+                            <option key={currency.id} value={currency.id}>
+                              {currency.currency_code} — {currency.currency_name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="space-y-2">
+                        <div className={inputLabelClass}>Project</div>
+                        <select
+                          value={projectIdDraft}
+                          onChange={(event) =>
+                            setProjectIdDraft(event.target.value)
+                          }
+                          className={inputFieldClass}
+                        >
+                          <option value="">No project</option>
+                          {projects.map((entry) => (
+                            <option key={entry.id} value={entry.id}>
+                              {entry.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="space-y-2">
+                        <div className={inputLabelClass}>Task</div>
+                        <select
+                          value={taskIdDraft}
+                          onChange={(event) =>
+                            setTaskIdDraft(event.target.value)
+                          }
+                          className={inputFieldClass}
+                        >
+                          <option value="">No task</option>
+                          {filteredDraftTasks.map((entry) => (
+                            <option key={entry.id} value={entry.id}>
+                              {entry.title}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+                        <div className={labelClass}>Posted To Ledger</div>
+                        <div className="mt-2 text-sm font-semibold text-white">
+                          {invoice.posted_to_ledger ? "Posted" : "Not Posted"}
+                        </div>
+                      </div>
+
+                      <div className="md:col-span-3">
+                        <div className={inputLabelClass}>Notes</div>
+                        <textarea
                           value={notesDraft}
-                          onChange={(e) =>
-                            setNotesDraft(e.target.value)
+                          onChange={(event) =>
+                            setNotesDraft(event.target.value)
+                          }
+                          rows={4}
+                          className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                        />
+                      </div>
+                    </>
+                  ) : editingOverview && invoice.status === "issued" ? (
+                    <>
+                      <label className="space-y-2">
+                        <div className={inputLabelClass}>Issue Date</div>
+                        <input
+                          type="date"
+                          value={issueDateDraft}
+                          onChange={(event) =>
+                            setIssueDateDraft(event.target.value)
                           }
                           className={inputFieldClass}
                         />
-                      ) : (
-                        <div className={readOnlyFieldClass}>
-                          {invoice.notes || "—"}
+                      </label>
+
+                      <label className="space-y-2">
+                        <div className={inputLabelClass}>Due Date</div>
+                        <input
+                          type="date"
+                          value={dueDateDraft}
+                          onChange={(event) =>
+                            setDueDateDraft(event.target.value)
+                          }
+                          className={inputFieldClass}
+                        />
+                      </label>
+
+                      <div className="md:col-span-3">
+                        <div className={inputLabelClass}>Notes</div>
+                        <textarea
+                          value={notesDraft}
+                          onChange={(event) =>
+                            setNotesDraft(event.target.value)
+                          }
+                          rows={4}
+                          className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Issuing Company</div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {invoice.status === "draft"
+                            ? selectedDraftCompany?.legal_name ||
+                              selectedDraftCompany?.name ||
+                              "—"
+                            : invoice.company_name_snapshot || "—"}
                         </div>
-                      )}
-                    </div>
+                        <div className="mt-2 text-sm leading-6 text-slate-400">
+                          {invoice.status === "draft" ? (
+                            <>
+                              {resolvedDraftCompanyAddress ? (
+                                <div>{resolvedDraftCompanyAddress}</div>
+                              ) : null}
+                              {selectedDraftCompany?.email ? (
+                                <div>Email: {selectedDraftCompany.email}</div>
+                              ) : null}
+                              {selectedDraftCompany?.phone ? (
+                                <div>Phone: {selectedDraftCompany.phone}</div>
+                              ) : null}
+                            </>
+                          ) : (
+                            <>
+                              {invoice.company_address_snapshot ? (
+                                <div>{invoice.company_address_snapshot}</div>
+                              ) : null}
+                              {invoice.company_email_snapshot ? (
+                                <div>Email: {invoice.company_email_snapshot}</div>
+                              ) : null}
+                              {invoice.company_phone_snapshot ? (
+                                <div>Phone: {invoice.company_phone_snapshot}</div>
+                              ) : null}
+                            </>
+                          )}
+                        </div>
+                      </div>
 
-                  </div>
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Recipient</div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {invoice.status === "draft"
+                            ? resolvedDraftRecipientName || "—"
+                            : resolvedIssuedRecipientName || "—"}
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-slate-400">
+                          {invoice.status === "draft" ? (
+                            <>
+                              {resolvedDraftRecipientAddress ? (
+                                <div>{resolvedDraftRecipientAddress}</div>
+                              ) : null}
+                              {resolvedDraftRecipientContact ? (
+                                <div>Contact: {resolvedDraftRecipientContact}</div>
+                              ) : null}
+                              {resolvedDraftRecipientEmail ? (
+                                <div>Email: {resolvedDraftRecipientEmail}</div>
+                              ) : null}
+                              {resolvedDraftRecipientPhone ? (
+                                <div>Phone: {resolvedDraftRecipientPhone}</div>
+                              ) : null}
+                            </>
+                          ) : (
+                            <>
+                              {invoice.billing_address_snapshot ? (
+                                <div>{invoice.billing_address_snapshot}</div>
+                              ) : null}
+                              {resolvedIssuedRecipientContact ? (
+                                <div>Contact: {resolvedIssuedRecipientContact}</div>
+                              ) : null}
+                              {resolvedIssuedRecipientEmail ? (
+                                <div>Email: {resolvedIssuedRecipientEmail}</div>
+                              ) : null}
+                              {resolvedIssuedRecipientPhone ? (
+                                <div>Phone: {resolvedIssuedRecipientPhone}</div>
+                              ) : null}
+                            </>
+                          )}
+                        </div>
+                      </div>
 
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Payment Terms</div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {invoice.status === "draft"
+                            ? selectedDraftPaymentTerm?.name || "—"
+                            : invoice.payment_terms_snapshot || "—"}
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-slate-400">
+                          {invoice.status === "draft" &&
+                          selectedDraftPaymentTerm
+                            ? `${selectedDraftPaymentTerm.code} · Due in ${selectedDraftPaymentTerm.due_days} days`
+                            : ""}
+                        </div>
+                      </div>
+
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Shipping Terms</div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {invoice.status === "draft"
+                            ? selectedDraftShippingTermsLabel || "—"
+                            : invoice.shipping_terms_snapshot || "—"}
+                        </div>
+                      </div>
+
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Bank Account</div>
+                        <div className="mt-2 space-y-1 text-sm leading-6 text-slate-300">
+                          {resolvedBankDetailsLines.length > 0 ? (
+                            resolvedBankDetailsLines.map((line, index) => (
+                              <div key={`${line}-${index}`}>{line}</div>
+                            ))
+                          ) : (
+                            <div>—</div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>
+                          Preferred Payment Method
+                        </div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {invoice.status === "draft"
+                            ? selectedDraftPaymentMethod?.name || "—"
+                            : ((invoice.metadata
+                                ?.preferred_payment_method_name as string) ||
+                                ((invoice.metadata
+                                  ?.preferred_payment_method_id as string) &&
+                                  paymentMethods.find(
+                                    (method) =>
+                                      method.id ===
+                                      (invoice.metadata
+                                        ?.preferred_payment_method_id as string)
+                                  )?.name) ||
+                                "—")}
+                        </div>
+                      </div>
+
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Issue Date</div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {invoice.status === "draft"
+                            ? formatFinanceDate(issueDateDraft)
+                            : formatFinanceDate(invoice.issue_date)}
+                        </div>
+                      </div>
+
+                                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Due Date</div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {invoice.status === "draft"
+                            ? formatFinanceDate(dueDateDraft)
+                            : formatFinanceDate(invoice.due_date)}
+                        </div>
+                      </div>
+
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Currency</div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {invoice.status === "draft"
+                            ? selectedDraftCurrency
+                              ? `${selectedDraftCurrency.currency_code} — ${selectedDraftCurrency.currency_name}`
+                              : invoice.currency_code || "USD"
+                            : invoice.currency_code || "USD"}
+                        </div>
+                      </div>
+
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Project</div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {invoice.status === "draft"
+                            ? selectedDraftProject?.name || "—"
+                            : project?.name || "—"}
+                        </div>
+                      </div>
+
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Task</div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {invoice.status === "draft"
+                            ? selectedDraftTask?.title || "—"
+                            : task?.title || "—"}
+                        </div>
+                      </div>
+
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Posted To Ledger</div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {invoice.posted_to_ledger ? "Posted" : "Not Posted"}
+                        </div>
+                      </div>
+
+                      <div className={`${summaryBlockClass} md:col-span-3`}>
+                        <div className={labelClass}>Notes</div>
+                        <div className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">
+                          {invoice.status === "draft"
+                            ? notesDraft || "—"
+                            : invoice.notes || "—"}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
-
-              {/* LINE ITEMS */}
               <Card className={sectionCardClass}>
-                <CardHeader className="border-b border-white/10 px-5 py-4 flex justify-between">
-                  <CardTitle>Line Items</CardTitle>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Terms &amp; Conditions
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Payment terms, shipping terms, and document terms.
+                      </CardDescription>
+                    </div>
 
-                  {invoice.status === "draft" && (
+                    <div className="flex items-center gap-2">
+                      {editingParties ? (
+                        <Button
+                          onClick={() =>
+                            invoice.status === "draft"
+                              ? void handleSaveDraftChanges()
+                              : void handleSaveIssuedPartiesChanges()
+                          }
+                          disabled={isSavingDraft}
+                          className="h-9 rounded-2xl px-3"
+                        >
+                          <Save className="mr-2 h-4 w-4" />
+                          {isSavingDraft ? "Saving..." : "Save"}
+                        </Button>
+                      ) : null}
+
+                      {canEditDraft || canEditIssuedParties ? (
+                        <Button
+                          variant="outline"
+                          onClick={() => setEditingParties((current) => !current)}
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                        >
+                          <SquarePen className="mr-2 h-4 w-4" />
+                          {editingParties ? "Close" : "Edit"}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Payment Terms</div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {invoice.status === "draft"
+                        ? selectedDraftPaymentTerm?.name || "—"
+                        : invoice.payment_terms_snapshot || "—"}
+                    </div>
+                  </div>
+
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Shipping Terms</div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {invoice.status === "draft"
+                        ? selectedDraftShippingTermsLabel || "—"
+                        : invoice.shipping_terms_snapshot || "—"}
+                    </div>
+                  </div>
+
+                  <div className={`${summaryBlockClass} md:col-span-2`}>
+                    <div className={labelClass}>Terms and Conditions</div>
+                    {editingParties ? (
+                      <textarea
+                        value={termsAndConditionsDraft}
+                        onChange={(event) =>
+                          setTermsAndConditionsDraft(event.target.value)
+                        }
+                        rows={7}
+                        className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                      />
+                    ) : (
+                      <div className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">
+                        {termsAndConditionsDraft ||
+                          invoice.terms_and_conditions_snapshot ||
+                          "—"}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className={sectionCardClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Line Items
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Products and services on this invoice.
+                      </CardDescription>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {editingLines ? (
+                        <Button
+                          onClick={() =>
+                            canEditDraft
+                              ? void handleSaveDraftChanges()
+                              : void handleSaveIssuedLineChanges()
+                          }
+                          disabled={isSavingDraft}
+                          className="h-9 rounded-2xl px-3"
+                        >
+                          <Save className="mr-2 h-4 w-4" />
+                          {isSavingDraft ? "Saving..." : "Save"}
+                        </Button>
+                      ) : null}
+
+                      {editingLines && canEditDraft ? (
+                        <Button
+                          variant="outline"
+                          onClick={addDraftLineItem}
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                        >
+                          Add Row
+                        </Button>
+                      ) : null}
+
+                      {canEditDraft || invoice.status === "issued" ? (
+                        <Button
+                          variant="outline"
+                          onClick={() => setEditingLines((current) => !current)}
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+                        >
+                          <SquarePen className="mr-2 h-4 w-4" />
+                          {editingLines ? "Close" : "Edit"}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="p-5">
+                  <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                    {(editingLines ? lineItemsDraft : lineItems).map((row, index) => {
+                      const editable = editingLines;
+                      const editableRow = row as EditableLineItem;
+                      const readOnlyRow = row as LineItemRow;
+
+                      const rowQuantity = editable
+                        ? toNumber(editableRow.quantity)
+                        : toNumber(readOnlyRow.quantity);
+                      const rowUnitPrice = editable
+                        ? toNumber(editableRow.unit_price)
+                        : toNumber(readOnlyRow.unit_price);
+                      const rowDiscount = editable
+                        ? toNumber(editableRow.discount)
+                        : toNumber(readOnlyRow.discount);
+                      const rowTaxCodeId = editable
+                        ? editableRow.tax_code_id
+                        : readOnlyRow.tax_code_id || "";
+                      const rowTaxRate =
+                        taxCodes.find((taxCode) => taxCode.id === rowTaxCodeId)
+                          ?.rate_percent ?? 0;
+                      const rowBase = Math.max(
+                        rowQuantity * rowUnitPrice - rowDiscount,
+                        0
+                      );
+                      const rowTotal = editable
+                        ? rowBase + rowBase * (toNumber(rowTaxRate) / 100)
+                        : toNumber(readOnlyRow.line_total);
+
+                      return (
+                        <div
+                          key={(row as EditableLineItem | LineItemRow).id}
+                          className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                        >
+                          <div className="mb-4 flex items-center justify-between gap-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-sm font-semibold text-white">
+                                Line {index + 1}
+                              </div>
+                            </div>
+
+                            {editable && canEditDraft ? (
+                              <Button
+                                variant="outline"
+                                onClick={() => removeDraftLineItem(editableRow.id)}
+                                disabled={lineItemsDraft.length === 1}
+                                className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            ) : null}
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+                            <label className="space-y-2 md:col-span-3">
+                              <div className={inputLabelClass}>Item</div>
+                              {editable ? (
+                                <select
+                                  value={editableRow.item_id}
+                                  onChange={(event) =>
+                                    applyDraftItemSelection(
+                                      editableRow.id,
+                                      event.target.value
+                                    )
+                                  }
+                                  className={inputFieldClass}
+                                >
+                                  <option value="">Select item</option>
+                                  {items.map((item) => (
+                                    <option key={item.id} value={item.id}>
+                                      {item.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
+                                  {items.find(
+                                    (item) => item.id === readOnlyRow.item_id
+                                  )?.name || "—"}
+                                </div>
+                              )}
+                            </label>
+
+                            <label className="space-y-2 md:col-span-4">
+                              <div className={inputLabelClass}>Description</div>
+                              {editable ? (
+                                <input
+                                  value={editableRow.description}
+                                  onChange={(event) =>
+                                    setLineItemsDraft((draft) =>
+                                      draft.map((entry) =>
+                                        entry.id === editableRow.id
+                                          ? {
+                                              ...entry,
+                                              description: event.target.value,
+                                            }
+                                          : entry
+                                      )
+                                    )
+                                  }
+                                  className={inputFieldClass}
+                                  placeholder="Description"
+                                />
+                              ) : (
+                                <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
+                                  {readOnlyRow.description || "—"}
+                                </div>
+                              )}
+                            </label>
+
+                            <label className="space-y-2 md:col-span-1">
+                              <div className={inputLabelClass}>Qty</div>
+                              {editable ? (
+                                <input
+                                  value={editableRow.quantity}
+                                  onChange={(event) =>
+                                    setLineItemsDraft((draft) =>
+                                      draft.map((entry) =>
+                                        entry.id === editableRow.id
+                                          ? { ...entry, quantity: event.target.value }
+                                          : entry
+                                      )
+                                    )
+                                  }
+                                  className={inputFieldClass}
+                                />
+                              ) : (
+                                <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
+                                  {rowQuantity}
+                                </div>
+                              )}
+                            </label>
+
+                            <label className="space-y-2 md:col-span-2">
+                              <div className={inputLabelClass}>Unit</div>
+                              {editable ? (
+                                <select
+                                  value={editableRow.unit_of_measure_id}
+                                  onChange={(event) =>
+                                    setLineItemsDraft((draft) =>
+                                      draft.map((entry) =>
+                                        entry.id === editableRow.id
+                                          ? {
+                                              ...entry,
+                                              unit_of_measure_id:
+                                                event.target.value,
+                                            }
+                                          : entry
+                                      )
+                                    )
+                                  }
+                                  className={inputFieldClass}
+                                >
+                                  <option value="">Select unit</option>
+                                  {unitsOfMeasure.map((unit) => (
+                                    <option key={unit.id} value={unit.id}>
+                                      {unit.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
+                                  {unitsOfMeasure.find(
+                                    (unit) =>
+                                      unit.id === readOnlyRow.unit_of_measure_id
+                                  )?.name || "—"}
+                                </div>
+                              )}
+                            </label>
+
+                            <label className="space-y-2 md:col-span-2">
+                              <div className={inputLabelClass}>Unit Price</div>
+                              {editable ? (
+                                <input
+                                  value={editableRow.unit_price}
+                                  onChange={(event) =>
+                                    setLineItemsDraft((draft) =>
+                                      draft.map((entry) =>
+                                        entry.id === editableRow.id
+                                          ? {
+                                              ...entry,
+                                              unit_price: event.target.value,
+                                            }
+                                          : entry
+                                      )
+                                    )
+                                  }
+                                  className={inputFieldClass}
+                                />
+                              ) : (
+                                <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
+                                  {formatFinanceMoney(
+                                    rowUnitPrice,
+                                    currentCurrencyCode
+                                  )}
+                                </div>
+                              )}
+                            </label>
+
+                            <label className="space-y-2 md:col-span-2">
+                              <div className={inputLabelClass}>Discount</div>
+                              {editable ? (
+                                <input
+                                  value={editableRow.discount}
+                                  onChange={(event) =>
+                                    setLineItemsDraft((draft) =>
+                                      draft.map((entry) =>
+                                        entry.id === editableRow.id
+                                          ? { ...entry, discount: event.target.value }
+                                          : entry
+                                      )
+                                    )
+                                  }
+                                  className={inputFieldClass}
+                                />
+                              ) : (
+                                <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
+                                  {formatFinanceMoney(
+                                    rowDiscount,
+                                    currentCurrencyCode
+                                  )}
+                                </div>
+                              )}
+                            </label>
+
+                            <label className="space-y-2 md:col-span-2">
+                              <div className={inputLabelClass}>Tax Code</div>
+                              {editable ? (
+                                <select
+                                  value={editableRow.tax_code_id}
+                                  onChange={(event) =>
+                                    setLineItemsDraft((draft) =>
+                                      draft.map((entry) =>
+                                        entry.id === editableRow.id
+                                          ? { ...entry, tax_code_id: event.target.value }
+                                          : entry
+                                      )
+                                    )
+                                  }
+                                  className={inputFieldClass}
+                                >
+                                  <option value="">Select tax</option>
+                                  {taxCodes.map((taxCode) => (
+                                    <option key={taxCode.id} value={taxCode.id}>
+                                      {taxCode.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
+                                  {taxCodes.find(
+                                    (taxCode) =>
+                                      taxCode.id === readOnlyRow.tax_code_id
+                                  )?.name || "—"}
+                                </div>
+                              )}
+                            </label>
+
+                            <label className="space-y-2 md:col-span-3">
+                              <div className={inputLabelClass}>
+                                Revenue Category
+                              </div>
+                              {editable ? (
+                                <select
+                                  value={editableRow.revenue_category_id}
+                                  onChange={(event) =>
+                                    setLineItemsDraft((draft) =>
+                                      draft.map((entry) =>
+                                        entry.id === editableRow.id
+                                          ? {
+                                              ...entry,
+                                              revenue_category_id:
+                                                event.target.value,
+                                            }
+                                          : entry
+                                      )
+                                    )
+                                  }
+                                  className={inputFieldClass}
+                                >
+                                  <option value="">Select category</option>
+                                  {revenueCategories.map((category) => (
+                                    <option key={category.id} value={category.id}>
+                                      {category.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <div className="flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-300">
+                                  {revenueCategories.find(
+                                    (category) =>
+                                      category.id ===
+                                      readOnlyRow.revenue_category_id
+                                  )?.name || "—"}
+                                </div>
+                              )}
+                            </label>
+
+                            <div className="space-y-2 md:col-span-3">
+                              <div className={inputLabelClass}>Line Total</div>
+                              <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
+                                {formatFinanceMoney(rowTotal, currentCurrencyCode)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="space-y-6">
+              <Card className={sectionCardClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Financial Summary
+                  </CardTitle>
+                  <CardDescription className="mt-1 text-xs text-slate-500">
+                    Live totals, collection state, and remaining balance.
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-3 p-5">
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Subtotal</div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.subtotal ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Discount</div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.discount ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Tax</div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.tax ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-100/70">
+                      Total
+                    </div>
+                    <div className="mt-2 text-xl font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.total ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Paid</div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.paid ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-amber-400/15 bg-amber-500/10 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-amber-100/70">
+                      Balance Due
+                    </div>
+                    <div className="mt-2 text-xl font-semibold text-white">
+                      {formatFinanceMoney(
+                        financialSummary?.balance ?? 0,
+                        currentCurrencyCode
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className={sectionCardClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Payment History
+                  </CardTitle>
+                  <CardDescription className="mt-1 text-xs text-slate-500">
+                    Confirmed payments linked to this invoice.
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-4 p-5">
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-center justify-between text-sm text-slate-400">
+                      <span>Total</span>
+                      <span>
+                        {formatFinanceMoney(
+                          toNumber(invoice.total_amount),
+                          currentCurrencyCode
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between text-sm text-emerald-300">
+                      <span>Paid</span>
+                      <span>
+                        {formatFinanceMoney(
+                          toNumber(invoice.paid_amount),
+                          currentCurrencyCode
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between text-sm text-amber-300">
+                      <span>Remaining</span>
+                      <span>
+                        {formatFinanceMoney(
+                          toNumber(invoice.balance_due),
+                          currentCurrencyCode
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className="h-full bg-emerald-500 transition-all"
+                        style={{ width: `${paymentProgressPercent}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {payments.length === 0 ? (
+                    <div className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-6 text-center text-sm text-slate-500">
+                      No payments yet.
+                    </div>
+                  ) : (
+                    <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
+                      {payments.map((payment) => (
+                        <div
+                          key={payment.id}
+                          onClick={() =>
+                            navigate(
+                              `/finance/transactions/payments-received/${payment.id}`
+                            )
+                          }
+                          className="cursor-pointer rounded-[20px] border border-white/10 bg-black/20 p-4 transition hover:bg-white/[0.04]"
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <div>
+                              <div className="text-sm font-medium text-white">
+                                {payment.reference_number || payment.id}
+                              </div>
+                              <div className="mt-1 text-xs text-slate-500">
+                                {formatFinanceDate(payment.payment_date)}
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <div className="text-sm font-semibold text-white">
+                                {formatFinanceMoney(
+                                  toNumber(payment.amount),
+                                  payment.payment_currency_code ||
+                                    currentCurrencyCode
+                                )}
+                              </div>
+                              <Badge className="mt-1 rounded-full border border-emerald-400/20 bg-emerald-500/10 text-[10px] text-emerald-300 shadow-none">
+                                {payment.status}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className={sectionCardClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Archive
+                    </CardTitle>
                     <Button
                       variant="outline"
-                      onClick={() => setEditingLines((p) => !p)}
-                      className="h-9 rounded-xl border-white/10 bg-white/[0.05]"
+                      onClick={() => {
+                        setShowArchivePopup((current) => {
+                          const next = !current;
+                          if (next) {
+                            setArchiveTab("archived");
+                            void loadArchiveItems();
+                          }
+                          return next;
+                        });
+                      }}
+                      className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
                     >
-                      <SquarePen className="h-4 w-4 mr-2" />
-                      {editingLines ? "Cancel" : "Edit"}
+                      {showArchivePopup ? "Close" : "Open Archive"}
                     </Button>
-                  )}
+                  </div>
                 </CardHeader>
 
-                <CardContent className="p-5 space-y-3 max-h-[720px] overflow-y-auto">
+                <CardContent className="space-y-3 p-5">
+                  <div className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-4 text-sm text-slate-400">
+                    Archive moves the invoice to archived. Delete moves the
+                    invoice to deleted. Hard delete is available only from the
+                    deleted tab.
+                  </div>
 
-                  {lineItemsDraft.map((line, i) => (
-                    <div
-                      key={line.id}
-                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                    >
-                      <div className="flex justify-between mb-2 text-sm text-slate-400">
-                        Line {i + 1}
+                  {showArchivePopup ? (
+                    <div className="space-y-4 rounded-[22px] border border-white/10 bg-black/20 p-4">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setArchiveTab("archived")}
+                          className={`rounded-xl px-4 py-2 text-sm transition ${
+                            archiveTab === "archived"
+                              ? "bg-white/10 text-white"
+                              : "text-slate-500 hover:bg-white/[0.05] hover:text-white"
+                          }`}
+                        >
+                          Archived
+                        </button>
 
-                        {editingLines && (
-                          <button onClick={() => removeDraftLineItem(line.id)}>
-                            <Trash2 size={16} />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setArchiveTab("deleted")}
+                          className={`rounded-xl px-4 py-2 text-sm transition ${
+                            archiveTab === "deleted"
+                              ? "bg-rose-500/15 text-rose-200"
+                              : "text-slate-500 hover:bg-white/[0.05] hover:text-white"
+                          }`}
+                        >
+                          Deleted
+                        </button>
                       </div>
 
-                      <div className="grid md:grid-cols-4 gap-3">
-                        <input
-                          value={line.description}
-                          disabled={!editingLines}
-                          onChange={(e) =>
-                            setLineItemsDraft((prev) =>
-                              prev.map((l) =>
-                                l.id === line.id
-                                  ? { ...l, description: e.target.value }
-                                  : l
-                              )
-                            )
-                          }
-                          className={inputFieldClass}
-                        />
+                      {visibleArchiveItems.length === 0 ? (
+                        <div className="text-sm text-slate-500">
+                          No {archiveTab} invoices.
+                        </div>
+                      ) : (
+                        <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
+                          {visibleArchiveItems.map((item) => (
+                            <div
+                              key={item.id}
+                              className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-3"
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <div className="text-sm font-medium text-white">
+                                    {item.invoice_number || "Invoice"}
+                                  </div>
+                                  <div className="mt-1 text-xs text-slate-500">
+                                    {item.counterparty_name_snapshot ||
+                                      item.client_name_snapshot ||
+                                      "—"}{" "}
+                                    • {formatFinanceDate(item.updated_at || null)}
+                                  </div>
+                                </div>
 
-                        <input
-                          value={line.quantity}
-                          disabled={!editingLines}
-                          onChange={(e) =>
-                            setLineItemsDraft((prev) =>
-                              prev.map((l) =>
-                                l.id === line.id
-                                  ? { ...l, quantity: e.target.value }
-                                  : l
-                              )
-                            )
-                          }
-                          className={inputFieldClass}
-                        />
+                                <div className="flex items-center gap-2">
+                                  <div className="text-sm text-slate-400">
+                                    {formatFinanceMoney(
+                                      toNumber(item.total_amount),
+                                      currentCurrencyCode
+                                    )}
+                                  </div>
 
-                        <input
-                          value={line.unit_price}
-                          disabled={!editingLines}
-                          onChange={(e) =>
-                            setLineItemsDraft((prev) =>
-                              prev.map((l) =>
-                                l.id === line.id
-                                  ? { ...l, unit_price: e.target.value }
-                                  : l
-                              )
-                            )
-                          }
-                          className={inputFieldClass}
-                        />
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => void handleRestore(item.id)}
+                                    disabled={isDeleting}
+                                    className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+                                  >
+                                    Restore
+                                  </Button>
 
-                        <input
-                          value={line.discount}
-                          disabled={!editingLines}
-                          onChange={(e) =>
-                            setLineItemsDraft((prev) =>
-                              prev.map((l) =>
-                                l.id === line.id
-                                  ? { ...l, discount: e.target.value }
-                                  : l
-                              )
-                            )
-                          }
-                          className={inputFieldClass}
-                        />
-                      </div>
+                                  {archiveTab === "deleted" ? (
+                                    <Button
+                                      variant="outline"
+                                      onClick={() =>
+                                        void handleHardDelete(item.id)
+                                      }
+                                      disabled={isDeleting}
+                                      className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  ))}
-
-                  {editingLines && (
-                    <button
-                      onClick={addDraftLineItem}
-                      className="text-cyan-300 text-sm"
-                    >
-                      + Add Line
-                    </button>
-                  )}
-
+                  ) : null}
                 </CardContent>
               </Card>
-
-            </div>
-
-
-            {/* RIGHT COLUMN */}
-            <div className="flex flex-col gap-6">
-
-              <Card className={sectionCardClass}>
-                <CardHeader>
-                  <CardTitle>Summary</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span>Subtotal</span>
-                    <span>
-                      {formatFinanceMoney(
-                        financialSummary.subtotal,
-                        currentCurrencyCode
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Discount</span>
-                    <span>
-                      {formatFinanceMoney(
-                        financialSummary.discount,
-                        currentCurrencyCode
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Tax</span>
-                    <span>
-                      {formatFinanceMoney(
-                        financialSummary.tax,
-                        currentCurrencyCode
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex justify-between font-semibold text-cyan-300 pt-2 border-t border-white/10">
-                    <span>Total</span>
-                    <span>
-                      {formatFinanceMoney(
-                        financialSummary.total,
-                        currentCurrencyCode
-                      )}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className={sectionCardClass}>
-                <CardHeader>
-                  <CardTitle>Payments</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 max-h-[300px] overflow-y-auto">
-                  {payments.length === 0 && (
-                    <div className="text-slate-500 text-sm">
-                      No payments
-                    </div>
-                  )}
-                  {payments.map((p) => (
-                    <div key={p.id} className="text-sm flex justify-between">
-                      <span>
-                        {formatFinanceMoney(p.amount, currentCurrencyCode)}
-                      </span>
-                      <span className="text-slate-400">
-                        {formatFinanceDate(p.payment_date)}
-                      </span>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              {invoice.status === "draft" && (
-                <Button
-                  onClick={() => void handleSaveDraftChanges()}
-                  disabled={isSavingDraft}
-                  className="h-11 rounded-2xl bg-cyan-500 text-black"
-                >
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Draft
-                </Button>
-              )}
-
             </div>
           </div>
 
-
-          {/* PRINT */}
-          <div style={{ display: "none" }}>
-            <div id="invoice-print-root">
-              <InvoicePrintDocument
-                invoice={printableInvoice}
-                lineItems={printableLineItems}
-                financialSummary={financialSummary}
-                currency={currentCurrencyCode}
-              />
+          {error ? (
+            <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+              {error}
             </div>
-          </div>
-
+          ) : null}
         </div>
       </div>
+
+      <InvoicePrintDocument
+        invoice={printableInvoice}
+        lineItems={printableLineItems}
+        financialSummary={financialSummary}
+      />
     </>
   );
 }

@@ -1729,62 +1729,80 @@ const [proformaSources, setProformaSources] = useState<
                   </select>
                 </div>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Source Mode</div>
-                  <select
-                    value={sourceMode}
-                    onChange={(event) => {
-                      const nextMode = event.target.value as
-                        | "manual"
-                        | "proforma_invoice";
+<div className={summaryBlockClass}>
+  <div className={labelClass}>Source Mode</div>
 
-                      setSourceMode(nextMode);
+  <select
+    value={sourceMode}
+    onChange={(event) => {
+      const nextMode = event.target.value as
+        | "manual"
+        | "proforma_invoice";
 
-                      if (nextMode === "manual") {
-                        setSourceProformaId("");
-                        setSourceProformaInvoice(null);
-                        setRows([createRow()]);
-                        setNotes("");
-                      }
-                    }}
-                    className={fieldShellClass}
-                  >
-                    <option value="manual">Manual</option>
-                    <option value="proforma_invoice">From Proforma Invoice</option>
-                  </select>
+      setSourceMode(nextMode);
 
-                  {sourceMode === "proforma_invoice" ? (
-                    <select
-                      value={sourceProformaId}
-                      onChange={(event) => {
-                        const nextProformaId = event.target.value;
-                        setSourceProformaId(nextProformaId);
-                        void applyProformaSource(nextProformaId);
-                      }}
-                      className={fieldShellClass}
-                    >
-                      <option value="">Select Proforma Invoice</option>
-                      {proformaSources.map((proforma) => (
-                        <option key={proforma.id} value={proforma.id}>
-                          {proforma.proforma_number || "Proforma Invoice"} ·{" "}
-                          {formatMoney(
-                            Number(proforma.total_amount || 0),
-                            proforma.currency_code || currencyCode
-                          )}
-                        </option>
-                      ))}
-                    </select>
-                  ) : null}
+      if (nextMode === "manual") {
+        setSourceProformaId("");
+        setSourceProformaInvoice(null);
+        setRows([createRow()]);
+        setNotes("");
+        return;
+      }
 
-                  <div className="mt-3 text-sm leading-6 text-slate-400">
-                    {sourceProformaInvoice
-                      ? `Selected: ${
-                          sourceProformaInvoice.proforma_number ||
-                          "Proforma Invoice"
-                        }`
-                      : "Manual invoice without proforma source."}
-                  </div>
-                </div>
+      // AUTO LOAD FIRST AVAILABLE PI WHEN SWITCHING MODE
+      if (proformaSources.length > 0) {
+        const first = proformaSources[0];
+        setSourceProformaId(first.id);
+        void applyProformaSource(first.id);
+      }
+    }}
+    className={fieldShellClass}
+  >
+    <option value="manual">Manual</option>
+    <option value="proforma_invoice">From Proforma Invoice</option>
+  </select>
+
+  {sourceMode === "proforma_invoice" && (
+    <select
+      value={sourceProformaId}
+      onChange={(event) => {
+        const nextProformaId = event.target.value;
+
+        setSourceProformaId(nextProformaId);
+
+        if (!nextProformaId) return;
+
+        // 🔥 HARD RESET BEFORE APPLY (CRITICAL FIX)
+        setRows([]);
+        setNotes("");
+
+        void applyProformaSource(nextProformaId);
+      }}
+      className={fieldShellClass}
+    >
+      <option value="">Select Proforma Invoice</option>
+
+      {proformaSources.map((proforma) => (
+        <option key={proforma.id} value={proforma.id}>
+          {proforma.proforma_number || "Proforma Invoice"} ·{" "}
+          {formatMoney(
+            Number(proforma.total_amount || 0),
+            proforma.currency_code || currencyCode
+          )}
+        </option>
+      ))}
+    </select>
+  )}
+
+  <div className="mt-3 text-sm leading-6 text-slate-400">
+    {sourceProformaInvoice
+      ? `Selected: ${
+          sourceProformaInvoice.proforma_number ||
+          "Proforma Invoice"
+        }`
+      : "Manual invoice without proforma source."}
+  </div>
+</div>
 
                 <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
                   <div className={labelClass}>Notes</div>

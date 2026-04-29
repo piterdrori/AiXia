@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
   Building2,
@@ -150,6 +150,45 @@ type RevenueCategoryOption = {
   name: string;
 };
 
+type ProformaInvoiceSource = {
+  id: string;
+  proforma_number: string | null;
+  client_id: string | null;
+  client_po_id: string | null;
+  quotation_id: string | null;
+  company_id: string | null;
+  issue_date: string | null;
+  valid_until: string | null;
+  status: string;
+  currency_id: string | null;
+  currency_code: string | null;
+  total_amount: number | string | null;
+  notes: string | null;
+  project_id: string | null;
+  task_id: string | null;
+  payment_terms_id: string | null;
+  shipping_term_id: string | null;
+  bank_account_id: string | null;
+  metadata: Record<string, unknown> | null;
+};
+
+type ProformaInvoiceLineSource = {
+  id: string;
+  proforma_invoice_id: string;
+  item_id: string | null;
+  description: string;
+  quantity: number | string | null;
+  unit_price: number | string | null;
+  discount: number | string | null;
+  sort_order: number | null;
+  unit_of_measure_id: string | null;
+  tax_code_id: string | null;
+  revenue_category_id: string | null;
+  project_id: string | null;
+  task_id: string | null;
+  status: string | null;
+};
+
 type InvoiceItemRow = {
   localId: string;
   itemId: string;
@@ -268,7 +307,9 @@ function getBankIdentifier(bank: BankAccountOption | null) {
 }
 
 export default function FinanceNewInvoicePage() {
-  const navigate = useNavigate();
+const navigate = useNavigate();
+const [searchParams] = useSearchParams();
+const sourceProformaInvoiceId = searchParams.get("proforma_invoice_id");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -316,7 +357,18 @@ export default function FinanceNewInvoicePage() {
   const [currencyCode, setCurrencyCode] = useState("USD");
   const [notes, setNotes] = useState("");
   const [rows, setRows] = useState<InvoiceItemRow[]>([createRow()]);
-  const [errorMessage, setErrorMessage] = useState("");
+const [errorMessage, setErrorMessage] = useState("");
+const [sourceMode, setSourceMode] = useState<"manual" | "proforma_invoice">(
+  sourceProformaInvoiceId ? "proforma_invoice" : "manual"
+);
+const [sourceProformaId, setSourceProformaId] = useState(
+  sourceProformaInvoiceId || ""
+);
+const [sourceProformaInvoice, setSourceProformaInvoice] =
+  useState<ProformaInvoiceSource | null>(null);
+const [proformaSources, setProformaSources] = useState<
+  ProformaInvoiceSource[]
+>([]);
 
   const selectedClient = useMemo(
     () => clients.find((client) => client.id === clientId) ?? null,
@@ -538,6 +590,127 @@ export default function FinanceNewInvoicePage() {
     }
   }, [filteredTasks, projectId, taskId]);
 
+  const applyProformaSource = useCallback(async (proformaId: string) => {
+    if (!proformaId) {
+      setSourceMode("manual");
+      setSourceProformaId("");
+      setSourceProformaInvoice(null);
+      setRows([createRow()]);
+      setNotes("");
+      return;
+    }
+
+    setErrorMessage("");
+
+    const { data: proformaData, error: proformaError } = await supabase
+      .from("finance_proforma_invoices")
+      .select(
+        "id, proforma_number, client_id, client_po_id, quotation_id, company_id, issue_date, valid_until, status, currency_id, currency_code, total_amount, notes, project_id, task_id, payment_terms_id, shipping_term_id, bank_account_id, metadata"
+      )
+      .eq("id", proformaId)
+      .maybeSingle();
+
+    if (proformaError) throw proformaError;
+
+    const typedProforma =
+      (proformaData || null) as ProformaInvoiceSource | null;
+
+    if (!typedProforma) {
+      setErrorMessage("Proforma invoice source was not found.");
+      return;
+    }
+
+    if (!["issued", "confirmed"].includes(typedProforma.status)) {
+      setErrorMessage(
+        "Proforma invoice must be issued or confirmed before creating an invoice."
+      );
+      return;
+    }
+
+    setSourceMode("proforma_invoice");
+    setSourceProformaId(typedProforma.id);
+    setSourceProformaInvoice(typedProforma);
+
+    setCounterpartyType("client");
+    setClientId(typedProforma.client_id || "");
+    setCounterpartyCompanyId("");
+    setCompanyId(typedProforma.company_id || "");
+    setProjectId(typedProforma.project_id || "");
+    setTaskId(typedProforma.task_id || "");
+    setPaymentTermsId(typedProforma.payment_terms_id || "");
+    setShippingTermId(typedProforma.shipping_term_id || "");
+    setBankAccountId(typedProforma.bank_account_id || "");
+    setCurrencyId(typedProforma.currency_id || "");
+    setCurrencyCode(typedProforma.currency_code || "USD");
+    setIssueDate(new Date().toISOString().slice(0, 10));
+
+    const nextDueDate = typedProforma.valid_until
+      ? new Date(typedProforma.valid_until)
+      : new Date();
+
+    if (!typedProforma.valid_until) {
+      nextDueDate.setDate(nextDueDate.getDate() + 30);
+    }
+
+    setDueDate(nextDueDate.toISOString().slice(0, 10));
+
+    setNotes(
+      [
+        `Created from Proforma Invoice: ${
+          typedProforma.proforma_number || typedProforma.id
+        }`,
+        typedProforma.notes || "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
+
+    const { data: proformaLinesData, error: proformaLinesError } =
+      await supabase
+        .from("finance_proforma_invoice_line_items")
+        .select(
+          "id, proforma_invoice_id, item_id, description, quantity, unit_price, discount, sort_order, unit_of_measure_id, tax_code_id, revenue_category_id, project_id, task_id, status"
+        )
+        .eq("proforma_invoice_id", typedProforma.id)
+        .or("status.is.null,status.neq.deleted")
+        .order("sort_order", { ascending: true });
+
+    if (proformaLinesError) throw proformaLinesError;
+
+    const proformaLines =
+      (proformaLinesData || []) as ProformaInvoiceLineSource[];
+
+    setRows(
+      proformaLines.length > 0
+        ? proformaLines.map((line) => ({
+            localId: crypto.randomUUID(),
+            itemId: line.item_id || "",
+            description: line.description || "",
+            quantity: String(line.quantity ?? 1),
+            unitPrice: String(line.unit_price ?? 0),
+            discount: String(line.discount ?? 0),
+            taxCodeId: line.tax_code_id || "",
+            unitOfMeasureId: line.unit_of_measure_id || "",
+            revenueCategoryId: line.revenue_category_id || "",
+          }))
+        : [
+            {
+              localId: crypto.randomUUID(),
+              itemId: "",
+              description: `Proforma Invoice ${
+                typedProforma.proforma_number || ""
+              }`.trim(),
+              quantity: "1",
+              unitPrice: String(toNumber(typedProforma.total_amount)),
+              discount: "0",
+              taxCodeId: "",
+              unitOfMeasureId: "",
+              revenueCategoryId: "",
+            },
+          ]
+    );
+  }, []);
+
   const loadFormData = useCallback(async () => {
     setIsLoading(true);
     setErrorMessage("");
@@ -557,6 +730,7 @@ export default function FinanceNewInvoicePage() {
         taxCodesResult,
         unitsOfMeasureResult,
         revenueCategoriesResult,
+        proformaSourcesResult,
       ] = await Promise.all([
         supabase
           .from("finance_clients")
@@ -644,6 +818,14 @@ export default function FinanceNewInvoicePage() {
           .select("id, code, name")
           .eq("status", "active")
           .order("name", { ascending: true }),
+
+        supabase
+          .from("finance_proforma_invoices")
+          .select(
+            "id, proforma_number, client_id, client_po_id, quotation_id, company_id, issue_date, valid_until, status, currency_id, currency_code, total_amount, notes, project_id, task_id, payment_terms_id, shipping_term_id, bank_account_id, metadata"
+          )
+          .in("status", ["issued", "confirmed"])
+          .order("updated_at", { ascending: false }),
       ]);
 
       if (clientsResult.error) throw clientsResult.error;
@@ -659,6 +841,7 @@ export default function FinanceNewInvoicePage() {
       if (taxCodesResult.error) throw taxCodesResult.error;
       if (unitsOfMeasureResult.error) throw unitsOfMeasureResult.error;
       if (revenueCategoriesResult.error) throw revenueCategoriesResult.error;
+      if (proformaSourcesResult.error) throw proformaSourcesResult.error;
 
       setClients((clientsResult.data || []) as ClientOption[]);
       setCompanies((companiesResult.data || []) as CompanyOption[]);
@@ -678,6 +861,9 @@ export default function FinanceNewInvoicePage() {
       );
       setRevenueCategories(
         (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
+      );
+      setProformaSources(
+        (proformaSourcesResult.data || []) as ProformaInvoiceSource[]
       );
 
       if (!companyId && (companiesResult.data || []).length === 1) {
@@ -707,6 +893,10 @@ export default function FinanceNewInvoicePage() {
 
       if (!paymentMethodId && defaultPaymentMethod) {
         setPaymentMethodId(defaultPaymentMethod.id);
+      }
+
+      if (sourceProformaInvoiceId) {
+        await applyProformaSource(sourceProformaInvoiceId);
       }
     } catch (error) {
       console.error("Failed to load invoice form data:", error);
@@ -904,6 +1094,24 @@ export default function FinanceNewInvoicePage() {
       if (invoiceError) throw invoiceError;
       if (!createdInvoiceId) throw new Error("Invoice was not created");
 
+      if (sourceProformaInvoice) {
+        const { error: sourceLinkError } = await supabase
+          .from("finance_invoices_issued")
+          .update({
+            proforma_invoice_id: sourceProformaInvoice.id,
+            metadata: {
+              source: "proforma_invoice_prefill",
+              proforma_invoice_id: sourceProformaInvoice.id,
+              proforma_number: sourceProformaInvoice.proforma_number || null,
+              client_po_id: sourceProformaInvoice.client_po_id || null,
+              quotation_id: sourceProformaInvoice.quotation_id || null,
+            },
+          })
+          .eq("id", createdInvoiceId);
+
+        if (sourceLinkError) throw sourceLinkError;
+      }
+
       const linePayload = trimmedRows.map((row, index) => ({
         item_id: row.itemId || null,
         description: row.description.trim(),
@@ -960,6 +1168,7 @@ export default function FinanceNewInvoicePage() {
     projectId,
     rows,
     shippingTermId,
+    sourceProformaInvoice,
     taskId,
   ]);
 
@@ -1518,6 +1727,63 @@ export default function FinanceNewInvoicePage() {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Source Mode</div>
+                  <select
+                    value={sourceMode}
+                    onChange={(event) => {
+                      const nextMode = event.target.value as
+                        | "manual"
+                        | "proforma_invoice";
+
+                      setSourceMode(nextMode);
+
+                      if (nextMode === "manual") {
+                        setSourceProformaId("");
+                        setSourceProformaInvoice(null);
+                        setRows([createRow()]);
+                        setNotes("");
+                      }
+                    }}
+                    className={fieldShellClass}
+                  >
+                    <option value="manual">Manual</option>
+                    <option value="proforma_invoice">From Proforma Invoice</option>
+                  </select>
+
+                  {sourceMode === "proforma_invoice" ? (
+                    <select
+                      value={sourceProformaId}
+                      onChange={(event) => {
+                        const nextProformaId = event.target.value;
+                        setSourceProformaId(nextProformaId);
+                        void applyProformaSource(nextProformaId);
+                      }}
+                      className={fieldShellClass}
+                    >
+                      <option value="">Select Proforma Invoice</option>
+                      {proformaSources.map((proforma) => (
+                        <option key={proforma.id} value={proforma.id}>
+                          {proforma.proforma_number || "Proforma Invoice"} ·{" "}
+                          {formatMoney(
+                            Number(proforma.total_amount || 0),
+                            proforma.currency_code || currencyCode
+                          )}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+
+                  <div className="mt-3 text-sm leading-6 text-slate-400">
+                    {sourceProformaInvoice
+                      ? `Selected: ${
+                          sourceProformaInvoice.proforma_number ||
+                          "Proforma Invoice"
+                        }`
+                      : "Manual invoice without proforma source."}
+                  </div>
                 </div>
 
                 <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">

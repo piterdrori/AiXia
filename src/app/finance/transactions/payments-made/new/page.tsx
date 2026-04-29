@@ -34,6 +34,7 @@ type BillOption = {
   total_amount: number | string | null;
   paid_amount: number | string | null;
   balance_due: number | string | null;
+  currency_code: string | null;
   vendor_name?: string | null;
   vendor_legal_name?: string | null;
   vendor_code?: string | null;
@@ -254,6 +255,7 @@ export default function FinanceNewPaymentMadePage() {
                 "total_amount",
                 "paid_amount",
                 "balance_due",
+                "currency_code",
                 "finance_vendors(name, legal_name, code)",
                 "finance_purchase_orders(purchase_order_number)",
                 "finance_vendor_quotations(vendor_quotation_number)",
@@ -359,11 +361,14 @@ export default function FinanceNewPaymentMadePage() {
   useEffect(() => {
     if (!selectedBill) return;
 
+    const resolvedBillCurrency =
+      selectedBill.currency_code || selectedVendor?.currency_code || "USD";
+
     setVendorId(selectedBill.vendor_id || "");
     setAmount(String(selectedBill.balance_due ?? ""));
     setConvertedAmount(String(selectedBill.balance_due ?? ""));
-    setBillCurrencyCode(selectedVendor?.currency_code || "USD");
-    setPaymentCurrencyCode(selectedVendor?.currency_code || "USD");
+    setBillCurrencyCode(resolvedBillCurrency);
+    setPaymentCurrencyCode(resolvedBillCurrency);
     setReferenceNumber((current) => current || selectedBill.external_document_number || "");
   }, [selectedBill, selectedVendor?.currency_code]);
 
@@ -639,7 +644,7 @@ export default function FinanceNewPaymentMadePage() {
                         {bill.vendor_legal_name || bill.vendor_name || "Vendor"} — Balance{" "}
                         {formatMoney(
                           bill.balance_due,
-                          selectedVendor?.currency_code || "USD"
+                          bill.currency_code || selectedVendor?.currency_code || "USD"
                         )}
                       </option>
                     ))}

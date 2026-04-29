@@ -72,7 +72,6 @@ type ItemOption = {
   id: string;
   name: string;
   description: string | null;
-  unit_price: number | string | null;
   default_unit_of_measure_id: string | null;
   default_tax_code_id: string | null;
 };
@@ -303,7 +302,7 @@ export default function FinanceNewPurchaseOrderPage() {
           supabase
             .from("finance_items")
             .select(
-              "id, name, description, unit_price, default_unit_of_measure_id, default_tax_code_id"
+              "id, name, description, default_unit_of_measure_id, default_tax_code_id"
             )
             .eq("status", "active")
             .order("name", { ascending: true }),
@@ -474,11 +473,7 @@ export default function FinanceNewPurchaseOrderPage() {
       updateLine(localId, {
         item_id: itemId,
         description: selectedItem?.description || selectedItem?.name || "",
-        unit_price:
-          selectedItem?.unit_price !== null &&
-          selectedItem?.unit_price !== undefined
-            ? String(selectedItem.unit_price)
-            : "0",
+        unit_price: "0",
         unit_of_measure_id: selectedItem?.default_unit_of_measure_id || "",
         tax_code_id: selectedItem?.default_tax_code_id || "",
       });

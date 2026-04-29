@@ -477,9 +477,36 @@ export default function PaymentsReceivedPage() {
       ]);
 
       const openInvoiceRows = invoiceRows.filter((invoice) => {
+        const balanceDue = Number(invoice.balance_due ?? 0);
+        const status = String(invoice.status || "").toLowerCase();
+        const paymentStatus = String(invoice.payment_status || "").toLowerCase();
+
+        const isOpenDocumentStatus =
+          status === "issued" ||
+          status === "partially_paid" ||
+          status === "overdue";
+
+        const isOpenPaymentStatus =
+          paymentStatus === "unpaid" ||
+          paymentStatus === "partial" ||
+          paymentStatus === "partially_paid" ||
+          paymentStatus === "";
+
+        const isExcludedStatus =
+          status === "draft" ||
+          status === "paid" ||
+          status === "void" ||
+          status === "voided" ||
+          status === "cancelled" ||
+          status === "canceled" ||
+          status === "archived" ||
+          status === "deleted";
+
         return (
-          invoice.status === "issued" &&
-          Number(invoice.balance_due ?? 0) > 0
+          balanceDue > 0 &&
+          isOpenDocumentStatus &&
+          isOpenPaymentStatus &&
+          !isExcludedStatus
         );
       });
 

@@ -637,7 +637,6 @@ export default function FinanceCustomerPoDetailPage() {
   const loadCustomerPo = useCallback(async () => {
     if (!id) return;
 
-    setIsLoading((current) => current || !customerPo);
     setError("");
 
     try {
@@ -774,7 +773,6 @@ export default function FinanceCustomerPoDetailPage() {
       setIsLoading(false);
     }
   }, [
-    customerPo,
     id,
     isEditingDetails,
     isEditingLines,
@@ -1860,7 +1858,11 @@ export default function FinanceCustomerPoDetailPage() {
                       ? "Create Proforma Invoice"
                       : "Upload Customer PO document before creating a proforma invoice"
                   }
-                  className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+                  className={`h-11 rounded-2xl border px-4 font-semibold ${
+                    hasCustomerPoFile
+                      ? "border-cyan-400/20 bg-cyan-500 text-slate-950 hover:bg-cyan-400"
+                      : "cursor-not-allowed border-white/10 bg-white/[0.05] text-slate-500 opacity-50"
+                  }`}
                 >
                   <FileText className="mr-2 h-4 w-4" />
                   Create Proforma Invoice

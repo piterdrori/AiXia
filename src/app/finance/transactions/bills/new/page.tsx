@@ -850,8 +850,13 @@ export default function FinanceNewBillPage() {
                   <input
                     value={referenceNumber}
                     onChange={(event) => setReferenceNumber(event.target.value)}
-                    placeholder="Internal or payment reference"
-                    className={fieldClass}
+                    disabled={sourceMode === "purchase_order"}
+                    placeholder={
+                      sourceMode === "purchase_order"
+                        ? "Controlled by purchase order conversion"
+                        : "Internal or payment reference"
+                    }
+                    className={`${fieldClass} disabled:opacity-70`}
                   />
                 </label>
 
@@ -900,8 +905,9 @@ export default function FinanceNewBillPage() {
                         Line Items
                       </CardTitle>
                       <CardDescription className="mt-1 text-xs text-slate-500">
-                        Vendor PI / invoice lines. PO source lines copy into this
-                        document.
+                        Manual lines are editable here. Purchase order source
+                        lines are locked preview lines created by the backend
+                        conversion.
                       </CardDescription>
                     </div>
                   </div>

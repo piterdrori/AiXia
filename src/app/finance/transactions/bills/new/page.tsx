@@ -69,6 +69,12 @@ type ExpenseCategoryOption = {
   name: string;
 };
 
+type CurrencyOption = {
+  id: string;
+  currency_code: string;
+  currency_name: string;
+};
+
 type ItemOption = {
   id: string;
   name: string;
@@ -206,6 +212,7 @@ export default function FinanceNewBillPage() {
   const [expenseCategories, setExpenseCategories] = useState<
     ExpenseCategoryOption[]
   >([]);
+  const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -253,6 +260,7 @@ export default function FinanceNewBillPage() {
           vendorsResult,
           purchaseOrdersResult,
           expenseCategoriesResult,
+          currenciesResult,
           itemsResult,
         ] = await Promise.all([
           
@@ -290,6 +298,11 @@ export default function FinanceNewBillPage() {
             .eq("status", "active")
             .order("name", { ascending: true }),
           supabase
+            .from("finance_currencies")
+            .select("id, currency_code, currency_name")
+            .eq("status", "active")
+            .order("currency_code", { ascending: true }),
+          supabase
             .from("finance_items")
             .select(
               "id, name, description, unit_price, default_unit_of_measure_id, default_tax_code_id"
@@ -301,6 +314,7 @@ export default function FinanceNewBillPage() {
         if (vendorsResult.error) throw vendorsResult.error;
         if (purchaseOrdersResult.error) throw purchaseOrdersResult.error;
         if (expenseCategoriesResult.error) throw expenseCategoriesResult.error;
+        if (currenciesResult.error) throw currenciesResult.error;
         if (itemsResult.error) throw itemsResult.error;
 
         const mappedPurchaseOrders = (
@@ -326,6 +340,7 @@ export default function FinanceNewBillPage() {
         setExpenseCategories(
           (expenseCategoriesResult.data || []) as unknown as ExpenseCategoryOption[]
         );
+        setCurrencies((currenciesResult.data || []) as unknown as CurrencyOption[]);
         setItems((itemsResult.data || []) as unknown as ItemOption[]);
       } catch (error) {
         console.error("Failed to load vendor bill form data:", error);
@@ -702,12 +717,7 @@ export default function FinanceNewBillPage() {
                     Draft Value
                   </div>
                   <div className="mt-2 text-xl font-semibold text-white">
-                    {formatMoney(
-                      totalAmount,
-                      selectedPurchaseOrder?.currency_code ||
-                        selectedVendor?.currency_code ||
-                        "USD"
-                    )}
+                    {formatMoney(totalAmount, currencyCode || "USD")}
                   </div>
                   <div className="mt-3 text-xs leading-5 text-slate-500">
                     Calculated from vendor document lines.
@@ -904,6 +914,23 @@ export default function FinanceNewBillPage() {
                   />
                 </label>
 
+                <label className="space-y-2">
+                  <div className={labelClass}>Currency</div>
+                  <select
+                    value={currencyCode}
+                    onChange={(event) => setCurrencyCode(event.target.value)}
+                    disabled={sourceMode === "purchase_order"}
+                    className={`${fieldClass} disabled:opacity-70`}
+                  >
+                    <option value="">Select currency</option>
+                    {currencies.map((currency) => (
+                      <option key={currency.id} value={currency.currency_code}>
+                        {currency.currency_code} — {currency.currency_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
                 <label className="space-y-2 md:col-span-2">
                   <div className={labelClass}>Notes</div>
                   <textarea
@@ -1061,12 +1088,7 @@ export default function FinanceNewBillPage() {
                       <div className="space-y-2">
                         <div className={labelClass}>Line Total</div>
                         <div className="flex min-h-[44px] items-center rounded-2xl border border-violet-400/15 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100">
-                          {formatMoney(
-                            lineTotals[index] || 0,
-                            selectedPurchaseOrder?.currency_code ||
-                              selectedVendor?.currency_code ||
-                              "USD"
-                          )}
+                          {formatMoney(lineTotals[index] || 0, currencyCode || "USD")}
                         </div>
                       </div>
                     </div>
@@ -1157,12 +1179,7 @@ export default function FinanceNewBillPage() {
                     Total
                   </div>
                   <div className="mt-2 text-2xl font-semibold text-white">
-                    {formatMoney(
-                      totalAmount,
-                      selectedPurchaseOrder?.currency_code ||
-                        selectedVendor?.currency_code ||
-                        "USD"
-                    )}
+                    {formatMoney(totalAmount, currencyCode || "USD")}
                   </div>
                   <div className="mt-2 text-sm leading-6 text-slate-400">
                     Source:{" "}

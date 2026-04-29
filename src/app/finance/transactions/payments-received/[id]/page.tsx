@@ -3,18 +3,30 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  ArrowLeft,
+  Archive,
+  ArrowRight,
   CheckCircle,
-  Pencil,
+  Eye,
+  FileText,
+  Link2,
+  Paperclip,
   Printer,
   RefreshCw,
   Save,
+  SquarePen,
   Trash2,
   Upload,
   XCircle,
 } from "lucide-react";
 
-import { archivePaymentReceived } from "@/lib/finance/paymentsReceived";
+import {
+  archivePaymentReceived,
+  cancelPaymentReceived,
+  confirmPaymentReceived,
+  getPaymentReceivedById,
+  softDeletePaymentReceived,
+  updatePaymentReceived,
+} from "@/lib/finance/paymentsReceived";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,14 +38,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-
-import {
-  getPaymentReceivedById,
-  confirmPaymentReceived,
-  cancelPaymentReceived,
-  updatePaymentReceived,
-  softDeletePaymentReceived,
-} from "@/lib/finance/paymentsReceived";
 
 type PaymentReceivedDetail = {
   id: string;
@@ -51,6 +55,7 @@ type PaymentReceivedDetail = {
   invoice_id: string | null;
   client_id: string;
   payment_method_id: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 type PaymentAttachmentRow = {
@@ -77,6 +82,10 @@ type InvoiceLinkRow = {
   terms_and_conditions_snapshot: string | null;
   counterparty_type: "client" | "company" | null;
   counterparty_name_snapshot: string | null;
+  counterparty_legal_name_snapshot: string | null;
+  counterparty_contact_person_snapshot: string | null;
+  counterparty_email_snapshot: string | null;
+  counterparty_phone_snapshot: string | null;
   client_name_snapshot: string | null;
   client_contact_person_snapshot: string | null;
   client_email_snapshot: string | null;
@@ -94,6 +103,12 @@ type PaymentInvoiceOption = {
   invoice_number: string | null;
   currency_code: string | null;
   client_name_snapshot: string | null;
+  counterparty_name_snapshot: string | null;
+  counterparty_legal_name_snapshot: string | null;
+  company_name_snapshot: string | null;
+  total_amount: number | string | null;
+  paid_amount: number | string | null;
+  balance_due: number | string | null;
   status: string;
 };
 
@@ -115,7 +130,10 @@ function toNumber(value: number | string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function formatMoney(value: number | string | null | undefined, currencyCode = "USD") {
+function formatMoney(
+  value: number | string | null | undefined,
+  currencyCode = "USD"
+) {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
     currency: currencyCode || "USD",
@@ -145,6 +163,10 @@ function getPaymentStatusBadgeClasses(status: string) {
       return "border-amber-400/20 bg-amber-500/10 text-amber-200";
     case "cancelled":
       return "border-rose-400/20 bg-rose-500/10 text-rose-200";
+    case "archived":
+      return "border-slate-400/20 bg-slate-500/10 text-slate-200";
+    case "deleted":
+      return "border-rose-500/30 bg-rose-500/10 text-rose-300";
     default:
       return "border-white/10 bg-white/10 text-white/75";
   }
@@ -158,6 +180,10 @@ function getPaymentStatusLabel(status: string) {
       return "Draft";
     case "cancelled":
       return "Cancelled";
+    case "archived":
+      return "Archived";
+    case "deleted":
+      return "Deleted";
     default:
       return status;
   }
@@ -167,6 +193,34 @@ function getProofBadgeClasses(hasProof: boolean) {
   return hasProof
     ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
     : "border-rose-400/20 bg-rose-500/10 text-rose-200";
+}
+
+function getInvoiceStatusBadgeClasses(status: string | null | undefined) {
+  switch (status) {
+    case "issued":
+      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
+    case "partially_paid":
+      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
+    case "paid":
+      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
+    case "overdue":
+      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
+    default:
+      return "border-white/10 bg-white/10 text-white/75";
+  }
+}
+
+function getPaymentStatusMiniLabel(status: string | null | undefined) {
+  switch (status) {
+    case "unpaid":
+      return "Unpaid";
+    case "partial":
+      return "Partial";
+    case "paid":
+      return "Paid";
+    default:
+      return status || "—";
+  }
 }
 
 export default function PaymentReceivedDetailPage() {
@@ -197,9 +251,32 @@ export default function PaymentReceivedDetailPage() {
   const [paymentCurrencyCodeDraft, setPaymentCurrencyCodeDraft] = useState("");
   const [paymentMethodIdDraft, setPaymentMethodIdDraft] = useState("");
 
-  const [invoiceOptions, setInvoiceOptions] = useState<PaymentInvoiceOption[]>([]);
-  const [paymentMethodOptions, setPaymentMethodOptions] = useState<PaymentMethodOption[]>([]);
+  const [invoiceOptions, setInvoiceOptions] = useState<PaymentInvoiceOption[]>(
+    []
+  );
+  const [paymentMethodOptions, setPaymentMethodOptions] = useState<
+    PaymentMethodOption[]
+  >([]);
   const [currencyOptions, setCurrencyOptions] = useState<CurrencyOption[]>([]);
+
+  const activeSectionClass =
+    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
+
+  const summaryBlockClass =
+    "rounded-[24px] border border-white/10 bg-black/20 p-4";
+
+  const fieldShellClass =
+    "mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-45";
+
+  const inputFieldClass =
+    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-45";
+
+  const readOnlyFieldClass =
+    "flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80";
+
+  const labelClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
+
+  const inputLabelClass = "text-sm font-medium text-slate-300";
 
   const hasProof = attachments.length > 0;
   const convertedAmount = toNumber(payment?.converted_amount);
@@ -216,6 +293,35 @@ export default function PaymentReceivedDetailPage() {
     payment?.status !== "deleted" &&
     payment?.status !== "archived" &&
     payment?.status !== "confirmed";
+
+  const invoiceFromName = invoiceLink?.company_name_snapshot || "—";
+  const invoiceFromContact = invoiceLink?.company_contact_person_snapshot || "";
+  const invoiceFromEmail = invoiceLink?.company_email_snapshot || "";
+  const invoiceFromPhone = invoiceLink?.company_phone_snapshot || "";
+  const invoiceFromAddress = invoiceLink?.company_address_snapshot || "";
+
+  const invoiceToName =
+    invoiceLink?.counterparty_legal_name_snapshot ||
+    invoiceLink?.counterparty_name_snapshot ||
+    invoiceLink?.client_name_snapshot ||
+    "—";
+
+  const invoiceToContact =
+    invoiceLink?.counterparty_contact_person_snapshot ||
+    invoiceLink?.client_contact_person_snapshot ||
+    "";
+
+  const invoiceToEmail =
+    invoiceLink?.counterparty_email_snapshot ||
+    invoiceLink?.client_email_snapshot ||
+    "";
+
+  const invoiceToPhone =
+    invoiceLink?.counterparty_phone_snapshot ||
+    invoiceLink?.client_phone_snapshot ||
+    "";
+
+  const invoiceToAddress = invoiceLink?.billing_address_snapshot || "";
 
   const paymentMethodName = useMemo(() => {
     if (!payment?.payment_method_id) return null;
@@ -234,6 +340,17 @@ export default function PaymentReceivedDetailPage() {
       payment_method_name: paymentMethodName,
     };
   }, [payment, paymentMethodName]);
+
+  const paymentProgressPercent = useMemo(() => {
+    if (!invoiceLink) return 0;
+
+    const total = toNumber(invoiceLink.total_amount);
+    const paid = toNumber(invoiceLink.paid_amount);
+
+    if (total <= 0) return 0;
+
+    return Math.max(0, Math.min((paid / total) * 100, 100));
+  }, [invoiceLink]);
 
   const loadPayment = useCallback(
     async (refreshOnly = false) => {
@@ -281,6 +398,10 @@ export default function PaymentReceivedDetailPage() {
                 "terms_and_conditions_snapshot",
                 "counterparty_type",
                 "counterparty_name_snapshot",
+                "counterparty_legal_name_snapshot",
+                "counterparty_contact_person_snapshot",
+                "counterparty_email_snapshot",
+                "counterparty_phone_snapshot",
                 "client_name_snapshot",
                 "client_contact_person_snapshot",
                 "client_email_snapshot",
@@ -307,8 +428,7 @@ export default function PaymentReceivedDetailPage() {
               .from("finance_payment_terms")
               .select("name, document_label, document_terms_text")
               .eq("id", enrichedInvoice.payment_terms_id)
-
-                        .maybeSingle();
+              .maybeSingle();
 
             if (paymentTermError) {
               console.warn(
@@ -419,7 +539,10 @@ export default function PaymentReceivedDetailPage() {
           return;
         }
 
-        if ((data as { success?: boolean; error?: string } | null)?.success === false) {
+        if (
+          (data as { success?: boolean; error?: string } | null)?.success ===
+          false
+        ) {
           const message =
             (data as { success?: boolean; error?: string }).error ||
             "Pending FX conversion failed.";
@@ -433,7 +556,9 @@ export default function PaymentReceivedDetailPage() {
       } catch (error) {
         console.error("Pending FX conversion failed:", error);
         setFxErrorMessage(
-          error instanceof Error ? error.message : "Pending FX conversion failed."
+          error instanceof Error
+            ? error.message
+            : "Pending FX conversion failed."
         );
       }
     }
@@ -447,7 +572,21 @@ export default function PaymentReceivedDetailPage() {
         await Promise.all([
           supabase
             .from("finance_invoices_issued")
-            .select("id, invoice_number, currency_code, client_name_snapshot, status")
+            .select(
+              [
+                "id",
+                "invoice_number",
+                "currency_code",
+                "client_name_snapshot",
+                "counterparty_name_snapshot",
+                "counterparty_legal_name_snapshot",
+                "company_name_snapshot",
+                "total_amount",
+                "paid_amount",
+                "balance_due",
+                "status",
+              ].join(", ")
+            )
             .in("status", ["issued", "partially_paid", "overdue"])
             .order("created_at", { ascending: false }),
           supabase
@@ -497,7 +636,12 @@ export default function PaymentReceivedDetailPage() {
       )
       .subscribe();
 
+    const intervalId = window.setInterval(() => {
+      void loadPayment(true);
+    }, 60000);
+
     return () => {
+      window.clearInterval(intervalId);
       supabase.removeChannel(channel);
     };
   }, [id, loadPayment]);
@@ -528,7 +672,8 @@ export default function PaymentReceivedDetailPage() {
       await cancelPaymentReceived(id);
       await loadPayment(true);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to cancel payment.";
+      const message =
+        err instanceof Error ? err.message : "Failed to cancel payment.";
       setErrorMessage(message);
     } finally {
       setIsCancelling(false);
@@ -577,7 +722,8 @@ export default function PaymentReceivedDetailPage() {
         console.error("FX conversion failed:", fxError);
         setFxErrorMessage(fxError.message || "FX conversion failed.");
       } else if (
-        (data as { success?: boolean; error?: string } | null)?.success === false
+        (data as { success?: boolean; error?: string } | null)?.success ===
+        false
       ) {
         setFxErrorMessage(
           (data as { success?: boolean; error?: string }).error ||
@@ -588,7 +734,8 @@ export default function PaymentReceivedDetailPage() {
       await loadPayment();
       setIsEditMode(false);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to save changes.";
+      const message =
+        err instanceof Error ? err.message : "Failed to save changes.";
       setErrorMessage(message);
     } finally {
       setIsSavingChanges(false);
@@ -717,257 +864,452 @@ export default function PaymentReceivedDetailPage() {
   }
 
   if (loading) {
-    return <div className="p-6 text-white/50">Loading payment...</div>;
+    return (
+      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-slate-400">
+            Loading payment...
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!payment) {
-    return <div className="p-6 text-white/50">Payment not found.</div>;
+    return (
+      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-slate-400">
+            Payment not found.
+          </div>
+        </div>
+      </div>
+    );
   }
+
+  const paymentCurrencyCode = payment.payment_currency_code || "USD";
+  const invoiceCurrencyCode =
+    payment.invoice_currency_code || invoiceLink?.currency_code || "USD";
+
+  const isCrossCurrency =
+    !!paymentCurrencyCode &&
+    !!invoiceCurrencyCode &&
+    paymentCurrencyCode !== invoiceCurrencyCode;
+
+  const sourceInvoiceNumber =
+    (payment.metadata?.source_invoice_number as string | undefined) ||
+    invoiceLink?.invoice_number ||
+    "—";
+
+  const displayReference =
+    payment.reference_number || sourceInvoiceNumber || "Payment Record";
 
   return (
     <>
-      <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden">
-        <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-4 pb-8 pt-2 sm:px-6 xl:px-8">
-          <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-6 xl:p-7">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_35%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_24%)]" />
+      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
 
-            <div className="relative flex flex-col gap-6">
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                <div className="max-w-4xl space-y-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.24em] text-white/70 shadow-none">
-                      Receivables
-                    </Badge>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => navigate("/finance/transactions/payments-received")}
+                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              >
+                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+                Payments Received
+              </button>
 
-                    <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px]">
+                <div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
                       Payment Workspace
                     </Badge>
+
+                    <Badge
+                      className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-none ${getPaymentStatusBadgeClasses(
+                        payment.status
+                      )}`}
+                    >
+                      {getPaymentStatusLabel(payment.status)}
+                    </Badge>
+
+                    <Badge
+                      className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-none ${getProofBadgeClasses(
+                        hasProof
+                      )}`}
+                    >
+                      {hasProof ? "Proof uploaded" : "Proof required"}
+                    </Badge>
+
+                    {invoiceLink ? (
+                      <Badge className="inline-flex w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200 shadow-none">
+                        Linked invoice
+                      </Badge>
+                    ) : null}
                   </div>
 
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                        {payment.reference_number || "Payment Record"}
-                      </h1>
+                  <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                    {displayReference}
+                  </h1>
 
-                      <Badge
-                        className={`rounded-full border px-3 py-1 text-xs shadow-none ${getPaymentStatusBadgeClasses(
-                          payment.status
-                        )}`}
-                      >
-                        {getPaymentStatusLabel(payment.status)}
-                      </Badge>
+                  <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                    Manual incoming payment linked to an invoice. Draft payments
+                    can be edited, proof must be uploaded before confirmation,
+                    and confirmed payments update the linked invoice balance.
+                  </p>
 
-                      <Badge
-                        className={`rounded-full border px-3 py-1 text-xs shadow-none ${getProofBadgeClasses(
-                          hasProof
-                        )}`}
-                      >
-                        {hasProof ? "Proof uploaded" : "Proof required"}
-                      </Badge>
-                    </div>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200 shadow-none">
+                      {formatMoney(payment.amount, paymentCurrencyCode)}
+                    </Badge>
 
-                    <div className="text-sm text-white/50">
-                      Manual incoming payment record linked to an invoice. Only confirmed payments
-                      affect invoice totals, and confirmation is blocked until proof exists.
-                    </div>
+                    <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200 shadow-none">
+                      {paymentCurrencyCode} → {invoiceCurrencyCode}
+                    </Badge>
+
+                    <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
+                      Auto-refresh enabled
+                    </Badge>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-3 xl:justify-end">
+                                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Linked Invoice
+                        </p>
+                        <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                          {sourceInvoiceNumber}
+                        </p>
+                      </div>
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                        <Link2 className="h-4 w-4" />
+                      </div>
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-slate-500">
+                      Payment is saved against this invoice.
+                    </p>
+                  </div>
+
+                  <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Balance Due
+                        </p>
+                        <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
+                          {formatMoney(invoiceLink?.balance_due, invoiceCurrencyCode)}
+                        </p>
+                      </div>
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
+                        <span className="h-2 w-2 rounded-full bg-amber-400" />
+                      </div>
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-slate-500">
+                      Current open balance on linked invoice.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => void loadPayment(true)}
+                  disabled={isRefreshing}
+                  className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  {isRefreshing ? "Refreshing..." : "Refresh"}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={() => window.print()}
+                  className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print Receipt
+                </Button>
+
+                {payment.status === "draft" ? (
+                  <Button
+                    onClick={() => void handleConfirm()}
+                    disabled={
+                      !hasProof ||
+                      isConfirming ||
+                      isEditMode ||
+                      payment.exchange_rate_source ===
+                        "pending_backend_conversion" ||
+                      isFxExceeding
+                    }
+                    className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    {isConfirming ? "Confirming..." : "Confirm Payment"}
+                  </Button>
+                ) : null}
+
+                {payment.status !== "cancelled" ? (
                   <Button
                     variant="outline"
-                    onClick={() => navigate("/finance/transactions/payments-received")}
-                    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+                    onClick={() => void handleCancel()}
+                    disabled={isCancelling}
+                    className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back
+                    <XCircle className="mr-2 h-4 w-4" />
+                    {isCancelling ? "Cancelling..." : "Cancel Payment"}
                   </Button>
+                ) : null}
 
+                {canEditPayment && !isEditMode ? (
                   <Button
                     variant="outline"
-                    onClick={() => void loadPayment(true)}
-                    disabled={isRefreshing}
-                    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+                    onClick={() => setIsEditMode(true)}
+                    className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
                   >
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    {isRefreshing ? "Refreshing..." : "Refresh"}
+                    <SquarePen className="mr-2 h-4 w-4" />
+                    Edit
                   </Button>
+                ) : null}
 
+                {isEditMode ? (
+                  <Button
+                    onClick={() => void handleSaveChanges()}
+                    disabled={isSavingChanges}
+                    className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    {isSavingChanges ? "Saving..." : "Save"}
+                  </Button>
+                ) : null}
+
+                {isEditMode ? (
                   <Button
                     variant="outline"
-                    onClick={() => window.print()}
-                    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
+                    onClick={cancelEditMode}
+                    className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
                   >
-                    <Printer className="mr-2 h-4 w-4" />
-                    Print Receipt
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Cancel Edit
                   </Button>
+                ) : null}
 
-                  {payment.status === "draft" ? (
-                    <Button
-                      onClick={() => void handleConfirm()}
-                      disabled={
-                        !hasProof ||
-                        isConfirming ||
-                        isEditMode ||
-                        payment.exchange_rate_source === "pending_backend_conversion" ||
-                        isFxExceeding
-                      }
-                      className="h-11 rounded-2xl px-4"
-                    >
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                      {isConfirming ? "Confirming..." : "Confirm Payment"}
-                    </Button>
-                  ) : null}
+                {payment.status !== "archived" &&
+                payment.status !== "deleted" &&
+                payment.status !== "confirmed" &&
+                !isEditMode ? (
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      await archivePaymentReceived(payment.id);
+                      await loadPayment(true);
+                      navigate(
+                        "/finance/transactions/payments-received?tab=archived"
+                      );
+                    }}
+                    className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20"
+                  >
+                    <Archive className="mr-2 h-4 w-4" />
+                    Archive
+                  </Button>
+                ) : null}
 
-                  {payment.status !== "cancelled" ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => void handleCancel()}
-                      disabled={isCancelling}
-                      className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20"
-                    >
-                      <XCircle className="mr-2 h-4 w-4" />
-                      {isCancelling ? "Cancelling..." : "Cancel Payment"}
-                    </Button>
-                  ) : null}
+                {canDeletePayment && !isEditMode ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleDeletePayment()}
+                    disabled={isDeletingPayment}
+                    className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {isDeletingPayment ? "Deleting..." : "Delete"}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </header>
 
-                  {canEditPayment && !isEditMode ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsEditMode(true)}
-                      className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                    >
-                      <Pencil className="mr-2 h-4 w-4" />
-                      Edit
-                    </Button>
-                  ) : null}
-
-                  {isEditMode ? (
-                    <Button
-                      onClick={() => void handleSaveChanges()}
-                      disabled={isSavingChanges}
-                      className="h-11 rounded-2xl px-4"
-                    >
-                      <Save className="mr-2 h-4 w-4" />
-                      {isSavingChanges ? "Saving..." : "Save"}
-                    </Button>
-                  ) : null}
-
-                  {isEditMode ? (
-                    <Button
-                      variant="outline"
-                      onClick={cancelEditMode}
-                      className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                    >
-                      <XCircle className="mr-2 h-4 w-4" />
-                      Cancel Edit
-                    </Button>
-                  ) : null}
-
-                  {payment.status !== "archived" &&
-                  payment.status !== "deleted" &&
-                  payment.status !== "confirmed" &&
-                  !isEditMode ? (
-                    <Button
-                      variant="outline"
-                      onClick={async () => {
-                        await archivePaymentReceived(payment.id);
-                        await loadPayment(true);
-                        navigate("/finance/transactions/payments-received?tab=archived");
-                      }}
-                      className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20"
-                    >
-                      Archive
-                    </Button>
-                  ) : null}
-
-                  {canDeletePayment && !isEditMode ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => void handleDeletePayment()}
-                      disabled={isDeletingPayment}
-                      className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      {isDeletingPayment ? "Deleting..." : "Delete"}
-                    </Button>
-                  ) : null}
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
+              <div className="relative flex h-full flex-col justify-between gap-5">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Paid Amount
+                  </div>
+                  <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
+                    {formatMoney(payment.amount, paymentCurrencyCode)}
+                  </div>
+                </div>
+                <div className="text-sm leading-6 text-slate-400">
+                  Original received amount.
                 </div>
               </div>
             </div>
-          </section>
+
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
+              <div className="relative flex h-full flex-col justify-between gap-5">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Converted
+                  </div>
+                  <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
+                    {payment.exchange_rate_source === "pending_backend_conversion"
+                      ? "Pending"
+                      : formatMoney(payment.converted_amount, invoiceCurrencyCode)}
+                  </div>
+                </div>
+                <div className="text-sm leading-6 text-slate-400">
+                  Invoice-currency settlement value.
+                </div>
+              </div>
+            </div>
+
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
+              <div className="relative flex h-full flex-col justify-between gap-5">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Open Balance
+                  </div>
+                  <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
+                    {formatMoney(invoiceLink?.balance_due, invoiceCurrencyCode)}
+                  </div>
+                </div>
+                <div className="text-sm leading-6 text-slate-400">
+                  Current linked invoice balance.
+                </div>
+              </div>
+            </div>
+
+            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
+              <div className="relative flex h-full flex-col justify-between gap-5">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Proof
+                  </div>
+                  <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
+                    {hasProof ? "Ready" : "Missing"}
+                  </div>
+                </div>
+                <div className="text-sm leading-6 text-slate-400">
+                  Required before confirmation.
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
             <div className="space-y-6">
-              <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <CardHeader className="border-b border-white/8 pb-4">
-                  <CardTitle className="text-white">Payment Overview</CardTitle>
-                  <CardDescription className="text-white/45">
-                    Core payment record details including date, linked invoice, currency path, and
-                    manual notes.
-                  </CardDescription>
+              <Card className={activeSectionClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Payment Overview
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Payment identity, linked invoice, received amount, currency path,
+                        reference, and notes.
+                      </CardDescription>
+                    </div>
+                  </div>
                 </CardHeader>
 
                 {isEditMode ? (
                   <div className="mx-5 mt-4 rounded-[16px] border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                    Edit mode is active. Save or cancel your changes before confirming, deleting, or
-                    uploading proof.
+                    Edit mode is active. Save or cancel changes before confirmation,
+                    archive, delete, or proof upload.
                   </div>
                 ) : null}
 
-                                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
                   <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3 md:col-span-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                      Invoice
-                    </div>
+                    <div className={labelClass}>Linked Invoice</div>
 
                     {isEditMode ? (
                       <select
                         value={invoiceIdDraft || ""}
                         onChange={(event) => setInvoiceIdDraft(event.target.value)}
-                        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white"
+                        className={fieldShellClass}
                         style={{ colorScheme: "dark" }}
                       >
                         <option value="">Select invoice</option>
-                        {invoiceOptions.map((invoiceOption) => (
-                          <option key={invoiceOption.id} value={invoiceOption.id}>
-                            {invoiceOption.invoice_number} —{" "}
-                            {invoiceOption.client_name_snapshot || "—"}
-                          </option>
-                        ))}
+                        {invoiceOptions.map((invoiceOption) => {
+                          const recipientName =
+                            invoiceOption.counterparty_legal_name_snapshot ||
+                            invoiceOption.counterparty_name_snapshot ||
+                            invoiceOption.client_name_snapshot ||
+                            "Intercompany";
+
+                          return (
+                            <option key={invoiceOption.id} value={invoiceOption.id}>
+                              {invoiceOption.invoice_number} —{" "}
+                              {invoiceOption.company_name_snapshot || "From company"} →{" "}
+                              {recipientName} —{" "}
+                              {formatMoney(
+                                invoiceOption.balance_due,
+                                invoiceOption.currency_code || "USD"
+                              )}{" "}
+                              open
+                            </option>
+                          );
+                        })}
                       </select>
                     ) : (
-                      <div className="mt-2 text-base text-white">
-                        {invoiceLink?.invoice_number || "—"}
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <div className="text-2xl font-semibold text-white">
+                          {invoiceLink?.invoice_number || "—"}
+                        </div>
+
+                        {invoiceLink ? (
+                          <Badge
+                            className={`rounded-full border px-3 py-1 text-xs shadow-none ${getInvoiceStatusBadgeClasses(
+                              invoiceLink.status
+                            )}`}
+                          >
+                            {invoiceLink.status}
+                          </Badge>
+                        ) : null}
+
+                        {invoiceLink?.payment_status ? (
+                          <Badge className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-white/70 shadow-none">
+                            {getPaymentStatusMiniLabel(invoiceLink.payment_status)}
+                          </Badge>
+                        ) : null}
                       </div>
                     )}
                   </div>
 
-                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                      Payment Date
-                    </div>
-
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Payment Date</div>
                     {isEditMode ? (
                       <input
                         type="date"
                         value={paymentDateDraft}
                         onChange={(event) => setPaymentDateDraft(event.target.value)}
-                        className="mt-2 h-11 w-full appearance-none rounded-xl border border-white/10 bg-black/20 px-3 text-white"
+                        className={fieldShellClass}
                       />
                     ) : (
-                      <div className="mt-2 text-white">
+                      <div className="mt-2 text-2xl font-semibold text-white">
                         {formatFinanceDate(payment.payment_date)}
                       </div>
                     )}
                   </div>
 
-                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                      Amount
-                    </div>
-
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Amount</div>
                     {isEditMode ? (
                       <input
                         type="number"
@@ -975,54 +1317,55 @@ export default function PaymentReceivedDetailPage() {
                         min="0"
                         value={amountDraft}
                         onChange={(event) => setAmountDraft(event.target.value)}
-                        className="mt-2 h-11 w-full appearance-none rounded-xl border border-white/10 bg-black/20 px-3 text-white"
+                        className={fieldShellClass}
                       />
                     ) : (
-                      <div className="mt-2 text-white">
-                        {formatMoney(payment.amount, payment.payment_currency_code)}
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {formatMoney(payment.amount, paymentCurrencyCode)}
                       </div>
                     )}
                   </div>
 
-                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                      Payment Currency
-                    </div>
-
+                                    <div className={summaryBlockClass}>
+                    <div className={labelClass}>Payment Currency</div>
                     {isEditMode ? (
                       <select
                         value={paymentCurrencyCodeDraft || ""}
                         onChange={(event) =>
                           setPaymentCurrencyCodeDraft(event.target.value)
                         }
-                        className="mt-2 h-11 w-full appearance-none rounded-xl border border-white/10 bg-black/20 px-3 text-white"
+                        className={fieldShellClass}
                         style={{ colorScheme: "dark" }}
                       >
                         <option value="">Select currency</option>
                         {currencyOptions.map((currency) => (
-                          <option key={currency.currency_code} value={currency.currency_code}>
+                          <option
+                            key={currency.currency_code}
+                            value={currency.currency_code}
+                          >
                             {currency.currency_code}
-                            {currency.currency_name ? ` — ${currency.currency_name}` : ""}
+                            {currency.currency_name
+                              ? ` — ${currency.currency_name}`
+                              : ""}
                           </option>
                         ))}
                       </select>
                     ) : (
-                      <div className="mt-2 text-white">
-                        {payment.payment_currency_code}
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {paymentCurrencyCode}
                       </div>
                     )}
                   </div>
 
-                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                      Payment Method
-                    </div>
-
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Payment Method</div>
                     {isEditMode ? (
                       <select
                         value={paymentMethodIdDraft || ""}
-                        onChange={(event) => setPaymentMethodIdDraft(event.target.value)}
-                        className="mt-2 h-11 w-full appearance-none rounded-xl border border-white/10 bg-black/20 px-3 text-white"
+                        onChange={(event) =>
+                          setPaymentMethodIdDraft(event.target.value)
+                        }
+                        className={fieldShellClass}
                         style={{ colorScheme: "dark" }}
                       >
                         <option value="">Select method</option>
@@ -1033,73 +1376,125 @@ export default function PaymentReceivedDetailPage() {
                         ))}
                       </select>
                     ) : (
-                      <div className="mt-2 text-white">{paymentMethodName || "—"}</div>
+                      <div className="mt-2 text-2xl font-semibold text-white">
+                        {paymentMethodName || "—"}
+                      </div>
                     )}
                   </div>
 
-                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                      Reference Number
-                    </div>
-
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Reference Number</div>
                     {isEditMode ? (
                       <input
                         value={referenceNumberDraft}
-                        onChange={(event) => setReferenceNumberDraft(event.target.value)}
-                        className="mt-2 h-11 w-full appearance-none rounded-xl border border-white/10 bg-black/20 px-3 text-white"
+                        onChange={(event) =>
+                          setReferenceNumberDraft(event.target.value)
+                        }
+                        className={fieldShellClass}
                       />
                     ) : (
-                      <div className="mt-2 text-white">
+                      <div className="mt-2 text-2xl font-semibold text-white">
                         {payment.reference_number || "—"}
                       </div>
                     )}
                   </div>
 
-                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3 md:col-span-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                      Notes
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Settlement Type</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {isCrossCurrency ? "Cross Currency" : "Same Currency"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
+                    <div className={labelClass}>Invoice From</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {invoiceFromName}
                     </div>
 
+                    <div className="mt-3 space-y-1 text-sm leading-6 text-slate-300">
+                      {invoiceFromContact ? (
+                        <div>Contact: {invoiceFromContact}</div>
+                      ) : null}
+                      {invoiceFromEmail ? <div>Email: {invoiceFromEmail}</div> : null}
+                      {invoiceFromPhone ? <div>Phone: {invoiceFromPhone}</div> : null}
+                      {invoiceFromAddress ? <div>{invoiceFromAddress}</div> : null}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
+                    <div className={labelClass}>Invoice To</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {invoiceToName}
+                    </div>
+
+                    <div className="mt-3 space-y-1 text-sm leading-6 text-slate-300">
+                      {invoiceToContact ? (
+                        <div>Contact: {invoiceToContact}</div>
+                      ) : null}
+                      {invoiceToEmail ? <div>Email: {invoiceToEmail}</div> : null}
+                      {invoiceToPhone ? <div>Phone: {invoiceToPhone}</div> : null}
+                      {invoiceToAddress ? <div>{invoiceToAddress}</div> : null}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
+                    <div className={labelClass}>Notes</div>
                     {isEditMode ? (
                       <textarea
                         value={notesDraft}
                         onChange={(event) => setNotesDraft(event.target.value)}
                         rows={4}
-                        className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-white"
+                        className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
                       />
                     ) : (
-                      <div className="mt-2 text-white/70">{payment.notes || "—"}</div>
+                      <div className="mt-2 text-sm leading-6 text-slate-300">
+                        {payment.notes || "—"}
+                      </div>
                     )}
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <CardHeader className="border-b border-white/8 pb-4">
-                  <CardTitle className="text-white">Proof of Payment</CardTitle>
-                  <CardDescription className="text-white/45">
-                    Upload transfer confirmation, remittance advice, or payment slip. Confirmation
-                    is blocked until at least one proof file exists.
-                  </CardDescription>
+              <Card className={activeSectionClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 p-3 text-amber-200">
+                      <Paperclip className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Proof of Payment
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Upload transfer confirmation, remittance advice, or payment slip.
+                        Confirmation is blocked until at least one proof file exists.
+                      </CardDescription>
+                    </div>
+                  </div>
                 </CardHeader>
 
                 <CardContent className="space-y-4 p-5">
                   <div className="rounded-[22px] border border-white/8 bg-black/15 p-4">
                     <input
                       type="file"
-                      onChange={(event) => setProofFile(event.target.files?.[0] || null)}
+                      onChange={(event) =>
+                        setProofFile(event.target.files?.[0] || null)
+                      }
                       className="block w-full text-sm text-white file:mr-4 file:rounded-lg file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-white hover:file:bg-white/20"
                     />
 
                     <div className="mt-3 text-sm text-white/55">
-                      {proofFile ? `Selected file: ${proofFile.name}` : "No file selected"}
+                      {proofFile
+                        ? `Selected file: ${proofFile.name}`
+                        : "No file selected"}
                     </div>
 
                     <div className="mt-4">
                       <Button
                         onClick={() => void handleUploadProof()}
                         disabled={!proofFile || isUploadingProof || isEditMode}
-                        className="h-10 rounded-2xl px-4"
+                        className="h-10 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         <Upload className="mr-2 h-4 w-4" />
                         {isUploadingProof ? "Uploading..." : "Upload Proof"}
@@ -1128,11 +1523,9 @@ export default function PaymentReceivedDetailPage() {
                               </div>
                             </div>
 
-                            <a
-                              href={attachment.file_path ? "#" : "#"}
-                              onClick={async (event) => {
-                                event.preventDefault();
-
+                            <button
+                              type="button"
+                              onClick={async () => {
                                 if (!attachment.file_path) return;
 
                                 const { data, error } = await supabase.storage
@@ -1145,12 +1538,17 @@ export default function PaymentReceivedDetailPage() {
                                   return;
                                 }
 
-                                window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+                                window.open(
+                                  data.signedUrl,
+                                  "_blank",
+                                  "noopener,noreferrer"
+                                );
                               }}
-                              className="text-xs text-cyan-300 hover:underline"
+                              className="inline-flex items-center gap-2 text-xs text-cyan-300 hover:underline"
                             >
+                              <Eye className="h-4 w-4" />
                               View
-                            </a>
+                            </button>
                           </div>
                         </div>
                       ))
@@ -1159,62 +1557,69 @@ export default function PaymentReceivedDetailPage() {
                 </CardContent>
               </Card>
 
-              <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <CardHeader className="border-b border-white/8 pb-4">
-                  <CardTitle className="text-white">Locked Behavior</CardTitle>
-                  <CardDescription className="text-white/45">
-                    The detail page is the payment control point after draft creation.
-                  </CardDescription>
+              <Card className={activeSectionClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
+                      <CheckCircle className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Locked Behavior
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Payment received detail rules.
+                      </CardDescription>
+                    </div>
+                  </div>
                 </CardHeader>
 
-                <CardContent className="space-y-3 p-5 text-sm text-white/55">
+                <CardContent className="space-y-3 p-5 text-sm leading-6 text-slate-400">
                   <div>• Payments are created as draft first.</div>
+                  <div>• Each payment is linked to one invoice through invoice_id.</div>
                   <div>• At least one proof document is required before confirmation.</div>
                   <div>• Only confirmed payments affect invoice settlement.</div>
                   <div>• Multi-currency conversion is stored on the payment record.</div>
-                  <div>• Proof files are stored in a dedicated private bucket.</div>
-                  <div>• Proof deletion is reserved for admin-only correction flow.</div>
+                  <div>• Confirmed payments update the linked invoice balance.</div>
+                  <div>• Draft payments can be edited before confirmation.</div>
+                  <div>• Confirmed payments cannot be deleted.</div>
                 </CardContent>
               </Card>
             </div>
 
             <div className="space-y-6">
-              <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <CardHeader className="border-b border-white/8 pb-4">
-                  <CardTitle className="text-white">Payment Summary</CardTitle>
-                  <CardDescription className="text-white/45">
+              <Card className={activeSectionClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Payment Summary
+                  </CardTitle>
+                  <CardDescription className="mt-1 text-xs text-slate-500">
                     Financial view of this payment with invoice-currency settlement.
                   </CardDescription>
                 </CardHeader>
 
                 <CardContent className="space-y-3 p-5">
-                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                      Paid Amount
-                    </div>
-                    <div className="mt-2 text-lg font-semibold text-white">
-                      {formatMoney(payment.amount, payment.payment_currency_code || "USD")}
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Paid Amount</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {formatMoney(payment.amount, paymentCurrencyCode)}
                     </div>
                   </div>
 
-                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                      Converted Amount
-                    </div>
-                    <div className="mt-2 text-lg font-semibold text-white">
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Converted Amount</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
                       {payment.exchange_rate_source === "pending_backend_conversion"
                         ? fxErrorMessage
                           ? "Conversion failed"
                           : "Pending FX conversion"
-                        : formatMoney(payment.converted_amount, payment.invoice_currency_code || "USD")}
+                        : formatMoney(payment.converted_amount, invoiceCurrencyCode)}
                     </div>
                   </div>
 
-                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                      Exchange Rate
-                    </div>
-                    <div className="mt-2 text-lg font-semibold text-white">
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Exchange Rate</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
                       {payment.exchange_rate_source === "pending_backend_conversion"
                         ? fxErrorMessage
                           ? "Failed"
@@ -1223,10 +1628,8 @@ export default function PaymentReceivedDetailPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                      FX Source
-                    </div>
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>FX Source</div>
                     <div className="mt-2 text-base font-semibold text-white">
                       {payment.exchange_rate_source === "pending_backend_conversion"
                         ? fxErrorMessage
@@ -1236,24 +1639,32 @@ export default function PaymentReceivedDetailPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">
+                  <div className="rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-100/70">
                       Settlement Direction
                     </div>
-                    <div className="mt-2 text-xl font-semibold text-white">
-                      {payment.payment_currency_code || "—"} →{" "}
-                      {payment.invoice_currency_code || "—"}
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {paymentCurrencyCode || "—"} → {invoiceCurrencyCode || "—"}
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <CardHeader className="border-b border-white/8 pb-4">
-                  <CardTitle className="text-white">Linked Invoice</CardTitle>
-                  <CardDescription className="text-white/45">
-                    Live invoice settlement state after applying confirmed payments.
-                  </CardDescription>
+              <Card className={activeSectionClass}>
+                <CardHeader className="border-b border-white/10 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
+                      <Link2 className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Linked Invoice
+                      </CardTitle>
+                      <CardDescription className="mt-1 text-xs text-slate-500">
+                        Invoice source context and live settlement state.
+                      </CardDescription>
+                    </div>
+                  </div>
                 </CardHeader>
 
                 <CardContent className="space-y-3 p-5">
@@ -1263,66 +1674,111 @@ export default function PaymentReceivedDetailPage() {
                     </div>
                   ) : (
                     <>
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
+                        <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">
                           Invoice
                         </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {invoiceLink.invoice_number || "—"}
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <div className="text-lg font-semibold text-white">
+                            {invoiceLink.invoice_number || "—"}
+                          </div>
+                          <Badge
+                            className={`rounded-full border px-3 py-1 text-xs shadow-none ${getInvoiceStatusBadgeClasses(
+                              invoiceLink.status
+                            )}`}
+                          >
+                            {invoiceLink.status}
+                          </Badge>
                         </div>
                       </div>
 
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                          Recipient
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Invoice From</div>
+                        <div className="mt-2 text-lg font-semibold text-white">
+                          {invoiceFromName}
                         </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {invoiceLink.counterparty_name_snapshot ||
-                            invoiceLink.client_name_snapshot ||
-                            "—"}
+                        <div className="mt-2 space-y-1 text-sm leading-6 text-slate-400">
+                          {invoiceFromEmail ? <div>Email: {invoiceFromEmail}</div> : null}
+                          {invoiceFromPhone ? <div>Phone: {invoiceFromPhone}</div> : null}
+                          {invoiceFromAddress ? <div>{invoiceFromAddress}</div> : null}
                         </div>
                       </div>
 
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                          Payment Terms
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Invoice To</div>
+                        <div className="mt-2 text-lg font-semibold text-white">
+                          {invoiceToName}
                         </div>
+                        <div className="mt-2 space-y-1 text-sm leading-6 text-slate-400">
+                          {invoiceToEmail ? <div>Email: {invoiceToEmail}</div> : null}
+                          {invoiceToPhone ? <div>Phone: {invoiceToPhone}</div> : null}
+                          {invoiceToAddress ? <div>{invoiceToAddress}</div> : null}
+                        </div>
+                      </div>
+
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Payment Terms</div>
                         <div className="mt-2 text-base font-semibold text-white">
                           {invoiceLink.payment_terms_snapshot || "—"}
                         </div>
                         {invoiceLink.payment_terms_document_text ? (
-                          <div className="mt-2 text-sm leading-6 text-white/55">
+                          <div className="mt-2 text-sm leading-6 text-slate-400">
                             {invoiceLink.payment_terms_document_text}
                           </div>
                         ) : null}
                       </div>
 
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                          Total
-                        </div>
-                        <div className="mt-2 text-lg font-semibold text-white">
-                          {formatMoney(invoiceLink.total_amount, invoiceLink.currency_code || "USD")}
-                        </div>
-                      </div>
-
-                      <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                          Paid
-                        </div>
-                        <div className="mt-2 text-lg font-semibold text-white">
-                          {formatMoney(invoiceLink.paid_amount, invoiceLink.currency_code || "USD")}
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Invoice Total</div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {formatMoney(
+                            invoiceLink.total_amount,
+                            invoiceLink.currency_code || "USD"
+                          )}
                         </div>
                       </div>
 
-                      <div className="rounded-[20px] border border-amber-400/15 bg-amber-500/10 px-4 py-3">
-                        <div className="text-xs uppercase tracking-[0.18em] text-amber-100/70">
-                          Balance Due
+                      <div className={summaryBlockClass}>
+                        <div className={labelClass}>Paid</div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {formatMoney(
+                            invoiceLink.paid_amount,
+                            invoiceLink.currency_code || "USD"
+                          )}
                         </div>
-                        <div className="mt-2 text-xl font-semibold text-white">
-                          {formatMoney(invoiceLink.balance_due, invoiceLink.currency_code || "USD")}
+
+                        <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className="h-full bg-emerald-500 transition-all"
+                            style={{ width: `${paymentProgressPercent}%` }}
+                          />
                         </div>
                       </div>
+
+                      <div className="rounded-[24px] border border-amber-400/15 bg-amber-500/10 p-4">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-amber-100/70">
+                          Open Balance
+                        </div>
+                        <div className="mt-2 text-2xl font-semibold text-white">
+                          {formatMoney(
+                            invoiceLink.balance_due,
+                            invoiceLink.currency_code || "USD"
+                          )}
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          navigate(
+                            `/finance/transactions/invoices/${invoiceLink.id}`
+                          )
+                        }
+                        className="h-10 w-full rounded-2xl border-violet-400/20 bg-violet-500/10 px-4 text-violet-200 hover:bg-violet-500/20"
+                      >
+                        <Eye className="mr-2 h-4 w-4" />
+                        Open Invoice
+                      </Button>
                     </>
                   )}
                 </CardContent>

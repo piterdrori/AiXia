@@ -535,7 +535,7 @@ useEffect(() => {
     const { data, error: linesError } = await supabase
       .from("finance_quotation_line_items")
       .select(
-        "id, quotation_id, item_name, description, quantity, unit_price, tax_rate, discount_rate, line_discount_amount, line_total, sort_order"
+        "id, quotation_id, item_id, item_name, description, quantity, unit_price, tax_rate, discount_rate, line_discount_amount, line_total, tax_code_id, unit_of_measure_id, revenue_category_id"
       )
       .eq("quotation_id", quotation.id)
       .order("sort_order", { ascending: true });
@@ -552,14 +552,14 @@ useEffect(() => {
       setLineDrafts(
         lines.map((line) => ({
           localId: crypto.randomUUID(),
-          item_id: "",
+          item_id: line.item_id || "",
           description: line.description || line.item_name || "",
           quantity: String(line.quantity ?? 1),
           unit_price: String(line.unit_price ?? 0),
           discount: String(line.line_discount_amount ?? 0),
-          tax_code_id: "",
-          unit_of_measure_id: "",
-          revenue_category_id: "",
+          tax_code_id: line.tax_code_id || "",
+          unit_of_measure_id: line.unit_of_measure_id || "",
+          revenue_category_id: line.revenue_category_id || "",
         }))
       );
     }

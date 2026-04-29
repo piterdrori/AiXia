@@ -11,7 +11,6 @@ import {
   Link2,
   Paperclip,
   Printer,
-  RefreshCw,
   Save,
   SquarePen,
   Trash2,
@@ -231,7 +230,7 @@ export default function PaymentReceivedDetailPage() {
   const [invoiceLink, setInvoiceLink] = useState<InvoiceLinkRow | null>(null);
   const [attachments, setAttachments] = useState<PaymentAttachmentRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [, setIsRefreshing] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isUploadingProof, setIsUploadingProof] = useState(false);
@@ -273,12 +272,25 @@ export default function PaymentReceivedDetailPage() {
   const hasProof = attachments.length > 0;
   const convertedAmount = toNumber(payment?.converted_amount);
   const invoiceBalance = toNumber(invoiceLink?.balance_due);
+  const sourceInvoiceBalanceBeforePayment = toNumber(
+    payment?.metadata?.source_invoice_balance_due as
+      | number
+      | string
+      | null
+      | undefined
+  );
+
+  const effectiveConfirmBalance =
+    payment?.status === "draft" && sourceInvoiceBalanceBeforePayment > 0
+      ? sourceInvoiceBalanceBeforePayment
+      : invoiceBalance;
 
   const isFxExceeding =
     !!invoiceLink &&
     !!payment &&
+    payment.status === "draft" &&
     payment.exchange_rate_source !== "pending_backend_conversion" &&
-    convertedAmount > invoiceBalance;
+    convertedAmount > effectiveConfirmBalance;
 
   const canEditPayment = payment?.status === "draft";
   const canDeletePayment =
@@ -560,27 +572,33 @@ export default function PaymentReceivedDetailPage() {
 
   useEffect(() => {
     async function loadLookups() {
+      let invoiceQuery = supabase
+        .from("finance_invoices_issued")
+        .select(
+          [
+            "id",
+            "invoice_number",
+            "currency_code",
+            "client_name_snapshot",
+            "counterparty_name_snapshot",
+            "counterparty_legal_name_snapshot",
+            "company_name_snapshot",
+            "total_amount",
+            "paid_amount",
+            "balance_due",
+            "status",
+          ].join(", ")
+        )
+        .in("status", ["issued", "partially_paid", "overdue"])
+        .order("created_at", { ascending: false });
+
+      invoiceQuery = payment?.invoice_id
+        ? invoiceQuery.or(`balance_due.gt.0,id.eq.${payment.invoice_id}`)
+        : invoiceQuery.gt("balance_due", 0);
+
       const [{ data: invoices }, { data: methods }, { data: currencies }] =
         await Promise.all([
-          supabase
-            .from("finance_invoices_issued")
-            .select(
-              [
-                "id",
-                "invoice_number",
-                "currency_code",
-                "client_name_snapshot",
-                "counterparty_name_snapshot",
-                "counterparty_legal_name_snapshot",
-                "company_name_snapshot",
-                "total_amount",
-                "paid_amount",
-                "balance_due",
-                "status",
-              ].join(", ")
-            )
-            .in("status", ["issued", "partially_paid", "overdue"])
-            .order("created_at", { ascending: false }),
+          invoiceQuery,
           supabase
             .from("finance_payment_methods")
             .select("id, name, status")
@@ -599,7 +617,7 @@ export default function PaymentReceivedDetailPage() {
     }
 
     void loadLookups();
-  }, []);
+  }, [payment?.invoice_id]);
 
   useEffect(() => {
     if (!id) return;
@@ -1010,15 +1028,6 @@ export default function PaymentReceivedDetailPage() {
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => void loadPayment(true)}
-                  disabled={isRefreshing}
-                  className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  {isRefreshing ? "Refreshing..." : "Refresh"}
-                </Button>
 
                 <Button
                   variant="outline"
@@ -1784,7 +1793,7 @@ export default function PaymentReceivedDetailPage() {
 
               {isFxExceeding ? (
                 <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                  Converted amount exceeds invoice balance. Reduce payment or adjust currency.
+                  Converted amount exceeds the available invoice balance before this payment is applied. Reduce payment or adjust currency.
                 </div>
               ) : null}
 

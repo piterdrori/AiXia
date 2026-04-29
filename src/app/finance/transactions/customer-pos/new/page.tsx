@@ -335,7 +335,7 @@ export default function FinanceNewCustomerPoPage() {
           .select(
             "id, quotation_number, client_id, company_id, currency_id, currency_code, total_amount, project_id, task_id, status"
           )
-          .not("status", "in", "(archived,deleted)")
+          .eq("status", "accepted")
           .order("created_at", { ascending: false }),
 
         supabase
@@ -822,6 +822,43 @@ useEffect(() => {
       if (lineInsertError) throw lineInsertError;
 
       await uploadCustomerPoFile(createdPo.id, selectedFile, userId);
+
+      if (form.quotation_id) {
+        const { data: quotationMetadataRow, error: quotationMetadataError } =
+          await supabase
+            .from("finance_quotations")
+            .select("metadata")
+            .eq("id", form.quotation_id)
+            .maybeSingle();
+
+        if (quotationMetadataError) throw quotationMetadataError;
+
+        const existingQuotationMetadata =
+          quotationMetadataRow &&
+          typeof quotationMetadataRow.metadata === "object" &&
+          quotationMetadataRow.metadata !== null
+            ? (quotationMetadataRow.metadata as Record<string, unknown>)
+            : {};
+
+        const { error: quotationUpdateError } = await supabase
+          .from("finance_quotations")
+          .update({
+            status: "converted",
+            metadata: {
+              ...existingQuotationMetadata,
+              converted_to_customer_po_id: createdPo.id,
+              converted_to_customer_po_external_number:
+                form.external_po_number.trim(),
+              converted_to_customer_po_at: new Date().toISOString(),
+              converted_to_customer_po_by: userId,
+            },
+            updated_by: userId,
+          })
+          .eq("id", form.quotation_id)
+          .eq("status", "accepted");
+
+        if (quotationUpdateError) throw quotationUpdateError;
+      }
 
       navigate(`/finance/transactions/customer-pos/${createdPo.id}`);
     } catch (err) {

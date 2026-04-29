@@ -337,11 +337,16 @@ export default function FinancePaymentMadeDetailPage() {
     toNumber(payment.converted_amount || payment.amount) > 0;
   const canCancel =
     !!payment && ["draft", "confirmed"].includes(payment.status);
+
   const canArchive =
-    !!payment && !["archived", "deleted"].includes(payment.status);
-  const canDelete = !!payment && payment.status !== "deleted";
+    !!payment && ["draft", "cancelled"].includes(payment.status);
+
+  const canDelete =
+    !!payment && ["draft", "cancelled", "archived"].includes(payment.status);
+
   const canRestore =
     !!payment && ["archived", "deleted"].includes(payment.status);
+
   const canHardDelete = !!payment && payment.status === "deleted";
 
   const loadLookups = useCallback(async () => {

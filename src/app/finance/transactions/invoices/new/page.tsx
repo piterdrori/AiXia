@@ -1768,18 +1768,11 @@ onChange={(event) => {
     return;
   }
 
-  // AUTO LOAD FIRST AVAILABLE PI WHEN SWITCHING MODE
-  if (proformaSources.length > 0) {
-    const first = proformaSources[0];
-
-    setSourceProformaId(first.id);
-
-    // 🔥 HARD RESET BEFORE APPLY (CRITICAL)
-    setRows([]);
-    setNotes("");
-
-    void applyProformaSource(first.id);
-  }
+// DO NOTHING — WAIT FOR USER SELECTION
+setSourceProformaId("");
+setSourceProformaInvoice(null);
+setRows([createRow()]);
+setNotes("");
 }}
     className={fieldShellClass}
   >

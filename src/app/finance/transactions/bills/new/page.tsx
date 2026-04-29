@@ -245,11 +245,6 @@ export default function FinanceNewBillPage() {
     [purchaseOrderId, purchaseOrders]
   );
 
-  const selectedVendor = useMemo(
-    () => vendors.find((vendor) => vendor.id === vendorId) ?? null,
-    [vendorId, vendors]
-  );
-
   useEffect(() => {
     async function loadLookups() {
       try {

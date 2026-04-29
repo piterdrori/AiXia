@@ -620,9 +620,9 @@ const [proformaSources, setProformaSources] = useState<
       return;
     }
 
-    if (!["issued", "confirmed"].includes(typedProforma.status)) {
+    if (typedProforma.status !== "confirmed") {
       setErrorMessage(
-        "Proforma invoice must be issued or confirmed before creating an invoice."
+        "Proforma invoice must be confirmed before creating an invoice."
       );
       return;
     }
@@ -824,7 +824,7 @@ const [proformaSources, setProformaSources] = useState<
           .select(
             "id, proforma_number, client_id, client_po_id, quotation_id, company_id, issue_date, valid_until, status, currency_id, currency_code, total_amount, notes, project_id, task_id, payment_terms_id, shipping_term_id, bank_account_id, metadata"
           )
-          .in("status", ["issued", "confirmed"])
+          .eq("status", "confirmed")
           .order("updated_at", { ascending: false }),
       ]);
 
@@ -1110,6 +1110,39 @@ const [proformaSources, setProformaSources] = useState<
           .eq("id", createdInvoiceId);
 
         if (sourceLinkError) throw sourceLinkError;
+
+        const { data: existingProformaMetadataRow, error: proformaMetadataError } =
+          await supabase
+            .from("finance_proforma_invoices")
+            .select("metadata")
+            .eq("id", sourceProformaInvoice.id)
+            .maybeSingle();
+
+        if (proformaMetadataError) throw proformaMetadataError;
+
+        const existingProformaMetadata =
+          existingProformaMetadataRow &&
+          typeof existingProformaMetadataRow.metadata === "object" &&
+          existingProformaMetadataRow.metadata !== null
+            ? (existingProformaMetadataRow.metadata as Record<string, unknown>)
+            : {};
+
+        const { error: proformaConvertedError } = await supabase
+          .from("finance_proforma_invoices")
+          .update({
+            status: "converted",
+            metadata: {
+              ...existingProformaMetadata,
+              converted_to_invoice_id: createdInvoiceId,
+              converted_to_invoice_at: new Date().toISOString(),
+              converted_to_invoice_by: user.id,
+            },
+            updated_by: user.id,
+          })
+          .eq("id", sourceProformaInvoice.id)
+          .eq("status", "confirmed");
+
+        if (proformaConvertedError) throw proformaConvertedError;
       }
 
       const linePayload = trimmedRows.map((row, index) => ({

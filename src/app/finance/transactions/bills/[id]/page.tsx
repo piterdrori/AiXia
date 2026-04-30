@@ -155,10 +155,26 @@ type PurchaseOrderLinkRow = {
   id: string;
   purchase_order_number: string;
   vendor_quotation_id: string | null;
+  company_id: string | null;
   status: string;
   total_amount: number | string | null;
   currency_code: string | null;
   po_date: string;
+};
+
+type CompanyOption = {
+  id: string;
+  name: string;
+  legal_name: string | null;
+  email: string | null;
+  phone: string | null;
+  contact_person: string | null;
+  country: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
 };
 
 type VendorQuotationLinkRow = {
@@ -335,6 +351,21 @@ function buildVendorAddress(vendor: VendorOption | null) {
     .join(", ");
 }
 
+function buildCompanyAddress(company: CompanyOption | null) {
+  if (!company) return "";
+
+  return [
+    company.address_line_1,
+    company.address_line_2,
+    company.city,
+    company.state_province,
+    company.postal_code,
+    company.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
 function createLineDraft(line: BillLineItem): BillLineDraft {
   return {
     id: line.id,
@@ -418,6 +449,8 @@ export default function FinanceBillDetailPage() {
     useState<PurchaseOrderLinkRow | null>(null);
   const [vendorQuotationLink, setVendorQuotationLink] =
     useState<VendorQuotationLinkRow | null>(null);
+  const [receivingCompany, setReceivingCompany] =
+    useState<CompanyOption | null>(null);
 
   const [vendors, setVendors] = useState<VendorOption[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
@@ -730,13 +763,14 @@ export default function FinanceBillDetailPage() {
 
         let sourcePurchaseOrder: PurchaseOrderLinkRow | null = null;
         let sourceVendorQuotation: VendorQuotationLinkRow | null = null;
+        let sourceReceivingCompany: CompanyOption | null = null;
 
         if (typedBill.purchase_order_id) {
           const { data: purchaseOrderData, error: purchaseOrderError } =
             await supabase
               .from("finance_purchase_orders")
               .select(
-                "id, purchase_order_number, vendor_quotation_id, status, total_amount, currency_code, po_date"
+                "id, purchase_order_number, vendor_quotation_id, company_id, status, total_amount, currency_code, po_date"
               )
               .eq("id", typedBill.purchase_order_id)
               .maybeSingle();
@@ -745,6 +779,20 @@ export default function FinanceBillDetailPage() {
 
           sourcePurchaseOrder =
             (purchaseOrderData || null) as PurchaseOrderLinkRow | null;
+
+          if (sourcePurchaseOrder?.company_id) {
+            const { data: companyData, error: companyError } = await supabase
+              .from("finance_companies")
+              .select(
+                "id, name, legal_name, email, phone, contact_person, country, city, state_province, postal_code, address_line_1, address_line_2"
+              )
+              .eq("id", sourcePurchaseOrder.company_id)
+              .maybeSingle();
+
+            if (companyError) throw companyError;
+
+            sourceReceivingCompany = (companyData || null) as CompanyOption | null;
+          }
         }
 
         if (typedBill.vendor_quotation_id) {
@@ -771,6 +819,7 @@ export default function FinanceBillDetailPage() {
         setPaymentLinks((paymentsResult.data || []) as PaymentMadeLinkRow[]);
         setPurchaseOrderLink(sourcePurchaseOrder);
         setVendorQuotationLink(sourceVendorQuotation);
+        setReceivingCompany(sourceReceivingCompany);
 
         setOverviewDraft({
           vendor_id: typedBill.vendor_id || "",
@@ -1346,9 +1395,11 @@ export default function FinanceBillDetailPage() {
                 <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className={eyebrowClass}>Document Currency</div>
+                      <div className={eyebrowClass}>Issued To</div>
                       <div className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {billCurrencyCode}
+                        {receivingCompany?.legal_name ||
+                          receivingCompany?.name ||
+                          "No company linked"}
                       </div>
                     </div>
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
@@ -1356,8 +1407,9 @@ export default function FinanceBillDetailPage() {
                     </div>
                   </div>
                   <div className="mt-3 text-xs leading-5 text-slate-500">
-                    {selectedCurrency?.currency_name ||
-                      "Controlled from bill currency field"}
+                    {purchaseOrderLink?.purchase_order_number
+                      ? `From ${purchaseOrderLink.purchase_order_number}`
+                      : "Loaded from linked purchase order"}
                   </div>
                 </div>
 
@@ -1684,8 +1736,8 @@ export default function FinanceBillDetailPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
-                  <div className={eyebrowClass}>Vendor Details</div>
+                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className={eyebrowClass}>Vendor / Issued From</div>
                   <div className="mt-3 text-xl font-semibold text-white">
                     {selectedDraftVendor?.legal_name ||
                       selectedDraftVendor?.name ||
@@ -1707,6 +1759,33 @@ export default function FinanceBillDetailPage() {
                     ) : null}
                     {buildVendorAddress(selectedDraftVendor) ? (
                       <div>{buildVendorAddress(selectedDraftVendor)}</div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className={eyebrowClass}>Issued To / Receiving Company</div>
+                  <div className="mt-3 text-xl font-semibold text-white">
+                    {receivingCompany?.legal_name ||
+                      receivingCompany?.name ||
+                      "No company linked"}
+                  </div>
+
+                  <div className="mt-3 space-y-1 text-sm leading-6 text-slate-300">
+                    {receivingCompany?.contact_person ? (
+                      <div>Contact: {receivingCompany.contact_person}</div>
+                    ) : null}
+                    {receivingCompany?.email ? (
+                      <div>Email: {receivingCompany.email}</div>
+                    ) : null}
+                    {receivingCompany?.phone ? (
+                      <div>Phone: {receivingCompany.phone}</div>
+                    ) : null}
+                    {buildCompanyAddress(receivingCompany) ? (
+                      <div>{buildCompanyAddress(receivingCompany)}</div>
+                    ) : null}
+                    {purchaseOrderLink?.purchase_order_number ? (
+                      <div>Linked PO: {purchaseOrderLink.purchase_order_number}</div>
                     ) : null}
                   </div>
                 </div>
@@ -2460,6 +2539,20 @@ export default function FinanceBillDetailPage() {
                   </div>
                   <div className="mt-2 text-sm leading-6 text-slate-400">
                     Internal AiXia vendor document record number.
+                  </div>
+                </div>
+
+                <div className={innerPanelClass}>
+                  <div className={eyebrowClass}>Receiving Company</div>
+                  <div className="mt-2 text-lg font-semibold text-white">
+                    {receivingCompany?.legal_name ||
+                      receivingCompany?.name ||
+                      "No company linked"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {purchaseOrderLink?.purchase_order_number
+                      ? `Inherited from ${purchaseOrderLink.purchase_order_number}`
+                      : "No linked purchase order company found."}
                   </div>
                 </div>
 

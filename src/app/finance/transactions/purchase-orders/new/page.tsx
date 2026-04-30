@@ -40,6 +40,33 @@ type VendorOption = {
   address_line_2: string | null;
 };
 
+type VendorAddressOption = {
+  id: string;
+  vendor_id: string;
+  address_type: string | null;
+  country: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
+  sort_order: number | null;
+  is_primary: boolean | null;
+  status: string;
+};
+
+type VendorPersonnelOption = {
+  id: string;
+  vendor_id: string;
+  full_name: string | null;
+  position: string | null;
+  email: string | null;
+  phone: string | null;
+  sort_order: number | null;
+  is_primary: boolean | null;
+  status: string;
+};
+
 type CompanyOption = {
   id: string;
   name: string;
@@ -582,6 +609,8 @@ export default function NewPurchaseOrderPage() {
 
       const [
         vendorsResult,
+        vendorAddressesResult,
+        vendorPersonnelResult,
         companiesResult,
         projectsResult,
         tasksResult,
@@ -605,6 +634,28 @@ export default function NewPurchaseOrderPage() {
             )
             .eq("status", "active")
             .order("name", { ascending: true })
+        ),
+        loadLookup(
+          "Vendor addresses",
+          supabase
+            .from("finance_vendor_addresses")
+            .select(
+              "id, vendor_id, address_type, country, city, state_province, postal_code, address_line_1, address_line_2, sort_order, is_primary, status"
+            )
+            .eq("status", "active")
+            .order("is_primary", { ascending: false })
+            .order("sort_order", { ascending: true })
+        ),
+        loadLookup(
+          "Vendor personnel",
+          supabase
+            .from("finance_vendor_personnel")
+            .select(
+              "id, vendor_id, full_name, position, email, phone, sort_order, is_primary, status"
+            )
+            .eq("status", "active")
+            .order("is_primary", { ascending: false })
+            .order("sort_order", { ascending: true })
         ),
         loadLookup(
           "Companies",
@@ -736,6 +787,74 @@ export default function NewPurchaseOrderPage() {
         ),
       ]);
 
+      const vendorAddresses = vendorAddressesResult.data as VendorAddressOption[];
+      const vendorPersonnel =
+        vendorPersonnelResult.data as VendorPersonnelOption[];
+
+      const getBestVendorAddress = (vendorIdToMatch: string) => {
+        const activeAddresses = vendorAddresses.filter(
+          (address) =>
+            address.vendor_id === vendorIdToMatch &&
+            [
+              address.address_line_1,
+              address.address_line_2,
+              address.city,
+              address.state_province,
+              address.postal_code,
+              address.country,
+            ].some(Boolean)
+        );
+
+        return (
+          activeAddresses.find(
+            (address) =>
+              address.is_primary === true &&
+              (address.address_type || "").toLowerCase() === "primary"
+          ) ||
+          activeAddresses.find((address) => address.is_primary === true) ||
+          activeAddresses[0] ||
+          null
+        );
+      };
+
+      const getBestVendorPersonnel = (vendorIdToMatch: string) => {
+        const activePersonnel = vendorPersonnel.filter(
+          (person) =>
+            person.vendor_id === vendorIdToMatch &&
+            [person.full_name, person.email, person.phone].some(Boolean)
+        );
+
+        return (
+          activePersonnel.find((person) => person.is_primary === true) ||
+          activePersonnel[0] ||
+          null
+        );
+      };
+
+      const enrichedVendors = (vendorsResult.data as VendorOption[]).map(
+        (vendor) => {
+          const primaryAddress = getBestVendorAddress(vendor.id);
+          const primaryPerson = getBestVendorPersonnel(vendor.id);
+
+          return {
+            ...vendor,
+            email: vendor.email || primaryPerson?.email || null,
+            phone: vendor.phone || primaryPerson?.phone || null,
+            contact_person:
+              vendor.contact_person || primaryPerson?.full_name || null,
+            country: vendor.country || primaryAddress?.country || null,
+            city: vendor.city || primaryAddress?.city || null,
+            state_province:
+              vendor.state_province || primaryAddress?.state_province || null,
+            postal_code: vendor.postal_code || primaryAddress?.postal_code || null,
+            address_line_1:
+              vendor.address_line_1 || primaryAddress?.address_line_1 || null,
+            address_line_2:
+              vendor.address_line_2 || primaryAddress?.address_line_2 || null,
+          };
+        }
+      );
+
       const mappedVendorQuotations = vendorQuotationsResult.data.map(
         (record) => {
           const row = record as VendorQuotationOption & {
@@ -753,7 +872,7 @@ export default function NewPurchaseOrderPage() {
         }
       );
 
-      setVendors(vendorsResult.data as VendorOption[]);
+      setVendors(enrichedVendors);
       setCompanies(companiesResult.data as CompanyOption[]);
       setProjects(projectsResult.data as ProjectOption[]);
       setTasks(tasksResult.data as TaskOption[]);
@@ -809,6 +928,8 @@ export default function NewPurchaseOrderPage() {
 
       const lookupErrors = [
         vendorsResult.error,
+        vendorAddressesResult.error,
+        vendorPersonnelResult.error,
         companiesResult.error,
         projectsResult.error,
         tasksResult.error,

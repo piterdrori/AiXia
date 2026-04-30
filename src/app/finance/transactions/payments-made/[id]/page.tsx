@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+import { convertCurrencyLive } from "@/lib/integrations/frankfurter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -426,6 +427,7 @@ export default function FinancePaymentMadeDetailPage() {
   const [isSavingOverview, setIsSavingOverview] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isRunningAction, setIsRunningAction] = useState(false);
+  const [isConvertingExchangeRate, setIsConvertingExchangeRate] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   const [isOverviewEditMode, setIsOverviewEditMode] = useState(false);
@@ -783,7 +785,7 @@ export default function FinancePaymentMadeDetailPage() {
           sourceVendor = (vendorData || null) as VendorOption | null;
         }
 
-              if (typedPayment.bill_id) {
+        if (typedPayment.bill_id) {
           const { data: billData, error: billError } = await supabase
             .from("finance_bills_received")
             .select(
@@ -959,15 +961,62 @@ export default function FinancePaymentMadeDetailPage() {
   useEffect(() => {
     if (!isOverviewEditMode) return;
 
-    const rawAmount = toNumber(overviewDraft.amount);
-    const rawExchangeRate = toNumber(overviewDraft.exchange_rate) || 1;
-    const calculated = Math.round(rawAmount * rawExchangeRate * 100) / 100;
+    const amount = toNumber(overviewDraft.amount);
+    const fromCurrency = overviewDraft.payment_currency_code;
+    const toCurrency = overviewDraft.bill_currency_code;
 
-    setOverviewDraft((current) => ({
-      ...current,
-      converted_amount: String(calculated),
-    }));
-  }, [isOverviewEditMode, overviewDraft.amount, overviewDraft.exchange_rate]);
+    if (!amount || amount <= 0 || !fromCurrency || !toCurrency) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    async function convertPaymentAmount() {
+      try {
+        setIsConvertingExchangeRate(true);
+
+        const result = await convertCurrencyLive(
+          amount,
+          fromCurrency,
+          toCurrency
+        );
+
+        if (isCancelled) return;
+
+        setOverviewDraft((current) => ({
+          ...current,
+          exchange_rate: String(result.rate),
+          converted_amount: String(result.convertedAmount),
+          exchange_rate_source: "Frankfurter live API",
+          exchange_rate_date: result.date,
+        }));
+      } catch (error) {
+        if (isCancelled) return;
+
+        console.error("Failed to convert payment currency:", error);
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Failed to convert payment currency."
+        );
+      } finally {
+        if (!isCancelled) {
+          setIsConvertingExchangeRate(false);
+        }
+      }
+    }
+
+    void convertPaymentAmount();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    isOverviewEditMode,
+    overviewDraft.amount,
+    overviewDraft.payment_currency_code,
+    overviewDraft.bill_currency_code,
+  ]);
 
   const resetOverviewDraft = useCallback(() => {
     if (!payment) return;
@@ -1062,8 +1111,9 @@ export default function FinancePaymentMadeDetailPage() {
           exchange_rate: toNumber(overviewDraft.exchange_rate),
           converted_amount: toNumber(overviewDraft.converted_amount),
           exchange_rate_source:
-            overviewDraft.exchange_rate_source.trim() || null,
-          exchange_rate_date: overviewDraft.exchange_rate_date || null,
+            overviewDraft.exchange_rate_source.trim() || "Frankfurter live API",
+          exchange_rate_date:
+            overviewDraft.exchange_rate_date || new Date().toISOString().slice(0, 10),
           payment_method_id: overviewDraft.payment_method_id || null,
           paid_from_bank_account_id:
             overviewDraft.paid_from_bank_account_id || null,
@@ -1321,7 +1371,7 @@ export default function FinancePaymentMadeDetailPage() {
                 </div>
               </div>
 
-                            <div className="grid gap-4 sm:grid-cols-2">
+               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -1483,11 +1533,15 @@ export default function FinancePaymentMadeDetailPage() {
                       <>
                         <Button
                           onClick={() => void saveOverview()}
-                          disabled={isSavingOverview}
+                          disabled={isSavingOverview || isConvertingExchangeRate}
                           className="h-10 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           <Save className="mr-2 h-4 w-4" />
-                          {isSavingOverview ? "Saving..." : "Save Payment"}
+                          {isSavingOverview
+                            ? "Saving..."
+                            : isConvertingExchangeRate
+                              ? "Converting..."
+                              : "Save Payment"}
                         </Button>
 
                         <Button
@@ -1733,87 +1787,32 @@ export default function FinancePaymentMadeDetailPage() {
                   )}
                 </label>
 
-                <label className="space-y-2">
+                <div className="space-y-2">
                   <div className={labelClass}>Exchange Rate</div>
-                  {isOverviewEditMode ? (
-                    <input
-                      value={overviewDraft.exchange_rate}
-                      onChange={(event) =>
-                        setOverviewDraft((current) => ({
-                          ...current,
-                          exchange_rate: event.target.value,
-                        }))
-                      }
-                      className={fieldClass}
-                    />
-                  ) : (
-                    <div className={readOnlyBoxClass}>
-                      {toNumber(payment.exchange_rate || 1)}
-                    </div>
-                  )}
-                </label>
+                  <div className={readOnlyBoxClass}>
+                    {isConvertingExchangeRate
+                      ? "Converting..."
+                      : toNumber(
+                          isOverviewEditMode
+                            ? overviewDraft.exchange_rate
+                            : payment.exchange_rate || 1
+                        )}
+                  </div>
+                </div>
 
-                                <label className="space-y-2">
+                <div className="space-y-2">
                   <div className={labelClass}>Effective Bill Amount</div>
-                  {isOverviewEditMode ? (
-                    <input
-                      value={overviewDraft.converted_amount}
-                      onChange={(event) =>
-                        setOverviewDraft((current) => ({
-                          ...current,
-                          converted_amount: event.target.value,
-                        }))
-                      }
-                      className={fieldClass}
-                    />
-                  ) : (
-                    <div className={readOnlyBoxClass}>
-                      {formatMoney(effectiveAmount, billCurrencyCode)}
-                    </div>
-                  )}
-                </label>
-
-                <label className="space-y-2">
-                  <div className={labelClass}>Exchange Rate Source</div>
-                  {isOverviewEditMode ? (
-                    <input
-                      value={overviewDraft.exchange_rate_source}
-                      onChange={(event) =>
-                        setOverviewDraft((current) => ({
-                          ...current,
-                          exchange_rate_source: event.target.value,
-                        }))
-                      }
-                      placeholder="Manual / bank / exchange source"
-                      className={fieldClass}
-                    />
-                  ) : (
-                    <div className={readOnlyBoxClass}>
-                      {payment.exchange_rate_source || "—"}
-                    </div>
-                  )}
-                </label>
-
-                <label className="space-y-2">
-                  <div className={labelClass}>Exchange Rate Date</div>
-                  {isOverviewEditMode ? (
-                    <input
-                      type="date"
-                      value={overviewDraft.exchange_rate_date}
-                      onChange={(event) =>
-                        setOverviewDraft((current) => ({
-                          ...current,
-                          exchange_rate_date: event.target.value,
-                        }))
-                      }
-                      className={fieldClass}
-                    />
-                  ) : (
-                    <div className={readOnlyBoxClass}>
-                      {formatDate(payment.exchange_rate_date)}
-                    </div>
-                  )}
-                </label>
+                  <div className={readOnlyBoxClass}>
+                    {isConvertingExchangeRate
+                      ? "Converting..."
+                      : formatMoney(
+                          isOverviewEditMode
+                            ? overviewDraft.converted_amount
+                            : effectiveAmount,
+                          billCurrencyCode
+                        )}
+                  </div>
+                </div>
 
                 <label className="space-y-2 md:col-span-2">
                   <div className={labelClass}>Paid From Bank Account</div>

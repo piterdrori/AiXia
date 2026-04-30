@@ -58,6 +58,9 @@ type BillRow = {
   vendor_name?: string | null;
   vendor_legal_name?: string | null;
   vendor_code?: string | null;
+  company_id: string | null;
+  company_name?: string | null;
+  company_legal_name?: string | null;
   purchase_order_number?: string | null;
   vendor_quotation_number?: string | null;
 };
@@ -181,6 +184,10 @@ export default function FinanceBillsPage() {
           legal_name?: string | null;
           code?: string | null;
         } | null;
+        finance_companies?: {
+          name?: string | null;
+          legal_name?: string | null;
+        } | null;
         finance_purchase_orders?: {
           purchase_order_number?: string | null;
         } | null;
@@ -194,6 +201,8 @@ export default function FinanceBillsPage() {
         vendor_name: row.finance_vendors?.name ?? null,
         vendor_legal_name: row.finance_vendors?.legal_name ?? null,
         vendor_code: row.finance_vendors?.code ?? null,
+        company_name: row.finance_companies?.name ?? null,
+        company_legal_name: row.finance_companies?.legal_name ?? null,
         purchase_order_number:
           row.finance_purchase_orders?.purchase_order_number ?? null,
         vendor_quotation_number:
@@ -214,6 +223,7 @@ export default function FinanceBillsPage() {
             "id",
             "bill_number",
             "vendor_id",
+            "company_id",
             "purchase_order_id",
             "vendor_quotation_id",
             "document_type",
@@ -231,6 +241,7 @@ export default function FinanceBillsPage() {
             "created_at",
             "updated_at",
             "finance_vendors(name, legal_name, code)",
+            "finance_companies(name, legal_name)",
             "finance_purchase_orders(purchase_order_number)",
             "finance_vendor_quotations(vendor_quotation_number)",
           ].join(", ")
@@ -261,6 +272,7 @@ export default function FinanceBillsPage() {
             "id",
             "bill_number",
             "vendor_id",
+            "company_id",
             "purchase_order_id",
             "vendor_quotation_id",
             "document_type",
@@ -278,6 +290,7 @@ export default function FinanceBillsPage() {
             "created_at",
             "updated_at",
             "finance_vendors(name, legal_name, code)",
+            "finance_companies(name, legal_name)",
             "finance_purchase_orders(purchase_order_number)",
             "finance_vendor_quotations(vendor_quotation_number)",
           ].join(", ")
@@ -346,6 +359,8 @@ export default function FinanceBillsPage() {
             row.vendor_name,
             row.vendor_legal_name,
             row.vendor_code,
+            row.company_name,
+            row.company_legal_name,
             row.purchase_order_number,
             row.vendor_quotation_number,
             row.document_type,
@@ -776,6 +791,12 @@ export default function FinanceBillsPage() {
                             </div>
                             <div className="mt-1 text-xs text-slate-500">
                               {row.vendor_code || "—"}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              Issued to:{" "}
+                              {row.company_legal_name ||
+                                row.company_name ||
+                                "No company"}
                             </div>
                           </td>
 

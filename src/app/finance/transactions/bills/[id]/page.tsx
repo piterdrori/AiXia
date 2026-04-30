@@ -216,7 +216,6 @@ type OverviewDraft = {
   external_document_number: string;
   issue_date: string;
   due_date: string;
-  reference_number: string;
   currency_code: string;
   notes: string;
 };
@@ -445,7 +444,6 @@ export default function FinanceBillDetailPage() {
     external_document_number: "",
     issue_date: "",
     due_date: "",
-    reference_number: "",
     currency_code: "",
     notes: "",
   });
@@ -780,7 +778,6 @@ export default function FinanceBillDetailPage() {
           external_document_number: typedBill.external_document_number || "",
           issue_date: typedBill.issue_date || "",
           due_date: typedBill.due_date || "",
-          reference_number: typedBill.reference_number || "",
           currency_code:
             typedBill.currency_code ||
             sourcePurchaseOrder?.currency_code ||
@@ -926,7 +923,6 @@ export default function FinanceBillDetailPage() {
       external_document_number: bill.external_document_number || "",
       issue_date: bill.issue_date || "",
       due_date: bill.due_date || "",
-      reference_number: bill.reference_number || "",
       currency_code:
         bill.currency_code ||
         purchaseOrderLink?.currency_code ||
@@ -984,7 +980,6 @@ export default function FinanceBillDetailPage() {
             overviewDraft.external_document_number.trim() || null,
           issue_date: overviewDraft.issue_date,
           due_date: overviewDraft.due_date,
-          reference_number: overviewDraft.reference_number.trim() || null,
           currency_code: overviewDraft.currency_code,
           notes: overviewDraft.notes.trim() || null,
           metadata: {
@@ -1267,14 +1262,20 @@ export default function FinanceBillDetailPage() {
                   ) : null}
                 </div>
 
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  {bill.bill_number}
-                </h1>
+                <div className="mt-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                    AiXia Bill No.
+                  </div>
+                  <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                    {bill.bill_number}
+                  </h1>
+                </div>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
                   Vendor PI / invoice received from the supplier. Verify the
-                  currency, original vendor document, line items, and approval
-                  state before creating a payment made record.
+                  vendor document number, currency, original vendor document,
+                  line items, and approval state before creating a payment made
+                  record.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-3">
@@ -1590,26 +1591,10 @@ export default function FinanceBillDetailPage() {
                   )}
                 </label>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Reference Number</div>
-                  {isOverviewEditMode ? (
-                    <input
-                      value={overviewDraft.reference_number}
-                      onChange={(event) =>
-                        setOverviewDraft((current) => ({
-                          ...current,
-                          reference_number: event.target.value,
-                        }))
-                      }
-                      placeholder="Internal / supplier reference"
-                      className={fieldClass}
-                    />
-                  ) : (
-                    <div className={readOnlyBoxClass}>
-                      {bill.reference_number || "—"}
-                    </div>
-                  )}
-                </label>
+                <div className="space-y-2">
+                  <div className={labelClass}>AiXia Bill No.</div>
+                  <div className={readOnlyBoxClass}>{bill.bill_number}</div>
+                </div>
 
                 <label className="space-y-2">
                   <div className={labelClass}>Issue Date</div>
@@ -2468,7 +2453,16 @@ export default function FinanceBillDetailPage() {
                 </CardDescription>
               </CardHeader>
 
-              <CardContent className="space-y-3 p-5">
+                <div className={innerPanelClass}>
+                  <div className={eyebrowClass}>AiXia Bill No.</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {bill.bill_number}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    Internal AiXia vendor document record number.
+                  </div>
+                </div>
+
                 <div className={innerPanelClass}>
                   <div className={eyebrowClass}>Document Status</div>
                   <div className="mt-3 flex flex-wrap gap-2">

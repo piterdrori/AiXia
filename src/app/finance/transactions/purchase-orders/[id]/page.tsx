@@ -2056,8 +2056,6 @@ export default function FinancePurchaseOrderDetailPage() {
                   ) : null}
                 </div>
 
-                </div>
-
                 <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
                   {purchaseOrder.purchase_order_number || "Purchase Order"}
                 </h1>

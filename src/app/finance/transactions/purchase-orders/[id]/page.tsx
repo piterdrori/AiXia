@@ -7,6 +7,7 @@ import {
   FileText,
   Link2,
   Plus,
+  Printer,
   ReceiptText,
   RotateCcw,
   Save,
@@ -1876,6 +1877,10 @@ export default function FinancePurchaseOrderDetailPage() {
     [navigate, purchaseOrder]
   );
 
+  const handlePrint = useCallback(() => {
+    window.print();
+  }, []);
+
   const handleSaveOverview = useCallback(() => {
     if (canEditDraft) {
       void handleSaveDraftChanges();
@@ -2114,6 +2119,15 @@ export default function FinancePurchaseOrderDetailPage() {
                   </Button>
                 </>
               ) : null}
+
+              <Button
+                variant="outline"
+                onClick={handlePrint}
+                className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                Print
+              </Button>
 
               {canArchive ? (
                 <Button

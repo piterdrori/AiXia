@@ -2203,6 +2203,97 @@ export default function FinanceBillDetailPage() {
                 )}
               </CardContent>
             </Card>
+
+            <Card className={sectionCardClass}>
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Control State
+                </CardTitle>
+                <CardDescription className="mt-1 text-xs text-slate-500">
+                  System timestamps and posting state for this vendor document.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                <div className={innerPanelClass}>
+                  <div className={eyebrowClass}>AiXia Bill No.</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {bill.bill_number}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    Internal AiXia vendor document record number.
+                  </div>
+                </div>
+
+                <div className={innerPanelClass}>
+                  <div className={eyebrowClass}>Receiving Company</div>
+                  <div className="mt-2 text-lg font-semibold text-white">
+                    {receivingCompany?.legal_name ||
+                      receivingCompany?.name ||
+                      "No company linked"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {purchaseOrderLink?.purchase_order_number
+                      ? `Inherited from ${purchaseOrderLink.purchase_order_number}`
+                      : "No linked purchase order company found."}
+                  </div>
+                </div>
+
+                <div className={innerPanelClass}>
+                  <div className={eyebrowClass}>Document Status</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge
+                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] shadow-none ${getStatusBadgeClass(
+                        bill.status
+                      )}`}
+                    >
+                      {normalizeStatusLabel(bill.status)}
+                    </Badge>
+
+                    <Badge
+                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] shadow-none ${getApprovalBadgeClass(
+                        bill.approval_status
+                      )}`}
+                    >
+                      {normalizeStatusLabel(bill.approval_status || "pending")}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className={innerPanelClass}>
+                  <div className={eyebrowClass}>Ledger</div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    Posted:{" "}
+                    <span className="font-semibold text-white">
+                      {bill.posted_to_ledger ? "Yes" : "No"}
+                    </span>
+                    <br />
+                    Ledger posted at: {formatDateTime(bill.ledger_posted_at)}
+                    <br />
+                    Ledger entry: {bill.ledger_entry_id || "—"}
+                  </div>
+                </div>
+
+                <div className={innerPanelClass}>
+                  <div className={eyebrowClass}>Payment Link</div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    Linked to payment at:{" "}
+                    {formatDateTime(bill.linked_to_payment_at)}
+                    <br />
+                    Paid at: {formatDateTime(bill.paid_at)}
+                  </div>
+                </div>
+
+                <div className={innerPanelClass}>
+                  <div className={eyebrowClass}>Audit</div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    Created: {formatDateTime(bill.created_at)}
+                    <br />
+                    Updated: {formatDateTime(bill.updated_at)}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="space-y-6">
@@ -2518,97 +2609,6 @@ export default function FinanceBillDetailPage() {
                 <div className="rounded-[20px] border border-violet-400/15 bg-violet-500/10 px-4 py-3 text-sm leading-6 text-violet-100">
                   Flow: Vendor Quotation → Purchase Order → Vendor PI / Invoice
                   → Payment Made.
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Control State
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  System timestamps and posting state for this vendor document.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-3 p-5">
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>AiXia Bill No.</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {bill.bill_number}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Internal AiXia vendor document record number.
-                  </div>
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Receiving Company</div>
-                  <div className="mt-2 text-lg font-semibold text-white">
-                    {receivingCompany?.legal_name ||
-                      receivingCompany?.name ||
-                      "No company linked"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {purchaseOrderLink?.purchase_order_number
-                      ? `Inherited from ${purchaseOrderLink.purchase_order_number}`
-                      : "No linked purchase order company found."}
-                  </div>
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Document Status</div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Badge
-                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] shadow-none ${getStatusBadgeClass(
-                        bill.status
-                      )}`}
-                    >
-                      {normalizeStatusLabel(bill.status)}
-                    </Badge>
-
-                    <Badge
-                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] shadow-none ${getApprovalBadgeClass(
-                        bill.approval_status
-                      )}`}
-                    >
-                      {normalizeStatusLabel(bill.approval_status || "pending")}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Ledger</div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Posted:{" "}
-                    <span className="font-semibold text-white">
-                      {bill.posted_to_ledger ? "Yes" : "No"}
-                    </span>
-                    <br />
-                    Ledger posted at: {formatDateTime(bill.ledger_posted_at)}
-                    <br />
-                    Ledger entry: {bill.ledger_entry_id || "—"}
-                  </div>
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Payment Link</div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Linked to payment at:{" "}
-                    {formatDateTime(bill.linked_to_payment_at)}
-                    <br />
-                    Paid at: {formatDateTime(bill.paid_at)}
-                  </div>
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Audit</div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Created: {formatDateTime(bill.created_at)}
-                    <br />
-                    Updated: {formatDateTime(bill.updated_at)}
-                  </div>
                 </div>
               </CardContent>
             </Card>

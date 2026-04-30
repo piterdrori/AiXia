@@ -820,9 +820,6 @@ export default function FinanceBillDetailPage() {
         let sourceVendorQuotation: VendorQuotationLinkRow | null = null;
         let sourceReceivingCompany: CompanyOption | null = null;
 
-        const receivingCompanyId =
-          typedBill.company_id || sourcePurchaseOrder?.company_id || null;
-         
         if (typedBill.purchase_order_id) {
           const { data: purchaseOrderData, error: purchaseOrderError } =
             await supabase

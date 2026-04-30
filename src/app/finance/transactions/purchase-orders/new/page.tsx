@@ -1558,6 +1558,12 @@ export default function NewPurchaseOrderPage() {
                       {selectedVendor.phone ? (
                         <div>Phone: {selectedVendor.phone}</div>
                       ) : null}
+                      {selectedVendor.code ? (
+                        <div>Vendor Code: {selectedVendor.code}</div>
+                      ) : null}
+                      {selectedVendor.contact_person ? (
+                        <div>Contact: {selectedVendor.contact_person}</div>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -2095,6 +2101,12 @@ export default function NewPurchaseOrderPage() {
                       ) : null}
                       {selectedVendor.phone ? (
                         <div>Phone: {selectedVendor.phone}</div>
+                      ) : null}
+                      {selectedVendor.code ? (
+                        <div>Vendor Code: {selectedVendor.code}</div>
+                      ) : null}
+                      {selectedVendor.contact_person ? (
+                        <div>Contact: {selectedVendor.contact_person}</div>
                       ) : null}
                     </div>
                   ) : null}

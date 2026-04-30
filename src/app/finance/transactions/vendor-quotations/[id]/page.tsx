@@ -7,6 +7,7 @@ import {
   FileText,
   Link2,
   Paperclip,
+  Plus,
   Receipt,
   RotateCcw,
   Save,
@@ -322,6 +323,21 @@ function createLineDraft(line: VendorQuotationLineItem): LineDraft {
     tax_code_id: line.tax_code_id || "",
     expense_category_id: line.expense_category_id || "",
     notes: line.notes || "",
+  };
+}
+
+function createEmptyLineDraft(): LineDraft {
+  return {
+    id: `new-${crypto.randomUUID()}`,
+    item_id: "",
+    description: "",
+    quantity: "1",
+    unit_price: "0",
+    discount: "0",
+    unit_of_measure_id: "",
+    tax_code_id: "",
+    expense_category_id: "",
+    notes: "",
   };
 }
 
@@ -935,6 +951,18 @@ export default function FinanceVendorQuotationDetailPage() {
     []
   );
 
+  const addLineDraft = useCallback(() => {
+    setLineDrafts((current) => [...current, createEmptyLineDraft()]);
+    setIsLinesEditMode(true);
+  }, []);
+
+  const removeLineDraft = useCallback((lineId: string) => {
+    setLineDrafts((current) => {
+      if (current.length <= 1) return current;
+      return current.filter((line) => line.id !== lineId);
+    });
+  }, []);
+
   const handleItemChange = useCallback(
     (lineId: string, itemId: string) => {
       const selectedItem = items.find((item) => item.id === itemId);
@@ -1056,26 +1084,62 @@ export default function FinanceVendorQuotationDetailPage() {
 
       if (!user?.id) throw new Error("User not authenticated");
 
-      for (const [index, line] of lineDrafts.entries()) {
+      const keptExistingIds = lineDrafts
+        .filter((line) => !line.id.startsWith("new-"))
+        .map((line) => line.id);
+
+      const removedExistingLines = lineItems.filter(
+        (line) => !keptExistingIds.includes(line.id)
+      );
+
+      for (const removedLine of removedExistingLines) {
         const { error } = await supabase
           .from("finance_vendor_quotation_line_items")
           .update({
-            item_id: line.item_id || null,
-            description: line.description.trim(),
-            quantity: toNumber(line.quantity),
-            unit_price: toNumber(line.unit_price),
-            discount: toNumber(line.discount),
-            unit_of_measure_id: line.unit_of_measure_id || null,
-            tax_code_id: line.tax_code_id || null,
-            expense_category_id: line.expense_category_id || null,
-            sort_order: index,
-            notes: line.notes.trim() || null,
+            status: "deleted",
             updated_by: user.id,
           })
-          .eq("id", line.id)
+          .eq("id", removedLine.id)
           .eq("vendor_quotation_id", quotation.id);
 
         if (error) throw error;
+      }
+
+      for (const [index, line] of lineDrafts.entries()) {
+        const linePayload = {
+          item_id: line.item_id || null,
+          description: line.description.trim(),
+          quantity: toNumber(line.quantity),
+          unit_price: toNumber(line.unit_price),
+          discount: toNumber(line.discount),
+          unit_of_measure_id: line.unit_of_measure_id || null,
+          tax_code_id: line.tax_code_id || null,
+          expense_category_id: line.expense_category_id || null,
+          sort_order: index,
+          notes: line.notes.trim() || null,
+          updated_by: user.id,
+        };
+
+        if (line.id.startsWith("new-")) {
+          const { error } = await supabase
+            .from("finance_vendor_quotation_line_items")
+            .insert({
+              vendor_quotation_id: quotation.id,
+              ...linePayload,
+              status: "active",
+              created_by: user.id,
+            });
+
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from("finance_vendor_quotation_line_items")
+            .update(linePayload)
+            .eq("id", line.id)
+            .eq("vendor_quotation_id", quotation.id);
+
+          if (error) throw error;
+        }
       }
 
       setIsLinesEditMode(false);
@@ -1088,7 +1152,7 @@ export default function FinanceVendorQuotationDetailPage() {
     } finally {
       setIsSavingLines(false);
     }
-  }, [canEdit, lineDrafts, loadQuotation, quotation]);
+  }, [canEdit, lineDrafts, lineItems, loadQuotation, quotation]);
 
   const uploadDocument = useCallback(async () => {
     if (!quotation || !uploadFile) return;
@@ -1470,7 +1534,7 @@ export default function FinanceVendorQuotationDetailPage() {
                 </div>
 
                 {canEdit ? (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
                     {isOverviewEditMode ? (
                       <>
                         <Button
@@ -1828,9 +1892,18 @@ export default function FinanceVendorQuotationDetailPage() {
                 </div>
 
                 {canEdit ? (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
                     {isLinesEditMode ? (
                       <>
+                        <Button
+                          variant="outline"
+                          onClick={addLineDraft}
+                          className="h-10 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-4 text-emerald-200 hover:bg-emerald-500/20"
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add Line
+                        </Button>
+
                         <Button
                           onClick={() => void saveLines()}
                           disabled={isSavingLines}
@@ -1852,14 +1925,25 @@ export default function FinanceVendorQuotationDetailPage() {
                         </Button>
                       </>
                     ) : (
-                      <Button
-                        variant="outline"
-                        onClick={() => setIsLinesEditMode(true)}
-                        className="h-10 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                      >
-                        <SquarePen className="mr-2 h-4 w-4" />
-                        Edit Lines
-                      </Button>
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={addLineDraft}
+                          className="h-10 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-4 text-emerald-200 hover:bg-emerald-500/20"
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add Line
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsLinesEditMode(true)}
+                          className="h-10 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
+                        >
+                          <SquarePen className="mr-2 h-4 w-4" />
+                          Edit Lines
+                        </Button>
+                      </>
                     )}
                   </div>
                 ) : null}
@@ -1879,23 +1963,37 @@ export default function FinanceVendorQuotationDetailPage() {
                         key={line.id}
                         className="rounded-[24px] border border-white/10 bg-black/20 p-4"
                       >
-                        <div className="mb-4 flex items-center justify-between gap-3">
+                        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div>
                             <div className="text-sm font-semibold text-white">
                               Line {index + 1}
                             </div>
                             <div className="mt-1 text-xs text-slate-500">
-                              Sort order: {line.sort_order}
+                              Sort order: {index}
                             </div>
                           </div>
 
-                          <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-100">
-                            {formatMoney(
-                              isLinesEditMode
-                                ? draftLineTotals[index] || 0
-                                : line.line_total,
-                              quotationCurrencyCode
-                            )}
+                          <div className="flex flex-wrap items-center gap-2">
+                            {isLinesEditMode && draft ? (
+                              <Button
+                                variant="outline"
+                                onClick={() => removeLineDraft(draft.id)}
+                                disabled={lineDrafts.length <= 1}
+                                className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Remove
+                              </Button>
+                            ) : null}
+
+                            <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-100">
+                              {formatMoney(
+                                isLinesEditMode
+                                  ? draftLineTotals[index] || 0
+                                  : line.line_total,
+                                quotationCurrencyCode
+                              )}
+                            </div>
                           </div>
                         </div>
 

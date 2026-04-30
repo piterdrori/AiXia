@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+import PurchaseOrderPrintDocument from "./PurchaseOrderPrintDocument";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -1882,6 +1883,10 @@ export default function FinancePurchaseOrderDetailPage() {
   }, []);
 
   const handleSaveOverview = useCallback(() => {
+    window.print();
+  }, []);
+
+  const handleSaveOverview = useCallback(() => {
     if (canEditDraft) {
       void handleSaveDraftChanges();
     }
@@ -1937,6 +1942,57 @@ export default function FinancePurchaseOrderDetailPage() {
 
   const selectedVendorBankDetailsLines =
     buildVendorBankDetailsLines(selectedVendorBankAccount);
+
+  const printablePurchaseOrder = {
+    ...purchaseOrder,
+    company_name: selectedCompany?.legal_name || selectedCompany?.name || "",
+    company_contact_person: selectedCompany?.contact_person || "",
+    company_email: selectedCompany?.email || "",
+    company_phone: selectedCompany?.phone || "",
+    company_address: buildCompanyAddress(selectedCompany),
+    vendor_name: selectedVendor?.legal_name || selectedVendor?.name || "",
+    vendor_contact_person: selectedVendor?.contact_person || "",
+    vendor_email: selectedVendor?.email || "",
+    vendor_phone: selectedVendor?.phone || "",
+    vendor_address: buildVendorAddress(selectedVendor),
+    vendor_bank_details_snapshot: selectedVendorBankDetailsLines.join("\n"),
+    payment_terms_snapshot: selectedPaymentTerm?.name || "",
+    shipping_terms_snapshot: selectedShippingTerm?.name || "",
+    metadata: {
+      ...(purchaseOrder.metadata || {}),
+      company_snapshot: {
+        legal_name: selectedCompany?.legal_name || selectedCompany?.name || "",
+        name: selectedCompany?.name || "",
+        contact_person: selectedCompany?.contact_person || "",
+        email: selectedCompany?.email || "",
+        phone: selectedCompany?.phone || "",
+        address: buildCompanyAddress(selectedCompany),
+        currency_code: selectedCompany?.currency_code || "",
+      },
+      vendor_snapshot: {
+        legal_name: selectedVendor?.legal_name || selectedVendor?.name || "",
+        name: selectedVendor?.name || "",
+        contact_person: selectedVendor?.contact_person || "",
+        email: selectedVendor?.email || "",
+        phone: selectedVendor?.phone || "",
+        address: buildVendorAddress(selectedVendor),
+        currency_code: selectedVendor?.currency_code || "",
+      },
+      vendor_bank_snapshot: {
+        lines: selectedVendorBankDetailsLines,
+        details: selectedVendorBankDetailsLines.join("\n"),
+      },
+      payment_terms_snapshot: {
+        name: selectedPaymentTerm?.name || "",
+        document_label: selectedPaymentTerm?.name || "",
+      },
+      shipping_terms_snapshot: {
+        name: selectedShippingTerm?.name || "",
+        label: selectedShippingTerm?.name || "",
+      },
+      currency_code: currentCurrencyCode,
+    },
+  };
 
   const visibleArchiveItems = archiveItems.filter(
     (item) => item.status === archiveTab
@@ -4014,6 +4070,17 @@ export default function FinancePurchaseOrderDetailPage() {
             </div>
           </div>
         ) : null}
+
+        <PurchaseOrderPrintDocument
+          purchaseOrder={printablePurchaseOrder}
+          lineItems={lineItems}
+          financialSummary={{
+            subtotal: visibleTotals.subtotal,
+            discount: visibleTotals.discount,
+            tax: visibleTotals.tax,
+            total: visibleTotals.total,
+          }}
+        />
       </div>
     </div>
   );
